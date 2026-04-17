@@ -23,7 +23,7 @@ public static string GetTwo()
     return "two";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/CachedEndpoint.cs#L8-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_response_cache_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/CachedEndpoint.cs#L8-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_response_cache_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.HTTP will also modify the OpenAPI metadata to reflect the caching as well as embed the metadata in the ASP.Net Core 

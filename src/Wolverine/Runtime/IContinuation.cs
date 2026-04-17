@@ -10,8 +10,7 @@ public interface IInlineContinuation
         Activity? activity, CancellationToken cancellation);
 }
 
-#region sample_IContinuation
-
+#region sample_icontinuation
 /// <summary>
 ///     Represents an action to take after processing a message
 /// </summary>

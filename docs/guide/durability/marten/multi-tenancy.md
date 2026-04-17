@@ -51,7 +51,7 @@ builder.Services.AddMarten(m =>
     })
     .IntegrateWithWolverine(x => x.MainDatabaseConnectionString = connectionString);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L13-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_wolverine_for_marten_multi_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you'll probably want this as well to make sure the message storage is in all the databases upfront:
@@ -61,7 +61,7 @@ And you'll probably want this as well to make sure the message storage is in all
 ```cs
 builder.Services.AddResourceSetupOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L38-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L37-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_add_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, this is the Wolverine set up:
@@ -81,7 +81,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L44-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L42-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_setup_for_marten_multitenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 From there, you should be completely ready to use Marten + Wolverine with usages like this:
@@ -113,7 +113,7 @@ public static void Delete(
     session.Delete<Todo>(command.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L74-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Endpoints.cs#L72-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_for_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -133,8 +133,8 @@ public class TenantedDocument : ITenanted
 {
     public Guid Id { get; init; }
 
-    public string TenantId { get; set; }
-    public string Location { get; set; }
+    public string? TenantId { get; set; }
+    public string Location { get; set; } = null!;
 }
 
 // A command to create a new document that's multi-tenanted
@@ -151,7 +151,7 @@ public static class CreateTenantDocumentHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L87-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L85-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For completeness, here's the Wolverine and Marten bootstrapping:
@@ -170,7 +170,7 @@ _host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and after that, the calls to [InvokeForTenantAsync()]() "just work" as you can see if you squint hard enough reading this test:
@@ -198,25 +198,25 @@ public async Task execute_with_tenancy()
     using (var session = store.LightweightSession("one"))
     {
         var document = await session.LoadAsync<TenantedDocument>(id);
-        document.Location.ShouldBe("Andor");
+        document!.Location.ShouldBe("Andor");
     }
 
     // Check the second tenant
     using (var session = store.LightweightSession("two"))
     {
         var document = await session.LoadAsync<TenantedDocument>(id);
-        document.Location.ShouldBe("Tear");
+        document!.Location.ShouldBe("Tear");
     }
 
     // Check the third tenant
     using (var session = store.LightweightSession("three"))
     {
         var document = await session.LoadAsync<TenantedDocument>(id);
-        document.Location.ShouldBe("Illian");
+        document!.Location.ShouldBe("Illian");
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L44-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L43-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

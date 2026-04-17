@@ -1,7 +1,6 @@
 namespace Wolverine.Runtime.Routing;
 
-#region sample_IMessageRouter
-
+#region sample_imessagerouter
 /// <summary>
 /// Holds the compiled rules for the message routing of a single message type
 /// </summary>

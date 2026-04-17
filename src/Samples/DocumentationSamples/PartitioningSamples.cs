@@ -12,7 +12,6 @@ public class PartitioningSamples
     public static async Task listening_with_partitioned_processing()
     {
         #region sample_configuring_partitioned_processing_on_any_listener
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -43,7 +42,6 @@ public class PartitioningSamples
     public static async Task configure_local_partitioning()
     {
         #region sample_opting_into_local_partitioned_routing
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -84,7 +82,6 @@ public class PartitioningSamples
     public static async Task configuring_message_grouping_rules()
     {
         #region sample_configuring_message_grouping_rules
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -113,7 +110,6 @@ public class PartitioningSamples
     public static async Task configuring_by_property_name()
     {
         #region sample_configuring_by_property_name
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -130,7 +126,6 @@ public class PartitioningSamples
     }
 
     #region sample_send_message_with_group_id
-
     public static async Task SendMessageToGroup(IMessageBus bus)
     {
         await bus.PublishAsync(
@@ -143,7 +138,6 @@ public class PartitioningSamples
     public static async Task propagate_group_id_to_partition_key()
     {
         #region sample_propagate_group_id_to_partition_key
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -166,7 +160,6 @@ public record PayInvoice(string Id);
 public static class ApproveInvoiceHandler
 {
     #region sample_using_with_group_id_as_cascading_message
-
     public static IEnumerable<object> Handle(ApproveInvoice command)
     {
         yield return new PayInvoice(command.Id).WithGroupId("aaa");
@@ -176,7 +169,6 @@ public static class ApproveInvoiceHandler
 }
 
 #region sample_order_commands_for_partitioning
-
 public interface IOrderCommand
 {
     public string OrderId { get; }

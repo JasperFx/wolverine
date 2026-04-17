@@ -7,8 +7,7 @@ namespace Wolverine.RabbitMQ.Internal;
 
 public abstract partial class RabbitMqEndpoint
 {
-    #region sample_show_the_NServiceBus_mapping
-
+    #region sample_show_the_nservicebus_mapping
     public void UseNServiceBusInterop()
     {
         // We haven't tried to address this yet, but NSB can stick in some characters

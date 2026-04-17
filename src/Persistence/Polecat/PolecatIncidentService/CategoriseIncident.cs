@@ -4,8 +4,7 @@ using Wolverine.Http.Polecat;
 
 namespace PolecatIncidentService;
 
-#region sample_polecat_CategoriseIncident
-
+#region sample_polecat_categoriseincident
 public record CategoriseIncident(
     IncidentCategory Category,
     Guid CategorisedBy,

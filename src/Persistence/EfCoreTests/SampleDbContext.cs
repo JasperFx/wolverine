@@ -29,7 +29,6 @@ public class CleanDbContext : DbContext
 }
 
 #region sample_mapping_envelope_storage_to_dbcontext
-
 public class SampleMappedDbContext : DbContext
 {
     public SampleMappedDbContext(DbContextOptions<SampleMappedDbContext> options) : base(options)

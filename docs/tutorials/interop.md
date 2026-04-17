@@ -54,7 +54,7 @@ envelope.TenantId = "222";
 // Not every broker cares about this of course
 envelope.GroupId = "BBB";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InteropSamples.cs#L9-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_an_outgoing_envelope' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/InteropSamples.cs#L9-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_an_outgoing_envelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can probably imagine, Wolverine uses this structure all throughout its internals to handle, send, track, and otherwise
@@ -108,7 +108,7 @@ the raw binary data (the MassTransit and CloudEvents interoperability works this
 In this first sample, I'm going to write a simplistic mapper for Kafka that assumes everything coming into an 
 endpoint is JSON and a specific type:
 
-<!-- snippet: sample_OurKafkaJsonMapper -->
+<!-- snippet: sample_ourkafkajsonmapper -->
 <a id='snippet-sample_ourkafkajsonmapper'></a>
 ```cs
 // Simplistic envelope mapper that expects every message to be of
@@ -145,7 +145,7 @@ public class OurKafkaJsonMapper<TMessage> : IKafkaEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L193-L229' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L197-L232' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ourkafkajsonmapper' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Which is essentially how the built in "Raw JSON" mapper works in external transport mappers. In the envelope mapper above
@@ -166,7 +166,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -178,13 +178,13 @@ builder.UseWolverine(opts =>
         {
             // Not sure how useful this would be, but we can start from
             // the baseline Wolverine mapping and just override a few mappings
-            mapper.MapPropertyToHeader(x => x.ContentType, "OtherTool.ContentType");
-            mapper.MapPropertyToHeader(x => x.CorrelationId, "OtherTool.CorrelationId");
+            mapper.MapPropertyToHeader(x => x.ContentType!, "OtherTool.ContentType");
+            mapper.MapPropertyToHeader(x => x.CorrelationId!, "OtherTool.CorrelationId");
             // and more
             
             // or a little uglier where you might be mapping and transforming data between
             // the transport's model and the Wolverine Envelope
-            mapper.MapProperty(x => x.ReplyUri, 
+            mapper.MapProperty(x => x.ReplyUri!,
                 (e, msg) => e.ReplyUri = new Uri($"asb://queue/{msg.ReplyTo}"),
                 (e, msg) => msg.ReplyTo = "response");
             
@@ -192,14 +192,14 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L466-L501' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L451-L485' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That code isn't necessarily for the feint of heart, but that will sometimes be an easier recipe than trying to write
 a custom mapper from scratch. The NServiceBus interoperability for everything but Amazon SQS/SNS transports uses this 
 approach:
 
-<!-- snippet: sample_show_the_NServiceBus_mapping -->
+<!-- snippet: sample_show_the_nservicebus_mapping -->
 <a id='snippet-sample_show_the_nservicebus_mapping'></a>
 ```cs
 public void UseNServiceBusInterop()
@@ -222,14 +222,14 @@ public void UseNServiceBusInterop()
 
         void WriteReplyToAddress(Envelope e, IBasicProperties props)
         {
-            props.Headers["NServiceBus.ReplyToAddress"] = replyAddress.Value;
+            props.Headers!["NServiceBus.ReplyToAddress"] = replyAddress.Value;
         }
 
         void ReadReplyUri(Envelope e, IReadOnlyBasicProperties props)
         {
-            if (props.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
+            if (props.Headers!.TryGetValue("NServiceBus.ReplyToAddress", out var raw))
             {
-                var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
+                var queueName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw!.ToString())!;
                 e.ReplyUri = new Uri($"{_parent.Protocol}://queue/{queueName}");
             }
         }
@@ -238,12 +238,12 @@ public void UseNServiceBusInterop()
     });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L10-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ/Internal/RabbitMqEndpoint.NServiceBus.cs#L10-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_show_the_nservicebus_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, here's another example that works quite differently where the mapper sets a serializer directly on the `Envelope`:
 
-<!-- snippet: sample_MassTransitMapper_for_SQS -->
+<!-- snippet: sample_masstransitmapper_for_sqs -->
 <a id='snippet-sample_masstransitmapper_for_sqs'></a>
 ```cs
 // This guy is the envelope mapper for interoperating
@@ -268,21 +268,31 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
 
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
-        yield break;
+        if (!string.IsNullOrEmpty(envelope.ParentId))
+        {
+            yield return new KeyValuePair<string, MessageAttributeValue>(
+                MassTransitHeaders.ActivityId,
+                new MessageAttributeValue { DataType = "String", StringValue = envelope.ParentId });
+        }
     }
 
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
     {
         // TODO -- this could be more efficient of course
         envelope.Data = Encoding.UTF8.GetBytes(messageBody);
-        
+
         // This is the really important part
         // of the mapping
         envelope.Serializer = _serializer;
+
+        if (attributes.TryGetValue(MassTransitHeaders.ActivityId, out var activityId))
+        {
+            envelope.ParentId = activityId.StringValue;
+        }
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the `MassTransitSerializer` is a two step process that first deserializes a JSON document that contains
@@ -330,7 +340,7 @@ using var host = await Host.CreateDefaultBuilder()
                 });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L193-L226' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_masstransit' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L186-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_masstransit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's some details that you will need to know:
@@ -360,7 +370,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -375,7 +385,7 @@ builder.UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L509-L533' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L493-L516' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And some details that you will need to know:
@@ -418,7 +428,7 @@ using var host = await Host.CreateDefaultBuilder()
             .InteropWithCloudEvents(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L231-L249' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_cloudevents' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L223-L240' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_cloudevents' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With CloudEvents interoperability:

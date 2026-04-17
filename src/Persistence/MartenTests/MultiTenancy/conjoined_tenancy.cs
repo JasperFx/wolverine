@@ -17,7 +17,6 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     public async Task InitializeAsync()
     {
         #region sample_setup_with_conjoined_tenancy
-
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -42,7 +41,6 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
     }
 
     #region sample_using_conjoined_tenancy
-
     [Fact]
     public async Task execute_with_tenancy()
     {
@@ -85,7 +83,6 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
 }
 
 #region sample_conjoined_multi_tenancy_sample_code
-
 // Implementing Marten's ITenanted interface
 // also makes Marten treat this document type as
 // having "conjoined" multi-tenancy

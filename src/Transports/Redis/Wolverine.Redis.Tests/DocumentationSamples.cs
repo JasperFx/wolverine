@@ -17,7 +17,6 @@ public class DocumentationSamples
     public static async Task configure()
     {
         #region sample_bootstrapping_with_redis
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -83,7 +82,6 @@ public class DocumentationSamples
     public static async Task configure_with_database_ids()
     {
         #region sample_redis_database_configuration
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -114,7 +112,6 @@ public class DocumentationSamples
     public static async Task configure_with_uri_helpers()
     {
         #region sample_redis_uri_helpers
-
         // Using URI builder helpers
         var ordersUri = RedisEndpointUri.Stream("orders", databaseId: 1);
         var paymentsUri = RedisEndpointUri.Stream("payments", databaseId: 2, "payment-processors");
@@ -139,7 +136,6 @@ public class DocumentationSamples
     public static async Task working_with_multiple_databases()
     {
         #region sample_multiple_database_usage
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -168,8 +164,7 @@ public class DocumentationSamples
     }
 }
 
-#region sample_RedisInstrumentation_middleware
-
+#region sample_redisinstrumentation_middleware
 public static class RedisInstrumentation
 {
     // Just showing what data elements are available to use for 
@@ -183,8 +178,7 @@ public static class RedisInstrumentation
 
 #endregion
 
-#region sample_OurRedisJsonMapper
-
+#region sample_ourredisjsonmapper
 // Simplistic envelope mapper that expects every message to be of
 // type "T" and serialized as JSON that works perfectly well w/ our
 // application's default JSON serialization

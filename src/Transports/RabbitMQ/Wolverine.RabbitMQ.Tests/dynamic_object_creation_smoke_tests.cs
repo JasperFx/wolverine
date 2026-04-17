@@ -32,7 +32,6 @@ public class dynamic_object_creation_smoke_tests : IAsyncLifetime
         var bindingKey = Guid.NewGuid().ToString();
 
         #region sample_dynamic_creation_of_rabbit_mq_objects
-
         // _host is an IHost
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 

@@ -37,7 +37,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ChaosSender/Program.cs#L13-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ChaosSender/Program.cs#L13-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_integrating_wolverine_with_marten-1'></a>
 ```cs
 var builder = WebApplication.CreateBuilder(args);
@@ -49,7 +49,7 @@ builder.Services.AddMarten(opts =>
             .Configuration
             .GetConnectionString("postgres");
 
-        opts.Connection(connectionString);
+        opts.Connection(connectionString!);
         opts.DatabaseSchemaName = "orders";
     })
     // Optionally add Marten/Postgresql integration
@@ -70,7 +70,7 @@ builder.Host.UseWolverine(opts =>
         .UseDurableInbox();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L8-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_integrating_wolverine_with_marten-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But this time, focus on the Wolverine configuration of the local queue named "important." By marking this local queue as persistent, any messages sent to this queue
@@ -90,5 +90,5 @@ Or finally, it's less code to opt into Wolverine's outbox by delegating to the [
 app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
     => bus.InvokeAsync(command));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L53-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delegate_to_command_bus_from_minimal_api' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WebApiWithMarten/Program.cs#L52-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delegate_to_command_bus_from_minimal_api' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

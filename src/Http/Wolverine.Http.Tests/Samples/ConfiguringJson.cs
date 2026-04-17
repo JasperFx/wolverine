@@ -8,7 +8,6 @@ public class ConfiguringJson
     public static async Task<int> configure(params string[] args)
     {
         #region sample_configuring_stj_for_wolverine
-
         var builder = WebApplication.CreateBuilder();
 
         builder.Host.UseWolverine();

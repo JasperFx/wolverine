@@ -86,12 +86,12 @@ public class Order : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Orders/Order.cs#L6-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga_for_efcore' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Orders/Order.cs#L6-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga_for_efcore' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And a matching `OrdersDbContext` that can persist that type like so:
 
-<!-- snippet: sample_OrdersDbContext -->
+<!-- snippet: sample_ordersdbcontext -->
 <a id='snippet-sample_ordersdbcontext'></a>
 ```cs
 public class OrdersDbContext : DbContext
@@ -119,7 +119,7 @@ public class OrdersDbContext : DbContext
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Orders/Order.cs#L81-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordersdbcontext' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Orders/Order.cs#L80-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordersdbcontext' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's no other registration to do other than adding the `OrdersDbContext` to your IoC container and enabling

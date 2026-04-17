@@ -160,7 +160,6 @@ public record FundsDeposited(decimal Amount);
 #endregion
 
 #region Commands
-
 public record TransferFunds(Guid BankAccountId, Guid ToAccountId, decimal Amount, long Version);
 
 public record TransferFundsWithDualVersion(
@@ -175,7 +174,6 @@ public record TransferWithConsistencyCheckNoConcurrentModification(
 #endregion
 
 #region Handlers
-
 public static class TransferFundsHandler
 {
     public static void Handle(

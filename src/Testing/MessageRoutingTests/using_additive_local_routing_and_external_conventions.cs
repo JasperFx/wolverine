@@ -11,7 +11,6 @@ public class using_additive_local_routing_and_external_conventions : MessageRout
     public static async Task configure_additive_routing()
     {
         #region sample_additive_local_and_external_routing_conventions
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

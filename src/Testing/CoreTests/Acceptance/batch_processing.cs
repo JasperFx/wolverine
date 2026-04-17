@@ -17,7 +17,6 @@ public class batch_processing : IAsyncLifetime
     public async Task InitializeAsync()
     {
         #region sample_configuring_batch_processing
-
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -96,7 +95,6 @@ public class batch_processing : IAsyncLifetime
     }
 
     #region sample_send_end_to_end_with_batch
-
     [Fact]
     public async Task send_end_to_end_with_batch()
     {
@@ -140,7 +138,6 @@ public class batch_processing : IAsyncLifetime
     public static async Task sample_registration_of_custom_message_batcher()
     {
         #region sample_registering_a_custom_message_batcher
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -159,13 +156,11 @@ public class batch_processing : IAsyncLifetime
 public record NoItem(string Name);
 
 #region sample_batch_processing_item
-
 public record Item(string Name);
 
 #endregion
 
 #region sample_batch_processing_handler
-
 public static class ItemHandler
 {
     public static void Handle(Item[] items)
@@ -180,7 +175,6 @@ public static class ItemHandler
 
 
 #region sample_subtask_completed_messages
-
 // Messages at the granular level that might be streaming in
 // very quickly
 public record SubTaskCompleted(string TaskId, string SubTaskId);
@@ -192,8 +186,7 @@ public record SubTaskCompletedBatch(string TaskId, string[] SubTaskIdList);
 
 #endregion
 
-#region sample_SubTaskCompletedBatcher
-
+#region sample_subtaskcompletedbatcher
 public class SubTaskCompletedBatcher : IMessageBatcher
 {
     public IEnumerable<Envelope> Group(IReadOnlyList<Envelope> envelopes)
@@ -239,8 +232,7 @@ public interface ITrackedTaskRepository
     }
 }
 
-#region sample_SubTaskCompletedBatchHandler
-
+#region sample_subtaskcompletedbatchhandler
 public static class SubTaskCompletedBatchHandler
 {
     public static Task<TrackedTask> LoadAsync(SubTaskCompletedBatch batch, ITrackedTaskRepository repository)

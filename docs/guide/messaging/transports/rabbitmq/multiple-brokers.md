@@ -11,7 +11,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     // Connect to the "main" Rabbit MQ broker for this application
-    opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq"));
+    opts.UseRabbitMq(builder.Configuration.GetConnectionString("internal-rabbit-mq")!);
 
     // Listen for incoming messages on the main broker at the queue named "incoming"
     opts.ListenToRabbitQueue("incoming");
@@ -23,7 +23,7 @@ builder.UseWolverine(opts =>
     // BUT! Let's also use a second broker
     opts.AddNamedRabbitMqBroker(external, factory =>
     {
-        factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq"));
+        factory.Uri = new Uri(builder.Configuration.GetConnectionString("external-rabbit-mq")!);
     });
 
     // Listen to a queue on the named, secondary broker
@@ -39,7 +39,7 @@ builder.UseWolverine(opts =>
     opts.PublishAllMessages().ToRabbitTopicsOnNamedBroker(external, "topics");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L673-L707' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_additional_rabbit_mq_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L648-L681' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configure_additional_rabbit_mq_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The `Uri` values for endpoints to the additional broker follows the same rules as the normal usage of the Rabbit MQ

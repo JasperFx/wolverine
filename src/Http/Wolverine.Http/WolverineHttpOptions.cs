@@ -268,8 +268,7 @@ public class WolverineHttpOptions
         Endpoints!.InsertParameterStrategy(strategy);
     }
 
-    #region sample_RequireAuthorizeOnAll
-
+    #region sample_requireauthorizeonall
     /// <summary>
     /// Equivalent of calling RequireAuthorization() on all wolverine endpoints
     /// </summary>

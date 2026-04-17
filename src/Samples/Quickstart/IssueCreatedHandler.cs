@@ -2,8 +2,7 @@ using System.Net.Mail;
 
 namespace Quickstart;
 
-#region sample_Quickstart_IssueCreatedHandler
-
+#region sample_quickstart_issuecreatedhandler
 public static class IssueCreatedHandler
 {
     public static async Task Handle(IssueCreated created, IssueRepository repository)

@@ -134,7 +134,6 @@ public class sending_raw_messages
     public static async Task send_messages_with_raw_data()
     {
         #region sample_simple_rabbit_mq_setup_for_raw_messages
-
         var builder = Host.CreateApplicationBuilder();
         var connectionString = builder.Configuration.GetConnectionString("rabbit");
 
@@ -163,7 +162,6 @@ public class sending_raw_messages
         #endregion
 
         #region sample_context_for_raw_message_sending
-
         // Helper method for testing in Wolverine that
         // gives you a new IMessageBus instance without having to 
         // muck around with scoped service providers
@@ -178,7 +176,6 @@ public class sending_raw_messages
 
 
             #region sample_simple_usage_of_sending_by_raw_data
-
             // Simplest possible usage. This can work because the
             // listening endpoint has a configured default message
             // type
@@ -200,7 +197,6 @@ public class sending_raw_messages
             #endregion
 
             #region sample_more_advanced_usage_of_raw_message_sending
-
             await bus
                 .EndpointFor(new Uri("rabbitmq://queue/control"))
                 

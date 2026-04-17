@@ -14,7 +14,6 @@ public class Samples
     public static async Task no_filters()
     {
         #region sample_circuit_breaker_usage
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

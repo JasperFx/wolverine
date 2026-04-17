@@ -38,10 +38,10 @@ public class AsParametersQuery{
     public Direction EnumNotUsed{get;set;}
 
     [FromQuery]
-    public string StringFromQuery { get; set; }
+    public string StringFromQuery { get; set; } = null!;
     [FromForm]
-    public string StringFromForm { get; set; }
-    public string StringNotUsed { get; set; }
+    public string StringFromForm { get; set; } = null!;
+    public string StringNotUsed { get; set; } = null!;
     [FromQuery]
     public int IntegerFromQuery { get; set; }
     [FromForm]
@@ -59,7 +59,7 @@ public class AsParametersQuery{
     public bool BooleanNotUsed { get; set; }
     
     [FromHeader(Name = "x-string")]
-    public string StringHeader { get; set; }
+    public string StringHeader { get; set; } = null!;
 
     [FromHeader(Name = "x-number")] public int NumberHeader { get; set; } = 5;
     
@@ -110,7 +110,7 @@ response.IntegerNotUsed.ShouldBe(default);
 response.FloatNotUsed.ShouldBe(default);
 response.BooleanNotUsed.ShouldBe(default);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L18-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/asparameters_binding.cs#L18-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_asparameters_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine.HTTP is also able to support `[FromServices]`, `[FromBody]`, and `[FromRoute]` bindings as well
@@ -121,7 +121,7 @@ as shown in this sample from the tests:
 ```cs
 public class AsParameterBody
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public Direction Direction { get; set; }
     public int Distance { get; set; }
 }
@@ -130,13 +130,13 @@ public class AsParametersQuery2
 {
     // We do a check inside of an HTTP endpoint that this works correctly
     [FromServices, JsonIgnore]
-    public IDocumentStore Store { get; set; }
-    
+    public IDocumentStore Store { get; set; } = null!;
+
     [FromBody]
-    public AsParameterBody Body { get; set; }
-    
+    public AsParameterBody Body { get; set; } = null!;
+
     [FromRoute]
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
     
     [FromRoute]
     public int Number { get; set; }
@@ -152,7 +152,7 @@ public static class AsParametersEndpoints2{
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L176-L211' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L176-L210' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, you can use C# records or really just any constructor function as well
@@ -173,14 +173,14 @@ public static class AsParameterRecordEndpoint
     public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L213-L227' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L212-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
 The [Fluent Validation middleware](./fluentvalidation) for Wolverine.HTTP is able to validate against request types
 bound with `[AsParameters]`:
 
-<!-- snippet: sample_using_fluent_validation_with_AsParameters -->
+<!-- snippet: sample_using_fluent_validation_with_asparameters -->
 <a id='snippet-sample_using_fluent_validation_with_asparameters'></a>
 ```cs
 public static class ValidatedAsParametersEndpoint
@@ -208,5 +208,5 @@ public class ValidatedQuery
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L230-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L228-L254' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

@@ -49,7 +49,6 @@ public class transaction_middleware_mode_tests
     public async Task lightweight_mode_should_not_add_transaction_frame()
     {
         #region sample_using_lightweight_ef_core_transactions
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -269,7 +268,6 @@ public class LightweightModeHandler
 public record LightweightAttributeMessage;
 
 #region sample_explicit_usage_of_transaction_middleware_mode
-
 public class LightweightAttributeHandler
 {
     [Transactional(Mode = TransactionMiddlewareMode.Lightweight)]

@@ -16,7 +16,6 @@ public class Account
 public static class Samples
 {
     #region sample_common_scenario
-
     public static async Task Handle(DebitAccount command, IDocumentSession session, ILogger logger)
     {
         // Try to find a matching account for the incoming command
@@ -33,8 +32,7 @@ public static class Samples
     #endregion
 }
 
-#region sample_IAccountCommand
-
+#region sample_iaccountcommand
 public interface IAccountCommand
 {
     Guid AccountId { get; }
@@ -42,14 +40,12 @@ public interface IAccountCommand
 
 #endregion
 
-#region sample_CreditAccount
-
+#region sample_creditaccount
 public record CreditAccount(Guid AccountId, decimal Amount) : IAccountCommand;
 
 #endregion
 
-#region sample_CreditAccountHandler
-
+#region sample_creditaccounthandler
 public static class CreditAccountHandler
 {
     public static void Handle(
@@ -75,8 +71,7 @@ public static class CreditAccountHandler
 
 public record InvalidAccount(Guid AccountId);
 
-#region sample_AccountLookupMiddleware
-
+#region sample_accountlookupmiddleware
 // This is *a* way to build middleware in Wolverine by basically just
 // writing functions/methods. There's a naming convention that
 // looks for Before/BeforeAsync or After/AfterAsync
@@ -123,8 +118,7 @@ public record DebitAccount(Guid AccountId, decimal Amount) : IAccountCommand;
 
 public static class DebitAccountHandler
 {
-    #region sample_DebitAccountHandler_that_uses_IMessageContext
-
+    #region sample_debitaccounthandler_that_uses_imessagecontext
     [Transactional]
     public static async Task Handle(
         DebitAccount command,
@@ -162,7 +156,6 @@ public static class DebitAccountHandler
 }
 
 #region sample_using_deliver_within_attribute
-
 // The attribute directs Wolverine to send this message with
 // a "deliver within 5 seconds, or discard" directive
 [DeliverWithin(5)]

@@ -9,8 +9,7 @@ using IServiceContainer = JasperFx.IServiceContainer;
 
 namespace WolverineWebApi;
 
-#region sample_FromValueSource_attribute
-
+#region sample_fromvaluesource_attribute
 /// <summary>
 /// Simple test attribute that resolves a parameter value from the configured ValueSource.
 /// Used for testing the various value source resolution mechanisms.
@@ -42,7 +41,6 @@ public class FromValueSourceAttribute : WolverineParameterAttribute
 #endregion
 
 #region sample_value_source_test_endpoints
-
 public static class ValueSourceFromHeaderEndpoint
 {
     [WolverineGet("/test/from-header/string")]

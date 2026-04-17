@@ -33,7 +33,6 @@ public class HttpContextEndpoints
     }
 
     #region sample_using_trace_identifier
-
     [WolverineGet("/http/identifier")]
     public string UseTraceIdentifier(string traceIdentifier)
     {

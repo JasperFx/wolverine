@@ -1,7 +1,6 @@
 namespace Quickstart;
 
-#region sample_Quickstart_IssueRepository
-
+#region sample_quickstart_issuerepository
 public class IssueRepository
 {
     private readonly Dictionary<Guid, Issue> _issues = new();

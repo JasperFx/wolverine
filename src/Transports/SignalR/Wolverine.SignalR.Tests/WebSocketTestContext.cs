@@ -14,7 +14,6 @@ using Wolverine.Util;
 namespace Wolverine.SignalR.Tests;
 
 #region sample_signalr_client_test_harness_setup
-
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
     protected WebApplication theWebApp = null!;
@@ -75,7 +74,6 @@ public abstract class WebSocketTestContext : IAsyncLifetime
     public async Task<IHost> StartClientHost(string serviceName = "Client")
     {
         #region sample_bootstrapping_signalr_client_in_test
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

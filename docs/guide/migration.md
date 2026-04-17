@@ -100,7 +100,7 @@ services.AddMarten(opts =>
     })
     .ApplyAllDatabaseChangesOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/DuplicateMessageSending/Program.cs#L50-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_integrate_with_wolverine_with_multiple_options' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/DuplicateMessageSending/Program.cs#L50-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_integrate_with_wolverine_with_multiple_options' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 All Marten/Wolverine integration options are available by this one syntax call now, with the exception of event subscriptions.
@@ -162,7 +162,7 @@ var builder = WebApplication.CreateBuilder(args);
 // will assert this is missing on startup:(
 builder.Services.AddWolverineHttp();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L38-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L40-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Also for Wolverine.Http users, the `[Document]` attribute behavior in the Marten integration is now "required by default."
@@ -181,7 +181,7 @@ in this behavior in its life, but at this point, the Wolverine thinks that this 
 You can selectively override this behavior and tell Wolverine to publish the response as a message no matter what
 by using the new 3.0 `[AlwaysPublishResponse]` attribute like this:
 
-<!-- snippet: sample_using_AlwaysPublishResponse -->
+<!-- snippet: sample_using_alwayspublishresponse -->
 <a id='snippet-sample_using_alwayspublishresponse'></a>
 ```cs
 public class CreateItemCommandHandler
@@ -203,5 +203,5 @@ public class CreateItemCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Bugs/Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_value.cs#L65-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_alwayspublishresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

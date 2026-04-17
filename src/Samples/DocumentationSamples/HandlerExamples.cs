@@ -7,8 +7,7 @@ using Wolverine.Attributes;
 
 namespace DocumentationSamples
 {
-    #region sample_ValidMessageHandlers
-
+    #region sample_validmessagehandlers
     [WolverineHandler]
     public class ValidMessageHandlers
     {
@@ -70,7 +69,6 @@ namespace DocumentationSamples
     public record CreateProject(string Name);
 
     #region sample_instance_handler
-
     // Wolverine does constructor injection as you're probably
     // used to with basically every other framework in .NET
     public class CreateProjectHandler(IProjectRepository Repository)
@@ -89,7 +87,6 @@ namespace DocumentationSamples
 
 
     #region sample_simplest_possible_handler
-
     public class MyMessageHandler
     {
         public void Handle(MyMessage message)
@@ -102,8 +99,7 @@ namespace DocumentationSamples
 
     public class CallingMyMessageHandler
     {
-        #region sample_publish_MyMessage
-
+        #region sample_publish_mymessage
         public static async Task publish_command(IMessageBus bus)
         {
             await bus.PublishAsync(new MyMessage());
@@ -114,8 +110,7 @@ namespace DocumentationSamples
 
     namespace One
     {
-        #region sample_ExampleHandlerByInstance
-
+        #region sample_examplehandlerbyinstance
         public class ExampleHandler
         {
             public void Handle(Message1 message)
@@ -135,8 +130,7 @@ namespace DocumentationSamples
 
     namespace Two
     {
-        #region sample_ExampleHandlerByStaticMethods
-
+        #region sample_examplehandlerbystaticmethods
         public static class ExampleHandler
         {
             public static void Handle(Message1 message)
@@ -158,8 +152,7 @@ namespace DocumentationSamples
     {
         [WolverineIgnore]
 
-        #region sample_HandlerBuiltByConstructorInjection
-
+        #region sample_handlerbuiltbyconstructorinjection
         public class ServiceUsingHandler
         {
             private readonly IDocumentSession _session;
@@ -185,8 +178,7 @@ namespace DocumentationSamples
     {
         [WolverineIgnore]
 
-        #region sample_HandlerUsingMethodInjection
-
+        #region sample_handlerusingmethodinjection
         public static class MethodInjectionHandler
         {
             public static Task Handle(InvoiceCreated message, IDocumentSession session)
@@ -201,8 +193,7 @@ namespace DocumentationSamples
         #endregion
     }
 
-    #region sample_HandlerUsingEnvelope
-
+    #region sample_handlerusingenvelope
     public class EnvelopeUsingHandler
     {
         public void Handle(InvoiceCreated message, Envelope envelope)
@@ -224,8 +215,7 @@ namespace DocumentationSamples
     {
         public static async Task explicit_handler_discovery()
         {
-            #region sample_ExplicitHandlerDiscovery
-
+            #region sample_explicithandlerdiscovery
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {

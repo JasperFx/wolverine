@@ -1,5 +1,4 @@
-#region sample_Quickstart_CreateIssueHandler
-
+#region sample_quickstart_createissuehandler
 namespace Quickstart;
 
 public class CreateIssueHandler

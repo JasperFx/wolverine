@@ -5,8 +5,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-#region sample_ProblemDetailsUsageEndpoint
-
+#region sample_problemdetailsusageendpoint
 public class ProblemDetailsUsageEndpoint
 {
     public ProblemDetails Validate(NumberMessage message)
@@ -36,7 +35,6 @@ public record NumberMessage(int Number);
 #endregion
 
 #region sample_using_problem_details_in_message_handler
-
 public static class NumberMessageHandler
 {
     public static ProblemDetails Validate(NumberMessage message)

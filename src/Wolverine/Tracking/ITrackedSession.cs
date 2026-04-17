@@ -1,7 +1,6 @@
 namespace Wolverine.Tracking;
 
-#region sample_ITrackedSession
-
+#region sample_itrackedsession
 public interface ITrackedSession
 {
     /// <summary>

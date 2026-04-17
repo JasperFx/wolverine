@@ -15,7 +15,7 @@ public class SendingExample
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/channels.cs#L5-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/channels.cs#L5-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_for_static_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Routing Rules
@@ -43,7 +43,7 @@ of the Wolverine configuration.
 
 Programmatically, this code shows how to "look" into the configured Wolverine subscriptions for a message type:
 
-<!-- snippet: sample_PreviewRouting_programmatically -->
+<!-- snippet: sample_previewrouting_programmatically -->
 <a id='snippet-sample_previewrouting_programmatically'></a>
 ```cs
 public static void PreviewRouting(IHost host)
@@ -72,7 +72,7 @@ public static void PreviewRouting(IHost host)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/MessageRoutingContext.cs#L86-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_previewrouting_programmatically' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/MessageRoutingContext.cs#L86-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_previewrouting_programmatically' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 First, you can always use the [command line support](/guide/command-line) to preview Wolverine's known message types by using:
@@ -94,7 +94,7 @@ preview functionality by "telling" Wolverine what your outgoing message types ar
 
 To route messages to specific endpoints, we can apply static message routing rules by using a routing rule as shown below:
 
-<!-- snippet: sample_StaticPublishingRules -->
+<!-- snippet: sample_staticpublishingrules -->
 <a id='snippet-sample_staticpublishingrules'></a>
 ```cs
 using var host = Host.CreateDefaultBuilder()
@@ -111,11 +111,6 @@ using var host = Host.CreateDefaultBuilder()
         // Or use a more fluent interface style
         opts.Publish().MessagesFromAssembly(typeof(PingMessage).Assembly)
             .ToPort(3333);
-
-        // Publish all messages implementing a marker interface to a specific endpoint
-        opts.Publish()
-            .MessagesImplementing<IEventMarker>()
-            .ToPort(4444);
 
         // Complicated rules, I don't think folks will use this much
         opts.Publish(rule =>
@@ -149,7 +144,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToPort(3333);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L12-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/StaticPublishingRule.cs#L12-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_staticpublishingrules' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that doing the message type filtering by namespace will also include child namespaces. In
@@ -176,7 +171,7 @@ public static async Task disable_queue_routing()
             // Other routing conventions. Rabbit MQ? SQS?
         }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L16-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_local_queue_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LocalQueueMessage.cs#L15-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_local_queue_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This does allow you to possibly do better load balancing between
@@ -199,7 +194,7 @@ builder.UseWolverine(opts =>
     var rabbitConnectionString = builder
         .Configuration.GetConnectionString("rabbitmq");
 
-    opts.UseRabbitMq(rabbitConnectionString)
+    opts.UseRabbitMq(rabbitConnectionString!)
         .AutoProvision()
 
         // Using the built in, default Rabbit MQ message routing conventions
@@ -210,7 +205,7 @@ builder.UseWolverine(opts =>
     opts.Policies.ConventionalLocalRoutingIsAdditive();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_additive_local_routing_and_external_conventions.cs#L13-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_additive_local_and_external_routing_conventions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_additive_local_routing_and_external_conventions.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_additive_local_and_external_routing_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Routing Internals
@@ -219,7 +214,7 @@ Wolverine has an internal model called `IMessageRoute` that models a subscriptio
 for a message type that "knows" how to create the Wolverine `Envelope` for a single
 outgoing message to a single subscribing endpoint:
 
-<!-- snippet: sample_IMessageRoute -->
+<!-- snippet: sample_imessageroute -->
 <a id='snippet-sample_imessageroute'></a>
 ```cs
 /// <summary>
@@ -234,7 +229,7 @@ public interface IMessageRoute
     MessageSubscriptionDescriptor Describe();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L5-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoute.cs#L5-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This type "knows" about any endpoint or model sending customizations like delivery expiration
@@ -297,7 +292,7 @@ Wolverine has a handful of built in `IMessageRouteSource` implementations in pre
 Let's say you want to use a completely different conventional routing topology than anything Wolverine provides out
 of the box. You can do that by creating your own implementation of this interface:
 
-<!-- snippet: sample_IMessageRoutingConvention -->
+<!-- snippet: sample_imessageroutingconvention -->
 <a id='snippet-sample_imessageroutingconvention'></a>
 ```cs
 /// <summary>
@@ -321,7 +316,7 @@ public interface IMessageRoutingConvention
     IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As a concrete example, the Wolverine team received [this request](https://github.com/JasperFx/wolverine/issues/1130) to conventionally route messages based on 
@@ -329,7 +324,7 @@ the message type name to a [Rabbit MQ exchange and routing key](https://www.rabb
 That's not something that Wolverine supports out of the box, but you could build your own simplistic routing
 convention like this:
 
-<!-- snippet: sample_RouteKeyConvention -->
+<!-- snippet: sample_routekeyconvention -->
 <a id='snippet-sample_routekeyconvention'></a>
 ```cs
 public class RouteKeyConvention : IMessageRoutingConvention
@@ -364,12 +359,12 @@ public class RouteKeyConvention : IMessageRoutingConvention
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/RouteKeyConvention.cs#L11-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_routekeyconvention' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/RouteKeyConvention.cs#L11-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_routekeyconvention' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And register it to your Wolverine application like so:
 
-<!-- snippet: sample_register_RouteKeyConvention -->
+<!-- snippet: sample_register_routekeyconvention -->
 <a id='snippet-sample_register_routekeyconvention'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
@@ -379,19 +374,19 @@ var rabbitConnectionString = builder
 
 builder.UseWolverine(opts =>
 {
-    opts.UseRabbitMq(rabbitConnectionString)
+    opts.UseRabbitMq(rabbitConnectionString!)
         .AutoProvision();
 
     var exchangeName = builder
         .Configuration
         .GetValue<string>("exchange-name");
 
-    opts.RouteWith(new RouteKeyConvention(exchangeName));
+    opts.RouteWith(new RouteKeyConvention(exchangeName!));
 });
 
 // actually start the app...
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/RouteKeyConvention.cs#L51-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_routekeyconvention' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/RouteKeyConvention.cs#L50-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_routekeyconvention' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

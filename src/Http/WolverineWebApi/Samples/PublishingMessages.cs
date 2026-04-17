@@ -8,8 +8,7 @@ public class PublishingMessages
 {
     public void setup_for_publishing()
     {
-        #region sample_publish_http_methods_directly_to_Wolverine
-
+        #region sample_publish_http_methods_directly_to_wolverine
         var builder = WebApplication.CreateBuilder();
 
         builder.Host.UseWolverine();

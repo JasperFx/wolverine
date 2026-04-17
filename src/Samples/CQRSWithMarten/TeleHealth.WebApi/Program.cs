@@ -16,7 +16,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.ApplyJasperFxExtensions();
 
 #region sample_configuring_wolverine_event_subscriptions
-
 builder.Host.UseWolverine(opts =>
 {
     // I'm choosing to process any ChartingFinished event messages
@@ -58,7 +57,6 @@ builder.Services.AddMarten(opts =>
 });
 
 #region sample_opting_into_wolverine_event_publishing
-
 builder.Services.AddMarten(opts =>
     {
         var connString = builder

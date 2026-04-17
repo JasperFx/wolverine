@@ -170,7 +170,6 @@ public record FundsDeposited(decimal Amount);
 #endregion
 
 #region Commands
-
 // Default version convention: only the first [WriteAggregate] picks up "Version"
 public record TransferFunds(Guid BankAccountId, Guid ToAccountId, decimal Amount, long Version);
 
@@ -189,7 +188,6 @@ public record TransferWithConsistencyCheckNoConcurrentModification(
 #endregion
 
 #region Handlers
-
 // Default behavior: first [WriteAggregate] picks up "Version", second does not
 public static class TransferFundsHandler
 {

@@ -10,7 +10,6 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 
 #region sample_configuring_signalr_on_server_side
-
 builder.UseWolverine(opts =>
 {
     // This is the only single line of code necessary
@@ -61,7 +60,6 @@ builder.UseWolverine(opts =>
 builder.Services.AddHostedService<Pinging>();
 
 #region sample_using_map_wolverine_signalrhub
-
 var app = builder.Build();
 
 app.UseRouting();

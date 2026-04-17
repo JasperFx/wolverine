@@ -19,7 +19,6 @@ public class intrinsic_serialization
 }
 
 #region sample_intrinsic_serialization
-
 public class SerializedMessage : ISerializable
 {
     public string Name { get; set; } = "Bob Schneider";

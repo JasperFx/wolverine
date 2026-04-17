@@ -15,7 +15,6 @@ public class disabling_dead_letter_queue
     public async Task do_not_create_dead_letter_queue()
     {
         #region sample_disabling_all_sqs_dead_letter_queueing
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

@@ -16,7 +16,6 @@ public class asparameters_binding : IntegrationContext
     public async Task fill_all_fields()
     {
         #region sample_using_asparameters_test
-
         var result = await Host.Scenario(x => x
             .Post
             .FormData(new Dictionary<string, string>

@@ -87,7 +87,6 @@ public record TriggerZero(string Topic);
 public static class ZeroMessageHandler
 {
     #region sample_ack_mqtt_topic
-
     public static AckMqttTopic Handle(ZeroMessage message)
     {
         // "Zero out" the topic that the original message was received from

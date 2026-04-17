@@ -17,8 +17,7 @@ public class DeleteUser
     public int Number3;
 }
 
-#region sample_PingAndPongMessage
-
+#region sample_pingandpongmessage
 public class PingMessage
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -48,7 +47,6 @@ public class ImplicitPong
 public class PingHandler
 {
     #region sample_respond_to_sender
-
     public object Handle(PingMessage message)
     {
         var pong = new PongMessage { Id = message.Id };

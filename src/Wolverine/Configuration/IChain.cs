@@ -78,8 +78,7 @@ public static class ChainMiddlewareExtensions
     }
 }
 
-#region sample_IChain
-
+#region sample_ichain
 /// <summary>
 ///     Models the middleware arrangement for either an HTTP route execution
 ///     or the execution of a message

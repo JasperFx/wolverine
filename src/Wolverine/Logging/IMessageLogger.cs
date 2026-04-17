@@ -1,7 +1,6 @@
 namespace Wolverine.Logging;
 
-#region sample_IMessageTracker
-
+#region sample_imessagetracker
 /// <summary>
 ///     Abstraction for Wolverine's message tracking
 /// </summary>

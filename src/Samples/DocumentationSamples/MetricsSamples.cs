@@ -8,7 +8,6 @@ public class MetricsSamples
     public static async Task configure_metrics_header()
     {
         #region sample_using_organization_tagging_middleware
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -28,7 +27,6 @@ public record SomeResponse(string Name);
 public static class SomeOperationHandler
 {
     #region sample_tenant_id_tagging
-
     public static async Task publish_operation(IMessageBus bus, string tenantId, string name)
     {
         // All outgoing messages or executed messages from this
@@ -41,7 +39,6 @@ public static class SomeOperationHandler
 }
 
 #region sample_organization_tagging_middleware
-
 // Common interface on message types within our system
 public interface IOrganizationRelated
 {

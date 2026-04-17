@@ -8,7 +8,6 @@ public class Samples
     public async Task bootstrap()
     {
         #region sample_using_protobuf_for_the_default_for_the_app
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -22,7 +21,6 @@ public class Samples
     public async Task bootstrap_selectively()
     {
         #region sample_using_protobuf_on_selected_endpoints
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

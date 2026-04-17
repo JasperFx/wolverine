@@ -11,8 +11,7 @@ using Wolverine.Runtime;
 
 namespace WolverineWebApi.Samples;
 
-#region sample_TodoController_delegating_to_Wolverine
-
+#region sample_todocontroller_delegating_to_wolverine
 public class TodoController : ControllerBase
 {
     [HttpPost("/todoitems")]
@@ -35,7 +34,6 @@ public static class MinimalApiSample
     public static void MapToWolverine(WebApplication app)
     {
         #region sample_wolverine_within_minimal_api
-
         // app in this case is a WebApplication object
         app.MapPost("/todoitems", async (CreateTodo command, IMessageBus bus) =>
         {
@@ -49,7 +47,6 @@ public static class MinimalApiSample
     public static void MapToWolverine2(WebApplication app)
     {
         #region sample_map_route_to_wolverine_handler
-
         // This is *almost* an equivalent, but you'd get a status
         // code of 200 instead of 201. If you care about that anyway.
         app.MapPostToWolverine<CreateTodo, Todo>("/todoitems");
@@ -59,7 +56,6 @@ public static class MinimalApiSample
 }
 
 #region sample_create_todo_handler
-
 public class CreateTodoHandler
 {
     public static (Todo, TodoCreated) Handle(CreateTodo command, IDocumentSession session)
@@ -82,7 +78,6 @@ public record CreateTodo(string Name);
 public record TodoCreated(int Id);
 
 #region sample_using_wolverine_endpoint_for_create_todo
-
 // Introducing this special type just for the http response
 // gives us back the 201 status code
 public record TodoCreationResponse(int Id)
@@ -123,7 +118,6 @@ public class Todo
 }
 
 #region sample_update_with_required_entity
-
 public record UpdateRequest(string Name, bool IsComplete);
 
 public static class UpdateEndpoint

@@ -25,7 +25,6 @@ public class simple_end_to_end : WebSocketTestContext
     }
 
     #region sample_end_to_end_test_with_signalr
-
     [Fact]
     public async Task receive_message_from_a_client()
     {

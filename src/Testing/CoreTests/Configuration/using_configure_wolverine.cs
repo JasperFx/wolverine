@@ -12,7 +12,6 @@ public class using_configure_wolverine
     public async Task use_configure_wolverine()
     {
         #region sample_using_configure_wolverine
-
         var builder = Host.CreateApplicationBuilder();
         
         // Baseline Wolverine configuration

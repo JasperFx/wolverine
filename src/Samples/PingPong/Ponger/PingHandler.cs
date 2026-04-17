@@ -1,5 +1,4 @@
-#region sample_PingHandler
-
+#region sample_pinghandler
 using Messages;
 using Microsoft.Extensions.Logging;
 using Wolverine;

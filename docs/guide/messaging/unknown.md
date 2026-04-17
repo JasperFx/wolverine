@@ -20,14 +20,14 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("rabbit");
-    opts.UseRabbitMq(connectionString).UseConventionalRouting();
+    opts.UseRabbitMq(connectionString!).UseConventionalRouting();
 
     // All unknown message types received should be placed into 
     // the proper dead letter queue mechanism
     opts.UnknownMessageBehavior = UnknownMessageBehavior.DeadLetterQueue;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/moving_unknown_message_type_to_dlq.cs#L23-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unknown_messages_go_to_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/moving_unknown_message_type_to_dlq.cs#L23-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_unknown_messages_go_to_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The message will be moved to the dead letter queue mechanism for the listening endpoint where the message was received.
@@ -42,7 +42,7 @@ each one that is registered for the missing handler behavior.
 You can direct Wolverine to take custom actions on messages received with unknown message type names by providing
 a custom implementation of this interface:
 
-<!-- snippet: sample_IMissingHandler -->
+<!-- snippet: sample_imissinghandler -->
 <a id='snippet-sample_imissinghandler'></a>
 ```cs
 namespace Wolverine;
@@ -67,7 +67,7 @@ public interface IMissingHandler
 
 Here's a made up sample that theoretically posts a message to a Slack room by sending a Wolverine message in response:
 
-<!-- snippet: sample_MyCustomActionForMissingHandlers -->
+<!-- snippet: sample_mycustomactionformissinghandlers -->
 <a id='snippet-sample_mycustomactionformissinghandlers'></a>
 ```cs
 public class MyCustomActionForMissingHandlers : IMissingHandler
@@ -76,11 +76,11 @@ public class MyCustomActionForMissingHandlers : IMissingHandler
     {
         var bus = new MessageBus(root);
         return bus.PublishAsync(new PostInSlack("Incidents",
-            $"Got an unknown message with type '{context.Envelope.MessageType}' and id {context.Envelope.Id}"));
+            $"Got an unknown message with type '{context.Envelope!.MessageType}' and id {context.Envelope.Id}"));
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L10-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mycustomactionformissinghandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L10-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_mycustomactionformissinghandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And simply registering that with your application's IoC container against the `IMissingHandler` interface like this:
@@ -97,7 +97,7 @@ builder.UseWolverine(opts =>
 
 builder.Services.AddSingleton<IMissingHandler, MyCustomActionForMissingHandlers>();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L28-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_missing_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MissingHandlerSample.cs#L27-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_custom_missing_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Tracked Session Testing

@@ -62,8 +62,7 @@ public class CreateItemCommand
     public string Name { get; set; } = string.Empty;
 }
 
-#region sample_using_AlwaysPublishResponse
-
+#region sample_using_alwayspublishresponse
 public class CreateItemCommandHandler
 {
     // Using this attribute will force Wolverine to also publish the ItemCreated event even if

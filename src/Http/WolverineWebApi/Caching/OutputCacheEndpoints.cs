@@ -8,7 +8,6 @@ public static class OutputCacheEndpoints
     private static int _counter;
 
     #region sample_output_cache_endpoint
-
     [WolverineGet("/api/cached")]
     [OutputCache(PolicyName = "short")]
     public static string GetCached()
@@ -19,7 +18,6 @@ public static class OutputCacheEndpoints
     #endregion
 
     #region sample_output_cache_default_endpoint
-
     [WolverineGet("/api/cached-default")]
     [OutputCache]
     public static string GetCachedDefault()

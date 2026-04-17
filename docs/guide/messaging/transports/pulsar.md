@@ -24,7 +24,7 @@ builder.UseWolverine(opts =>
     opts.UsePulsar(c =>
     {
         var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-        c.ServiceUrl(pulsarUri);
+        c.ServiceUrl(pulsarUri!);
         
         // Any other configuration you want to apply to your
         // Pulsar client
@@ -53,7 +53,7 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L12-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The topic name format is set by Pulsar itself, and you can learn more about its format in [Pulsar Topics](https://pulsar.apache.org/docs/next/concepts-messaging/#topics). 
@@ -78,7 +78,7 @@ builder.UseWolverine(opts =>
     opts.UsePulsar(c =>
     {
         var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-        c.ServiceUrl(pulsarUri);
+        c.ServiceUrl(pulsarUri!);
     });
 
     // Listen for incoming messages from a Pulsar topic
@@ -96,7 +96,7 @@ builder.UseWolverine(opts =>
     opts.DisablePulsarRequeue();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L55-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L54-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_requeue_for_pulsar' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you have an application that has receive only access to a subscription but not permissions to publish to Pulsar,
@@ -116,14 +116,14 @@ builder.UseWolverine(opts =>
     opts.UsePulsar(c =>
     {
         var pulsarUri = builder.Configuration.GetValue<Uri>("pulsar");
-        c.ServiceUrl(pulsarUri);
+        c.ServiceUrl(pulsarUri!);
     });
 
     // Disable unsubscribe on close for all Pulsar endpoints
     opts.UnsubscribePulsarOnClose(PulsarUnsubscribeOnClose.Disabled);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L86-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_unsubscribe_on_close' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Global Partitioning

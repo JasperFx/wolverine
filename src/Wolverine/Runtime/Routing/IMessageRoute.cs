@@ -2,8 +2,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.Routing;
 
-#region sample_IMessageRoute
-
+#region sample_imessageroute
 /// <summary>
 /// Contains all the rules for where and how an outgoing message
 /// should be sent to a single subscriber

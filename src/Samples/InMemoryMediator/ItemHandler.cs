@@ -2,8 +2,7 @@ using Wolverine.Attributes;
 
 namespace InMemoryMediator;
 
-#region sample_InMemoryMediator_Items
-
+#region sample_inmemorymediator_items
 public class ItemHandler
 {
     // This attribute applies Wolverine's EF Core transactional

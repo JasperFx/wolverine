@@ -5,7 +5,6 @@ using Wolverine;
 using Wolverine.RabbitMQ;
 
 #region sample_bootstrapping_rabbitmq
-
 return await Host.CreateDefaultBuilder(args)
     .UseWolverine(opts =>
     {

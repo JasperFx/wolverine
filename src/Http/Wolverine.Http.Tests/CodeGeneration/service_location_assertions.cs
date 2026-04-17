@@ -43,7 +43,6 @@ public class service_location_assertions
     public static void configure_with_always_use_service_locator()
     {
         #region sample_always_use_service_location
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -395,7 +394,6 @@ public static class SampleServiceLocation
     public static async Task<int> bootstrap(string[] args)
     {
         #region sample_bootstrapping_with_httpcontext_request_services
-
         var builder = WebApplication.CreateBuilder();
 
         builder.UseWolverine(opts =>

@@ -73,7 +73,6 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         Func<MessageContext, ValueTask> action)
     {
         #region sample_basic_sql_server_outbox_sample
-
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
             await conn.OpenAsync();
@@ -116,8 +115,7 @@ public class TriggerMessageReceiver
     }
 }
 
-#region sample_UsingSqlTransaction
-
+#region sample_usingsqltransaction
 public class ItemCreatedHandler
 {
     [Transactional]
@@ -138,8 +136,7 @@ public class ItemCreatedHandler
 
 public class CreateItemHandler
 {
-    #region sample_SqlServerOutboxWithSqlTransaction
-
+    #region sample_sqlserveroutboxwithsqltransaction
     [Transactional]
     public async Task<ItemCreatedEvent> Handle(CreateItemCommand command, SqlTransaction tx)
     {

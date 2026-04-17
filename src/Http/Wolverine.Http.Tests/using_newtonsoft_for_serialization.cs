@@ -16,7 +16,6 @@ public class using_newtonsoft_for_serialization
     public async Task end_to_end()
     {
         #region sample_use_newtonsoft_for_http_serialization
-
         var builder = WebApplication.CreateBuilder([]);
         builder.Services.AddScoped<IUserService, UserService>();
 

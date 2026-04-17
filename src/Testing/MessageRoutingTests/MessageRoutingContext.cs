@@ -83,8 +83,7 @@ public class MessageRoutingContext : IAsyncLifetime
         envelopes.Any().ShouldBeFalse();
     }
 
-    #region sample_PreviewRouting_programmatically
-
+    #region sample_previewrouting_programmatically
     public static void PreviewRouting(IHost host)
     {
         // In test projects, you would probably have access to the IHost for 

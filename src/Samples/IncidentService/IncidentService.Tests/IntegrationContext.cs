@@ -9,8 +9,7 @@ using Xunit;
 namespace IncidentService.Tests;
 
 
-#region sample_AppFixture_in_incident_service_testing
-
+#region sample_appfixture_in_incident_service_testing
 public class AppFixture : IAsyncLifetime
 {
     public IAlbaHost? Host { get; private set; }
@@ -47,8 +46,7 @@ public class AppFixture : IAsyncLifetime
 
     #endregion
 
-    #region sample_IntegrationContext_for_integration_service
-
+    #region sample_integrationcontext_for_integration_service
     [CollectionDefinition("integration")]
     public class IntegrationCollection : ICollectionFixture<AppFixture>;
 

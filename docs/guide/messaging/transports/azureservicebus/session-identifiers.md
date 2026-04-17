@@ -55,7 +55,7 @@ _host = await Host.CreateDefaultBuilder()
             .ProcessInline();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L18-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L19-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To publish messages to Azure Service Bus with a session id, you will need to of course supply the session id:
@@ -68,7 +68,7 @@ await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" 
 await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
 await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L151-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L151-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -93,6 +93,6 @@ public static IEnumerable<object> Handle(IncomingMessage message)
     yield return new Message4().WithDeliveryOptions(new() { GroupId = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/using_group_ids.cs#L9-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_id_and_cascading_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

@@ -46,8 +46,7 @@ public record SpawnInput(string Name);
 
 public static class MessageSpawnerEndpoint
 {
-    #region sample_publishing_cascading_messages_from_Http_endpoint_with_IMessageBus
-
+    #region sample_publishing_cascading_messages_from_http_endpoint_with_imessagebus
     // This would have an empty response and a 204 status code
     [WolverinePost("/spawn3")]
     public static async ValueTask SendViaMessageBus(IMessageBus bus)
@@ -58,8 +57,7 @@ public static class MessageSpawnerEndpoint
 
     #endregion
 
-    #region sample_publishing_cascading_messages_from_Http_endpoint
-
+    #region sample_publishing_cascading_messages_from_http_endpoint
     // This would have an empty response and a 204 status code
     [EmptyResponse]
     [WolverinePost("/spawn2")]
@@ -70,8 +68,7 @@ public static class MessageSpawnerEndpoint
 
     #endregion
 
-    #region sample_spawning_messages_from_http_endpoint_via_OutgoingMessages
-
+    #region sample_spawning_messages_from_http_endpoint_via_outgoingmessages
     // This would have a string response and a 200 status code
     [WolverinePost("/spawn")]
     public static (string, OutgoingMessages) Post(SpawnInput input)

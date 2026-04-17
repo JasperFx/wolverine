@@ -13,7 +13,6 @@ public class PublishingEndpoint<T>
     }
 
     #region sample_programmatic_one_off_openapi_metadata
-
     public static void Configure(HttpChain chain)
     {
         // This sample is from Wolverine itself on endpoints where all you do is forward

@@ -7,7 +7,6 @@ namespace DocumentationSamples;
 public class using_group_ids
 {
     #region sample_group_id_and_cascading_messages
-
     public static IEnumerable<object> Handle(IncomingMessage message)
     {
         yield return new Message1().WithGroupId("one");
@@ -27,7 +26,6 @@ public record IncomingMessage;
 public class using_tenant_id
 {
     #region sample_using_tenant_id_and_cascading_messages
-
     public static IEnumerable<object> Handle(IncomingMessage message)
     {
         yield return new Message1().WithTenantId("one");

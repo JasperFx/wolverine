@@ -12,7 +12,6 @@ public class DocumentationSamples
     public static async Task configure()
     {
         #region sample_bootstrapping_with_kafka
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -137,7 +136,6 @@ public class DocumentationSamples
     public static async Task disable_producing()
     {
         #region sample_disable_all_kafka_sending
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -157,7 +155,6 @@ public class DocumentationSamples
     public static async Task use_named_brokers()
     {
         #region sample_using_multiple_kafka_brokers
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -183,8 +180,7 @@ public class DocumentationSamples
     }
 }
 
-#region sample_KafkaInstrumentation_middleware
-
+#region sample_kafkainstrumentation_middleware
 public static class KafkaInstrumentation
 {
     // Just showing what data elements are available to use for 
@@ -198,8 +194,7 @@ public static class KafkaInstrumentation
 
 #endregion
 
-#region sample_OurKafkaJsonMapper
-
+#region sample_ourkafkajsonmapper
 // Simplistic envelope mapper that expects every message to be of
 // type "T" and serialized as JSON that works perfectly well w/ our
 // application's default JSON serialization

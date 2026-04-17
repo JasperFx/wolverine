@@ -4,7 +4,6 @@ using Wolverine;
 namespace WolverineWebApi.Samples;
 
 #region sample_using_as_mediator
-
 public class MediatorController : ControllerBase
 {
     [HttpPost("/question")]

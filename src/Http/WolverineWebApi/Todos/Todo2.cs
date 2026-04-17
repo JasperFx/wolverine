@@ -21,7 +21,6 @@ public record CreateTodo2(string Id, string Name);
 public record DeleteTodo(string Id);
 
 #region sample_rename_todo
-
 public record RenameTodo(string Id, string Name);
 
 #endregion
@@ -53,7 +52,6 @@ public static class TodoHandler
     });
 
     #region sample_using_entity_attribute
-
     // Use "Id" as the default member
     [WolverinePost("/api/todo/update")]
     public static Update<Todo2> Handle(
@@ -142,7 +140,6 @@ public static class TodoHandler
     }
 
     #region sample_using_not_required_entity_attribute
-
     [WolverinePost("/api/todo/maybecomplete")]
     public static IStorageAction<Todo2> Handle(MaybeCompleteTodo command, [Entity(Required = false)] Todo2? todo)
     {
@@ -154,7 +151,6 @@ public static class TodoHandler
     #endregion
 
     #region sample_specifying_the_exact_route_argument
-
     // Okay, I still used "id", but it *could* be something different here!
     [WolverineGet("/api/todo/{id}")]
     public static Todo2 Get([Entity("id")] Todo2 todo) => todo;
@@ -187,7 +183,6 @@ public static class MarkTaskCompleteIfBrokenHandler
 public record ExamineFirst(string Todo2Id);
 
 #region sample_using_continue_result_as_filter
-
 public static class ExamineFirstHandler
 {
     public static bool DidContinue { get; set; }

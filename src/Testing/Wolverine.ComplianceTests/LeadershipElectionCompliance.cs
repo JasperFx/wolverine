@@ -88,7 +88,6 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
                 opts.Services.AddResourceSetupOnStartup();
 
                 #region sample_register_singular_agent
-
                 // Little extension method helper on IServiceCollection to register your
                 // SingularAgent
                 opts.Services.AddSingularAgent<SimpleSingularAgent>();

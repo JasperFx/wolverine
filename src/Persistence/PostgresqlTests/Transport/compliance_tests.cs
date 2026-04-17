@@ -63,7 +63,6 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
                 .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
             #region sample_setting_postgres_queue_to_buffered
-
             opts.ListenToPostgresqlQueue("sender").BufferedInMemory();
 
             #endregion

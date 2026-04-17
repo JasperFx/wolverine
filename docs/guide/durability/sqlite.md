@@ -29,7 +29,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up SQLite-backed message storage
     // This requires a reference to Wolverine.Sqlite
-    opts.PersistMessagesWithSqlite(connectionString);
+    opts.PersistMessagesWithSqlite(connectionString!);
 
     // Other Wolverine configuration
 });
@@ -46,7 +46,7 @@ var app = builder.Build();
 // the message storage
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L15-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlite_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L15-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_sqlite_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Connection String Examples
@@ -62,7 +62,7 @@ opts.PersistMessagesWithSqlite("Data Source=wolverine.db");
 // File-based database in an application data folder
 opts.PersistMessagesWithSqlite("Data Source=./data/wolverine.db");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L49-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L48-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -83,7 +83,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("sqlite");
-    opts.UseSqlitePersistenceAndTransport(connectionString)
+    opts.UseSqlitePersistenceAndTransport(connectionString!)
 
         // Tell Wolverine to build out all necessary queue or scheduled message
         // tables on demand as needed
@@ -107,7 +107,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L63-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlite_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L61-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlite_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The SQLite transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -118,7 +118,7 @@ that they are utilizing the transactional inbox and outbox. The SQLite queues ca
 ```cs
 opts.ListenToSqliteQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L186-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L178-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sqlite_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the SQLite queues can be used for both sending or receiving with no integration
@@ -145,7 +145,7 @@ builder.UseWolverine(opts =>
     opts.Durability.ScheduledJobPollingTime = TimeSpan.FromSeconds(5);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L160-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L153-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_polling_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also override the polling interval for a specific queue:
@@ -200,7 +200,7 @@ a traditional schema system for Wolverine queue and envelope tables.
 ```cs
 opts.UseSqlitePersistenceAndTransport("Data Source=wolverine.db");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L101-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_only_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L98-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_connection_string_only_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Multi-Tenancy
@@ -221,7 +221,7 @@ opts.PersistMessagesWithSqlite("Data Source=main.db")
 
 opts.ListenToSqliteQueue("incoming").UseDurableInbox();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L114-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L110-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_static_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or with Wolverine-managed master-table tenancy for dynamic tenant onboarding:
@@ -237,7 +237,7 @@ opts.PersistMessagesWithSqlite("Data Source=main.db")
     })
     .EnableMessageTransport(x => x.AutoProvision());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L135-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L130-L139' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For tenant-specific sends, set `DeliveryOptions.TenantId`.
@@ -247,7 +247,7 @@ For tenant-specific sends, set `DeliveryOptions.TenantId`.
 ```cs
 await host.SendAsync(new SampleTenantMessage("hello"), new DeliveryOptions { TenantId = "red" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L151-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_tenant_specific_send' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqliteTests/DocumentationSamples.cs#L145-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqlite_tenant_specific_send' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When transport is enabled, each tenant database gets its own durable queue tables and scheduled polling.

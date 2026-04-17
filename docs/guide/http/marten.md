@@ -42,7 +42,7 @@ look like this:
         return Results.Ok(invoice);
     }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L14-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_invoice_longhand' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L14-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_get_invoice_longhand' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Pretty straightforward, but it's a little annoying to have to scatter in all the attributes for OpenAPI and there's definitely
@@ -58,7 +58,7 @@ public static Invoice Get([Document] Invoice invoice)
     return invoice;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L33-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L32-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Notice that the `[Document]` attribute was able to use the "id" route parameter. By default, Wolverine is looking first
@@ -75,7 +75,7 @@ public static IMartenOp Approve([Document("number")] Invoice invoice)
     return MartenOps.Store(invoice);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L54-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L51-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_route_argument_with_document_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above, if the `Invoice` document does not exist, the route will stop and return a status code 404 for Not Found.  
@@ -92,7 +92,7 @@ However, if the document is soft-deleted your endpoint will still be executed.
 If you want soft-deleted documents to be treated as `NULL` for a endpoint, you can set `MaybeSoftDeleted` to `false`.  
 In combination with `Required = true` that means the endpoint will return 404 for missing and soft-deleted documents.
 
-<!-- snippet: sample_using_Document_with_MaybeSoftDeleted -->
+<!-- snippet: sample_using_document_with_maybesoftdeleted -->
 <a id='snippet-sample_using_document_with_maybesoftdeleted'></a>
 ```cs
 [WolverineGet("/invoices/soft-delete/{id}")]
@@ -101,7 +101,7 @@ public static Invoice GetSoftDeleted([Document(Required = true, MaybeSoftDeleted
     return invoice;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L65-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_with_maybesoftdeleted' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_document_with_maybesoftdeleted' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -148,7 +148,7 @@ public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L147-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L146-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this version of the "aggregate workflow", you no longer have to supply a command in the request body, so you could
@@ -167,7 +167,7 @@ public static OrderShipped Ship3([Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L164-L176' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L162-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A couple other notes: 
@@ -207,7 +207,7 @@ public record ItemReady(string Name);
 
 public class Item
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public bool Ready { get; set; }
 }
 
@@ -260,12 +260,12 @@ public class Order
     public bool IsShipped() => Shipped.HasValue;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L17-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L18-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To append a single event to an event stream from an HTTP endpoint, you can use a return value like so:
 
-<!-- snippet: sample_using_EmptyResponse -->
+<!-- snippet: sample_using_emptyresponse -->
 <a id='snippet-sample_using_emptyresponse'></a>
 ```cs
 [AggregateHandler]
@@ -279,7 +279,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L135' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or potentially append multiple events using the `Events` type as a return value like this sample:
@@ -315,7 +315,7 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L240-L270' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L236-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Responding with the Updated Aggregate
@@ -341,14 +341,14 @@ public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, 
     );
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L298-L312' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L293-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you should happen to have a message handler or HTTP endpoint signature that uses multiple event streams,
 but you want the `UpdatedAggregate` to **only** apply to one of the streams, you can use the `UpdatedAggregate<T>`
 to tip off Wolverine about that like in this sample:
 
-<!-- snippet: sample_MakePurchaseHandler -->
+<!-- snippet: sample_makepurchasehandler -->
 <a id='snippet-sample_makepurchasehandler'></a>
 ```cs
 public static class MakePurchaseHandler
@@ -364,8 +364,8 @@ public static class MakePurchaseHandler
 
         [WriteAggregate] IEventStream<Inventory> inventory)
     {
-        if (command.Number > inventory.Aggregate.Quantity ||
-            (command.Number * inventory.Aggregate.UnitPrice) > account.Aggregate.Balance)
+        if (command.Number > inventory.Aggregate!.Quantity ||
+            (command.Number * inventory.Aggregate.UnitPrice) > account.Aggregate!.Balance)
         {
             // Do Nothing!
             return new UpdatedAggregate<XAccount>();
@@ -378,7 +378,7 @@ public static class MakePurchaseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/mixed_aggregate_handler_with_multiple_streams.cs#L86-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_makepurchasehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/mixed_aggregate_handler_with_multiple_streams.cs#L86-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_makepurchasehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
@@ -509,13 +509,13 @@ projections.
 If you want to inject the current state of an event sourced aggregate as a parameter into
 an HTTP endpoint method, use the `[ReadAggregate]` attribute like this:
 
-<!-- snippet: sample_using_ReadAggregate_in_HTTP -->
+<!-- snippet: sample_using_readaggregate_in_http -->
 <a id='snippet-sample_using_readaggregate_in_http'></a>
 ```cs
 [WolverineGet("/orders/latest/{id}")]
 public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L326-L331' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L320-L324' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code. 
@@ -535,7 +535,7 @@ Register it in `WolverineHttpOptions` like this:
 ```cs
 opts.UseMartenCompiledQueryResultPolicy();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L255-L259' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L282-L285' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.
@@ -548,7 +548,7 @@ public static ApprovedInvoicedCompiledQuery GetApproved()
     return new ApprovedInvoicedCompiledQuery();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L73-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L69-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 <!-- snippet: sample_compiled_query_return_query -->
@@ -562,6 +562,6 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L109-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L105-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

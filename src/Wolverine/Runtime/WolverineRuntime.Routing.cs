@@ -11,8 +11,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
-#region sample_IMessageRouteSource
-
+#region sample_imessageroutesource
 public interface IMessageRouteSource
 {
     /// <summary>

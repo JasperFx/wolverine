@@ -4,8 +4,7 @@ namespace DocumentationSamples;
 
 public class DeadLetterQueue
 {
-    #region sample_FetchErrorReport
-
+    #region sample_fetcherrorreport
     public async Task load_error_report(IMessageStore messageStore, Guid envelopeId)
     {
         var deadLetterEnvelope = await messageStore.DeadLetters.DeadLetterEnvelopeByIdAsync(envelopeId);

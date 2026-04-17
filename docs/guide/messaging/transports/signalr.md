@@ -79,7 +79,7 @@ builder.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L12-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L12-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_signalr_on_server_side' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That handles the Wolverine configuration and the SignalR service registrations, but you will also need to map
@@ -110,7 +110,7 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L63-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L62-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Custom hubs
@@ -149,14 +149,14 @@ Custom hubs must still inherit from `WolverineHub`. It's possible to override `R
 For the message routing above, you'll notice that I utilized a marker interface just to facilitate message routing 
 like this:
 
-<!-- snippet: sample_WolverineChatWebSocketMessage -->
+<!-- snippet: sample_wolverinechatwebsocketmessage -->
 <a id='snippet-sample_wolverinechatwebsocketmessage'></a>
 ```cs
 // Marker interface for the sample application just to facilitate
 // message routing
 public interface WolverineChatWebSocketMessage : WebSocketMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L7-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverinechatwebsocketmessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L7-L12' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverinechatwebsocketmessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The Wolverine `WebSocketMessage` marker interface does have a little bit of impact in that:
@@ -175,7 +175,7 @@ public record ResponseMessage(string User, string Text) : WolverineChatWebSocket
 
 public record Ping(int Number) : WolverineChatWebSocketMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L15-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_message_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_message_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 will result in these message type names according to Wolverine:
@@ -228,7 +228,7 @@ The actual JSON serialization in the SignalR transport is isolated from the rest
 JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 JsonOptions.Converters.Add(new JsonStringEnumConverter());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L27-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR/Internals/SignalRTransport.cs#L27-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_default_json_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 But of course, if you needed to override the JSON serialization for whatever reason, you can just push in a 
@@ -248,7 +248,7 @@ builder.UseWolverine(opts =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L13-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_signalr_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L13-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_signalr_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Interacting with the Server from the Browser
@@ -345,7 +345,7 @@ public class Pinging : BackgroundService
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L32-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_pinging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Server.cs#L30-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_pinging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The call above will occasionally send a `Ping` message to all connected clients. But of course, you'll frequently want
@@ -372,7 +372,7 @@ public static class RequestSumHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L87-L104' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_response_to_originating_signalr_caller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L84-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_response_to_originating_signalr_caller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the next section we'll learn a bit more about working with SignalR groups.
@@ -392,7 +392,7 @@ public record KickMeOut(string GroupName) : WebSocketMessage;
 
 public record BroadCastToGroup(string GroupName, string Message) : WebSocketMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L56-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messages_related_to_signalr_groups' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L56-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_messages_related_to_signalr_groups' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The following code is a set of simplistic message handlers that handle these messages with some SignalR connection
@@ -420,7 +420,7 @@ public static SignalRMessage<Information> Handle(BroadCastToGroup msg)
         // to the named group
         .ToWebSocketGroup(msg.GroupName);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L70-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_mechanics_with_signalr' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/group_mechanics.cs#L69-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_group_mechanics_with_signalr' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code above:
@@ -455,7 +455,7 @@ builder.UseWolverine(opts =>
     // hosted on your application and include the exact route where
     // the WolverineHub is listening
     var url = builder.Configuration.GetValue<string>("signalr.url");
-    opts.UseClientToSignalR(url);
+    opts.UseClientToSignalR(url!);
 
     // Setting this up to publish any messages implementing
     // the WebSocketMessage marker interface with the SignalR
@@ -463,11 +463,11 @@ builder.UseWolverine(opts =>
     opts.Publish(x =>
     {
         x.MessagesImplementing<WebSocketMessage>();
-        x.ToSignalRWithClient(url);
+        x.ToSignalRWithClient(url!);
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L31-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_realsies' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L30-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_realsies' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or a little more simply, if you are just using this for test automation, you would need to give it the port number where
@@ -498,7 +498,7 @@ using var clientHost = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L58-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_local' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/SampleCode.cs#L56-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_signalr_client_for_local' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To make this a little more concrete, here's a little bit of the test harness setup we used to test the Wolverine.SignalR
@@ -509,7 +509,7 @@ transport:
 ```cs
 public abstract class WebSocketTestContext : IAsyncLifetime
 {
-    protected WebApplication theWebApp;
+    protected WebApplication theWebApp = null!;
     protected readonly int Port = PortFinder.GetAvailablePort();
     protected readonly Uri clientUri;
 
@@ -529,7 +529,7 @@ public abstract class WebSocketTestContext : IAsyncLifetime
             opts.ListenLocalhost(Port);
         });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L16-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L16-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_signalr_client_test_harness_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the same test harness class, we bootstrap new `IHost` instances with the SignalR Client to mimic browser client
@@ -556,7 +556,7 @@ var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L77-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/WebSocketTestContext.cs#L76-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_signalr_client_in_test' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point here is that we stood up the service using a port number for Kestrel, then stood up `IHost` instances for
@@ -588,13 +588,13 @@ public async Task receive_message_from_a_client()
 
     var record = tracked.Received.SingleRecord<ToSecond>();
     record.ServiceName.ShouldBe("Server");
-    record.Envelope.Destination.ShouldBe(new Uri("signalr://wolverine"));
+    record.Envelope!.Destination.ShouldBe(new Uri("signalr://wolverine"));
     record.Message.ShouldBeOfType<ToSecond>()
         .Name.ShouldBe("Hollywood Brown");
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/simple_end_to_end.cs#L27-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_test_with_signalr' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/SignalR/Wolverine.SignalR.Tests/simple_end_to_end.cs#L27-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_end_to_end_test_with_signalr' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 *Conveniently enough as I write this documentation today using existing test code, Hollywood Brown had a huge

@@ -19,8 +19,7 @@ public record ShipOrder(Guid OrderId);
 
 public record ItemReady(string Name);
 
-#region sample_Order_event_sourced_aggregate
-
+#region sample_order_event_sourced_aggregate
 public class Item
 {
     public string Name { get; set; } = null!;
@@ -65,8 +64,7 @@ public class Order
 
 #endregion
 
-#region sample_MarkItemReady
-
+#region sample_markitemready
 // OrderId refers to the identity of the Order aggregate
 public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 
@@ -74,8 +72,7 @@ public record MarkItemReady(Guid OrderId, string ItemName, int Version);
 
 public class MarkItemController : ControllerBase
 {
-    #region sample_MarkItemController
-
+    #region sample_markitemcontroller
     [HttpPost("/orders/itemready")]
     public async Task Post(
         [FromBody] MarkItemReady command,
@@ -251,8 +248,7 @@ public class ShipOrderHandler
 
 public static class MarkItemReadyHandler
 {
-    #region sample_MarkItemReadyHandler
-
+    #region sample_markitemreadyhandler
     [AggregateHandler]
     public static IEnumerable<object> Handle(MarkItemReady command, Order order)
     {
@@ -283,8 +279,7 @@ public static class MarkItemReadyHandler
 
 public static class MarkItemReady2Handler
 {
-    #region sample_MarkItemReadyHandler_with_WriteAggregate
-    
+    #region sample_markitemreadyhandler_with_writeaggregate
     public static IEnumerable<object> Handle(
         // The command
         MarkItemReady command, 
@@ -326,8 +321,7 @@ public interface ISomeService
 
 public static class MarkItemReadyHandler2
 {
-    #region sample_using_events_and_messages_from_AggregateHandler
-
+    #region sample_using_events_and_messages_from_aggregatehandler
     [AggregateHandler]
     public static async Task<(Events, OutgoingMessages)> HandleAsync(MarkItemReady command, Order order, ISomeService service)
     {
@@ -370,7 +364,6 @@ public static class MarkItemReadyHandler2
 }
 
 #region sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow
-
 public static class ValidatedMarkItemReadyHandler
 {
     public static IEnumerable<object> Handle(

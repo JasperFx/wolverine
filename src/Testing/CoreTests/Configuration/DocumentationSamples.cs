@@ -12,7 +12,6 @@ public static class DocumentationSamples
     public static async Task bootstrap_with_lamar()
     {
         #region sample_use_lamar_with_host_builder
-
         // With IHostBuilder
         var builder = Host.CreateDefaultBuilder();
         builder.UseLamar();
@@ -32,7 +31,6 @@ public static class DocumentationSamples
 
 
     #region sample_using_tracked_sessions_end_to_end
-
     // Personally, I prefer to reuse the IHost between tests and
     // do something to clear off any dirty state, but other folks
     // will spin up an IHost per test to maybe get better test parallelization
@@ -52,7 +50,6 @@ public static class DocumentationSamples
     #endregion
 
     #region sample_test_specific_queue_end_to_end
-
     public static async Task test_specific_handler(IHost host)
     {
         // We're not thrilled with this usage and it's possible there's
@@ -64,7 +61,6 @@ public static class DocumentationSamples
     #endregion
 
     #region sample_using_external_brokers_with_tracked_sessions
-
     public static async Task run_end_to_end_with_external_transports(IHost host)
     {
         var placeOrder = new PlaceOrder("111", "222", 1000);

@@ -34,7 +34,6 @@ builder.Host.UseWolverine(opts =>
 builder.Services.AddControllers();
 
 #region sample_enabling_open_telemetry
-
 // builder.Services is an IServiceCollection object
 builder.Services.AddOpenTelemetryTracing(x =>
 {

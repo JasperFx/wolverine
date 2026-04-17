@@ -148,7 +148,6 @@ public static class LetterAggregateEndpoint
     public static void Load(Guid id) { }
 
     #region sample_read_aggregate_fine_grained_validation_control
-
     // Straight up 404 on missing
     [WolverineGet("/letters1/{id}")]
     public static LetterAggregate GetLetter1([ReadAggregate] LetterAggregate letters) => letters;

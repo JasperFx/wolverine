@@ -71,7 +71,6 @@ public class concurrency_resilient_sharded_processing
                 opts.ListenToSqsQueue("from_external");
 
                 #region sample_partitioned_publishing_through_amazon_sqs
-
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
                 opts.MessagePartitioning.ByMessage<ILetterMessage>(x => x.Id.ToString());

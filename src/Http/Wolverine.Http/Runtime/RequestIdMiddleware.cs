@@ -8,8 +8,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http.Runtime;
 
-#region sample_RequestIdMiddleware
-
+#region sample_requestidmiddleware
 public static class RequestIdMiddleware
 {
     public const string CorrelationIdHeaderKey = "X-Correlation-ID";
@@ -26,8 +25,7 @@ public static class RequestIdMiddleware
 
 #endregion
 
-#region sample_RequestIdPolicy
-
+#region sample_requestidpolicy
 internal class RequestIdPolicy : IHttpPolicy
 {
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
@@ -54,7 +52,6 @@ internal class RequestIdPolicyApplication
     public void bootstrap(WebApplication app)
     {
         #region sample_adding_http_policy
-
         // app is a WebApplication
         app.MapWolverineEndpoints(opts =>
         {
@@ -65,7 +62,6 @@ internal class RequestIdPolicyApplication
         #endregion
 
         #region sample_simple_middleware_policy_for_http
-
         app.MapWolverineEndpoints(opts =>
         {
             // Fake policy to add authentication middleware to any endpoint classes under

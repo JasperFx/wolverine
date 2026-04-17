@@ -7,8 +7,7 @@ namespace DocumentationSamples;
 
 public record PostInSlack(string Room, string Message);
 
-#region sample_MyCustomActionForMissingHandlers
-
+#region sample_mycustomactionformissinghandlers
 public class MyCustomActionForMissingHandlers : IMissingHandler
 {
     public ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
@@ -26,7 +25,6 @@ public static class ConfigureMissingHandlers
     public static async Task configure()
     {
         #region sample_registering_custom_missing_handler
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

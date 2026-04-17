@@ -48,7 +48,6 @@ await Host.CreateDefaultBuilder(args)
         services.AddHostedService<Sender>();
 
         #region sample_using_integrate_with_wolverine_with_multiple_options
-
         services.AddMarten(opts =>
             {
                 opts.Connection(Servers.PostgresConnectionString);

@@ -6,7 +6,6 @@ using Wolverine;
 using Wolverine.Marten;
 
 #region sample_integrating_wolverine_with_marten
-
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.ApplyJasperFxExtensions();
 
@@ -51,7 +50,6 @@ app.MapGet("/orders", (IQuerySession session, HttpContext context)
     => session.Query<Order>().WriteArray(context));
 
 #region sample_delegate_to_command_bus_from_minimal_api
-
 // Delegate directly to Wolverine commands -- More efficient recipe coming later...
 app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
     => bus.InvokeAsync(command));
@@ -60,7 +58,6 @@ app.MapPost("/orders/create2", (CreateOrder command, IMessageBus bus)
 
 
 #region sample_create_order_through_minimal_api
-
 app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession session, IMartenOutbox outbox) =>
 {
     var order = new Order

@@ -4,8 +4,7 @@ using Wolverine;
 
 namespace DocumentationSamples;
 
-#region sample_SimpleHandler
-
+#region sample_simplehandler
 public class SimpleHandler
 {
     public void Handle(PingMessage message)
@@ -24,8 +23,7 @@ public class PongWriter : IPongWriter
     }
 }
 
-#region sample_AsyncHandler
-
+#region sample_asynchandler
 public interface IPongWriter
 {
     Task WritePong(PongMessage message);
@@ -48,16 +46,14 @@ public class AsyncHandler
 
 #endregion
 
-#region sample_Handlers_IMessage
-
+#region sample_handlers_imessage
 public interface IMyMessage;
 
 public class MyMessageOne : IMyMessage;
 
 #endregion
 
-#region sample_Handlers_GenericMessageHandler
-
+#region sample_handlers_genericmessagehandler
 public class GenericMessageHandler
 {
     public void Consume(IMyMessage messagem, Envelope envelope)
@@ -68,8 +64,7 @@ public class GenericMessageHandler
 
 #endregion
 
-#region sample_Handlers_SpecificMessageHandler
-
+#region sample_handlers_specificmessagehandler
 public class SpecificMessageHandler
 {
     public void Consume(MyMessageOne message)
@@ -82,7 +77,6 @@ public class SpecificMessageHandler
 public class MyService : IMyService;
 
 #region sample_injecting_services_into_handlers
-
 public interface IMyService;
 
 public class ServiceUsingHandler
@@ -104,8 +98,7 @@ public class ServiceUsingHandler
 
 #endregion
 
-#region sample_IHandler_of_T
-
+#region sample_ihandler_of_t
 public interface IHandler<T>
 {
     void Handle(T message);
@@ -117,8 +110,7 @@ internal static class HandlerSamples
 {
     public static async Task custom_handler_config()
     {
-        #region sample_CustomHandlerApp
-
+        #region sample_customhandlerapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -146,7 +138,6 @@ internal static class HandlerSamples
     public static async Task explain_handler()
     {
         #region sample_describe_handler_match
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

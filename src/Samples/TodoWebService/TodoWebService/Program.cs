@@ -1,5 +1,4 @@
 #region sample_bootstrapping_wolverine_http
-
 using Marten;
 using JasperFx;
 using JasperFx.Resources;

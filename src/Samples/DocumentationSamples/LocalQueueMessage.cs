@@ -5,7 +5,6 @@ using Wolverine.Attributes;
 namespace DocumentationSamples;
 
 #region sample_local_queue_routed_message
-
 [LocalQueue("important")]
 public class ImportanceMessage;
 
@@ -14,7 +13,6 @@ public class ImportanceMessage;
 public static class LocalQueueConfiguration
 {
     #region sample_disable_local_queue_routing
-
     public static async Task disable_queue_routing()
     {
         using var host = await Host.CreateDefaultBuilder()

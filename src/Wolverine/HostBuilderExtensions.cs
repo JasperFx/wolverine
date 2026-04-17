@@ -401,7 +401,6 @@ public static class HostBuilderExtensions
     /// <returns></returns>
 
     #region sample_extension_method_to_disable_external_transports
-
     public static IServiceCollection DisableAllExternalWolverineTransports(this IServiceCollection services)
     {
         services.AddSingleton<IWolverineExtension, DisableExternalTransports>();
@@ -425,8 +424,7 @@ public static class HostBuilderExtensions
         return services;
     }
 
-    #region sample_DisableExternalTransports
-
+    #region sample_disableexternaltransports
     internal class DisableExternalTransports : IWolverineExtension
     {
         public void Configure(WolverineOptions options)

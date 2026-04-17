@@ -10,7 +10,6 @@ public class posting_json : IntegrationContext
     }
 
     #region sample_post_json_happy_path
-
     [Fact]
     public async Task post_json_happy_path()
     {

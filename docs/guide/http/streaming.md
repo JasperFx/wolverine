@@ -23,7 +23,7 @@ public static IResult GetSseEvents()
     }, contentType: "text/event-stream");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Streaming/StreamingEndpoints.cs#L8-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sse_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Streaming/StreamingEndpoints.cs#L7-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sse_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 SSE messages follow the [EventSource format](https://html.spec.whatwg.org/multipage/server-sent-events.html), where each event is prefixed with `data: ` and terminated by two newline characters (`\n\n`).
@@ -49,7 +49,7 @@ public static IResult GetStreamData()
     }, contentType: "text/plain");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Streaming/StreamingEndpoints.cs#L24-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_streaming_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Streaming/StreamingEndpoints.cs#L24-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_streaming_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Integration with Wolverine Services

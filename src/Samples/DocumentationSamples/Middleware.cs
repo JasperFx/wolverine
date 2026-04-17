@@ -19,7 +19,6 @@ public class Middleware
     public static void Stopwatch(ILogger logger)
     {
         #region sample_stopwatch_concept
-
         var stopwatch = new Stopwatch();
         stopwatch.Start();
         try
@@ -39,7 +38,6 @@ public class Middleware
         var middleware = new MiddlewareSample();
 
         #region sample_demonstrating_middleware_application
-
         middleware.Before();
         try
         {
@@ -70,8 +68,7 @@ public class MiddlewareSample
     }
 }
 
-#region sample_StopwatchMiddleware_1
-
+#region sample_stopwatchmiddleware_1
 public class StopwatchMiddleware
 {
     private readonly Stopwatch _stopwatch = new();
@@ -94,7 +91,6 @@ public class StopwatchMiddleware
 public record PotentiallySlowMessage(string Name);
 
 #region sample_apply_middleware_by_attribute
-
 public static class SomeHandler
 {
     [Middleware(typeof(StopwatchMiddleware))]
@@ -107,7 +103,6 @@ public static class SomeHandler
 #endregion
 
 #region sample_silly_micro_optimized_stopwatch_middleware
-
 public static class StopwatchMiddleware2
 {
     // The Stopwatch being returned from this method will
@@ -137,7 +132,6 @@ public static class UsingStopwatchMiddleware
     public static async Task apply()
     {
         #region sample_applying_middleware_by_policy
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -152,8 +146,7 @@ public static class UsingStopwatchMiddleware
     }
 }
 
-#region sample_StopwatchFrame
-
+#region sample_stopwatchframe
 public class StopwatchFrame : SyncFrame
 {
     private readonly IChain _chain;
@@ -200,8 +193,7 @@ public class StopwatchFrame : SyncFrame
 
 #endregion
 
-#region sample_StopwatchAttribute
-
+#region sample_stopwatchattribute
 public class StopwatchAttribute : ModifyChainAttribute
 {
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
@@ -212,8 +204,7 @@ public class StopwatchAttribute : ModifyChainAttribute
 
 #endregion
 
-#region sample_ClockedEndpoint
-
+#region sample_clockedendpoint
 public class ClockedEndpoint
 {
     [Stopwatch]

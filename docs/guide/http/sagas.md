@@ -31,7 +31,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L76-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L73-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To start the `Reservation` saga, you could use an HTTP endpoint method like this one:
@@ -55,7 +55,7 @@ public static (
     return (new ReservationBooked(start.ReservationId, DateTimeOffset.UtcNow), new Reservation { Id = start.ReservationId }, new ReservationTimeout(start.ReservationId));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L13-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_saga_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L13-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_saga_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Remember in Wolverine.HTTP that the *first* return value of an endpoint is assumed to be the response body by Wolverine, so if you are
@@ -77,6 +77,6 @@ public static Reservation Post2(StartReservation start)
     return new Reservation { Id = start.ReservationId };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L33-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L32-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_start_saga_from_http_endpoint_empty_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

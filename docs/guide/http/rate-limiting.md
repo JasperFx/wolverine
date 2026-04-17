@@ -20,7 +20,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = 429;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L72-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limiting_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L76-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limiting_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the rate limiting middleware to the request pipeline. This must be placed **before** `MapWolverineEndpoints()`:
@@ -30,7 +30,7 @@ Then add the rate limiting middleware to the request pipeline. This must be plac
 ```cs
 app.UseRateLimiter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L199-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_rate_limiter_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L217-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_rate_limiter_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Per-Endpoint Rate Limiting
@@ -47,7 +47,7 @@ public static string GetRateLimited()
     return "OK";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/RateLimiting/RateLimitedEndpoints.cs#L9-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limited_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/RateLimiting/RateLimitedEndpoints.cs#L8-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limited_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When the rate limit is exceeded, the middleware returns a `429 Too Many Requests` response automatically.

@@ -34,7 +34,6 @@ builder.Services.AddWolverineHttp();
 
 
 #region sample_enabling_open_telemetry
-
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => { tracing.AddSource("Wolverine"); })
     .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })

@@ -71,7 +71,6 @@ public class auditing_determination : IntegrationContext
         with(opts =>
         {
             #region sample_explicit_registration_of_audit_properties
-
             // opts is WolverineOptions inside of a UseWolverine() call
             opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 
@@ -100,7 +99,6 @@ public class auditing_determination : IntegrationContext
 }
 
 #region sample_using_audit_attribute
-
 public class AuditedMessage
 {
     [Audit]
@@ -135,7 +133,6 @@ public class AuditedMessage2
 }
 
 #region sample_account_message_for_auditing
-
 // Marker interface
 public interface IAccountMessage
 {

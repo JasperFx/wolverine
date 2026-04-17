@@ -28,7 +28,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.UseDataAnnotationsValidation();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_dataannotations_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L13-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_dataannotations_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Now you can decorate your messages with the built-in or custom `ValidationAttributes`:
@@ -70,7 +70,7 @@ public static class CreateCustomerHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L64-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-dataannotations_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Samples.cs#L61-L96' title='Snippet source file'>snippet source</a> | <a href='#snippet-dataannotations_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the Validation check will happen at runtime *before* the call to the handler methods. If 

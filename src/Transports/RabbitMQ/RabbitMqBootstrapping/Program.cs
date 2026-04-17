@@ -1,7 +1,6 @@
 
 
 #region sample_configuring_connection_to_rabbit_mq
-
 using JasperFx;
 using Wolverine;
 using Wolverine.RabbitMQ;

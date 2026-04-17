@@ -5,8 +5,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
 
-#region sample_IParameterStrategy
-
+#region sample_iparameterstrategy
 /// <summary>
 /// Apply custom handling to a Wolverine.Http endpoint/chain based on a parameter within the
 /// implementing Wolverine http endpoint method

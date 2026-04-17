@@ -19,7 +19,6 @@ public class with_multiple_hosts : IAsyncLifetime
     public async Task InitializeAsync()
     {
         #region sample_sql_server_as_queue_between_two_apps
-
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

@@ -11,7 +11,6 @@ using Wolverine.Marten;
 using Wolverine.RabbitMQ;
 
 #region sample_integrating_wolverine_with_marten
-
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.ApplyJasperFxExtensions();
 

@@ -9,7 +9,6 @@ public class GlobalTimeoutRequestReply
     public static async Task global_timeout()
     {
         #region sample_global_timeout_for_remote_invocation
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

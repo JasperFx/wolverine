@@ -48,7 +48,6 @@ public class transactional_middleware
 }
 
 #region sample_using_ravendb_side_effects
-
 public record RecordTeam(string Team, int Year);
 
 public static class RecordTeamHandler

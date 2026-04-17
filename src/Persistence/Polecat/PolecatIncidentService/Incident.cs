@@ -3,7 +3,6 @@ using JasperFx.Events;
 namespace PolecatIncidentService;
 
 #region sample_polecat_incident_events
-
 public record IncidentLogged(
     Guid CustomerId,
     Contact Contact,
@@ -71,8 +70,7 @@ public enum IncidentStatus
     Closed = 32
 }
 
-#region sample_polecat_Incident_aggregate
-
+#region sample_polecat_incident_aggregate
 public class Incident
 {
     public Guid Id { get; set; }

@@ -18,7 +18,6 @@ public class TestingSupportSamples
     public static async Task stub_all_external_transports()
     {
         #region sample_conditionally_disable_transports
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -40,8 +39,7 @@ public class TestingSupportSamples
 
 public static class AccountHandler
 {
-    #region sample_AccountHandler_for_testing_examples
-
+    #region sample_accounthandler_for_testing_examples
     [Transactional]
     public static IEnumerable<object> Handle(
         DebitAccount command,
@@ -78,7 +76,6 @@ public static class AccountHandler
 public class AccountHandlerTests
 {
     #region sample_handle_a_debit_that_makes_the_account_have_a_low_balance
-
     [Fact]
     public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     {
@@ -120,7 +117,6 @@ public class AccountHandlerTests
     [Fact]
 
     #region sample_using_tracked_session
-
     public async Task using_tracked_sessions()
     {
         // The point here is just that you somehow have
@@ -138,7 +134,6 @@ public class AccountHandlerTests
     #endregion
 
     #region sample_advanced_tracked_session_usage
-
     public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     {
         // The point here is just that you somehow have

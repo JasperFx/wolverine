@@ -150,8 +150,7 @@ public class SpecialAttribute : ModifyEnvelopeAttribute
 [DeliverWithin(5)]
 public class MessageWithSpecialAttribute;
 
-#region sample_UsingDeliverWithinAttribute
-
+#region sample_usingdeliverwithinattribute
 // Any message of this type should be successfully
 // delivered within 10 seconds or discarded
 [DeliverWithin(10)]

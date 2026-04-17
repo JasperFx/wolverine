@@ -34,7 +34,6 @@ public class DeleteById(string Id) : IRavenDbOp
 }
 
 #region sample_ravenops
-
 /// <summary>
 /// Side effect helper class for Wolverine's integration with RavenDb
 /// </summary>

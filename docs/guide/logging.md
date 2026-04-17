@@ -31,14 +31,14 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L26-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turning_down_message_logging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L25-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turning_down_message_logging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The sample up above turns down the logging on a global, application level. If you have some kind of command message where
 you don't want logging for that particular message type, but do for all other message types, you can override the log
 level for only that specific message type like so:
 
-<!-- snippet: sample_customized_handler_using_Configure -->
+<!-- snippet: sample_customized_handler_using_configure -->
 <a id='snippet-sample_customized_handler_using_configure'></a>
 ```cs
 public class CustomizedHandler
@@ -60,7 +60,7 @@ public class CustomizedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/can_customize_handler_chain_through_Configure_call_on_HandlerType.cs#L25-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_handler_using_configure' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Methods on message handler types with the signature:
@@ -124,7 +124,7 @@ on a message type by message type basis. While you *can* also do that with custo
 way to do that is to use the `[WolverineLogging]` attribute on either the handler type or the handler method as shown 
 below:
 
-<!-- snippet: sample_using_Wolverine_Logging_attribute -->
+<!-- snippet: sample_using_wolverine_logging_attribute -->
 <a id='snippet-sample_using_wolverine_logging_attribute'></a>
 ```cs
 public record QuietMessage;
@@ -161,7 +161,7 @@ public class QuietAndVerboseMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/logging_configuration.cs#L78-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_logging_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -183,7 +183,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.LogMessageStarting(LogLevel.Information);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_log_message_starting' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/LoggingUsage.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_log_message_starting' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This will append log entries looking like this:
@@ -222,12 +222,12 @@ To explicitly mark members as "audited", you *can* use attributes within your me
 public class AuditedMessage
 {
     [Audit]
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 
     [Audit("AccountIdentifier")] public int AccountId;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L102-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L101-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_audit_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you are okay using a common message interface for common identification like "this message targets an account/organization/tenant/client"
@@ -245,7 +245,7 @@ public interface IAccountMessage
 // A possible command that uses our marker interface above
 public record DebitAccount(int AccountId, decimal Amount) : IAccountMessage;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L137-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L135-L145' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_account_message_for_auditing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can specify audited members through this syntax:
@@ -256,7 +256,7 @@ You can specify audited members through this syntax:
 // opts is WolverineOptions inside of a UseWolverine() call
 opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L73-L78' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L73-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This will extend your log entries to like this:
@@ -433,7 +433,7 @@ builder.Services.AddOpenTelemetryTracing(x =>
         .AddSource("Wolverine");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApi/Program.cs#L36-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_enabling_open_telemetry-1'></a>
 ```cs
 builder.Services.AddOpenTelemetry()
@@ -441,7 +441,7 @@ builder.Services.AddOpenTelemetry()
     .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })
     .UseOtlpExporter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L36-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L36-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -467,7 +467,7 @@ using var host = await Host.CreateDefaultBuilder()
             .TelemetryEnabled(false);
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingOpenTelemetry.cs#L11-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_open_telemetry_by_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingOpenTelemetry.cs#L11-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_open_telemetry_by_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this `TelemetryEnabled()` method is available on all possible subscriber and listener types within Wolverine.
@@ -570,8 +570,28 @@ public const string SendingResumed = "wolverine.sending.resumed";
 /// A stop reason when sending agents are paused after too many sender failures
 /// </summary>
 public const string TooManySenderFailures = "TooManySenderFailures";
+
+/// <summary>
+/// Activity tag for the saga identity value when processing a saga message
+/// </summary>
+public const string SagaId = "wolverine.saga.id";
+
+/// <summary>
+/// Activity tag for the saga type full name when processing a saga message
+/// </summary>
+public const string SagaType = "wolverine.saga.type";
+
+/// <summary>
+/// Activity tag for the aggregate stream identity when processing an aggregate handler workflow
+/// </summary>
+public const string StreamId = "wolverine.stream.id";
+
+/// <summary>
+/// Activity tag for the aggregate type full name when processing an aggregate handler workflow
+/// </summary>
+public const string StreamType = "wolverine.stream.type";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L27-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Tagging
@@ -717,7 +737,7 @@ public static class OrganizationTaggingMiddleware
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L43-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L41-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Finally, we'll add the new middleware to all message handlers where the message implements the `IOrganizationRelated` interface like so:
@@ -733,7 +753,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.ForMessagesOfType<IOrganizationRelated>().AddMiddleware(typeof(OrganizationTaggingMiddleware));
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L10-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_organization_tagging_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Tenant Id Tagging
@@ -749,5 +769,5 @@ public static async Task publish_operation(IMessageBus bus, string tenantId, str
     await bus.PublishAsync(new SomeMessage(name));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L30-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L29-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

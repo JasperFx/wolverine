@@ -26,7 +26,7 @@ public class MyMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L91-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L89-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplest_possible_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you've used other messaging, command execution, or so-called "mediator" tools in .NET, you'll surely notice the absence of any kind of
@@ -36,7 +36,7 @@ allow *you* to just write plain old .NET code without any framework specific art
 
 Back to the handler code, at the point which you pass a new message into Wolverine like so:
 
-<!-- snippet: sample_publish_MyMessage -->
+<!-- snippet: sample_publish_mymessage -->
 <a id='snippet-sample_publish_mymessage'></a>
 ```cs
 public static async Task publish_command(IMessageBus bus)
@@ -44,7 +44,7 @@ public static async Task publish_command(IMessageBus bus)
     await bus.PublishAsync(new MyMessage());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L105-L112' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L102-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_mymessage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Between the call to `IMessageBus.PublishAsync()` and `MyMessageHandler.Handle(MyMessage)` there's a couple things
@@ -57,7 +57,7 @@ going on:
 
 Before diving into the exact rules for message handlers, here are some valid handler methods:
 
-<!-- snippet: sample_ValidMessageHandlers -->
+<!-- snippet: sample_validmessagehandlers -->
 <a id='snippet-sample_validmessagehandlers'></a>
 ```cs
 [WolverineHandler]
@@ -111,7 +111,7 @@ public class ValidMessageHandlers
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L10-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_validmessagehandlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 It's also valid to use class instances with constructor arguments for your handlers:
@@ -129,7 +129,7 @@ public class CreateProjectHandler(IProjectRepository Repository)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L72-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_instance_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L71-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_instance_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Rules for Message Handlers
@@ -185,7 +185,7 @@ where you're able to explicitly separate handlers for the same message type and 
 Now though, you can flip this switch in one place to ensure that Wolverine always "separates" handlers for the same message type
 into completely separate Wolverine message handlers and message subscriptions:
 
-<!-- snippet: sample_using_MultipleHandlerBehavior -->
+<!-- snippet: sample_using_multiplehandlerbehavior -->
 <a id='snippet-sample_using_multiplehandlerbehavior'></a>
 ```cs
 using var host = Host.CreateDefaultBuilder()
@@ -195,7 +195,7 @@ using var host = Host.CreateDefaultBuilder()
         opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiplehandlerbehavior' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/MessageRoutingTests/using_separate_handlers.cs#L13-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiplehandlerbehavior' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This makes a couple changes. For example, let's say that you have these handlers for the same message type of `MyApp.Orders.OrderCreated`:
@@ -246,7 +246,7 @@ Some add ons or middleware add other possibilities as well.
 
 Handler methods can be instance methods on handler classes if it's desirable to scope the handler object to the message:
 
-<!-- snippet: sample_ExampleHandlerByInstance -->
+<!-- snippet: sample_examplehandlerbyinstance -->
 <a id='snippet-sample_examplehandlerbyinstance'></a>
 ```cs
 public class ExampleHandler
@@ -263,14 +263,14 @@ public class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L117-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L113-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbyinstance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 When using instance methods, the containing handler type will be scoped to a single message and be
 disposed afterward. In the case of instance methods, it's perfectly legal to use constructor injection
 to resolve IoC registered dependencies as shown below:
 
-<!-- snippet: sample_HandlerBuiltByConstructorInjection -->
+<!-- snippet: sample_handlerbuiltbyconstructorinjection -->
 <a id='snippet-sample_handlerbuiltbyconstructorinjection'></a>
 ```cs
 public class ServiceUsingHandler
@@ -291,7 +291,7 @@ public class ServiceUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L161-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L155-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerbuiltbyconstructorinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -301,7 +301,7 @@ improvement by avoiding the need to create and garbage collect new objects at ru
 
 As an alternative, you can also use static methods as message handlers:
 
-<!-- snippet: sample_ExampleHandlerByStaticMethods -->
+<!-- snippet: sample_examplehandlerbystaticmethods -->
 <a id='snippet-sample_examplehandlerbystaticmethods'></a>
 ```cs
 public static class ExampleHandler
@@ -318,7 +318,7 @@ public static class ExampleHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L138-L154' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L133-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_examplehandlerbystaticmethods' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The handler classes can be static classes as well. This technique gets much more useful when combined with Wolverine's
@@ -332,7 +332,7 @@ arguments that will be passed into your method by Wolverine when a new message i
 
 Below is an example action method that takes in a dependency on an `IDocumentSession` from [Marten](https://jasperfx.github.io/marten/):
 
-<!-- snippet: sample_HandlerUsingMethodInjection -->
+<!-- snippet: sample_handlerusingmethodinjection -->
 <a id='snippet-sample_handlerusingmethodinjection'></a>
 ```cs
 public static class MethodInjectionHandler
@@ -346,7 +346,7 @@ public static class MethodInjectionHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L188-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L181-L193' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingmethodinjection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So, what can be injected as an argument to your message handler?
@@ -383,7 +383,7 @@ data for both the order itself and the customer information in order to figure o
 
 Using Wolverine's compound handler feature, that might look like this: 
 
-<!-- snippet: sample_ShipOrderHandler -->
+<!-- snippet: sample_shiporderhandler -->
 <a id='snippet-sample_shiporderhandler'></a>
 ```cs
 public static class ShipOrderHandler
@@ -399,7 +399,7 @@ public static class ShipOrderHandler
 
         var customer = await session.LoadAsync<Customer>(command.CustomerId);
 
-        return (order, customer);
+        return (order, customer!);
     }
 
     // By making this method completely synchronous and having it just receive the
@@ -414,7 +414,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CompoundHandlerSamples.cs#L28-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_shiporderhandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -452,7 +452,7 @@ produces an input to another method. In a way, think of the compound handler tec
 To access the `Envelope` for the current message being handled in your message handler, just accept `Envelope` as a method
 argument like this:
 
-<!-- snippet: sample_HandlerUsingEnvelope -->
+<!-- snippet: sample_handlerusingenvelope -->
 <a id='snippet-sample_handlerusingenvelope'></a>
 ```cs
 public class EnvelopeUsingHandler
@@ -464,7 +464,7 @@ public class EnvelopeUsingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L204-L215' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerExamples.cs#L196-L206' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handlerusingenvelope' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -474,7 +474,7 @@ If you want to access or use the current `IMessageContext` for the message being
 or maybe to enqueue local commands within the current outbox scope, just take in `IMessageContext` as a method argument
 like in this example:
 
-<!-- snippet: sample_PingHandler -->
+<!-- snippet: sample_pinghandler -->
 <a id='snippet-sample_pinghandler'></a>
 ```cs
 using Messages;
@@ -492,7 +492,7 @@ public class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPong/Ponger/PingHandler.cs#L1-L17' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_pinghandler-1'></a>
 ```cs
 public static class PingHandler
@@ -522,7 +522,7 @@ public static class PingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/PingPongWithRabbitMq/Ponger/PingHandler.cs#L6-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pinghandler-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Validation
@@ -567,7 +567,7 @@ public static class SimpleValidationEnumerableHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L123-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_ienumerable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L179-L201' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_ienumerable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can also use synchronous `string[]` returns:
@@ -598,7 +598,7 @@ public static class SimpleValidationStringArrayHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L148-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_string_array' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L203-L227' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_string_array' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or asynchronous validation:
@@ -629,35 +629,38 @@ public static class SimpleValidationAsyncHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L175-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L229-L253' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using `ValidationOutcome` is similar:
 
 <!-- snippet: sample_simple_validation_validationoutcome -->
-
-For **HTTP endpoints**, the behavior is different — Wolverine will create a `ProblemDetails` response with a 400 status code containing the validation messages:
-
-<!-- snippet: sample_simple_validation_http_ienumerable -->
-<a id='snippet-sample_simple_validation_http_ienumerable'></a>
+<a id='snippet-sample_simple_validation_validationoutcome'></a>
 ```cs
-public record SimpleValidateHttpEnumerableMessage(int Number);
+public record SimpleValidateValidationOutcomeMessage(int Number);
 
-public static class SimpleValidationHttpEnumerableEndpoint
+public static class SimpleValidationValidationOutcomeHandler
 {
-    public static IEnumerable<string> Validate(SimpleValidateHttpEnumerableMessage message)
+    public static ValidationOutcome ValidateAsync(SimpleValidateValidationOutcomeMessage message)
     {
         if (message.Number > 10)
         {
-            yield return "Number must be 10 or less";
+            return [new(nameof(SimpleValidateValidationOutcomeMessage.Number), "Number must be 10 or less")];
         }
+
+        return [];
     }
 
-    [WolverinePost("/simple-validation/ienumerable")]
-    public static string Post(SimpleValidateHttpEnumerableMessage message) => "Ok";
+    public static void Handle(SimpleValidateValidationOutcomeMessage message)
+    {
+        Debug.WriteLine("Handled " + message);
+        Handled = true;
+    }
+
+    public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SimpleValidationUsage.cs#L6-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_http_ienumerable' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/simple_validation_handlers.cs#L281-L304' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simple_validation_validationoutcome' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Validation with RequirementResult
@@ -701,7 +704,7 @@ public static class RequirementResultHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L81-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L81-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Asynchronous validation:
@@ -732,7 +735,7 @@ public static class AsyncRequirementResultHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L108-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L107-L131' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Validation with empty messages (still stops processing):
@@ -763,7 +766,7 @@ public static class EmptyMessagesRequirementResultHandler
     public static bool Handled { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L135-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation_empty_messages' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/requirement_result_validation_handlers.cs#L133-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_validation_empty_messages' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For HTTP endpoints:
@@ -789,7 +792,7 @@ public static class RequirementResultHttpEndpoint
     public static string Post(RequirementResultHttpMessage message) => "Ok";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/RequirementResultValidationUsage.cs#L6-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_http_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/RequirementResultValidationUsage.cs#L6-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requirement_result_http_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Validation with HandlerContinuation
@@ -818,14 +821,14 @@ public static class MaybeBadThingHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L163-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/compound_handlers.cs#L163-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_messages_in_before_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Validation with ProblemDetails
 
 In HTTP endpoints (and message handlers with the Wolverine.Http package), you can return a `ProblemDetails` object for richer validation responses:
 
-<!-- snippet: sample_ProblemDetailsUsageEndpoint -->
+<!-- snippet: sample_problemdetailsusageendpoint -->
 <a id='snippet-sample_problemdetailsusageendpoint'></a>
 ```cs
 public class ProblemDetailsUsageEndpoint
@@ -854,7 +857,7 @@ public class ProblemDetailsUsageEndpoint
 
 public record NumberMessage(int Number);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/ProblemDetailsUsage.cs#L8-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_problemdetailsusageendpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### FluentValidation Integration

@@ -7,8 +7,7 @@ internal static class DurableScheduleMessagesSample
 {
     public static async Task Configuration()
     {
-        #region sample_DurableScheduledMessagesLocalQueue
-
+        #region sample_durablescheduledmessageslocalqueue
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -24,8 +23,7 @@ internal static class DurableScheduleMessagesSample
 
     public static async Task ConfigureDefaultQueue()
     {
-        #region sample_ConfigureDefaultQueue
-
+        #region sample_configuredefaultqueue
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.DefaultLocalQueue.MaximumParallelMessages(3); }).StartAsync();
 

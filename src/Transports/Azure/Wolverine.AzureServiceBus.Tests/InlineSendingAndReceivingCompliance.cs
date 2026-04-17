@@ -27,7 +27,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
                 .AutoProvision();
 
             #region sample_using_process_inline
-
             // Configuring a Wolverine application to listen to
             // an Azure Service Bus queue with the "Inline" mode
             opts.ListenToAzureServiceBusQueue(queueName, q => q.Options.AutoDeleteOnIdle = 5.Minutes()).ProcessInline();

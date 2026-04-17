@@ -12,7 +12,6 @@ namespace Wolverine.Kafka.Tests;
 public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 {
     #region sample_publish_to_kafka_by_partition_key
-
     public static ValueTask publish_by_partition_key(IMessageBus bus)
     {
         return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });

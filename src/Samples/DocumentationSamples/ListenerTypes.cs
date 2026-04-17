@@ -11,7 +11,6 @@ public static class ListenerTypes
     public static async Task configure_listeners()
     {
         #region sample_configuring_listener_types
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

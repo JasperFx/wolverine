@@ -1,7 +1,6 @@
 namespace Wolverine.Runtime.Partitioning;
 
-#region sample_IGroupingRule
-
+#region sample_igroupingrule
 /// <summary>
 /// Strategy for determining the GroupId of a message
 /// </summary>

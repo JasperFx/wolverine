@@ -22,7 +22,6 @@ public class multi_tenancy_with_marten_managed_multi_tenancy : MultiTenancyCompl
     public override void Configure(WolverineOptions opts)
     {
         #region sample_use_multi_tenancy_with_both_marten_and_ef_core
-
         opts.Services.AddMarten(m =>
         {
             m.MultiTenantedDatabases(x =>

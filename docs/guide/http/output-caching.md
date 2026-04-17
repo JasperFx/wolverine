@@ -22,11 +22,21 @@ First, register the output caching services and configure your caching policies:
 ```cs
 builder.Services.AddOutputCache(options =>
 {
-    options.AddBasePolicy(builder => builder.Expire(TimeSpan.FromSeconds(30)));
     options.AddPolicy("short", builder => builder.Expire(TimeSpan.FromSeconds(5)));
 });
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("fixed", opt =>
+    {
+        opt.PermitLimit = 1;
+        opt.Window = TimeSpan.FromSeconds(10);
+        opt.QueueLimit = 0;
+    });
+    options.RejectionStatusCode = 429;
+});
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L72-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_output_cache_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L70-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_output_cache_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the output caching middleware to your pipeline. It should be placed **after** routing and authorization, but **before** `MapWolverineEndpoints()`:
@@ -35,8 +45,10 @@ Then add the output caching middleware to your pipeline. It should be placed **a
 <a id='snippet-sample_using_output_cache_middleware'></a>
 ```cs
 app.UseOutputCache();
+
+app.UseRateLimiter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L196-L200' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Per-Endpoint Usage
@@ -55,7 +67,7 @@ public static string GetCached()
     return $"Cached at {DateTime.UtcNow:O} - {Interlocked.Increment(ref _counter)}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Caching/OutputCacheEndpoints.cs#L12-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_output_cache_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Caching/OutputCacheEndpoints.cs#L10-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_output_cache_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using the Default (Base) Policy
@@ -70,7 +82,7 @@ public static string GetCachedDefault()
     return $"Default cached at {DateTime.UtcNow:O} - {Interlocked.Increment(ref _counter)}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Caching/OutputCacheEndpoints.cs#L23-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_output_cache_default_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Caching/OutputCacheEndpoints.cs#L20-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_output_cache_default_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring Policies

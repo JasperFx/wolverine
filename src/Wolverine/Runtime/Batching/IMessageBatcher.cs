@@ -2,8 +2,7 @@ using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Batching;
 
-#region sample_IMessageBatcher
-
+#region sample_imessagebatcher
 /// <summary>
 /// Plugin strategy for creating custom grouping of messages
 /// </summary>

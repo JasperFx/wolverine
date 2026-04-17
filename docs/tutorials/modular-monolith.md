@@ -82,7 +82,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.Services.AddMarten(opts =>
     {
         var connectionString = builder.Configuration.GetConnectionString("marten");
-        opts.Connection(connectionString);
+        opts.Connection(connectionString!);
     })
     
     // This line of code is adding a PostgreSQL backed transactional inbox/outbox 
@@ -113,7 +113,7 @@ builder.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L234-L276' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L225-L266' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_important_settings_for_modular_monoliths' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See [Message Identity](/guide/durability/#message-identity) and [Multiple Handlers for the Same Message Type](/guide/handlers/#multiple-handlers-for-the-same-message-type)
@@ -237,7 +237,7 @@ using var host = await Host.CreateDefaultBuilder()
         });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L106-L128' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L102-L123' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_durable_local_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using local queues for communication is a simple way to get started, requires less deployment overhead in general, and is potentially
@@ -270,7 +270,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
@@ -280,7 +280,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L370-L394' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L358-L381' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conventional_broker_routing_with_local_routing_turned_off' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By using external queues instead of local queues, you are:
@@ -352,7 +352,7 @@ public static async Task run_end_to_end(IHost host)
     // command handler
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L34-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L33-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code sample above, the `InvokeAndMessageAndWaitAsync()` method puts the Wolverine runtime into a "tracked" mode
@@ -394,7 +394,7 @@ public static async Task run_end_to_end_with_external_transports(IHost host)
     // command handler
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L66-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_external_brokers_with_tracked_sessions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L63-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_external_brokers_with_tracked_sessions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And to test the invocation of an event message to a specific handler, we can still do that by sending the message to a specific local queue:
@@ -410,7 +410,7 @@ public static async Task test_specific_handler(IHost host)
         c => c.EndpointFor("local queue name").SendAsync(new OrderPlaced("111")).AsTask());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L54-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_test_specific_queue_end_to_end' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_test_specific_queue_end_to_end' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## With EF Core
@@ -462,7 +462,7 @@ by using this setting:
 // for all modules for more efficient usage of resources
 opts.Durability.MessageStorageSchemaName = "wolverine";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L62-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L61-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_message_storage_schema_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By setting any value for `WolverineOptions.Durability.MessageStorageSchemaName`, Wolverine will use that value for the database schema

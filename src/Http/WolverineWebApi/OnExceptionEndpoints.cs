@@ -19,7 +19,6 @@ public class SpecificHttpException : CustomHttpException
 }
 
 #region sample_on_exception_handler_level
-
 /// <summary>
 /// Handler-level OnException: the exception handler is a method on the same class
 /// as the endpoint handler itself
@@ -46,7 +45,6 @@ public static class OnExceptionEndpoints
 #endregion
 
 #region sample_on_exception_specific
-
 /// <summary>
 /// Handler with multiple exception handlers, testing specificity ordering
 /// </summary>
@@ -90,7 +88,6 @@ public static class MultipleExceptionEndpoints
 #endregion
 
 #region sample_on_exception_async
-
 /// <summary>
 /// Async OnException handler
 /// </summary>
@@ -117,7 +114,6 @@ public static class AsyncExceptionEndpoints
 #endregion
 
 #region sample_on_exception_with_finally
-
 /// <summary>
 /// OnException combined with Finally, testing interaction
 /// </summary>
@@ -152,7 +148,6 @@ public static class ExceptionWithFinallyEndpoints
 #endregion
 
 #region sample_on_exception_no_match
-
 /// <summary>
 /// When the exception type doesn't match any OnException handler,
 /// the exception should propagate normally
@@ -180,7 +175,6 @@ public static class UnmatchedExceptionEndpoints
 #endregion
 
 #region sample_on_exception_no_error
-
 /// <summary>
 /// When no exception is thrown, OnException should not be invoked
 /// </summary>
@@ -205,7 +199,6 @@ public static class NoErrorEndpoints
 #endregion
 
 #region sample_on_exception_void_return
-
 /// <summary>
 /// OnException with void return — exception is still swallowed
 /// </summary>

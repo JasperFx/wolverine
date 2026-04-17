@@ -7,7 +7,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_http_stopwatch_middleware
-
 public class StopwatchMiddleware
 {
     private readonly Stopwatch _stopwatch = new();
@@ -28,7 +27,6 @@ public class StopwatchMiddleware
 #endregion
 
 #region sample_applying_middleware_programmatically_to_one_chain
-
 public class MeasuredEndpoint
 {
     // The signature is meaningful here
@@ -100,7 +98,6 @@ public interface IAmAuthenticated
 }
 
 #region sample_fake_authentication_middleware
-
 public class FakeAuthenticationMiddleware
 {
     public static IResult Before(IAmAuthenticated message)

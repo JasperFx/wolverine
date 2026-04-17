@@ -23,7 +23,6 @@ public class AppFixture : IAsyncLifetime
         JasperFxOptions.RememberedApplicationAssembly = typeof(WolverineWebApi.Program).Assembly;
 
         #region sample_using_run_wolverine_in_solo_mode_with_extension
-
         // This is bootstrapping the actual application using
         // its implied Program.Main() set up
         // For non-Alba users, this is using IWebHostBuilder 

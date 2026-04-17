@@ -121,7 +121,6 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
 }
 
 #region sample_wolverine_polecat_natural_key_aggregate
-
 public record PcNkOrderNumber(string Value);
 
 public class PcNkOrderAggregate
@@ -160,7 +159,6 @@ public record PcNkOrderCompleted;
 #endregion
 
 #region sample_wolverine_polecat_natural_key_commands
-
 public record AddPcNkOrderItem(PcNkOrderNumber OrderNum, string ItemName, decimal Price);
 public record AddPcNkOrderItems(PcNkOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompletePcNkOrder(PcNkOrderNumber OrderNum);
@@ -168,7 +166,6 @@ public record CompletePcNkOrder(PcNkOrderNumber OrderNum);
 #endregion
 
 #region sample_wolverine_polecat_natural_key_handlers
-
 public static class PcNkOrderHandler
 {
     public static PcNkItemAdded Handle(AddPcNkOrderItem command,

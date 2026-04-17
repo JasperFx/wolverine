@@ -54,7 +54,6 @@ public class group_mechanics : WebSocketTestContext
 }
 
 #region sample_messages_related_to_signalr_groups
-
 public record EnrollMe(string GroupName) : WebSocketMessage;
 
 public record KickMeOut(string GroupName) : WebSocketMessage;
@@ -68,7 +67,6 @@ public record Information(string Message) : WebSocketMessage;
 public static class GroupsHandler
 {
     #region sample_group_mechanics_with_signalr
-
     // Declaring that you need the connection that originated
     // this message to be added to the named SignalR client group
     public static AddConnectionToGroup Handle(EnrollMe msg) 
@@ -94,7 +92,6 @@ public static class GroupsHandler
         => Debug.WriteLine(msg.Message);
 
     #region sample_enlist_in_current_connection_saga
-
     // Directs Wolverine to track the connection id that
     // originated this incoming message so that any
     // resulting SignalR messages as a response to this

@@ -8,8 +8,7 @@ public class ServiceLocationUsage
 {
     public static void configure()
     {
-        #region sample_configuring_ServiceLocationPolicy
-
+        #region sample_configuring_servicelocationpolicy
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

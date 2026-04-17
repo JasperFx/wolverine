@@ -16,7 +16,6 @@ public class problem_details_usage_in_http_middleware : IntegrationContext
     }
 
     #region sample_testing_problem_details_behavior
-
     [Fact]
     public async Task continue_happy_path()
     {

@@ -110,7 +110,6 @@ public class concurrency_resilient_sharded_processing
 
 
                 #region sample_inferred_message_group_id
-
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
                 // to predictably sort into "slots" in the processing
                 opts.MessagePartitioning

@@ -5,7 +5,6 @@ namespace WolverineWebApi.Streaming;
 public static class StreamingEndpoints
 {
     #region sample_sse_endpoint
-
     [WolverineGet("/api/sse/events")]
     public static IResult GetSseEvents()
     {
@@ -23,7 +22,6 @@ public static class StreamingEndpoints
     #endregion
 
     #region sample_streaming_endpoint
-
     [WolverineGet("/api/stream/data")]
     public static IResult GetStreamData()
     {

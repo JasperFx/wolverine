@@ -24,7 +24,6 @@ public class end_to_end_with_named_broker : IAsyncLifetime
     public static async Task bootstrap_with_named_brokers()
     {
         #region sample_using_named_azure_service_bus_broker
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

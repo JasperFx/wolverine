@@ -4,7 +4,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_on_exception_middleware
-
 /// <summary>
 /// A middleware class that provides exception handling via the OnException convention.
 /// Applied globally via AddMiddleware in Program.cs

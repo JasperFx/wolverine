@@ -31,7 +31,6 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
         _receiver = WolverineHost.For(opts =>
         {
             #region sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus
-
             opts.UseAzureServiceBusTesting()
                 .UseTopicAndSubscriptionConventionalRouting(convention =>
                 {

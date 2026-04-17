@@ -39,7 +39,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L17-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/Samples.cs#L17-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_subscriptions_and_topics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To fully utilize subscription listening, be careful with using [Requeue error handling](/guide/handlers/error-handling) actions. In order to truly make
@@ -62,7 +62,7 @@ opts.ListenToAzureServiceBusSubscription(
         })
     .FromTopic("topic1");
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L174-L184' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L169-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_azure_service_bus_subscription_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The default filter if not customized is a simple `1=1` (always true) filter.

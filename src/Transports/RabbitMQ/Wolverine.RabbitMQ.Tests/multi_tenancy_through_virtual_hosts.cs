@@ -267,7 +267,6 @@ public static class MultiTenantedRabbitMqSamples
     public static async Task Configure()
     {
         #region sample_configuring_rabbit_mq_for_tenancy
-
         var builder = Host.CreateApplicationBuilder();
 
         builder.UseWolverine(opts =>
@@ -325,7 +324,6 @@ public static class MultiTenantedRabbitMqSamples
     }
 
     #region sample_send_message_to_specific_tenant
-
     public static async Task send_message_to_specific_tenant(IMessageBus bus)
     {
         // Send a message tagged to a specific tenant id

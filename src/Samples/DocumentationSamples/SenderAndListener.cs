@@ -7,8 +7,7 @@ public static class SenderAndListener
 {
     public static async Task sample()
     {
-        #region sample_SenderAndListener
-
+        #region sample_senderandlistener
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

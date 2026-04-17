@@ -9,7 +9,6 @@ public class DisablingOpenTelemetry
     public static async Task bootstrap()
     {
         #region sample_disabling_open_telemetry_by_endpoint
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

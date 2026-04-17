@@ -7,7 +7,6 @@ using Wolverine.Marten;
 namespace WolverineWebApi.Accounts;
 
 #region sample_account_domain_code
-
 public record AccountCreated(double InitialAmount);
 public record Debited(double Amount);
 public record Withdrawn(double Amount);
@@ -26,14 +25,12 @@ public class Account
 
 #endregion
 
-#region sample_TransferMoney_command
-
+#region sample_transfermoney_command
 public record TransferMoney(Guid FromId, Guid ToId, double Amount);
 
 #endregion
 
-#region sample_TransferMoneyEndpoint
-
+#region sample_transfermoneyendpoint
 public static class TransferMoneyHandler    
 {
     [WolverinePost("/accounts/transfer")]

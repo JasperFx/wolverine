@@ -1,5 +1,4 @@
-#region sample_QuickStartConsoleMain
-
+#region sample_quickstartconsolemain
 using JasperFx.CodeGeneration;
 using Microsoft.Extensions.Hosting;
 using JasperFx;

@@ -33,7 +33,7 @@ builder.UseWolverine(opts =>
 
 // continue with your bootstrapping...
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L14-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ravendb' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L14-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ravendb' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Also see [RavenDb's own documentation](https://ravendb.net/docs/article-page/6.0/csharp/start/guides/aws-lambda/existing-project) for bootstrapping RavenDb inside of a .NET application. 
@@ -57,12 +57,12 @@ public class Order : Saga
 {
     // Just use this for the identity
     // of RavenDb backed sagas
-    public string Id { get; set; }
-    
+    public string Id { get; set; } = null!;
+
     // Handle and Start methods...
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L41-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ravendb_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L40-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ravendb_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's nothing else to do, if RavenDb integration is applied to your Wolverine, it's going to kick in
@@ -89,7 +89,7 @@ public class CreateDocCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L60-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_transactional_with_raven' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L58-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_transactional_with_raven' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you choose to do this more conventionally (which folks do tend to use quite often):
@@ -122,7 +122,7 @@ public class AlternativeCreateDocCommandHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L73-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raven_using_handler_for_auto_transactions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/DocumentationSamples.cs#L70-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raven_using_handler_for_auto_transactions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The transactional middleware will also be applied for any usage of the `RavenOps` [side effects](/guide/handlers/side-effects) model
@@ -141,7 +141,7 @@ public static class RecordTeamHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/transactional_middleware.cs#L50-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ravendb_side_effects' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/RavenDbTests/transactional_middleware.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_ravendb_side_effects' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## System Control Queues
@@ -173,7 +173,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L193-L216' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L187-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For local development, there is also an option to let Wolverine just use its TCP transport
@@ -221,7 +221,7 @@ public static class RavenOps
     public static IRavenDbOp DeleteById(string id) => new DeleteById(id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.RavenDb/IRavenDbOp.cs#L36-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ravenops' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/Wolverine.RavenDb/IRavenDbOp.cs#L36-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ravenops' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 See the Wolverine [side effects](/guide/handlers/side-effects) model for more information.

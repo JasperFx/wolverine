@@ -20,7 +20,7 @@ public DateTimeOffset? DeliverBy
     set => _deliverBy = value?.ToUniversalTime();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L65-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Envelope.cs#L79-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_envelope_deliver_by_property' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 At runtime, Wolverine will:
@@ -47,7 +47,7 @@ public async Task message_expiration(IMessageBus bus)
     await bus.SendAsync(new StatusUpdate("Okay"), new DeliveryOptions { DeliverBy = DateTime.Today.AddHours(15) });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L447-L459' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L433-L444' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_message_expiration_by_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Subscriber
@@ -65,7 +65,7 @@ builder.UseWolverine(opts =>
     // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     // Connect to the broker in the simplest possible way
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
@@ -83,7 +83,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L284-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L275-L301' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_delivery_expiration_rules_per_subscriber' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## By Message Type
@@ -99,5 +99,5 @@ on the message type as in this sample:
 [DeliverWithin(5)]
 public record AccountUpdated(Guid AccountId, decimal Balance);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L164-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_deliver_within_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Middleware/AppWithMiddleware/Account.cs#L158-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_deliver_within_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

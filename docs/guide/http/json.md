@@ -45,7 +45,7 @@ public async Task post_json_happy_path()
     result.Sum.ShouldBe(7);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/posting_json.cs#L12-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_post_json_happy_path' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Configuring System.Text.Json
@@ -77,7 +77,7 @@ app.MapWolverineEndpoints();
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/ConfiguringJson.cs#L10-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_stj_for_wolverine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/ConfiguringJson.cs#L10-L28' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_stj_for_wolverine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using Newtonsoft.Json
@@ -117,5 +117,5 @@ await using var host = await AlbaHost.For(builder, app =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_newtonsoft_for_serialization.cs#L18-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_newtonsoft_for_http_serialization' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

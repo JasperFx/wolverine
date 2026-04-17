@@ -13,8 +13,7 @@ public class PublishingSamples
 {
     public static async Task LocalQueuesApp()
     {
-        #region sample_LocalQueuesApp
-
+        #region sample_localqueuesapp
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -45,7 +44,6 @@ public class PublishingSamples
     public static async Task sending_to_endpoint_by_name()
     {
         #region sample_sending_to_endpoint_by_name
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -73,7 +71,6 @@ public class PublishingSamples
 
 
         #region sample_accessing_endpoint_by_uri
-
         // Or access operations on a specific endpoint using a Uri
         await bus.EndpointFor(new Uri("rabbitmq://queue/rabbit-one"))
             .InvokeAsync(new SomeMessage());
@@ -99,7 +96,6 @@ public class PublishingSamples
     #endregion
 
     #region sample_question_and_answer
-
     public class AnswerHandler
     {
         public Answer Handle(Question question)
@@ -111,7 +107,6 @@ public class PublishingSamples
     #endregion
 
     #region sample_invoke_with_response
-
     public async Task InvokeWithResponse(IMessageContext bus)
     {
         var answer = await bus.InvokeAsync<Answer>(new Question());
@@ -156,7 +151,6 @@ public class PublishingSamples
     #endregion
 
     #region sample_send_delayed_message
-
     public async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
     {
         var message = new ValidateInvoiceIsNotLate
@@ -175,7 +169,6 @@ public class PublishingSamples
     #endregion
 
     #region sample_schedule_job_locally
-
     public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
     {
         var message = new ValidateInvoiceIsNotLate
@@ -194,7 +187,6 @@ public class PublishingSamples
     #endregion
 
     #region sample_sending_message_with_servicebus
-
     public ValueTask SendMessage(IMessageContext bus)
     {
         // In this case, we're sending an "InvoiceCreated"
@@ -214,7 +206,6 @@ public class PublishingSamples
 
 
     #region sample_publishing_message_with_servicebus
-
     public ValueTask PublishMessage(IMessageContext bus)
     {
         // In this case, we're sending an "InvoiceCreated"
@@ -251,7 +242,6 @@ public class PublishingSamples
 
 
     #region sample_send_message_to_specific_destination
-
     public async Task SendMessageToSpecificDestination(IMessageContext bus)
     {
         var @event = new InvoiceCreated

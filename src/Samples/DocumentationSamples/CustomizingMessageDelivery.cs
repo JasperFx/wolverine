@@ -6,8 +6,7 @@ namespace DocumentationSamples;
 
 public class CustomizingMessageDelivery
 {
-    #region sample_SendMessagesWithDeliveryOptions
-
+    #region sample_sendmessageswithdeliveryoptions
     public static async Task SendMessagesWithDeliveryOptions(IMessageBus bus)
     {
         await bus.PublishAsync(new Message1(), new DeliveryOptions

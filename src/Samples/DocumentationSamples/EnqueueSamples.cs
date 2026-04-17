@@ -7,7 +7,6 @@ namespace DocumentationSamples;
 public class EnqueueSamples
 {
     #region sample_invoke_locally
-
     public static async Task invoke_locally(IMessageBus bus)
     {
         // Execute the message inline
@@ -24,7 +23,6 @@ public class EnqueueSamples
     public static async Task configura_all_queues()
     {
         #region sample_configuring_local_queues
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -53,7 +51,6 @@ public class EnqueueSamples
     public static async Task configure_local_conventions()
     {
         #region sample_local_queue_conventions
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

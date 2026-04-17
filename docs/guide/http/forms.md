@@ -14,7 +14,7 @@ public static string UsingForm([FromForm]string name) // name is from form data
     return name.IsEmpty() ? "Name is missing" : $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L58-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_form' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L55-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_value_as_form' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding test:
@@ -70,7 +70,7 @@ public async Task use_decimal_form_hit()
     body.ReadAsText().ShouldBe("Amount is 42.1");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L478-L527' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/using_form_parameters.cs#L478-L526' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_form_value_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

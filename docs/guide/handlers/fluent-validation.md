@@ -43,7 +43,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddSingleton<IDataService, DataService>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L14-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L14-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now to situate this within the greater application, let's say you have a message and handler
@@ -79,7 +79,7 @@ public static class CreateCustomerHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L75-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_customer' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L97-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_create_customer' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the Fluent Validation check will happen at runtime *before* the call to the handler methods. If 
@@ -138,7 +138,7 @@ public class CustomFailureAction<T> : IFailureAction<T>
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L56-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customizing_fluent_validation_failure_actions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L79-L95' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customizing_fluent_validation_failure_actions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and with the corresponding override:
@@ -160,5 +160,5 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddSingleton<IDataService, DataService>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L36-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L60-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

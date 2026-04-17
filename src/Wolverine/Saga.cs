@@ -1,7 +1,6 @@
 namespace Wolverine;
 
-#region sample_StatefulSagaOf
-
+#region sample_statefulsagaof
 /// <summary>
 ///     Base class for implementing handlers for a stateful saga
 /// </summary>

@@ -13,8 +13,7 @@ public class BootstrappingSamples
 {
     public static async Task AppWithHandlerPolicy()
     {
-        #region sample_AppWithHandlerPolicy
-
+        #region sample_appwithhandlerpolicy
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Policies.Add<WrapWithSimple>(); }).StartAsync();
 
@@ -24,7 +23,6 @@ public class BootstrappingSamples
     public static async Task DisableRemoteInvocation()
     {
         #region sample_disabling_remote_invocation
-
         using var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -40,7 +38,6 @@ public class BootstrappingSamples
     public static async Task enable_dead_letter_queue_expiration()
     {
         #region sample_enabling_dead_letter_queue_expiration
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -57,8 +54,7 @@ public class BootstrappingSamples
     }
 }
 
-#region sample_WrapWithSimple
-
+#region sample_wrapwithsimple
 public class WrapWithSimple : IHandlerPolicy
 {
     public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)

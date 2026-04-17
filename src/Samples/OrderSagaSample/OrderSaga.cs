@@ -3,14 +3,12 @@ using Wolverine;
 
 namespace OrderSagaSample;
 
-#region sample_Order_saga
-
+#region sample_order_saga
 public record StartOrder(string OrderId);
 
 public record CompleteOrder(string Id);
 
-#region sample_OrderTimeout
-
+#region sample_ordertimeout
 // This message will always be scheduled to be delivered after
 // a one minute delay
 public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
@@ -22,7 +20,6 @@ public class Order : Saga
     public string? Id { get; set; }
 
     #region sample_starting_a_saga_inside_a_handler
-
     // This method would be called when a StartOrder message arrives
     // to start a new Order
     public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logger)
@@ -36,7 +33,6 @@ public class Order : Saga
     #endregion
 
     #region sample_using_saga_mark_completed
-
     // Apply the CompleteOrder to the saga
     public void Handle(CompleteOrder complete, ILogger<Order> logger)
     {
@@ -49,7 +45,6 @@ public class Order : Saga
     #endregion
 
     #region sample_handling_a_timeout_message
-
     // Delete this order if it has not already been deleted to enforce a "timeout"
     // condition
     public void Handle(OrderTimeout timeout, ILogger<Order> logger)
@@ -63,7 +58,6 @@ public class Order : Saga
     #endregion
 
     #region sample_using_not_found
-
     public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
     {
         logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);

@@ -36,7 +36,7 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
     return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L22-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Custom Return Value Handling
@@ -53,7 +53,7 @@ isolation of the file writing side effect.
 For an example, let's say that you want to isolate the [side effect](https://en.wikipedia.org/wiki/Side_effect_(computer_science)) of writing out file contents from your handler
 methods by returning a custom return value called `WriteFile`:
 
-<!-- snippet: sample_WriteFile -->
+<!-- snippet: sample_writefile -->
 <a id='snippet-sample_writefile'></a>
 ```cs
 // This has to be public btw
@@ -65,7 +65,7 @@ public record WriteFile(string Path, string Contents)
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L13-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L13-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_writefile-1'></a>
 ```cs
 // ISideEffect is a Wolverine marker interface
@@ -92,14 +92,14 @@ public class WriteFile : ISideEffect
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L43-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/using_custom_side_effect.cs#L42-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefile-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now, let's teach Wolverine to call the `WriteAsync()` method on each `WriteFile` that is returned from a message handler
 at runtime instead of Wolverine using the default policy of treating it as a cascaded message. To do that, I'm going
 to write a custom `IChainPolicy` like so:
 
-<!-- snippet: sample_WriteFilePolicy -->
+<!-- snippet: sample_writefilepolicy -->
 <a id='snippet-sample_writefilepolicy'></a>
 ```cs
 internal class WriteFilePolicy : IChainPolicy
@@ -133,17 +133,17 @@ internal class WriteFilePolicy : IChainPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L26-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefilepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L25-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and lastly, I'll register that policy in my Wolverine application at configuration time:
 
-<!-- snippet: sample_register_WriteFilePolicy -->
+<!-- snippet: sample_register_writefilepolicy -->
 <a id='snippet-sample_register_writefilepolicy'></a>
 ```cs
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts => { opts.Policies.Add<WriteFilePolicy>(); }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L65-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/CustomReturnType.cs#L63-L67' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_writefilepolicy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

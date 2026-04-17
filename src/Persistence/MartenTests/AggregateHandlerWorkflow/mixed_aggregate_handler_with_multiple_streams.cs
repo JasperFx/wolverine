@@ -83,8 +83,7 @@ public class Inventory
 
 public record MakePurchase(Guid XAccountId, Guid InventoryId, int Number);
 
-#region sample_MakePurchaseHandler
-
+#region sample_makepurchasehandler
 public static class MakePurchaseHandler
 {
     // See how we used the generic version

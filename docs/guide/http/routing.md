@@ -21,7 +21,7 @@ public static string SimpleStringRouteArgument(string name)
     return $"Name is {name}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L28-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L28-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_string_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the sample above, the `name` argument will be the value of the route argument
@@ -36,7 +36,7 @@ public static string IntRouteArgument(int age)
     return $"Age is {age}";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L38-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/TestEndpoints.cs#L37-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_numeric_route_parameter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The following code snippet from `WolverineFx.Http` itself shows the *native .NET* valid route
@@ -66,7 +66,7 @@ public static readonly Dictionary<Type, string> TypeOutputs = new()
     { typeof(DateOnly), typeof(DateOnly).FullName! }
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L15-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/CodeGen/RouteHandling.cs#L15-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_supported_route_parameter_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -90,7 +90,7 @@ uses StronglyTypedId:
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct LetterId;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_letter_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L84-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_letter_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can use the `LetterId` type as a route argument as this example shows:
@@ -99,15 +99,15 @@ You can use the `LetterId` type as a route argument as this example shows:
 <a id='snippet-sample_using_strong_typed_id_as_route_argument'></a>
 ```cs
 [WolverineGet("/sti/aggregate/longhand/{id}")]
-public static ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
-    session.Events.FetchLatest<StrongLetterAggregate>(id.Value);
+public static async ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
+    (await session.Events.FetchLatest<StrongLetterAggregate>(id.Value))!;
 
 // This is an equivalent to the endpoint above 
 [WolverineGet("/sti/aggregate/{id}")]
 public static StrongLetterAggregate Handle(
     [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Route Prefixes <Badge type="tip" text="5.14" />
@@ -252,7 +252,7 @@ public string Post()
     return "Hello";
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/NamedRouteEndpoint.cs#L7-L15' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_route_name' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/NamedRouteEndpoint.cs#L7-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_route_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

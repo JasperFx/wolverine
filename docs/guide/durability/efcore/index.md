@@ -29,7 +29,7 @@ With that in place, there's two basic things you need in order to fully use EF C
 ```cs
 var builder = Host.CreateApplicationBuilder();
 
-var connectionString = builder.Configuration.GetConnectionString("sqlserver");
+var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;
 
 // Register a DbContext or multiple DbContext types as normal
 builder.Services.AddDbContext<SampleDbContext>(
@@ -53,7 +53,7 @@ builder.UseWolverine(opts =>
 
 // Rest of your bootstrapping...
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L40-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_getting_started_with_efcore' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L39-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_getting_started_with_efcore' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Do note that I purposely configured the `ServiceLifetime` of the `DbContextOptions` for our `DbContext` type to be `Singleton`. 
@@ -66,7 +66,7 @@ Or alternatively, you can do this in one step with this equivalent approach:
 ```cs
 var builder = Host.CreateApplicationBuilder();
 
-var connectionString = builder.Configuration.GetConnectionString("sqlserver");
+var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;
 
 builder.UseWolverine(opts =>
 {
@@ -82,7 +82,7 @@ builder.UseWolverine(opts =>
         x => x.UseSqlServer(connectionString));
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L74-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_idiomatic_wolverine_registration_of_ef_core' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/SampleUsageWithAutoApplyTransactions.cs#L72-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_idiomatic_wolverine_registration_of_ef_core' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

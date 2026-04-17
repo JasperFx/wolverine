@@ -4,8 +4,7 @@ using Wolverine.Http;
 
 namespace WolverineWebApi;
 
-#region sample_WolverineOperationFilter
-
+#region sample_wolverineoperationfilter
 // This class is NOT distributed in any kind of Nuget today, but feel very free
 // to copy this code into your own as it is at least tested through Wolverine's
 // CI test suite

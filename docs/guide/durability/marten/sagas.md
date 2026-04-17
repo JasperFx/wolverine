@@ -25,7 +25,7 @@ public class OrderSagaWorkflow : Wolverine.Saga
 {
     public OrderSagaId Id { get; set; }
 
-    public string CustomerName { get; set; }
+    public string CustomerName { get; set; } = null!;
     public bool ItemsPicked { get; set; }
     public bool PaymentProcessed { get; set; }
     public bool Shipped { get; set; }
@@ -84,7 +84,7 @@ public class CompleteOrderStep
     [SagaIdentity] public OrderSagaId TheOrderId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/strong_typed_id_saga.cs#L11-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_id_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/strong_typed_id_saga.cs#L14-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_id_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The standard saga identity resolution conventions still apply:

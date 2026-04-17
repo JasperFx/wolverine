@@ -10,8 +10,7 @@ using Wolverine.Runtime.Handlers;
 
 namespace DocumentationSamples;
 
-#region sample_WriteFile
-
+#region sample_writefile
 // This has to be public btw
 public record WriteFile(string Path, string Contents)
 {
@@ -23,8 +22,7 @@ public record WriteFile(string Path, string Contents)
 
 #endregion
 
-#region sample_WriteFilePolicy
-
+#region sample_writefilepolicy
 internal class WriteFilePolicy : IChainPolicy
 {
     // IChain is a Wolverine model to configure the code generation of
@@ -62,8 +60,7 @@ public static class configure_return_values
 {
     public static async Task configure()
     {
-        #region sample_register_WriteFilePolicy
-
+        #region sample_register_writefilepolicy
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Policies.Add<WriteFilePolicy>(); }).StartAsync();
 

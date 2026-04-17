@@ -700,8 +700,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     }
 }
 
-#region sample_BlueTextReader
-
+#region sample_bluetextreader
 public class BlueTextReader : IMessageSerializer
 {
     public string ContentType => "text/plain";
@@ -730,8 +729,7 @@ public class BlueTextReader : IMessageSerializer
 
 #endregion
 
-#region sample_GreenTextWriter
-
+#region sample_greentextwriter
 public class GreenTextWriter : IMessageSerializer
 {
     public string ContentType => "text/plain";

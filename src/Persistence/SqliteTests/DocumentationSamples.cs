@@ -13,7 +13,6 @@ public class DocumentationSamples
     public static async Task<int> SetupSqliteStorage(string[] args)
     {
         #region sample_setup_sqlite_storage
-
         var builder = WebApplication.CreateBuilder(args);
         var connectionString = builder.Configuration.GetConnectionString("sqlite");
 
@@ -47,7 +46,6 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 #region sample_sqlite_connection_string_examples
-
                 // File-based database (recommended)
                 opts.PersistMessagesWithSqlite("Data Source=wolverine.db");
 
@@ -61,7 +59,6 @@ public class DocumentationSamples
     public static async Task UsingSqliteTransport()
     {
         #region sample_using_sqlite_transport
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -99,7 +96,6 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 #region sample_sqlite_connection_string_only_transport
-
                 opts.UseSqlitePersistenceAndTransport("Data Source=wolverine.db");
 
                 #endregion
@@ -112,7 +108,6 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 #region sample_sqlite_static_tenancy
-
                 opts.PersistMessagesWithSqlite("Data Source=main.db")
                     .RegisterStaticTenants(tenants =>
                     {
@@ -133,7 +128,6 @@ public class DocumentationSamples
             .UseWolverine(opts =>
             {
                 #region sample_sqlite_master_table_tenancy
-
                 opts.PersistMessagesWithSqlite("Data Source=main.db")
                     .UseMasterTableTenancy(seed =>
                     {
@@ -149,7 +143,6 @@ public class DocumentationSamples
     public static async Task SqliteTenantSpecificSend(IHost host)
     {
         #region sample_sqlite_tenant_specific_send
-
         await host.SendAsync(new SampleTenantMessage("hello"), new DeliveryOptions { TenantId = "red" });
 
         #endregion
@@ -158,7 +151,6 @@ public class DocumentationSamples
     public static void ConfigureSqlitePollingSettings()
     {
         #region sample_sqlite_polling_configuration
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -184,7 +176,6 @@ public class DocumentationSamples
                     .AutoProvision().AutoPurgeOnStartup().DisableInboxAndOutboxOnAll();
 
                 #region sample_setting_sqlite_queue_to_buffered
-
                 opts.ListenToSqliteQueue("sender").BufferedInMemory();
 
                 #endregion

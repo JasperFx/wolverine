@@ -8,8 +8,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-#region sample_RouteKeyConvention
-
+#region sample_routekeyconvention
 public class RouteKeyConvention : IMessageRoutingConvention
 {
     private readonly string _exchangeName;
@@ -48,8 +47,7 @@ public static class UsingRouteKeyConvention
 {
     public static async Task use_it()
     {
-        #region sample_register_RouteKeyConvention
-
+        #region sample_register_routekeyconvention
         var builder = Host.CreateApplicationBuilder();
         var rabbitConnectionString = builder
             .Configuration

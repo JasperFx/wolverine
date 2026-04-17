@@ -11,7 +11,6 @@ public class SampleCode
     public async Task configure_json()
     {
         #region sample_overriding_signalr_serialization
-
         var builder = WebApplication.CreateBuilder();
 
         builder.UseWolverine(opts =>
@@ -29,7 +28,6 @@ public class SampleCode
     public static async Task configure_signalr_client()
     {
         #region sample_bootstrap_signalr_client_for_realsies
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -56,7 +54,6 @@ public class SampleCode
     public static async Task configure_signalr_client_locally()
     {
         #region sample_bootstrap_signalr_client_for_local
-
         // Ostensibly, *something* in your test harness would 
         // be telling you the port number of the real application
         int port = 5555;
@@ -85,7 +82,6 @@ public class SampleCode
 }
 
 #region sample_sending_response_to_originating_signalr_caller
-
 public record RequestSum(int X, int Y) : WebSocketMessage;
 public record SumAnswer(int Value) : WebSocketMessage;
 

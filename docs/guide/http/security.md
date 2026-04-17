@@ -15,7 +15,7 @@ app.MapWolverineEndpoints(opts =>
 
 or more selectively, the code above is just syntactical sugar for:
 
-<!-- snippet: sample_RequireAuthorizeOnAll -->
+<!-- snippet: sample_requireauthorizeonall -->
 <a id='snippet-sample_requireauthorizeonall'></a>
 ```cs
 /// <summary>
@@ -26,7 +26,7 @@ public void RequireAuthorizeOnAll()
     ConfigureEndpoints(e => e.RequireAuthorization());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L241-L251' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requireauthorizeonall' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/WolverineHttpOptions.cs#L271-L280' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_requireauthorizeonall' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Tracking User Name

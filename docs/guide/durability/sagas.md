@@ -35,7 +35,7 @@ Jumping right into an example, consider a very simple order management service t
 
 For the moment, I’m going to ignore the underlying persistence and just focus on the Wolverine message handlers to implement the order saga workflow with this simplistic saga code:
 
-<!-- snippet: sample_Order_saga -->
+<!-- snippet: sample_order_saga -->
 <a id='snippet-sample_order_saga'></a>
 ```cs
 public record StartOrder(string OrderId);
@@ -86,7 +86,7 @@ public class Order : Saga
 
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L6-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A few explanatory notes on this code before we move on to detailed documentation:
@@ -118,7 +118,7 @@ builder.Host.ApplyJasperFxExtensions();
 builder.Services.AddMarten(opts =>
     {
         var connectionString = builder.Configuration.GetConnectionString("Marten");
-        opts.Connection(connectionString);
+        opts.Connection(connectionString!);
         opts.DatabaseSchemaName = "orders";
     })
 
@@ -151,7 +151,7 @@ app.UseSwaggerUI();
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
@@ -265,7 +265,7 @@ To do that, Wolverine determines what public member of the saga message refers t
 identity. In order of precedence, Wolverine first looks for a member decorated with the
 `[SagaIdentity]` attribute like this:
 
-<!-- snippet: sample_ToyOnTray -->
+<!-- snippet: sample_toyontray -->
 <a id='snippet-sample_toyontray'></a>
 ```cs
 public class ToyOnTray
@@ -277,12 +277,12 @@ public class ToyOnTray
     [SagaIdentity] public int OrderId { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L257-L268' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L251-L261' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 After that, you can also use a new `[SagaIdentityFrom]` (as of 5.9) attribute on~~~~ a handler parameter:
 
-<!-- snippet: sample_using_SagaIdentityFrom -->
+<!-- snippet: sample_using_sagaidentityfrom -->
 <a id='snippet-sample_using_sagaidentityfrom'></a>
 ```cs
 public class SomeSaga
@@ -292,7 +292,7 @@ public class SomeSaga
     public void Handle([SagaIdentityFrom(nameof(SomeSagaMessage5.Hello))] SomeSagaMessage5 message) { }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_id_member_determination.cs#L35-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sagaidentityfrom' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Persistence/Sagas/saga_id_member_determination.cs#L63-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sagaidentityfrom' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Next, Wolverine looks for a member named "{saga type name}Id." In the case of our `Order`
@@ -387,7 +387,7 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
     return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L22-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -425,7 +425,7 @@ public class Reservation : Saga
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L76-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L73-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_reservation_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and the handler that would start the new saga:
@@ -453,7 +453,7 @@ public class StartReservationHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L53-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/SagaExample.cs#L51-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_return_saga_from_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Method Conventions
@@ -501,7 +501,7 @@ public static void NotFound(CompleteOrder complete, ILogger<Order> logger)
     logger.LogInformation("Tried to complete order {Id}, but it cannot be found", complete.Id);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L65-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_found' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L60-L66' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_not_found' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that you will have to explicitly use `IMessageBus` as an argument to a `NotFound` method to send out any messages
@@ -524,7 +524,7 @@ public void Handle(CompleteOrder complete, ILogger<Order> logger)
     MarkCompleted();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L38-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L35-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_saga_mark_completed' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Timeout Messages
@@ -534,14 +534,14 @@ with scheduled messages in Wolverine, but because this usage is so common with `
 Wolverine really wants you to be able to use pure functions as much as possible, you can subclass the Wolverine `TimeoutMessage`
 for any logical message that will be scheduled in the future like so:
 
-<!-- snippet: sample_OrderTimeout -->
+<!-- snippet: sample_ordertimeout -->
 <a id='snippet-sample_ordertimeout'></a>
 ```cs
 // This message will always be scheduled to be delivered after
 // a one minute delay
 public record OrderTimeout(string Id) : TimeoutMessage(1.Minutes());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L12-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L11-L16' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ordertimeout' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That `OrderTimeout` message can be published with normal cascaded messages (or by calling `IMessageBus.PublishAsync()` if you prefer)
@@ -560,7 +560,7 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
     return (new Order{Id = order.OrderId}, new OrderTimeout(order.OrderId));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L24-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L22-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_starting_a_saga_inside_a_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the handler for the message type is just a normal handler signature:
@@ -578,7 +578,7 @@ public void Handle(OrderTimeout timeout, ILogger<Order> logger)
     MarkCompleted();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L51-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/OrderSaga.cs#L47-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handling_a_timeout_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Saga Concurrency
@@ -622,7 +622,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Sagas/configuring_saga_table_storage.cs#L22-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manually_adding_saga_types' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Sagas/configuring_saga_table_storage.cs#L22-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_manually_adding_saga_types' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that this manual registration is not necessary at development time or if you're content to just let Wolverine
@@ -673,7 +673,7 @@ public class RevisionedSaga : Wolverine.Saga
         chain.SuccessLogLevel = LogLevel.None;
     }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you wanted to just do it globally, something like this approach:
@@ -693,7 +693,7 @@ public class TurnDownLoggingOnSagas : IChainPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L27-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turn_down_logging_for_sagas' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L26-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_turn_down_logging_for_sagas' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and register that policy something like this:
@@ -707,7 +707,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.Add<TurnDownLoggingOnSagas>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/SagaChainPolicies.cs#L15-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_chain_policy_on_sagas' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Multiple Sagas Handling the Same Message Type

@@ -5,8 +5,7 @@ using Wolverine.Http.Marten;
 
 namespace IncidentService;
 
-#region sample_CategoriseIncident
-
+#region sample_categoriseincident
 public record CategoriseIncident(
     IncidentCategory Category,
     Guid CategorisedBy,

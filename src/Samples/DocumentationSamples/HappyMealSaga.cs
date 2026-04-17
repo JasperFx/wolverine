@@ -3,8 +3,7 @@ using Wolverine.Persistence.Sagas;
 
 namespace DocumentationSamples;
 
-#region sample_HappyMealOrder
-
+#region sample_happymealorder
 public class HappyMealOrder
 {
     public string Drink { get; set; } = null!;
@@ -36,8 +35,7 @@ public class SodaRequested
     public int OrderId { get; set; }
 }
 
-#region sample_HappyMealSaga1
-
+#region sample_happymealsaga1
 /// <summary>
 ///     This is being done completely in memory, which you most likely wouldn't
 ///     do in "real" systems
@@ -115,8 +113,7 @@ public class HappyMealSagaNoTuple : Saga
         return DrinkReady && ToyReady && SideReady && MainReady;
     }
 
-    #region sample_HappyMealSaga1NoTuple
-
+    #region sample_happymealsaga1notuple
     public async Task Starts(
         HappyMealOrder order, // The first argument is assumed to be the message type
         IMessageBus context) // Additional arguments are assumed to be services
@@ -157,8 +154,7 @@ public class HappyMealSagaAllLocal : Saga
         return DrinkReady && ToyReady && SideReady && MainReady;
     }
 
-    #region sample_HappyMealSaga1Local
-
+    #region sample_happymealsaga1local
     public async Task Starts(
         HappyMealOrder order, // The first argument is assumed to be the message type
         IMessageBus context) // Additional arguments are assumed to be services
@@ -177,8 +173,7 @@ public class HappyMealSagaAllLocal : Saga
     #endregion
 }
 
-#region sample_SodaHandler
-
+#region sample_sodahandler
 // This message handler is in another system responsible for
 // filling sodas
 public class SodaHandler
@@ -242,8 +237,7 @@ public interface IOrderService
 
 public class SodaFetched;
 
-#region sample_BurgerReady
-
+#region sample_burgerready
 public class BurgerReady
 {
     // By default, Wolverine is going to look for a property
@@ -254,8 +248,7 @@ public class BurgerReady
 
 #endregion
 
-#region sample_ToyOnTray
-
+#region sample_toyontray
 public class ToyOnTray
 {
     // There's always *some* reason to deviate,
@@ -288,7 +281,6 @@ public class HappyMealSaga3 : Saga
     }
 
     #region sample_completing_saga
-
     public void Handle(
         SodaFetched soda, // The first argument is the message type
         IOrderService service // Additional arguments are injected services
@@ -312,7 +304,6 @@ public class HappyMealSaga3 : Saga
 
 
     #region sample_passing_saga_state_id_through_message
-
     public void Handle(ToyOnTray toyReady)
     {
         ToyReady = true;

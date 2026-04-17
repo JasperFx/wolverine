@@ -16,7 +16,7 @@ store* for incoming messages like this:
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres"));
+    opts.UsePostgresqlPersistenceAndTransport(builder.Configuration.GetConnectionString("postgres")!);
 
     // Or
     // opts.UseSqlServerPersistenceAndTransport(builder.Configuration.GetConnectionString("sqlserver"));
@@ -74,7 +74,7 @@ builder.UseWolverine(opts =>
         .Sequential();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L233-L296' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/Transport/external_message_tables.cs#L233-L295' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_external_database_messaging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 So a couple things to know:

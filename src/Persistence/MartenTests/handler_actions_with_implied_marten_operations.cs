@@ -340,7 +340,6 @@ public record AppendManyNamedDocuments(string[] Names);
 public static class AppendManyNamedDocumentsHandler
 {
     #region sample_using_ienumerable_of_martenop_as_side_effect
-
     // Just keep in mind that this "example" was rigged up for test coverage
     public static IEnumerable<IMartenOp> Handle(AppendManyNamedDocuments command)
     {

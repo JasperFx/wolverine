@@ -22,8 +22,7 @@ public class BaseMessage;
 
 public class SpecialMessage : BaseMessage;
 
-#region sample_customized_handler_using_Configure
-
+#region sample_customized_handler_using_configure
 public class CustomizedHandler
 {
     public void Handle(SpecialMessage message)

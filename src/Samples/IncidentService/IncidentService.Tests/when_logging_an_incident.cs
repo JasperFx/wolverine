@@ -16,7 +16,6 @@ public class when_logging_an_incident : IntegrationContext
     }
 
     #region sample_unit_test_log_incident
-
     [Fact]
     public void unit_test()
     {
@@ -35,7 +34,6 @@ public class when_logging_an_incident : IntegrationContext
     #endregion
 
     #region sample_end_to_end_on_log_incident
-
     [Fact]
     public async Task happy_path_end_to_end()
     {

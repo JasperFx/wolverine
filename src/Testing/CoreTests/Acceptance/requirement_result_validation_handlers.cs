@@ -79,7 +79,6 @@ public class requirement_result_validation_handlers
 }
 
 #region sample_requirement_result_validation
-
 public record RequirementResultMessage(int Number);
 
 public static class RequirementResultHandler
@@ -106,7 +105,6 @@ public static class RequirementResultHandler
 #endregion
 
 #region sample_requirement_result_validation_async
-
 public record AsyncRequirementResultMessage(int Number);
 
 public static class AsyncRequirementResultHandler
@@ -133,7 +131,6 @@ public static class AsyncRequirementResultHandler
 #endregion
 
 #region sample_requirement_result_validation_empty_messages
-
 public record EmptyMessagesRequirementResultMessage(int Number);
 
 public static class EmptyMessagesRequirementResultHandler

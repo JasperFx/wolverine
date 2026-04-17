@@ -65,7 +65,6 @@ public class bootstrapping_specs : IntegrationContext
     public async Task bootstrap_with_extension_finding_disabled()
     {
         #region sample_disabling_assembly_scanning
-
         using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

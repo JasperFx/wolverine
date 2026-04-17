@@ -12,7 +12,6 @@ public class DocumentationSamples
     public async Task bootstrapping()
     {
         #region sample_basic_connection_to_azure_service_bus
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -47,7 +46,6 @@ public class DocumentationSamples
     public async Task configuring_queues()
     {
         #region sample_configuring_azure_service_bus_queues
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -87,7 +85,6 @@ public class DocumentationSamples
     public async Task configuring_a_listener()
     {
         #region sample_configuring_an_azure_service_bus_listener
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -137,7 +134,6 @@ public class DocumentationSamples
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
             #region sample_buffered_in_memory
-
             // I overrode the buffering limits just to show
             // that they exist for "back pressure"
             opts.ListenToAzureServiceBusQueue("incoming")
@@ -147,7 +143,6 @@ public class DocumentationSamples
 
 
             #region sample_all_outgoing_are_durable
-
             opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
 
             #endregion
@@ -172,7 +167,6 @@ public class DocumentationSamples
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
             #region sample_configuring_azure_service_bus_subscription_filter
-
             opts.ListenToAzureServiceBusSubscription(
                     "subscription1",
                     configureSubscriptionRule: rule =>
@@ -191,7 +185,6 @@ public class DocumentationSamples
     public async Task configure_control_queues()
     {
         #region sample_enabling_azure_service_bus_control_queues
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -234,7 +227,6 @@ public class DocumentationSamples
             opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
             #region sample_durable_endpoint
-
             // I overrode the buffering limits just to show
             // that they exist for "back pressure"
 opts.ListenToAzureServiceBusQueue("incoming")
@@ -253,7 +245,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task publishing_to_queue()
     {
         #region sample_publishing_to_specific_azure_service_bus_queue
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -282,7 +273,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task delivery_expiration_rules_per_subscriber()
     {
         #region sample_delivery_expiration_rules_per_subscriber
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -314,7 +304,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task conventional_listener_configuration()
     {
         #region sample_conventional_listener_configuration_for_azure_service_bus
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -341,7 +330,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task conventional_subscriber_configuration()
     {
         #region sample_conventional_subscriber_configuration_for_azure_service_bus
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -368,7 +356,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task conventional_routing_no_local_routing()
     {
         #region sample_using_conventional_broker_routing_with_local_routing_turned_off
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -397,7 +384,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public async Task conventional_routing()
     {
         #region sample_conventional_routing_for_azure_service_bus
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -445,7 +431,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     }
 
     #region sample_message_expiration_by_message
-
     public async Task message_expiration(IMessageBus bus)
     {
         // Disregard the message if it isn't sent and/or processed within 3 seconds from now
@@ -464,7 +449,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public static async Task custom_mapping()
     {
         #region sample_customized_envelope_mapping
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -507,7 +491,6 @@ opts.ListenToAzureServiceBusQueue("incoming")
     public static async Task nservicebus()
     {
         #region sample_opting_into_nservicebus
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

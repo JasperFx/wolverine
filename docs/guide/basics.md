@@ -9,7 +9,7 @@ something happened. Just know that as far as Wolverine is concerned, those are r
 
 Here's a couple simple samples:
 
-<!-- snippet: sample_DebutAccount_command -->
+<!-- snippet: sample_debutaccount_command -->
 <a id='snippet-sample_debutaccount_command'></a>
 ```cs
 // A "command" message
@@ -18,13 +18,13 @@ public record DebitAccount(long AccountId, decimal Amount);
 // An "event" message
 public record AccountOverdrawn(long AccountId);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L76-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L72-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debutaccount_command' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The next concept in Wolverine is a message handler, which is just a method that "knows" how to process an incoming message. Here's an extremely
 simple example:
 
-<!-- snippet: sample_DebitAccountHandler -->
+<!-- snippet: sample_debitaccounthandler -->
 <a id='snippet-sample_debitaccounthandler'></a>
 ```cs
 public static class DebitAccountHandler
@@ -35,7 +35,7 @@ public static class DebitAccountHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L64-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L61-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_debitaccounthandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine can act as a completely local mediator tool that allows your code to invoke the handler for a message at any time without having
@@ -50,7 +50,7 @@ public async Task invoke_debit_account(IMessageBus bus)
     await bus.InvokeAsync(new DebitAccount(2222, 250));
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L37-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_debit_account' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MessageBusBasics.cs#L36-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_invoke_debit_account' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's certainly some value in Wolverine just being a command bus running inside of a single process, Wolverine also allows you to both publish and process messages received through external infrastructure like [Rabbit MQ](https://www.rabbitmq.com/)

@@ -7,7 +7,6 @@ public class InteropSamples
     public static void build_envelope()
     {
         #region sample_create_an_outgoing_envelope
-
         var message = new ApproveInvoice("1234");
         
         // I'm really creating an outgoing message here

@@ -4,7 +4,6 @@ using Wolverine.Http;
 namespace WolverineWebApi;
 
 #region sample_simple_validation_http_ienumerable
-
 public record SimpleValidateHttpEnumerableMessage(int Number);
 
 public static class SimpleValidationHttpEnumerableEndpoint
@@ -24,7 +23,6 @@ public static class SimpleValidationHttpEnumerableEndpoint
 #endregion
 
 #region sample_simple_validation_http_string_array
-
 public record SimpleValidateHttpStringArrayMessage(int Number);
 
 public static class SimpleValidationHttpStringArrayEndpoint
@@ -46,7 +44,6 @@ public static class SimpleValidationHttpStringArrayEndpoint
 #endregion
 
 #region sample_simple_validation_http_async
-
 public record SimpleValidateHttpAsyncMessage(int Number);
 
 public static class SimpleValidationHttpAsyncEndpoint
@@ -68,7 +65,6 @@ public static class SimpleValidationHttpAsyncEndpoint
 #endregion
 
 #region sample_simple_validation_http_valuetask
-
 public record SimpleValidateHttpValueTaskMessage(int Number);
 
 public static class SimpleValidationHttpValueTaskEndpoint
@@ -90,7 +86,6 @@ public static class SimpleValidationHttpValueTaskEndpoint
 #endregion
 
 #region sample_simple_validation_http_validationoutcome
-
 public record SimpleValidateHttpValidationOutcomeMessage(int Number);
 
 public static class SimpleValidationHttpValidationOutcomeEndpoint
@@ -112,7 +107,6 @@ public static class SimpleValidationHttpValidationOutcomeEndpoint
 #endregion
 
 #region sample_simple_validation_http_validationoutcome_async
-
 public record SimpleValidateHttpValidationOutcomeAsyncMessage(int Number);
 
 public static class SimpleValidationHttpValidationOutcomeAsyncEndpoint

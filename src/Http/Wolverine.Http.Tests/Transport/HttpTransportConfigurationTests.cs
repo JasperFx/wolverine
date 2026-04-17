@@ -98,7 +98,6 @@ public class HttpTransportConfigurationTests
     public async Task to_http_endpoint_without_cloud_events_keeps_default_options()
     {
         #region sample_publishing_rules_for_http
-
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

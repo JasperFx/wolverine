@@ -177,7 +177,6 @@ public class simple_validation_handlers
 }
 
 #region sample_simple_validation_ienumerable
-
 public record SimpleValidateEnumerableMessage(int Number);
 
 public static class SimpleValidationEnumerableHandler
@@ -202,7 +201,6 @@ public static class SimpleValidationEnumerableHandler
 #endregion
 
 #region sample_simple_validation_string_array
-
 public record SimpleValidateStringArrayMessage(int Number);
 
 public static class SimpleValidationStringArrayHandler
@@ -229,7 +227,6 @@ public static class SimpleValidationStringArrayHandler
 #endregion
 
 #region sample_simple_validation_async
-
 public record SimpleValidateAsyncMessage(int Number);
 
 public static class SimpleValidationAsyncHandler
@@ -256,7 +253,6 @@ public static class SimpleValidationAsyncHandler
 #endregion
 
 #region sample_simple_validation_valuetask
-
 public record SimpleValidateValueTaskMessage(int Number);
 
 public static class SimpleValidationValueTaskHandler

@@ -21,7 +21,6 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
     public static async Task TestSample()
     {
         #region sample_unknown_messages_go_to_dead_letter_queue
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {

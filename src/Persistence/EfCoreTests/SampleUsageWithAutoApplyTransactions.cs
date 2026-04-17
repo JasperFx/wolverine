@@ -14,7 +14,6 @@ public class SampleUsageWithAutoApplyTransactions
     public static async Task bootstrap()
     {
         #region sample_bootstrapping_with_auto_apply_transactions_for_sql_server
-
         var builder = Host.CreateApplicationBuilder();
         builder.UseWolverine(opts =>
         {
@@ -38,7 +37,6 @@ public class SampleUsageWithAutoApplyTransactions
     public static async Task quickstart()
     {
         #region sample_getting_started_with_efcore
-
         var builder = Host.CreateApplicationBuilder();
 
         var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;
@@ -72,7 +70,6 @@ public class SampleUsageWithAutoApplyTransactions
     {
 
         #region sample_idiomatic_wolverine_registration_of_ef_core
-
         var builder = Host.CreateApplicationBuilder();
 
         var connectionString = builder.Configuration.GetConnectionString("sqlserver")!;

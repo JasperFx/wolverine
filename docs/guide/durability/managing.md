@@ -24,7 +24,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Programmatic Management
@@ -61,7 +61,7 @@ public static async Task testing_setup_or_teardown(IHost host)
     await store.Admin.ClearAllAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L21-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L21-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -75,7 +75,7 @@ To have any missing database schema objects built as needed on application start
 // This is rebuilding the persistent storage database schema on startup
 builder.Host.UseResourceSetupOnStartup();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L55-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L52-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_resource_setup_on_startup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Command Line Management
@@ -89,7 +89,7 @@ shown in this last line of a .NET 6/7 `Program` code file:
 // Opt into using JasperFx for command parsing
 await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L85-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_jasperfx_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L81-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_jasperfx_for_command_line_parsing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And you're using the message persistence from either the `WolverineFx.SqlServer` or `WolverineFx.Postgresql`
@@ -209,5 +209,5 @@ using var host = await AlbaHost.For<WolverineWebApi.Program>(builder =>
     });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/bootstrap_with_no_persistence.cs#L14-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_no_persistence' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/bootstrap_with_no_persistence.cs#L14-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_no_persistence' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

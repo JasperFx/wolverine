@@ -19,7 +19,7 @@ builder.Host.UseWolverine(opts =>
 {
     // Setting up Sql Server-backed message storage
     // This requires a reference to Wolverine.SqlServer
-    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
+    opts.PersistMessagesWithSqlServer(connectionString!, "wolverine");
 
     // Set up Entity Framework Core as the support
     // for Wolverine's transactional middleware
@@ -30,7 +30,7 @@ builder.Host.UseWolverine(opts =>
     opts.Policies.UseDurableLocalQueues();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L36-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L34-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Sql Server Messaging Transport
@@ -51,7 +51,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var connectionString = builder.Configuration.GetConnectionString("sqlserver");
-    opts.UseSqlServerPersistenceAndTransport(connectionString, "myapp")
+    opts.UseSqlServerPersistenceAndTransport(connectionString!, "myapp")
 
         // Tell Wolverine to build out all necessary queue or scheduled message
         // tables on demand as needed
@@ -74,13 +74,16 @@ builder.UseWolverine(opts =>
 
         // Optionally specify how many messages to
         // fetch into the listener at any one time
-        .MaximumMessagesToReceive(50);
+        .MaximumMessagesToReceive(50)
+
+        // Override how often to poll for new messages when the queue is idle.
+        .PollingInterval(1.Seconds());
 });
 
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/DocumentationSamples.cs#L12-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/DocumentationSamples.cs#L13-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sql_server_transport' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The Sql Server transport is strictly queue-based at this point. The queues are configured as durable by default, meaning
@@ -91,7 +94,7 @@ that they are utilizing the transactional inbox and outbox. The Sql Server queue
 ```cs
 opts.ListenToSqlServerQueue("sender").BufferedInMemory();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L67-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/compliance_tests.cs#L67-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_sql_server_queue_to_buffered' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this option just means that the Sql Server queues can be used for both sending or receiving with no integration
@@ -154,7 +157,7 @@ _listener = await Host.CreateDefaultBuilder()
             .IncludeType<FooBarHandler>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/with_multiple_hosts.cs#L21-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_as_queue_between_two_apps' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/with_multiple_hosts.cs#L21-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_as_queue_between_two_apps' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
@@ -189,15 +192,15 @@ builder.UseWolverine(opts =>
 {
     // First, you do have to have a "main" PostgreSQL database for messaging persistence
     // that will store information about running nodes, agents, and non-tenanted operations
-    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main"))
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("main")!)
 
         // Add known tenants at bootstrapping time
         .RegisterStaticTenants(tenants =>
         {
             // Add connection strings for the expected tenant ids
-            tenants.Register("tenant1", configuration.GetConnectionString("tenant1"));
-            tenants.Register("tenant2", configuration.GetConnectionString("tenant2"));
-            tenants.Register("tenant3", configuration.GetConnectionString("tenant3"));
+            tenants.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+            tenants.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+            tenants.Register("tenant3", configuration.GetConnectionString("tenant3")!);
         });
     
     // Just to show that you *can* use more than one DbContext
@@ -213,7 +216,7 @@ builder.UseWolverine(opts =>
     }, AutoCreate.CreateOrUpdate);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L56-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L55-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_static_tenant_registry_with_sqlserver' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -237,7 +240,7 @@ builder.UseWolverine(opts =>
 {
     // You need a main database no matter what that will hold information about the Wolverine system itself
     // and..
-    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine"))
+    opts.PersistMessagesWithSqlServer(configuration.GetConnectionString("wolverine")!)
 
         // ...also a table holding the tenant id to connection string information
         .UseMasterTableTenancy(seed =>
@@ -245,13 +248,13 @@ builder.UseWolverine(opts =>
             // These registrations are 100% just to seed data for local development
             // Maybe you want to omit this during production?
             // Or do something programmatic by looping through data in the IConfiguration?
-            seed.Register("tenant1", configuration.GetConnectionString("tenant1"));
-            seed.Register("tenant2", configuration.GetConnectionString("tenant2"));
-            seed.Register("tenant3", configuration.GetConnectionString("tenant3"));
+            seed.Register("tenant1", configuration.GetConnectionString("tenant1")!);
+            seed.Register("tenant2", configuration.GetConnectionString("tenant2")!);
+            seed.Register("tenant3", configuration.GetConnectionString("tenant3")!);
         });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L124-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L121-L143' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_sqlserver_backed_master_table_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

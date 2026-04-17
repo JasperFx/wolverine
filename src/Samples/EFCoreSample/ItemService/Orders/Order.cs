@@ -4,7 +4,6 @@ using Wolverine;
 namespace ItemService.Orders;
 
 #region sample_order_saga_for_efcore
-
 public enum OrderStatus
 {
     Pending = 0,
@@ -78,8 +77,7 @@ public class Order : Saga
 
 #endregion
 
-#region sample_OrdersDbContext
-
+#region sample_ordersdbcontext
 public class OrdersDbContext : DbContext
 {
     protected OrdersDbContext()

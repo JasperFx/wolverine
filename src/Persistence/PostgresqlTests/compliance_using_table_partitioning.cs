@@ -24,7 +24,6 @@ public class compliance_using_table_partitioning : MessageStoreCompliance
     public override async Task<IHost> BuildCleanHost()
     {
         #region sample_enabling_inbox_partitioning
-
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {

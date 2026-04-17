@@ -6,7 +6,6 @@ namespace Wolverine.RabbitMQ.Tests;
 
 
 #region sample_rabbit_special_mapper
-
 public class SpecialMapper : IRabbitMqEnvelopeMapper
 {
     public void MapEnvelopeToOutgoing(Envelope envelope, IBasicProperties outgoing)

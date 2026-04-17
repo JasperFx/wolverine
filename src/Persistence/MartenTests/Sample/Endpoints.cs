@@ -3,8 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace MartenTests.Sample;
 
-#region sample_MartenUsingEndpoint_with_ctor_injection
-
+#region sample_martenusingendpoint_with_ctor_injection
 public class MartenUsingEndpoint
 {
     private readonly ILogger<User> _logger;
@@ -25,8 +24,7 @@ public class MartenUsingEndpoint
 
 #endregion
 
-#region sample_MartenStaticEndpoint
-
+#region sample_martenstaticendpoint
 public static class MartenStaticEndpoint
 {
     public static Task<User> get_user_id(

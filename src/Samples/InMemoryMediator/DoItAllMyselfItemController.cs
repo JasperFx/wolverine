@@ -3,8 +3,7 @@ using Wolverine.EntityFrameworkCore;
 
 namespace InMemoryMediator;
 
-#region sample_InMemoryMediator_DoItAllMyselfItemController
-
+#region sample_inmemorymediator_doitallmyselfitemcontroller
 // This controller does all the transactional work and business
 // logic all by itself
 public class DoItAllMyselfItemController : ControllerBase

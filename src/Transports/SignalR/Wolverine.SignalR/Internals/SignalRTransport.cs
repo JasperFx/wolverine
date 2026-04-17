@@ -25,7 +25,6 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         IsListener = true;
 
         #region sample_signalr_default_json_configuration
-
         JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         JsonOptions.Converters.Add(new JsonStringEnumConverter());
 
