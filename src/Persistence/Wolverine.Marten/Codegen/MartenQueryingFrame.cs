@@ -35,6 +35,11 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         // Natural key aggregate loads cannot be batched because IBatchedQuery
         // does not have a FetchForWriting<T, TNaturalKey> overload
         if (frame is LoadAggregateFrame laf && laf.IsNaturalKey) return false;
+
+        // A query specification that implements only IQueryPlan<T> (no
+        // IBatchQueryPlan<T>) must execute standalone.
+        if (frame is FetchSpecificationFrame fsf && !fsf.CanBatch) return false;
+
         return true;
     }
 

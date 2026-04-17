@@ -294,6 +294,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Transactional Outbox Support', link: '/guide/durability/marten/outbox'},
                                 {text: 'Transactional Inbox Support', link: '/guide/durability/marten/inbox'},
                                 {text: 'Operation Side Effects', link: '/guide/durability/marten/operations'},
+                                {text: 'Fetching Query Specifications', link: '/guide/durability/marten/fetch-specifications'},
                                 {text: 'Aggregate Handlers and Event Sourcing', link: '/guide/durability/marten/event-sourcing'},
                                 {text: 'Event Forwarding to Wolverine', link: '/guide/durability/marten/event-forwarding'},
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
