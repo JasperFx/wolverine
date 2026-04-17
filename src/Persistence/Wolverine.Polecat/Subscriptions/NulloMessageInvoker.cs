@@ -18,4 +18,8 @@ internal class NulloMessageInvoker : IMessageInvoker
     {
         return Task.CompletedTask;
     }
+
+    public IAsyncEnumerable<T> StreamAsync<T>(object message, MessageBus bus,
+        CancellationToken cancellation = default, DeliveryOptions? options = null)
+        => throw new NotSupportedException();
 }

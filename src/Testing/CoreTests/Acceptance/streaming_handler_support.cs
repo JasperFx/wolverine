@@ -20,6 +20,10 @@ public record CascadeRequest(int Count);
 
 public record CascadeItem(int Value);
 
+// Separate request type so we can route to a dedicated handler that throws after
+// yielding a fixed number of items (mid-stream fault behavior).
+public record FaultingStreamRequest(int YieldBeforeThrow);
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -65,6 +69,20 @@ public class CascadeItemTracker
     private readonly List<CascadeItem> _items = new();
     public IReadOnlyList<CascadeItem> Items => _items;
     public void Add(CascadeItem item) => _items.Add(item);
+}
+
+public static class FaultingStreamingHandler
+{
+    public static async IAsyncEnumerable<StreamItem> Handle(FaultingStreamRequest request)
+    {
+        for (var i = 0; i < request.YieldBeforeThrow; i++)
+        {
+            yield return new StreamItem(i);
+            await Task.Yield();
+        }
+
+        throw new InvalidOperationException("handler faulted mid-stream");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +174,31 @@ public class streaming_handler_support
         tracker.Items.Count.ShouldBe(3);
         // Sort before asserting — cascaded messages are dispatched concurrently so arrival order is non-deterministic.
         tracker.Items.Select(i => i.Value).OrderBy(v => v).ShouldBe([0, 1, 2]);
+    }
+
+    [Fact]
+    public async Task handler_exception_after_partial_yield_surfaces_to_caller_with_items_already_consumed()
+    {
+        // Caller should observe the items yielded before the throw, then the exception when
+        // the enumerator advances past them. This is the contract end-users will rely on when
+        // composing streaming handlers — partial results are not silently swallowed.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        var bus = host.Services.GetRequiredService<IMessageBus>();
+
+        var items = new List<StreamItem>();
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var item in bus.StreamAsync<StreamItem>(new FaultingStreamRequest(2)))
+            {
+                items.Add(item);
+            }
+        });
+
+        ex.Message.ShouldBe("handler faulted mid-stream");
+        items.Select(i => i.Value).ShouldBe([0, 1]);
     }
 
     [Fact]
