@@ -9,6 +9,7 @@ The valid return values for Wolverine handlers are:
 | `ValueTask`                      | If you need to *maybe* do asynchronous work with other people's APIs                             |
 | `IEnumerable<object>`            | Published 0 to many cascading messages                                                           |
 | `IAsyncEnumerable<object>`       | Asynchronous method that will lead to 0 to many cascading messages                               |
+| `IAsyncEnumerable<T>`            | Typed streaming response — consumed directly by [`IMessageBus.StreamAsync<T>`](/guide/messaging/message-bus.html#streaming-responses), or cascaded item-by-item if invoked via `InvokeAsync` |
 | Implements `ISideEffect`         | See [Side Effects](/guide/handlers/side-effects) for more information                            |
 | `OutgoingMessages`               | Special collection type that is treated as [cascading messages](/guide/handlers/cascading)       |
 | Inherits from `Saga` | Creates a new [stateful saga](/guide/durability/sagas)                                           |

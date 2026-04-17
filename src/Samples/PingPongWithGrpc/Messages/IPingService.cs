@@ -1,13 +1,13 @@
-using ProtoBuf.Grpc;
-using ProtoBuf;
 using System.ServiceModel;
+using ProtoBuf;
+using ProtoBuf.Grpc;
 
-namespace Wolverine.Http.Grpc.Tests;
+namespace PingPongWithGrpc.Messages;
 
 /// <summary>
-/// Code-first gRPC service contract for Ping/Pong round-trip tests.
-/// The [ServiceContract] attribute tells protobuf-net.Grpc to expose this
-/// interface as a gRPC service.
+///     Code-first gRPC contract shared between <c>Pinger</c> (client) and <c>Ponger</c> (server).
+///     The <c>[ServiceContract]</c> attribute tells protobuf-net.Grpc to expose this interface
+///     as a gRPC service; both sides reference the same interface type via this Messages project.
 /// </summary>
 [ServiceContract]
 public interface IPingService

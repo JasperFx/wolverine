@@ -3,6 +3,9 @@ using Grpc.Net.Client;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using PingPongWithGrpc.Messages;
+using PingPongWithGrpc.Ponger;
+using PingPongWithGrpcStreaming.Messages;
 using ProtoBuf.Grpc;
 using ProtoBuf.Grpc.Client;
 using ProtoBuf.Grpc.Server;
@@ -48,16 +51,15 @@ public class code_first_grpc_tests : IClassFixture<GrpcTestFixture>
     {
         var client = _fixture.CreateClient<IPingStreamService>();
 
-        var replies = new List<PongReply>();
+        // Collecting echo strings rather than PongReply instances avoids the name clash
+        // between PingPongWithGrpc.Messages.PongReply and PingPongWithGrpcStreaming.Messages.PongReply.
+        var echoes = new List<string>();
         await foreach (var reply in client.PingStream(new PingStreamRequest { Message = "stream", Count = 3 }))
         {
-            replies.Add(reply);
+            echoes.Add(reply.Echo);
         }
 
-        replies.Count.ShouldBe(3);
-        replies[0].Echo.ShouldBe("stream:0");
-        replies[1].Echo.ShouldBe("stream:1");
-        replies[2].Echo.ShouldBe("stream:2");
+        echoes.ShouldBe(["stream:0", "stream:1", "stream:2"]);
     }
 
     [Fact]
@@ -128,6 +130,7 @@ public class convention_discovery_tests
 
         builder.Services.AddCodeFirstGrpc();
         builder.Services.AddWolverineGrpc();
+        builder.Services.AddSingleton<PingTracker>();
 
         var app = builder.Build();
         app.UseRouting();
@@ -142,8 +145,8 @@ public class convention_discovery_tests
 }
 
 /// <summary>
-/// A type that should be discovered via [WolverineGrpcService] even though
-/// its name does not end with "GrpcService".
+///     A type that should be discovered via <c>[WolverineGrpcService]</c> even though its name
+///     does not end with <c>GrpcService</c>.
 /// </summary>
 [WolverineGrpcService]
 public class AttributeMarkedService

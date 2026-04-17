@@ -171,9 +171,29 @@
     <Project Path="src/Samples/PingPong/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/PingPong/Ponger/Ponger.csproj" />
   </Folder>
+  <Folder Name="/Samples/PingPongWithGrpc/">
+    <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpc/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpc/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/PingPongWithGrpcStreaming/">
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Messages/Messages.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Ponger/Ponger.csproj" />
+  </Folder>
   <Folder Name="/Samples/PingPongWithRabbitMq/">
     <Project Path="src/Samples/PingPongWithRabbitMq/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/PingPongWithRabbitMq/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/GreeterProtoFirstGrpc/">
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Client/Client.csproj" />
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Messages/Messages.csproj" />
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Server/Server.csproj" />
+  </Folder>
+  <Folder Name="/Samples/RacerWithGrpc/">
+    <Project Path="src/Samples/RacerWithGrpc/RacerClient/RacerClient.csproj" />
+    <Project Path="src/Samples/RacerWithGrpc/RacerContracts/RacerContracts.csproj" />
+    <Project Path="src/Samples/RacerWithGrpc/RacerServer/RacerServer.csproj" />
   </Folder>
   <Folder Name="/Samples/TestHarness/">
     <Project Path="src/Samples/TestHarness/BankingService.Tests/BankingService.Tests.csproj" />

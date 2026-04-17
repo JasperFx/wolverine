@@ -2,15 +2,19 @@ using Grpc.Net.Client;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using PingPongWithGrpc.Ponger;
 using ProtoBuf.Grpc.Client;
 using ProtoBuf.Grpc.Server;
 using Xunit;
+using StreamingPonger = PingPongWithGrpcStreaming.Ponger;
 
 namespace Wolverine.Http.Grpc.Tests;
 
 /// <summary>
-/// Shared fixture that boots an in-process ASP.NET Core + Wolverine gRPC host
-/// using the ASP.NET Core TestHost (no real network port).
+///     Shared fixture that boots an in-process ASP.NET Core + Wolverine gRPC host over the
+///     ASP.NET Core TestHost (no real network port). The services + handlers under test live
+///     in the <c>src/Samples/PingPongWithGrpc</c> and <c>src/Samples/PingPongWithGrpcStreaming</c>
+///     sample projects — this fixture pulls them in via <see cref="Discovery"/> and maps them.
 /// </summary>
 public class GrpcTestFixture : IAsyncLifetime
 {
@@ -21,26 +25,31 @@ public class GrpcTestFixture : IAsyncLifetime
     {
         var builder = WebApplication.CreateBuilder([]);
 
-        // Route the host through the in-memory test server
         builder.WebHost.UseTestServer();
 
-        // Wolverine — discover handlers and register services
         builder.Host.UseWolverine(opts =>
         {
-            opts.ApplicationAssembly = typeof(GrpcTestFixture).Assembly;
+            // ApplicationAssembly is the unary sample. Handlers from the streaming sample and
+            // this test assembly (FaultingHandler) are pulled in explicitly.
+            opts.ApplicationAssembly = typeof(PingGrpcService).Assembly;
+            opts.Discovery.IncludeAssembly(typeof(StreamingPonger.PingStreamGrpcService).Assembly);
+            opts.Discovery.IncludeAssembly(typeof(GrpcTestFixture).Assembly);
         });
 
-        // Code-first gRPC (user's responsibility — we don't call this in AddWolverineGrpc)
         builder.Services.AddCodeFirstGrpc();
         builder.Services.AddWolverineGrpc();
+
+        // Each sample defines its own PingTracker — both must be registered.
         builder.Services.AddSingleton<PingTracker>();
+        builder.Services.AddSingleton<StreamingPonger.PingTracker>();
 
         _app = builder.Build();
 
         _app.UseRouting();
-        // Explicit registration — MapWolverineGrpcServices() discovery is tested separately
+
+        // Explicit registration — MapWolverineGrpcServices() discovery is tested separately.
         _app.MapGrpcService<PingGrpcService>();
-        _app.MapGrpcService<PingStreamGrpcService>();
+        _app.MapGrpcService<StreamingPonger.PingStreamGrpcService>();
         _app.MapGrpcService<FaultingGrpcService>();
 
         await _app.StartAsync();
@@ -64,7 +73,7 @@ public class GrpcTestFixture : IAsyncLifetime
     }
 
     /// <summary>
-    /// Creates a typed code-first gRPC client for <typeparamref name="TService"/>.
+    ///     Creates a typed code-first gRPC client for <typeparamref name="TService"/>.
     /// </summary>
     public TService CreateClient<TService>() where TService : class
         => Channel!.CreateGrpcService<TService>();

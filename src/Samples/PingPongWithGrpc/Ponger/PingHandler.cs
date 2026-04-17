@@ -1,8 +1,10 @@
-namespace Wolverine.Http.Grpc.Tests;
+using PingPongWithGrpc.Messages;
+
+namespace PingPongWithGrpc.Ponger;
 
 /// <summary>
-/// Wolverine handler for PingRequest — returns a PongReply.
-/// This is the "business logic" that the gRPC service delegates to.
+///     Wolverine handler for <see cref="PingRequest"/>. The gRPC service forwards to
+///     the bus and the bus invokes this handler — the handler itself has no gRPC coupling.
 /// </summary>
 public static class PingHandler
 {
@@ -18,7 +20,7 @@ public static class PingHandler
 }
 
 /// <summary>
-/// Singleton counter to verify handler invocation in tests.
+///     Singleton counter used by the sample to show that every gRPC call lands in the handler.
 /// </summary>
 public class PingTracker
 {

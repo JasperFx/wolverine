@@ -1,3 +1,4 @@
+using GreeterProtoFirstGrpc.Server;
 using Grpc.Net.Client;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
@@ -8,8 +9,9 @@ namespace Wolverine.Http.Grpc.Tests.ProtoFirst;
 
 /// <summary>
 ///     Boots an in-process ASP.NET Core + Wolverine host for the proto-first Greeter service.
-///     No handwritten bridge: the Wolverine-generated wrapper around <c>GreeterGrpcService</c>
-///     is mapped by <c>MapWolverineGrpcServices</c>.
+///     No handwritten bridge: the Wolverine-generated wrapper around the abstract
+///     <c>GreeterGrpcService</c> stub (defined in the <c>GreeterProtoFirstGrpc.Server</c>
+///     sample) is mapped by <c>MapWolverineGrpcServices</c>.
 /// </summary>
 public class ProtoFirstGrpcFixture : IAsyncLifetime
 {
@@ -25,7 +27,7 @@ public class ProtoFirstGrpcFixture : IAsyncLifetime
 
         builder.Host.UseWolverine(opts =>
         {
-            opts.ApplicationAssembly = typeof(ProtoFirstGrpcFixture).Assembly;
+            opts.ApplicationAssembly = typeof(GreeterGrpcService).Assembly;
         });
 
         // Proto-first requires the stock ASP.NET Core gRPC host, not the code-first one.

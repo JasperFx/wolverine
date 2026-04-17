@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-option csharp_namespace = "Wolverine.Http.Grpc.Tests.ProtoFirst";
+option csharp_namespace = "GreeterProtoFirstGrpc.Messages";
 
 package greet;
 
@@ -34,8 +34,8 @@ message StreamGreetingsRequest {
     int32 count = 2;
 }
 
-// Requests a Wolverine handler to throw a specific exception kind so the
-// gRPC exception interceptor + mapper path can be exercised end-to-end.
+// Exercises the gRPC exception interceptor + mapper by asking the handler to
+// throw a specific exception kind. AIP-193 mapping applies automatically.
 message FaultRequest {
     string kind = 1;
 }

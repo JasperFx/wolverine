@@ -15,11 +15,23 @@ gRPC gives you another edge protocol for the same handlers. Benefits:
 
 - **Strongly-typed contracts** shared across .NET and non-.NET services via `.proto` files, or code-first
   contracts that never leave C#.
-- **Streaming** first-class — plays naturally with Wolverine's `IMessageBus.StreamAsync<T>`.
+- **Streaming** first-class — plays naturally with Wolverine's [`IMessageBus.StreamAsync<T>`](/guide/messaging/message-bus.html#streaming-responses).
 - **Wolverine handler reuse** — the same handler can back a REST endpoint, an async message, and a
   gRPC call without duplication.
 - **Canonical error semantics** — ordinary .NET exceptions thrown by a handler are mapped to the
   right gRPC `StatusCode` automatically, following [Google AIP-193](https://google.aip.dev/193).
+
+::: tip Runnable Samples
+Four end-to-end sample trios live under `src/Samples/`. Each pairs a real Kestrel HTTP/2 server
+with a client in separate projects so you can `dotnet run` them side by side:
+
+| Sample | Shape | What to copy |
+|--------|-------|--------------|
+| [PingPongWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)                     | Code-first **unary** | `[ServiceContract]` + `WolverineGrpcServiceBase` forwarding to a plain handler |
+| [PingPongWithGrpcStreaming](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpcStreaming)   | Code-first **server streaming** | Handler returning `IAsyncEnumerable<T>`, forwarded via `Bus.StreamAsync<T>` |
+| [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
+| [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
+:::
 
 ## Getting Started
 
@@ -263,8 +275,11 @@ TraceId will not reach the server in tests even though it does in production. Us
 
 ## Current Limitations
 
-- **Client streaming** and **bidirectional streaming** are deferred — the matching
-  `IMessageBus` overloads are not yet in place. Proto-first stubs with these method shapes fail
-  fast at startup with a clear error rather than silently skipping.
+- **Client streaming** and **bidirectional streaming** have no out-of-the-box adapter path yet —
+  there is no `IMessageBus.StreamAsync<TRequest, TResponse>` overload, and proto-first stubs with
+  these method shapes fail fast at startup with a clear error rather than silently skipping. In
+  code-first you can still implement bidi manually in the service by bridging each incoming item
+  through `Bus.StreamAsync<TResp>(item, ct)` — see the
+  [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample.
 - **Exception mapping** is not yet user-configurable (follow-up item).
 - **Rich error details** (`google.rpc.Status` trailers) are deferred.

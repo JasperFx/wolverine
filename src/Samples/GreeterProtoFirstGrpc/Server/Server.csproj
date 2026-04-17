@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>GreeterProtoFirstGrpc.Server</RootNamespace>
+        <AssemblyName>GreeterProtoFirstGrpc.Server</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Messages\Messages.csproj"/>
+        <ProjectReference Include="..\..\..\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Grpc.AspNetCore"/>
+    </ItemGroup>
+
+</Project>

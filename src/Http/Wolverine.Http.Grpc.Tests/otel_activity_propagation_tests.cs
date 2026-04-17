@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using PingPongWithGrpc.Messages;
+using PingPongWithGrpcStreaming.Messages;
 using Shouldly;
 using Xunit;
 

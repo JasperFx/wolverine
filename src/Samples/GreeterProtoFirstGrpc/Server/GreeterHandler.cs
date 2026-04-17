@@ -1,11 +1,12 @@
 using System.Runtime.CompilerServices;
+using GreeterProtoFirstGrpc.Messages;
 
-namespace Wolverine.Http.Grpc.Tests.ProtoFirst;
+namespace GreeterProtoFirstGrpc.Server;
 
 /// <summary>
-///     Wolverine handlers for the proto-generated Greeter service. These are ordinary Wolverine
-///     handlers — the gRPC protocol layer is entirely supplied by the generated GreeterGrpcHandler
-///     wrapper that <see cref="GrpcServiceChain"/> emits.
+///     Wolverine handlers for the proto-generated Greeter service. These are ordinary
+///     Wolverine handlers — the gRPC protocol layer is supplied entirely by the generated
+///     <c>GreeterGrpcHandler</c> wrapper that Wolverine emits at startup.
 /// </summary>
 public static class GreeterHandler
 {

@@ -1,6 +1,9 @@
 using System.Diagnostics;
+using GreeterProtoFirstGrpc.Messages;
+using GreeterProtoFirstGrpc.Server;
 using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
+using PingPongWithGrpc.Ponger;
 using Shouldly;
 using Wolverine.Runtime;
 using Xunit;
