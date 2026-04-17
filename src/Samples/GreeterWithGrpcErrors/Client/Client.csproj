@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>GreeterWithGrpcErrors.Client</RootNamespace>
+        <AssemblyName>GreeterWithGrpcErrors.Client</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Messages\Messages.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Google.Api.CommonProtos"/>
+        <PackageReference Include="Grpc.Net.Client"/>
+        <PackageReference Include="Grpc.StatusProto"/>
+        <PackageReference Include="protobuf-net.Grpc"/>
+    </ItemGroup>
+
+</Project>

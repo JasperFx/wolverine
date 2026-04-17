@@ -8,6 +8,8 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <ProjectReference Include="..\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
+        <ProjectReference Include="..\..\Extensions\Wolverine.FluentValidation.Grpc\Wolverine.FluentValidation.Grpc.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -28,6 +30,7 @@
 
     <ItemGroup>
         <PackageReference Include="Grpc.Net.Client"/>
+        <PackageReference Include="Grpc.StatusProto"/>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="protobuf-net.Grpc"/>

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>FluentValidation bridge for Wolverine gRPC rich error details (google.rpc.Status / BadRequest)</Description>
+        <PackageId>WolverineFx.FluentValidation.Grpc</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
+        <ProjectReference Include="..\..\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+    </ItemGroup>
+
+</Project>

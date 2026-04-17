@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>GreeterWithGrpcErrors.Messages</RootNamespace>
+        <AssemblyName>GreeterWithGrpcErrors.Messages</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentValidation"/>
+        <PackageReference Include="protobuf-net.Grpc"/>
+    </ItemGroup>
+
+</Project>

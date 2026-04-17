@@ -25,6 +25,7 @@
   <Folder Name="/Extensions/">
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Wolverine.DataAnnotationsValidation.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation/Wolverine.DataAnnotationsValidation.csproj" />
+    <Project Path="src/Extensions/Wolverine.FluentValidation.Grpc/Wolverine.FluentValidation.Grpc.csproj" />
     <Project Path="src/Extensions/Wolverine.FluentValidation.Tests/Wolverine.FluentValidation.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.FluentValidation/Wolverine.FluentValidation.csproj" />
     <Project Path="src/Extensions/Wolverine.MemoryPack.Tests/Wolverine.MemoryPack.Tests.csproj" />
@@ -189,6 +190,11 @@
     <Project Path="src/Samples/GreeterProtoFirstGrpc/Client/Client.csproj" />
     <Project Path="src/Samples/GreeterProtoFirstGrpc/Messages/Messages.csproj" />
     <Project Path="src/Samples/GreeterProtoFirstGrpc/Server/Server.csproj" />
+  </Folder>
+  <Folder Name="/Samples/GreeterWithGrpcErrors/">
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Client/Client.csproj" />
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Messages/Messages.csproj" />
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Server/Server.csproj" />
   </Folder>
   <Folder Name="/Samples/RacerWithGrpc/">
     <Project Path="src/Samples/RacerWithGrpc/RacerClient/RacerClient.csproj" />
