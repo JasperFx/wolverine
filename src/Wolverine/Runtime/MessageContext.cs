@@ -151,12 +151,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         await AssertAnyRequiredResponseWasGenerated();
 
-        if (_outstanding.Count == 0)
+        // Snapshot under lock so concurrent publishes from a Marten projection
+        // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
+        // while we're iterating it. GH-2529.
+        Envelope[] outgoing;
+        lock (_outstandingLock)
         {
-            return;
+            if (_outstanding.Count == 0) return;
+            outgoing = _outstanding.ToArray();
         }
 
-        foreach (var envelope in Outstanding)
+        foreach (var envelope in outgoing)
         {
             // https://github.com/JasperFx/wolverine/issues/2006
             if (envelope == null) continue;
@@ -209,8 +214,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         _sent ??= new();
-        _sent.AddRange(_outstanding);
-        _outstanding.Clear();
+        lock (_outstandingLock)
+        {
+            _sent.AddRange(_outstanding);
+            _outstanding.Clear();
+        }
 
         _hasFlushed = true;
 
@@ -236,10 +244,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             if (isMissingRequestedReply())
             {
                 var failureDescription = $"No response was created for expected response '{Envelope!.ReplyRequested}' back to reply-uri {Envelope.ReplyUri}. ";
-                if (_outstanding.Count > 0)
+
+                Envelope[] outstandingSnapshot;
+                lock (_outstandingLock)
                 {
-                    var types = new List<string>(_outstanding.Count + (_sent?.Count ?? 0));
-                    foreach (var e in _outstanding) types.Add(e.MessageType!);
+                    outstandingSnapshot = _outstanding.ToArray();
+                }
+
+                if (outstandingSnapshot.Length > 0)
+                {
+                    var types = new List<string>(outstandingSnapshot.Length + (_sent?.Count ?? 0));
+                    foreach (var e in outstandingSnapshot) types.Add(e.MessageType!);
                     if (_sent != null)
                     {
                         foreach (var e in _sent) types.Add(e.MessageType!);
@@ -458,13 +473,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope envelope)
     {
-        _outstanding.Fill(envelope);
+        lock (_outstandingLock)
+        {
+            _outstanding.Fill(envelope);
+        }
         return Task.CompletedTask;
     }
 
     Task IEnvelopeTransaction.PersistOutgoingAsync(Envelope[] envelopes)
     {
-        _outstanding.Fill(envelopes);
+        lock (_outstandingLock)
+        {
+            _outstanding.Fill(envelopes);
+        }
         return Task.CompletedTask;
     }
 
@@ -519,7 +540,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
     internal async Task CopyToAsync(IEnvelopeTransaction other)
     {
-        await other.PersistOutgoingAsync(_outstanding.ToArray());
+        Envelope[] snapshot;
+        lock (_outstandingLock)
+        {
+            snapshot = _outstanding.ToArray();
+        }
+        await other.PersistOutgoingAsync(snapshot);
 
         foreach (var envelope in Scheduled) await other.PersistIncomingAsync(envelope);
     }
@@ -530,7 +556,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     public async ValueTask ClearAllAsync()
     {
         Scheduled.Clear();
-        _outstanding.Clear();
+        lock (_outstandingLock)
+        {
+            _outstanding.Clear();
+        }
 
         if (Transaction != null)
         {
@@ -649,7 +678,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         _hasFlushed = false;
 
         _sent?.Clear();
-        _outstanding.Clear();
+        lock (_outstandingLock)
+        {
+            _outstanding.Clear();
+        }
         Scheduled.Clear();
         Envelope = null;
         Transaction = null;
@@ -679,7 +711,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             var ackEnvelope = Runtime.RoutingFor(typeof(Acknowledgement))
                 .RouteToDestination(ack, Envelope.ReplyUri, null);
             TrackEnvelopeCorrelation(ackEnvelope, Activity.Current);
-            _outstanding.Add(ackEnvelope);
+            lock (_outstandingLock)
+            {
+                _outstanding.Add(ackEnvelope);
+            }
         }
     }
 

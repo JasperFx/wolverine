@@ -14,6 +14,14 @@ public partial class MessageBus : IMessageBus, IMessageContext
     
     // ReSharper disable once InconsistentNaming
     protected readonly List<Envelope> _outstanding = new();
+
+    // Protects _outstanding from concurrent mutation. The Marten async daemon's
+    // multi-stream projection runner can call PublishAsync on the same MessageContext
+    // from many slices in parallel (Block parallelism = 10). Without this lock,
+    // concurrent List<Envelope>.Add silently corrupts the list and drops messages.
+    // GH-2529.
+    // ReSharper disable once InconsistentNaming
+    protected readonly object _outstandingLock = new();
     private string? _tenantId;
 
     public MessageBus(IWolverineRuntime runtime) : this(runtime, Activity.Current?.RootId ?? Guid.NewGuid().ToString())
@@ -57,7 +65,17 @@ public partial class MessageBus : IMessageBus, IMessageContext
     public IWolverineRuntime Runtime { get; }
     public IMessageStore Storage { get; internal set; }
 
-    public IEnumerable<Envelope> Outstanding => _outstanding;
+    /// <summary>
+    /// Snapshot of envelopes published in this context that have not yet been flushed.
+    /// Returns a copy to avoid concurrent-enumeration issues — see <see cref="_outstandingLock"/>.
+    /// </summary>
+    public IEnumerable<Envelope> Outstanding
+    {
+        get
+        {
+            lock (_outstandingLock) return _outstanding.ToArray();
+        }
+    }
 
     public IEnvelopeTransaction? Transaction { get; protected set; }
     public Guid ConversationId { get; protected set; }
@@ -267,7 +285,10 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         if (Transaction is not null)
         {
-            _outstanding.Fill(envelope);
+            lock (_outstandingLock)
+            {
+                _outstanding.Fill(envelope);
+            }
 
             await envelope.PersistAsync(Transaction);
 
@@ -366,7 +387,10 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
             await Transaction.PersistAsync(envelopes);
 
-            _outstanding.Fill(outgoing);
+            lock (_outstandingLock)
+            {
+                _outstanding.Fill(outgoing);
+            }
         }
         else
         {
