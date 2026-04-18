@@ -15,7 +15,12 @@ public enum MiddlewareScoping
     /// <summary>
     /// This middleware should only be applied when running in an HTTP endpoint
     /// </summary>
-    HttpEndpoints
+    HttpEndpoints,
+
+    /// <summary>
+    /// This middleware should only be applied when running in a proto-first gRPC service chain
+    /// </summary>
+    Grpc
 }
 
 public abstract class ScopedMiddlewareAttribute : Attribute

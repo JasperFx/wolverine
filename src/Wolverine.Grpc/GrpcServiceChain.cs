@@ -95,7 +95,7 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
     public override string Description { get; }
 
-    public override MiddlewareScoping Scoping => MiddlewareScoping.MessageHandlers;
+    public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
 
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
 
