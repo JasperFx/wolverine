@@ -6,7 +6,7 @@ namespace Wolverine.Grpc;
 ///     Opt-in activators for rich <c>google.rpc.Status</c> error details in
 ///     Wolverine-backed gRPC services. The gRPC counterpart to
 ///     <c>WolverineFx.Http</c>'s <c>ProblemDetails</c> flow — see
-///     <c>docs/guide/grpc.md</c> for the user guide.
+///     <c>docs/guide/grpc/errors.md</c> for the user guide.
 /// </summary>
 public static class GrpcRichErrorDetailsExtensions
 {

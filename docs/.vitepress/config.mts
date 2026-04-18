@@ -279,13 +279,16 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Rate Limiting', link: '/guide/http/rate-limiting'},
                         {text: 'Streaming and SSE', link: '/guide/http/streaming'},
                         {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
-                        {text: 'Integration Testing with Alba', link: '/guide/http/integration-testing'}
+                        {text: 'Integration Testing with Alba', link: '/guide/http/integration-testing'},
+                        {text: 'gRPC Services', link: '/guide/grpc/', collapsed: true, items: [
+                                {text: 'How gRPC Handlers Work', link: '/guide/grpc/handlers'},
+                                {text: 'Code-First and Proto-First Contracts', link: '/guide/grpc/contracts'},
+                                {text: 'Error Handling', link: '/guide/grpc/errors'},
+                                {text: 'Streaming', link: '/guide/grpc/streaming'},
+                                {text: 'Samples', link: '/guide/grpc/samples'}
+                            ]
+                        }
                     ]
-                },
-                {
-                    text: 'gRPC Services',
-                    link: '/guide/grpc',
-                    collapsed: true
                 },
                 {
                     text: 'Durability and Persistence',
