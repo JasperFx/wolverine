@@ -119,12 +119,12 @@ public class multi_stream_projection_with_side_effects_on_ancillary_store : IAsy
             .ShouldHaveSingleItem();
     }
 
-    // GH-2529: Marked Flaky because this test currently FAILS — only one of the three
-    // side-effect messages reaches Wolverine, with no exception logged. This is the
-    // documented reproducer for the bug. Remove the trait when the underlying issue
-    // is fixed.
+    // GH-2529: Was failing because concurrent slice processing in Marten's
+    // AggregationRunner corrupted MessageContext._outstanding (concurrent
+    // List<Envelope>.Add is not thread-safe), dropping most side-effect messages
+    // with no exception. Fixed by adding a lock around _outstanding mutations
+    // in MessageBus / MessageContext.
     [Fact]
-    [Trait("Category", "Flaky")]
     public async Task multiple_side_effects_in_one_batch_all_reach_wolverine()
     {
         var streamIds = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
