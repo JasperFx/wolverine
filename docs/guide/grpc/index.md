@@ -110,3 +110,40 @@ with a client in separate projects so you can `dotnet run` them side by side. Se
 - **Exception mapping** of the canonical `Exception → StatusCode` table is not yet user-configurable
   (follow-up item). Rich, structured responses are already available — see
   [Error Handling](./errors).
+
+## Roadmap
+
+The gRPC integration is intentionally shipping as a focused, reviewable slice. The items below are
+on the roadmap but *not* in the initial drop — they're listed here so contributors can plan around
+them and consumers know what's coming.
+
+### Shipping in this PR
+
+- **`MiddlewareScoping.Grpc`** — the existing [scoped middleware](/guide/handlers/middleware#applying-middleware-explicitly-by-attribute)
+  enum grows a `Grpc` value so gRPC-specific middleware can be registered the same way HTTP and
+  messaging middleware already are. Previously, gRPC service chains reported themselves as
+  `MessageHandlers`-scoped, which silently over-attached message middleware to gRPC calls. This is
+  a behavior correction, not an additive feature.
+- **`codegen-preview --grpc`** — the [`codegen-preview` CLI](/guide/command-line#codegen-preview)
+  grows a `--grpc` / `-g` flag (mirroring `--handler` / `-h` and `--route` / `-r`) so you can inspect
+  the code Wolverine generates for gRPC service chains without dropping into the full `codegen write`
+  output.
+
+### Deferred to follow-up PRs
+
+- **`Validate` convention → `Status?`** — HTTP handlers already support an opt-in `Validate` method
+  whose non-null return short-circuits the call. The gRPC equivalent would return
+  `Grpc.Core.Status?` (or a richer `google.rpc.Status`) so a handler could express "this call is
+  invalid, return `InvalidArgument` with these field violations" without throwing. This is
+  deferred because it lands cleanest on top of the code-first codegen work below — shipping it
+  against the current runtime path would bake in assumptions we'll want to revisit.
+- **Code-first codegen parity** — proto-first services flow through a generated `GrpcServiceChain`
+  with the usual JasperFx codegen pipeline; code-first services (the `WolverineGrpcServiceBase` path)
+  currently resolve dependencies via service location inside each method. Generating per-method code
+  files for code-first services — matching the HTTP and message handler story — is the prerequisite
+  for the `Validate` convention above and for tighter Lamar/MSDI optimization.
+- **Hybrid handler shape (HTTP + gRPC + messaging on one type)** — open design question. The
+  [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) pattern
+  works today for two protocols; extending it to three raises naming and scoping questions
+  (`MiddlewareScoping` only permits one value per `[Middleware]` attribute, and the handler method
+  name conventions overlap). No concrete plan yet — feedback welcome on the tracking issue.
