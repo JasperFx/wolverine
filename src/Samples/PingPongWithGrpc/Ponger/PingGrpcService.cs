@@ -1,7 +1,7 @@
 using PingPongWithGrpc.Messages;
 using ProtoBuf.Grpc;
 using Wolverine;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace PingPongWithGrpc.Ponger;
 

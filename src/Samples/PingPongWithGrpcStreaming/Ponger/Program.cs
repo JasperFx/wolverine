@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using PingPongWithGrpcStreaming.Ponger;
 using ProtoBuf.Grpc.Server;
 using Wolverine;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 var builder = WebApplication.CreateBuilder(args);
 

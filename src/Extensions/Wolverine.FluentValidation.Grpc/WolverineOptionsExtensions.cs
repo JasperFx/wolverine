@@ -1,5 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace Wolverine.FluentValidation.Grpc;
 

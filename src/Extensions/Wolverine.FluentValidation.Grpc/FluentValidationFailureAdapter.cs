@@ -1,6 +1,6 @@
 using FluentValidation;
 using Google.Rpc;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace Wolverine.FluentValidation.Grpc;
 
@@ -11,7 +11,7 @@ namespace Wolverine.FluentValidation.Grpc;
 ///     <c>PropertyName</c> to <c>Field</c> and <c>ErrorMessage</c> to <c>Description</c>.
 /// </summary>
 /// <remarks>
-///     Ship separately from the core <c>Wolverine.Http.Grpc</c> package so that the core
+///     Ship separately from the core <c>Wolverine.Grpc</c> package so that the core
 ///     assembly stays free of any FluentValidation dependency. Registered via
 ///     <see cref="WolverineOptionsExtensions.UseFluentValidationGrpcErrorDetails(WolverineOptions)"/>.
 /// </remarks>

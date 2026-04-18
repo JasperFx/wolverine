@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using RacerServer;
 using Wolverine;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 var builder = WebApplication.CreateBuilder(args);
 

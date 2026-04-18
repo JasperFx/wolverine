@@ -8,7 +8,7 @@ using ProtoBuf.Grpc.Server;
 using Wolverine;
 using Wolverine.FluentValidation;
 using Wolverine.FluentValidation.Grpc;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 var builder = WebApplication.CreateBuilder(args);
 

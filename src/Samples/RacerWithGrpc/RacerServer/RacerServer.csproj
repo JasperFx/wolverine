@@ -8,7 +8,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\RacerContracts\RacerContracts.csproj"/>
-        <ProjectReference Include="..\..\..\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

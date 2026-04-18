@@ -1,7 +1,7 @@
 using ProtoBuf.Grpc;
 using RacerContracts;
 using Wolverine;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace RacerServer;
 

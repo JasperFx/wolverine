@@ -1,7 +1,7 @@
 using GreeterWithGrpcErrors.Messages;
 using ProtoBuf.Grpc;
 using Wolverine;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace GreeterWithGrpcErrors.Server;
 

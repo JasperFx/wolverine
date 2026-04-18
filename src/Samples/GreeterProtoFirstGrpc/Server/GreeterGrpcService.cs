@@ -1,5 +1,5 @@
 using GreeterProtoFirstGrpc.Messages;
-using Wolverine.Http.Grpc;
+using Wolverine.Grpc;
 
 namespace GreeterProtoFirstGrpc.Server;
 

@@ -43,14 +43,16 @@
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
-    <Project Path="src/Http/Wolverine.Http.Grpc/Wolverine.Http.Grpc.csproj" />
-    <Project Path="src/Http/Wolverine.Http.Grpc.Tests/Wolverine.Http.Grpc.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests/Wolverine.Http.Tests.csproj" />
     <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
     <Project Path="src/Http/WolverineWebApi/WolverineWebApi.csproj" />
     <Project Path="src/Http/WolverineWebApiFSharp/WolverineWebApiFSharp.fsproj" />
+  </Folder>
+  <Folder Name="/Grpc/">
+    <Project Path="src/Wolverine.Grpc/Wolverine.Grpc.csproj" />
+    <Project Path="src/Wolverine.Grpc.Tests/Wolverine.Grpc.Tests.csproj" />
   </Folder>
   <Folder Name="/Persistence/">
     <Project Path="src/Persistence/DuplicateMessageSending/DuplicateMessageSending.csproj" />

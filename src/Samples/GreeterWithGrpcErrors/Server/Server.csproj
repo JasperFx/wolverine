@@ -8,7 +8,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Messages\Messages.csproj"/>
-        <ProjectReference Include="..\..\..\Http\Wolverine.Http.Grpc\Wolverine.Http.Grpc.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
         <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
         <ProjectReference Include="..\..\..\Extensions\Wolverine.FluentValidation.Grpc\Wolverine.FluentValidation.Grpc.csproj"/>
     </ItemGroup>

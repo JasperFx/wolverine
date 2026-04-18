@@ -270,7 +270,7 @@ A few things worth knowing about `StreamAsync<T>`:
 
 - **Locally-handled messages only.** Unlike `InvokeAsync<T>`, there is no remote-streaming fallback — if the message
   doesn't resolve to a local handler, the call fails. Streaming is an in-process or adapter-level concern (see
-  [gRPC Services](/guide/http/grpc) for exposing a streaming handler over the wire).
+  [gRPC Services](/guide/grpc) for exposing a streaming handler over the wire).
 - **Cancellation propagates into the handler.** Pass a `CancellationToken` into `StreamAsync<T>` and Wolverine
   forwards it to the handler method — iterators that respect the token via `ThrowIfCancellationRequested` or
   `[EnumeratorCancellation]` will cleanly unwind mid-stream.

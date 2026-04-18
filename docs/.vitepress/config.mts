@@ -278,10 +278,14 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Output Caching', link: '/guide/http/output-caching'},
                         {text: 'Rate Limiting', link: '/guide/http/rate-limiting'},
                         {text: 'Streaming and SSE', link: '/guide/http/streaming'},
-                        {text: 'gRPC Services', link: '/guide/http/grpc'},
                         {text: 'HTTP Messaging Transport', link: '/guide/http/transport'},
                         {text: 'Integration Testing with Alba', link: '/guide/http/integration-testing'}
                     ]
+                },
+                {
+                    text: 'gRPC Services',
+                    link: '/guide/grpc',
+                    collapsed: true
                 },
                 {
                     text: 'Durability and Persistence',
