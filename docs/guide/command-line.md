@@ -163,9 +163,10 @@ Wolverine automatically detects CLI codegen mode and stubs out persistence and t
 
 ### codegen-preview
 
-Preview the full generated adapter code for a **specific** message handler or HTTP endpoint without
-generating all handlers at once. This is useful when you want to understand exactly what middleware,
-dependency resolution, or transaction wrapping Wolverine applies to a single entry point.
+Preview the full generated adapter code for a **specific** message handler, HTTP endpoint, or
+proto-first gRPC service without generating all handlers at once. This is useful when you want to
+understand exactly what middleware, dependency resolution, or transaction wrapping Wolverine
+applies to a single entry point.
 
 **Preview a message handler** (accepts fully-qualified name, short class name, or handler class name):
 
@@ -185,6 +186,20 @@ dotnet run -- wolverine-diagnostics codegen-preview --handler CreateOrderHandler
 ```bash
 dotnet run -- wolverine-diagnostics codegen-preview --route "POST /api/orders"
 dotnet run -- wolverine-diagnostics codegen-preview --route "GET /api/orders/{id}"
+```
+
+**Preview a proto-first gRPC service wrapper** (requires Wolverine.Grpc; accepts the proto service
+name, the stub class name, or the generated file name):
+
+```bash
+# Bare proto service name (as it appears in the .proto file)
+dotnet run -- wolverine-diagnostics codegen-preview --grpc Greeter
+
+# Stub class name
+dotnet run -- wolverine-diagnostics codegen-preview --grpc GreeterGrpcService
+
+# Short alias
+dotnet run -- wolverine-diagnostics codegen-preview -g Greeter
 ```
 
 The output includes the full generated class — the `Handle` or `HandleAsync` override, all

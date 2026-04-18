@@ -37,6 +37,13 @@ public class WolverineDiagnosticsInput : NetCoreInput
         "Format: 'METHOD /path' (e.g. 'POST /api/orders' or 'GET /api/orders/{id}').")]
     public string RouteFlag { get; set; } = string.Empty;
 
+    [FlagAlias("grpc", 'g')]
+    [Description(
+        "For codegen-preview: preview generated code for a proto-first gRPC service chain. " +
+        "Accepts the proto service name (e.g. 'Greeter'), the stub class name (e.g. 'GreeterGrpcService'), " +
+        "or the generated file name (e.g. 'GreeterGrpcHandler').")]
+    public string GrpcFlag { get; set; } = string.Empty;
+
     [FlagAlias("all", 'a')]
     [Description("For describe-routing: show complete routing topology for all known message types.")]
     public bool AllFlag { get; set; }
@@ -50,6 +57,9 @@ public class WolverineDiagnosticsInput : NetCoreInput
 ///         </item>
 ///         <item>
 ///             <c>codegen-preview --route "METHOD /path"</c> — show generated HTTP endpoint code
+///         </item>
+///         <item>
+///             <c>codegen-preview --grpc &lt;service&gt;</c> — show generated proto-first gRPC service wrapper code
 ///         </item>
 ///         <item>
 ///             <c>describe-routing &lt;MessageType&gt;</c> — inspect message routing for a specific type
@@ -67,7 +77,7 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
     {
         Usage("Run a diagnostics sub-command (e.g. codegen-preview, describe-routing --all)")
             .Arguments(x => x.Action)
-            .ValidFlags(x => x.HandlerFlag, x => x.RouteFlag, x => x.AllFlag);
+            .ValidFlags(x => x.HandlerFlag, x => x.RouteFlag, x => x.GrpcFlag, x => x.AllFlag);
 
         Usage("Describe message routing for a specific type")
             .Arguments(x => x.Action, x => x.MessageTypeArg);
@@ -92,10 +102,10 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
 
     private static async Task<bool> RunCodegenPreviewAsync(WolverineDiagnosticsInput input)
     {
-        if (input.HandlerFlag.IsEmpty() && input.RouteFlag.IsEmpty())
+        if (input.HandlerFlag.IsEmpty() && input.RouteFlag.IsEmpty() && input.GrpcFlag.IsEmpty())
         {
             AnsiConsole.MarkupLine(
-                "[red]codegen-preview requires either --handler <type-name> or --route \"METHOD /path\".[/]");
+                "[red]codegen-preview requires one of --handler <type-name>, --route \"METHOD /path\", or --grpc <service-name>.[/]");
             return false;
         }
 
@@ -118,6 +128,11 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             if (!input.HandlerFlag.IsEmpty())
             {
                 return PreviewHandlerCode(input.HandlerFlag, services, serviceVariableSource);
+            }
+
+            if (!input.GrpcFlag.IsEmpty())
+            {
+                return PreviewGrpcCode(input.GrpcFlag, services, serviceVariableSource);
             }
 
             return PreviewRouteCode(input.RouteFlag, services, serviceVariableSource);
@@ -307,6 +322,96 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             .Concat(pathParts);
 
         return string.Join("_", segments).Replace('-', '_').Replace("__", "_").Trim('_');
+    }
+
+    private static bool PreviewGrpcCode(
+        string grpcSearch,
+        IServiceProvider services,
+        IServiceVariableSource? serviceVariableSource)
+    {
+        var expectedFileName = GrpcInputToFileName(grpcSearch);
+
+        // Search all registered ICodeFileCollection instances. GrpcGraph (when Wolverine.Grpc
+        // is referenced) registers itself through this seam the same way HttpGraph does.
+        var allCollections = services.GetServices<ICodeFileCollection>().ToArray();
+
+        ICodeFileCollection? foundCollection = null;
+        ICodeFile? foundFile = null;
+
+        foreach (var collection in allCollections)
+        {
+            foreach (var file in collection.BuildFiles())
+            {
+                if (string.Equals(file.FileName, expectedFileName, StringComparison.OrdinalIgnoreCase))
+                {
+                    foundCollection = collection;
+                    foundFile = file;
+                    break;
+                }
+            }
+
+            if (foundFile != null) break;
+        }
+
+        if (foundFile == null)
+        {
+            AnsiConsole.MarkupLine(
+                $"[red]No gRPC service chain found matching '[bold]{Markup.Escape(grpcSearch)}[/]' " +
+                $"(expected file name: [bold]{Markup.Escape(expectedFileName)}[/]).[/]");
+            AnsiConsole.MarkupLine("[grey]Available gRPC service chains (file names):[/]");
+
+            var any = false;
+            foreach (var collection in allCollections)
+            {
+                foreach (var f in collection.BuildFiles())
+                {
+                    if (f.FileName.EndsWith("GrpcHandler", StringComparison.OrdinalIgnoreCase))
+                    {
+                        AnsiConsole.MarkupLine($"  [grey]{Markup.Escape(f.FileName)}[/]");
+                        any = true;
+                    }
+                }
+            }
+
+            if (!any)
+            {
+                AnsiConsole.MarkupLine(
+                    "  [grey](none — is Wolverine.Grpc referenced and are proto-first stubs discovered?)[/]");
+            }
+
+            return false;
+        }
+
+        var code = GenerateSingleFileCode(foundCollection!, foundFile, serviceVariableSource);
+        PrintCodegenResult($"gRPC service chain: {grpcSearch}", foundFile.FileName, code);
+        return true;
+    }
+
+    /// <summary>
+    ///     Normalizes a user-supplied gRPC search input into the file name a
+    ///     <c>GrpcServiceChain</c> would generate. The chain's file name is always
+    ///     <c>{ProtoServiceName}GrpcHandler</c>, so:
+    ///     <list type="bullet">
+    ///         <item>Bare proto service name (e.g. <c>Greeter</c>) — append <c>GrpcHandler</c>.</item>
+    ///         <item>Stub class name (e.g. <c>GreeterGrpcService</c>) — swap the <c>Service</c> suffix for <c>Handler</c>.</item>
+    ///         <item>Already-normalized file name (e.g. <c>GreeterGrpcHandler</c>) — pass through.</item>
+    ///     </list>
+    /// </summary>
+    internal static string GrpcInputToFileName(string grpcInput)
+    {
+        var trimmed = grpcInput.Trim();
+
+        if (trimmed.EndsWith("GrpcHandler", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        if (trimmed.EndsWith("GrpcService", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed[..^"Service".Length] + "Handler";
+        }
+
+        return trimmed + "GrpcHandler";
     }
 
     private static string GenerateSingleFileCode(
