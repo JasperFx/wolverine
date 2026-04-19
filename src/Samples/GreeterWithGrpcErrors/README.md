@@ -26,13 +26,13 @@ packed into the `grpc-status-details-bin` trailer.
 In one terminal:
 
 ```sh
-dotnet run --project src/Samples/GreeterWithGrpcErrors/Server
+dotnet run --project src/Samples/GreeterWithGrpcErrors/Server --framework net9.0
 ```
 
 In another:
 
 ```sh
-dotnet run --project src/Samples/GreeterWithGrpcErrors/Client
+dotnet run --project src/Samples/GreeterWithGrpcErrors/Client --framework net9.0
 ```
 
 Expected output from the client:

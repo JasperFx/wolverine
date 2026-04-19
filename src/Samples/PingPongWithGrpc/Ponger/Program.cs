@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using PingPongWithGrpc.Ponger;
 using ProtoBuf.Grpc.Server;
@@ -33,6 +34,6 @@ app.UseRouting();
 // Discovers PingGrpcService by convention (name ends in 'GrpcService').
 app.MapWolverineGrpcServices();
 
-app.Run();
+return await app.RunJasperFxCommands(args);
 
 public partial class Program;

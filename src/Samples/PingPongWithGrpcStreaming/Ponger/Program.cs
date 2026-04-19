@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using PingPongWithGrpcStreaming.Ponger;
 using ProtoBuf.Grpc.Server;
@@ -26,6 +27,6 @@ var app = builder.Build();
 app.UseRouting();
 app.MapWolverineGrpcServices();
 
-app.Run();
+return await app.RunJasperFxCommands(args);
 
 public partial class Program;

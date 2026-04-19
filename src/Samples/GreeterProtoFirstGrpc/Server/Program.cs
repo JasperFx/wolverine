@@ -1,3 +1,4 @@
+using JasperFx;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Wolverine;
 using Wolverine.Grpc;
@@ -27,6 +28,6 @@ app.UseRouting();
 // concrete wrapper (GreeterGrpcHandler) that forwards each RPC to IMessageBus.
 app.MapWolverineGrpcServices();
 
-app.Run();
+return await app.RunJasperFxCommands(args);
 
 public partial class Program;

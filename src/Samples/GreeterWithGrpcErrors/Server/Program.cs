@@ -3,6 +3,7 @@ using GreeterWithGrpcErrors.Messages;
 using GreeterWithGrpcErrors.Server;
 using Google.Rpc;
 using Grpc.Core;
+using JasperFx;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using ProtoBuf.Grpc.Server;
 using Wolverine;
@@ -70,6 +71,6 @@ app.UseRouting();
 // Discovers GreeterGrpcService by the 'GrpcService' suffix convention.
 app.MapWolverineGrpcServices();
 
-app.Run();
+return await app.RunJasperFxCommands(args);
 
 public partial class Program;
