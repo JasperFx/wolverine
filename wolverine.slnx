@@ -198,6 +198,12 @@
     <Project Path="src/Samples/GreeterWithGrpcErrors/Messages/Messages.csproj" />
     <Project Path="src/Samples/GreeterWithGrpcErrors/Server/Server.csproj" />
   </Folder>
+  <Folder Name="/Samples/OrderChainWithGrpc/">
+    <Project Path="src/Samples/OrderChainWithGrpc/Contracts/Contracts.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/InventoryServer/InventoryServer.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/OrderClient/OrderClient.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/OrderServer/OrderServer.csproj" />
+  </Folder>
   <Folder Name="/Samples/RacerWithGrpc/">
     <Project Path="src/Samples/RacerWithGrpc/RacerClient/RacerClient.csproj" />
     <Project Path="src/Samples/RacerWithGrpc/RacerContracts/RacerContracts.csproj" />

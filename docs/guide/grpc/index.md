@@ -74,9 +74,10 @@ From here, [How gRPC Handlers Work](./handlers) walks through what `MapWolverine
 wires up and why a gRPC handler is just an ordinary Wolverine handler with a thin service shim on top.
 
 ::: tip Runnable Samples
-Five end-to-end sample trios live under `src/Samples/`. Each pairs a real Kestrel HTTP/2 server
-with a client in separate projects so you can `dotnet run` them side by side. See
-[Samples](./samples) for the full walkthroughs and comparisons to the official `grpc-dotnet` examples.
+Six end-to-end samples live under `src/Samples/`. Five are the classic trio shape (server, client,
+shared messages); `OrderChainWithGrpc` is a quartet because its proof-point is a chain between two
+Wolverine servers. `dotnet run` them side by side. See [Samples](./samples) for full walkthroughs
+and comparisons to the official `grpc-dotnet` examples.
 
 | Sample | Shape | What to copy |
 |--------|-------|--------------|
@@ -85,6 +86,7 @@ with a client in separate projects so you can `dotnet run` them side by side. Se
 | [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
 | [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
 | [GreeterWithGrpcErrors](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterWithGrpcErrors)           | Code-first **rich error details** | FluentValidation → `BadRequest` plus inline `MapException` → `PreconditionFailure`, with a client that unpacks both |
+| [OrderChainWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderChainWithGrpc)                 | **Wolverine → Wolverine chain** via `AddWolverineGrpcClient<T>()` | Typed client injected into a handler; envelope propagation + typed-exception round-trip with zero user plumbing |
 :::
 
 ## API Reference

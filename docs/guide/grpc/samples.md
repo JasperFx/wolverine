@@ -1,8 +1,10 @@
 # Samples
 
-Five end-to-end sample trios (server, client, shared messages) live under
-[`src/Samples/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples). Each one is a real
-Kestrel HTTP/2 host plus a separate client project — `dotnet run` them side by side.
+Six end-to-end samples live under
+[`src/Samples/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples). Five are the classic
+trio shape (server, client, shared messages); the sixth, `OrderChainWithGrpc`, is a quartet because
+its proof-point is a **chain** between two Wolverine servers. Each sample is a real Kestrel HTTP/2
+host plus separate client / service projects — `dotnet run` them side by side.
 
 For each Wolverine sample below you'll find a pointer to the **closest equivalent** in the official
 [grpc-dotnet examples](https://github.com/grpc/grpc-dotnet/tree/master/examples), so you can
@@ -24,6 +26,7 @@ changes is whether your business code knows about gRPC.
 | [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [RacerWithGrpc](#racerwithgrpc)                           | Bidirectional streaming | Code-first | [Racer](https://github.com/grpc/grpc-dotnet/tree/master/examples#racer) |
 | [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first | (no direct equivalent — closest is Greeter + a custom interceptor) |
+| [OrderChainWithGrpc](#orderchainwithgrpc)                 | Wolverine → Wolverine chain via typed client | Code-first | (no direct equivalent — grpc-dotnet assumes users hand-write propagation) |
 
 ## PingPongWithGrpc
 
@@ -184,6 +187,70 @@ via a **custom interceptor** that the service author writes from scratch. The Wo
 shows the same outcome with no custom interceptor code in the service project: the opt-in
 pipeline, a bridge package, and per-exception declarative mapping do the work.
 
+## OrderChainWithGrpc
+
+Layout: [`src/Samples/OrderChainWithGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderChainWithGrpc)
+with four projects — `Contracts`, `OrderServer` (upstream, port 5006), `InventoryServer`
+(downstream, port 5007), and `OrderClient` (a plain grpc-dotnet console that kicks the chain off).
+
+The sample's purpose is to prove two things that none of the other samples can show:
+
+1. **Envelope-header propagation across a Wolverine-to-Wolverine hop, with zero user plumbing.**
+   The upstream handler injects `IInventoryService` (registered via
+   `AddWolverineGrpcClient<IInventoryService>()`) and calls it like any other collaborator — no
+   `Metadata` assembly, no `CallOptions`, no custom interceptor. The downstream handler sees
+   `IMessageContext.CorrelationId`, `IMessageContext.TenantId`, and `Envelope.ParentId` populated
+   with the upstream values, echoes them back on the reply, and the client prints the
+   round-tripped correlation-id so the preservation is visually verifiable.
+2. **Typed-exception round-trip across the hop.** The downstream handler throws
+   `KeyNotFoundException` when the SKU is `UNKNOWN`. The server-side exception interceptor maps
+   it to `StatusCode.NotFound`; the upstream's *client-side* exception interceptor translates
+   that back to `KeyNotFoundException` at the handler's call site; when the handler rethrows,
+   the upstream's server-side interceptor re-maps to `NotFound` for the external caller. End-to-end
+   typed-exception plumbing with zero code translating between layers.
+
+The one registration line that makes the whole thing work (see `OrderServer/Program.cs`):
+
+<!-- snippet: sample_order_chain_add_wolverine_grpc_client -->
+<a id='snippet-sample_order_chain_add_wolverine_grpc_client'></a>
+```cs
+// The one new registration line compared to a normal Wolverine gRPC server. Wolverine resolves
+// IInventoryService into any handler (like PlaceOrderHandler) that asks for it, routes the call
+// through the typed gRPC client, and stamps envelope headers automatically. No GrpcChannel, no
+// Metadata wiring, no custom interceptors.
+builder.Services.AddWolverineGrpcClient<IInventoryService>(o =>
+{
+    o.Address = new Uri("http://localhost:5007");
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderChainWithGrpc/OrderServer/Program.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_chain_add_wolverine_grpc_client' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+**What to copy**: `AddWolverineGrpcClient<T>()` in the calling service + an ordinary Wolverine
+handler that takes the typed client as a constructor parameter. The rest — envelope propagation,
+exception mapping, channel management — Wolverine and `Grpc.Net.ClientFactory` handle for you.
+
+### Running the sample
+
+```bash
+# Three terminals, bottom-up:
+dotnet run --project src/Samples/OrderChainWithGrpc/InventoryServer
+dotnet run --project src/Samples/OrderChainWithGrpc/OrderServer
+dotnet run --project src/Samples/OrderChainWithGrpc/OrderClient
+```
+
+The client's success path prints the reservation plus the correlation-id seen on both hops; the
+failure path prints the `NotFound` surfaced by the upstream server.
+
+### Compared to grpc-dotnet examples
+
+There's no direct equivalent in the grpc-dotnet repo — the official examples assume users
+hand-write client interceptors for anything they want stamped on outgoing calls, and none of the
+shipped examples chain one service's handler into another service's RPC. The Wolverine sample
+collapses that entire surface area into a single registration line, because ambient context and
+typed-exception symmetry are *the* things the `AddWolverineGrpcClient<T>()` extension exists to
+provide.
+
 ## Related
 
 - [Index](./) — overview + getting started.
@@ -191,3 +258,5 @@ pipeline, a bridge package, and per-exception declarative mapping do the work.
 - [Code-First and Proto-First Contracts](./contracts) — pick the style each sample uses.
 - [Streaming](./streaming) — the streaming shapes two of these samples implement.
 - [Error Handling](./errors) — the pipeline `GreeterWithGrpcErrors` exercises end-to-end.
+- [Typed gRPC Clients](./client) — full reference for the `AddWolverineGrpcClient<T>()` extension
+  `OrderChainWithGrpc` demonstrates.
