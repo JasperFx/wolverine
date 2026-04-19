@@ -62,4 +62,46 @@ public static class WolverineGrpcExceptionMapper
         var status = new Status(Map(exception), exception.Message);
         return new RpcException(status);
     }
+
+    /// <summary>
+    ///     The inverse of <see cref="Map"/> — maps an incoming <see cref="RpcException"/>
+    ///     back to an idiomatic .NET exception type for client-side consumers. Applied by the
+    ///     client-side <c>WolverineGrpcClientExceptionInterceptor</c> so Wolverine callers
+    ///     can <c>catch (KeyNotFoundException)</c> instead of branching on
+    ///     <see cref="RpcException.StatusCode"/> — symmetric to how the server side maps
+    ///     ordinary .NET exceptions to status codes.
+    /// </summary>
+    /// <param name="exception">The gRPC exception raised by the client runtime.</param>
+    /// <returns>
+    ///     A typed .NET exception corresponding to <see cref="RpcException.StatusCode"/>, or the
+    ///     original <see cref="RpcException"/> when no canonical .NET type exists for the code.
+    ///     The original <paramref name="exception"/> is always preserved on <see cref="Exception.InnerException"/>
+    ///     so diagnostic fidelity (trailers, status details) is never lost.
+    /// </returns>
+    /// <remarks>
+    ///     The table is intentionally aligned with <see cref="Map"/> — every code returned by
+    ///     <see cref="Map"/> has a non-degenerate reverse entry here. <see cref="StatusCode.Cancelled"/>
+    ///     is the exception: it maps to <see cref="OperationCanceledException"/>, but the two sides
+    ///     of the mapping are still consistent because <see cref="Map"/> recognises
+    ///     <see cref="OperationCanceledException"/> as cancellation.
+    /// </remarks>
+    public static Exception MapToException(RpcException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+
+        var message = exception.Status.Detail;
+
+        return exception.StatusCode switch
+        {
+            StatusCode.Cancelled => new OperationCanceledException(message, exception),
+            StatusCode.DeadlineExceeded => new TimeoutException(message, exception),
+            StatusCode.InvalidArgument => new ArgumentException(message, exception),
+            StatusCode.NotFound => new KeyNotFoundException(message, exception),
+            StatusCode.PermissionDenied => new UnauthorizedAccessException(message, exception),
+            StatusCode.Unauthenticated => new UnauthorizedAccessException(message, exception),
+            StatusCode.FailedPrecondition => new InvalidOperationException(message, exception),
+            StatusCode.Unimplemented => new NotImplementedException(message, exception),
+            _ => exception
+        };
+    }
 }

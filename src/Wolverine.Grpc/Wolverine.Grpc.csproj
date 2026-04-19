@@ -10,7 +10,9 @@
         <ProjectReference Include="..\Wolverine\Wolverine.csproj"/>
         <PackageReference Include="Google.Api.CommonProtos"/>
         <PackageReference Include="Grpc.AspNetCore"/>
+        <PackageReference Include="Grpc.Net.ClientFactory"/>
         <PackageReference Include="Grpc.StatusProto"/>
+        <PackageReference Include="protobuf-net.Grpc"/>
         <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
     </ItemGroup>
 

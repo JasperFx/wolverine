@@ -34,6 +34,9 @@ building:
   `google.rpc.Status` pipeline for rich, structured details.
 - [Streaming](./streaming) — server streaming today, bidirectional via a manual bridge, and the
   shape of the cancellation contract.
+- [Typed gRPC Clients](./client) — `AddWolverineGrpcClient<T>()`, the Wolverine-flavored wrapper over
+  `Grpc.Net.ClientFactory` that adds envelope-header propagation and `RpcException` → typed-exception
+  translation on the consuming side.
 - [Samples](./samples) — runnable end-to-end samples with pointers to the equivalent official
   [grpc-dotnet examples](https://github.com/grpc/grpc-dotnet/tree/master/examples) for comparison.
 
@@ -98,6 +101,9 @@ with a client in separate projects so you can `dotnet run` them side by side. Se
 | `opts.UseFluentValidationGrpcErrorDetails()` | Bridge: `ValidationException` → `BadRequest` (from `WolverineFx.FluentValidation.Grpc`). |
 | `IGrpcStatusDetailsProvider`               | Custom provider seam for building `google.rpc.Status` from an exception. |
 | `IValidationFailureAdapter`                | Plug-in point for translating library-specific validation exceptions into `BadRequest.FieldViolation`s. |
+| `AddWolverineGrpcClient<T>()`              | Registers a Wolverine-flavored typed gRPC client — see [Typed gRPC Clients](./client). |
+| `WolverineGrpcClientOptions`               | Named options for a typed client: `Address`, `PropagateEnvelopeHeaders`, `MapRpcException`. |
+| `WolverineGrpcExceptionMapper.MapToException(rpc)` | Inverse of `Map` — client-side `RpcException` → typed .NET exception table. |
 
 ## Current Limitations
 
@@ -128,6 +134,12 @@ them and consumers know what's coming.
   grows a `--grpc` / `-g` flag (mirroring `--handler` / `-h` and `--route` / `-r`) so you can inspect
   the code Wolverine generates for gRPC service chains without dropping into the full `codegen write`
   output.
+- **Typed gRPC client extension (`AddWolverineGrpcClient<T>()`)** — a thin Wolverine wrapper over
+  `Grpc.Net.ClientFactory.AddGrpcClient<T>()` that layers envelope-header propagation and
+  `RpcException` → typed .NET exception translation onto both code-first (`protobuf-net.Grpc`
+  `[ServiceContract]`) and proto-first (`Grpc.Tools`-generated) typed clients. See
+  [Typed gRPC Clients](./client) for the full surface. Raw `GrpcChannel` + generated stubs (as used
+  in the samples today) remain a fully supported path.
 
 ### Deferred to follow-up PRs
 
@@ -147,11 +159,3 @@ them and consumers know what's coming.
   works today for two protocols; extending it to three raises naming and scoping questions
   (`MiddlewareScoping` only permits one value per `[Middleware]` attribute, and the handler method
   name conventions overlap). No concrete plan yet — feedback welcome on the tracking issue.
-- **Typed gRPC client extension (`AddWolverineGrpcClient<T>()`)** — a thin Wolverine-flavored wrapper
-  over the existing `Grpc.Net.ClientFactory.AddGrpcClient<T>()` DI surface. The goal is *not* to
-  replace the Microsoft client factory, but to layer Wolverine-specific conveniences onto it:
-  correlation-id / tenancy / message-id metadata propagation symmetric to the server-side
-  interceptors, an `RpcException` → typed-exception client interceptor that mirrors
-  `WolverineGrpcExceptionInterceptor`, and `DeliveryOptions`-style header plumbing. Tentative and
-  adoption-driven — raw `GrpcChannel` + generated stubs (as used in the samples today) remain a
-  fully supported path.

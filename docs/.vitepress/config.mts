@@ -285,6 +285,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Code-First and Proto-First Contracts', link: '/guide/grpc/contracts'},
                                 {text: 'Error Handling', link: '/guide/grpc/errors'},
                                 {text: 'Streaming', link: '/guide/grpc/streaming'},
+                                {text: 'Typed gRPC Clients', link: '/guide/grpc/client'},
                                 {text: 'Samples', link: '/guide/grpc/samples'}
                             ]
                         }
