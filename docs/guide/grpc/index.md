@@ -147,3 +147,11 @@ them and consumers know what's coming.
   works today for two protocols; extending it to three raises naming and scoping questions
   (`MiddlewareScoping` only permits one value per `[Middleware]` attribute, and the handler method
   name conventions overlap). No concrete plan yet — feedback welcome on the tracking issue.
+- **Typed gRPC client extension (`AddWolverineGrpcClient<T>()`)** — a thin Wolverine-flavored wrapper
+  over the existing `Grpc.Net.ClientFactory.AddGrpcClient<T>()` DI surface. The goal is *not* to
+  replace the Microsoft client factory, but to layer Wolverine-specific conveniences onto it:
+  correlation-id / tenancy / message-id metadata propagation symmetric to the server-side
+  interceptors, an `RpcException` → typed-exception client interceptor that mirrors
+  `WolverineGrpcExceptionInterceptor`, and `DeliveryOptions`-style header plumbing. Tentative and
+  adoption-driven — raw `GrpcChannel` + generated stubs (as used in the samples today) remain a
+  fully supported path.
