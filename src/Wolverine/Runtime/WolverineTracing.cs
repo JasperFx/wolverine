@@ -138,11 +138,32 @@ internal static class WolverineTracing
     /// </summary>
     public const string StreamType = "wolverine.stream.type";
 
+    /// <summary>
+    /// Span name emitted when a streaming handler is executing via StreamAsync
+    /// </summary>
+    public const string StreamingExecution = "wolverine.streaming";
+
+    /// <summary>
+    /// ActivityEvent emitted when the handler phase of a streaming invocation completes
+    /// and iteration of the returned sequence is about to begin
+    /// </summary>
+    public const string StreamingStarted = "wolverine.stream.handler.started";
+
+    /// <summary>
+    /// ActivityEvent emitted when a streaming handler sequence is fully consumed or cancelled
+    /// </summary>
+    public const string StreamingCompleted = "wolverine.stream.handler.completed";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(
         "Wolverine",
         typeof(WolverineTracing).Assembly.GetName().Version!.ToString());
+
+    public static Activity? StartStreaming(Envelope envelope)
+    {
+        return StartEnvelopeActivity(StreamingExecution, envelope);
+    }
 
     public static Activity? StartSending(Envelope envelope)
     {

@@ -462,6 +462,41 @@ public class TestMessageContextTests
         result.ShouldBeSameAs(response);
     }
 
+    [Fact]
+    public async Task stream_records_message_and_yields_empty_sequence()
+    {
+        var request = new NumberRequest(3, 4);
+
+        var items = new List<NumberResponse>();
+        await foreach (var item in theContext.StreamAsync<NumberResponse>(request))
+        {
+            items.Add(item);
+        }
+
+        items.ShouldBeEmpty();
+        theSpy.Invoked.ShouldHaveMessageOfType<NumberRequest>().ShouldBeSameAs(request);
+    }
+
+    [Fact]
+    public async Task stream_with_delivery_options_records_envelope_with_header_applied()
+    {
+        var request = new NumberRequest(3, 4);
+
+        var items = new List<NumberResponse>();
+        await foreach (var item in theContext.StreamAsync<NumberResponse>(
+                           request,
+                           new DeliveryOptions().WithHeader("stream-test", "value")))
+        {
+            items.Add(item);
+        }
+
+        items.ShouldBeEmpty();
+
+        var envelope = theSpy.Invoked.OfType<Envelope>().Last();
+        envelope.Message.ShouldBeSameAs(request);
+        envelope.Headers["stream-test"].ShouldBe("value");
+    }
+
     public static async Task set_up_invoke_expectations()
     {
         #region sample_using_invoke_with_expected_response_with_test_message_context

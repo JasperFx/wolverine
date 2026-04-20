@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime.RemoteInvocation;
@@ -219,6 +220,28 @@ public class TestMessageContext : IMessageContext
 
         var response = findResponse<T>(message);
         return Task.FromResult(response);
+    }
+
+    IAsyncEnumerable<TResponse> ICommandBus.StreamAsync<TResponse>(object message, CancellationToken cancellation)
+    {
+        _invoked.Add(message);
+        return EmptyAsyncEnumerable<TResponse>(cancellation);
+    }
+
+    IAsyncEnumerable<TResponse> ICommandBus.StreamAsync<TResponse>(object message, DeliveryOptions options,
+        CancellationToken cancellation)
+    {
+        var envelope = new Envelope(message);
+        options.Override(envelope);
+        _invoked.Add(envelope);
+        return EmptyAsyncEnumerable<TResponse>(cancellation);
+    }
+
+    private static async IAsyncEnumerable<T> EmptyAsyncEnumerable<T>(
+        [EnumeratorCancellation] CancellationToken cancellation = default)
+    {
+        await Task.CompletedTask;
+        yield break;
     }
 
     public Task InvokeForTenantAsync(string tenantId, object message, CancellationToken cancellation = default,

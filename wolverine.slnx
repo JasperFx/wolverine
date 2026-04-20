@@ -25,6 +25,7 @@
   <Folder Name="/Extensions/">
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation.Tests/Wolverine.DataAnnotationsValidation.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.DataAnnotationsValidation/Wolverine.DataAnnotationsValidation.csproj" />
+    <Project Path="src/Extensions/Wolverine.FluentValidation.Grpc/Wolverine.FluentValidation.Grpc.csproj" />
     <Project Path="src/Extensions/Wolverine.FluentValidation.Tests/Wolverine.FluentValidation.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.FluentValidation/Wolverine.FluentValidation.csproj" />
     <Project Path="src/Extensions/Wolverine.MemoryPack.Tests/Wolverine.MemoryPack.Tests.csproj" />
@@ -48,6 +49,10 @@
     <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
     <Project Path="src/Http/WolverineWebApi/WolverineWebApi.csproj" />
     <Project Path="src/Http/WolverineWebApiFSharp/WolverineWebApiFSharp.fsproj" />
+  </Folder>
+  <Folder Name="/Grpc/">
+    <Project Path="src/Wolverine.Grpc/Wolverine.Grpc.csproj" />
+    <Project Path="src/Wolverine.Grpc.Tests/Wolverine.Grpc.Tests.csproj" />
   </Folder>
   <Folder Name="/Persistence/">
     <Project Path="src/Persistence/DuplicateMessageSending/DuplicateMessageSending.csproj" />
@@ -169,9 +174,40 @@
     <Project Path="src/Samples/PingPong/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/PingPong/Ponger/Ponger.csproj" />
   </Folder>
+  <Folder Name="/Samples/PingPongWithGrpc/">
+    <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpc/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpc/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/PingPongWithGrpcStreaming/">
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Messages/Messages.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Pinger/Pinger.csproj" />
+    <Project Path="src/Samples/PingPongWithGrpcStreaming/Ponger/Ponger.csproj" />
+  </Folder>
   <Folder Name="/Samples/PingPongWithRabbitMq/">
     <Project Path="src/Samples/PingPongWithRabbitMq/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/PingPongWithRabbitMq/Ponger/Ponger.csproj" />
+  </Folder>
+  <Folder Name="/Samples/GreeterProtoFirstGrpc/">
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Client/Client.csproj" />
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Messages/Messages.csproj" />
+    <Project Path="src/Samples/GreeterProtoFirstGrpc/Server/Server.csproj" />
+  </Folder>
+  <Folder Name="/Samples/GreeterWithGrpcErrors/">
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Client/Client.csproj" />
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Messages/Messages.csproj" />
+    <Project Path="src/Samples/GreeterWithGrpcErrors/Server/Server.csproj" />
+  </Folder>
+  <Folder Name="/Samples/OrderChainWithGrpc/">
+    <Project Path="src/Samples/OrderChainWithGrpc/Contracts/Contracts.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/InventoryServer/InventoryServer.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/OrderClient/OrderClient.csproj" />
+    <Project Path="src/Samples/OrderChainWithGrpc/OrderServer/OrderServer.csproj" />
+  </Folder>
+  <Folder Name="/Samples/RacerWithGrpc/">
+    <Project Path="src/Samples/RacerWithGrpc/RacerClient/RacerClient.csproj" />
+    <Project Path="src/Samples/RacerWithGrpc/RacerContracts/RacerContracts.csproj" />
+    <Project Path="src/Samples/RacerWithGrpc/RacerServer/RacerServer.csproj" />
   </Folder>
   <Folder Name="/Samples/TestHarness/">
     <Project Path="src/Samples/TestHarness/BankingService.Tests/BankingService.Tests.csproj" />

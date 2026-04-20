@@ -91,6 +91,16 @@ public class TopicRouting<T> : IMessageRouteSource, IMessageRoute, IMessageInvok
         return InvokeAsync<Acknowledgement>(message, bus, cancellation, timeout, options);
     }
 
+    public IAsyncEnumerable<T1> StreamAsync<T1>(object message, MessageBus bus,
+        CancellationToken cancellation = default,
+        DeliveryOptions? options = null)
+    {
+        throw new NotSupportedException(
+            $"StreamAsync is only supported for locally-handled messages. " +
+            $"The message type '{message.GetType().FullNameInCode()}' is routed to a topic endpoint ({_topicEndpoint.Uri}). " +
+            $"Configure a local handler or use InvokeAsync<T> for remote request/reply.");
+    }
+
     public override string ToString()
     {
         return $"Topic routing to {_topicEndpoint.Uri}";

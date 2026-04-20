@@ -42,6 +42,8 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 [assembly: InternalsVisibleTo("Wolverine.Http")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
+[assembly: InternalsVisibleTo("Wolverine.Grpc")]
+[assembly: InternalsVisibleTo("Wolverine.Grpc.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Kafka.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Kafka")]
 [assembly: InternalsVisibleTo("Wolverine.Nats")]

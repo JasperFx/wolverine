@@ -236,6 +236,58 @@ using var host = Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/BootstrappingSamples.cs#L25-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disabling_remote_invocation' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Streaming Responses
+
+When a handler needs to return a sequence of values rather than a single response, declare its return type
+as `IAsyncEnumerable<T>` and invoke it through `IMessageBus.StreamAsync<T>`:
+
+```cs
+public static class PriceFeedHandler
+{
+    public static async IAsyncEnumerable<PriceTick> Handle(
+        SubscribePrices request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        foreach (var symbol in request.Symbols)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return new PriceTick(symbol, GetCurrentPrice(symbol));
+            await Task.Delay(100, cancellationToken);
+        }
+    }
+}
+
+public static async Task stream_price_feed(IMessageBus bus, CancellationToken ct)
+{
+    await foreach (var tick in bus.StreamAsync<PriceTick>(new SubscribePrices(["MSFT", "GOOG"]), ct))
+    {
+        Console.WriteLine($"{tick.Symbol}: {tick.Price}");
+    }
+}
+```
+
+A few things worth knowing about `StreamAsync<T>`:
+
+- **Locally-handled messages only.** Unlike `InvokeAsync<T>`, there is no remote-streaming fallback — if the message
+  doesn't resolve to a local handler, the call fails. Streaming is an in-process or adapter-level concern (see
+  [gRPC Services](/guide/grpc/streaming) for exposing a streaming handler over the wire).
+- **Cancellation propagates into the handler.** Pass a `CancellationToken` into `StreamAsync<T>` and Wolverine
+  forwards it to the handler method — iterators that respect the token via `ThrowIfCancellationRequested` or
+  `[EnumeratorCancellation]` will cleanly unwind mid-stream.
+- **Partial results surface before an exception.** If the handler yields N items and then throws, the caller
+  sees those N items on the enumerator, then observes the exception on the next `MoveNextAsync`. Nothing is
+  swallowed.
+- **Middleware still runs.** Streaming calls go through the same Wolverine pipeline as `InvokeAsync` —
+  activities, middleware, and error-handling rules apply.
+- **`DeliveryOptions` is supported** for headers, tenant id, and correlation metadata via the overload
+  `StreamAsync<T>(object message, DeliveryOptions options, CancellationToken cancellation)`.
+
+::: tip
+Handlers that return a typed `IAsyncEnumerable<T>` are also compatible with regular `InvokeAsync` — in that case
+Wolverine iterates the sequence and cascades each item as a new message. `StreamAsync<T>` is the explicit opt-in
+when the caller wants to consume the items directly.
+:::
+
 ## Sending or Publishing Messages
 
 [Publish/Subscribe](https://docs.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber) is a messaging pattern where the senders of messages do not need to specifically know what the specific subscribers are for a given message. In this case, some kind of middleware or infrastructure is responsible for either allowing subscribers to express interest in what messages they need to receive or apply routing rules to send the published messages to the right places. Wolverine's messaging support was largely built to support the publish/subscribe messaging pattern.

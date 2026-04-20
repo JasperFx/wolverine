@@ -165,6 +165,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         {
             return Task.CompletedTask;
         }
+
+        public IAsyncEnumerable<T> StreamAsync<T>(object message, MessageBus bus,
+            CancellationToken cancellation = default,
+            DeliveryOptions? options = null)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     public void AssertHasStarted()

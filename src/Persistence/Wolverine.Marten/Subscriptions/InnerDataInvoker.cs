@@ -32,4 +32,8 @@ internal class InnerDataInvoker<T> : IMessageInvoker where T : notnull
 
         return Task.CompletedTask;
     }
+
+    public IAsyncEnumerable<T1> StreamAsync<T1>(object message, MessageBus bus,
+        CancellationToken cancellation = default, DeliveryOptions? options = null)
+        => throw new NotSupportedException();
 }

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>RacerServer</RootNamespace>
+        <AssemblyName>RacerServer</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\RacerContracts\RacerContracts.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
+    </ItemGroup>
+
+</Project>

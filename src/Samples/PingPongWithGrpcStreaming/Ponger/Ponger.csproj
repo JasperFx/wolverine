@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>PingPongWithGrpcStreaming.Ponger</RootNamespace>
+        <AssemblyName>PingPongWithGrpcStreaming.Ponger</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Messages\Messages.csproj"/>
+        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
+    </ItemGroup>
+
+</Project>

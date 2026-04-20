@@ -30,6 +30,20 @@ public class WolverineDiagnosticsCommandTests
         WolverineDiagnosticsCommand.RouteInputToFileName(input).ShouldBe(expected);
     }
 
+    // ── GrpcInputToFileName ──────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Greeter", "GreeterGrpcHandler")]                    // bare proto service name
+    [InlineData("GreeterGrpcService", "GreeterGrpcHandler")]         // stub class name (swap Service → Handler)
+    [InlineData("GreeterGrpcHandler", "GreeterGrpcHandler")]         // already-normalized file name
+    [InlineData("greetergrpcservice", "greetergrpcHandler")]         // case: preserve input casing on prefix, canonical "Handler"
+    [InlineData("greetergrpchandler", "greetergrpchandler")]         // case: already ends with handler (case-insensitive pass-through)
+    [InlineData("  Greeter  ", "GreeterGrpcHandler")]                // trims whitespace
+    public void grpc_input_to_file_name(string input, string expected)
+    {
+        WolverineDiagnosticsCommand.GrpcInputToFileName(input).ShouldBe(expected);
+    }
+
     // ── FindHandlerChain — exact and fuzzy matching ──────────────────────────
 
     [Fact]
