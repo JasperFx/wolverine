@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
@@ -658,11 +659,10 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         // the case above. When ResponseType is set (StreamAsync path), the check above this
         // switch already captured the sequence; we only reach here during regular InvokeAsync
         // with a handler that returns a typed async sequence.
-        var asyncEnumInterface = message.GetType().GetInterfaces()
-            .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
-        if (asyncEnumInterface != null)
+        var cascader = ResolveTypedAsyncEnumerableCascader(message.GetType());
+        if (cascader != null)
         {
-            await CascadeTypedAsyncEnumerableAsync(message, asyncEnumInterface);
+            await (Task)cascader.Invoke(null, [message, this])!;
             return;
         }
 
@@ -685,19 +685,38 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private static readonly MethodInfo _cascadeTypedItemsMethod =
         typeof(MessageContext).GetMethod(nameof(CascadeTypedItemsAsync), BindingFlags.Static | BindingFlags.NonPublic)!;
 
+    // Per-message-type cache of the constructed CascadeTypedItemsAsync<T> MethodInfo (or null for
+    // message types that don't implement IAsyncEnumerable<T>). Eliminates GetInterfaces() and
+    // MakeGenericMethod() from every cascade after the first for each unique type. ImHashMap is
+    // lock-free and copy-on-write — appropriate because the set of cascading message types
+    // stabilizes quickly after startup, making this write-rare/read-heavy.
+    private static ImHashMap<Type, MethodInfo?> _typedEnumerableCascadeMethods =
+        ImHashMap<Type, MethodInfo?>.Empty;
+
+    private static MethodInfo? ResolveTypedAsyncEnumerableCascader(Type messageType)
+    {
+        if (_typedEnumerableCascadeMethods.TryFind(messageType, out var cached))
+        {
+            return cached;
+        }
+
+        var asyncEnumInterface = messageType.GetInterfaces()
+            .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+
+        var method = asyncEnumInterface != null
+            ? _cascadeTypedItemsMethod.MakeGenericMethod(asyncEnumInterface.GetGenericArguments()[0])
+            : null;
+
+        _typedEnumerableCascadeMethods = _typedEnumerableCascadeMethods.AddOrUpdate(messageType, method);
+        return method;
+    }
+
     private static async Task CascadeTypedItemsAsync<T>(IAsyncEnumerable<T> source, MessageContext context)
     {
         await foreach (var item in source)
         {
             await context.EnqueueCascadingAsync(item);
         }
-    }
-
-    private Task CascadeTypedAsyncEnumerableAsync(object asyncEnumerable, Type interfaceType)
-    {
-        var elementType = interfaceType.GetGenericArguments()[0];
-        var method = _cascadeTypedItemsMethod.MakeGenericMethod(elementType);
-        return (Task)method.Invoke(null, [asyncEnumerable, this])!;
     }
 
     internal void ClearState()

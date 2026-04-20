@@ -302,7 +302,6 @@ internal class Executor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             stream = envelope.Response as IAsyncEnumerable<T>;
             activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
-            _tracker.ExecutionFinished(envelope);
         }
         catch (Exception e)
         {
@@ -314,20 +313,39 @@ internal class Executor : IExecutor
 
         if (stream == null)
         {
-            _contextPool.Return(context);
             activity?.SetStatus(ActivityStatusCode.Ok);
+            _tracker.ExecutionFinished(envelope);
+            _contextPool.Return(context);
             yield break;
         }
 
+        await using var enumerator = stream.GetAsyncEnumerator(cancellation);
         try
         {
-            await foreach (var item in stream.WithCancellation(cancellation))
+            while (true)
             {
-                yield return item;
-            }
+                T current;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync())
+                    {
+                        activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
+                        activity?.SetStatus(ActivityStatusCode.Ok);
+                        _tracker.ExecutionFinished(envelope);
+                        yield break;
+                    }
 
-            activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
-            activity?.SetStatus(ActivityStatusCode.Ok);
+                    current = enumerator.Current;
+                }
+                catch (Exception e)
+                {
+                    activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+                    _tracker.ExecutionFinished(envelope, e);
+                    throw;
+                }
+
+                yield return current;
+            }
         }
         finally
         {

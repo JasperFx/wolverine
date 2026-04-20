@@ -8,6 +8,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 
 namespace Wolverine.Grpc;
@@ -44,9 +45,12 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     public IReadOnlyList<MethodInfo> UnaryMethods { get; }
 
     /// <summary>
-    ///     The C# identifier used for the generated wrapper type.
+    ///     The C# identifier used for the generated wrapper type. Initialised from
+    ///     <see cref="ProtoServiceName"/> as <c>{ProtoServiceName}GrpcHandler</c>; rewritten by
+    ///     <see cref="GrpcGraph.DisambiguateCollidingTypeNames"/> if two discovered chains end up
+    ///     with the same default name (e.g., two assemblies shipping a <c>Greeter</c> proto service).
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; private set; }
 
     public GrpcServiceChain(Type stubType, GrpcGraph parent)
     {
@@ -97,7 +101,46 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
     public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
 
+    private MethodInfo[]? _discoveredBefores;
+    private MethodInfo[]? _discoveredAfters;
+
+    /// <summary>
+    ///     Methods declared on <see cref="StubType"/> (or its proto base) that qualify as
+    ///     <c>[WolverineBefore]</c> middleware for this chain — i.e., named per
+    ///     <see cref="MiddlewarePolicy.BeforeMethodNames"/> or carrying the attribute, and whose
+    ///     scope (<see cref="MiddlewareScoping"/>) admits <see cref="MiddlewareScoping.Grpc"/>.
+    ///     Sorted ordinally by method name so Phase-1 generated source is byte-stable across
+    ///     runs (reflection order is not guaranteed). Computed lazily; the returned reference
+    ///     is stable across reads.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredBefores
+        => _discoveredBefores ??= MiddlewarePolicy
+            .FilterMethods<WolverineBeforeAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.BeforeMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>
+    ///     Methods declared on <see cref="StubType"/> (or its proto base) that qualify as
+    ///     <c>[WolverineAfter]</c> postprocessors for this chain. Same scope, name-convention,
+    ///     and ordinal-sort rules as <see cref="DiscoveredBefores"/>.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredAfters
+        => _discoveredAfters ??= MiddlewarePolicy
+            .FilterMethods<WolverineAfterAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.AfterMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
+            .ToArray();
+
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+
+    /// <summary>
+    ///     Applies a disambiguated <see cref="TypeName"/> on a chain whose default name collides
+    ///     with another discovered chain. Called exclusively from
+    ///     <see cref="GrpcGraph.DisambiguateCollidingTypeNames"/>.
+    /// </summary>
+    internal void ApplyDisambiguatedTypeName(string disambiguatedName)
+    {
+        TypeName = disambiguatedName;
+    }
 
     /// <summary>
     ///     The runtime <see cref="Type"/> of the generated wrapper once compiled. Null before compilation.

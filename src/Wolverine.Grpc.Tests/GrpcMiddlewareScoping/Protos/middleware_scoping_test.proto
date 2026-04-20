@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wolverine.Grpc.Tests.GrpcMiddlewareScoping.Generated";
+
+package wolverine.grpc.tests.middleware_scoping;
+
+// Test-only service used by middleware-scoping tests. Two RPC shapes (unary + server-streaming)
+// so the same fixture exercises the per-RPC weaving paths from §7.3 of the M15 plan.
+service GreeterMiddlewareTest {
+  // Unary: maps to Wolverine via IMessageBus.InvokeAsync<GreetReply>.
+  rpc Greet (GreetRequest) returns (GreetReply);
+
+  // Server-streaming: maps to Wolverine via IMessageBus.StreamAsync<GreetReply>. Uses a
+  // distinct request type because Wolverine dispatches handlers by message type, so the
+  // unary and streaming RPCs cannot share GreetRequest.
+  rpc GreetMany (GreetManyRequest) returns (stream GreetReply);
+}
+
+message GreetRequest {
+  string name = 1;
+}
+
+message GreetManyRequest {
+  string name = 1;
+}
+
+message GreetReply {
+  string message = 1;
+}

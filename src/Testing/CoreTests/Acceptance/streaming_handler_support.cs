@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -199,6 +200,37 @@ public class streaming_handler_support
 
         ex.Message.ShouldBe("handler faulted mid-stream");
         items.Select(i => i.Value).ShouldBe([0, 1]);
+    }
+
+    [Fact]
+    public async Task mid_stream_throw_marks_activity_status_error()
+    {
+        var capturedActivities = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Wolverine",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => capturedActivities.Add(activity)
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine()
+            .StartAsync();
+
+        var bus = host.Services.GetRequiredService<IMessageBus>();
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            await foreach (var _ in bus.StreamAsync<StreamItem>(new FaultingStreamRequest(2)))
+            {
+            }
+        });
+
+        var streamingActivity = capturedActivities
+            .FirstOrDefault(a => a.OperationName.Contains("stream", StringComparison.OrdinalIgnoreCase));
+        streamingActivity.ShouldNotBeNull();
+        streamingActivity.Status.ShouldBe(ActivityStatusCode.Error);
     }
 
     [Fact]

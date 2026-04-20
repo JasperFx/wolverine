@@ -1,9 +1,8 @@
 # gRPC Services with Wolverine
 
 ::: info
-The `WolverineFx.Grpc` package (experimental, shipping alongside gRPC support on the
-`feature/grpc-and-streaming-support` branch) lets you expose Wolverine handlers as
-ASP.NET Core gRPC services with minimal wiring. It supports both the **code-first**
+The `WolverineFx.Grpc` package lets you expose Wolverine handlers as ASP.NET Core gRPC services
+with minimal wiring. It supports both the **code-first**
 ([protobuf-net.Grpc](https://protobuf-net.github.io/protobuf-net.Grpc/)) and **proto-first**
 ([Grpc.Tools](https://learn.microsoft.com/en-us/aspnet/core/grpc/)) styles.
 :::
@@ -116,41 +115,31 @@ and comparisons to the official `grpc-dotnet` examples.
   through `Bus.StreamAsync<TResp>(item, ct)` — see [Streaming](./streaming) for the pattern and the
   [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample.
 - **Exception mapping** of the canonical `Exception → StatusCode` table is not yet user-configurable
-  (follow-up item). Rich, structured responses are already available — see
-  [Error Handling](./errors).
+  on the server side (follow-up item). Rich, structured responses are already available — see
+  [Error Handling](./errors). On the client side, `WolverineGrpcClientOptions.MapRpcException`
+  already allows per-client overrides — see [Typed gRPC Clients](./client#per-client-override).
+- **`MiddlewareScoping.Grpc` middleware** — the enum value ships and is honored by Wolverine's
+  discovery primitives, but no code path yet *weaves* `[WolverineBefore(MiddlewareScoping.Grpc)]`
+  / `[WolverineAfter(MiddlewareScoping.Grpc)]` methods into the generated gRPC service wrappers.
+  The attribute is safe to apply — it compiles, it is correctly filtered away from message-handler
+  and HTTP chains, and it will start firing once the codegen path (tracked as M15) lands — but
+  today nothing runs at RPC time. Until then, middleware that needs to execute on gRPC calls
+  should live in a custom gRPC interceptor rather than rely on the attribute or on
+  `services.AddWolverineGrpc(g => g.AddMiddleware<T>())` (both take effect together in M15).
 
 ## Roadmap
 
-The gRPC integration is intentionally shipping as a focused, reviewable slice. The items below are
-on the roadmap but *not* in the initial drop — they're listed here so contributors can plan around
-them and consumers know what's coming.
+The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
+yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-### Shipping in this PR
-
-- **`MiddlewareScoping.Grpc`** — the existing [scoped middleware](/guide/handlers/middleware#applying-middleware-explicitly-by-attribute)
-  enum grows a `Grpc` value so gRPC-specific middleware can be registered the same way HTTP and
-  messaging middleware already are. Previously, gRPC service chains reported themselves as
-  `MessageHandlers`-scoped, which silently over-attached message middleware to gRPC calls. This is
-  a behavior correction, not an additive feature.
-- **`codegen-preview --grpc`** — the [`codegen-preview` CLI](/guide/command-line#codegen-preview)
-  grows a `--grpc` / `-g` flag (mirroring `--handler` / `-h` and `--route` / `-r`) so you can inspect
-  the code Wolverine generates for gRPC service chains without dropping into the full `codegen write`
-  output.
-- **Typed gRPC client extension (`AddWolverineGrpcClient<T>()`)** — a thin Wolverine wrapper over
-  `Grpc.Net.ClientFactory.AddGrpcClient<T>()` that layers envelope-header propagation and
-  `RpcException` → typed .NET exception translation onto both code-first (`protobuf-net.Grpc`
-  `[ServiceContract]`) and proto-first (`Grpc.Tools`-generated) typed clients. See
-  [Typed gRPC Clients](./client) for the full surface. Raw `GrpcChannel` + generated stubs (as used
-  in the samples today) remain a fully supported path.
-
-### Deferred to follow-up PRs
-
+- **`MiddlewareScoping.Grpc` codegen weaving (M15)** — attribute-based middleware on gRPC stubs
+  (see Current Limitations above). Phase 0 landed the discovery + options surface; Phase 1 will
+  wire execution into the generated `GrpcServiceChain` wrappers.
 - **`Validate` convention → `Status?`** — HTTP handlers already support an opt-in `Validate` method
   whose non-null return short-circuits the call. The gRPC equivalent would return
   `Grpc.Core.Status?` (or a richer `google.rpc.Status`) so a handler could express "this call is
-  invalid, return `InvalidArgument` with these field violations" without throwing. This is
-  deferred because it lands cleanest on top of the code-first codegen work below — shipping it
-  against the current runtime path would bake in assumptions we'll want to revisit.
+  invalid, return `InvalidArgument` with these field violations" without throwing. Deferred because
+  it lands cleanest on top of the code-first codegen work below.
 - **Code-first codegen parity** — proto-first services flow through a generated `GrpcServiceChain`
   with the usual JasperFx codegen pipeline; code-first services (the `WolverineGrpcServiceBase` path)
   currently resolve dependencies via service location inside each method. Generating per-method code

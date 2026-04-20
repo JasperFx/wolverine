@@ -58,6 +58,37 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         {
             _chains.Add(new GrpcServiceChain(stub, this));
         }
+
+        DisambiguateCollidingTypeNames(_chains);
+    }
+
+    /// <summary>
+    ///     Post-discovery pass that guarantees unique <see cref="GrpcServiceChain.TypeName"/>s
+    ///     across the graph. Two proto services sharing a simple name (e.g., a <c>Greeter</c>
+    ///     in each of two bounded contexts) would otherwise both generate
+    ///     <c>GreeterGrpcHandler</c> into the same <c>WolverineHandlers</c> child namespace,
+    ///     and <c>AttachTypesSynchronously</c> would pick whichever exported type the CLR
+    ///     handed back first — an order that is not guaranteed across assemblies. Mirrors
+    ///     the pattern in <c>HandlerGraph</c> (issue #2004) but uses a stable hash of the
+    ///     stub's <see cref="Type.FullName"/> as the qualifier, since gRPC stub simple names
+    ///     are not reliably unique (users often pick ergonomic type names).
+    /// </summary>
+    internal static void DisambiguateCollidingTypeNames(IList<GrpcServiceChain> chains)
+    {
+        var collisions = chains
+            .GroupBy(c => c.TypeName, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .ToArray();
+
+        foreach (var group in collisions)
+        {
+            foreach (var chain in group)
+            {
+                var stubFullName = chain.StubType.FullName ?? chain.StubType.Name;
+                var hash = (uint)stubFullName.GetDeterministicHashCode();
+                chain.ApplyDisambiguatedTypeName($"{chain.ProtoServiceName}GrpcHandler_{hash:x8}");
+            }
+        }
     }
 
     /// <summary>

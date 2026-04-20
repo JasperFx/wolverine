@@ -268,9 +268,6 @@ internal class TracingExecutor : IExecutor
             await context.FlushOutgoingMessagesAsync();
             stream = envelope.Response as IAsyncEnumerable<T>;
             activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
-            _tracker.ExecutionFinished(envelope);
-            _messageSucceeded(_logger, _messageTypeName, envelope.Id,
-                envelope.Destination?.ToString() ?? "local", null);
         }
         catch (Exception e)
         {
@@ -279,26 +276,52 @@ internal class TracingExecutor : IExecutor
             _messageFailed(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination?.ToString() ?? "local", e);
             _contextPool.Return(context);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
             throw;
         }
 
         if (stream == null)
         {
-            _contextPool.Return(context);
             activity?.SetStatus(ActivityStatusCode.Ok);
+            _tracker.ExecutionFinished(envelope);
+            _messageSucceeded(_logger, _messageTypeName, envelope.Id,
+                envelope.Destination?.ToString() ?? "local", null);
+            _contextPool.Return(context);
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
             yield break;
         }
 
+        await using var enumerator = stream.GetAsyncEnumerator(cancellation);
         try
         {
-            await foreach (var item in stream.WithCancellation(cancellation))
+            while (true)
             {
-                yield return item;
-            }
+                T current;
+                try
+                {
+                    if (!await enumerator.MoveNextAsync())
+                    {
+                        activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
+                        activity?.SetStatus(ActivityStatusCode.Ok);
+                        _tracker.ExecutionFinished(envelope);
+                        _messageSucceeded(_logger, _messageTypeName, envelope.Id,
+                            envelope.Destination?.ToString() ?? "local", null);
+                        yield break;
+                    }
 
-            activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
-            activity?.SetStatus(ActivityStatusCode.Ok);
+                    current = enumerator.Current;
+                }
+                catch (Exception e)
+                {
+                    activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+                    _tracker.ExecutionFinished(envelope, e);
+                    _messageFailed(_logger, _messageTypeName, envelope.Id,
+                        envelope.Destination?.ToString() ?? "local", e);
+                    throw;
+                }
+
+                yield return current;
+            }
         }
         finally
         {
