@@ -33,15 +33,26 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         return ValueTask.CompletedTask;
     }
 
-    async Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
+    Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
         // Recovery path: when the durability agent moves persisted incoming envelopes back
-        // to this non-durable local queue, route them through IReceiver.ReceivedAsync with
-        // a wrapper listener that marks the inbox row as Handled when processing completes.
-        // Without this wrapper the row would sit in wolverine_incoming forever — see
-        // https://github.com/JasperFx/wolverine/issues/1942.
+        // to this non-durable local queue (either DLQ replay per GH-1942 or scheduled
+        // message firing), attach a LocalQueueRecoveryListener so that the inbox row gets
+        // marked Handled *after* the pipeline successfully completes. Without this, the
+        // default BufferedReceiver.CompleteAsync is a no-op and the row sits in
+        // wolverine_incoming forever.
+        //
+        // Note: we deliberately do NOT go through IReceiver.ReceivedAsync here — that
+        // path fires _completeBlock eagerly at receipt time, which would mark scheduled
+        // messages Handled before their handler has a chance to run.
         var listener = new LocalQueueRecoveryListener(Destination, _runtime);
-        await ((IReceiver)this).ReceivedAsync(listener, envelopes.ToArray());
+        foreach (var envelope in envelopes)
+        {
+            envelope.Listener = listener;
+            EnqueueDirectly(envelope);
+        }
+
+        return Task.CompletedTask;
     }
 
     public Uri Destination { get; }
