@@ -9,10 +9,12 @@ namespace Wolverine.Transports.Local;
 internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCircuit
 {
     private readonly IMessageTracker _messageTracker;
+    private readonly IWolverineRuntime _runtime;
 
     public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint))
     {
         _messageTracker = runtime.MessageTracking;
+        _runtime = runtime;
         Destination = endpoint.Uri;
         Endpoint = endpoint;
     }
@@ -31,14 +33,15 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         return ValueTask.CompletedTask;
     }
 
-    Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
+    async Task IListenerCircuit.EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes)
     {
-        foreach (var envelope in envelopes)
-        {
-            EnqueueDirectly(envelope);
-        }
-
-        return Task.CompletedTask;
+        // Recovery path: when the durability agent moves persisted incoming envelopes back
+        // to this non-durable local queue, route them through IReceiver.ReceivedAsync with
+        // a wrapper listener that marks the inbox row as Handled when processing completes.
+        // Without this wrapper the row would sit in wolverine_incoming forever — see
+        // https://github.com/JasperFx/wolverine/issues/1942.
+        var listener = new LocalQueueRecoveryListener(Destination, _runtime);
+        await ((IReceiver)this).ReceivedAsync(listener, envelopes.ToArray());
     }
 
     public Uri Destination { get; }
