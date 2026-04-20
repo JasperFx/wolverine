@@ -80,12 +80,17 @@ Both paths feed into the same generated-code pipeline used by Wolverine's messag
 adapters, so your gRPC services show up in the standard diagnostics:
 
 ```bash
+# List every handler / HTTP endpoint / gRPC service Wolverine knows about
 dotnet run -- describe
-dotnet run -- describe-routing
+
+# Preview the generated wrapper for one proto-first gRPC stub
+dotnet run -- wolverine-diagnostics codegen-preview --grpc Greeter
 ```
 
-If you're debugging discovery, those commands will show the generated handler type name and the
-handler method it forwards to.
+If you're debugging discovery, `describe` proves Wolverine found the stub; `codegen-preview --grpc`
+shows the exact generated override and the handler method each RPC forwards to. See
+[`codegen-preview`](/guide/command-line#codegen-preview) for the full set of accepted identifiers
+(bare proto service name, stub class name, or short `-g` alias).
 
 ## Observability
 
