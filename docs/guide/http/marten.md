@@ -567,15 +567,19 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
 
 ## Streaming JSON Responses <Badge type="tip" text="5.32" />
 
-`Wolverine.Http.Marten` ships three return types — `StreamOne<T>`, `StreamMany<T>`,
-and `StreamAggregate<T>` — that use [Marten.AspNetCore's JSON streaming helpers](https://martendb.io/documents/aspnetcore.html)
-to write Marten's raw JSON directly to the HTTP response. The JSON never round-trips
-through a .NET object and the framework's serializer, so there's no
+[`Marten.AspNetCore`](https://martendb.io/documents/aspnetcore.html) ships three
+typed return values — `StreamOne<T>`, `StreamMany<T>`, and `StreamAggregate<T>` —
+that write Marten's raw JSON directly to the HTTP response. The JSON never
+round-trips through a .NET object and the framework's serializer, so there's no
 deserialize/serialize overhead.
 
 Each type also supplies correct OpenAPI metadata (`Produces<T>`, `Produces(404)`
 where appropriate) via `IEndpointMetadataProvider`, so Swashbuckle, NSwag, and
 Minimal-API's built-in OpenAPI generator all see the right response shape.
+
+The types implement `IResult`, so Wolverine.Http dispatches them through its
+existing `ResultWriterPolicy` — **no extra Wolverine-specific configuration is
+needed**. Just `using Marten.AspNetCore;` in your endpoint file and return one.
 
 ### When to use which
 
@@ -598,6 +602,8 @@ Minimal-API's built-in OpenAPI generator all see the right response shape.
 ### `StreamOne<T>` — single document with 404 on miss
 
 ```csharp
+using Marten.AspNetCore;
+
 [WolverineGet("/invoices/{id}")]
 public static StreamOne<Invoice> Get(Guid id, IQuerySession session)
     => new(session.Query<Invoice>().Where(x => x.Id == id));

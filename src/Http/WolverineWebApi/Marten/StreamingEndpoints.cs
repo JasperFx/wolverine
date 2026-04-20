@@ -1,13 +1,15 @@
 using Marten;
+using Marten.AspNetCore;
 using Wolverine.Http;
-using Wolverine.Http.Marten;
 
 namespace WolverineWebApi.Marten;
 
 /// <summary>
 /// Endpoints exercising the <see cref="StreamOne{T}"/>, <see cref="StreamMany{T}"/>,
-/// and <see cref="StreamAggregate{T}"/> helpers from Wolverine.Http.Marten. Used by
-/// the streaming_endpoints tests for GH-1562.
+/// and <see cref="StreamAggregate{T}"/> helpers from <c>Marten.AspNetCore</c>.
+/// Used by the streaming_endpoints tests for GH-1562. Wolverine.Http dispatches
+/// these as ordinary <c>IResult</c> return values via the existing
+/// <c>ResultWriterPolicy</c> — no Wolverine-specific code needed.
 /// </summary>
 public static class StreamingEndpoints
 {

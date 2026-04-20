@@ -1,5 +1,6 @@
 using Alba;
 using Marten;
+using Marten.AspNetCore;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Routing;
@@ -11,7 +12,9 @@ namespace Wolverine.Http.Tests.Marten;
 
 /// <summary>
 /// Tests for <see cref="StreamOne{T}"/>, <see cref="StreamMany{T}"/>, and
-/// <see cref="StreamAggregate{T}"/> helpers from Wolverine.Http.Marten. GH-1562.
+/// <see cref="StreamAggregate{T}"/> from <c>Marten.AspNetCore</c>. Wolverine.Http
+/// dispatches these as ordinary <c>IResult</c> return values via the existing
+/// <c>ResultWriterPolicy</c> — no Wolverine-specific code required. GH-1562.
 /// </summary>
 public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixture)
 {
