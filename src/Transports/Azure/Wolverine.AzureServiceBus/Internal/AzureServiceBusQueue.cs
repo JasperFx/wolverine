@@ -4,6 +4,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -36,6 +37,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         };
     }
 
+    [ChildDescription]
     public CreateQueueOptions Options { get; }
 
     public string QueueName { get; }

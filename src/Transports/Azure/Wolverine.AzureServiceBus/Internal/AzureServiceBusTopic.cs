@@ -3,6 +3,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -33,6 +34,12 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public string TopicName { get; }
 
+    /// <summary>
+    /// Used by OptionsDescription to render references to this topic (for example
+    /// from <see cref="AzureServiceBusSubscription.Topic"/>) as just the topic name.
+    /// </summary>
+    public override string ToString() => TopicName;
+
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         throw new NotSupportedException();
@@ -60,6 +67,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
         return new ValueTask(Parent.WithManagementClientAsync(client => client.DeleteTopicAsync(TopicName)));
     }
 
+    [ChildDescription]
     public CreateTopicOptions Options { get; }
 
     public override ValueTask SetupAsync(ILogger logger)

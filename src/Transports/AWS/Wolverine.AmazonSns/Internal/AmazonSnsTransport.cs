@@ -2,6 +2,7 @@
 using Amazon.SimpleNotificationService;
 using Amazon.SQS;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -29,9 +30,12 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
 
     public override Uri ResourceUri => new(SnsConfig.ServiceURL);
 
+    [DescribeAsConfigurationState]
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
+    [IgnoreDescription]
     public LightweightCache<string, AmazonSnsTopic> Topics { get; }
-    
+
+    [ChildDescription]
     public AmazonSimpleNotificationServiceConfig SnsConfig { get; } = new();
     internal IAmazonSimpleNotificationService? SnsClient { get; private set; }
     internal IAmazonSQS? SqsClient { get; private set; }
@@ -131,6 +135,7 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     /// Override to customize the queue policy for permissions for an AWS SQS queue that subscribes to
     /// an SNS topic
     /// </summary>
+    [IgnoreDescription]
     public Func<SqsTopicDescription, string> QueuePolicyBuilder { get; set; } = description =>
     {
         var queuePolicy = $$"""

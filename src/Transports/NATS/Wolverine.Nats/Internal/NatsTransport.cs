@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -49,6 +50,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
     public string ResponseSubject { get; private set; } = "wolverine.response";
 
+    [ChildDescription]
     public NatsTransportConfiguration Configuration { get; } = new();
 
     public NatsConnection Connection =>

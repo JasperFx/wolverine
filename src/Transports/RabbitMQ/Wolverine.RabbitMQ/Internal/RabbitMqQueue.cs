@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
@@ -201,11 +202,13 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     ///     Arguments for Rabbit MQ queue declarations. See the Rabbit MQ .NET client documentation at
     ///     https://www.rabbitmq.com/dotnet.html
     /// </summary>
+    [IgnoreDescription]
     public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
 
     /// <summary>
     ///     Arguments for Rabbit MQ channel consume operations
     /// </summary>
+    [IgnoreDescription]
     public IDictionary<string, object?> ConsumerArguments { get; } = new Dictionary<string, object?>();
 
     /// <summary>

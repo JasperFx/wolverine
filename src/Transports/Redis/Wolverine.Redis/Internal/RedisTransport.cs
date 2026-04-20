@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Spectre.Console;
@@ -34,6 +35,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     /// Customizable selector to build a stable consumer name for listeners when an endpoint-level ConsumerName is not set.
     /// Defaults to ServiceName-NodeNumber-MachineName (lowercased and sanitized).
     /// </summary>
+    [DescribeAsConfigurationState]
     public Func<IWolverineRuntime, RedisStreamEndpoint, string>? DefaultConsumerNameSelector { get; set; }
     
     /// <summary>

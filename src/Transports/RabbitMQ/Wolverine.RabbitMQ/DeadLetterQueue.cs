@@ -74,6 +74,13 @@ public class DeadLetterQueue
         };
     }
 
+    public override string ToString()
+    {
+        // Used by OptionsDescription to render the value as the bare queue name
+        // rather than the default type-qualified name.
+        return _queueName;
+    }
+
     protected bool Equals(DeadLetterQueue other)
     {
         return _queueName == other._queueName && ExchangeName == other.ExchangeName;

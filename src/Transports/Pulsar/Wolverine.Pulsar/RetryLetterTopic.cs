@@ -39,6 +39,11 @@ public class RetryLetterTopic
         set => _topicName = value ?? throw new ArgumentNullException(nameof(TopicName));
     }
 
+    /// <summary>
+    /// Used by OptionsDescription to render this as the bare topic name.
+    /// </summary>
+    public override string ToString() => _topicName ?? string.Empty;
+
     public List<TimeSpan> Retry => _retries.ToList();
 
     protected bool Equals(RetryLetterTopic other)

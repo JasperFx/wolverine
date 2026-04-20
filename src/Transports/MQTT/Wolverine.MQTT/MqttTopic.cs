@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Extensions.ManagedClient;
@@ -42,6 +43,7 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
         Mode = EndpointMode.BufferedInMemory;
     }
 
+    [IgnoreDescription]
     public MqttTransport Parent { get; }
     
     /// <summary>
@@ -55,6 +57,7 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
     /// When set, overrides the built in envelope mapping with a custom
     /// implementation
     /// </summary>
+    [IgnoreDescription]
     public IMqttEnvelopeMapper EnvelopeMapper { get; set; }
 
     public override bool AutoStartSendingAgent()

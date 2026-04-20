@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using Wolverine.Configuration;
@@ -41,10 +42,13 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         Client = client;
     }
 
+    [DescribeAsConfigurationState]
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 
+    [IgnoreDescription]
     public LightweightCache<string, AmazonSqsQueue> Queues { get; }
 
+    [ChildDescription]
     public AmazonSQSConfig Config { get; } = new();
 
     internal IAmazonSQS? Client { get; private set; }

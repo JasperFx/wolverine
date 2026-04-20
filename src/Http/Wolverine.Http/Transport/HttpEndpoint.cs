@@ -1,4 +1,5 @@
 using System.Text.Json;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -21,6 +22,7 @@ public class HttpEndpoint : Endpoint
         return ValueTask.FromResult<IListener>(new NulloListener(Uri));
     }
 
+    [IgnoreDescription]
     public JsonSerializerOptions SerializerOptions { get; set; } = new JsonSerializerOptions
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,

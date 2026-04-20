@@ -92,6 +92,8 @@ public class CloudEventsMapper : IUnwrapsMetadataMessageSerializer
         _options = options;
     }
 
+    public override string ToString() => "Cloud Events";
+
     public string WriteToString(Envelope envelope)
     {
         return JsonSerializer.Serialize(new CloudEventsEnvelope(envelope), _options);

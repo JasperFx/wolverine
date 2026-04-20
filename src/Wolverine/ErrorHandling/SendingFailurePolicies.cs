@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
@@ -7,8 +8,15 @@ namespace Wolverine.ErrorHandling;
 /// Unlike handler failure policies, unmatched exceptions return null
 /// so the existing retry/circuit-breaker behavior is preserved.
 /// </summary>
-public class SendingFailurePolicies : IWithFailurePolicies
+public class SendingFailurePolicies : IWithFailurePolicies, IOptionsValueAsStringArray
 {
+    /// <summary>
+    /// Renders the failure rules as a string array so <see cref="OptionsDescription"/>
+    /// shows one entry per rule instead of the default class ToString().
+    /// </summary>
+    public IReadOnlyList<string> ToOptionsValueStrings()
+        => Failures.Select(rule => rule.ToString()!).ToArray();
+
     /// <summary>
     /// Collection of error handling policies for exception handling during the sending of a message
     /// </summary>

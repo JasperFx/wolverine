@@ -3,6 +3,7 @@ using Amazon.SimpleNotificationService.Model;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -59,7 +60,9 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     public string TopicName { get; }
     public string TopicArn { get; set; }
     
+    [ChildDescription]
     public CreateTopicRequest Configuration { get; }
+    [DescribeAsStringArray]
     public IList<AmazonSnsSubscription> TopicSubscriptions { get; set; } = new List<AmazonSnsSubscription>();
     
     public async ValueTask<bool> CheckAsync()

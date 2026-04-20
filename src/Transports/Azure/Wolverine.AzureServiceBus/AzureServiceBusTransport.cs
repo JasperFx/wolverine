@@ -3,6 +3,7 @@ using Azure.Core;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
@@ -84,9 +85,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
 
+    [IgnoreDescription]
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
+    [IgnoreDescription]
     public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
 
+    // Contains shared access key / password — hidden to avoid leaking secrets
+    // in diagnostic views. See wolverine follow-up for secret-safe rendering.
+    [IgnoreDescription]
     public string? ConnectionString { get; set; }
 
     /// <summary>
@@ -94,13 +100,18 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// When set, the management client uses this instead of ConnectionString.
     /// Useful for the Azure Service Bus Emulator which exposes management on a different port.
     /// </summary>
+    [IgnoreDescription]
     public string? ManagementConnectionString { get; set; }
 
     public string? FullyQualifiedNamespace { get; set; }
+    [IgnoreDescription]
     public TokenCredential? TokenCredential { get; set; }
+    [IgnoreDescription]
     public AzureNamedKeyCredential? NamedKeyCredential { get; set; }
+    [IgnoreDescription]
     public AzureSasCredential? SasCredential { get; set; }
 
+    [ChildDescription]
     public ServiceBusClientOptions ClientOptions { get; } = new()
     {
         TransportType = ServiceBusTransportType.AmqpTcp

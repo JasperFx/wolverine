@@ -13,6 +13,8 @@ internal class CloudEventsSqsMapper : ISqsEnvelopeMapper
         _inner = inner;
     }
 
+    public override string ToString() => "Cloud Events";
+
     public string BuildMessageBody(Envelope envelope)
     {
         return _inner.WriteToString(envelope);

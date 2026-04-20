@@ -39,6 +39,11 @@ public class DeadLetterTopic
         set => _topicName = value ?? throw new ArgumentNullException(nameof(TopicName));
     }
 
+    /// <summary>
+    /// Used by OptionsDescription to render this as the bare topic name.
+    /// </summary>
+    public override string ToString() => _topicName ?? string.Empty;
+
     protected bool Equals(DeadLetterTopic other)
     {
         return _topicName == other._topicName;

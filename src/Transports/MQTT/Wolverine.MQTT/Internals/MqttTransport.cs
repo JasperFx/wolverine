@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
 using MQTTnet.Client;
@@ -15,6 +16,7 @@ namespace Wolverine.MQTT.Internals;
 
 public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 {
+    [IgnoreDescription]
     public LightweightCache<string, MqttTopic> Topics { get; } = new();
     private List<MqttListener> _listeners = new();
     private ImHashMap<string, MqttListener> _topicListeners = ImHashMap<string, MqttListener>.Empty;
@@ -164,6 +166,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     internal IManagedMqttClient Client { get; private set; } = null!;
     internal MqttJwtAuthenticationOptions? JwtAuthenticationOptions { get; set; }
 
+    [ChildDescription]
     public ManagedMqttClientOptions Options { get; set; } = new ManagedMqttClientOptions
         { ClientOptions = new MqttClientOptions() };
 

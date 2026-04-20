@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using Wolverine.Configuration;
@@ -15,6 +16,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     // Strictly an identifier for the endpoint
     public const string WolverineTopicsName = "wolverine.topics";
 
+    [IgnoreDescription]
     public KafkaTransport Parent { get; }
 
     public KafkaTopic(KafkaTransport parent, string topicName, EndpointRole role) : base(new Uri($"{parent.Protocol}://topic/" + topicName), role)
@@ -36,6 +38,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         return true;
     }
 
+    [ChildDescription]
     public TopicSpecification Specification { get; } = new();
 
     public string TopicName { get; }
@@ -43,11 +46,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// <summary>
     /// Override for this specific Kafka Topic
     /// </summary>
+    [ChildDescription]
     public ConsumerConfig? ConsumerConfig { get; internal set; }
 
     /// <summary>
     /// Override for this specific Kafka Topic
     /// </summary>
+    [ChildDescription]
     public ProducerConfig? ProducerConfig { get; internal set; }
 
     /// <summary>
@@ -204,6 +209,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// <summary>
     /// Override how this Kafka topic is created
     /// </summary>
+    [IgnoreDescription]
     public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) => c.CreateTopicsAsync([t.Specification]);
 }
 
