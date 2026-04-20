@@ -144,4 +144,21 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
             }
         }
     }
+
+    /// <summary>
+    /// Called during transport startup. When AutoProvision is on for the parent
+    /// transport, ensure every Kafka topic in this group exists on the broker
+    /// before the listener subscribes. Without this, the KafkaTopicGroupListener's
+    /// consumer raises "Subscribed topic not available" on the first Consume().
+    /// Overrides the base KafkaTopic.InitializeAsync so the group's multi-topic
+    /// SetupAsync is invoked (not the single-topic base version).
+    /// See https://github.com/JasperFx/wolverine/issues/2537.
+    /// </summary>
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(logger);
+        }
+    }
 }

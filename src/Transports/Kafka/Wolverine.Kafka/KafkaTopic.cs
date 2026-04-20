@@ -189,6 +189,19 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     }
 
     /// <summary>
+    /// Called during transport startup. When AutoProvision is on for the parent
+    /// transport, ensure the Kafka topic exists on the broker before listeners or
+    /// senders try to use it. See https://github.com/JasperFx/wolverine/issues/2537.
+    /// </summary>
+    public override async ValueTask InitializeAsync(ILogger logger)
+    {
+        if (Parent.AutoProvision)
+        {
+            await SetupAsync(logger);
+        }
+    }
+
+    /// <summary>
     /// Override how this Kafka topic is created
     /// </summary>
     public Func<IAdminClient, KafkaTopic, Task> CreateTopicFunc { get; internal set; } = (c, t) => c.CreateTopicsAsync([t.Specification]);

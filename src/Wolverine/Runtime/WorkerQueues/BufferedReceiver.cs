@@ -7,6 +7,7 @@ using Wolverine.Logging;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.WorkerQueues;
@@ -82,6 +83,16 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)
     {
+        // When the durability agent recovers a persisted envelope and dispatches it to a
+        // non-durable local queue (DLQ replay per GH-1942, or scheduled-message firing),
+        // BufferedLocalQueue.EnqueueDirectlyAsync attaches a LocalQueueRecoveryListener so
+        // that successful pipeline completion marks the inbox row Handled. Without this,
+        // the row sits in wolverine_incoming forever.
+        if (envelope.Listener is LocalQueueRecoveryListener recovery)
+        {
+            return recovery.CompleteAsync(envelope);
+        }
+
         return ValueTask.CompletedTask;
     }
 
