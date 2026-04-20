@@ -124,7 +124,7 @@ You can also return a plan instance directly from a handler's `Load` /
 plan type in the return and auto-executes it, passing the materialized
 result to `Handle` / `Validate` / `After` parameters. When multiple
 batch-capable plans target the same `DbContext` on one handler, they share
-a single [Weasel `BatchedQuery`](https://github.com/JasperFx/weasel) —
+a single [Weasel `BatchedQuery`](https://weasel.jasperfx.net/efcore/batch-queries.html) —
 **one database round-trip for all plans**.
 
 ```csharp

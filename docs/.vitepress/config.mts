@@ -339,7 +339,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Multi-Tenancy', link: '/guide/durability/efcore/multi-tenancy'},
                                 {text: 'Domain Events', link: '/guide/durability/efcore/domain-events'},
                                 {text: 'Database Migrations', link: '/guide/durability/efcore/migrations'},
-                                {text: 'Query Plans', link: '/guide/durability/efcore/query-plans'}
+                                {text: 'Query Plans', link: '/guide/durability/efcore/query-plans'},
+                                {text: 'Batch Queries', link: '/guide/durability/efcore/batch-queries'},
+                                {text: 'Initial Data', link: '/guide/durability/efcore/initial-data'}
 
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},

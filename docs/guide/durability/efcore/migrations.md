@@ -1,6 +1,6 @@
 # Database Migrations
 
-Wolverine uses [Weasel](https://github.com/JasperFx/weasel) for schema management of EF Core `DbContext` types rather than EF Core's own migration system. This approach provides a consistent schema management experience across the entire "critter stack" (Wolverine + Marten) and avoids issues with EF Core's `Database.EnsureCreatedAsync()` bypassing migration history.
+Wolverine uses [Weasel](https://weasel.jasperfx.net/) for schema management of EF Core `DbContext` types rather than EF Core's own migration system. This approach provides a consistent schema management experience across the entire "critter stack" (Wolverine + Marten) and avoids issues with EF Core's `Database.EnsureCreatedAsync()` bypassing migration history. See the [Weasel EF Core migration docs](https://weasel.jasperfx.net/efcore/migrations.html) for the underlying diff engine, provider-specific behavior, and opt-outs.
 
 ## How It Works
 

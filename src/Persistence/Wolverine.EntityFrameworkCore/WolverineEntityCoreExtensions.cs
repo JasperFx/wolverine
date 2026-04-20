@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Weasel.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.EntityFrameworkCore.Internals.Migrations;
@@ -200,6 +201,14 @@ public static class WolverineEntityCoreExtensions
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
             options.Services.AddScoped<OutgoingDomainEvents>();
+
+            // Open-generic registration of Weasel's DbContext cleaner so every
+            // DbContext used with Wolverine gets a ready-to-use IDatabaseCleaner<T>
+            // without requiring callers to register each one individually. Backs
+            // the new host.ResetAllDataAsync<T>() helper and any per-test cleanup
+            // in IInitialData-driven dev loops. See GH-2539.
+            options.Services.TryAdd(ServiceDescriptor.Singleton(typeof(IDatabaseCleaner<>), typeof(DatabaseCleaner<>)));
+            options.Services.TryAdd(ServiceDescriptor.Singleton(typeof(DatabaseCleaner<>), typeof(DatabaseCleaner<>)));
         }
         catch (InvalidOperationException e)
         {
