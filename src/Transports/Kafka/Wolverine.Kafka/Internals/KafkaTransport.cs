@@ -1,5 +1,6 @@
 using Confluent.Kafka;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -16,17 +17,24 @@ public enum KafkaUsage
 
 public class KafkaTransport : BrokerTransport<KafkaTopic>
 {
+    [IgnoreDescription]
     public Cache<string, KafkaTopic> Topics { get; }
 
     internal List<KafkaTopicGroup> TopicGroups { get; } = new();
 
+    [ChildDescription]
     public ProducerConfig ProducerConfig { get; } = new();
+    [IgnoreDescription]
     public Action<ProducerBuilder<string, byte[]>> ConfigureProducerBuilders { get; internal set; } = _ => {};
 
+    [ChildDescription]
     public ConsumerConfig ConsumerConfig { get; } = new();
+    [IgnoreDescription]
     public Action<ConsumerBuilder<string, byte[]>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
+    [ChildDescription]
     public AdminClientConfig AdminClientConfig { get; } = new();
+    [IgnoreDescription]
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
     public KafkaTransport() : this("kafka")

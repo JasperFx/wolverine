@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Linq;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Spectre.Console;
@@ -34,6 +35,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     /// Customizable selector to build a stable consumer name for listeners when an endpoint-level ConsumerName is not set.
     /// Defaults to ServiceName-NodeNumber-MachineName (lowercased and sanitized).
     /// </summary>
+    [DescribeAsConfigurationState]
     public Func<IWolverineRuntime, RedisStreamEndpoint, string>? DefaultConsumerNameSelector { get; set; }
     
     /// <summary>
@@ -71,15 +73,21 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
             // Parse connection string to build resource URI
             var options = ConfigurationOptions.Parse(_connectionString);
             var endpoint = options.EndPoints.FirstOrDefault();
-            
+
             if (endpoint == null)
             {
                 return new Uri($"{ProtocolName}://localhost:6379");
             }
-            
+
             return new Uri($"{ProtocolName}://{endpoint}");
         }
     }
+
+    /// <summary>
+    /// The configured Redis connection string with the <c>password</c> value
+    /// masked. Safe to render in diagnostic output.
+    /// </summary>
+    public string ConnectionSummary => SanitizeConnectionStringForLogging(_connectionString);
 
     internal IDatabase GetDatabase(string? connectionString = null, int database = 0)
     {

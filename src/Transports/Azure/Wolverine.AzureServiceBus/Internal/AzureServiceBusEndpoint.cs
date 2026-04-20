@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -31,6 +32,7 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
         Parent = parent;
     }
 
+    [IgnoreDescription]
     public AzureServiceBusTransport Parent { get; }
 
     /// <summary>

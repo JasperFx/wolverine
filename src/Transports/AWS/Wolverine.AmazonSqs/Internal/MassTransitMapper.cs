@@ -18,6 +18,8 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
         _serializer = new MassTransitJsonSerializer(endpoint);
     }
 
+    public override string ToString() => "MassTransit Interop";
+
     public MassTransitJsonSerializer Serializer => _serializer;
 
     public string BuildMessageBody(Envelope envelope)

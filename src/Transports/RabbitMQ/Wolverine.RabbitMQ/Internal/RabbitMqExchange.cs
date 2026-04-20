@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using Wolverine.Configuration;
@@ -32,11 +33,13 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     /// <summary>
     /// All active topic endpoints by name
     /// </summary>
+    [IgnoreDescription]
     public LightweightCache<string, RabbitMqTopicEndpoint> Topics { get; }
-    
+
     /// <summary>
     /// All active routing keys
     /// </summary>
+    [IgnoreDescription]
     public LightweightCache<string, RabbitMqRouting> Routings { get; }
 
     public override bool AutoStartSendingAgent()
@@ -57,6 +60,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     public ExchangeType ExchangeType { get; set; } = ExchangeType.Fanout;
     public bool AutoDelete { get; set; } = false;
 
+    [IgnoreDescription]
     public IDictionary<string, object?> Arguments { get; } = new Dictionary<string, object?>();
     
     internal bool HasExchangeBindings => _exchangeBindings.Count > 0;

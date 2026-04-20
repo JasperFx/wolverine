@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
@@ -27,6 +28,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     }
 
     public string Subject { get; }
+    [IgnoreDescription]
     public object? NatsSerializer { get; set; }
     public Dictionary<string, string> CustomHeaders { get; set; } = new();
     public string? QueueGroup { get; set; }

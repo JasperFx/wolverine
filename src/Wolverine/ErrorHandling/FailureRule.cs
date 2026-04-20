@@ -55,4 +55,23 @@ public class FailureRule : IEnumerable<FailureSlot>
 
         return slot;
     }
+
+    public override string ToString()
+    {
+        var parts = new List<string>(_slots.Count + 1);
+
+        foreach (var slot in _slots)
+        {
+            parts.Add($"attempt {slot.Attempt}: {slot.Describe()}");
+        }
+
+        if (InfiniteSource != null)
+        {
+            var prefix = _slots.Count > 0 ? "then repeat" : "repeat";
+            parts.Add($"{prefix}: {InfiniteSource.Description}");
+        }
+
+        var actions = parts.Count > 0 ? string.Join("; ", parts) : "no action";
+        return $"On {Match.Description} \u2014 {actions}";
+    }
 }

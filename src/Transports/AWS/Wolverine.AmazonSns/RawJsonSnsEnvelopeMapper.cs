@@ -16,6 +16,8 @@ internal class RawJsonSnsEnvelopeMapper : ISnsEnvelopeMapper
         _serializerOptions = serializerOptions;
     }
 
+    public override string ToString() => "Raw JSON";
+
     public string BuildMessageBody(Envelope envelope)
     {
         return JsonSerializer.Serialize(

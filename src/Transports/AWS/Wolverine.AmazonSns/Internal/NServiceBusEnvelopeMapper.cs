@@ -22,6 +22,8 @@ internal class NServiceBusEnvelopeMapper : ISnsEnvelopeMapper
         _endpoint = endpoint;
     }
 
+    public override string ToString() => "NServiceBus Interop";
+
     public IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope)
     {
         yield return new ("NServiceBus.ConversationId",

@@ -95,10 +95,7 @@ public class BrokerResource : IStatefulResource
 
     public async Task<IRenderable> DetermineStatus(CancellationToken token)
     {
-        var table = new Table
-        {
-            Alignment = Justify.Left
-        };
+        var table = new Table();
 
         var columns = _transport.DiagnosticColumns().ToArray();
         if (columns.Length == 0) return table;

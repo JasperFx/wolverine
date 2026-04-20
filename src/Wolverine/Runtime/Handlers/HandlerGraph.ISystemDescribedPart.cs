@@ -62,7 +62,7 @@ public partial class HandlerGraph
                 }
             }
 
-            AnsiConsole.Render(table);
+            AnsiConsole.Write(table);
         }
 
         return Task.CompletedTask;

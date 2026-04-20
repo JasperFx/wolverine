@@ -37,4 +37,10 @@ public class AmazonSnsSubscription
         };
 
     public AmazonSnsSubscriptionAttributes Attributes { get; }
+
+    /// <summary>
+    /// Used by OptionsDescription (via [DescribeAsStringArray]) to render this
+    /// subscription as a single readable line.
+    /// </summary>
+    public override string ToString() => $"{Protocol}:{Endpoint}";
 }

@@ -1,4 +1,5 @@
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -37,8 +38,10 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         JsonOptions = new SignalRTransport().JsonOptions;
     }
 
+    [IgnoreDescription]
     public JsonSerializerOptions JsonOptions { get; set; }
 
+    [DescribeAsConfigurationState]
     public Func<IServiceProvider, Func<Task<string?>>> AccessTokenProvider { get; set; } = null!;
 
     public Uri SignalRUri { get; }
@@ -105,6 +108,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         }
     }
 
+    [IgnoreDescription]
     public IReceiver? Receiver { get; private set; }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -119,6 +123,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         return this;
     }
 
+    [IgnoreDescription]
     public IHandlerPipeline? Pipeline { get; private set; }
 
     ValueTask IChannelCallback.CompleteAsync(Envelope envelope)

@@ -2,6 +2,7 @@ using Amazon.SQS;
 using Amazon.SQS.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -84,6 +85,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     /// <summary>
     ///     Additional configuration for how an SQS queue should be created
     /// </summary>
+    [ChildDescription]
     public CreateQueueRequest Configuration { get; }
 
     /// <summary>

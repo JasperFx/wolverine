@@ -4,6 +4,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
@@ -41,12 +42,16 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         RuleOptions = new CreateRuleOptions();
     }
 
+    [ChildDescription]
     public CreateSubscriptionOptions Options { get; }
 
+    [ChildDescription]
     public CreateRuleOptions RuleOptions { get; }
 
     public string SubscriptionName { get; }
 
+    // No attribute needed — AzureServiceBusTopic.ToString() returns TopicName,
+    // so this property renders as the topic name string (per audit decision).
     public AzureServiceBusTopic Topic { get; }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

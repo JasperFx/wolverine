@@ -1,6 +1,7 @@
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -23,6 +24,7 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
 
     public PulsarEndpoint this[Uri uri] => _endpoints[uri];
 
+    [IgnoreDescription]
     public IPulsarClientBuilder Builder { get; }
 
     internal IPulsarClient? Client { get; private set; }
