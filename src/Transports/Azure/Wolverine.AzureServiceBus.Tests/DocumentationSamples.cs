@@ -477,6 +477,10 @@ opts.ListenToAzureServiceBusQueue("incoming")
                     mapper.MapProperty(x => x.ReplyUri!,
                         (e, msg) => e.ReplyUri = new Uri($"asb://queue/{msg.ReplyTo}"),
                         (e, msg) => msg.ReplyTo = "response");
+
+                    // customize the incoming mapping
+                    mapper.MapIncomingProperty(x => x.ReplyUri!,
+                        (e, msg) => e.ReplyUri = new Uri($"asb://queue/{msg.ReplyTo}"));
                     
                 });
 
