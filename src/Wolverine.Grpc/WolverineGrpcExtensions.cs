@@ -32,8 +32,39 @@ public static class WolverineGrpcExtensions
     /// gRPC host separately — use <c>services.AddCodeFirstGrpc()</c> for code-first
     /// services or <c>services.AddGrpc()</c> for proto-first services.
     /// </summary>
+    /// <remarks>
+    /// The call is idempotent — only the first invocation wires registrations,
+    /// subsequent calls are no-ops (matching <c>opts.UseGrpcRichErrorDetails()</c>'s
+    /// marker pattern). Without this guard, repeat calls would stack the
+    /// <see cref="WolverineGrpcExceptionInterceptor"/> twice, doubling exception
+    /// translation work and log output.
+    /// </remarks>
     public static IServiceCollection AddWolverineGrpc(this IServiceCollection services)
+        => AddWolverineGrpc(services, configure: null);
+
+    /// <summary>
+    /// Adds Wolverine's gRPC integration to the service collection and applies caller-supplied
+    /// configuration to the singleton <see cref="WolverineGrpcOptions"/>. Idempotent — repeat
+    /// invocations re-run <paramref name="configure"/> against the same options instance, so
+    /// additive registrations (e.g., <c>opts.AddMiddleware&lt;T&gt;()</c>) accumulate but service
+    /// registrations are not duplicated.
+    /// </summary>
+    /// <param name="services">The DI service collection.</param>
+    /// <param name="configure">Optional configuration callback for <see cref="WolverineGrpcOptions"/>.</param>
+    public static IServiceCollection AddWolverineGrpc(
+        this IServiceCollection services,
+        Action<WolverineGrpcOptions>? configure)
     {
+        var options = EnsureOptionsRegistered(services);
+
+        if (services.Any(x => x.ServiceType == typeof(WolverineGrpcMarker)))
+        {
+            configure?.Invoke(options);
+            return services;
+        }
+
+        services.AddSingleton<WolverineGrpcMarker>();
+
         services.AddSingleton<GrpcGraph>(sp =>
         {
             var runtime = (WolverineRuntime)sp.GetRequiredService<IWolverineRuntime>();
@@ -42,12 +73,32 @@ public static class WolverineGrpcExtensions
         });
 
         services.AddSingleton<WolverineGrpcExceptionInterceptor>();
-        services.Configure<GrpcServiceOptions>(options =>
+        services.Configure<GrpcServiceOptions>(opts =>
         {
-            options.Interceptors.Add<WolverineGrpcExceptionInterceptor>();
+            opts.Interceptors.Add<WolverineGrpcExceptionInterceptor>();
         });
 
+        configure?.Invoke(options);
+
         return services;
+    }
+
+    private static WolverineGrpcOptions EnsureOptionsRegistered(IServiceCollection services)
+    {
+        // The options instance must be reachable for the configure callback BEFORE the
+        // marker check returns, so additive customizations on a second AddWolverineGrpc()
+        // call land on the same singleton rather than silently dropping.
+        var existing = services.FirstOrDefault(d => d.ServiceType == typeof(WolverineGrpcOptions))
+            ?.ImplementationInstance as WolverineGrpcOptions;
+        if (existing != null) return existing;
+
+        var options = new WolverineGrpcOptions();
+        services.AddSingleton(options);
+        return options;
+    }
+
+    internal sealed class WolverineGrpcMarker
+    {
     }
 
     /// <summary>

@@ -29,8 +29,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Google.Protobuf"/>
+        <PackageReference Include="Grpc.AspNetCore"/>
         <PackageReference Include="Grpc.Net.Client"/>
         <PackageReference Include="Grpc.StatusProto"/>
+        <PackageReference Include="Grpc.Tools">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
         <PackageReference Include="protobuf-net.Grpc"/>
@@ -46,6 +52,16 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+            Test-only proto used by GrpcMiddlewareScoping/ tests. Lives inside the test project
+            (not in src/Samples/) because it only exists to exercise [WolverineBefore]/[WolverineAfter]
+            scope behavior on a proto-first stub — it would just be noise as a sample. Folder name
+            avoids shadowing the Wolverine.Attributes.MiddlewareScoping enum from sibling tests.
+        -->
+        <Protobuf Include="GrpcMiddlewareScoping\Protos\middleware_scoping_test.proto" GrpcServices="Both"/>
     </ItemGroup>
 
 </Project>

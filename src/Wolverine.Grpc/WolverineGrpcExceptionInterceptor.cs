@@ -11,7 +11,7 @@ namespace Wolverine.Grpc;
 /// <summary>
 ///     Server-side gRPC interceptor that translates .NET exceptions thrown inside Wolverine-backed
 ///     gRPC service methods into <see cref="RpcException"/>s. Registered automatically by
-///     <see cref="WolverineGrpcExtensions.AddWolverineGrpc"/>.
+///     <see cref="WolverineGrpcExtensions.AddWolverineGrpc(Microsoft.Extensions.DependencyInjection.IServiceCollection)"/>.
 /// </summary>
 /// <remarks>
 ///     <para>

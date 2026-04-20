@@ -8,6 +8,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 
 namespace Wolverine.Grpc;
@@ -96,6 +97,33 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     public override string Description { get; }
 
     public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
+
+    private MethodInfo[]? _discoveredBefores;
+    private MethodInfo[]? _discoveredAfters;
+
+    /// <summary>
+    ///     Methods declared on <see cref="StubType"/> (or its proto base) that qualify as
+    ///     <c>[WolverineBefore]</c> middleware for this chain — i.e., named per
+    ///     <see cref="MiddlewarePolicy.BeforeMethodNames"/> or carrying the attribute, and whose
+    ///     scope (<see cref="MiddlewareScoping"/>) admits <see cref="MiddlewareScoping.Grpc"/>.
+    ///     Computed lazily; the returned set is stable across reads. Phase-1 codegen consumes this
+    ///     to emit pre-call frames around each RPC override.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredBefores
+        => _discoveredBefores ??= MiddlewarePolicy
+            .FilterMethods<WolverineBeforeAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.BeforeMethodNames)
+            .ToArray();
+
+    /// <summary>
+    ///     Methods declared on <see cref="StubType"/> (or its proto base) that qualify as
+    ///     <c>[WolverineAfter]</c> postprocessors for this chain. Same scope and name-convention
+    ///     rules as <see cref="DiscoveredBefores"/>. Phase-1 codegen consumes this to emit
+    ///     post-call frames around each RPC override.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredAfters
+        => _discoveredAfters ??= MiddlewarePolicy
+            .FilterMethods<WolverineAfterAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.AfterMethodNames)
+            .ToArray();
 
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
 
