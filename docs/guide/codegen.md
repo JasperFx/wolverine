@@ -452,3 +452,136 @@ builder.UseWolverine(opts =>
 <!-- endSnippet -->
 
 Note that explicit Wolverine configuration takes precedence over `CritterStackDefaults`.
+
+## Custom Variable Sources — Teaching Codegen to Resolve Your Types <Badge type="tip" text="5.32" />
+
+Wolverine's codegen resolves handler parameters out of the service container, message body, HTTP route, and other built-in sources. For types it doesn't know how to build — strong-typed identifiers, correlation tokens, sequence-generated values — you can register an `IVariableSource` from JasperFx's codegen subsystem and tell Wolverine exactly how to materialize the value at runtime.
+
+A common motivating case: **generating a strong-typed identifier from a database sequence before an aggregate is created.** In a plain handler you'd have to inject the session and call an async helper yourself:
+
+```csharp
+// The pattern we want to move away from
+public static async Task<(ReportStarted, IMartenOp)> Handle(
+    StartReport command,
+    IDocumentSession session,
+    CancellationToken ct)
+{
+    var id = await session.GetNextReportId(ct);                 // async ID fetch in the handler body
+    var report = new Report(id) { Name = command.Name };
+    return (new ReportStarted(command.Name, id), MartenOps.Store(report));
+}
+```
+
+This forces the handler to be async solely for the id lookup, makes `IDocumentSession` a hard dependency, and pulls infrastructure concerns into the message handler.
+
+An `IVariableSource` lets you pull the id directly into the handler's parameter list. The handler stays focused on the domain, while Wolverine's codegen weaves in the factory call behind the scenes:
+
+```csharp
+public static (ReportStarted, IMartenOp) Handle(
+    StartReport command,
+    ReportId id)                                                // Wolverine resolves this via ReportIdSource
+{
+    var report = new Report(id) { Name = command.Name };
+    return (new ReportStarted(command.Name, id), MartenOps.Store(report));
+}
+```
+
+### 1. Define the strong-typed id and its factory
+
+```csharp
+// The strong-typed id — use Vogen / StronglyTypedId in real code
+// to get equality, serialization, and validation for free.
+public record ReportId(int Number);
+
+public static class DocumentSessionExtensions
+{
+    public static async Task<ReportId> GetNextReportId(
+        this IDocumentSession session,
+        CancellationToken cancellation)
+    {
+        var number = await session.NextSequenceValue("reports.report_sequence", cancellation);
+        return new ReportId(number);
+    }
+}
+```
+
+The sequence itself is registered via Marten's extended schema objects:
+
+```csharp
+builder.Services.AddMarten(opts =>
+{
+    opts.Connection(connectionString);
+    opts.DatabaseSchemaName = "reports";
+
+    // Marten will create/maintain this sequence alongside your document schema.
+    opts.Storage.ExtendedSchemaObjects.Add(new Sequence("report_sequence"));
+}).IntegrateWithWolverine();
+```
+
+### 2. Implement `IVariableSource`
+
+`IVariableSource` lives in `JasperFx.CodeGeneration.Model`. It advertises which types it can materialize (`Matches`) and emits the code fragment that produces them (`Create`):
+
+```csharp
+using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
+
+internal class ReportIdSource : IVariableSource
+{
+    public bool Matches(Type type) => type == typeof(ReportId);
+
+    public Variable Create(Type type)
+    {
+        // MethodCall models a call to DocumentSessionExtensions.GetNextReportId(session, cancellation).
+        // Arguments (session, ct) are resolved automatically — they're already in scope as other
+        // variables in the generated handler.
+        var call = new MethodCall(
+            typeof(DocumentSessionExtensions),
+            nameof(DocumentSessionExtensions.GetNextReportId))
+        {
+            CommentText = "Creating a new ReportId"
+        };
+
+        // The method's return variable is the one we're being asked for.
+        return call.ReturnVariable!;
+    }
+}
+```
+
+Two things to notice:
+
+- You only describe how to create the value. Wolverine handles the `await`, the lifetime of the dependency (`IDocumentSession`), and where the fragment lands inside the generated handler.
+- Because the `MethodCall` is async, every handler that takes a `ReportId` parameter becomes async under the hood — even if your source code declares the handler as synchronous. Wolverine's codegen rewrites the method signature for you.
+
+### 3. Register the source
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.CodeGeneration.Sources.Add(new ReportIdSource());
+});
+```
+
+From here on, any handler (or Wolverine HTTP endpoint) that declares a `ReportId` parameter gets one generated for it automatically.
+
+### Why not `LoadAsync`?
+
+Wolverine's [A-Frame `LoadAsync` pattern](/guide/handlers/middleware) is the go-to when you need to *load an existing aggregate* before the handler runs. Custom id generation has the same ergonomic goal — pull infrastructure calls out of `Handle` — but the result is a *new* value rather than a retrieved aggregate, so `IVariableSource` is a better fit. You can freely mix the two styles inside one handler: a `ReportId` materialized from an `IVariableSource` alongside a parent aggregate loaded via a `LoadAsync` method.
+
+### Previewing the generated code
+
+Run `dotnet run -- codegen preview` and look at the generated handler class. The fragment injected by `ReportIdSource` is clearly labelled with the `CommentText` you supplied:
+
+```csharp
+// Creating a new ReportId
+var reportId = await DocumentSessionExtensions.GetNextReportId(session, cancellation);
+
+var report = new Report(reportId) { Name = command.Name };
+// ...
+```
+
+If the preview shows the variable being service-located or falling back to a default constructor, check that `Matches` is returning `true` for your exact type and that you registered the source before the first handler is generated.
+
+### Full sample
+
+A complete runnable project covering the above is at [CritterStackSamples/Reports](https://github.com/JasperFx/CritterStackSamples/tree/main/Reports).
