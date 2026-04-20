@@ -122,7 +122,10 @@ but your detached tasks keep running. Always thread the token through.
 - **Exception timing:** an exception thrown **before** the first `yield return` surfaces on the
   client via the trailers as expected. An exception thrown **mid-stream** surfaces as a trailer
   after messages the client has already received — well-behaved clients must still check the final
-  status even after consuming messages successfully.
+  status even after consuming messages successfully. Server-side, the OpenTelemetry activity for
+  the handler is marked `Error` in both cases (including cancellation) — the activity stays open
+  until the stream fully drains or faults, so dashboards reflect the real terminal state rather
+  than the moment the handler returned the `IAsyncEnumerable<T>`.
 
 ## Related
 
