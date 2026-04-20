@@ -45,9 +45,12 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     public IReadOnlyList<MethodInfo> UnaryMethods { get; }
 
     /// <summary>
-    ///     The C# identifier used for the generated wrapper type.
+    ///     The C# identifier used for the generated wrapper type. Initialised from
+    ///     <see cref="ProtoServiceName"/> as <c>{ProtoServiceName}GrpcHandler</c>; rewritten by
+    ///     <see cref="GrpcGraph.DisambiguateCollidingTypeNames"/> if two discovered chains end up
+    ///     with the same default name (e.g., two assemblies shipping a <c>Greeter</c> proto service).
     /// </summary>
-    public string TypeName { get; }
+    public string TypeName { get; private set; }
 
     public GrpcServiceChain(Type stubType, GrpcGraph parent)
     {
@@ -128,6 +131,16 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             .ToArray();
 
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+
+    /// <summary>
+    ///     Applies a disambiguated <see cref="TypeName"/> on a chain whose default name collides
+    ///     with another discovered chain. Called exclusively from
+    ///     <see cref="GrpcGraph.DisambiguateCollidingTypeNames"/>.
+    /// </summary>
+    internal void ApplyDisambiguatedTypeName(string disambiguatedName)
+    {
+        TypeName = disambiguatedName;
+    }
 
     /// <summary>
     ///     The runtime <see cref="Type"/> of the generated wrapper once compiled. Null before compilation.
