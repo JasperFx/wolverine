@@ -90,8 +90,8 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     [IgnoreDescription]
     public LightweightCache<string, AzureServiceBusTopic> Topics { get; }
 
-    // Contains shared access key / password — hidden to avoid leaking secrets
-    // in diagnostic views. See wolverine follow-up for secret-safe rendering.
+    // Contains shared access key / password — raw value hidden to avoid
+    // leaking secrets in diagnostic views. Surfaced via ConnectionSummary below.
     [IgnoreDescription]
     public string? ConnectionString { get; set; }
 
@@ -102,6 +102,22 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     [IgnoreDescription]
     public string? ManagementConnectionString { get; set; }
+
+    /// <summary>
+    /// The configured connection string with the <c>SharedAccessKey</c> value
+    /// masked. Safe to render in diagnostic output.
+    /// </summary>
+    public string? ConnectionSummary => ConnectionString == null
+        ? null
+        : ConnectionStringRedactor.Redact(ConnectionString, "SharedAccessKey");
+
+    /// <summary>
+    /// The configured management connection string with the <c>SharedAccessKey</c>
+    /// value masked. Safe to render in diagnostic output.
+    /// </summary>
+    public string? ManagementConnectionSummary => ManagementConnectionString == null
+        ? null
+        : ConnectionStringRedactor.Redact(ManagementConnectionString, "SharedAccessKey");
 
     public string? FullyQualifiedNamespace { get; set; }
     [IgnoreDescription]

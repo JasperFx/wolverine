@@ -107,6 +107,15 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     [IgnoreDescription]
     public ConnectionFactory? ConnectionFactory { get; private set; }
 
+    /// <summary>
+    /// Secret-safe summary of <see cref="ConnectionFactory"/> for diagnostic
+    /// rendering. Exposes host / port / vhost / user / SSL / heartbeat and
+    /// omits the password.
+    /// </summary>
+    [ChildDescription]
+    public RabbitMqConnectionDescription? ConnectionDescription =>
+        ConnectionFactory == null ? null : new RabbitMqConnectionDescription(ConnectionFactory);
+
     internal void ConfigureFactory(Action<ConnectionFactory> configure)
     {
         var factory = new ConnectionFactory
