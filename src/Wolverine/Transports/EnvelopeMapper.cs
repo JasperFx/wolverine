@@ -148,6 +148,13 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         _envelopeToOutgoing[prop] = writeToOutgoing;
     }
 
+    public void MapIncomingProperty(Expression<Func<Envelope, object>> property,
+        Action<Envelope, TIncoming> readFromIncoming)
+    {
+        var prop = ReflectionHelper.GetProperty(property);
+        _incomingToEnvelope[prop] = readFromIncoming;
+    }
+
     public void MapOutgoingProperty(Expression<Func<Envelope, object>> property,
         Action<Envelope, TOutgoing> writeToOutgoing)
     {
