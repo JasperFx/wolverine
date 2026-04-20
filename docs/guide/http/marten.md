@@ -565,3 +565,100 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L105-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Streaming JSON Responses <Badge type="tip" text="5.32" />
+
+[`Marten.AspNetCore`](https://martendb.io/documents/aspnetcore.html) ships three
+typed return values — `StreamOne<T>`, `StreamMany<T>`, and `StreamAggregate<T>` —
+that write Marten's raw JSON directly to the HTTP response. The JSON never
+round-trips through a .NET object and the framework's serializer, so there's no
+deserialize/serialize overhead.
+
+Each type also supplies correct OpenAPI metadata (`Produces<T>`, `Produces(404)`
+where appropriate) via `IEndpointMetadataProvider`, so Swashbuckle, NSwag, and
+Minimal-API's built-in OpenAPI generator all see the right response shape.
+
+The types implement `IResult`, so Wolverine.Http dispatches them through its
+existing `ResultWriterPolicy` — **no extra Wolverine-specific configuration is
+needed**. Just `using Marten.AspNetCore;` in your endpoint file and return one.
+
+### When to use which
+
+| Type                   | Source                                           | Shape returned | 404? |
+| ---------------------- | ------------------------------------------------ | -------------- | ---- |
+| `StreamOne<T>`         | `IQueryable<T>` — regular Marten document query  | Single `T`     | yes  |
+| `StreamMany<T>`        | `IQueryable<T>` — regular Marten document query  | JSON array `T[]` | no (empty array = 200) |
+| `StreamAggregate<T>`   | `IDocumentSession` + stream id — event-sourced   | Single `T`     | yes  |
+
+**Key difference — `StreamOne<T>` vs `StreamAggregate<T>`**:
+
+- **`StreamOne<T>`** is for regular Marten documents — plain objects persisted via
+  `session.Store()` and queried with `session.Query<T>()`. The query hits the
+  document table directly.
+- **`StreamAggregate<T>`** is for event-sourced aggregates. Marten rebuilds the
+  latest aggregate state by folding events from the event store (or reads a
+  projected snapshot if you have one configured). Use this when `T` is an
+  event-sourced aggregate, not a stored document.
+
+### `StreamOne<T>` — single document with 404 on miss
+
+```csharp
+using Marten.AspNetCore;
+
+[WolverineGet("/invoices/{id}")]
+public static StreamOne<Invoice> Get(Guid id, IQuerySession session)
+    => new(session.Query<Invoice>().Where(x => x.Id == id));
+```
+
+Returns `200 application/json` with the JSON body on a hit, `404` on a miss.
+`Content-Length` and `Content-Type` are set automatically.
+
+### `StreamMany<T>` — JSON array
+
+```csharp
+[WolverineGet("/invoices/approved")]
+public static StreamMany<Invoice> Approved(IQuerySession session)
+    => new(session.Query<Invoice>().Where(x => x.Approved));
+```
+
+Returns `200 application/json` with a JSON array body. An empty result set
+returns `[]`, not `404`.
+
+### `StreamAggregate<T>` — event-sourced aggregate (latest)
+
+```csharp
+[WolverineGet("/orders/{id}")]
+public static StreamAggregate<Order> Get(Guid id, IDocumentSession session)
+    => new(session, id);
+```
+
+Returns `200 application/json` with the JSON of the latest projected aggregate
+state, or `404` if no stream exists for the supplied id. The constructor also
+accepts `string` ids for stores configured with string-keyed streams.
+
+### Customizing status code and content type
+
+All three types expose init-only properties for overriding defaults:
+
+```csharp
+[WolverinePost("/invoices")]
+public static StreamOne<Invoice> Create(CreateInvoice cmd, IQuerySession session)
+    => new(session.Query<Invoice>().Where(x => x.Id == cmd.InvoiceId))
+    {
+        OnFoundStatus = StatusCodes.Status201Created,
+        ContentType = "application/vnd.myapi.invoice+json"
+    };
+```
+
+### When to prefer streaming over returning `T`
+
+Reach for these types when:
+
+- The response is large (big documents, long arrays) — avoids allocating the
+  deserialized graph and re-serializing it
+- You need fine-grained control over status code and content type without
+  wrapping in `IResult`
+- You want a concise, typed endpoint signature that still produces accurate
+  OpenAPI metadata
+
+For small responses where the query result is already going to be materialized
+(to make a decision, for example), a plain `T` return is fine.
