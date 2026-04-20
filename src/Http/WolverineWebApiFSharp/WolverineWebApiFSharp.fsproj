@@ -5,6 +5,16 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <LangVersion>8.0</LangVersion>
         <OutputType>Exe</OutputType>
+        <!--
+          Pin FSharp.Core to the centrally-managed version (9.0.303) rather than the
+          SDK-bundled one. Without this, when built with the .NET 10 SDK (which bundles
+          FSharp.Core 10.x), WolverineWebApiFSharp.dll ends up referencing
+          FSharp.Core 10.0.0.0. Consumers in the test harness resolve FSharp.Core 9.0.0.0,
+          and JasperFx's runtime codegen then fails with CS1705 ("assembly uses FSharp.Core
+          with a version higher than the referenced assembly"), which bubbles up as a 500
+          on end-to-end tests that hit F# endpoints.
+        -->
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
     </PropertyGroup>
 
     <ItemGroup>
@@ -19,7 +29,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="FSharp.Core" VersionOverride="9.0.303" />
+      <PackageReference Include="FSharp.Core" />
     </ItemGroup>
 
 </Project>
