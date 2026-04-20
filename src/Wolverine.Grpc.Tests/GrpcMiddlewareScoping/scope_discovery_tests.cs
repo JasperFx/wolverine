@@ -61,6 +61,33 @@ public class scope_discovery_tests
     }
 
     [Fact]
+    public async Task discovered_befores_are_ordinally_sorted_for_deterministic_codegen()
+    {
+        // Reflection's GetMethods() order is unspecified — if Phase-1 emits middleware frames
+        // in whatever order reflection returns, the generated source is nondeterministic across
+        // runs, which breaks byte-stable codegen caches and makes diagnostic diffs unreadable.
+        // PR #2525 established this invariant for RPC-method discovery (GrpcServiceChain.cs:268);
+        // we match that pattern here.
+        var chain = await DiscoverStubChainAsync();
+
+        var names = chain.DiscoveredBefores.Select(m => m.Name).ToArray();
+        var sorted = names.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        names.ShouldBe(sorted);
+    }
+
+    [Fact]
+    public async Task discovered_afters_are_ordinally_sorted_for_deterministic_codegen()
+    {
+        var chain = await DiscoverStubChainAsync();
+
+        var names = chain.DiscoveredAfters.Select(m => m.Name).ToArray();
+        var sorted = names.OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        names.ShouldBe(sorted);
+    }
+
+    [Fact]
     public async Task discovery_results_are_stable_across_repeated_reads()
     {
         // Phase 1 codegen will read DiscoveredBefores from inside AssembleTypes which can be

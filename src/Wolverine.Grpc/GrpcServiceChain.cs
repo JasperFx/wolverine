@@ -106,23 +106,25 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     ///     <c>[WolverineBefore]</c> middleware for this chain — i.e., named per
     ///     <see cref="MiddlewarePolicy.BeforeMethodNames"/> or carrying the attribute, and whose
     ///     scope (<see cref="MiddlewareScoping"/>) admits <see cref="MiddlewareScoping.Grpc"/>.
-    ///     Computed lazily; the returned set is stable across reads. Phase-1 codegen consumes this
-    ///     to emit pre-call frames around each RPC override.
+    ///     Sorted ordinally by method name so Phase-1 generated source is byte-stable across
+    ///     runs (reflection order is not guaranteed). Computed lazily; the returned reference
+    ///     is stable across reads.
     /// </summary>
     public IReadOnlyList<MethodInfo> DiscoveredBefores
         => _discoveredBefores ??= MiddlewarePolicy
             .FilterMethods<WolverineBeforeAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.BeforeMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
             .ToArray();
 
     /// <summary>
     ///     Methods declared on <see cref="StubType"/> (or its proto base) that qualify as
-    ///     <c>[WolverineAfter]</c> postprocessors for this chain. Same scope and name-convention
-    ///     rules as <see cref="DiscoveredBefores"/>. Phase-1 codegen consumes this to emit
-    ///     post-call frames around each RPC override.
+    ///     <c>[WolverineAfter]</c> postprocessors for this chain. Same scope, name-convention,
+    ///     and ordinal-sort rules as <see cref="DiscoveredBefores"/>.
     /// </summary>
     public IReadOnlyList<MethodInfo> DiscoveredAfters
         => _discoveredAfters ??= MiddlewarePolicy
             .FilterMethods<WolverineAfterAttribute>(this, StubType.GetMethods(), MiddlewarePolicy.AfterMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
             .ToArray();
 
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
