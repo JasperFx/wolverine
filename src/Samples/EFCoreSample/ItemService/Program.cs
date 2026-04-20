@@ -2,6 +2,7 @@ using ItemService;
 using Microsoft.EntityFrameworkCore;
 using JasperFx;
 using JasperFx.Resources;
+using Weasel.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Http;
@@ -22,6 +23,21 @@ var connectionString = builder.Configuration.GetConnectionString("sqlserver");
 builder.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
     x => x.UseSqlServer(connectionString), "wolverine");
 
+#endregion
+
+#region sample_register_initial_data
+// Seed data that will be applied every time
+// host.ResetAllDataAsync<ItemsDbContext>() is invoked (typical test flow).
+builder.Services.AddInitialData<ItemsDbContext, SeedSampleItems>();
+
+// For small inline seed data, the Weasel 8.14+ lambda overload avoids
+// having to author a dedicated IInitialData<T> class:
+//
+//     builder.Services.AddInitialData<ItemsDbContext>(async (ctx, ct) =>
+//     {
+//         ctx.Items.Add(new Item { Name = "Demo" });
+//         await ctx.SaveChangesAsync(ct);
+//     });
 #endregion
 
 #region registration_of_db_context_not_integrated_with_outbox

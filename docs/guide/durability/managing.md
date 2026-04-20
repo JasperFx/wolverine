@@ -115,7 +115,7 @@ The available commands are:
   storage     Administer the envelope storage
 ```
 
-There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://github.com/JasperFx/weasel) library,
+There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/) library,
 and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you
 can use this command to apply any outstanding database changes necessary to bring the database schema to the Wolverine configuration:
 
