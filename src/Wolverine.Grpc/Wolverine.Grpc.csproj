@@ -1,19 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <Description>Code-first and proto-first gRPC service support for Wolverine</Description>
+        <Description>Code-first and proto-first gRPC service support for Wolverine, including gRPC message transport</Description>
         <PackageId>WolverineFx.Grpc</PackageId>
     </PropertyGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Wolverine.Grpc.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
 
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <ProjectReference Include="..\Wolverine\Wolverine.csproj"/>
         <PackageReference Include="Google.Api.CommonProtos"/>
         <PackageReference Include="Grpc.AspNetCore"/>
+        <PackageReference Include="Grpc.Net.Client"/>
         <PackageReference Include="Grpc.Net.ClientFactory"/>
         <PackageReference Include="Grpc.StatusProto"/>
+        <PackageReference Include="Grpc.Tools">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="protobuf-net.Grpc"/>
         <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Protobuf Include="Internals\wolverine.proto" GrpcServices="Both" />
     </ItemGroup>
 
 </Project>

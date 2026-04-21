@@ -437,6 +437,17 @@ partial class Build
             RunSingleProjectOneClassAtATime(leaderElectionTests);
         });
 
+    Target CIGrpc => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Wolverine.Grpc.Tests" / "Wolverine.Grpc.Tests.csproj";
+
+            BuildTestProjects(tests);
+
+            RunSingleProjectOneClassAtATime(tests);
+        });
+
     Target CIAzureServiceBus => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

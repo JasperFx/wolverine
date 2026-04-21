@@ -350,6 +350,7 @@ partial class Build : NukeBuild
                 Solution.Transports.Redis.Wolverine_Redis,
                 Solution.Transports.SignalR.Wolverine_SignalR,
                 Solution.Transports.NATS.Wolverine_Nats,
+                Solution.Grpc.Wolverine_Grpc,
                 Solution.Persistence.EFCore.Wolverine_EntityFrameworkCore,
                 Solution.Persistence.Polecat.Wolverine_Polecat
             };
