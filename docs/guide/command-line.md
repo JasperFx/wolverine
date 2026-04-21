@@ -6,6 +6,10 @@ With help from its [JasperFx](https://github.com/JasperFx) team mate [Oakton](ht
 tools. To get started, apply Oakton as the command line parser in your applications as shown in the last line of code in this
 sample application bootstrapping from Wolverine's [Getting Started](/tutorials/getting-started):
 
+::: info
+This page covers the Wolverine-specific CLI surface. The underlying JasperFx command-line library that backs `RunJasperFxCommands` — including how to [author your own commands](https://shared-libs.jasperfx.net/cli/writing-commands.html), [argument/flag handling](https://shared-libs.jasperfx.net/cli/arguments-flags.html), and [environment checks](https://shared-libs.jasperfx.net/cli/environment-checks.html) — is documented at [shared-libs.jasperfx.net/cli](https://shared-libs.jasperfx.net/cli/). When a command accepts a generic flag not listed on this page, that's where to look first.
+:::
+
 <!-- snippet: sample_quickstart_program -->
 <a id='snippet-sample_quickstart_program'></a>
 ```cs
