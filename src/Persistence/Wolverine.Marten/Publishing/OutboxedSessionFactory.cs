@@ -137,8 +137,20 @@ public class OutboxedSessionFactory
     private void configureSession(MessageContext context, IDocumentSession session)
     {
         context.OverrideStorage(MessageStore);
-        
-        if (context.ConversationId != Guid.Empty)
+
+        // Per-message CausationId override supplied via
+        // DeliveryOptions.CausationId (envelope header "causation-id") takes
+        // precedence over the default Wolverine ConversationId-based causation
+        // chain. This is how a projection that calls
+        // slice.PublishMessage(cmd, metadata with CausationId = ...) gets the
+        // overridden id onto the events the command's handler writes.
+        if (context.Envelope is { } env
+            && env.Headers.TryGetValue(EnvelopeConstants.CausationIdKey, out var headerCausationId)
+            && !string.IsNullOrEmpty(headerCausationId))
+        {
+            session.CausationId = headerCausationId;
+        }
+        else if (context.ConversationId != Guid.Empty)
         {
             session.CausationId = context.ConversationId.ToString();
         }

@@ -348,7 +348,13 @@ public partial class MessageBus : IMessageBus, IMessageContext
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
         outbound.Source = Runtime.Options.ServiceName;
-        outbound.CorrelationId = CorrelationId;
+        // DeliveryOptions.Override may have already stamped a per-message
+        // CorrelationId (e.g. from a Marten projection's RaiseSideEffects
+        // call passing MessageMetadata) — don't clobber it. See GH-2545.
+        if (outbound.CorrelationId.IsEmpty())
+        {
+            outbound.CorrelationId = CorrelationId;
+        }
         outbound.ConversationId = outbound.Id; // the message chain originates here
         outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
 
