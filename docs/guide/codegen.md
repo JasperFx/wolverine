@@ -10,6 +10,10 @@ your message handlers. Wolverine's [middleware strategy](/guide/handlers/middlew
 middleware directly into the runtime pipeline without requiring the copious usage of adapter interfaces
 that is prevalent in most other .NET frameworks.
 
+::: info
+This page covers Wolverine-specific use of code generation. The shared JasperFx code-generation library that backs it — [frames](https://shared-libs.jasperfx.net/codegen/frames.html), [variables](https://shared-libs.jasperfx.net/codegen/variables.html), [`MethodCall`](https://shared-libs.jasperfx.net/codegen/method-call.html), [generated types](https://shared-libs.jasperfx.net/codegen/generated-types.html), and the [`codegen` CLI command](https://shared-libs.jasperfx.net/codegen/cli.html) — is documented at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/). Reach for it when you're authoring a custom `IVariableSource` or middleware frame.
+:::
+
 That's great when everything is working as it should, but there's a couple issues:
 
 1. The usage of the Roslyn compiler at runtime *can sometimes be slow* on its first usage. This can lead to sluggish *cold start*
@@ -301,7 +305,7 @@ JasperFx).
 
 ::: tip
 All of these commands are from the JasperFx.CodeGeneration.Commands library that Wolverine adds as 
-a dependency. This is shared with [Marten](https://martendb.io) as well.
+a dependency. This is shared with [Marten](https://martendb.io) as well. See the [`codegen` CLI reference](https://shared-libs.jasperfx.net/codegen/cli.html) for every subcommand and flag.
 :::
 
 To preview the generated source code, use this command line usage from the root directory of your .NET project:
@@ -400,6 +404,8 @@ By default, Wolverine writes generated code to `Internal/Generated` under your p
 For Console applications or non-standard project structures, you may need to customize this path.
 
 ### Using CritterStackDefaults
+
+`CritterStackDefaults` is the shared entry point for opinionated defaults across the Critter Stack (Wolverine, Marten, Polecat, …). Full reference: [shared-libs.jasperfx.net/configuration/critter-stack-defaults](https://shared-libs.jasperfx.net/configuration/critter-stack-defaults.html).
 
 You can configure the output path globally for all Critter Stack tools:
 
