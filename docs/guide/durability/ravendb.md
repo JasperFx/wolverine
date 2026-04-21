@@ -38,6 +38,37 @@ builder.UseWolverine(opts =>
 
 Also see [RavenDb's own documentation](https://ravendb.net/docs/article-page/6.0/csharp/start/guides/aws-lambda/existing-project) for bootstrapping RavenDb inside of a .NET application. 
 
+## Aspire Integration
+
+RavenDB has an excellent Aspire integration story. The `CommunityToolkit.Aspire.Hosting.RavenDB` package adds RavenDB to the AppHost, and `CommunityToolkit.Aspire.RavenDB.Client` registers `IDocumentStore` in DI. Since Wolverine's `UseRavenDbPersistence()` reads `IDocumentStore` from DI, it works with no extra configuration.
+
+**AppHost** (`CommunityToolkit.Aspire.Hosting.RavenDB` NuGet):
+```csharp
+var ravendb = builder.AddRavenDB("ravendb")
+    .AddDatabase("wolverine");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(ravendb)
+    .WaitFor(ravendb);
+```
+
+**Service project** (`CommunityToolkit.Aspire.RavenDB.Client` NuGet registers `IDocumentStore` in DI):
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+// Registers IDocumentStore in DI — Wolverine picks it up automatically
+builder.AddRavenDBClient("ravendb");
+
+builder.UseWolverine(opts =>
+{
+    // That's it — UseRavenDbPersistence() reads IDocumentStore from DI
+    opts.UseRavenDbPersistence();
+    opts.Policies.AutoApplyTransactions();
+});
+
+await builder.Build().RunAsync();
+```
+
 ## Message Persistence
 
 The [durable inbox and outbox](/guide/durability/) options in Wolverine are completely supported with 

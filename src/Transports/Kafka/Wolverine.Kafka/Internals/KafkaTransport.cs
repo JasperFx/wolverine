@@ -1,12 +1,19 @@
 using Confluent.Kafka;
 using JasperFx.Core;
 using JasperFx.Descriptors;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
+
+internal class KafkaNamedConnectionSource
+{
+    public string BootstrapServers { get; }
+    public KafkaNamedConnectionSource(string bootstrapServers) => BootstrapServers = bootstrapServers;
+}
 
 public enum KafkaUsage
 {
@@ -97,6 +104,14 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     public override ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        var namedConnection = runtime.Services.GetService<KafkaNamedConnectionSource>();
+        if (namedConnection != null)
+        {
+            ConsumerConfig.BootstrapServers = namedConnection.BootstrapServers;
+            ProducerConfig.BootstrapServers = namedConnection.BootstrapServers;
+            AdminClientConfig.BootstrapServers = namedConnection.BootstrapServers;
+        }
+
         var needsDlqTopic = false;
         foreach (var endpoint in Topics)
         {

@@ -1,4 +1,6 @@
 using Confluent.Kafka.Admin;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
@@ -123,6 +125,56 @@ public class KafkaTransportTests
     {
         new KafkaTransport().Usage.ShouldBe(KafkaUsage.ProduceAndConsume);
     }
+}
 
-    
+public class UseKafkaUsingNamedConnectionTests
+{
+    [Fact]
+    public void registers_named_connection_source_that_reads_from_configuration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:kafka"] = "broker1:9092,broker2:9092"
+            })
+            .Build();
+
+        var options = new WolverineOptions();
+        options.UseKafkaUsingNamedConnection("kafka");
+        options.Services.AddSingleton<IConfiguration>(configuration);
+
+        var provider = options.Services.BuildServiceProvider();
+        var source = provider.GetRequiredService<KafkaNamedConnectionSource>();
+        source.BootstrapServers.ShouldBe("broker1:9092,broker2:9092");
+    }
+
+    [Fact]
+    public void throws_when_connection_string_is_missing()
+    {
+        var configuration = new ConfigurationBuilder().Build();
+
+        var options = new WolverineOptions();
+        options.UseKafkaUsingNamedConnection("kafka");
+        options.Services.AddSingleton<IConfiguration>(configuration);
+
+        var provider = options.Services.BuildServiceProvider();
+        Should.Throw<InvalidOperationException>(() => provider.GetRequiredService<KafkaNamedConnectionSource>())
+            .Message.ShouldContain("kafka");
+    }
+
+    [Fact]
+    public void returns_kafka_transport_expression()
+    {
+        var options = new WolverineOptions();
+        var expression = options.UseKafkaUsingNamedConnection("kafka");
+        expression.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void disables_automatic_failure_acks()
+    {
+        var options = new WolverineOptions();
+        options.UseKafkaUsingNamedConnection("kafka");
+        options.EnableAutomaticFailureAcks.ShouldBeFalse();
+    }
 }

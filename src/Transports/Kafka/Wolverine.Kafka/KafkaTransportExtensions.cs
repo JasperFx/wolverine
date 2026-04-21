@@ -1,6 +1,8 @@
 using System.Text;
 using Confluent.Kafka;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internal;
 using Wolverine.Kafka.Internals;
@@ -10,6 +12,41 @@ namespace Wolverine.Kafka;
 
 public static class KafkaTransportExtensions
 {
+    /// <summary>
+    /// Direct Wolverine to connect to Kafka using the named connection string from IConfiguration.
+    /// This option is useful for Aspire integration between Wolverine and Kafka.
+    /// The connection string value should be the bootstrap servers address (e.g. "localhost:9092").
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="connectionStringName">Key of the expected connection string from IConfiguration</param>
+    /// <param name="configureConsumers">Optional extra configuration for all consumers</param>
+    /// <param name="configureProducers">Optional extra configuration for all producers</param>
+    /// <returns></returns>
+    public static KafkaTransportExpression UseKafkaUsingNamedConnection(this WolverineOptions options,
+        string connectionStringName, Action<ConsumerConfig>? configureConsumers = null,
+        Action<ProducerConfig>? configureProducers = null)
+    {
+        // Automatic failure acks do not work with Kafka serialization failures
+        options.EnableAutomaticFailureAcks = false;
+        var transport = options.KafkaTransport();
+
+        options.Services.AddSingleton<KafkaNamedConnectionSource>(sp =>
+        {
+            var configuration = sp.GetRequiredService<IConfiguration>();
+            var bootstrapServers = configuration.GetConnectionString(connectionStringName);
+            if (string.IsNullOrEmpty(bootstrapServers))
+                throw new InvalidOperationException(
+                    $"The connection string named '{connectionStringName}' is missing in configuration");
+
+            return new KafkaNamedConnectionSource(bootstrapServers);
+        });
+
+        if (configureConsumers != null) configureConsumers(transport.ConsumerConfig);
+        if (configureProducers != null) configureProducers(transport.ProducerConfig);
+
+        return new KafkaTransportExpression(transport, options);
+    }
+
     /// <summary>
     ///     Quick access to the Kafka Transport within this application.
     ///     This is for advanced usage

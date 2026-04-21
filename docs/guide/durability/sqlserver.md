@@ -33,6 +33,38 @@ builder.Host.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/Program.cs#L34-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_registering_efcore_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Aspire Integration
+
+The recommended way to integrate Wolverine with .NET Aspire for SQL Server is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
+
+**AppHost** (`Aspire.Hosting.SqlServer` NuGet):
+```csharp
+var sqlserver = builder.AddSqlServer("sqlserver")
+    .AddDatabase("wolverine");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(sqlserver)
+    .WaitFor(sqlserver);
+```
+
+**Service project:**
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+// Aspire injects ConnectionStrings__wolverine automatically via WithReference()
+var connectionString = builder.Configuration.GetConnectionString("wolverine")!;
+
+builder.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithSqlServer(connectionString);
+    opts.Policies.UseDurableLocalQueues();
+});
+
+await builder.Build().RunAsync();
+```
+
+`WaitFor(sqlserver)` in the AppHost ensures SQL Server is healthy before your service starts, so Wolverine's schema setup runs against an available database.
+
 ## Sql Server Messaging Transport
 
 ::: info

@@ -43,6 +43,38 @@ var app = builder.Build();
 return await app.RunJasperFxCommands(args);
 ```
 
+## Aspire Integration
+
+The recommended way to integrate Wolverine with .NET Aspire for Oracle is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
+
+**AppHost** (`Aspire.Hosting.Oracle` NuGet):
+```csharp
+var oracle = builder.AddOracle("oracle")
+    .AddDatabase("wolverine");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(oracle)
+    .WaitFor(oracle);
+```
+
+**Service project:**
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+// Aspire injects ConnectionStrings__wolverine automatically via WithReference()
+var connectionString = builder.Configuration.GetConnectionString("wolverine")!;
+
+builder.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithOracle(connectionString);
+    opts.Policies.UseDurableLocalQueues();
+});
+
+await builder.Build().RunAsync();
+```
+
+`WaitFor(oracle)` in the AppHost ensures Oracle is healthy before your service starts. If you are using Entity Framework Core with Oracle, install `Aspire.Oracle.EntityFrameworkCore` and call `builder.AddOracleDatabaseDbContext<MyDbContext>("wolverine")` to register the `DbContext`.
+
 ## Oracle Messaging Transport
 
 ::: info

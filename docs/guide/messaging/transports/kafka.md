@@ -13,6 +13,53 @@ To use [Kafka](https://www.confluent.io/what-is-apache-kafka/) as a messaging tr
 dotnet add WolverineFx.Kafka
 ```
 
+## Aspire Integration
+
+::: tip
+See the full [Aspire + Wolverine Kafka sample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithKafka) for a working end-to-end example.
+:::
+
+The `UseKafkaUsingNamedConnection()` overload reads the Kafka bootstrap servers from `IConfiguration.GetConnectionString()`.
+.NET Aspire injects this automatically when you use `.WithReference()` in the AppHost:
+
+**AppHost:**
+```csharp
+// Aspire.Hosting.Kafka NuGet package
+var kafka = builder.AddKafka("kafka")
+    .WithKafkaUI();
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(kafka)
+    // WaitFor ensures Kafka is healthy before your service starts,
+    // so AutoProvision() will always succeed.
+    .WaitFor(kafka);
+```
+
+**Service project:**
+```csharp
+// WolverineFx.Kafka NuGet package
+builder.UseWolverine(opts =>
+{
+    opts.UseKafkaUsingNamedConnection("kafka")
+        // AutoProvision creates all declared topics at startup.
+        // This works reliably because Aspire's WaitFor() guarantees
+        // Kafka is healthy before the service starts.
+        .AutoProvision();
+
+    opts.PublishMessage<MyMessage>().ToKafkaTopic("my-topic");
+    opts.ListenToKafkaTopic("my-topic").ProcessInline();
+});
+```
+
+You can still pass optional `configureConsumers` / `configureProducers` callbacks for fine-tuning:
+
+```csharp
+opts.UseKafkaUsingNamedConnection("kafka",
+    configureConsumers: c => c.GroupId = "my-service",
+    configureProducers: p => p.MessageMaxBytes = 1_000_000)
+    .AutoProvision();
+```
+
 ```warning
 The configuration in `ConfigureConsumer()` for each topic completely overwrites any previous configuration
 ```

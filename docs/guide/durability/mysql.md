@@ -43,6 +43,38 @@ var app = builder.Build();
 return await app.RunJasperFxCommands(args);
 ```
 
+## Aspire Integration
+
+The recommended way to integrate Wolverine with .NET Aspire for MySQL is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`.
+
+**AppHost** (`Aspire.Hosting.MySql` NuGet):
+```csharp
+var mysql = builder.AddMySql("mysql")
+    .AddDatabase("wolverine");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(mysql)
+    .WaitFor(mysql);
+```
+
+**Service project:**
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+// Aspire injects ConnectionStrings__wolverine automatically via WithReference()
+var connectionString = builder.Configuration.GetConnectionString("wolverine")!;
+
+builder.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithMySql(connectionString);
+    opts.Policies.UseDurableLocalQueues();
+});
+
+await builder.Build().RunAsync();
+```
+
+`WaitFor(mysql)` in the AppHost ensures MySQL is healthy before your service starts, so Wolverine's schema setup runs against an available database.
+
 ## MySQL Messaging Transport
 
 ::: info

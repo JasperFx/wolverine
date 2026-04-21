@@ -55,6 +55,50 @@ For security purposes, there are overloads of `UseAzureServiceBus()` that will a
 2. [AzureNamedKeyCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azurenamedkeycredential?view=azure-dotnet)
 3. [AzureSasCredential](https://learn.microsoft.com/en-us/dotnet/api/azure.azuresascredential?view=azure-dotnet)
 
+## Aspire Integration
+
+The cleanest way to integrate Wolverine with .NET Aspire for Azure Service Bus is via `TokenCredential`, typically
+`DefaultAzureCredential` from `Azure.Identity`. Aspire injects the Service Bus namespace via the
+`SERVICEBUS_URI` environment variable (or similar), and you pass it with the credential:
+
+**AppHost** (`Aspire.Hosting.Azure.ServiceBus` NuGet):
+```csharp
+var serviceBus = builder.AddAzureServiceBus("servicebus");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(serviceBus)
+    .WaitFor(serviceBus);
+```
+
+**Service project** (`Aspire.Azure.Messaging.ServiceBus` client NuGet registers `ServiceBusClient` in DI):
+```csharp
+using Azure.Identity;
+
+// Option 1: Use Aspire.Azure.Messaging.ServiceBus to register ServiceBusClient in DI,
+// then read the namespace from configuration:
+var fullyQualifiedNamespace = builder.Configuration["Azure:ServiceBus:FullyQualifiedNamespace"]
+    ?? builder.Configuration.GetConnectionString("servicebus")!;
+
+builder.UseWolverine(opts =>
+{
+    opts.UseAzureServiceBus(fullyQualifiedNamespace, new DefaultAzureCredential())
+        // AutoProvision creates missing queues, topics, and subscriptions at startup
+        .AutoProvision();
+
+    opts.ListenToAzureServiceBusQueue("my-queue");
+    opts.PublishMessage<MyMessage>().ToAzureServiceBusQueue("my-queue");
+});
+```
+
+When using the Azure Service Bus emulator for local development, use `UseAzureServiceBusTesting()` instead:
+
+```csharp
+// For local development with the Azure Service Bus emulator
+opts.UseAzureServiceBusTesting()
+    .AutoProvision()
+    .AutoPurgeOnStartup();
+```
+
 ## Request/Reply
 
 [Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the Azure Service Bus transport *if* Wolverine has the ability to auto-provision

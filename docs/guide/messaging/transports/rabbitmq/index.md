@@ -114,24 +114,69 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Aspire Integration
 
-Just note that when you use the existing Aspire integration for Rabbit MQ that Aspire "pokes" in an environment variable
-for a Rabbit MQ `Uri` and not a connection string -- even though the Aspire information is available through `IConfiguration.GetConnectionString()`.
+::: tip
+See the full [Aspire + Wolverine RabbitMQ sample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/AspireWithRabbitMq) for a working end-to-end example.
+:::
 
-Be aware of this when using Aspire so that you're passing that information as a `Uri` like this:
+The recommended way to integrate Wolverine with .NET Aspire for RabbitMQ is the `UseRabbitMqUsingNamedConnection()` overload.
+Aspire injects the RabbitMQ connection string (a `amqp://...` URI) via the standard `ConnectionStrings__rabbitmq` environment variable when you use `.WithReference()` in the AppHost:
 
+**AppHost:**
 ```csharp
-var rabbitmqEndpoint = builder.Configuration.GetConnectionString("rabbitmq");
-if (rabbitmqEndpoint != null)
-{
-    builder.Host.UseWolverine(opts =>
-    {
-        // Important! Convert the "connection string" up above to a Uri
-        opts.UseRabbitMq(new Uri(rabbitmqEndpoint)).AutoProvision();
-    });
-}
+// Aspire.Hosting.RabbitMQ NuGet package
+var rabbitmq = builder.AddRabbitMQ("rabbitmq")
+    .WithManagementPlugin();
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(rabbitmq)
+    // WaitFor ensures RabbitMQ is healthy before your service starts,
+    // so AutoProvision() will always succeed.
+    .WaitFor(rabbitmq);
 ```
 
-Why does Aspire do this? We have no idea, but just don't be tripped up by this little quirk.
+**Service project:**
+```csharp
+// WolverineFx.RabbitMQ NuGet package — no Aspire.RabbitMQ.Client needed
+builder.UseWolverine(opts =>
+{
+    opts.UseRabbitMqUsingNamedConnection("rabbitmq")
+        // AutoProvision creates all declared exchanges, queues, and bindings
+        // at startup. This works reliably because Aspire's WaitFor() guarantees
+        // RabbitMQ is healthy before the service starts.
+        .AutoProvision();
+
+    opts.ListenToRabbitQueue("my-queue");
+    opts.PublishMessage<MyMessage>().ToRabbitExchange("my-exchange");
+});
+```
+
+`UseRabbitMqUsingNamedConnection` reads from `IConfiguration.GetConnectionString("rabbitmq")`.
+Aspire populates this automatically — it handles both URI-format strings (e.g., `amqp://guest:guest@localhost:5672`)
+and the key=value format.
+
+### Alternative: Using Aspire.RabbitMQ.Client
+
+If you install the `Aspire.RabbitMQ.Client` NuGet package in your service project and call `AddRabbitMQClient("rabbitmq")`,
+Aspire registers an `IConnectionFactory` in DI. Wolverine's no-argument `UseRabbitMq()` overload will automatically 
+detect and use it:
+
+```csharp
+// In service project with Aspire.RabbitMQ.Client installed:
+builder.AddRabbitMQClient("rabbitmq");
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine finds IConnectionFactory from DI automatically
+    opts.UseRabbitMq()
+        .AutoProvision();
+});
+```
+
+### AutoProvision with Aspire
+
+`AutoProvision()` works correctly with Aspire as long as you use `.WaitFor(rabbitmq)` in the AppHost. This tells Aspire not
+to start your service until the RabbitMQ container health check passes, ensuring Wolverine can connect and declare all
+exchanges, queues, and bindings before processing begins.
 
 ## Enable Rabbit MQ for Wolverine Control Queues
 

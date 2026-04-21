@@ -78,6 +78,42 @@ using var host = await Host.CreateDefaultBuilder()
     }).StartAsync();
 ```
 
+## Aspire Integration
+
+The recommended way to integrate Wolverine with .NET Aspire for NATS is to read the connection string injected by Aspire via `IConfiguration.GetConnectionString()`. Aspire injects the NATS URL when you use `.WithReference()` in the AppHost.
+
+**AppHost** (`Aspire.Hosting.Nats` NuGet):
+```csharp
+var nats = builder.AddNATS("nats")
+    .WithJetStream();
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(nats)
+    .WaitFor(nats);
+```
+
+**Service project:**
+```csharp
+var builder = Host.CreateApplicationBuilder(args);
+
+// Aspire injects ConnectionStrings__nats as a nats:// URL automatically via WithReference()
+var natsUrl = builder.Configuration.GetConnectionString("nats")
+    ?? "nats://localhost:4222";
+
+builder.UseWolverine(opts =>
+{
+    opts.UseNats(natsUrl)
+        .AutoProvision();
+
+    opts.ListenToNatsSubject("orders").UseJetStream("ORDERS", "orders-consumer");
+    opts.PublishMessage<OrderPlaced>().ToNatsSubject("orders");
+});
+
+await builder.Build().RunAsync();
+```
+
+`WaitFor(nats)` in the AppHost ensures NATS is healthy before your service starts, making `AutoProvision()` reliable.
+
 ## Connection Configuration
 
 ### Basic Connection

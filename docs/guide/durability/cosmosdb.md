@@ -29,6 +29,47 @@ builder.UseWolverine(opts =>
 });
 ```
 
+## Aspire Integration
+
+The cleanest way to integrate Wolverine with .NET Aspire for Cosmos DB is via the `Aspire.Azure.Data.Cosmos` client NuGet, which registers a `CosmosClient` in DI. Wolverine's `UseCosmosDbPersistence()` reads `CosmosClient` from DI automatically.
+
+**AppHost** (`Aspire.Hosting.Azure.CosmosDB` NuGet):
+```csharp
+var cosmos = builder.AddAzureCosmosDB("cosmos")
+    .AddCosmosDatabase("wolverine");
+
+builder.AddProject<Projects.MyWorker>("worker")
+    .WithReference(cosmos)
+    .WaitFor(cosmos);
+```
+
+**Service project** (`Aspire.Azure.Data.Cosmos` NuGet registers `CosmosClient` in DI):
+```csharp
+using Azure.Identity;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Aspire.Azure.Data.Cosmos reads the connection from configuration and
+// registers CosmosClient in DI — Wolverine picks it up automatically
+builder.AddAzureCosmosClient("cosmos");
+
+builder.UseWolverine(opts =>
+{
+    opts.UseCosmosDbPersistence("wolverine");
+    opts.Policies.AutoApplyTransactions();
+});
+
+await builder.Build().RunAsync();
+```
+
+For local development with the Cosmos DB emulator, Aspire automatically wires up the emulator endpoint when you call `.RunAsEmulator()` in the AppHost:
+
+```csharp
+var cosmos = builder.AddAzureCosmosDB("cosmos")
+    .RunAsEmulator()
+    .AddCosmosDatabase("wolverine");
+```
+
 ## Container Setup
 
 Wolverine uses a single CosmosDB container named `wolverine` with a partition key path of `/partitionKey`.

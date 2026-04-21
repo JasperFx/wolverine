@@ -11,6 +11,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Wolverine.Kafka.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
     </ItemGroup>
 
