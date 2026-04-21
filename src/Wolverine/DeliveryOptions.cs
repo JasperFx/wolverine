@@ -69,6 +69,18 @@ public class DeliveryOptions
     public string? TenantId { get; set; }
 
     /// <summary>
+    ///     Override the correlation id stamped on the outgoing envelope. Defaults to
+    ///     the sending <see cref="IMessageContext"/>'s correlation id when not set.
+    /// </summary>
+    public string? CorrelationId { get; set; }
+
+    /// <summary>
+    ///     Override the causation id stamped on the outgoing envelope. Defaults to
+    ///     the sending <see cref="IMessageContext"/>'s conversation id when not set.
+    /// </summary>
+    public string? CausationId { get; set; }
+
+    /// <summary>
     ///     Mimetype of the serialized data
     /// </summary>
     public string? ContentType { get; set; }
@@ -124,6 +136,22 @@ public class DeliveryOptions
         if (TenantId.IsNotEmpty())
         {
             envelope.TenantId = TenantId;
+        }
+
+        if (CorrelationId.IsNotEmpty())
+        {
+            envelope.CorrelationId = CorrelationId;
+        }
+
+        if (CausationId.IsNotEmpty())
+        {
+            // Wolverine's native causation chain is Envelope.ConversationId (Guid), but
+            // application-meaningful CausationId values are arbitrary strings (matching
+            // JasperFx.IMetadataContext). Stash it as a well-known header so downstream
+            // consumers — most notably Wolverine.Marten's OutboxedSessionFactory when it
+            // configures session.CausationId — can surface it without collapsing the
+            // Guid-typed ConversationId in the process.
+            envelope.Headers[EnvelopeConstants.CausationIdKey] = CausationId;
         }
 
         if (ContentType != null)

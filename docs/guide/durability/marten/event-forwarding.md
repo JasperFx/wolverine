@@ -180,3 +180,53 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L219-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Overriding Side-Effect Message Metadata <Badge type="tip" text="5.x" />
+
+When a Marten projection publishes a Wolverine message from `RaiseSideEffects` via `slice.PublishMessage(...)`, the resulting Wolverine envelope is built by an internal `MessageContext` that has no inherent knowledge of the originating event's metadata. By default the outgoing message ends up with no correlation id, no causation id, and an envelope-level conversation id rooted at its own envelope id — which means the chain Event A → side-effect command → Event B does not naturally share a correlation id.
+
+The metadata-aware overload of `PublishMessage` (JasperFx.Events 1.29+) lets the projection author override the per-message metadata that the side-effect command's envelope (and the Marten session opened for its handler) will inherit:
+
+```csharp
+public class TodoCloserProjection : MultiStreamProjection<TodoTask, Guid>
+{
+    public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<TodoTask> slice)
+    {
+        if (slice.Snapshot is null) return ValueTask.CompletedTask;
+
+        // Carry the originating event's correlation id (and optionally its
+        // causation id) onto the command we're emitting, so the handler that
+        // closes the task can match against it.
+        var correlationId = slice.Events()
+            .Select(e => e.CorrelationId)
+            .FirstOrDefault(id => id is not null);
+
+        slice.PublishMessage(
+            new CloseTodoTask(slice.Snapshot.Id),
+            new MessageMetadata(slice.TenantId)
+            {
+                CorrelationId = correlationId,
+                CausationId = slice.Events().Last().Id.ToString()
+            });
+
+        return ValueTask.CompletedTask;
+    }
+}
+```
+
+What the override actually does inside Wolverine:
+
+| `MessageMetadata` field | Effect on the outgoing envelope | Effect on the receiving handler |
+|---|---|---|
+| `TenantId` | `envelope.TenantId` (also drives transport routing for tenanted endpoints) | `IMessageContext.TenantId`, scoped `DbContext`/`IDocumentSession` tenant |
+| `CorrelationId` | `envelope.CorrelationId` (passes through `MessageBus.TrackEnvelopeCorrelation` without being clobbered) | `IMessageContext.CorrelationId`, `session.CorrelationId` (Marten) |
+| `CausationId` | Stored as `envelope.Headers["causation-id"]` because Wolverine's native `Envelope.ConversationId` is `Guid`-typed and would lose information | `session.CausationId` (Marten) — `OutboxedSessionFactory` reads the header in preference to the default `ConversationId.ToString()` chain |
+| `Headers` | Each entry copied onto `envelope.Headers` (string-converted) | Available via `envelope.Headers` on the receiving side |
+
+The metadata-less form (`slice.PublishMessage(message)`) is unchanged and remains the right call when you don't need per-message overrides.
+
+### When you actually need this
+
+The motivating case is a "todo-list" projection: Event A opens a task keyed by some correlation id, Event B (emitted by the handler of a side-effect command) closes the task with the same key. Without the metadata override, Event B carries a null correlation id and the close never matches.
+
+The same shape applies to anywhere you want a chain of derived events/commands to share a business-meaningful identifier — distributed tracing keyed on `correlation-id`, idempotency keys, tenant-scoped audit threading, etc. Pick the metadata fields that match your business need; you don't have to set all of them.
