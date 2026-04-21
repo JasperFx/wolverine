@@ -73,7 +73,7 @@ public partial class RavenDbMessageStore
             ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5),
         };
         
-        if (_leaderLock == null)
+        if (_scheduledLock == null)
         {
             var result = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, newLock, 0), token: token);
             if (result.Successful)
@@ -101,6 +101,7 @@ public partial class RavenDbMessageStore
     {
         if (_scheduledLock == null) return;
         await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, _lastScheduledLockIndex));
+        _scheduledLock = null;
     }
 }
 
