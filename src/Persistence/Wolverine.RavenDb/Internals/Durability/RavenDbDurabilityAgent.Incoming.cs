@@ -22,8 +22,9 @@ public partial class RavenDbDurabilityAgent
             foreach (var listener in listeners.Where(x => x.ReceivedAt != null))
             {
                 var receivedAt = listener.ReceivedAt!;
-                var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt)!;
-                if (circuit.Status != ListeningStatus.Accepting)
+                // circuit can be null when the URI isn't serviced by this node
+                var circuit = _runtime.Endpoints.FindListenerCircuit(receivedAt);
+                if (circuit == null || circuit.Status != ListeningStatus.Accepting)
                 {
                     continue;
                 }
