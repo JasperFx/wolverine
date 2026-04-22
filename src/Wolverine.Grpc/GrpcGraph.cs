@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.ServiceModel;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -11,13 +12,14 @@ using Wolverine.Runtime;
 namespace Wolverine.Grpc;
 
 /// <summary>
-///     Discovers proto-first Wolverine gRPC services, builds <see cref="GrpcServiceChain"/> instances
-///     for them, and plugs their generated wrapper types into the Wolverine code-generation pipeline.
+///     Discovers proto-first and code-first Wolverine gRPC services, builds chain instances for them,
+///     and plugs their generated wrapper types into the Wolverine code-generation pipeline.
 ///     Mirrors the role of <c>HandlerGraph</c> / <c>HttpGraph</c> for their respective chain types.
 /// </summary>
 public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 {
     private readonly List<GrpcServiceChain> _chains = [];
+    private readonly List<CodeFirstGrpcServiceChain> _codeFirstChains = [];
     private readonly WolverineOptions _options;
 
     public GrpcGraph(WolverineOptions options, IServiceContainer container)
@@ -34,13 +36,17 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 
     public string ChildNamespace => "WolverineHandlers";
 
+    /// <summary>Proto-first service chains (abstract stub → generated wrapper).</summary>
     public IReadOnlyList<GrpcServiceChain> Chains => _chains;
 
-    public IReadOnlyList<ICodeFile> BuildFiles() => _chains;
+    /// <summary>Code-first service chains (<c>[ServiceContract]</c> interface → generated implementation).</summary>
+    public IReadOnlyList<CodeFirstGrpcServiceChain> CodeFirstChains => _codeFirstChains;
+
+    public IReadOnlyList<ICodeFile> BuildFiles() => [.._chains, .._codeFirstChains];
 
     /// <summary>
-    ///     Scans the assemblies already registered with Wolverine and builds a
-    ///     <see cref="GrpcServiceChain"/> for every discovered proto-first stub.
+    ///     Scans the assemblies already registered with Wolverine and builds chains for every
+    ///     discovered proto-first stub and code-first service contract.
     /// </summary>
     public void DiscoverServices()
     {
@@ -60,6 +66,18 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         }
 
         DisambiguateCollidingTypeNames(_chains);
+
+        var contracts = FindCodeFirstServiceContracts(_options.Assemblies).ToArray();
+        logger.LogInformation(
+            "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies}",
+            contracts.Length,
+            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
+
+        foreach (var contract in contracts)
+        {
+            CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
+            _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract));
+        }
     }
 
     /// <summary>
@@ -162,11 +180,34 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         return GrpcServiceChain.FindProtoServiceBase(type) != null;
     }
 
+    /// <summary>
+    ///     A code-first service contract is an interface annotated with both
+    ///     <see cref="ServiceContractAttribute"/> (protobuf-net.Grpc) and
+    ///     <see cref="WolverineGrpcServiceAttribute"/>. Wolverine generates a concrete implementation
+    ///     at startup that forwards each method to the message bus.
+    /// </summary>
+    public static IEnumerable<Type> FindCodeFirstServiceContracts(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies
+            .SelectMany(a => a.GetExportedTypes())
+            .Where(IsCodeFirstServiceContract);
+    }
+
+    private static bool IsCodeFirstServiceContract(Type type)
+    {
+        if (!type.IsInterface) return false;
+        if (type.IsGenericTypeDefinition) return false;
+        if (!type.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false)) return false;
+
+        return type.IsDefined(typeof(ServiceContractAttribute), inherit: false);
+    }
+
     public OptionsDescription ToDescription()
     {
         var description = new OptionsDescription(this);
-        var list = description.AddChildSet("Services");
-        list.SummaryColumns = ["StubType", "ProtoServiceBase", "UnaryMethodCount"];
+
+        var protoList = description.AddChildSet("Proto-First Services");
+        protoList.SummaryColumns = ["StubType", "ProtoServiceBase", "UnaryMethodCount"];
 
         foreach (var chain in _chains)
         {
@@ -174,7 +215,19 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
             row.AddValue("StubType", chain.StubType.FullNameInCode());
             row.AddValue("ProtoServiceBase", chain.ProtoServiceBase.FullNameInCode());
             row.AddValue("UnaryMethodCount", chain.UnaryMethods.Count);
-            list.Rows.Add(row);
+            protoList.Rows.Add(row);
+        }
+
+        var codeFirstList = description.AddChildSet("Code-First Services");
+        codeFirstList.SummaryColumns = ["ContractType", "GeneratedTypeName", "MethodCount"];
+
+        foreach (var chain in _codeFirstChains)
+        {
+            var row = new OptionsDescription(chain);
+            row.AddValue("ContractType", chain.ServiceContractType.FullNameInCode());
+            row.AddValue("GeneratedTypeName", chain.TypeName);
+            row.AddValue("MethodCount", chain.SupportedMethods.Count);
+            codeFirstList.Rows.Add(row);
         }
 
         return description;

@@ -139,17 +139,17 @@ public static class WolverineGrpcExtensions
 
     private static void MapProtoFirstServices(IEndpointRouteBuilder endpoints, IServiceProvider services, GrpcGraph graph)
     {
-        if (graph.Chains.Count == 0)
+        if (graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0)
         {
             graph.DiscoverServices();
         }
 
-        if (graph.Chains.Count == 0) return;
+        if (graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0) return;
 
         var runtime = (WolverineRuntime)services.GetRequiredService<IWolverineRuntime>();
 
         // Register with Options.Parts so CLI diagnostics ('dotnet run -- describe',
-        // 'wolverine-diagnostics describe-routing <MessageType>') list proto-first gRPC services
+        // 'wolverine-diagnostics describe-routing <MessageType>') list gRPC services
         // alongside handlers and HTTP endpoints.
         if (!runtime.Options.Parts.Contains(graph))
         {
@@ -172,6 +172,20 @@ public static class WolverineGrpcExtensions
             {
                 throw new InvalidOperationException(
                     $"Failed to resolve the generated wrapper type for proto-first gRPC stub {chain.StubType.FullNameInCode()}. "
+                    + $"Generated source was:\n{chain.SourceCode}");
+            }
+
+            MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
+        }
+
+        foreach (var chain in graph.CodeFirstChains)
+        {
+            chain.As<ICodeFile>().InitializeSynchronously(graph.Rules, graph, services);
+
+            if (chain.GeneratedType == null)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to resolve the generated implementation type for code-first gRPC contract {chain.ServiceContractType.FullNameInCode()}. "
                     + $"Generated source was:\n{chain.SourceCode}");
             }
 
