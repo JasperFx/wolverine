@@ -437,6 +437,19 @@ partial class Build
             RunSingleProjectOneClassAtATime(leaderElectionTests);
         });
 
+    Target CIRavenDb => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var ravenDbTests = RootDirectory / "src" / "Persistence" / "RavenDbTests" / "RavenDbTests.csproj";
+            var leaderElectionTests = RootDirectory / "src" / "Persistence" / "LeaderElection" / "RavenDbTests.LeaderElection" / "RavenDbTests.LeaderElection.csproj";
+
+            BuildTestProjectsWithFramework("net9.0", ravenDbTests, leaderElectionTests);
+
+            RunSingleProjectOneClassAtATime(ravenDbTests, frameworkOverride: "net9.0");
+            RunSingleProjectOneClassAtATime(leaderElectionTests, frameworkOverride: "net9.0");
+        });
+
     Target CIGrpc => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

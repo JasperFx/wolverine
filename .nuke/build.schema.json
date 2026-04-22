@@ -43,6 +43,7 @@
         "CIPolecat",
         "CIPulsar",
         "CIRabbitMQ",
+        "CIRavenDb",
         "CIRedis",
         "CISqlite",
         "CISqlServer",

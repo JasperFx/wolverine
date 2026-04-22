@@ -88,7 +88,9 @@ partial class Build
 
     /// <summary>
     /// Discovers individual test method names from source files for leader election projects.
-    /// Returns tuples of (className, methodName).
+    /// Returns tuples of (className, methodName). Also follows class inheritance into
+    /// compliance base classes in src/Testing/Wolverine.ComplianceTests/ so that inherited
+    /// [Fact]/[Theory] methods are attributed to the concrete class.
     /// </summary>
     static List<(string ClassName, string MethodName)> DiscoverTestMethods(string projectDir)
     {
@@ -96,12 +98,27 @@ partial class Build
             @"\[\s*(?:Fact|Theory).*?\]\s*(?:\[.*?\]\s*)*public\s+(?:async\s+)?(?:Task|void)\s+(\w+)\s*\(",
             RegexOptions.Compiled | RegexOptions.Singleline);
 
+        var classDeclarationPattern = new Regex(
+            @"(?:public\s+|internal\s+|abstract\s+|sealed\s+)*class\s+(\w+)\s*(?::\s*([\w<>,\s\.]+?))?\s*(?:\{|where\b)",
+            RegexOptions.Compiled);
+
+        var complianceBaseDir = FindComplianceTestsDir(projectDir);
+
         var testFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
                      && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
             .ToList();
 
         var results = new List<(string, string)>();
+        var seen = new HashSet<(string, string)>();
+
+        void AddMethod(string className, string methodName)
+        {
+            if (seen.Add((className, methodName)))
+            {
+                results.Add((className, methodName));
+            }
+        }
 
         foreach (var testFile in testFiles)
         {
@@ -111,10 +128,38 @@ partial class Build
             try
             {
                 var content = File.ReadAllText(testFile);
-                var matches = methodPattern.Matches(content);
-                foreach (Match match in matches)
+
+                foreach (Match match in methodPattern.Matches(content))
                 {
-                    results.Add((className, match.Groups[1].Value));
+                    AddMethod(className, match.Groups[1].Value);
+                }
+
+                if (complianceBaseDir == null) continue;
+
+                foreach (Match classMatch in classDeclarationPattern.Matches(content))
+                {
+                    var baseList = classMatch.Groups[2].Value;
+                    if (string.IsNullOrWhiteSpace(baseList)) continue;
+
+                    var concreteClassName = classMatch.Groups[1].Value;
+                    var baseTypeName = baseList.Split(',')[0].Trim().Split('<')[0].Trim();
+                    if (string.IsNullOrWhiteSpace(baseTypeName)) continue;
+
+                    var baseFile = Path.Combine(complianceBaseDir, baseTypeName + ".cs");
+                    if (!File.Exists(baseFile)) continue;
+
+                    try
+                    {
+                        var baseContent = File.ReadAllText(baseFile);
+                        foreach (Match baseMatch in methodPattern.Matches(baseContent))
+                        {
+                            AddMethod(concreteClassName, baseMatch.Groups[1].Value);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning("Could not read compliance base {File}: {Message}", baseFile, ex.Message);
+                    }
                 }
             }
             catch (Exception ex)
@@ -124,6 +169,23 @@ partial class Build
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Walks up from the project directory to locate src/Testing/Wolverine.ComplianceTests/
+    /// so inherited compliance tests can be discovered.
+    /// </summary>
+    static string? FindComplianceTestsDir(string projectDir)
+    {
+        var current = new DirectoryInfo(projectDir);
+        while (current != null)
+        {
+            var candidate = Path.Combine(current.FullName, "src", "Testing", "Wolverine.ComplianceTests");
+            if (Directory.Exists(candidate)) return candidate;
+            current = current.Parent;
+        }
+
+        return null;
     }
 
     /// <summary>
