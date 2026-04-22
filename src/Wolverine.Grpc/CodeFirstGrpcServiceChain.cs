@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.ServiceModel;
 using JasperFx.CodeGeneration;
@@ -6,6 +5,9 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using ProtoBuf.Grpc;
+using Wolverine.Attributes;
+using Wolverine.Configuration;
+using Wolverine.Persistence;
 
 namespace Wolverine.Grpc;
 
@@ -21,7 +23,8 @@ namespace Wolverine.Grpc;
 ///             <see cref="IMessageBus.StreamAsync{TResponse}"/></item>
 ///     </list>
 /// </summary>
-public class CodeFirstGrpcServiceChain : ICodeFile
+public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, ModifyCodeFirstGrpcServiceChainAttribute>,
+    ICodeFile
 {
     private static readonly PropertyInfo CallContextCancellationTokenProperty =
         typeof(CallContext).GetProperty(nameof(CallContext.CancellationToken))!;
@@ -60,7 +63,37 @@ public class CodeFirstGrpcServiceChain : ICodeFile
         ServiceContractType = serviceContractType ?? throw new ArgumentNullException(nameof(serviceContractType));
         SupportedMethods = DiscoverMethods(serviceContractType).ToArray();
         TypeName = ResolveTypeName(serviceContractType);
+        Description = $"Generated code-first gRPC service implementation for {serviceContractType.FullNameInCode()}";
     }
+
+    // --- Chain<> abstract member implementations ---
+
+    public override string Description { get; }
+    public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
+    public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+    public override Type? InputType() => null;
+    public override bool ShouldFlushOutgoingMessages() => false;
+    public override bool RequiresOutbox() => false;
+    public override MethodCall[] HandlerCalls() => [];
+    public override bool HasAttribute<T>() => ServiceContractType.HasAttribute<T>();
+    public override void ApplyParameterMatching(MethodCall call) { }
+
+    public override bool TryInferMessageIdentity(out PropertyInfo? property)
+    {
+        property = null;
+        return false;
+    }
+
+    public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
+    {
+        variable = default!;
+        return false;
+    }
+
+    public override Frame[] AddStopConditionIfNull(Variable variable) => [];
+    public override void UseForResponse(MethodCall methodCall) { }
+
+    // ---
 
     string ICodeFile.FileName => TypeName;
 
@@ -97,9 +130,16 @@ public class CodeFirstGrpcServiceChain : ICodeFile
                 generatedMethod.Sources.Add(new CallContextCancellationTokenSource(contextArg));
             }
 
+            // Registered middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
+            // because Frame instances hold per-method mutable state (Next pointer, variable bindings).
+            foreach (var frame in CloneFrames(Middleware))
+                generatedMethod.Frames.Add(frame);
+
             switch (rpc.Kind)
             {
                 case CodeFirstMethodKind.Unary:
+                    if (Postprocessors.Count > 0)
+                        generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardCodeFirstUnaryFrame(rpc.Method, busField));
                     break;
 
@@ -107,6 +147,10 @@ public class CodeFirstGrpcServiceChain : ICodeFile
                     generatedMethod.Frames.Add(new ForwardCodeFirstServerStreamFrame(rpc.Method, busField));
                     break;
             }
+
+            // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
+            foreach (var frame in CloneFrames(Postprocessors))
+                generatedMethod.Frames.Add(frame);
         }
     }
 
@@ -120,12 +164,32 @@ public class CodeFirstGrpcServiceChain : ICodeFile
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        Debug.WriteLine(_generatedType?.SourceCode);
-
         _generatedRuntimeType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
                                 ?? assembly.GetTypes().FirstOrDefault(x => x.Name == TypeName);
 
         return _generatedRuntimeType != null;
+    }
+
+    /// <summary>
+    ///     Reconstructs fresh <see cref="Frame"/> instances from <paramref name="source"/> so that
+    ///     the same middleware registration can be woven into each of the N generated RPC methods
+    ///     independently. Frame instances carry per-method mutable state (<c>Next</c> pointer, variable
+    ///     bindings) and cannot be shared across method bodies — each method needs its own clones.
+    ///     Supports <see cref="ConstructorFrame"/> (non-static middleware) and <see cref="MethodCall"/>
+    ///     (static or instance method calls), which are the two types <see cref="MiddlewarePolicy"/>
+    ///     produces. Unknown frame types are added as-is (best-effort).
+    /// </summary>
+    internal static IEnumerable<Frame> CloneFrames(IEnumerable<Frame> source)
+    {
+        foreach (var frame in source)
+        {
+            yield return frame switch
+            {
+                ConstructorFrame cf => new ConstructorFrame(cf.BuiltType, cf.Ctor) { Mode = cf.Mode },
+                MethodCall mc => new MethodCall(mc.HandlerType, mc.Method),
+                _ => frame
+            };
+        }
     }
 
     /// <summary>
@@ -315,9 +379,20 @@ internal sealed class ForwardCodeFirstUnaryFrame : SyncFrame
         var requestName = parameters[0].Name ?? "arg0";
         var responseType = _rpc.ReturnType.GetGenericArguments()[0];
 
-        writer.Write(
-            $"return {_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {_cancellationToken!.Usage});");
-        Next?.GenerateCode(method, writer);
+        var busInvoke =
+            $"{_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {_cancellationToken!.Usage})";
+
+        if (Next == null)
+        {
+            writer.Write($"return {busInvoke};");
+        }
+        else
+        {
+            // After-frames are present — await so they can run before the response is returned.
+            writer.Write($"var result = await {busInvoke};");
+            Next.GenerateCode(method, writer);
+            writer.Write("return result;");
+        }
     }
 }
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using Grpc.Core;
 using JasperFx;
@@ -226,6 +225,11 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             // rather than a single T — per-call middleware is not woven for bidi methods.
             if (rpc.Kind != GrpcMethodKind.BidirectionalStreaming)
             {
+                // Registered middleware befores (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Middleware))
+                    generatedMethod.Frames.Add(frame);
+
+                // Inline before-hooks declared directly on the stub class.
                 foreach (var before in befores)
                 {
                     var call = new MethodCall(StubType, before);
@@ -240,7 +244,7 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             switch (rpc.Kind)
             {
                 case GrpcMethodKind.Unary:
-                    if (afters.Count > 0)
+                    if (afters.Count > 0 || Postprocessors.Count > 0)
                         generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField));
                     break;
@@ -258,8 +262,13 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
             if (rpc.Kind != GrpcMethodKind.BidirectionalStreaming)
             {
+                // Inline after-hooks declared directly on the stub class.
                 foreach (var after in afters)
                     generatedMethod.Frames.Add(new MethodCall(StubType, after));
+
+                // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Postprocessors))
+                    generatedMethod.Frames.Add(frame);
             }
         }
     }
@@ -274,8 +283,6 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        Debug.WriteLine(_generatedType?.SourceCode);
-
         _generatedRuntimeType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
                                 ?? assembly.GetTypes().FirstOrDefault(x => x.Name == TypeName);
 

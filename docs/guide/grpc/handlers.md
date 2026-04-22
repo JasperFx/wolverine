@@ -181,7 +181,7 @@ messaging handler pipeline, register it via `AddWolverineGrpc`:
 ```csharp
 builder.Services.AddWolverineGrpc(grpc =>
 {
-    // Applied to every proto-first and hand-written gRPC chain at codegen time.
+    // Applied to every gRPC chain (proto-first, code-first generated, hand-written) at codegen time.
     grpc.AddMiddleware<GrpcAuthMiddleware>();
 
     // Narrow to a single chain kind with the optional filter:

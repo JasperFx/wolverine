@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.ServiceModel;
 using Grpc.Core;
@@ -156,6 +155,10 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
             // request type — a Validate(OrderRequest) must not fire on an InvoiceRequest RPC method.
             if (rpc.Kind != HandWrittenMethodKind.BidirectionalStreaming)
             {
+                // Registered middleware befores (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Middleware))
+                    generatedMethod.Frames.Add(frame);
+
                 var rpcRequestType = rpc.Method.GetParameters()[0].ParameterType;
 
                 foreach (var before in befores)
@@ -171,7 +174,7 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
                 }
             }
 
-            var hasAfters = afters.Count > 0 && rpc.Kind == HandWrittenMethodKind.Unary;
+            var hasAfters = (afters.Count > 0 || Postprocessors.Count > 0) && rpc.Kind == HandWrittenMethodKind.Unary;
             if (hasAfters)
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
 
@@ -181,6 +184,10 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
             {
                 foreach (var after in afters)
                     generatedMethod.Frames.Add(new MethodCall(ServiceClassType, after));
+
+                // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Postprocessors))
+                    generatedMethod.Frames.Add(frame);
             }
         }
     }
@@ -195,8 +202,6 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        Debug.WriteLine(_generatedType?.SourceCode);
-
         _generatedRuntimeType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
                                 ?? assembly.GetTypes().FirstOrDefault(x => x.Name == TypeName);
 

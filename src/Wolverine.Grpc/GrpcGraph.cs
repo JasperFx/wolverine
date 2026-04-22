@@ -98,8 +98,7 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         }
 
         // Apply policy-registered middleware and IChainPolicy implementations.
-        // CodeFirstGrpcServiceChain does not yet extend Chain<> so it is excluded here (P3).
-        var chainableChains = (IReadOnlyList<IChain>)[.._chains, .._handWrittenChains];
+        var chainableChains = (IReadOnlyList<IChain>)[.._chains, .._codeFirstChains, .._handWrittenChains];
 
         grpcOptions.Middleware.Apply(chainableChains, Rules, Container);
 
