@@ -20,6 +20,7 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 {
     private readonly List<GrpcServiceChain> _chains = [];
     private readonly List<CodeFirstGrpcServiceChain> _codeFirstChains = [];
+    private readonly List<HandWrittenGrpcServiceChain> _handWrittenChains = [];
     private readonly WolverineOptions _options;
 
     public GrpcGraph(WolverineOptions options, IServiceContainer container)
@@ -42,7 +43,10 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
     /// <summary>Code-first service chains (<c>[ServiceContract]</c> interface → generated implementation).</summary>
     public IReadOnlyList<CodeFirstGrpcServiceChain> CodeFirstChains => _codeFirstChains;
 
-    public IReadOnlyList<ICodeFile> BuildFiles() => [.._chains, .._codeFirstChains];
+    /// <summary>Hand-written service chains (concrete service class → generated delegation wrapper).</summary>
+    public IReadOnlyList<HandWrittenGrpcServiceChain> HandWrittenChains => _handWrittenChains;
+
+    public IReadOnlyList<ICodeFile> BuildFiles() => [.._chains, .._codeFirstChains, .._handWrittenChains];
 
     /// <summary>
     ///     Scans the assemblies already registered with Wolverine and builds chains for every
@@ -77,6 +81,17 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         {
             CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
             _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract));
+        }
+
+        var handWritten = FindHandWrittenServiceClasses(_options.Assemblies).ToArray();
+        logger.LogInformation(
+            "Found {Count} hand-written Wolverine gRPC service classes in assemblies {Assemblies}",
+            handWritten.Length,
+            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
+
+        foreach (var serviceClass in handWritten)
+        {
+            _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
         }
     }
 
@@ -202,6 +217,44 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         return type.IsDefined(typeof(ServiceContractAttribute), inherit: false);
     }
 
+    /// <summary>
+    ///     A hand-written service class is a concrete, non-abstract type that matches the code-first
+    ///     discovery predicate (name ends in <c>GrpcService</c> or carries
+    ///     <see cref="WolverineGrpcServiceAttribute"/>) AND implements at least one
+    ///     <c>[ServiceContract]</c> interface. Classes whose service contract interface is itself
+    ///     annotated with <see cref="WolverineGrpcServiceAttribute"/> are excluded — those are handled
+    ///     by the <see cref="CodeFirstGrpcServiceChain"/> generated-implementation path instead.
+    /// </summary>
+    public static IEnumerable<Type> FindHandWrittenServiceClasses(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies
+            .SelectMany(a => a.GetExportedTypes())
+            .Where(IsHandWrittenServiceClass);
+    }
+
+    private static bool IsHandWrittenServiceClass(Type type)
+    {
+        if (!type.IsClass || type.IsAbstract) return false;
+        if (type.IsGenericTypeDefinition) return false;
+
+        // Must match the code-first discovery predicate.
+        if (!type.Name.EndsWith("GrpcService", StringComparison.Ordinal)
+            && !type.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false))
+            return false;
+
+        // Must implement a [ServiceContract] interface.
+        var contract = HandWrittenGrpcServiceChain.FindServiceContractInterface(type);
+        if (contract == null) return false;
+
+        // If the contract interface itself carries [WolverineGrpcService], the generated-implementation
+        // path owns this contract — don't also create a hand-written chain for the concrete class.
+        if (contract.IsDefined(typeof(WolverineGrpcServiceAttribute), inherit: false)) return false;
+
+        // Proto-first stubs (abstract classes inheriting a proto base) are handled separately.
+        // Concrete classes with a proto base are caught by AssertNoConcreteProtoStubs.
+        return true;
+    }
+
     public OptionsDescription ToDescription()
     {
         var description = new OptionsDescription(this);
@@ -228,6 +281,19 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
             row.AddValue("GeneratedTypeName", chain.TypeName);
             row.AddValue("MethodCount", chain.SupportedMethods.Count);
             codeFirstList.Rows.Add(row);
+        }
+
+        var handWrittenList = description.AddChildSet("Hand-Written Services");
+        handWrittenList.SummaryColumns = ["ServiceClass", "ContractType", "WrapperTypeName", "MethodCount"];
+
+        foreach (var chain in _handWrittenChains)
+        {
+            var row = new OptionsDescription(chain);
+            row.AddValue("ServiceClass", chain.ServiceClassType.FullNameInCode());
+            row.AddValue("ContractType", chain.ServiceContractType.FullNameInCode());
+            row.AddValue("WrapperTypeName", chain.TypeName);
+            row.AddValue("MethodCount", chain.SupportedMethods.Count);
+            handWrittenList.Rows.Add(row);
         }
 
         return description;

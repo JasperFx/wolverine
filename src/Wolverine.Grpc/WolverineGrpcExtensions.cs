@@ -123,28 +123,36 @@ public static class WolverineGrpcExtensions
         var runtime = (WolverineRuntime)services.GetRequiredService<IWolverineRuntime>();
         var assemblies = runtime.Options.Assemblies;
 
-        foreach (var type in FindCodeFirstServiceTypes(assemblies))
+        // Discover first so hand-written service classes that will receive generated wrappers
+        // are known before the direct-mapping loop runs, avoiding duplicate route registration.
+        var graph = services.GetService<GrpcGraph>();
+        if (graph != null && graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0 &&
+            graph.HandWrittenChains.Count == 0)
+        {
+            graph.DiscoverServices();
+        }
+
+        // Map hand-written classes that have NO generated wrapper directly (i.e. those not
+        // claimed by a HandWrittenGrpcServiceChain in the graph).
+        foreach (var type in FindDirectMappedServiceTypes(assemblies, graph))
         {
             MapGrpcServiceMethod.MakeGenericMethod(type).Invoke(null, [endpoints]);
         }
 
-        var graph = services.GetService<GrpcGraph>();
         if (graph != null)
         {
-            MapProtoFirstServices(endpoints, services, graph);
+            MapGeneratedServices(endpoints, services, graph);
         }
 
         return endpoints;
     }
 
-    private static void MapProtoFirstServices(IEndpointRouteBuilder endpoints, IServiceProvider services, GrpcGraph graph)
+    private static void MapGeneratedServices(IEndpointRouteBuilder endpoints, IServiceProvider services,
+        GrpcGraph graph)
     {
-        if (graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0)
-        {
-            graph.DiscoverServices();
-        }
-
-        if (graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0) return;
+        // Discovery already happened in MapWolverineGrpcServices before this call.
+        if (graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0 &&
+            graph.HandWrittenChains.Count == 0) return;
 
         var runtime = (WolverineRuntime)services.GetRequiredService<IWolverineRuntime>();
 
@@ -191,23 +199,43 @@ public static class WolverineGrpcExtensions
 
             MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
         }
+
+        foreach (var chain in graph.HandWrittenChains)
+        {
+            chain.As<ICodeFile>().InitializeSynchronously(graph.Rules, graph, services);
+
+            if (chain.GeneratedType == null)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to resolve the generated wrapper type for hand-written gRPC service {chain.ServiceClassType.FullNameInCode()}. "
+                    + $"Generated source was:\n{chain.SourceCode}");
+            }
+
+            MapGrpcServiceMethod.MakeGenericMethod(chain.GeneratedType).Invoke(null, [endpoints]);
+        }
     }
 
     /// <summary>
-    /// Returns all concrete, non-abstract types in <paramref name="assemblies"/> that
-    /// qualify as hand-written (code-first / M3) Wolverine-managed gRPC services.
-    /// Proto-first stubs (abstract classes) are excluded and handled separately via <see cref="GrpcGraph"/>.
+    ///     Returns all concrete, non-abstract types in <paramref name="assemblies"/> that qualify as
+    ///     hand-written Wolverine-managed gRPC services. Proto-first stubs (abstract classes) and
+    ///     types that have a <see cref="HandWrittenGrpcServiceChain"/> in <paramref name="graph"/> are
+    ///     excluded — the former are handled by <see cref="GrpcGraph"/>, the latter by the generated
+    ///     wrapper mapping loop.
     /// </summary>
-    public static IEnumerable<Type> FindGrpcServiceTypes(IEnumerable<Assembly> assemblies)
+    public static IEnumerable<Type> FindGrpcServiceTypes(IEnumerable<Assembly> assemblies,
+        GrpcGraph? graph = null)
     {
-        return FindCodeFirstServiceTypes(assemblies);
+        return FindDirectMappedServiceTypes(assemblies, graph);
     }
 
-    private static IEnumerable<Type> FindCodeFirstServiceTypes(IEnumerable<Assembly> assemblies)
+    private static IEnumerable<Type> FindDirectMappedServiceTypes(IEnumerable<Assembly> assemblies,
+        GrpcGraph? graph)
     {
         return assemblies
             .SelectMany(a => a.GetExportedTypes())
-            .Where(t => t.IsClass && !t.IsAbstract && IsCodeFirstGrpcServiceType(t));
+            .Where(t => t.IsClass && !t.IsAbstract
+                        && IsCodeFirstGrpcServiceType(t)
+                        && (graph == null || graph.HandWrittenChains.All(c => c.ServiceClassType != t)));
     }
 
     private static bool IsCodeFirstGrpcServiceType(Type type)

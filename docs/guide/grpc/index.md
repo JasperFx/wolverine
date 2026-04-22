@@ -120,12 +120,6 @@ and comparisons to the official `grpc-dotnet` examples.
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **`WolverineGrpcServiceBase` codegen parity** — the generated-implementation path
-  (`[WolverineGrpcService]` on an interface, described in [Contracts](./contracts)) uses the full
-  JasperFx codegen pipeline with proper DI injection. The older `WolverineGrpcServiceBase` hand-written
-  path still resolves dependencies via service location inside each method. Applying the same
-  codegen treatment to hand-written service classes — so they benefit from Wolverine middleware,
-  the `Validate` hook, and tighter Lamar/MSDI optimization — is deferred.
 - **Hybrid handler shape (HTTP + gRPC + messaging on one type)** — open design question. The
   [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) pattern
   works today for two protocols; extending it to three raises naming and scoping questions
