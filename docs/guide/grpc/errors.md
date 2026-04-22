@@ -16,7 +16,8 @@ through to the default table.
 
 `WolverineGrpcExceptionInterceptor` is registered automatically by `AddWolverineGrpc` and applies to
 both code-first and proto-first services. It translates ordinary .NET exceptions thrown by handlers
-into `RpcException` with the canonical status code from the table below:
+into `RpcException` with the canonical status code from the table below. See
+[Overriding the default table](#overriding-the-default-table) if the defaults don't match your domain model.
 
 | Exception                     | gRPC Status Code        |
 |-------------------------------|-------------------------|
@@ -47,6 +48,31 @@ public static OrderReply Handle(GetOrder request, IOrderStore store)
 
 Throwing `RpcException` directly remains the escape hatch for status codes or trailers not in
 either table.
+
+## Overriding the default table
+
+Call `MapException<TException>(StatusCode)` on `WolverineGrpcOptions` inside `AddWolverineGrpc` to
+register application-specific overrides. User-registered mappings are checked after the opt-in
+`google.rpc.Status` rich-error pipeline and before the built-in AIP-193 table, so they always win
+over the defaults:
+
+```csharp
+builder.Services.AddWolverineGrpc(opts =>
+{
+    // Map a custom domain exception that the default table doesn't know about
+    opts.MapException<OrderNotFoundException>(StatusCode.NotFound);
+
+    // Override a default: treat TimeoutException as ResourceExhausted instead of DeadlineExceeded
+    opts.MapException<TimeoutException>(StatusCode.ResourceExhausted);
+});
+```
+
+Inheritance is respected — a mapping for a base class also matches derived types unless a more
+specific mapping is registered. When multiple registrations target the same exception type, the
+last one wins.
+
+For structured, field-level error payloads (validation failures, `google.rpc.Status` details), see
+the [Rich error details](#rich-error-details-opt-in) section below.
 
 ## Rich error details (opt-in)
 

@@ -98,6 +98,7 @@ and comparisons to the official `grpc-dotnet` examples.
 | `[WolverineGrpcService]`                   | Opt-in marker for classes that don't match the `GrpcService` suffix. |
 | `WolverineGrpcExceptionMapper.Map(ex)`     | The public mapping table — use directly in custom interceptors.   |
 | `WolverineGrpcExceptionInterceptor`        | The registered gRPC interceptor; exposed for diagnostics.         |
+| `opts.MapException<T>(StatusCode)`         | Override the server-side `Exception → StatusCode` mapping for a specific type — see [Error Handling](./errors#overriding-the-default-table). |
 | `opts.UseGrpcRichErrorDetails(...)`        | Opt-in `google.rpc.Status` pipeline — see [Error Handling](./errors). |
 | `opts.UseFluentValidationGrpcErrorDetails()` | Bridge: `ValidationException` → `BadRequest` (from `WolverineFx.FluentValidation.Grpc`). |
 | `IGrpcStatusDetailsProvider`               | Custom provider seam for building `google.rpc.Status` from an exception. |
@@ -114,10 +115,6 @@ and comparisons to the official `grpc-dotnet` examples.
   code-first you can still implement bidi manually in the service by bridging each incoming item
   through `Bus.StreamAsync<TResp>(item, ct)` — see [Streaming](./streaming) for the pattern and the
   [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample.
-- **Exception mapping** of the canonical `Exception → StatusCode` table is not yet user-configurable
-  on the server side (follow-up item). Rich, structured responses are already available — see
-  [Error Handling](./errors). On the client side, `WolverineGrpcClientOptions.MapRpcException`
-  already allows per-client overrides — see [Typed gRPC Clients](./client#per-client-override).
 
 ## Roadmap
 
