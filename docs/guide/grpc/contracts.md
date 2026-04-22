@@ -101,6 +101,13 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 sample demonstrates this end-to-end. See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 
+::: warning Bidirectional streaming is not supported on the generated-implementation path
+The generated implementation recognises **unary** (`Task<TResponse>`) and **server streaming**
+(`IAsyncEnumerable<TResponse>`) method shapes. An interface method with an `IAsyncEnumerable<TRequest>`
+*parameter* (bidirectional streaming) is silently skipped — no startup error, but the method will
+not be mapped. Use a hand-written service class for bidi RPCs on code-first contracts.
+:::
+
 ::: warning No conflict allowed
 `[WolverineGrpcService]` must appear on **either** the interface **or** a concrete implementing
 class — not both. If Wolverine finds the attribute on both, it throws `InvalidOperationException`

@@ -1,11 +1,10 @@
 # Streaming
 
-gRPC has four call shapes: unary, server streaming, client streaming, and bidirectional streaming.
-Wolverine covers **unary**, **server streaming**, and **bidirectional streaming** out of the box.
-**Pure client streaming** (`stream TRequest → TResponse`) doesn't have an adapter yet and will
-fail fast at startup in proto-first mode.
+Wolverine covers **unary**, **server streaming**, and **bidirectional streaming** natively.
+**Pure client streaming** (`stream TRequest → TResponse`) has no adapter yet and fails fast at
+startup in proto-first mode with a clear diagnostic error.
 
-This page covers the shapes that work today, the one that doesn't, and how to cancel cleanly.
+This page covers server and bidirectional streaming in depth, plus cancellation and current gaps.
 
 ## Server streaming (first-class)
 
@@ -52,9 +51,15 @@ public static async IAsyncEnumerable<PongReply> Handle(
 }
 ```
 
-Each `yield return` corresponds to a gRPC message frame on the wire. Back-pressure happens at the
-`WriteAsync` layer — if the client stops reading, `WriteAsync` will suspend, which in turn blocks
-the handler's `MoveNextAsync`, which back-propagates through your `yield return`.
+Each `yield return` is one gRPC message frame. Back-pressure from a slow client propagates
+naturally through the `IAsyncEnumerable<T>` chain — no extra plumbing needed.
+
+::: tip Why `await Task.Yield()` appears in the examples
+A streaming handler that only `yield return`s synchronous values can be compiled by the C# compiler
+into a synchronous state machine, which blocks the calling thread on each item. `await Task.Yield()`
+forces a genuine async yield point and prevents that. You can drop it when your handler already
+awaits real I/O (a database call, an HTTP request, etc.).
+:::
 
 ## Bidirectional streaming
 
@@ -98,15 +103,15 @@ public override async Task Race(
 }
 ```
 
-The handler is an ordinary Wolverine streaming handler:
+The handler shape is identical to server streaming — one request message in, a stream of response
+messages out:
 
 ```csharp
-public static async IAsyncEnumerable<RacePosition> Handle(
+public async IAsyncEnumerable<RacePosition> Handle(
     RacerUpdate update,
     [EnumeratorCancellation] CancellationToken cancellationToken)
 {
-    // compute standings, yield one RacePosition per racer
-    foreach (var position in ComputeStandings(update))
+    foreach (var position in ComputeCurrentStandings(update))
     {
         cancellationToken.ThrowIfCancellationRequested();
         yield return position;
@@ -157,18 +162,13 @@ can affect global response ordering, a saga + outbound messaging stays the bette
 
 ## Cancellation
 
-Cancellation flows top-down from the client to the handler:
-
-1. Client disposes its `AsyncServerStreamingCall<T>` (or cancels the call).
-2. gRPC propagates cancellation via `ServerCallContext.CancellationToken` / `CallContext.CancellationToken`.
-3. The service shim passes that token into `Bus.InvokeAsync` / `Bus.StreamAsync`.
-4. Wolverine threads it through to the handler's `CancellationToken` parameter
-   (`[EnumeratorCancellation]` for streaming).
-
-In practice this means the handler's `cancellationToken.ThrowIfCancellationRequested()` or
-`await someOp(ct)` will trip as soon as the client bails, and
-`OperationCanceledException` is in turn mapped to `StatusCode.Cancelled` by the exception
-interceptor (see [Error Handling](./errors)).
+When a client cancels or disconnects, gRPC sets `ServerCallContext.CancellationToken` /
+`CallContext.CancellationToken`. Wolverine's service shims pass that token into
+`Bus.InvokeAsync` / `Bus.StreamAsync` and thread it through to the handler's `CancellationToken`
+parameter (`[EnumeratorCancellation]` on streaming handlers). Any
+`cancellationToken.ThrowIfCancellationRequested()` or awaited operation in your handler trips
+promptly, and the resulting `OperationCanceledException` maps to `StatusCode.Cancelled`
+automatically (see [Error Handling](./errors)).
 
 ::: warning
 If your handler spawns background work via `Task.Run(...)` without passing the `CancellationToken`,

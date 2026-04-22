@@ -62,9 +62,14 @@ itself doesn't know which of the three invoked it.
 - **Middleware applies identically.** `UseFluentValidation()`, open/generic middleware, saga
   middleware, etc., all run on the gRPC path because Wolverine is invoking the handler through the
   same pipeline it always does.
-- **The transport concerns stay at the edge.** You won't see `RpcException` inside a handler, and
-  you shouldn't throw one there either — throw the domain exception and let the interceptor
-  translate it.
+- **The transport concerns stay at the edge.** You won't see `RpcException` inside a handler.
+
+::: tip Throw domain exceptions, not RpcException
+Throw ordinary .NET exceptions from handlers — `ArgumentException`, `KeyNotFoundException`, your
+own domain types. The interceptor translates them to the right `StatusCode` automatically.
+Throwing `RpcException` directly from a handler does work (it passes through unchanged), but it
+couples the handler to the gRPC transport and prevents it from being reused over messaging or HTTP.
+:::
 
 ## Discovery and codegen
 
@@ -235,20 +240,11 @@ pass as handler and HTTP chain policies.
 
 ## Observability
 
-Wolverine's gRPC adapter preserves `Activity.Current` across the boundary between the ASP.NET Core
-gRPC pipeline and the Wolverine handler pipeline. Concretely:
-
-- ASP.NET Core's hosting diagnostics starts an inbound activity (`Microsoft.AspNetCore.Hosting.HttpRequestIn`)
-  and extracts any W3C `traceparent` header the client sent.
-- The gRPC service method (code-first or proto-first generated wrapper) invokes
-  `IMessageBus.InvokeAsync` / `IMessageBus.StreamAsync` on the same ExecutionContext, so
-  `Activity.Current` is still the hosting activity when Wolverine starts its own handler span.
-- Wolverine's `WolverineTracing.StartExecuting` inherits `Activity.Current` as parent, which means
-  every handler activity lives under the same TraceId as the inbound gRPC request.
-
-The result: a single trace covers the full request, from inbound gRPC to every Wolverine handler it
-invokes, with no additional wiring. If you expose an OpenTelemetry pipeline for other Wolverine
-transports, it will pick up gRPC traffic for free.
+The service shim invokes `IMessageBus` on the same `ExecutionContext` as the inbound gRPC request,
+so `Activity.Current` propagates naturally — every Wolverine handler span becomes a child of the
+ASP.NET Core hosting span. A single trace covers the full call with no extra wiring. If you already
+export an OpenTelemetry pipeline for Wolverine messaging handlers, it picks up gRPC traffic
+automatically.
 
 ### Registering OpenTelemetry
 
