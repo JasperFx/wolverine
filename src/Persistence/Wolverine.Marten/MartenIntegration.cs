@@ -7,6 +7,7 @@ using Marten.Events;
 using Marten.Exceptions;
 using Marten.Internal;
 using Marten.Schema;
+using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Weasel.Core;
@@ -150,7 +151,23 @@ internal class MartenOverrides : IConfigureMarten
     public void Configure(IServiceProvider services, StoreOptions options)
     {
         options.Events.MessageOutbox = new MartenToWolverineOutbox(services);
-        
+
+        // Envelope is Wolverine's operational outbox document. Keep it
+        // single-tenant and unpartitioned regardless of blanket document
+        // policies the user has applied (AllDocumentsAreMultiTenanted or
+        // AllDocumentsAreMultiTenantedWithPartitioning). Without this,
+        // two stores that share a database schema can disagree about
+        // mt_doc_envelope's shape, producing an impossible
+        // "drop partitioning column" migration on the next deploy.
+        //
+        // These per-type alterations on the DocumentMappingBuilder run
+        // AFTER Marten's applyPolicies / applyPostPolicies passes during
+        // DocumentMapping construction, so they reliably win over any
+        // blanket policy the user registered. See GH-2566 / marten#4268.
+        options.Schema.For<Envelope>()
+            .SingleTenanted()
+            .DoNotPartition();
+
         options.Policies.ForAllDocuments(mapping =>
         {
             if (mapping.DocumentType.CanBeCastTo<Saga>())
