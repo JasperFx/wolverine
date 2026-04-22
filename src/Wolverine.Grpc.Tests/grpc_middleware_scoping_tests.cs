@@ -16,6 +16,7 @@ namespace Wolverine.Grpc.Tests;
 ///     <c>[WolverineBefore(MiddlewareScoping.MessageHandlers)]</c> no longer inadvertently attaches
 ///     (the behavior correction introduced alongside the new enum value).
 /// </summary>
+[Collection(GrpcSerialTestsCollection.Name)]
 public class grpc_middleware_scoping_tests
 {
     [Fact]

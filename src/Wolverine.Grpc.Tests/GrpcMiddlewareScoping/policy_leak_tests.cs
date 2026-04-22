@@ -19,6 +19,7 @@ namespace Wolverine.Grpc.Tests.GrpcMiddlewareScoping;
 ///     global <c>IChainPolicy</c> against gRPC chains too), users would suddenly see their
 ///     bus middleware run on every RPC call. Hence the explicit guard test here.
 /// </summary>
+[Collection("GrpcSerialTests")]
 public class policy_leak_tests
 {
     [Fact]

@@ -14,6 +14,7 @@ namespace Wolverine.Grpc.Tests.GrpcMiddlewareScoping;
 ///     Phase-1 codegen will rely on — get this wrong and the eventual weaving will silently
 ///     attach (or skip) the wrong methods.
 /// </summary>
+[Collection("GrpcSerialTests")]
 public class scope_discovery_tests
 {
     [Fact]

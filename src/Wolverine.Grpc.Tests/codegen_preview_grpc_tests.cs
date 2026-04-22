@@ -17,6 +17,7 @@ namespace Wolverine.Grpc.Tests;
 ///     <c>ICodeFileCollection</c> DI seam — only exists when <c>Wolverine.Grpc</c> is referenced,
 ///     so end-to-end coverage lives here rather than in <c>CoreTests</c>.
 /// </summary>
+[Collection(GrpcSerialTestsCollection.Name)]
 public class codegen_preview_grpc_tests
 {
     [Fact]
