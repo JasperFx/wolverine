@@ -28,9 +28,20 @@ public class Bug_4268_inline_side_effects_should_not_unpartition_envelope
     {
         await DropSchemasAsync();
 
+        // Step 1: build the schema under async projections. Even though the
+        // ancillary store applies AllDocumentsAreMultiTenantedWithPartitioning
+        // to every document, Wolverine's Envelope outbox table must be exempt —
+        // otherwise two stores sharing a schema drift apart on its shape and
+        // the next schema diff emits an impossible "drop partitioning column"
+        // migration. See GH-2566 / marten#4268.
         await BuildOriginalAsyncProjectionStorageAsync();
-        (await EnvelopeStorageIsTenantPartitionedAsync()).ShouldBeTrue();
+        (await EnvelopeStorageIsTenantPartitionedAsync()).ShouldBeFalse(
+            "Envelope storage should stay single-tenant / unpartitioned regardless of the store's blanket AllDocumentsAreMultiTenantedWithPartitioning policy");
 
+        // Step 2: flip to inline projections + enable side effects. Without the
+        // fix this threw Marten.Exceptions.MartenSchemaException wrapping
+        // "unique constraint on partitioned table must include all partitioning
+        // columns" on the emitted "alter table ... drop column tenant_id" DDL.
         var exception = await Record.ExceptionAsync(TriggerInlineProjectionSideEffectAsync);
 
         if (exception is not null)
