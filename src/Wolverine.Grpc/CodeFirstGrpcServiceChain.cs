@@ -201,11 +201,10 @@ public class CodeFirstGrpcServiceChain : ICodeFile
     }
 
     /// <summary>
-    ///     Guards against annotating a concrete class with <see cref="WolverineGrpcServiceAttribute"/>
-    ///     at the interface level — the attribute on an interface is the Option C codegen marker, but on
-    ///     a concrete class it is the existing hand-written service marker. Both are valid; a conflict only
-    ///     arises when a concrete class implementing a marked interface is also discovered in the same
-    ///     assembly, which would produce two service registrations for the same contract.
+    ///     Guards against applying <see cref="WolverineGrpcServiceAttribute"/> to both an interface
+    ///     (the code-first codegen marker) and a concrete class that implements it (the hand-written
+    ///     service marker). Both usages are valid independently; a conflict only arises when both are
+    ///     present in the same assembly, which would produce two service registrations for the same contract.
     /// </summary>
     public static void AssertNoConcreteImplementationConflicts(Type serviceContractType,
         IEnumerable<Assembly> assemblies)

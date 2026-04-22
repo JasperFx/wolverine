@@ -82,7 +82,7 @@ and comparisons to the official `grpc-dotnet` examples.
 |--------|-------|--------------|
 | [PingPongWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)                     | Code-first **unary** | `[ServiceContract]` + `WolverineGrpcServiceBase` forwarding to a plain handler |
 | [PingPongWithGrpcStreaming](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpcStreaming)   | Code-first **server streaming** | Handler returning `IAsyncEnumerable<T>`, forwarded via `Bus.StreamAsync<T>` |
-| [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)             | Code-first **zero-boilerplate codegen** | `[WolverineGrpcService]` on an interface — Wolverine generates the service class; no concrete class written |
+| [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)             | Code-first **generated implementation** | `[WolverineGrpcService]` on an interface — Wolverine generates the service class; no concrete class written |
 | [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
 | [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
 | [GreeterWithGrpcErrors](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterWithGrpcErrors)           | Code-first **rich error details** | FluentValidation → `BadRequest` plus inline `MapException` → `PreconditionFailure`, with a client that unpacks both |
@@ -97,7 +97,7 @@ and comparisons to the official `grpc-dotnet` examples.
 | `AddWolverineGrpc()`                       | Registers the interceptor, proto-first discovery graph, and codegen pipeline. |
 | `MapWolverineGrpcServices()`               | Discovers and maps all gRPC services (code-first and proto-first). |
 | `WolverineGrpcServiceBase`                 | Optional base class exposing an `IMessageBus` property `Bus`.     |
-| `[WolverineGrpcService]`                   | On an **interface**: triggers zero-boilerplate codegen — Wolverine generates the concrete service class. On a **class**: opt-in marker for concrete code-first services and abstract proto-first stubs that don't match the `GrpcService` suffix. |
+| `[WolverineGrpcService]`                   | On an **interface**: Wolverine generates the concrete service class, reducing hand-written boilerplate. On a **class**: opt-in marker for concrete code-first services and abstract proto-first stubs that don't match the `GrpcService` suffix. |
 | `WolverineGrpcExceptionMapper.Map(ex)`     | The public mapping table — use directly in custom interceptors.   |
 | `WolverineGrpcExceptionInterceptor`        | The registered gRPC interceptor; exposed for diagnostics.         |
 | `opts.MapException<T>(StatusCode)`         | Override the server-side `Exception → StatusCode` mapping for a specific type — see [Error Handling](./errors#overriding-the-default-table). |
@@ -120,7 +120,7 @@ and comparisons to the official `grpc-dotnet` examples.
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **`WolverineGrpcServiceBase` codegen parity** — the zero-boilerplate interface path
+- **`WolverineGrpcServiceBase` codegen parity** — the generated-implementation path
   (`[WolverineGrpcService]` on an interface, described in [Contracts](./contracts)) uses the full
   JasperFx codegen pipeline with proper DI injection. The older `WolverineGrpcServiceBase` hand-written
   path still resolves dependencies via service location inside each method. Applying the same

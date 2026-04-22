@@ -48,7 +48,7 @@ public sealed class WolverineGrpcOptions
     /// <summary>
     ///     Override the server-side <see cref="StatusCode"/> returned for a specific exception type.
     ///     Consulted after the opt-in <c>google.rpc.Status</c> rich-error pipeline and before the
-    ///     built-in AIP-193 default table, so application-specific mappings always win over the defaults.
+    ///     built-in default table, so application-specific mappings always win over the defaults.
     ///     Inheritance is respected: a mapping for <c>MyBaseException</c> also matches
     ///     <c>MyDerivedException</c> unless a more-specific mapping exists.
     /// </summary>
@@ -77,7 +77,7 @@ public sealed class WolverineGrpcOptions
     ///     Returns the user-registered <see cref="StatusCode"/> for the given exception, walking the
     ///     exception's inheritance chain from most-derived to least-derived. Later registrations win
     ///     over earlier ones for the same type. Returns <c>null</c> when no mapping matches so the
-    ///     caller can fall through to the built-in AIP-193 table.
+    ///     caller can fall through to the built-in default table.
     /// </summary>
     internal StatusCode? TryMapException(Exception exception)
     {

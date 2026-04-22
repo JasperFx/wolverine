@@ -223,7 +223,7 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
             // Before-frames (including Validate short-circuit) require a concrete TRequest
             // in scope when the method begins. Bidi methods start with an IAsyncStreamReader<T>
-            // rather than a single T — per-call middleware is not woven for them in this release.
+            // rather than a single T — per-call middleware is not woven for bidi methods.
             if (rpc.Kind != GrpcMethodKind.BidirectionalStreaming)
             {
                 foreach (var before in befores)

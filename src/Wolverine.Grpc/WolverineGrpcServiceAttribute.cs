@@ -9,9 +9,9 @@ namespace Wolverine.Grpc;
 ///     proto-first stubs to trigger Wolverine's code-generation pipeline.
 ///   </item>
 ///   <item>
-///     On a <b><c>[ServiceContract]</c> interface</b>: activates Option C code-first codegen —
-///     Wolverine generates a concrete implementation of the interface at startup, forwarding each
-///     method to the Wolverine message bus. No hand-written service class is required.
+///     On a <b><c>[ServiceContract]</c> interface</b>: Wolverine generates a concrete implementation
+///     of the interface at startup, forwarding each method to the Wolverine message bus.
+///     No hand-written service class is required.
 ///   </item>
 /// </list>
 /// </summary>

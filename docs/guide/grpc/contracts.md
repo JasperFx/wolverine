@@ -26,12 +26,12 @@ scroll between them and compare.
 A common pragmatic split: **code-first for internal service-to-service calls** where both ends
 always deploy together, **proto-first for anything the outside world consumes**.
 
-## Code-first codegen (zero-boilerplate)
+## Code-first codegen (generated implementation)
 
-The recommended approach for new code-first services: apply `[WolverineGrpcService]` to the
-**interface** itself alongside `[ServiceContract]`. Wolverine discovers the interface at startup,
-generates a concrete implementation class (`{ServiceName}GrpcHandler`) that injects `IMessageBus`,
-and maps it — no service class is written by hand.
+Applying `[WolverineGrpcService]` to the **interface** itself alongside `[ServiceContract]` lets
+Wolverine generate the concrete implementation for you. Wolverine discovers the interface at startup,
+emits `{ServiceName}GrpcHandler` that injects `IMessageBus`, and maps it — no service class to write
+or maintain.
 
 ```csharp
 [ServiceContract]
@@ -99,7 +99,7 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
 ```
 
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
-sample demonstrates this end-to-end. See [Samples](./samples#greetercodeFirstgrpc) for a walkthrough.
+sample demonstrates this end-to-end. See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 
 ::: warning No conflict allowed
 `[WolverineGrpcService]` must appear on **either** the interface **or** a concrete implementing
@@ -173,8 +173,8 @@ type. Proto-first handlers must live on separate classes, not on the stub itself
 ## Server streaming
 
 Same handler shape on both sides — `IAsyncEnumerable<T>` plus `[EnumeratorCancellation]`. The
-difference is purely in how the contract is declared. For the zero-boilerplate codegen path, the
-interface method simply returns `IAsyncEnumerable<T>` — see the [Code-first codegen](#code-first-codegen-zero-boilerplate)
+difference is purely in how the contract is declared. For the generated-implementation path, the
+interface method simply returns `IAsyncEnumerable<T>` — see the [Code-first codegen](#code-first-codegen-generated-implementation)
 section above.
 
 ### Code-first (hand-written service class)

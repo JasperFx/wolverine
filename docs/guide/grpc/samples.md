@@ -23,7 +23,7 @@ changes is whether your business code knows about gRPC.
 |---|---|---|---|
 | [PingPongWithGrpc](#pingpongwithgrpc)                     | Unary                | Code-first (hand-written)  | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [PingPongWithGrpcStreaming](#pingpongwithgrpcstreaming)   | Server streaming     | Code-first (hand-written)  | [Counter](https://github.com/grpc/grpc-dotnet/tree/master/examples#counter) |
-| [GreeterCodeFirstGrpc](#greetercodeFirstgrpc)             | Unary + server streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
+| [GreeterCodeFirstGrpc](#greetercodefirstgrpc)             | Unary + server streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
 | [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [RacerWithGrpc](#racerwithgrpc)                           | Bidirectional streaming | Code-first (hand-written) | [Racer](https://github.com/grpc/grpc-dotnet/tree/master/examples#racer) |
 | [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first (hand-written) | (no direct equivalent — closest is Greeter + a custom interceptor) |
@@ -92,7 +92,7 @@ for testing or for non-gRPC consumers.
 Layout: [`src/Samples/GreeterCodeFirstGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 with three projects — `Messages`, `Server`, `Client`.
 
-The zero-boilerplate codegen showcase. The only artifacts in the server project are handlers.
+The generated-implementation showcase. The only artifacts in the server project are handlers.
 No concrete service class is written — `[WolverineGrpcService]` on the interface in `Messages`
 is the only instruction Wolverine needs:
 
@@ -121,10 +121,6 @@ builder.Services.AddCodeFirstGrpc();
 builder.Services.AddWolverineGrpc();
 ```
 
-**What to copy**: annotate the `[ServiceContract]` interface with `[WolverineGrpcService]` and add
-`opts.Discovery.IncludeAssembly(...)` when the interface lives in a shared project. The rest is
-just Wolverine handlers.
-
 ### Compared to grpc-dotnet's Coder
 
 grpc-dotnet's **Coder** example is also code-first (protobuf-net.Grpc), but the service author
@@ -138,7 +134,7 @@ official example.
 Layout: [`src/Samples/ProgressTrackerWithGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProgressTrackerWithGrpc)
 with three projects — `Messages`, `Server`, `Client`.
 
-A realistic server-streaming sample built on the zero-boilerplate codegen path. The client submits
+A realistic server-streaming sample built on the generated-implementation path. The client submits
 a job description; the server streams back one `JobProgress` update per completed step. The handler
 simulates work with a configurable per-step delay and yields progress as it goes:
 
@@ -186,8 +182,6 @@ catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled)
     Console.WriteLine("  Job cancelled by client.");
 }
 ```
-
-**What to copy**: `IAsyncEnumerable<T>` + `[EnumeratorCancellation]` in the handler, `await Task.Delay(..., cancellationToken)` for cooperative cancellation, and the `RpcException(Cancelled)` catch on the client side. Cancellation from the client propagates through `CallContext.CancellationToken` all the way to the handler's token without any extra wiring.
 
 ### Compared to grpc-dotnet's Progressor
 
