@@ -202,13 +202,21 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
         var busField = new InjectedField(typeof(IMessageBus), "bus");
         _generatedType.AllInjectedFields.Add(busField);
 
+        var befores = DiscoveredBefores;
+        var afters = DiscoveredAfters;
+
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
 
+            foreach (var before in befores)
+                generatedMethod.Frames.Add(new MethodCall(StubType, before));
+
             switch (rpc.Kind)
             {
                 case GrpcMethodKind.Unary:
+                    if (afters.Count > 0)
+                        generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField));
                     break;
 
@@ -217,6 +225,9 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                     generatedMethod.Frames.Add(new ForwardServerStreamToMessageBusFrame(rpc.Method, busField));
                     break;
             }
+
+            foreach (var after in afters)
+                generatedMethod.Frames.Add(new MethodCall(StubType, after));
         }
     }
 
@@ -456,11 +467,21 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
         var requestName = ParameterName(parameters, 0);
         var contextName = ParameterName(parameters, 1);
         var responseType = _rpc.ReturnType.GetGenericArguments()[0];
+        var cancellation = $"{contextName}.{nameof(ServerCallContext.CancellationToken)}";
+        var busInvoke =
+            $"{_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {cancellation})";
 
-        writer.Write(
-            $"return {_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {contextName}.{nameof(ServerCallContext.CancellationToken)});");
-
-        Next?.GenerateCode(method, writer);
+        if (Next == null)
+        {
+            writer.Write($"return {busInvoke};");
+        }
+        else
+        {
+            // After-frames are present — await so they can run before the return.
+            writer.Write($"var result = await {busInvoke};");
+            Next.GenerateCode(method, writer);
+            writer.Write("return result;");
+        }
     }
 
     // Grpc.Tools always emits parameter names, but reflection over optimized assemblies can return null.

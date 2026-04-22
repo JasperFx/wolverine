@@ -118,23 +118,12 @@ and comparisons to the official `grpc-dotnet` examples.
   on the server side (follow-up item). Rich, structured responses are already available — see
   [Error Handling](./errors). On the client side, `WolverineGrpcClientOptions.MapRpcException`
   already allows per-client overrides — see [Typed gRPC Clients](./client#per-client-override).
-- **`MiddlewareScoping.Grpc` middleware** — the enum value ships and is honored by Wolverine's
-  discovery primitives, but no code path yet *weaves* `[WolverineBefore(MiddlewareScoping.Grpc)]`
-  / `[WolverineAfter(MiddlewareScoping.Grpc)]` methods into the generated gRPC service wrappers.
-  The attribute is safe to apply — it compiles, it is correctly filtered away from message-handler
-  and HTTP chains, and it will start firing once the codegen path (tracked as M15) lands — but
-  today nothing runs at RPC time. Until then, middleware that needs to execute on gRPC calls
-  should live in a custom gRPC interceptor rather than rely on the attribute or on
-  `services.AddWolverineGrpc(g => g.AddMiddleware<T>())` (both take effect together in M15).
 
 ## Roadmap
 
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **`MiddlewareScoping.Grpc` codegen weaving (M15)** — attribute-based middleware on gRPC stubs
-  (see Current Limitations above). Phase 0 landed the discovery + options surface; Phase 1 will
-  wire execution into the generated `GrpcServiceChain` wrappers.
 - **`Validate` convention → `Status?`** — HTTP handlers already support an opt-in `Validate` method
   whose non-null return short-circuits the call. The gRPC equivalent would return
   `Grpc.Core.Status?` (or a richer `google.rpc.Status`) so a handler could express "this call is
