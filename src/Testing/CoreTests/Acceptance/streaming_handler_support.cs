@@ -99,7 +99,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
         await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(3)))
@@ -118,7 +118,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
         await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(0)))
@@ -136,7 +136,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         using var cts = new CancellationTokenSource();
         var count = 0;
@@ -187,7 +187,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -218,7 +218,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
@@ -240,7 +240,7 @@ public class streaming_handler_support
             .UseWolverine()
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         var options = new DeliveryOptions();
 
         var items = new List<StreamItem>();
