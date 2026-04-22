@@ -41,7 +41,8 @@ public class policy_leak_tests
                 .StartAsync();
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
             var chain = graph.Chains.Single(c => c.StubType == typeof(GreeterMiddlewareTestStub));
 
             var options = host.Services.GetRequiredService<WolverineOptions>();

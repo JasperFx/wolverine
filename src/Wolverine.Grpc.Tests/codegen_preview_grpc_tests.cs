@@ -43,7 +43,8 @@ public class codegen_preview_grpc_tests
             // services.GetServices<ICodeFileCollection>() reaches it — exactly the seam
             // PreviewGrpcCode walks.
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
             graph.Chains.ShouldNotBeEmpty("the Greeter proto-first stub should be discovered");
 
             var supplemental = host.Services.GetRequiredService<WolverineSupplementalCodeFiles>();
@@ -113,7 +114,8 @@ public class codegen_preview_grpc_tests
                 .StartAsync();
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
 
             var supplemental = host.Services.GetRequiredService<WolverineSupplementalCodeFiles>();
             if (!supplemental.Collections.Contains(graph))

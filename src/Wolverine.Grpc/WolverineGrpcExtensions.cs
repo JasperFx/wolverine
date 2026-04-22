@@ -129,7 +129,8 @@ public static class WolverineGrpcExtensions
         if (graph != null && graph.Chains.Count == 0 && graph.CodeFirstChains.Count == 0 &&
             graph.HandWrittenChains.Count == 0)
         {
-            graph.DiscoverServices();
+            var grpcOptions = services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
         }
 
         // Map hand-written classes that have NO generated wrapper directly (i.e. those not

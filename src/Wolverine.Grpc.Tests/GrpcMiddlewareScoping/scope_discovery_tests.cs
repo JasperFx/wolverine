@@ -119,7 +119,8 @@ public class scope_discovery_tests
                 .StartAsync();
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
 
             return graph.Chains.Single(c => c.StubType == typeof(GreeterMiddlewareTestStub));
         }

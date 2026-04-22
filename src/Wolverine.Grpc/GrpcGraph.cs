@@ -7,6 +7,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
 using Wolverine.Runtime;
 
 namespace Wolverine.Grpc;
@@ -50,9 +51,11 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 
     /// <summary>
     ///     Scans the assemblies already registered with Wolverine and builds chains for every
-    ///     discovered proto-first stub and code-first service contract.
+    ///     discovered proto-first stub and code-first service contract. Applies any middleware
+    ///     types and <see cref="IChainPolicy"/> implementations registered in
+    ///     <paramref name="grpcOptions"/> and in <see cref="WolverineOptions.Policies"/>.
     /// </summary>
-    public void DiscoverServices()
+    public void DiscoverServices(WolverineGrpcOptions grpcOptions)
     {
         var logger = Container.GetInstance<ILogger<GrpcGraph>>();
 
@@ -92,6 +95,17 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         foreach (var serviceClass in handWritten)
         {
             _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+        }
+
+        // Apply policy-registered middleware and IChainPolicy implementations.
+        // CodeFirstGrpcServiceChain does not yet extend Chain<> so it is excluded here (P3).
+        var chainableChains = (IReadOnlyList<IChain>)[.._chains, .._handWrittenChains];
+
+        grpcOptions.Middleware.Apply(chainableChains, Rules, Container);
+
+        foreach (var policy in _options.Policies.OfType<IChainPolicy>())
+        {
+            policy.Apply(chainableChains, Rules, Container);
         }
     }
 
