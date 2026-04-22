@@ -73,7 +73,7 @@ From here, [How gRPC Handlers Work](./handlers) walks through what `MapWolverine
 wires up and why a gRPC handler is just an ordinary Wolverine handler with a thin service shim on top.
 
 ::: tip Runnable Samples
-Six end-to-end samples live under `src/Samples/`. Five are the classic trio shape (server, client,
+Eight end-to-end samples live under `src/Samples/`. Most are the classic trio shape (server, client,
 shared messages); `OrderChainWithGrpc` is a quartet because its proof-point is a chain between two
 Wolverine servers. `dotnet run` them side by side. See [Samples](./samples) for full walkthroughs
 and comparisons to the official `grpc-dotnet` examples.
@@ -82,9 +82,11 @@ and comparisons to the official `grpc-dotnet` examples.
 |--------|-------|--------------|
 | [PingPongWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)                     | Code-first **unary** | `[ServiceContract]` + `WolverineGrpcServiceBase` forwarding to a plain handler |
 | [PingPongWithGrpcStreaming](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpcStreaming)   | Code-first **server streaming** | Handler returning `IAsyncEnumerable<T>`, forwarded via `Bus.StreamAsync<T>` |
+| [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)             | Code-first **zero-boilerplate codegen** | `[WolverineGrpcService]` on an interface — Wolverine generates the service class; no concrete class written |
 | [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
 | [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
 | [GreeterWithGrpcErrors](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterWithGrpcErrors)           | Code-first **rich error details** | FluentValidation → `BadRequest` plus inline `MapException` → `PreconditionFailure`, with a client that unpacks both |
+| [ProgressTrackerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProgressTrackerWithGrpc)       | Code-first **server streaming + cancellation** | Realistic job-progress stream: handler yields `JobProgress` updates; client cancels mid-stream |
 | [OrderChainWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderChainWithGrpc)                 | **Wolverine → Wolverine chain** via `AddWolverineGrpcClient<T>()` | Typed client injected into a handler; envelope propagation + typed-exception round-trip with zero user plumbing |
 :::
 
@@ -95,7 +97,7 @@ and comparisons to the official `grpc-dotnet` examples.
 | `AddWolverineGrpc()`                       | Registers the interceptor, proto-first discovery graph, and codegen pipeline. |
 | `MapWolverineGrpcServices()`               | Discovers and maps all gRPC services (code-first and proto-first). |
 | `WolverineGrpcServiceBase`                 | Optional base class exposing an `IMessageBus` property `Bus`.     |
-| `[WolverineGrpcService]`                   | Opt-in marker for classes that don't match the `GrpcService` suffix. |
+| `[WolverineGrpcService]`                   | On an **interface**: triggers zero-boilerplate codegen — Wolverine generates the concrete service class. On a **class**: opt-in marker for concrete code-first services and abstract proto-first stubs that don't match the `GrpcService` suffix. |
 | `WolverineGrpcExceptionMapper.Map(ex)`     | The public mapping table — use directly in custom interceptors.   |
 | `WolverineGrpcExceptionInterceptor`        | The registered gRPC interceptor; exposed for diagnostics.         |
 | `opts.MapException<T>(StatusCode)`         | Override the server-side `Exception → StatusCode` mapping for a specific type — see [Error Handling](./errors#overriding-the-default-table). |
@@ -118,11 +120,12 @@ and comparisons to the official `grpc-dotnet` examples.
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **Code-first codegen parity** — proto-first services flow through a generated `GrpcServiceChain`
-  with the usual JasperFx codegen pipeline; code-first services (the `WolverineGrpcServiceBase` path)
-  currently resolve dependencies via service location inside each method. Generating per-method code
-  files for code-first services — matching the HTTP and message handler story — is the prerequisite
-  for the `Validate` convention above and for tighter Lamar/MSDI optimization.
+- **`WolverineGrpcServiceBase` codegen parity** — the zero-boilerplate interface path
+  (`[WolverineGrpcService]` on an interface, described in [Contracts](./contracts)) uses the full
+  JasperFx codegen pipeline with proper DI injection. The older `WolverineGrpcServiceBase` hand-written
+  path still resolves dependencies via service location inside each method. Applying the same
+  codegen treatment to hand-written service classes — so they benefit from Wolverine middleware,
+  the `Validate` hook, and tighter Lamar/MSDI optimization — is deferred.
 - **Hybrid handler shape (HTTP + gRPC + messaging on one type)** — open design question. The
   [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) pattern
   works today for two protocols; extending it to three raises naming and scoping questions

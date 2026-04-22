@@ -68,11 +68,15 @@ itself doesn't know which of the three invoked it.
 
 ## Discovery and codegen
 
-`MapWolverineGrpcServices()` does two passes when the host starts:
+`MapWolverineGrpcServices()` does three passes when the host starts:
 
-1. **Code-first**: any class whose name ends in `GrpcService` (or that carries
-   `[WolverineGrpcService]`) is picked up and mapped via protobuf-net.Grpc's routing.
-2. **Proto-first**: any abstract class carrying `[WolverineGrpcService]` and subclassing a
+1. **Code-first (hand-written)**: any concrete class whose name ends in `GrpcService` (or that
+   carries `[WolverineGrpcService]`) is picked up and mapped via protobuf-net.Grpc's routing.
+2. **Code-first (generated)**: any **interface** carrying both `[WolverineGrpcService]` and
+   `[ServiceContract]` triggers code generation. Wolverine emits a concrete
+   `{InterfaceNameWithoutLeadingI}GrpcHandler` that implements the interface, injects `IMessageBus`,
+   and forwards each RPC to `InvokeAsync<T>` or `StreamAsync<T>`. No service class is written by hand.
+3. **Proto-first**: any abstract class carrying `[WolverineGrpcService]` and subclassing a
    generated `{Service}Base` triggers codegen. Wolverine emits a concrete
    `{ProtoServiceName}GrpcHandler` that overrides each RPC and forwards to `IMessageBus`.
 

@@ -26,9 +26,94 @@ scroll between them and compare.
 A common pragmatic split: **code-first for internal service-to-service calls** where both ends
 always deploy together, **proto-first for anything the outside world consumes**.
 
+## Code-first codegen (zero-boilerplate)
+
+The recommended approach for new code-first services: apply `[WolverineGrpcService]` to the
+**interface** itself alongside `[ServiceContract]`. Wolverine discovers the interface at startup,
+generates a concrete implementation class (`{ServiceName}GrpcHandler`) that injects `IMessageBus`,
+and maps it — no service class is written by hand.
+
+```csharp
+[ServiceContract]
+[WolverineGrpcService]
+public interface IGreeterCodeFirstService
+{
+    Task<GreetReply> Greet(GreetRequest request, CallContext context = default);
+    IAsyncEnumerable<GreetReply> StreamGreetings(StreamGreetingsRequest request, CallContext context = default);
+}
+
+// That's the whole contract. No service class needed.
+
+// Ordinary Wolverine handlers — no gRPC coupling
+public static class GreeterHandler
+{
+    public static GreetReply Handle(GreetRequest request)
+        => new() { Message = $"Hello, {request.Name}!" };
+
+    public static async IAsyncEnumerable<GreetReply> Handle(
+        StreamGreetingsRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        for (var i = 1; i <= request.Count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return new GreetReply { Message = $"Hello, {request.Name} [{i} of {request.Count}]" };
+            await Task.Yield();
+        }
+    }
+}
+```
+
+Bootstrap is the same as the hand-written path, with one addition: if the annotated interface lives
+in a separate assembly from the server (e.g. a shared `Messages` project), tell Wolverine to scan
+that assembly so `GrpcGraph` can find it:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+    opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
+});
+
+builder.Services.AddCodeFirstGrpc();
+builder.Services.AddWolverineGrpc();
+
+// ...
+app.MapWolverineGrpcServices();
+```
+
+The generated class name follows the convention `{InterfaceNameWithoutLeadingI}GrpcHandler` — so
+`IGreeterCodeFirstService` → `GreeterCodeFirstServiceGrpcHandler`. The generated type implements the
+contract interface and is the class that protobuf-net.Grpc maps as the service endpoint.
+
+On the client side, use the same interface with `channel.CreateGrpcService<T>()` — no stubs, no
+`.proto` file, no code-gen step:
+
+```csharp
+using var channel = GrpcChannel.ForAddress("https://greeter.example");
+var greeter = channel.CreateGrpcService<IGreeterCodeFirstService>();
+
+var reply = await greeter.Greet(new GreetRequest { Name = "Erik" });
+await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { Name = "Erik", Count = 5 }))
+    Console.WriteLine(item.Message);
+```
+
+The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
+sample demonstrates this end-to-end. See [Samples](./samples#greetercodeFirstgrpc) for a walkthrough.
+
+::: warning No conflict allowed
+`[WolverineGrpcService]` must appear on **either** the interface **or** a concrete implementing
+class — not both. If Wolverine finds the attribute on both, it throws `InvalidOperationException`
+at startup with a diagnostic identifying the conflict. This mirrors the proto-first rule that the
+stub must be abstract.
+:::
+
 ## Unary RPC
 
-### Code-first
+### Code-first (hand-written service class)
+
+When you prefer explicit control over the service class — for example to add per-method logging or
+to call multiple downstream services from one RPC — write the class yourself:
 
 ```csharp
 [ServiceContract]
@@ -88,9 +173,11 @@ type. Proto-first handlers must live on separate classes, not on the stub itself
 ## Server streaming
 
 Same handler shape on both sides — `IAsyncEnumerable<T>` plus `[EnumeratorCancellation]`. The
-difference is purely in how the contract is declared.
+difference is purely in how the contract is declared. For the zero-boilerplate codegen path, the
+interface method simply returns `IAsyncEnumerable<T>` — see the [Code-first codegen](#code-first-codegen-zero-boilerplate)
+section above.
 
-### Code-first
+### Code-first (hand-written service class)
 
 Return `IAsyncEnumerable<T>` from the contract method. protobuf-net.Grpc recognises the return type
 as a server-streaming RPC and wires the transport for you.

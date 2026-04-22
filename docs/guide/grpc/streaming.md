@@ -203,5 +203,6 @@ but your detached tasks keep running. Always thread the token through.
 - [Handlers](./handlers) — where the `CancellationToken` comes from and how the service shim forwards.
 - [Error Handling](./errors) — how `OperationCanceledException` becomes `StatusCode.Cancelled` and
   how to attach rich details to errors that terminate a stream.
-- [Samples](./samples) — `PingPongWithGrpcStreaming` and `RacerWithGrpc` are the canonical
-  streaming walkthroughs.
+- [Samples](./samples) — `PingPongWithGrpcStreaming`, `ProgressTrackerWithGrpc`, and `RacerWithGrpc`
+  are the canonical streaming walkthroughs, covering server streaming (hand-written), server
+  streaming (generated + cancellation), and bidirectional streaming respectively.
