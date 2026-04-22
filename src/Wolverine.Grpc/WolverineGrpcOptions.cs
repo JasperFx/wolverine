@@ -20,30 +20,44 @@ public sealed class WolverineGrpcOptions
     private readonly List<(Type ExceptionType, StatusCode StatusCode)> _exceptionMappings = [];
 
     /// <summary>
-    ///     Register a middleware type that will be applied to every <see cref="GrpcServiceChain"/>
-    ///     unless <paramref name="filter"/> excludes it.
+    ///     Register a middleware type that will be applied to all Wolverine-managed gRPC chains
+    ///     (proto-first and hand-written) unless <paramref name="filter"/> excludes a specific chain.
+    ///     Code-first chains (<see cref="CodeFirstGrpcServiceChain"/>) are excluded until they gain
+    ///     full <c>Chain&lt;&gt;</c> parity (P3).
     /// </summary>
-    /// <param name="filter">Optional predicate restricting which gRPC service chains receive the middleware.</param>
+    /// <param name="filter">
+    ///     Optional predicate over <see cref="IChain"/>. When null, middleware is applied to every
+    ///     proto-first (<see cref="GrpcServiceChain"/>) and hand-written
+    ///     (<see cref="HandWrittenGrpcServiceChain"/>) gRPC chain. Pattern-match on the concrete
+    ///     type to filter by chain kind, e.g.
+    ///     <c>c => c is GrpcServiceChain g &amp;&amp; g.ProtoServiceName == "Greeter"</c>.
+    /// </param>
     /// <typeparam name="T">The middleware class (looked up by convention for <c>Before</c>/<c>After</c>/<c>Finally</c> methods).</typeparam>
-    public void AddMiddleware<T>(Func<GrpcServiceChain, bool>? filter = null)
+    public void AddMiddleware<T>(Func<IChain, bool>? filter = null)
         => AddMiddleware(typeof(T), filter);
 
     /// <summary>
-    ///     Register a middleware type that will be applied to every <see cref="GrpcServiceChain"/>
-    ///     unless <paramref name="filter"/> excludes it.
+    ///     Register a middleware type that will be applied to all Wolverine-managed gRPC chains
+    ///     (proto-first and hand-written) unless <paramref name="filter"/> excludes a specific chain.
+    ///     Code-first chains are excluded until P3.
     /// </summary>
     /// <param name="middlewareType">The middleware class.</param>
-    /// <param name="filter">Optional predicate restricting which gRPC service chains receive the middleware.</param>
-    public void AddMiddleware(Type middlewareType, Func<GrpcServiceChain, bool>? filter = null)
+    /// <param name="filter">
+    ///     Optional predicate. When null, defaults to matching every proto-first and hand-written
+    ///     gRPC chain. See <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/> for details.
+    /// </param>
+    public void AddMiddleware(Type middlewareType, Func<IChain, bool>? filter = null)
     {
-        Func<IChain, bool> chainFilter = c => c is GrpcServiceChain;
-        if (filter != null)
-        {
-            chainFilter = c => c is GrpcServiceChain g && filter(g);
-        }
-
-        Middleware.AddType(middlewareType, chainFilter);
+        Middleware.AddType(middlewareType, filter ?? IsGrpcChain);
     }
+
+    /// <summary>
+    ///     Default chain predicate: matches every Wolverine gRPC chain type that participates in
+    ///     the <c>Chain&lt;&gt;</c> middleware pipeline today (proto-first and hand-written).
+    ///     Code-first chains are excluded pending P3 parity.
+    /// </summary>
+    private static bool IsGrpcChain(IChain chain)
+        => chain is GrpcServiceChain or HandWrittenGrpcServiceChain;
 
     /// <summary>
     ///     Override the server-side <see cref="StatusCode"/> returned for a specific exception type.
