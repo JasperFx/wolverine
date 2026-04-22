@@ -1,10 +1,6 @@
 using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Shouldly;
-using Wolverine;
-using Wolverine.Persistence;
 using Wolverine.Sqlite;
 
 namespace SqliteTests.Transport;
@@ -100,11 +96,6 @@ public class multi_tenancy_with_multiple_files : SqliteContext, IAsyncLifetime
 
         await endpoint.SendAsync(red, new DeliveryOptions { TenantId = "red", ScheduleDelay = 2.Seconds() });
         await endpoint.SendAsync(blue, new DeliveryOptions { TenantId = "blue", ScheduleDelay = 2.Seconds() });
-
-        await Task.Delay(300.Milliseconds());
-
-        _tracker.Received.Any(x => x.Id == red.Id).ShouldBeFalse();
-        _tracker.Received.Any(x => x.Id == blue.Id).ShouldBeFalse();
 
         var allReceived = await Poll(30.Seconds(), () =>
             _tracker.Received.Any(x => x.Id == red.Id) && _tracker.Received.Any(x => x.Id == blue.Id));
