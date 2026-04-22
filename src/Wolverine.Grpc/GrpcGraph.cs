@@ -107,6 +107,11 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         {
             policy.Apply(chainableChains, Rules, Container);
         }
+
+        foreach (var policy in grpcOptions.Policies)
+        {
+            policy.Apply(_chains, _codeFirstChains, _handWrittenChains, Rules, Container);
+        }
     }
 
     /// <summary>

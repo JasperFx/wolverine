@@ -5,15 +5,43 @@ using Wolverine.Middleware;
 namespace Wolverine.Grpc;
 
 /// <summary>
-///     Wolverine-side configuration for proto-first gRPC services. The gRPC counterpart to
+///     Wolverine-side configuration for gRPC services. The gRPC counterpart to
 ///     <c>WolverineHttpOptions</c> — exposes a <see cref="MiddlewarePolicy"/> dedicated to
-///     <see cref="GrpcServiceChain"/>s so that policy-registered middleware can target gRPC
-///     services without leaking through the global <c>opts.Policies.AddMiddleware</c> path
-///     (which is intentionally <c>HandlerChain</c>-only).
+///     gRPC chains, a <see cref="Policies"/> list for structural chain customizations, and
+///     server-side exception-to-status-code mappings. Middleware registered here targets gRPC
+///     chains exclusively and does not leak through the global <c>opts.Policies.AddMiddleware</c>
+///     path (which is intentionally <c>HandlerChain</c>-only).
 /// </summary>
 public sealed class WolverineGrpcOptions
 {
     internal MiddlewarePolicy Middleware { get; } = new();
+
+    /// <summary>
+    ///     Structural policies applied to all discovered gRPC chains during bootstrapping.
+    ///     Analogous to <c>WolverineHttpOptions.Policies</c> — use when you need typed access
+    ///     to chain properties beyond what <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/>
+    ///     provides (e.g., inspecting <see cref="GrpcServiceChain.ProtoServiceName"/> or
+    ///     <see cref="HandWrittenGrpcServiceChain.ServiceContractType"/>).
+    /// </summary>
+    public List<IGrpcChainPolicy> Policies { get; } = [];
+
+    /// <summary>
+    ///     Register an <see cref="IGrpcChainPolicy"/> by type using its default constructor.
+    /// </summary>
+    public WolverineGrpcOptions AddPolicy<T>() where T : IGrpcChainPolicy, new()
+    {
+        Policies.Add(new T());
+        return this;
+    }
+
+    /// <summary>
+    ///     Register an <see cref="IGrpcChainPolicy"/> instance directly.
+    /// </summary>
+    public WolverineGrpcOptions AddPolicy(IGrpcChainPolicy policy)
+    {
+        Policies.Add(policy);
+        return this;
+    }
 
     // Ordered list so the most-recently-registered entry wins on overlap;
     // we walk it in reverse so callers can add more-specific entries after generic ones.
