@@ -8,6 +8,7 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <ProjectReference Include="..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
+        <ProjectReference Include="..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj"/>
         <ProjectReference Include="..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj"/>
         <ProjectReference Include="..\Extensions\Wolverine.FluentValidation.Grpc\Wolverine.FluentValidation.Grpc.csproj"/>
     </ItemGroup>

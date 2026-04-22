@@ -1,0 +1,23 @@
+syntax = "proto3";
+option csharp_namespace = "Wolverine.Grpc.Internals";
+package wolverine_grpc;
+
+service WolverineTransport {
+    rpc Send(WolverineMessage) returns (Ack);
+    rpc SendBatch(WolverineMessageBatch) returns (Ack);
+    rpc Ping(PingRequest) returns (Ack);
+}
+
+message WolverineMessage {
+    bytes data = 1;
+}
+
+message WolverineMessageBatch {
+    bytes data = 1;
+}
+
+message PingRequest {}
+
+message Ack {
+    bool success = 1;
+}

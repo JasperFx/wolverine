@@ -450,6 +450,17 @@ partial class Build
             RunSingleProjectOneClassAtATime(leaderElectionTests, frameworkOverride: "net9.0");
         });
 
+    Target CIGrpc => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Wolverine.Grpc.Tests" / "Wolverine.Grpc.Tests.csproj";
+
+            BuildTestProjects(tests);
+
+            RunSingleProjectOneClassAtATime(tests);
+        });
+
     Target CIAzureServiceBus => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
