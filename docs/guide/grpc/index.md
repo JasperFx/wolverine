@@ -109,12 +109,9 @@ and comparisons to the official `grpc-dotnet` examples.
 
 ## Current Limitations
 
-- **Client streaming** and **bidirectional streaming** have no out-of-the-box adapter path yet —
-  there is no `IMessageBus.StreamAsync<TRequest, TResponse>` overload, and proto-first stubs with
-  these method shapes fail fast at startup with a clear error rather than silently skipping. In
-  code-first you can still implement bidi manually in the service by bridging each incoming item
-  through `Bus.StreamAsync<TResp>(item, ct)` — see [Streaming](./streaming) for the pattern and the
-  [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample.
+- **Pure client streaming** (`stream TRequest → TResponse`) has no out-of-the-box adapter path yet.
+  Proto-first stubs that declare this shape fail fast at startup with a clear error rather than
+  silently skipping. Bidirectional streaming is fully supported — see [Streaming](./streaming).
 
 ## Roadmap
 
