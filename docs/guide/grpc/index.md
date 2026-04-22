@@ -26,7 +26,8 @@ Start here to get Wolverine's gRPC adapter running, then drill into the page tha
 building:
 
 - [How gRPC Handlers Work](./handlers) — the service → `IMessageBus` → handler flow, how it differs
-  from HTTP and messaging handlers, and how OpenTelemetry traces survive the hop.
+  from HTTP and messaging handlers, gRPC-scoped middleware and structural policies, and how
+  OpenTelemetry traces survive the hop.
 - [Code-First and Proto-First Contracts](./contracts) — the two contract styles side by side so you
   can pick (or mix) them.
 - [Error Handling](./errors) — the default AIP-193 exception → `StatusCode` table plus the opt-in
@@ -98,6 +99,9 @@ and comparisons to the official `grpc-dotnet` examples.
 | `MapWolverineGrpcServices()`               | Discovers and maps all gRPC services (code-first and proto-first). |
 | `WolverineGrpcServiceBase`                 | Optional base class exposing an `IMessageBus` property `Bus`.     |
 | `[WolverineGrpcService]`                   | On an **interface**: Wolverine generates the concrete service class, reducing hand-written boilerplate. On a **class**: opt-in marker for concrete code-first services and abstract proto-first stubs that don't match the `GrpcService` suffix. |
+| `opts.AddMiddleware<T>(filter?)`           | Register a middleware type applied to all Wolverine-managed gRPC chains (proto-first and hand-written) at codegen time. Optional `Func<IChain, bool>` narrows which chains receive it — pattern-match on `GrpcServiceChain` or `HandWrittenGrpcServiceChain` for kind-specific targeting. See [Middleware and Policies](./handlers#middleware-and-policies). |
+| `opts.AddPolicy<T>()` / `AddPolicy(policy)` | Register an `IGrpcChainPolicy` for structural chain customization. Receives all three chain kinds as typed lists. See [Middleware and Policies](./handlers#middleware-and-policies). |
+| `IGrpcChainPolicy`                         | Interface for structural gRPC chain policies. `Apply(protoFirst, codeFirst, handWritten, rules, container)` — typed access to all chain kinds, no casting required. |
 | `WolverineGrpcExceptionMapper.Map(ex)`     | The public mapping table — use directly in custom interceptors.   |
 | `WolverineGrpcExceptionInterceptor`        | The registered gRPC interceptor; exposed for diagnostics.         |
 | `opts.MapException<T>(StatusCode)`         | Override the server-side `Exception → StatusCode` mapping for a specific type — see [Error Handling](./errors#overriding-the-default-table). |

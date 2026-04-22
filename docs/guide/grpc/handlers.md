@@ -161,6 +161,78 @@ For `InvalidArgument` rejections that carry field-level detail, consider returni
 hook — that way the client can surface per-field errors. See [Error Handling](./errors).
 :::
 
+## Middleware and Policies
+
+There are three ways to attach cross-cutting behaviour to Wolverine gRPC chains — choose based on
+how targeted or structural the concern is.
+
+### Inline methods on the service class (per-service)
+
+The lightest-weight option. Add a static `Validate`, `Before`, or `After` method directly to your
+proto-first stub or hand-written service class. Wolverine weaves it into the generated wrapper for
+that one service automatically — no registration required. See [Validate convention](#validate-convention)
+for the full rules and an example.
+
+### `opts.AddMiddleware<T>()` (gRPC-scoped, all chains)
+
+For middleware that should apply across multiple gRPC services but not leak into Wolverine's
+messaging handler pipeline, register it via `AddWolverineGrpc`:
+
+```csharp
+builder.Services.AddWolverineGrpc(grpc =>
+{
+    // Applied to every proto-first and hand-written gRPC chain at codegen time.
+    grpc.AddMiddleware<GrpcAuthMiddleware>();
+
+    // Narrow to a single chain kind with the optional filter:
+    grpc.AddMiddleware<OrderValidationMiddleware>(
+        c => c is GrpcServiceChain g && g.ProtoServiceName == "Orders");
+});
+```
+
+The middleware class follows the same `Before` / `After` / `Finally` method-name conventions
+as Wolverine's HTTP and messaging middleware. Wolverine weaves the calls into the generated service
+wrapper at startup — no runtime overhead after boot.
+
+::: tip
+`opts.Policies.AddMiddleware<T>()` (the global Wolverine path) intentionally does **not** reach
+gRPC chains — its filter is `HandlerChain`-only. Use `grpc.AddMiddleware<T>()` inside
+`AddWolverineGrpc(...)` for gRPC-targeted middleware.
+:::
+
+### `opts.AddPolicy<T>()` / `IGrpcChainPolicy` (structural customization)
+
+For changes that go beyond middleware weaving — inspecting service names, overriding idempotency
+styles, or conditionally modifying chain configuration — implement `IGrpcChainPolicy` and register
+it via `AddPolicy`:
+
+```csharp
+public class IdempotentOrdersPolicy : IGrpcChainPolicy
+{
+    public void Apply(
+        IReadOnlyList<GrpcServiceChain> protoFirstChains,
+        IReadOnlyList<CodeFirstGrpcServiceChain> codeFirstChains,
+        IReadOnlyList<HandWrittenGrpcServiceChain> handWrittenChains,
+        GenerationRules rules,
+        IServiceContainer container)
+    {
+        foreach (var chain in protoFirstChains.Where(c => c.ProtoServiceName == "Orders"))
+            chain.Idempotency = IdempotencyStyle.GetOrPost;
+    }
+}
+
+builder.Services.AddWolverineGrpc(grpc =>
+{
+    grpc.AddPolicy<IdempotentOrdersPolicy>();
+    // or directly: grpc.AddPolicy(new IdempotentOrdersPolicy());
+});
+```
+
+`IGrpcChainPolicy.Apply` receives all three chain kinds as typed lists, so policy implementations
+get full access to gRPC-specific properties (`ProtoServiceName`, `ServiceContractType`, etc.)
+without casting. It is called after `AddMiddleware<T>()` weaving, during the same bootstrapping
+pass as handler and HTTP chain policies.
+
 ## Observability
 
 Wolverine's gRPC adapter preserves `Activity.Current` across the boundary between the ASP.NET Core
