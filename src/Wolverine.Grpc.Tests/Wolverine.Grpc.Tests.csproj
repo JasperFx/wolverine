@@ -63,6 +63,7 @@
             avoids shadowing the Wolverine.Attributes.MiddlewareScoping enum from sibling tests.
         -->
         <Protobuf Include="GrpcMiddlewareScoping\Protos\middleware_scoping_test.proto" GrpcServices="Both"/>
+        <Protobuf Include="GrpcValidateConvention\Protos\grpc_validate_test.proto" GrpcServices="Both"/>
     </ItemGroup>
 
 </Project>

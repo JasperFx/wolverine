@@ -210,7 +210,14 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
 
             foreach (var before in befores)
-                generatedMethod.Frames.Add(new MethodCall(StubType, before));
+            {
+                var call = new MethodCall(StubType, before);
+                generatedMethod.Frames.Add(call);
+
+                var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
+                if (statusVar != null)
+                    generatedMethod.Frames.Add(new GrpcValidateShortCircuitFrame(statusVar));
+            }
 
             switch (rpc.Kind)
             {
@@ -521,6 +528,43 @@ internal sealed class ForwardServerStreamToMessageBusFrame : AsyncFrame
             $"BLOCK:await foreach (var item in {_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{responseType.FullNameInCode()}>({requestName}, {cancellation}))");
         writer.Write($"await {streamWriterName}.WriteAsync(item, {cancellation});");
         writer.FinishBlock();
+
+        Next?.GenerateCode(method, writer);
+    }
+}
+
+/// <summary>
+///     Emits a <c>Status?</c> null-check that short-circuits RPC execution when a
+///     <c>Validate</c> / <c>ValidateAsync</c> method on the proto-first stub returns
+///     a non-null <see cref="Status"/>. Placed immediately after the <see cref="MethodCall"/>
+///     frame for the validate method in <see cref="GrpcServiceChain.AssembleTypes"/>.
+/// </summary>
+/// <remarks>
+///     Generated code shape:
+///     <code>
+///         if ({statusVar}.HasValue)
+///             throw new Grpc.Core.RpcException({statusVar}.Value);
+///     </code>
+///     When <see cref="Status.StatusCode"/> is <see cref="StatusCode.OK"/> the throw is
+///     skipped and the chain continues to the bus-dispatch frame as normal.
+/// </remarks>
+internal sealed class GrpcValidateShortCircuitFrame : SyncFrame
+{
+    private readonly Variable _statusVariable;
+
+    public GrpcValidateShortCircuitFrame(Variable statusVariable)
+    {
+        _statusVariable = statusVariable;
+        uses.Add(statusVariable);
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"BLOCK:if ({_statusVariable.Usage}.{nameof(Nullable<Status>.HasValue)})");
+        writer.Write(
+            $"throw new {typeof(RpcException).FullNameInCode()}({_statusVariable.Usage}.{nameof(Nullable<Status>.Value)});");
+        writer.FinishBlock();
+        writer.BlankLine();
 
         Next?.GenerateCode(method, writer);
     }

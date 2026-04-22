@@ -121,11 +121,6 @@ and comparisons to the official `grpc-dotnet` examples.
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **`Validate` convention → `Status?`** — HTTP handlers already support an opt-in `Validate` method
-  whose non-null return short-circuits the call. The gRPC equivalent would return
-  `Grpc.Core.Status?` (or a richer `google.rpc.Status`) so a handler could express "this call is
-  invalid, return `InvalidArgument` with these field violations" without throwing. Deferred because
-  it lands cleanest on top of the code-first codegen work below.
 - **Code-first codegen parity** — proto-first services flow through a generated `GrpcServiceChain`
   with the usual JasperFx codegen pipeline; code-first services (the `WolverineGrpcServiceBase` path)
   currently resolve dependencies via service location inside each method. Generating per-method code
