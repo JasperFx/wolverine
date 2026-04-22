@@ -359,7 +359,7 @@ on an individual handler method or apply to all handler methods on the same hand
 
 ## Custom Code Generation
 
-For more advanced usage, you can drop down to the JasperFx.CodeGeneration `Frame` model to directly inject code.
+For more advanced usage, you can drop down to the JasperFx.CodeGeneration `Frame` model to directly inject code. The `Frame` model itself — plus `Variable`, `MethodCall`, and the built-in frames Wolverine composes with — is documented in depth at [shared-libs.jasperfx.net/codegen](https://shared-libs.jasperfx.net/codegen/).
 
 The first step is to create a JasperFx.CodeGeneration `Frame` class that generates that code around the inner message or HTTP handler:
 

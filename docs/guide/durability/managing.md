@@ -115,13 +115,24 @@ The available commands are:
   storage     Administer the envelope storage
 ```
 
-There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/) library,
+There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,
 and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you
 can use this command to apply any outstanding database changes necessary to bring the database schema to the Wolverine configuration:
 
 ```bash
 dotnet run -- db-apply
 ```
+
+::: info
+The `db-apply`, `db-assert`, `db-patch`, `db-dump`, and `db-list` commands come from Weasel. See the per-command references at:
+
+- [`db-apply`](https://weasel.jasperfx.net/cli/db-apply.html) — apply all outstanding changes to the configured database(s)
+- [`db-assert`](https://weasel.jasperfx.net/cli/db-assert.html) — assert the live schema matches the configuration (good for CI deploy gates)
+- [`db-patch`](https://weasel.jasperfx.net/cli/db-patch.html) — emit a SQL patch + rollback file for pending changes
+- [`db-dump`](https://weasel.jasperfx.net/cli/db-dump.html) — dump the full DDL for the configured database(s)
+- [`db-list`](https://weasel.jasperfx.net/cli/db-list.html) — list configured databases
+:::
+
 > NOTE: See the [Exporting SQL Scripts](#exporting-sql-scripts) section down the page for details of applying migrations when integrating with Marten
 
 or this option -- but just know that this will also clear out any existing message data:

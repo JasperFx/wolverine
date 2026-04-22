@@ -105,4 +105,4 @@ dotnet run -- resources list
 dotnet run -- resources clear
 ```
 
-These commands manage both Wolverine's internal tables and your EF Core entity tables together.
+These commands manage both Wolverine's internal tables and your EF Core entity tables together. For the finer-grained Weasel commands (`db-apply`, `db-assert`, `db-patch`, `db-dump`, `db-list`) — useful for CI deploy gates and exporting DDL — see the [Weasel CLI reference](https://weasel.jasperfx.net/cli/).
