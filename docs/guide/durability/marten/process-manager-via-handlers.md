@@ -238,7 +238,7 @@ A plain static class. No `[AggregateHandler]` attribute. The handler returns an 
 
 The reason this is not an `[AggregateHandler]`: `AggregateHandlerAttribute` defaults `OnMissing` to `OnMissing.Simple404`. When you apply it to a handler whose aggregate does not yet exist, the middleware short-circuits before your method runs. No events are appended, no exception is thrown, and the failure is silent. `MartenOps.StartStream` is the idiomatic way to express "this command creates the stream" and it matches what the Wolverine test suite does in `src/Persistence/MartenTests/AggregateHandlerWorkflow/`.
 
-One corollary: a duplicated `StartOrderFulfillment` for the same id will fail, because Marten will reject the second stream-start. You can wrap the start handler in a "create if absent" check if your trigger source may deliver at least once, but most callers should guarantee a unique process id at dispatch time.
+One corollary: a duplicated `StartOrderFulfillment` for the same id fails with a `Marten.Exceptions.ExistingStreamIdCollisionException` ("Stream #{id} already exists in the database"). Wolverine propagates this exception through `InvokeMessageAndWaitAsync` with its original type intact; the transaction rolls back cleanly, so the first start's data remains authoritative. If your trigger source may deliver the start command at least once, catch this exception and convert it to an idempotent "already started, ignoring" response; otherwise let the caller guarantee a unique process id at dispatch time. The sample's [`starting_the_same_process_twice_throws_and_first_start_wins`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/when_starting_a_fulfillment.cs) test covers this exact scenario.
 
 #### Step 4b: Continue handlers
 
@@ -897,6 +897,8 @@ Saga's `MarkCompleted()` plus framework-managed lifecycle means Wolverine itself
 Start: plain static class, returns `IStartStream` via `MartenOps.StartStream<T>`. Continue: `[AggregateHandler]` static class, returns `Events`. Start has no `OrderFulfillmentState` parameter; continue handlers always do. The two shapes are small but they are different, and new readers will ask why.
 
 This is a hard consequence of `AggregateHandlerAttribute.OnMissing` defaulting to `OnMissing.Simple404`. The attribute is designed around "the aggregate exists, load it, enforce concurrency." It does not naturally model "this command creates the aggregate." `MartenOps.StartStream` is the idiomatic workaround and it is fine once you know it, but you cannot hide the asymmetry from the reader.
+
+One related trap worth flagging: the `ExistingStreamIdCollisionException` raised on a duplicate start inherits from `MartenException`, **not** from `ConcurrencyException`, so a Wolverine retry or error policy scoped to `ConcurrencyException` will not cover duplicate-start failures. Scope the policy to `MartenException` (or to `ExistingStreamIdCollisionException` specifically) if you want to catch them.
 
 ### Silent failure mode if you misapply `[AggregateHandler]` to a start handler
 

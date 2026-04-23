@@ -1,4 +1,5 @@
 using Marten;
+using Marten.Exceptions;
 using ProcessManagerSample.OrderFulfillment;
 using Shouldly;
 using Wolverine.Tracking;
@@ -40,5 +41,32 @@ public class when_starting_a_fulfillment : IntegrationContext
         state.CustomerId.ShouldBe(command.CustomerId);
         state.TotalAmount.ShouldBe(command.TotalAmount);
         state.IsTerminal.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task starting_the_same_process_twice_throws_and_first_start_wins()
+    {
+        var id = Guid.NewGuid();
+
+        await Host.InvokeMessageAndWaitAsync(new StartOrderFulfillment(id, Guid.NewGuid(), 100m));
+
+        // MartenOps.StartStream forbids duplicate stream creation. On a second start with the same
+        // id, Marten throws ExistingStreamIdCollisionException and Wolverine propagates it through
+        // InvokeMessageAndWaitAsync. No swallowing, no silent drop.
+        var thrown = await Should.ThrowAsync<ExistingStreamIdCollisionException>(async () =>
+        {
+            await Host.InvokeMessageAndWaitAsync(new StartOrderFulfillment(id, Guid.NewGuid(), 200m));
+        });
+
+        thrown.Id.ShouldBe(id);
+        thrown.AggregateType.ShouldBe(typeof(OrderFulfillmentState));
+
+        // The first start's data must still be intact; the second start's transaction rolled back.
+        await using var session = Store.LightweightSession();
+        var events = await session.Events.FetchStreamAsync(id);
+
+        events.Count.ShouldBe(1);
+        var started = events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
+        started.TotalAmount.ShouldBe(100m);
     }
 }
