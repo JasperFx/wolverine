@@ -1,4 +1,3 @@
-using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 
@@ -33,6 +32,12 @@ internal class EnvelopeReaderWriter : IMessageSerializer
 
     public byte[] Write(Envelope model)
     {
-        return EnvelopeSerializer.Serialize(model.As<Envelope>());
+        if (model.Message is not Envelope inner)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(EnvelopeReaderWriter)} can only serialize a scheduled-wrap envelope whose Message is the inner Envelope, but got {model.Message?.GetType().FullName ?? "null"}.");
+        }
+
+        return EnvelopeSerializer.Serialize(inner);
     }
 }

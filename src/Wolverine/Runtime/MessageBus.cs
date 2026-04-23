@@ -230,7 +230,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         {
             throw new ArgumentNullException(nameof(message));
         }
-        
+
         // Check for both so you don't get an infinite loop
         // from TimeoutMessage
         if (options == null && message is ISendMyself m)
@@ -347,24 +347,35 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
-        outbound.Source = Runtime.Options.ServiceName;
+        StampEnvelope(outbound);
+        outbound.ConversationId = outbound.Id; // the message chain originates here
+        outbound.ParentId = activity?.Id;
+        outbound.Store = Storage;
+
+        // For scheduled wraps the transport serializes the inner envelope, so the
+        // context fields stamped above also have to land on the inner.
+        if (outbound is { MessageType: TransportConstants.ScheduledEnvelope, Message: Envelope inner })
+        {
+            StampEnvelope(inner);
+        }
+    }
+
+    internal virtual void StampEnvelope(Envelope envelope)
+    {
+        envelope.Source = Runtime.Options.ServiceName;
         // DeliveryOptions.Override may have already stamped a per-message
         // CorrelationId (e.g. from a Marten projection's RaiseSideEffects
         // call passing MessageMetadata) — don't clobber it. See GH-2545.
-        if (outbound.CorrelationId.IsEmpty())
+        if (envelope.CorrelationId.IsEmpty())
         {
-            outbound.CorrelationId = CorrelationId;
+            envelope.CorrelationId = CorrelationId;
         }
-        outbound.ConversationId = outbound.Id; // the message chain originates here
-        outbound.TenantId ??= TenantId; // don't override a tenant id that's specifically set on the envelope itself
+        envelope.TenantId ??= TenantId;
 
         if (Runtime.Options.EnableRelayOfUserName)
         {
-            outbound.UserName ??= UserName;
+            envelope.UserName ??= UserName;
         }
-
-        outbound.ParentId = activity?.Id;
-        outbound.Store = Storage;
     }
 
     internal async ValueTask PersistOrSendAsync(params Envelope[] outgoing)

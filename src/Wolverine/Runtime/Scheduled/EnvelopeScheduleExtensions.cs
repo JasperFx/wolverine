@@ -1,4 +1,3 @@
-using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -18,7 +17,6 @@ internal static class EnvelopeScheduleExtensions
             Status = EnvelopeStatus.Scheduled,
             OwnerId = TransportConstants.AnyNode,
             Sender = sender,
-            Data = EnvelopeSerializer.Serialize(envelope),
             TopicName = envelope.TopicName
         };
     }
