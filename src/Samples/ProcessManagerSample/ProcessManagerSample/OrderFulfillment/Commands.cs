@@ -10,3 +10,11 @@ public record StartOrderFulfillment(
     Guid OrderFulfillmentStateId,
     Guid CustomerId,
     decimal TotalAmount);
+
+/// <summary>
+/// Compensating command. Cancels an in-flight process and marks the stream terminated
+/// so any subsequent integration events are ignored idempotently.
+/// </summary>
+public record CancelOrderFulfillment(
+    Guid OrderFulfillmentStateId,
+    string Reason);

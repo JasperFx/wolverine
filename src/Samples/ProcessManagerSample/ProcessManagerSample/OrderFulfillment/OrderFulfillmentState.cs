@@ -22,8 +22,8 @@ public class OrderFulfillmentState
     public bool IsCancelled { get; set; }
 
     /// <summary>
-    /// True once the process has reached a terminal state (either successfully completed or cancelled).
-    /// Every continue handler must guard on this to stay idempotent against late-arriving messages.
+    /// True once the process has reached a terminal state. Every continue handler must guard on this
+    /// to stay idempotent against late-arriving messages after completion or cancellation.
     /// </summary>
     public bool IsTerminal => IsCompleted || IsCancelled;
 
@@ -33,4 +33,14 @@ public class OrderFulfillmentState
         CustomerId = e.CustomerId;
         TotalAmount = e.TotalAmount;
     }
+
+    public void Apply(PaymentConfirmed _) => PaymentConfirmed = true;
+
+    public void Apply(ItemsReserved _) => ItemsReserved = true;
+
+    public void Apply(ShipmentConfirmed _) => ShipmentConfirmed = true;
+
+    public void Apply(OrderFulfillmentCompleted _) => IsCompleted = true;
+
+    public void Apply(OrderFulfillmentCancelled _) => IsCancelled = true;
 }
