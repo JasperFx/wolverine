@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.ServiceModel;
+using Grpc.Core;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -7,6 +8,7 @@ using JasperFx.Core.Reflection;
 using ProtoBuf.Grpc;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Middleware;
 using Wolverine.Persistence;
 
 namespace Wolverine.Grpc;
@@ -31,6 +33,8 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
 
     private GeneratedType? _generatedType;
     private Type? _generatedRuntimeType;
+    private MethodInfo[]? _discoveredBefores;
+    private MethodInfo[]? _discoveredAfters;
 
     /// <summary>
     ///     The <c>[ServiceContract]</c> interface annotated with <see cref="WolverineGrpcServiceAttribute"/>
@@ -65,6 +69,32 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         TypeName = ResolveTypeName(serviceContractType);
         Description = $"Generated code-first gRPC service implementation for {serviceContractType.FullNameInCode()}";
     }
+
+    // --- Middleware discovery (scans the service contract interface for static hook methods) ---
+
+    /// <summary>
+    ///     Static methods on <see cref="ServiceContractType"/> that qualify as <c>[WolverineBefore]</c>
+    ///     middleware — by naming convention (<c>Validate</c>, <c>Before</c>) or explicit attribute.
+    ///     Includes the <c>Validate → Status?</c> short-circuit hook. Sorted ordinally for byte-stable
+    ///     generated source.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredBefores
+        => _discoveredBefores ??= MiddlewarePolicy
+            .FilterMethods<WolverineBeforeAttribute>(this, ServiceContractType.GetMethods(),
+                MiddlewarePolicy.BeforeMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>
+    ///     Static methods on <see cref="ServiceContractType"/> qualifying as <c>[WolverineAfter]</c>
+    ///     postprocessors. Same scope and sort rules as <see cref="DiscoveredBefores"/>.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> DiscoveredAfters
+        => _discoveredAfters ??= MiddlewarePolicy
+            .FilterMethods<WolverineAfterAttribute>(this, ServiceContractType.GetMethods(),
+                MiddlewarePolicy.AfterMethodNames)
+            .OrderBy(m => m.Name, StringComparer.Ordinal)
+            .ToArray();
 
     // --- Chain<> abstract member implementations ---
 
@@ -114,6 +144,9 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         var busField = new InjectedField(typeof(IMessageBus), "bus");
         _generatedType.AllInjectedFields.Add(busField);
 
+        var befores = DiscoveredBefores;
+        var afters = DiscoveredAfters;
+
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
@@ -130,16 +163,37 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                 generatedMethod.Sources.Add(new CallContextCancellationTokenSource(contextArg));
             }
 
-            // Registered middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
+            // Global middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
             // because Frame instances hold per-method mutable state (Next pointer, variable bindings).
             foreach (var frame in CloneFrames(Middleware))
                 generatedMethod.Frames.Add(frame);
 
+            // Discovered befores: static methods on the interface matching Before naming conventions
+            // or [WolverineBefore]. Filtered per-method by request type so a Validate(OrderRequest)
+            // does not fire inside an InvoiceRequest RPC where no OrderRequest is in scope.
+            var rpcRequestType = rpc.Method.GetParameters()[0].ParameterType;
+
+            foreach (var before in befores)
+            {
+                if (!IsBeforeApplicable(before, rpcRequestType)) continue;
+
+                var call = new MethodCall(ServiceContractType, before);
+                generatedMethod.Frames.Add(call);
+
+                var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
+                if (statusVar != null)
+                    generatedMethod.Frames.Add(new GrpcValidateShortCircuitFrame(statusVar));
+            }
+
+            // AsyncMode must account for both discovered afters and global postprocessors.
+            var hasAfters = (afters.Count > 0 || Postprocessors.Count > 0)
+                            && rpc.Kind == CodeFirstMethodKind.Unary;
+            if (hasAfters)
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+
             switch (rpc.Kind)
             {
                 case CodeFirstMethodKind.Unary:
-                    if (Postprocessors.Count > 0)
-                        generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardCodeFirstUnaryFrame(rpc.Method, busField));
                     break;
 
@@ -148,7 +202,14 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                     break;
             }
 
-            // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
+            // Discovered afters (unary only — streaming owns its own lifecycle).
+            if (rpc.Kind == CodeFirstMethodKind.Unary)
+            {
+                foreach (var after in afters)
+                    generatedMethod.Frames.Add(new MethodCall(ServiceContractType, after));
+            }
+
+            // Global middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
             foreach (var frame in CloneFrames(Postprocessors))
                 generatedMethod.Frames.Add(frame);
         }
@@ -190,6 +251,23 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                 _ => frame
             };
         }
+    }
+
+    /// <summary>
+    ///     Returns <c>true</c> when <paramref name="before"/> can fire in the context of an RPC method
+    ///     whose first parameter is <paramref name="rpcRequestType"/>. A before method is applicable when
+    ///     all of its non-<see cref="CallContext"/> parameters are assignable from
+    ///     <paramref name="rpcRequestType"/>. This prevents a <c>Validate(OrderRequest)</c> from being
+    ///     woven into an <c>InvoiceRequest</c> RPC where no <c>OrderRequest</c> variable is in scope.
+    /// </summary>
+    private static bool IsBeforeApplicable(MethodInfo before, Type rpcRequestType)
+    {
+        foreach (var p in before.GetParameters())
+        {
+            if (p.ParameterType == typeof(CallContext)) continue;
+            if (!p.ParameterType.IsAssignableFrom(rpcRequestType)) return false;
+        }
+        return true;
     }
 
     /// <summary>

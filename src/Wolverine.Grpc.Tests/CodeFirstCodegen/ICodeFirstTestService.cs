@@ -1,4 +1,5 @@
 using System.ServiceModel;
+using Grpc.Core;
 using ProtoBuf;
 using ProtoBuf.Grpc;
 using Wolverine.Grpc;
@@ -36,4 +37,25 @@ public class CodeFirstStreamRequest
 public class CodeFirstReply
 {
     [ProtoMember(1)] public string Echo { get; set; } = string.Empty;
+}
+
+/// <summary>
+///     Code-first service contract with a static <c>Validate</c> method on the interface.
+///     Wolverine should discover the method via <c>DiscoveredBefores</c> and weave a
+///     <c>GrpcValidateShortCircuitFrame</c> before the bus dispatch.
+/// </summary>
+[ServiceContract]
+[WolverineGrpcService]
+public interface ICodeFirstValidatedService
+{
+    Task<CodeFirstReply> Submit(CodeFirstValidateRequest request, CallContext context = default);
+
+    static Status? Validate(CodeFirstValidateRequest request)
+        => request.Text == "bad" ? new Status(StatusCode.InvalidArgument, "bad input") : null;
+}
+
+[ProtoContract]
+public class CodeFirstValidateRequest
+{
+    [ProtoMember(1)] public string Text { get; set; } = string.Empty;
 }

@@ -22,3 +22,9 @@ public static class EchoStreamHandler
         }
     }
 }
+
+public static class SubmitHandler
+{
+    public static CodeFirstReply Handle(CodeFirstValidateRequest request)
+        => new() { Echo = request.Text };
+}

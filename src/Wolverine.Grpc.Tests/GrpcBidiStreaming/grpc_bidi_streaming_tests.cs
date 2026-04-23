@@ -1,5 +1,8 @@
 using Grpc.Core;
+using JasperFx;
+using JasperFx.CodeGeneration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Grpc.Tests.GrpcBidiStreaming.Generated;
 using Xunit;
@@ -112,3 +115,45 @@ public class grpc_bidi_discovery_tests
         classified["Collect"].ShouldBe(GrpcMethodKind.ClientStreaming);
     }
 }
+
+/// <summary>
+///     Verifies the fail-fast contract: constructing a <see cref="GrpcServiceChain"/> from a
+///     proto-first stub that declares a client-streaming RPC must throw
+///     <see cref="NotSupportedException"/> immediately, before any code generation runs.
+///     This prevents silent no-ops at runtime (the generated wrapper would have no method to
+///     delegate client-streaming requests to).
+/// </summary>
+[Collection("GrpcSerialTests")]
+public class grpc_client_streaming_fail_fast_tests
+{
+    [Fact]
+    public async Task stub_with_client_streaming_method_throws_not_supported_at_chain_construction()
+    {
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+        try
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts => opts.ApplicationAssembly = typeof(BidiEchoStub).Assembly)
+                .ConfigureServices(services => services.AddWolverineGrpc())
+                .StartAsync();
+
+            var graph = host.Services.GetRequiredService<GrpcGraph>();
+
+            var ex = Should.Throw<NotSupportedException>(
+                () => new GrpcServiceChain(typeof(ClientStreamingOnlyStub), graph));
+
+            // Message must name the unsupported shape and the offending method so
+            // the user can immediately identify what to fix.
+            ex.Message.ShouldContain("Client-streaming");
+            ex.Message.ShouldContain("Collect");
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+}
+
+// Internal so GetExportedTypes() skips it — it must never land in the proto-first
+// discovery scan and break the BidiStreamingFixture that shares this assembly.
+internal abstract class ClientStreamingOnlyStub : ClientStreamTest.ClientStreamTestBase;

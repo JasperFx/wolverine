@@ -2,6 +2,7 @@ using Grpc.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using System.ServiceModel;
+using Wolverine.Attributes;
 using Xunit;
 
 namespace Wolverine.Grpc.Tests.HandWrittenChain;
@@ -192,6 +193,15 @@ public class hand_written_chain_discovery_tests
             .ToList();
 
         found.ShouldNotContain(t => t == typeof(ShouldBeExcludedBecauseInterfaceIsAnnotated));
+    }
+
+    [Fact]
+    public void chain_scoping_is_grpc_so_middleware_routes_only_to_grpc_chains()
+    {
+        // MiddlewareScoping.Grpc is what prevents handler-bus middleware from leaking into gRPC
+        // chains and gRPC middleware from leaking into handler chains.
+        var chain = new HandWrittenGrpcServiceChain(typeof(HandWrittenTestGrpcService));
+        chain.Scoping.ShouldBe(MiddlewareScoping.Grpc);
     }
 }
 
