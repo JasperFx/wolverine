@@ -13,6 +13,7 @@ namespace Wolverine.Grpc.Tests.GrpcMiddlewareScoping;
 ///     would otherwise both emit <c>GreeterGrpcHandler</c> into the same <c>WolverineHandlers</c> child
 ///     namespace, and <c>AttachTypesSynchronously</c> would non-deterministically pick one.
 /// </summary>
+[Collection("GrpcSerialTests")]
 public class type_name_disambiguation_tests
 {
     [Fact]

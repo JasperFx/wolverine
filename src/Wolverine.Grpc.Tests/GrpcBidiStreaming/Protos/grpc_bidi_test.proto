@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wolverine.Grpc.Tests.GrpcBidiStreaming.Generated";
+
+package wolverine.grpc.tests.bidi_streaming;
+
+// Test-only service exercising the bidirectional-streaming generated wrapper for proto-first
+// Wolverine gRPC stubs. The server echoes each inbound EchoRequest back as repeat_count
+// EchoReply messages so tests can assert per-item correlation across the bidi stream.
+service BidiEchoTest {
+  rpc Echo (stream EchoRequest) returns (stream EchoReply);
+}
+
+// Client-streaming service — used only by unit tests that verify the fail-fast error message
+// when a proto-first stub declares a client-streaming RPC. Never registered with a host.
+service ClientStreamTest {
+  rpc Collect (stream EchoRequest) returns (EchoReply);
+}
+
+message EchoRequest {
+  string text = 1;
+  int32 repeat_count = 2;
+}
+
+message EchoReply {
+  string text = 1;
+}

@@ -62,7 +62,9 @@
             scope behavior on a proto-first stub — it would just be noise as a sample. Folder name
             avoids shadowing the Wolverine.Attributes.MiddlewareScoping enum from sibling tests.
         -->
+        <Protobuf Include="GrpcBidiStreaming\Protos\grpc_bidi_test.proto" GrpcServices="Both"/>
         <Protobuf Include="GrpcMiddlewareScoping\Protos\middleware_scoping_test.proto" GrpcServices="Both"/>
+        <Protobuf Include="GrpcValidateConvention\Protos\grpc_validate_test.proto" GrpcServices="Both"/>
     </ItemGroup>
 
 </Project>

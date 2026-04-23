@@ -26,7 +26,8 @@ Start here to get Wolverine's gRPC adapter running, then drill into the page tha
 building:
 
 - [How gRPC Handlers Work](./handlers) — the service → `IMessageBus` → handler flow, how it differs
-  from HTTP and messaging handlers, and how OpenTelemetry traces survive the hop.
+  from HTTP and messaging handlers, gRPC-scoped middleware and structural policies, and how
+  OpenTelemetry traces survive the hop.
 - [Code-First and Proto-First Contracts](./contracts) — the two contract styles side by side so you
   can pick (or mix) them.
 - [Error Handling](./errors) — the default AIP-193 exception → `StatusCode` table plus the opt-in
@@ -73,7 +74,7 @@ From here, [How gRPC Handlers Work](./handlers) walks through what `MapWolverine
 wires up and why a gRPC handler is just an ordinary Wolverine handler with a thin service shim on top.
 
 ::: tip Runnable Samples
-Six end-to-end samples live under `src/Samples/`. Five are the classic trio shape (server, client,
+Eight end-to-end samples live under `src/Samples/`. Most are the classic trio shape (server, client,
 shared messages); `OrderChainWithGrpc` is a quartet because its proof-point is a chain between two
 Wolverine servers. `dotnet run` them side by side. See [Samples](./samples) for full walkthroughs
 and comparisons to the official `grpc-dotnet` examples.
@@ -82,9 +83,11 @@ and comparisons to the official `grpc-dotnet` examples.
 |--------|-------|--------------|
 | [PingPongWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)                     | Code-first **unary** | `[ServiceContract]` + `WolverineGrpcServiceBase` forwarding to a plain handler |
 | [PingPongWithGrpcStreaming](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpcStreaming)   | Code-first **server streaming** | Handler returning `IAsyncEnumerable<T>`, forwarded via `Bus.StreamAsync<T>` |
+| [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)             | Code-first **generated implementation** | `[WolverineGrpcService]` on an interface — Wolverine generates the service class; no concrete class written |
 | [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
 | [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
 | [GreeterWithGrpcErrors](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterWithGrpcErrors)           | Code-first **rich error details** | FluentValidation → `BadRequest` plus inline `MapException` → `PreconditionFailure`, with a client that unpacks both |
+| [ProgressTrackerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProgressTrackerWithGrpc)       | Code-first **server streaming + cancellation** | Realistic job-progress stream: handler yields `JobProgress` updates; client cancels mid-stream |
 | [OrderChainWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/OrderChainWithGrpc)                 | **Wolverine → Wolverine chain** via `AddWolverineGrpcClient<T>()` | Typed client injected into a handler; envelope propagation + typed-exception round-trip with zero user plumbing |
 :::
 
@@ -95,9 +98,16 @@ and comparisons to the official `grpc-dotnet` examples.
 | `AddWolverineGrpc()`                       | Registers the interceptor, proto-first discovery graph, and codegen pipeline. |
 | `MapWolverineGrpcServices()`               | Discovers and maps all gRPC services (code-first and proto-first). |
 | `WolverineGrpcServiceBase`                 | Optional base class exposing an `IMessageBus` property `Bus`.     |
-| `[WolverineGrpcService]`                   | Opt-in marker for classes that don't match the `GrpcService` suffix. |
+| `[WolverineGrpcService]`                   | On an **interface**: Wolverine generates the concrete service class, reducing hand-written boilerplate. On a **class**: opt-in marker for concrete code-first services and abstract proto-first stubs that don't match the `GrpcService` suffix. |
+| `opts.AddMiddleware<T>(filter?)`           | Register a middleware type applied to all Wolverine-managed gRPC chains (proto-first, code-first generated, and hand-written) at codegen time. Optional `Func<IChain, bool>` narrows which chains receive it — pattern-match on `GrpcServiceChain`, `CodeFirstGrpcServiceChain`, or `HandWrittenGrpcServiceChain` for kind-specific targeting. See [Middleware and Policies](./handlers#middleware-and-policies). |
+| `opts.AddPolicy<T>()` / `AddPolicy(policy)` | Register an `IGrpcChainPolicy` for structural chain customization. Receives all three chain kinds as typed lists. See [Middleware and Policies](./handlers#middleware-and-policies). |
+| `IGrpcChainPolicy`                         | Interface for structural gRPC chain policies. `Apply(protoFirst, codeFirst, handWritten, rules, container)` — typed access to all chain kinds, no casting required. |
+| `ModifyGrpcServiceChainAttribute`          | Abstract attribute for per-chain customization of proto-first chains. Apply to the stub class. |
+| `ModifyHandWrittenGrpcServiceChainAttribute` | Abstract attribute for per-chain customization of hand-written code-first service chains. Apply to the service class. |
+| `ModifyCodeFirstGrpcServiceChainAttribute` | Abstract attribute for per-chain customization of generated code-first service chains. Apply to the `[ServiceContract]` interface. |
 | `WolverineGrpcExceptionMapper.Map(ex)`     | The public mapping table — use directly in custom interceptors.   |
 | `WolverineGrpcExceptionInterceptor`        | The registered gRPC interceptor; exposed for diagnostics.         |
+| `opts.MapException<T>(StatusCode)`         | Override the server-side `Exception → StatusCode` mapping for a specific type — see [Error Handling](./errors#overriding-the-default-table). |
 | `opts.UseGrpcRichErrorDetails(...)`        | Opt-in `google.rpc.Status` pipeline — see [Error Handling](./errors). |
 | `opts.UseFluentValidationGrpcErrorDetails()` | Bridge: `ValidationException` → `BadRequest` (from `WolverineFx.FluentValidation.Grpc`). |
 | `IGrpcStatusDetailsProvider`               | Custom provider seam for building `google.rpc.Status` from an exception. |
@@ -108,43 +118,15 @@ and comparisons to the official `grpc-dotnet` examples.
 
 ## Current Limitations
 
-- **Client streaming** and **bidirectional streaming** have no out-of-the-box adapter path yet —
-  there is no `IMessageBus.StreamAsync<TRequest, TResponse>` overload, and proto-first stubs with
-  these method shapes fail fast at startup with a clear error rather than silently skipping. In
-  code-first you can still implement bidi manually in the service by bridging each incoming item
-  through `Bus.StreamAsync<TResp>(item, ct)` — see [Streaming](./streaming) for the pattern and the
-  [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc) sample.
-- **Exception mapping** of the canonical `Exception → StatusCode` table is not yet user-configurable
-  on the server side (follow-up item). Rich, structured responses are already available — see
-  [Error Handling](./errors). On the client side, `WolverineGrpcClientOptions.MapRpcException`
-  already allows per-client overrides — see [Typed gRPC Clients](./client#per-client-override).
-- **`MiddlewareScoping.Grpc` middleware** — the enum value ships and is honored by Wolverine's
-  discovery primitives, but no code path yet *weaves* `[WolverineBefore(MiddlewareScoping.Grpc)]`
-  / `[WolverineAfter(MiddlewareScoping.Grpc)]` methods into the generated gRPC service wrappers.
-  The attribute is safe to apply — it compiles, it is correctly filtered away from message-handler
-  and HTTP chains, and it will start firing once the codegen path (tracked as M15) lands — but
-  today nothing runs at RPC time. Until then, middleware that needs to execute on gRPC calls
-  should live in a custom gRPC interceptor rather than rely on the attribute or on
-  `services.AddWolverineGrpc(g => g.AddMiddleware<T>())` (both take effect together in M15).
+- **Pure client streaming** (`stream TRequest → TResponse`) has no out-of-the-box adapter path yet.
+  Proto-first stubs that declare this shape fail fast at startup with a clear error rather than
+  silently skipping. Bidirectional streaming is fully supported — see [Streaming](./streaming).
 
 ## Roadmap
 
 The gRPC integration has a handful of deferred items that are known-good fits but haven't shipped
 yet. They're listed here so contributors can plan around them and consumers know what's coming.
 
-- **`MiddlewareScoping.Grpc` codegen weaving (M15)** — attribute-based middleware on gRPC stubs
-  (see Current Limitations above). Phase 0 landed the discovery + options surface; Phase 1 will
-  wire execution into the generated `GrpcServiceChain` wrappers.
-- **`Validate` convention → `Status?`** — HTTP handlers already support an opt-in `Validate` method
-  whose non-null return short-circuits the call. The gRPC equivalent would return
-  `Grpc.Core.Status?` (or a richer `google.rpc.Status`) so a handler could express "this call is
-  invalid, return `InvalidArgument` with these field violations" without throwing. Deferred because
-  it lands cleanest on top of the code-first codegen work below.
-- **Code-first codegen parity** — proto-first services flow through a generated `GrpcServiceChain`
-  with the usual JasperFx codegen pipeline; code-first services (the `WolverineGrpcServiceBase` path)
-  currently resolve dependencies via service location inside each method. Generating per-method code
-  files for code-first services — matching the HTTP and message handler story — is the prerequisite
-  for the `Validate` convention above and for tighter Lamar/MSDI optimization.
 - **Hybrid handler shape (HTTP + gRPC + messaging on one type)** — open design question. The
   [hybrid HTTP/message handler](/guide/http/endpoints#http-endpoint-message-handler-combo) pattern
   works today for two protocols; extending it to three raises naming and scoping questions

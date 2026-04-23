@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using Grpc.Core;
 using JasperFx;
@@ -73,6 +72,10 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
             .Where(m => m.Kind == GrpcMethodKind.ServerStreaming)
             .Select(m => m.Method)
             .ToArray();
+        BidirectionalStreamingMethods = SupportedMethods
+            .Where(m => m.Kind == GrpcMethodKind.BidirectionalStreaming)
+            .Select(m => m.Method)
+            .ToArray();
 
         ProtoServiceName = ResolveProtoServiceName(ProtoServiceBase);
         TypeName = ProtoServiceName + "GrpcHandler";
@@ -89,6 +92,14 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     ///     that forward each streamed item to <see cref="IMessageBus.StreamAsync{T}"/>.
     /// </summary>
     public IReadOnlyList<MethodInfo> ServerStreamingMethods { get; }
+
+    /// <summary>
+    ///     Bidirectional-streaming RPC methods
+    ///     (<c>Task Name(IAsyncStreamReader&lt;TRequest&gt;, IServerStreamWriter&lt;TResponse&gt;, ServerCallContext)</c>)
+    ///     that loop each inbound item through <see cref="IMessageBus.StreamAsync{T}"/> and
+    ///     forward each yielded response to the stream writer.
+    /// </summary>
+    public IReadOnlyList<MethodInfo> BidirectionalStreamingMethods { get; }
 
     /// <summary>
     ///     The proto service name (e.g., <c>Greeter</c>) — used to derive the generated type's name
@@ -202,13 +213,39 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
         var busField = new InjectedField(typeof(IMessageBus), "bus");
         _generatedType.AllInjectedFields.Add(busField);
 
+        var befores = DiscoveredBefores;
+        var afters = DiscoveredAfters;
+
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
 
+            // Before-frames (including Validate short-circuit) require a concrete TRequest
+            // in scope when the method begins. Bidi methods start with an IAsyncStreamReader<T>
+            // rather than a single T — per-call middleware is not woven for bidi methods.
+            if (rpc.Kind != GrpcMethodKind.BidirectionalStreaming)
+            {
+                // Registered middleware befores (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Middleware))
+                    generatedMethod.Frames.Add(frame);
+
+                // Inline before-hooks declared directly on the stub class.
+                foreach (var before in befores)
+                {
+                    var call = new MethodCall(StubType, before);
+                    generatedMethod.Frames.Add(call);
+
+                    var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
+                    if (statusVar != null)
+                        generatedMethod.Frames.Add(new GrpcValidateShortCircuitFrame(statusVar));
+                }
+            }
+
             switch (rpc.Kind)
             {
                 case GrpcMethodKind.Unary:
+                    if (afters.Count > 0 || Postprocessors.Count > 0)
+                        generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField));
                     break;
 
@@ -216,6 +253,22 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                     generatedMethod.AsyncMode = AsyncMode.AsyncTask;
                     generatedMethod.Frames.Add(new ForwardServerStreamToMessageBusFrame(rpc.Method, busField));
                     break;
+
+                case GrpcMethodKind.BidirectionalStreaming:
+                    generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+                    generatedMethod.Frames.Add(new ForwardBidiStreamToMessageBusFrame(rpc.Method, busField));
+                    break;
+            }
+
+            if (rpc.Kind != GrpcMethodKind.BidirectionalStreaming)
+            {
+                // Inline after-hooks declared directly on the stub class.
+                foreach (var after in afters)
+                    generatedMethod.Frames.Add(new MethodCall(StubType, after));
+
+                // Registered middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
+                foreach (var frame in CodeFirstGrpcServiceChain.CloneFrames(Postprocessors))
+                    generatedMethod.Frames.Add(frame);
             }
         }
     }
@@ -230,8 +283,6 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        Debug.WriteLine(_generatedType?.SourceCode);
-
         _generatedRuntimeType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
                                 ?? assembly.GetTypes().FirstOrDefault(x => x.Name == TypeName);
 
@@ -372,7 +423,7 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     private static void AssertNoUnsupportedStreamingKinds(Type stubType, IReadOnlyList<GrpcRpcMethod> methods)
     {
         var unsupported = methods
-            .Where(m => m.Kind is GrpcMethodKind.ClientStreaming or GrpcMethodKind.BidirectionalStreaming)
+            .Where(m => m.Kind is GrpcMethodKind.ClientStreaming)
             .ToList();
 
         if (unsupported.Count == 0) return;
@@ -383,9 +434,8 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
         throw new NotSupportedException(
             $"Proto-first gRPC stub {stubType.FullNameInCode()} declares RPC method(s) whose shape "
-            + "Wolverine cannot yet code-generate. Supported today: unary and server-streaming. "
-            + "Client-streaming and bidirectional-streaming need a request-side IAsyncEnumerable overload on IMessageBus "
-            + "that has not been introduced yet."
+            + "Wolverine cannot yet code-generate. Supported today: unary, server-streaming, and bidirectional-streaming. "
+            + "Client-streaming (stream TRequest → TResponse) has no adapter path yet."
             + Environment.NewLine
             + "Unsupported method(s):"
             + Environment.NewLine
@@ -423,7 +473,8 @@ public enum GrpcMethodKind
 
     /// <summary>
     ///     Bidirectional-streaming RPC: <c>Task Name(IAsyncStreamReader&lt;TRequest&gt;, IServerStreamWriter&lt;TResponse&gt;, ServerCallContext)</c>.
-    ///     Not yet code-generated by Wolverine — detection fails fast at startup rather than silently skipping.
+    ///     Each inbound item is forwarded to <see cref="IMessageBus.StreamAsync{T}"/>; every yielded
+    ///     response is written to the <see cref="IServerStreamWriter{T}"/>.
     /// </summary>
     BidirectionalStreaming
 }
@@ -456,11 +507,21 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
         var requestName = ParameterName(parameters, 0);
         var contextName = ParameterName(parameters, 1);
         var responseType = _rpc.ReturnType.GetGenericArguments()[0];
+        var cancellation = $"{contextName}.{nameof(ServerCallContext.CancellationToken)}";
+        var busInvoke =
+            $"{_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {cancellation})";
 
-        writer.Write(
-            $"return {_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {contextName}.{nameof(ServerCallContext.CancellationToken)});");
-
-        Next?.GenerateCode(method, writer);
+        if (Next == null)
+        {
+            writer.Write($"return {busInvoke};");
+        }
+        else
+        {
+            // After-frames are present — await so they can run before the return.
+            writer.Write($"var result = await {busInvoke};");
+            Next.GenerateCode(method, writer);
+            writer.Write("return result;");
+        }
     }
 
     // Grpc.Tools always emits parameter names, but reflection over optimized assemblies can return null.
@@ -500,6 +561,99 @@ internal sealed class ForwardServerStreamToMessageBusFrame : AsyncFrame
             $"BLOCK:await foreach (var item in {_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{responseType.FullNameInCode()}>({requestName}, {cancellation}))");
         writer.Write($"await {streamWriterName}.WriteAsync(item, {cancellation});");
         writer.FinishBlock();
+
+        Next?.GenerateCode(method, writer);
+    }
+}
+
+/// <summary>
+///     Emits a nested <c>while/await foreach</c> loop that bridges a gRPC bidirectional-streaming
+///     RPC to Wolverine's <see cref="IMessageBus.StreamAsync{T}"/>. For each item the client
+///     sends, the generated wrapper calls <see cref="IMessageBus.StreamAsync{T}"/> and pumps
+///     every yielded response to the <see cref="IServerStreamWriter{T}"/>.
+/// </summary>
+/// <remarks>
+///     Generated code shape:
+///     <code>
+///         while (await requestStream.MoveNext(context.CancellationToken))
+///         {
+///             var request = requestStream.Current;
+///             await foreach (var item in _bus.StreamAsync&lt;TResponse&gt;(request, context.CancellationToken))
+///             {
+///                 await responseStream.WriteAsync(item, context.CancellationToken);
+///             }
+///         }
+///     </code>
+///     Before-frames (including the Validate short-circuit) are not woven into bidirectional methods:
+///     they require a concrete <c>TRequest</c> in scope before the loop begins, which is not
+///     available in the bidi signature.
+/// </remarks>
+internal sealed class ForwardBidiStreamToMessageBusFrame : AsyncFrame
+{
+    private readonly MethodInfo _rpc;
+    private readonly InjectedField _busField;
+
+    public ForwardBidiStreamToMessageBusFrame(MethodInfo rpc, InjectedField busField)
+    {
+        _rpc = rpc;
+        _busField = busField;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var parameters = _rpc.GetParameters();
+        var readerName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 0);
+        var writerName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 1);
+        var contextName = ForwardUnaryToMessageBusFrame.ParameterName(parameters, 2);
+
+        var responseType = parameters[1].ParameterType.GetGenericArguments()[0];
+        var cancellation = $"{contextName}.{nameof(ServerCallContext.CancellationToken)}";
+
+        writer.Write(
+            $"BLOCK:while (await {readerName}.{nameof(IAsyncStreamReader<object>.MoveNext)}({cancellation}))");
+        writer.Write($"var request = {readerName}.{nameof(IAsyncStreamReader<object>.Current)};");
+        writer.Write(
+            $"BLOCK:await foreach (var item in {_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{responseType.FullNameInCode()}>(request, {cancellation}))");
+        writer.Write($"await {writerName}.{nameof(IServerStreamWriter<object>.WriteAsync)}(item, {cancellation});");
+        writer.FinishBlock();
+        writer.FinishBlock();
+
+        Next?.GenerateCode(method, writer);
+    }
+}
+
+/// <summary>
+///     Emits a <c>Status?</c> null-check that short-circuits RPC execution when a
+///     <c>Validate</c> / <c>ValidateAsync</c> method on the proto-first stub returns
+///     a non-null <see cref="Status"/>. Placed immediately after the <see cref="MethodCall"/>
+///     frame for the validate method in <see cref="GrpcServiceChain.AssembleTypes"/>.
+/// </summary>
+/// <remarks>
+///     Generated code shape:
+///     <code>
+///         if ({statusVar}.HasValue)
+///             throw new Grpc.Core.RpcException({statusVar}.Value);
+///     </code>
+///     When <see cref="Status.StatusCode"/> is <see cref="StatusCode.OK"/> the throw is
+///     skipped and the chain continues to the bus-dispatch frame as normal.
+/// </remarks>
+internal sealed class GrpcValidateShortCircuitFrame : SyncFrame
+{
+    private readonly Variable _statusVariable;
+
+    public GrpcValidateShortCircuitFrame(Variable statusVariable)
+    {
+        _statusVariable = statusVariable;
+        uses.Add(statusVariable);
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"BLOCK:if ({_statusVariable.Usage}.{nameof(Nullable<Status>.HasValue)})");
+        writer.Write(
+            $"throw new {typeof(RpcException).FullNameInCode()}({_statusVariable.Usage}.{nameof(Nullable<Status>.Value)});");
+        writer.FinishBlock();
+        writer.BlankLine();
 
         Next?.GenerateCode(method, writer);
     }

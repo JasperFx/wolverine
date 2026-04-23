@@ -16,6 +16,7 @@ public static class FaultExceptions
         "invalid" => new InvalidOperationException("bad state"),
         "notimpl" => new NotImplementedException("not yet"),
         "timeout" => new TimeoutException("too slow"),
+        "domain-validation" => new DomainValidationException("invalid domain state"),
         _ => new Exception("generic")
     };
 }
