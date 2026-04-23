@@ -283,5 +283,6 @@
   <Project Path="build/build.csproj">
     <Build Project="false" />
   </Project>
+  <Project Path="src/Wolverine.SourceGeneration/Wolverine.SourceGeneration.csproj" />
   <Project Path="src/Wolverine/Wolverine.csproj" />
 </Solution>
