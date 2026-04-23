@@ -52,6 +52,8 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
     public bool HasDeclared { get; private set; }
 
     public string DeclaredName { get; }
+    
+    public bool DeclarePassive { get; set; }
 
     public string Name { get; }
 
@@ -145,10 +147,20 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         }
 
         var exchangeTypeName = ExchangeType.ToString().ToLower();
-        await channel.ExchangeDeclareAsync(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
-        logger.LogInformation(
-            "Declared Rabbit Mq exchange '{Name}', type = {Type}, IsDurable = {IsDurable}, AutoDelete={AutoDelete}",
-            DeclaredName, exchangeTypeName, IsDurable, AutoDelete);
+        if (DeclarePassive)
+        {
+            await channel.ExchangeDeclarePassiveAsync(DeclaredName);
+            logger.LogInformation(
+                "Declared Rabbit Mq exchange '{Name}' (passive)",
+                DeclaredName);
+        }
+        else
+        {
+            await channel.ExchangeDeclareAsync(DeclaredName, exchangeTypeName, IsDurable, AutoDelete, Arguments);
+            logger.LogInformation(
+                "Declared Rabbit Mq exchange '{Name}', type = {Type}, IsDurable = {IsDurable}, AutoDelete={AutoDelete}",
+                DeclaredName, exchangeTypeName, IsDurable, AutoDelete);
+        }
 
         HasDeclared = true;
 

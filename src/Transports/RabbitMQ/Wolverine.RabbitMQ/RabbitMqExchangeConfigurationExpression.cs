@@ -28,6 +28,11 @@ public sealed class RabbitMqExchangeConfigurationExpression : IRabbitMqBindableE
         get => _exchange.AutoDelete;
         set => _exchange.AutoDelete = value;
     }
+    public bool DeclarePassive
+    {
+        get => _exchange.DeclarePassive;
+        set => _exchange.DeclarePassive = value;
+    }
     public IDictionary<string, object?> Arguments => _exchange.Arguments;
     public TopicBindingExchange BindTopic(string topicPattern)
     {

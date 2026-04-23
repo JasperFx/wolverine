@@ -56,7 +56,22 @@ public class configuration_model_specs
         exchange.HasDeclared.ShouldBeTrue();
     }
 
+    [Fact]
+    public async Task exchange_declare_passive()
+    {
+        var channel = Substitute.For<IChannel>();
+        var exchange = new RabbitMqExchange("foo", new RabbitMqTransport())
+        {
+            DeclarePassive = true,
+        };
 
+        await exchange.DeclareAsync(channel, NullLogger.Instance);
+
+        await channel.Received().ExchangeDeclarePassiveAsync("foo");
+
+        exchange.HasDeclared.ShouldBeTrue();
+    }
+    
     [Fact]
     public async Task exchange_declare_headers()
     {
