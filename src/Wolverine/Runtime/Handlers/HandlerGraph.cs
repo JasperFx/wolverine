@@ -272,30 +272,32 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             handler = chain.Handler;
         }
-        else if (!chain.HasDefaultNonStickyHandlers())
-        {
-            throw new NoHandlerForEndpointException(messageType);
-        }
         else
         {
+            // SagaChain.DetermineFrames clears Handlers during codegen, so the
+            // HasDefaultNonStickyHandlers check has to happen inside the lock
             lock (_compilingLock)
             {
-                // TODO -- put this logic in JasperFx
-                var logger = Container?.Services.GetService<ILoggerFactory>()?.CreateLogger<HandlerGraph>() ?? new Logger<HandlerGraph>(new LoggerFactory([new DebugLoggerProvider()]));
-                
-                logger.LogDebug("Starting to compile chain {MessageType}", chain.MessageType.NameInCode());
-
-                if (chain.Handler == null)
-                {
-                    chain.InitializeSynchronously(Rules, this, Container!.Services);
-                    handler = chain.CreateHandler(Container!);
-                }
-                else
+                if (chain.Handler != null)
                 {
                     handler = chain.Handler;
                 }
+                else if (!chain.HasDefaultNonStickyHandlers())
+                {
+                    throw new NoHandlerForEndpointException(messageType);
+                }
+                else
+                {
+                    // TODO -- put this logic in JasperFx
+                    var logger = Container?.Services.GetService<ILoggerFactory>()?.CreateLogger<HandlerGraph>() ?? new Logger<HandlerGraph>(new LoggerFactory([new DebugLoggerProvider()]));
 
-                logger.LogDebug("Finished building the chain {MessageType}", chain.MessageType.NameInCode());
+                    logger.LogDebug("Starting to compile chain {MessageType}", chain.MessageType.NameInCode());
+
+                    chain.InitializeSynchronously(Rules, this, Container!.Services);
+                    handler = chain.CreateHandler(Container!);
+
+                    logger.LogDebug("Finished building the chain {MessageType}", chain.MessageType.NameInCode());
+                }
             }
         }
 
