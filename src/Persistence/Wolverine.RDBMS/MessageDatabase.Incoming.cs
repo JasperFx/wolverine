@@ -9,8 +9,8 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
-    private readonly string _markEnvelopeAsHandledById;
-    private readonly string _incrementIncomingEnvelopeAttempts;
+    protected string _markEnvelopeAsHandledById;
+    protected string _incrementIncomingEnvelopeAttempts;
 
     public abstract Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit);
 
@@ -22,7 +22,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
         foreach (var envelope in incoming)
         {
-            builder.Append($"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = ");
+            builder.Append($"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = ");
             builder.AppendParameter(ownerId);
             builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(envelope.Id);
@@ -56,7 +56,7 @@ public abstract partial class MessageDatabase<T>
         try
         {
             var builder = ToCommandBuilder();
-            builder.Append($"delete from {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ");
+            builder.Append($"delete from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
             builder.AppendParameter(envelope.Destination!.ToString());
@@ -88,13 +88,13 @@ public abstract partial class MessageDatabase<T>
     {
         if (HasDisposed) return;
         var keepUntil = DateTimeOffset.UtcNow.Add(Durability.KeepAfterMessageHandling);
-        
+
         var builder = ToCommandBuilder();
         builder.AddNamedParameter("keepUntil", keepUntil);
 
         foreach (var envelope in envelopes)
         {
-            builder.Append($"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
+            builder.Append($"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);

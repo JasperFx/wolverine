@@ -35,8 +35,13 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     private readonly string _reassignIncomingSql;
 
     private readonly List<ISchemaObject> _externalTables = new();
-    
+
     private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;
+
+    /// <summary>
+    /// Returns the schema name properly quoted for use as a PostgreSQL identifier in SQL statements.
+    /// </summary>
+    protected override string QuotedSchemaName => SchemaName.QuoteIdentifier();
 
 
     public PostgresqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, NpgsqlDataSource dataSource,
@@ -59,15 +64,21 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         settings, logger, new PostgresqlMigrator(), PostgresqlProvider.Instance)
     {
         _reassignIncomingSql =
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
+            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id = ANY(@ids)";
         _deleteOutgoingEnvelopesSql =
-            $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
+            $"delete from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = ANY(@ids);";
 
         _findAtLargeEnvelopesSql =
-            $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = :address limit :limit";
+            $"select {DatabaseConstants.IncomingFields} from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = :address limit :limit";
 
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
-                                         $";update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
+                                         $";update {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = @node where id = ANY(@rids)";
+
+        // Rebuild base class SQL strings with properly quoted schema name for PostgreSQL
+        _markEnvelopeAsHandledById =
+            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
+        _incrementIncomingEnvelopeAttempts =
+            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
         NpgsqlDataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
@@ -232,7 +243,7 @@ where c.relname = '{tableName}';";
             // by VACUUM/ANALYZE, fall back to exact count
             if (reltuples <= 0 && relationSize > 0)
             {
-                var exactCount = await CreateCommand($"select count(*) from {SchemaName}.{tableName}")
+                var exactCount = await CreateCommand($"select count(*) from {QuotedSchemaName}.{tableName}")
                     .ExecuteScalarAsync();
                 return Convert.ToInt32(exactCount);
             }
@@ -247,7 +258,7 @@ where c.relname = '{tableName}';";
     private async Task fetchCountsWithGroupBy(PersistedCounts counts)
     {
         await using var reader = await CreateCommand(
-                $"select status, count(*) from {SchemaName}.{DatabaseConstants.IncomingTable} group by status")
+                $"select status, count(*) from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} group by status")
             .ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
@@ -345,14 +356,14 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         // After deleting data, PostgreSQL's pg_class.reltuples statistics become stale.
         // FetchCountsAsync() uses these stats for fast estimation, so we must run ANALYZE
         // to update them after bulk deletes.
-        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+        await conn.CreateCommand($"ANALYZE {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable}")
             .ExecuteNonQueryAsync(_cancellation);
-        await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.OutgoingTable}")
+        await conn.CreateCommand($"ANALYZE {QuotedSchemaName}.{DatabaseConstants.OutgoingTable}")
             .ExecuteNonQueryAsync(_cancellation);
 
         if (Durability.EnableInboxPartitioning)
         {
-            await conn.CreateCommand($"ANALYZE {SchemaName}.{DatabaseConstants.IncomingTable}")
+            await conn.CreateCommand($"ANALYZE {QuotedSchemaName}.{DatabaseConstants.IncomingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
         }
     }
@@ -379,7 +390,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
     protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
         return
-            $"select {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
+            $"select {DatabaseConstants.OutgoingFields} from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
     }
 
     public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress,
@@ -404,7 +415,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         {
             await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
             var count = await conn
-                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
+                .CreateCommand($"select count(id) from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where id = :id")
                 .With("id", envelope.Id)
                 .ExecuteScalarAsync(cancellation);
 
@@ -414,7 +425,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         {
             await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellation);
             var count = await conn
-                .CreateCommand($"select count(id) from {SchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
+                .CreateCommand($"select count(id) from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where id = :id and {DatabaseConstants.ReceivedAt} = :destination")
                 .With("id", envelope.Id)
                 .With("destination", envelope.Destination!.ToString())
                 .ExecuteScalarAsync(cancellation);
@@ -426,7 +437,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(
-            $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
+            $"select {DatabaseConstants.IncomingFields} from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and execution_time <= ");
 
         builder.AppendParameter(utcNow);
         builder.Append($" order by execution_time LIMIT {Durability.RecoveryBatchSize};");
@@ -698,17 +709,17 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         await conn.OpenAsync(CancellationToken.None);
 
         var deleted = 1;
-        
+
         var sql = $@"
         WITH todo AS (
             SELECT id
-            FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable}
+            FROM {QuotedSchemaName}.{DatabaseConstants.IncomingTable}
             WHERE status = '{EnvelopeStatus.Handled}'
             ORDER BY id
             LIMIT 10000
             FOR UPDATE SKIP LOCKED
         )
-        DELETE FROM {_settings.SchemaName}.{DatabaseConstants.IncomingTable} w
+        DELETE FROM {QuotedSchemaName}.{DatabaseConstants.IncomingTable} w
         USING todo
         WHERE w.id = todo.id;
 ";

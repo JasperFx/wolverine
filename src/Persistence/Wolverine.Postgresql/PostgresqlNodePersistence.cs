@@ -71,8 +71,9 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             return Task.CompletedTask;
         }
 
+        var quotedSchema = _settings.SchemaName.QuoteIdentifier();
         return _dataSource.CreateCommand(
-                $"delete from {_nodeTable} where id = :id;update {_settings.SchemaName}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = :number;update {_settings.SchemaName}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = :number;")
+                $"delete from {_nodeTable} where id = :id;update {quotedSchema}.{IncomingTable} set {OwnerId} = 0 where {OwnerId} = :number;update {quotedSchema}.{OutgoingTable} set {OwnerId} = 0 where {OwnerId} = :number;")
             .With("id", nodeId)
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();
@@ -301,9 +302,10 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             };
         };
 
+        var quotedSchema = _settings.SchemaName.QuoteIdentifier();
         return await _dataSource
             .CreateCommand(
-                $"select node_number, event_name, timestamp, description from {_settings.SchemaName}.{NodeRecordTableName} order by id desc LIMIT :limit")
+                $"select node_number, event_name, timestamp, description from {quotedSchema}.{NodeRecordTableName} order by id desc LIMIT :limit")
             .With("limit", count)
             .FetchListAsync(readRecord);
     }
@@ -312,8 +314,9 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     {
         if (retainCount <= 0) return Task.CompletedTask;
 
+        var quotedSchema = _settings.SchemaName.QuoteIdentifier();
         return _dataSource.CreateCommand(
-                $"delete from {_settings.SchemaName}.{NodeRecordTableName} where id not in (select id from {_settings.SchemaName}.{NodeRecordTableName} order by id desc limit :retain)")
+                $"delete from {quotedSchema}.{NodeRecordTableName} where id not in (select id from {quotedSchema}.{NodeRecordTableName} order by id desc limit :retain)")
             .With("retain", retainCount)
             .ExecuteNonQueryAsync();
     }

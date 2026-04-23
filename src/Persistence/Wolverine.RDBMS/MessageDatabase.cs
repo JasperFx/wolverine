@@ -139,10 +139,16 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         {
             _schemaName = value;
 
-            IncomingFullName = $"{value}.{DatabaseConstants.IncomingTable}";
-            OutgoingFullName = $"{value}.{DatabaseConstants.OutgoingTable}";
+            IncomingFullName = $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+            OutgoingFullName = $"{QuotedSchemaName}.{DatabaseConstants.OutgoingTable}";
         }
     }
+
+    /// <summary>
+    /// Returns the schema name properly quoted for use in SQL statements.
+    /// Override in derived classes for database-specific quoting (e.g., double quotes for PostgreSQL, square brackets for SQL Server).
+    /// </summary>
+    protected virtual string QuotedSchemaName => SchemaName;
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
@@ -231,7 +237,7 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
         var impacted = await _dataSource
             .CreateCommand(
-                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
+                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @owner and {DatabaseConstants.ReceivedAt} = @uri")
             .With("owner", ownerId)
             .With("uri", receivedAt.ToString())
             .ExecuteNonQueryAsync(_cancellation);
