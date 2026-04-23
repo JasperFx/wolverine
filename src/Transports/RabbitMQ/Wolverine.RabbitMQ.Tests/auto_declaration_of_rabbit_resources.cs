@@ -36,5 +36,6 @@ public class auto_declaration_of_rabbit_resources
         exchange.Name.ShouldBe("exchange1");
         exchange.ExchangeType.ShouldBe(ExchangeType.Fanout);
         exchange.IsDurable.ShouldBeTrue();
+        exchange.DeclarePassive.ShouldBeFalse();
     }
 }
