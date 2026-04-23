@@ -7,10 +7,12 @@ public class InlineKafkaSender : ISender, IDisposable
 {
     private readonly KafkaTopic _topic;
     private readonly IProducer<string, byte[]> _producer;
+    private readonly bool _fixedDestination;
 
-    public InlineKafkaSender(KafkaTopic topic)
+    public InlineKafkaSender(KafkaTopic topic, bool fixedDestination = false)
     {
         _topic = topic;
+        _fixedDestination = fixedDestination;
         Destination = topic.Uri;
         Config = topic.GetEffectiveProducerConfig();
         _producer = _topic.Parent.CreateProducer(Config);
@@ -37,7 +39,8 @@ public class InlineKafkaSender : ISender, IDisposable
     {
         var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
 
-        await _producer.ProduceAsync(envelope.TopicName ?? _topic.TopicName, message);
+        var topicName = _fixedDestination ? _topic.TopicName : envelope.TopicName ?? _topic.TopicName;
+        await _producer.ProduceAsync(topicName, message);
         _producer.Flush();
     }
 
