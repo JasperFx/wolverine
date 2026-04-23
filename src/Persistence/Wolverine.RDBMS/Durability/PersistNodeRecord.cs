@@ -24,7 +24,7 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
         foreach (var @event in _events)
         {
             builder.Append("insert into ");
-            builder.Append(_settings.SchemaName!);
+            builder.Append(_settings.QuotedSchemaName);
             builder.Append('.');
             builder.Append(DatabaseConstants.NodeRecordTableName);
             builder.Append(" (node_number, event_name, description) values (");

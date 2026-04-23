@@ -15,18 +15,25 @@ public static class PostgresqlConfigurationExtensions
     {
         if (schemaName.IsEmpty())
             throw new ArgumentNullException(nameof(schemaName), "Schema Name cannot be empty or null");
-        
+
         if (schemaName.IsNotEmpty() && schemaName != schemaName.ToLowerInvariant())
         {
             throw new ArgumentOutOfRangeException(nameof(schemaName),
                 "The schema name must be in all lower case characters");
         }
+    }
 
-        if (schemaName.Contains("-"))
-        {
-            throw new ArgumentOutOfRangeException(nameof(schemaName),
-                "PostgreSQL schema names cannot include dashes. Use underscores instead");
-        }
+    /// <summary>
+    /// Quotes a PostgreSQL identifier (schema, table, column name) with double quotes.
+    /// Internal double quotes are escaped by doubling them.
+    /// </summary>
+    internal static string QuoteIdentifier(this string? identifier)
+    {
+        if (identifier.IsEmpty()) return identifier ?? string.Empty;
+
+        // Escape any internal double quotes by doubling them
+        var escaped = identifier.Replace("\"", "\"\"");
+        return $"\"{escaped}\"";
     }
     
     /// <summary>
