@@ -8,11 +8,9 @@ The pattern is complementary to Wolverine's [Saga](/guide/durability/sagas) supp
 
 A Process Manager coordinates a long-running business operation that unfolds across multiple steps and multiple messages. Place order, confirm payment, reserve items, schedule shipment, handle a timeout if payment never arrives. Each step is triggered by a different message. Each step needs to see where the process is so it can decide what happens next.
 
-Wolverine offers two first-class ways to carry that state.
+Wolverine's [Saga](/guide/durability/sagas) support (and its [Marten-backed integration](/guide/durability/marten/sagas)) is the first-class way to do this: a single stateful class, persisted as a document, with a framework-managed `MarkCompleted()` lifecycle. If you have not read those pages yet, read them first. This guide assumes you have.
 
-**Saga** ([docs](/guide/durability/sagas), [Marten integration](/guide/durability/marten/sagas)) gives you a single stateful class that inherits from `Wolverine.Saga`. Marten persists the saga as a document. Handler methods live on the saga itself, mutate its fields, and eventually call `MarkCompleted()` to delete the document. One class equals one process. The lifecycle is framework-managed.
-
-**Process Manager via handlers** (this guide) carries the process as an event stream instead of a document. You write a plain state type with `Apply` methods, and each message type gets its own handler that loads the stream via `FetchForWriting`, decides what to do, and appends events. There is no single class that "is" the process. The process is the stream, and the state type is a projection of it.
+This page describes a complementary pattern for the same class of problem: carrying the process as an **event stream** instead of a document, and coordinating the steps through ordinary `[AggregateHandler]` methods rather than a single Saga class. No new base class, no new package; every mechanism used here ships in the current versions of Wolverine and Marten.
 
 Pick Saga when:
 
@@ -501,7 +499,364 @@ The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolveri
 
 ## 4. Worked Example
 
-> _Pending Phase 7. Assembled from the actual `ProcessManagerSample` source at that point._
+This section is the reference: every file in the `OrderFulfillment` folder of [`ProcessManagerSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample), in the order you would read them, plus the Marten plus Wolverine wiring and one test of each style. The scenario is end-to-end order fulfillment with a payment timeout and a compensating cancellation path. 19 tests back the sample; two of them appear below.
+
+### `OrderFulfillment/OrderFulfillmentState.cs`
+
+```csharp
+namespace ProcessManagerSample.OrderFulfillment;
+
+/// <summary>
+/// Event-sourced state for the order fulfillment process. Projected inline from the event stream
+/// via Apply methods. Serves as the correlation surface for the handlers that coordinate payment,
+/// warehouse, and shipping steps.
+/// </summary>
+public class OrderFulfillmentState
+{
+    // Required by Marten: FetchForWriting registers the aggregate type as a document type.
+    // Without a public Guid Id { get; set; }, CleanAllDataAsync throws InvalidDocumentException.
+    public Guid Id { get; set; }
+
+    public Guid CustomerId { get; set; }
+    public decimal TotalAmount { get; set; }
+
+    public bool PaymentConfirmed { get; set; }
+    public bool ItemsReserved { get; set; }
+    public bool ShipmentConfirmed { get; set; }
+
+    public bool IsCompleted { get; set; }
+    public bool IsCancelled { get; set; }
+
+    /// <summary>
+    /// True once the process has reached a terminal state. Every continue handler must guard on this
+    /// to stay idempotent against late-arriving messages after completion or cancellation.
+    /// </summary>
+    public bool IsTerminal => IsCompleted || IsCancelled;
+
+    public void Apply(OrderFulfillmentStarted e)
+    {
+        Id = e.OrderFulfillmentStateId;
+        CustomerId = e.CustomerId;
+        TotalAmount = e.TotalAmount;
+    }
+
+    public void Apply(PaymentConfirmed _) => PaymentConfirmed = true;
+
+    public void Apply(ItemsReserved _) => ItemsReserved = true;
+
+    public void Apply(ShipmentConfirmed _) => ShipmentConfirmed = true;
+
+    public void Apply(OrderFulfillmentCompleted _) => IsCompleted = true;
+
+    public void Apply(OrderFulfillmentCancelled _) => IsCancelled = true;
+}
+```
+
+### `OrderFulfillment/Events.cs`
+
+```csharp
+namespace ProcessManagerSample.OrderFulfillment;
+
+public record OrderFulfillmentStarted(
+    Guid OrderFulfillmentStateId,
+    Guid CustomerId,
+    decimal TotalAmount);
+
+public record PaymentConfirmed(
+    Guid OrderFulfillmentStateId,
+    decimal Amount);
+
+public record ItemsReserved(
+    Guid OrderFulfillmentStateId,
+    Guid ReservationId);
+
+public record ShipmentConfirmed(
+    Guid OrderFulfillmentStateId,
+    string TrackingNumber);
+
+public record OrderFulfillmentCompleted(Guid OrderFulfillmentStateId);
+
+public record OrderFulfillmentCancelled(
+    Guid OrderFulfillmentStateId,
+    string Reason);
+```
+
+### `OrderFulfillment/Commands.cs`
+
+```csharp
+namespace ProcessManagerSample.OrderFulfillment;
+
+public record StartOrderFulfillment(
+    Guid OrderFulfillmentStateId,
+    Guid CustomerId,
+    decimal TotalAmount,
+    TimeSpan? PaymentTimeoutWindow = null);
+
+public record CancelOrderFulfillment(
+    Guid OrderFulfillmentStateId,
+    string Reason);
+
+public record PaymentTimeout(Guid OrderFulfillmentStateId);
+```
+
+### `OrderFulfillment/Handlers/StartOrderFulfillmentHandler.cs`
+
+```csharp
+using Wolverine;
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+public static class StartOrderFulfillmentHandler
+{
+    public static readonly TimeSpan DefaultPaymentTimeoutWindow = TimeSpan.FromMinutes(15);
+
+    public static (IStartStream, OutgoingMessages) Handle(StartOrderFulfillment command)
+    {
+        var started = new OrderFulfillmentStarted(
+            command.OrderFulfillmentStateId,
+            command.CustomerId,
+            command.TotalAmount);
+
+        var outgoing = new OutgoingMessages();
+        outgoing.Delay(
+            new PaymentTimeout(command.OrderFulfillmentStateId),
+            command.PaymentTimeoutWindow ?? DefaultPaymentTimeoutWindow);
+
+        return (
+            MartenOps.StartStream<OrderFulfillmentState>(command.OrderFulfillmentStateId, started),
+            outgoing);
+    }
+}
+```
+
+### `OrderFulfillment/Handlers/PaymentConfirmedHandler.cs`
+
+```csharp
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+[AggregateHandler]
+public static class PaymentConfirmedHandler
+{
+    public static Events Handle(PaymentConfirmed @event, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+        if (state.PaymentConfirmed) return new Events();
+
+        var events = new Events();
+        events += @event;
+
+        if (state.ItemsReserved && state.ShipmentConfirmed)
+        {
+            events += new OrderFulfillmentCompleted(state.Id);
+        }
+
+        return events;
+    }
+}
+```
+
+### `OrderFulfillment/Handlers/ItemsReservedHandler.cs`
+
+```csharp
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+[AggregateHandler]
+public static class ItemsReservedHandler
+{
+    public static Events Handle(ItemsReserved @event, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+        if (state.ItemsReserved) return new Events();
+
+        var events = new Events();
+        events += @event;
+
+        if (state.PaymentConfirmed && state.ShipmentConfirmed)
+        {
+            events += new OrderFulfillmentCompleted(state.Id);
+        }
+
+        return events;
+    }
+}
+```
+
+### `OrderFulfillment/Handlers/ShipmentConfirmedHandler.cs`
+
+```csharp
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+[AggregateHandler]
+public static class ShipmentConfirmedHandler
+{
+    public static Events Handle(ShipmentConfirmed @event, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+        if (state.ShipmentConfirmed) return new Events();
+
+        var events = new Events();
+        events += @event;
+
+        if (state.PaymentConfirmed && state.ItemsReserved)
+        {
+            events += new OrderFulfillmentCompleted(state.Id);
+        }
+
+        return events;
+    }
+}
+```
+
+### `OrderFulfillment/Handlers/CancelOrderFulfillmentHandler.cs`
+
+```csharp
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+[AggregateHandler]
+public static class CancelOrderFulfillmentHandler
+{
+    public static Events Handle(CancelOrderFulfillment command, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+
+        var events = new Events();
+        events += new OrderFulfillmentCancelled(state.Id, command.Reason);
+        return events;
+    }
+}
+```
+
+### `OrderFulfillment/Handlers/PaymentTimeoutHandler.cs`
+
+```csharp
+using Wolverine.Marten;
+
+namespace ProcessManagerSample.OrderFulfillment.Handlers;
+
+[AggregateHandler]
+public static class PaymentTimeoutHandler
+{
+    public static Events Handle(PaymentTimeout _, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+        if (state.PaymentConfirmed) return new Events();
+
+        var events = new Events();
+        events += new OrderFulfillmentCancelled(state.Id, "Payment timed out");
+        return events;
+    }
+}
+```
+
+### `Program.cs` (Marten plus Wolverine wiring)
+
+```csharp
+using JasperFx;
+using Marten;
+using Marten.Events.Projections;
+using ProcessManagerSample.OrderFulfillment;
+using Wolverine;
+using Wolverine.Marten;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddMarten(opts =>
+    {
+        var connectionString = builder.Configuration.GetConnectionString("Marten");
+        opts.Connection(connectionString!);
+        opts.DatabaseSchemaName = "process_manager";
+
+        opts.Projections.Snapshot<OrderFulfillmentState>(SnapshotLifecycle.Inline);
+    })
+    .IntegrateWithWolverine();
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.Policies.AutoApplyTransactions();
+});
+
+var app = builder.Build();
+
+app.MapPost("/orders/start",
+    (StartOrderFulfillment command, IMessageBus bus) => bus.InvokeAsync(command));
+
+return await app.RunJasperFxCommands(args);
+
+public partial class Program;
+```
+
+### Unit test (pure function)
+
+From [`HandlerUnitTests.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/HandlerUnitTests.cs):
+
+```csharp
+[Fact]
+public void payment_confirmed_also_completes_when_other_two_gates_are_already_satisfied()
+{
+    var state = new OrderFulfillmentState
+    {
+        Id = Guid.NewGuid(),
+        CustomerId = Guid.NewGuid(),
+        TotalAmount = 100m,
+        ItemsReserved = true,
+        ShipmentConfirmed = true
+    };
+    var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
+
+    var result = PaymentConfirmedHandler.Handle(@event, state);
+
+    result.Count.ShouldBe(2);
+    result[0].ShouldBeOfType<PaymentConfirmed>();
+    var completed = result[1].ShouldBeOfType<OrderFulfillmentCompleted>();
+    completed.OrderFulfillmentStateId.ShouldBe(state.Id);
+}
+```
+
+### Integration test (happy path, end to end)
+
+From [`when_completing_a_fulfillment.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/when_completing_a_fulfillment.cs):
+
+```csharp
+[Fact]
+public async Task happy_path_ends_with_OrderFulfillmentCompleted()
+{
+    var id = Guid.NewGuid();
+
+    await Host.InvokeMessageAndWaitAsync(new StartOrderFulfillment(id, Guid.NewGuid(), 249.00m));
+    await Host.InvokeMessageAndWaitAsync(new PaymentConfirmed(id, 249.00m));
+    await Host.InvokeMessageAndWaitAsync(new ItemsReserved(id, Guid.NewGuid()));
+    await Host.InvokeMessageAndWaitAsync(new ShipmentConfirmed(id, "TRACK-ABC"));
+
+    await using var session = Store.LightweightSession();
+    var events = await session.Events.FetchStreamAsync(id);
+
+    events.Count.ShouldBe(5);
+    events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
+    events[1].Data.ShouldBeOfType<PaymentConfirmed>();
+    events[2].Data.ShouldBeOfType<ItemsReserved>();
+    events[3].Data.ShouldBeOfType<ShipmentConfirmed>();
+    events[4].Data.ShouldBeOfType<OrderFulfillmentCompleted>();
+
+    var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+    state.ShouldNotBeNull();
+    state.IsCompleted.ShouldBeTrue();
+    state.IsCancelled.ShouldBeFalse();
+    state.PaymentConfirmed.ShouldBeTrue();
+    state.ItemsReserved.ShouldBeTrue();
+    state.ShipmentConfirmed.ShouldBeTrue();
+}
+```
+
+The full integration and unit test suites cover the out-of-order, idempotency, cancellation, and timeout paths; they live in the sample's `OrderFulfillment/` test folder and are worth reading alongside this page.
 
 ## 5. The Friction Points
 
@@ -576,4 +931,39 @@ For the Saga-side mechanics see the [Saga documentation](/guide/durability/sagas
 
 ## 7. Optional: DCB Enhancement
 
-> _Pending Phase 7._
+Everything above keeps the Process Manager's decisions bounded by its own stream. Sometimes you need more. If a step has to take into account facts that live on **other** streams (a different aggregate's history, a cross-cutting event stream), a single-stream `[AggregateHandler]` is not enough. Marten's Dynamic Consistency Boundary (DCB) support, exposed in Wolverine as the `[BoundaryModel]` parameter attribute, is the right reach.
+
+The shape is small and worth knowing even if you do not use it today:
+
+```csharp
+public static class BoundaryModelSubscribeStudentHandler
+{
+    public static EventTagQuery Load(BoundaryModelSubscribeStudentToCourse command)
+        => EventTagQuery
+            .For(command.CourseId)
+            .AndEventsOfType<CourseCreated, CourseCapacityChanged,
+                StudentSubscribedToCourse, StudentUnsubscribedFromCourse>()
+            .Or(command.StudentId)
+            .AndEventsOfType<StudentEnrolledInFaculty,
+                StudentSubscribedToCourse, StudentUnsubscribedFromCourse>();
+
+    public static StudentSubscribedToCourse Handle(
+        BoundaryModelSubscribeStudentToCourse command,
+        [BoundaryModel] SubscriptionState state)
+    {
+        // guard checks against state projected from events across both streams
+        return new StudentSubscribedToCourse(...);
+    }
+}
+```
+
+The handler has two methods: `Load`, which returns an `EventTagQuery` describing the events (across one or more streams) that should feed the projection, and `Handle`, which receives the projected state built from those events. Marten's `FetchForWritingByTags<T>(query)` loads and projects; Wolverine's `[BoundaryModel]` parameter attribute wires the middleware.
+
+Two sharp edges worth flagging up front:
+
+- `EventTagQuery.For(tag)` without a following `AndEventsOfType<...>()` call produces zero conditions and throws at runtime. Always pair `For` with `AndEventsOfType`.
+- `DcbConcurrencyException` does **not** inherit from `ConcurrencyException`; it inherits from `MartenException` directly. If you have retry policies configured for optimistic concurrency violations, they will not cover DCB violations. Add a separate `opts.OnException<DcbConcurrencyException>().RetryWithCooldown(...)` policy.
+
+Rather than repeat a DCB sample here, we recommend reading the canonical reference that already exists in the Wolverine test suite: the University domain at [`src/Persistence/MartenTests/Dcb/University/`](https://github.com/JasperFx/wolverine/tree/main/src/Persistence/MartenTests/Dcb/University). It models student-to-course enrollment with cross-stream invariants (a student cannot subscribe to more than three courses, a course cannot exceed its capacity) and is the reference for `[BoundaryModel]` usage in the codebase.
+
+DCB is still an evolving area. If your Process Manager lives entirely within its own stream, stay with the single-stream recipe above. Reach for DCB when the invariants you need to enforce span streams that are not yours to co-own.
