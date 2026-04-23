@@ -794,7 +794,6 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal override void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
         base.TrackEnvelopeCorrelation(outbound, activity);
-        outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
 
         if (ConversationId != Guid.Empty)
         {
@@ -805,6 +804,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             outbound.ConversationId = Envelope.ConversationId == Guid.Empty ? Envelope.Id : Envelope.ConversationId;
         }
+    }
+
+    internal override void StampEnvelope(Envelope envelope)
+    {
+        base.StampEnvelope(envelope);
+        envelope.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? envelope.SagaId;
     }
 
     public void OverrideStorage(IMessageStore messageStore)
