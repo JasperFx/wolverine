@@ -330,10 +330,6 @@ No step-level idempotency guard; cancellation is terminal by its first occurrenc
 
 ### Step 6: Schedule timeouts
 
-::: tip To be validated
-The timeout path is implemented in Phase 5 of the sample. The API surface described here is verified from source; the compositional details (notably, whether `MartenOps.StartStream` composes cleanly with `OutgoingMessages` in a tuple return) are still to be confirmed in that phase, and this section will be revised with whatever is learned.
-:::
-
 You schedule a timeout without injecting `IMessageBus`. Return an `OutgoingMessages` alongside whatever the handler produces, and Wolverine dispatches each item through the outbox:
 
 ```csharp
@@ -345,7 +341,7 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
 }
 ```
 
-In the start handler:
+The start handler returns a tuple. The first element creates the stream and appends the initial event; the second element schedules the timeout:
 
 ```csharp
 public static (IStartStream, OutgoingMessages) Handle(StartOrderFulfillment command)
@@ -358,7 +354,7 @@ public static (IStartStream, OutgoingMessages) Handle(StartOrderFulfillment comm
     var outgoing = new OutgoingMessages();
     outgoing.Delay(
         new PaymentTimeout(command.OrderFulfillmentStateId),
-        TimeSpan.FromMinutes(15));
+        command.PaymentTimeoutWindow ?? DefaultPaymentTimeoutWindow);
 
     return (
         MartenOps.StartStream<OrderFulfillmentState>(command.OrderFulfillmentStateId, started),
@@ -366,9 +362,33 @@ public static (IStartStream, OutgoingMessages) Handle(StartOrderFulfillment comm
 }
 ```
 
-The tuple return is Wolverine's multi-result convention. Event items go to the stream, `OutgoingMessages` items cascade, response items go back to the caller.
+The tuple return is Wolverine's multi-result convention. `IStartStream` is an `IMartenOp : ISideEffect`, so Wolverine's return-value unpacker applies it alongside the `OutgoingMessages` without either fighting the other. This is what keeps the start handler a single method instead of splitting stream creation and timeout scheduling into separate handlers.
 
-The `PaymentTimeout` handler itself is a continue handler like any other. Its completion guard makes it a no-op if payment confirmed before the timer fired, so you do not need to track or cancel the scheduled message explicitly: the process state decides whether the timeout does anything.
+#### Let state decide. Do not cancel the timer.
+
+The timeout handler is a standard `[AggregateHandler]` that uses the same guards you wrote for every other continue handler:
+
+```csharp
+[AggregateHandler]
+public static class PaymentTimeoutHandler
+{
+    public static Events Handle(PaymentTimeout _, OrderFulfillmentState state)
+    {
+        if (state.IsTerminal) return new Events();
+        if (state.PaymentConfirmed) return new Events();
+
+        var events = new Events();
+        events += new OrderFulfillmentCancelled(state.Id, "Payment timed out");
+        return events;
+    }
+}
+```
+
+Notice what is not here: there is no API to "cancel" the scheduled message when payment arrives early. You do not need one. When the timer fires, the handler loads the current state, sees that payment already confirmed, and returns an empty `Events`. The scheduled message becomes a silent no-op.
+
+This is the cleanest ergonomic win this pattern has over a Saga plus explicit-cancel approach. A cancel-the-timer design has to race the cancel against the timer firing, needs a cancellation API, and breaks if the cancel message is lost. A let-state-decide design relies on the state being authoritative and always current, which is exactly what event sourcing gives you. The timeout handler stays pure. The start handler stays pure. No `IMessageBus` injection anywhere in the process.
+
+One consequence worth flagging: a long timeout window leaves the scheduler holding a message the process no longer cares about. If your transport or durability store has per-message cost concerns at scale, you may want shorter windows or explicit cancellation anyway. The sample's 15-minute default is fine for most workloads.
 
 ### Step 7: Wire it up
 
@@ -446,6 +466,37 @@ public async Task happy_path_ends_with_OrderFulfillmentCompleted()
 
 `InvokeMessageAndWaitAsync` blocks until the transaction commits, so you can open a read session on the next line and see the appended events.
 
+**Testing scheduled messages.** `InvokeMessageAndWaitAsync` does not wait for a delayed message that the scheduler has yet to pick up. For timeout assertions you need a small polling helper with a generous deadline, because the scheduler fires "around" the requested delay plus one poll cycle:
+
+```csharp
+private async Task WaitForCondition(Guid id, Func<OrderFulfillmentState, bool> predicate)
+{
+    var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+    while (DateTime.UtcNow < deadline)
+    {
+        await using var session = Store.LightweightSession();
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        if (state is not null && predicate(state)) return;
+
+        await Task.Delay(TimeSpan.FromMilliseconds(250));
+    }
+
+    throw new TimeoutException($"Condition on state {id} not met within the observation window.");
+}
+```
+
+Tests that rely on the scheduler firing then look like:
+
+```csharp
+await Host.InvokeMessageAndWaitAsync(new StartOrderFulfillment(
+    id, Guid.NewGuid(), 10m,
+    PaymentTimeoutWindow: TimeSpan.FromSeconds(1)));
+
+await WaitForCondition(id, state => state.IsTerminal);
+```
+
+Keep the requested delay small in tests (1 to 2 seconds) and the observation window comfortably larger than one scheduler poll cycle. Do not use a bare `Task.Delay` as an observation window; you will get a flaky test that sometimes passes because the scheduler was fast and sometimes fails because it was slow.
+
 The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/IntegrationContext.cs) shows the Alba bootstrap used here. Two settings matter for test reliability: `services.MartenDaemonModeIsSolo()` and `services.RunWolverineInSoloMode()`. Without them you will fight the distributed durability machinery on every test run.
 
 ## 4. Worked Example
@@ -454,11 +505,74 @@ The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolveri
 
 ## 5. The Friction Points
 
-> _Pending Phase 6. Written after the timeout path has been implemented._
+None of these are deal-breakers. They are the honest accounting of what is harder with this pattern than with a Saga. Read them before you commit, so the first one does not come as a surprise two weeks in.
+
+### No single home for the process
+
+A process with five trigger message types means five handler files. Nothing in the framework ties them together. If a reviewer asks "what runs on `PaymentConfirmed`," you grep. There is no `OrderFulfillmentProcess.cs` to open. The sample's `Handlers/` folder is a convention, not an enforcement; a future maintainer can add a sixth handler elsewhere and the discoverability drops further.
+
+Saga gets this for free. One class per process, one file to read.
+
+### Completion logic is distributed across handlers
+
+The "maybe-complete" check lives in every continue handler, with the two "other" flags named each time:
+
+```csharp
+if (state.ItemsReserved && state.ShipmentConfirmed)
+    events += new OrderFulfillmentCompleted(state.Id);
+```
+
+For three steps this is fine. For ten steps, the condition appears ten times with nine-flag expressions, and the first maintainer who adds an eleventh step will miss at least one. You can factor the predicate onto the state type (`state.ReadyToCompleteAfter(typeof(PaymentConfirmed))`) to centralize it, but that is hand-written and not something the framework will nudge you toward.
+
+Saga centralizes this in one `checkForCompletion()` method on the saga class.
+
+### Every continue handler carries two guard lines
+
+```csharp
+if (state.IsTerminal) return new Events();
+if (state.PaymentConfirmed) return new Events();
+```
+
+For N continue handlers, that is 2N guard lines. They are mechanical but they are not optional, and a missed guard produces data corruption (an `ItemsReserved` event appended to a cancelled stream) that your tests may not catch because the next read of state still looks "right."
+
+Saga's `MarkCompleted()` plus framework-managed lifecycle means Wolverine itself short-circuits handlers on a completed saga. You write the `MarkCompleted()` call once; the framework enforces it everywhere.
+
+### The start handler has a different shape from the continue handlers
+
+Start: plain static class, returns `IStartStream` via `MartenOps.StartStream<T>`. Continue: `[AggregateHandler]` static class, returns `Events`. Start has no `OrderFulfillmentState` parameter; continue handlers always do. The two shapes are small but they are different, and new readers will ask why.
+
+This is a hard consequence of `AggregateHandlerAttribute.OnMissing` defaulting to `OnMissing.Simple404`. The attribute is designed around "the aggregate exists, load it, enforce concurrency." It does not naturally model "this command creates the aggregate." `MartenOps.StartStream` is the idiomatic workaround and it is fine once you know it, but you cannot hide the asymmetry from the reader.
+
+### Silent failure mode if you misapply `[AggregateHandler]` to a start handler
+
+If you forget and put `[AggregateHandler]` on a start handler, the middleware short-circuits before your handler runs. No events are appended. No exception is thrown. The test "passes" the build and the handler signature, then fails your assertion on event count with no useful diagnostic. The first time you hit this, expect to spend an hour before you realize the handler body never ran.
+
+### Nullable single-event returns are unsafe
+
+Returning `TEvent?` from a continue handler is ergonomic for the "sometimes no event" case but the aggregate-handler codegen emits `stream.AppendOne(variable)` unconditionally with no null check. A `return null;` will call `AppendOne(null)`. Use `Events` (possibly empty) for the no-op path instead. This is documented above but worth calling out as a sharp edge.
+
+### Inline snapshot projection is a silent correctness dependency
+
+The per-step idempotency guard (`if (state.PaymentConfirmed) return new Events();`) depends on the inline projection having committed the previous step's effects before the next handler loads state. Register the projection as `SnapshotLifecycle.Inline` and this works. Forget, and duplicate deliveries will be double-written without any other test failure telling you why.
+
+### No first-class test helper for "wait for scheduled message to fire"
+
+`InvokeMessageAndWaitAsync` waits for the cascading work of a single dispatch. A delayed message held by the scheduler is not tracked by that call. Phase 5 of the sample uses a polling helper (`WaitForCondition` in the test project) which works fine but is extra code every sample project will reinvent. If you write several timeout tests, consider lifting the helper into a shared test utility.
 
 ## 6. When to Use Saga Instead
 
-> _Pending Phase 6._
+Saga is the right tool when any of the following hold:
+
+- **You want one class per process.** Discoverability matters more to your team than the audit trail does. Open one file and see the whole state machine.
+- **You do not need event history on the process itself.** A document showing "where the saga is now" is enough; a replayable log of "how it got here" would be dead weight.
+- **Framework-managed completion matters.** You want to call `MarkCompleted()` in one place and have the framework stop dispatching to that instance. You do not want to maintain a completion guard on every handler.
+- **Simple coordination with timeouts is the primary concern.** Kick off, run a few handlers, time out if one does not arrive. Saga has dedicated lifecycle support for this; the Process Manager via handlers recipe above is heavier for the same outcome.
+- **Your team is already fluent with Saga.** Adding a second pattern for the same class of problems has a real cost in reviewability and onboarding. That cost is worth paying when the event-sourced benefits are load-bearing, not when they are merely nice-to-have.
+- **The process state is not part of the domain model.** If the state is internal coordination plumbing rather than something the domain asks questions about ("show me the fulfillment history for order 1234"), there is no value in making it a first-class event stream.
+
+Nothing stops you from mixing the two in the same application. Sagas for the short, internal coordination processes; Process Manager via handlers for the long-running, externally visible, auditable ones. The choice is per-process, not per-repository.
+
+For the Saga-side mechanics see the [Saga documentation](/guide/durability/sagas) and the [Marten-backed Saga integration](/guide/durability/marten/sagas).
 
 ## 7. Optional: DCB Enhancement
 
