@@ -33,8 +33,7 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
 
     private GeneratedType? _generatedType;
     private Type? _generatedRuntimeType;
-    private MethodInfo[]? _discoveredBefores;
-    private MethodInfo[]? _discoveredAfters;
+    private IEnumerable<Assembly>? _applicationAssemblies;
 
     /// <summary>
     ///     The <c>[ServiceContract]</c> interface annotated with <see cref="WolverineGrpcServiceAttribute"/>
@@ -70,31 +69,53 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         Description = $"Generated code-first gRPC service implementation for {serviceContractType.FullNameInCode()}";
     }
 
-    // --- Middleware discovery (scans the service contract interface for static hook methods) ---
+    // --- Middleware discovery (scans handler types for each RPC's request message) ---
+    //
+    // In Wolverine, static Before/Validate/After hook methods live on the handler class — the same
+    // class that owns the Handle/HandleAsync/Consume/ConsumeAsync method for that message. Code-first
+    // gRPC chains follow this idiom: for each RPC method, the chain scans the application assemblies
+    // for types that handle the request type and checks them for middleware hooks.
+    //
+    // Assembly scanning is used instead of HandlerGraph because AssembleTypes fires before
+    // HandlerGraph.Compile() runs (MapWolverineGrpcServices is called in the middleware pipeline,
+    // before WolverineRuntime.StartAsync). ApplicationAssemblies is set by GrpcGraph.DiscoverServices
+    // immediately after the chain is constructed. If it is null (unit-test contexts that construct
+    // the chain directly), HandlerTypesFor yields nothing and the before/after path is a no-op.
+
+    private static readonly HashSet<string> HandlerMethodNames =
+        new(StringComparer.Ordinal) { "Handle", "HandleAsync", "Consume", "ConsumeAsync" };
 
     /// <summary>
-    ///     Static methods on <see cref="ServiceContractType"/> that qualify as <c>[WolverineBefore]</c>
-    ///     middleware — by naming convention (<c>Validate</c>, <c>Before</c>) or explicit attribute.
-    ///     Includes the <c>Validate → Status?</c> short-circuit hook. Sorted ordinally for byte-stable
-    ///     generated source.
+    ///     The application assemblies to scan for handler types. Set by <see cref="GrpcGraph.DiscoverServices"/>
+    ///     after construction. Null in unit-test contexts that build the chain directly.
     /// </summary>
-    public IReadOnlyList<MethodInfo> DiscoveredBefores
-        => _discoveredBefores ??= MiddlewarePolicy
-            .FilterMethods<WolverineBeforeAttribute>(this, ServiceContractType.GetMethods(),
-                MiddlewarePolicy.BeforeMethodNames)
-            .OrderBy(m => m.Name, StringComparer.Ordinal)
-            .ToArray();
+    internal IEnumerable<Assembly>? ApplicationAssemblies
+    {
+        get => _applicationAssemblies;
+        set => _applicationAssemblies = value;
+    }
 
     /// <summary>
-    ///     Static methods on <see cref="ServiceContractType"/> qualifying as <c>[WolverineAfter]</c>
-    ///     postprocessors. Same scope and sort rules as <see cref="DiscoveredBefores"/>.
+    ///     Scans <see cref="ApplicationAssemblies"/> for classes that handle <paramref name="requestType"/>
+    ///     (i.e. have a Handle/HandleAsync/Consume/ConsumeAsync method whose first parameter is
+    ///     <paramref name="requestType"/>). Yields nothing when assemblies have not been set.
     /// </summary>
-    public IReadOnlyList<MethodInfo> DiscoveredAfters
-        => _discoveredAfters ??= MiddlewarePolicy
-            .FilterMethods<WolverineAfterAttribute>(this, ServiceContractType.GetMethods(),
-                MiddlewarePolicy.AfterMethodNames)
-            .OrderBy(m => m.Name, StringComparer.Ordinal)
-            .ToArray();
+    private IEnumerable<Type> HandlerTypesFor(Type requestType)
+    {
+        if (_applicationAssemblies == null) yield break;
+        foreach (var assembly in _applicationAssemblies)
+        {
+            foreach (var type in assembly.GetExportedTypes())
+            {
+                if (!type.IsClass) continue;
+                if (type.GetMethods().Any(m =>
+                        HandlerMethodNames.Contains(m.Name)
+                        && m.GetParameters().Length > 0
+                        && m.GetParameters()[0].ParameterType == requestType))
+                    yield return type;
+            }
+        }
+    }
 
     // --- Chain<> abstract member implementations ---
 
@@ -144,9 +165,6 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         var busField = new InjectedField(typeof(IMessageBus), "bus");
         _generatedType.AllInjectedFields.Add(busField);
 
-        var befores = DiscoveredBefores;
-        var afters = DiscoveredAfters;
-
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
@@ -159,25 +177,36 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                 .FirstOrDefault(a => a.VariableType == typeof(CallContext));
 
             if (contextArg != null)
-            {
                 generatedMethod.Sources.Add(new CallContextCancellationTokenSource(contextArg));
-            }
 
             // Global middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
             // because Frame instances hold per-method mutable state (Next pointer, variable bindings).
             foreach (var frame in CloneFrames(Middleware))
                 generatedMethod.Frames.Add(frame);
 
-            // Discovered befores: static methods on the interface matching Before naming conventions
-            // or [WolverineBefore]. Filtered per-method by request type so a Validate(OrderRequest)
-            // does not fire inside an InvoiceRequest RPC where no OrderRequest is in scope.
+            // Per-method handler-type discovery: find the Wolverine handler class(es) for this
+            // RPC's request type and scan them for [WolverineBefore]/[WolverineAfter] hooks.
+            // This is the same idiom as HandlerChain — middleware lives on the handler class.
             var rpcRequestType = rpc.Method.GetParameters()[0].ParameterType;
+            var handlerTypes = HandlerTypesFor(rpcRequestType).ToArray();
+
+            var befores = handlerTypes
+                .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(
+                                      this, ht.GetMethods(), MiddlewarePolicy.BeforeMethodNames))
+                .OrderBy(m => m.Name, StringComparer.Ordinal)
+                .ToArray();
+
+            var afters = handlerTypes
+                .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(
+                                      this, ht.GetMethods(), MiddlewarePolicy.AfterMethodNames))
+                .OrderBy(m => m.Name, StringComparer.Ordinal)
+                .ToArray();
 
             foreach (var before in befores)
             {
                 if (!IsBeforeApplicable(before, rpcRequestType)) continue;
 
-                var call = new MethodCall(ServiceContractType, before);
+                var call = new MethodCall(before.DeclaringType!, before);
                 generatedMethod.Frames.Add(call);
 
                 var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
@@ -186,7 +215,7 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
             }
 
             // AsyncMode must account for both discovered afters and global postprocessors.
-            var hasAfters = (afters.Count > 0 || Postprocessors.Count > 0)
+            var hasAfters = (afters.Length > 0 || Postprocessors.Count > 0)
                             && rpc.Kind == CodeFirstMethodKind.Unary;
             if (hasAfters)
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
@@ -206,7 +235,7 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
             if (rpc.Kind == CodeFirstMethodKind.Unary)
             {
                 foreach (var after in afters)
-                    generatedMethod.Frames.Add(new MethodCall(ServiceContractType, after));
+                    generatedMethod.Frames.Add(new MethodCall(after.DeclaringType!, after));
             }
 
             // Global middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.

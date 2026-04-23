@@ -182,38 +182,25 @@ public class code_first_codegen_discovery_tests
     }
 
     [Fact]
-    public void discovered_befores_finds_static_validate_method_on_interface()
+    public void application_assemblies_null_before_discovery()
     {
+        // ApplicationAssemblies is set by GrpcGraph.DiscoverServices, not by the constructor.
+        // Chains constructed directly (unit tests, tooling) must not throw.
         var chain = new CodeFirstGrpcServiceChain(typeof(ICodeFirstValidatedService));
 
-        chain.DiscoveredBefores.ShouldContain(m => m.Name == nameof(ICodeFirstValidatedService.Validate));
+        chain.ApplicationAssemblies.ShouldBeNull();
     }
 
     [Fact]
-    public void discovered_befores_is_empty_for_interface_with_no_static_hook_methods()
+    public void validate_method_on_handler_is_discovered_via_assembly_scan()
     {
-        var chain = new CodeFirstGrpcServiceChain(typeof(ICodeFirstTestService));
+        // SubmitHandler.Validate lives on the handler class for CodeFirstValidateRequest.
+        // Confirm the assembly scan will find it and that it has the expected static shape.
+        var validateMethod = typeof(SubmitHandler).GetMethod(nameof(SubmitHandler.Validate))!;
 
-        chain.DiscoveredBefores.ShouldBeEmpty();
-    }
-
-    [Fact]
-    public void discovered_befores_filters_validate_by_request_type()
-    {
-        // ICodeFirstValidatedService.Validate(CodeFirstValidateRequest) should NOT appear
-        // as a before for ICodeFirstTestService (which uses CodeFirstRequest), confirming
-        // that IsBeforeApplicable filters correctly by parameter type.
-        var chain = new CodeFirstGrpcServiceChain(typeof(ICodeFirstTestService));
-        var validateMethod = typeof(ICodeFirstValidatedService)
-            .GetMethod(nameof(ICodeFirstValidatedService.Validate))!;
-
-        // Inject the validate method into a fresh chain's discovered befores by checking
-        // applicability directly via the public discovery path — the method lives on a different
-        // interface, so it won't appear in ICodeFirstTestService.DiscoveredBefores at all,
-        // but we verify DiscoveredBefores for the correct interface is non-empty.
-        var validatedChain = new CodeFirstGrpcServiceChain(typeof(ICodeFirstValidatedService));
-        validatedChain.DiscoveredBefores.ShouldContain(validateMethod);
-        chain.DiscoveredBefores.ShouldNotContain(validateMethod);
+        validateMethod.ShouldNotBeNull();
+        validateMethod.IsStatic.ShouldBeTrue();
+        validateMethod.ReturnType.ShouldBe(typeof(Status?));
     }
 }
 

@@ -1,5 +1,4 @@
 using System.ServiceModel;
-using Grpc.Core;
 using ProtoBuf;
 using ProtoBuf.Grpc;
 using Wolverine.Grpc;
@@ -40,18 +39,16 @@ public class CodeFirstReply
 }
 
 /// <summary>
-///     Code-first service contract with a static <c>Validate</c> method on the interface.
-///     Wolverine should discover the method via <c>DiscoveredBefores</c> and weave a
-///     <c>GrpcValidateShortCircuitFrame</c> before the bus dispatch.
+///     Code-first service contract for the validate short-circuit test.
+///     The static <c>Validate</c> method lives on <see cref="SubmitHandler"/> — the Wolverine
+///     handler for <see cref="CodeFirstValidateRequest"/> — following the same idiom as the
+///     rest of the framework: middleware hooks belong on the handler class.
 /// </summary>
 [ServiceContract]
 [WolverineGrpcService]
 public interface ICodeFirstValidatedService
 {
     Task<CodeFirstReply> Submit(CodeFirstValidateRequest request, CallContext context = default);
-
-    static Status? Validate(CodeFirstValidateRequest request)
-        => request.Text == "bad" ? new Status(StatusCode.InvalidArgument, "bad input") : null;
 }
 
 [ProtoContract]

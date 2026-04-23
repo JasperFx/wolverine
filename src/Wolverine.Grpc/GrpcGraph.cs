@@ -83,7 +83,11 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
         foreach (var contract in contracts)
         {
             CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
-            _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract));
+            var codeFirstChain = new CodeFirstGrpcServiceChain(contract)
+            {
+                ApplicationAssemblies = _options.Assemblies
+            };
+            _codeFirstChains.Add(codeFirstChain);
         }
 
         var handWritten = FindHandWrittenServiceClasses(_options.Assemblies).ToArray();
