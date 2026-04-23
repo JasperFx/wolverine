@@ -195,7 +195,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             writeHeaders
         };
 
-        foreach (var pair in _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key)))
+        // Use the default header read for a property unless the caller has
+        // supplied a custom incoming mapping for it. Previously this predicate
+        // was accidentally checking _envelopeToOutgoing, which caused
+        // MapOutgoingProperty to silently delete the incoming header read for
+        // the same property. See https://github.com/JasperFx/wolverine/issues/2551.
+        foreach (var pair in _envelopeToHeader.Where(x => !_incomingToEnvelope.ContainsKey(x.Key)))
         {
             var getMethod = getString!;
             if (pair.Key.PropertyType == typeof(Uri))
@@ -278,7 +283,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             writeHeaders
         };
 
-        var headers = _envelopeToHeader.Where(x => !_incomingToEnvelope.ContainsKey(x.Key));
+        // Use the default header write for a property unless the caller has
+        // supplied a custom outgoing mapping for it. Previously this predicate
+        // was accidentally checking _incomingToEnvelope, which caused
+        // MapIncomingProperty to silently delete the outgoing header write for
+        // the same property. See https://github.com/JasperFx/wolverine/issues/2551.
+        var headers = _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key));
         foreach (var pair in headers)
         {
             var setMethod = setString!;
