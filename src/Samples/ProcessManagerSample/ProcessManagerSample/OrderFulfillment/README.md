@@ -3,8 +3,8 @@
 A realistic Process Manager built on existing Wolverine + Marten features:
 
 - `OrderFulfillmentState` is an event-sourced aggregate projected inline from the process's own stream.
-- Each step (payment confirmed, items reserved, shipment confirmed, payment timeout) is a separate static handler keyed off the same stream.
-- `[AggregateHandler]` on each handler class wires `FetchForWriting` + optimistic concurrency automatically.
+- Six static handler classes, one per trigger message: start, payment confirmed, items reserved, shipment confirmed, cancel, and payment timeout. All keyed off the same stream.
+- `[AggregateHandler]` on each continue handler class wires `FetchForWriting` + optimistic concurrency automatically. The start handler is a plain static class that returns `IStartStream` via `MartenOps.StartStream<T>`; see the Process Manager via Handlers guide in the Wolverine docs for why.
 - The process reaches a terminal state by appending either `OrderFulfillmentCompleted` or `OrderFulfillmentCancelled`.
 
 Start here:

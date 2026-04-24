@@ -95,7 +95,7 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
 }
 ```
 
-`Delay` and `Schedule` are how you arm a payment timeout from the start handler without injecting `IMessageBus`. That keeps the handler testable as a pure function; the scheduled message is just an item in the returned list, and the test can assert on it directly.
+`Delay` and `Schedule` are how you arm a payment timeout from the start handler without injecting `IMessageBus`. That keeps continue handlers testable as pure functions; the scheduled message is just an item in the returned list, and the test can assert on it directly. (The start handler itself is asymmetric, for reasons [Section 3 Step 4](#step-4-write-your-handlers) covers.)
 
 ### `Events` for fluent appending
 
@@ -129,7 +129,7 @@ Taken together, the ingredients look like this:
 
 ## 3. The Recipe
 
-A Process Manager built with this pattern is a handful of small files, arranged in a predictable shape. The steps below map one-for-one to files in [the ProcessManagerSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample). Open that alongside the recipe; it compiles, runs, and has 15 tests behind it.
+A Process Manager built with this pattern is a handful of small files, arranged in a predictable shape. The steps below map one-for-one to files in [the ProcessManagerSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample). Open that alongside the recipe; it compiles, runs, and has a full test suite behind it.
 
 ### Step 1: Define the process state type
 
@@ -233,6 +233,8 @@ public static class StartOrderFulfillmentHandler
     }
 }
 ```
+
+Simplified here for focus; [Step 6](#step-6-schedule-timeouts) shows the full shape with the scheduled payment timeout, which is what the actual sample file carries.
 
 A plain static class. No `[AggregateHandler]` attribute. The handler returns an `IStartStream` built by `MartenOps.StartStream<TState>(id, events...)`, and Wolverine takes care of creating the stream, appending the initial events, and calling `SaveChangesAsync`.
 
@@ -499,7 +501,7 @@ The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolveri
 
 ## 4. Worked Example
 
-This section is the reference: every file in the `OrderFulfillment` folder of [`ProcessManagerSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample), in the order you would read them, plus the Marten plus Wolverine wiring and one test of each style. The scenario is end-to-end order fulfillment with a payment timeout and a compensating cancellation path. 19 tests back the sample; two of them appear below.
+This section is the reference: every file in the `OrderFulfillment` folder of [`ProcessManagerSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample), in the order you would read them, plus the Marten plus Wolverine wiring and one test of each style. The scenario is end-to-end order fulfillment with a payment timeout and a compensating cancellation path. 20 tests back the sample; two of them appear below.
 
 ### `OrderFulfillment/OrderFulfillmentState.cs`
 
@@ -914,7 +916,7 @@ The per-step idempotency guard (`if (state.PaymentConfirmed) return new Events()
 
 ### No first-class test helper for "wait for scheduled message to fire"
 
-`InvokeMessageAndWaitAsync` waits for the cascading work of a single dispatch. A delayed message held by the scheduler is not tracked by that call. Phase 5 of the sample uses a polling helper (`WaitForCondition` in the test project) which works fine but is extra code every sample project will reinvent. If you write several timeout tests, consider lifting the helper into a shared test utility.
+`InvokeMessageAndWaitAsync` waits for the cascading work of a single dispatch. A delayed message held by the scheduler is not tracked by that call. The sample's timeout tests use a polling helper (`WaitForCondition` in the test project) which works fine but is extra code every sample project will reinvent. If you write several timeout tests, consider lifting the helper into a shared test utility.
 
 ## 6. When to Use Saga Instead
 
