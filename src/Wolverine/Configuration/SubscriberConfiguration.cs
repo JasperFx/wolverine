@@ -135,7 +135,7 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
 
     /// <summary>
     /// For endpoints that send or receive messages in batches, this governs the maximum
-    /// number of messages that will be received or sent in one batch
+    /// number of messages that will be received or sent in one batch. Defaults to 100.
     /// </summary>
     public T MessageBatchSize(int batchSize)
     {
@@ -151,6 +151,18 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     public T MessageBatchMaxDegreeOfParallelism(int batchMaxDegreeOfParallelism)
     {
         add(e => e.MessageBatchMaxDegreeOfParallelism = batchMaxDegreeOfParallelism);
+        return this.As<T>();
+    }
+
+    /// <summary>
+    /// For endpoints that send messages in batches, this is the maximum time the
+    /// sender will wait to accumulate a full batch before flushing what it has.
+    /// Defaults to 250ms. Lower this on latency-sensitive transports (e.g. Kafka)
+    /// where the batching window dominates end-to-end time on low-volume routes.
+    /// </summary>
+    public T MessageBatchTimeout(TimeSpan batchTimeout)
+    {
+        add(e => e.MessageBatchTimeout = batchTimeout);
         return this.As<T>();
     }
 

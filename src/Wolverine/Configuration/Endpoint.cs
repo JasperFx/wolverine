@@ -250,7 +250,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
     /// <summary>
     /// For endpoints that send or receive messages in batches, this governs the maximum
-    /// number of messages that will be received or sent in one batch
+    /// number of messages that will be received or sent in one batch. Defaults to 100.
     /// </summary>
     public int MessageBatchSize { get; set; } = 100;
 
@@ -259,6 +259,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// of concurrent outgoing batches
     /// </summary>
     public int MessageBatchMaxDegreeOfParallelism { get; set; } = 1;
+
+    /// <summary>
+    /// For endpoints that send messages in batches, this is the maximum time the
+    /// sender will wait to accumulate a full batch before flushing what it has.
+    /// Lower this on latency-sensitive transports (e.g. Kafka) where the default
+    /// 250ms window dominates end-to-end time on low-volume routes.
+    /// </summary>
+    public TimeSpan MessageBatchTimeout { get; set; } = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
     ///     Mark whether or not the receiver for this listener should use

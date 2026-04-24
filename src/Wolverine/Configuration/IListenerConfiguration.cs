@@ -31,7 +31,7 @@ public interface IEndpointConfiguration<T>
 
     /// <summary>
     /// For endpoints that send or receive messages in batches, this governs the maximum
-    /// number of messages that will be received or sent in one batch
+    /// number of messages that will be received or sent in one batch. Defaults to 100.
     /// </summary>
     T MessageBatchSize(int batchSize);
 
