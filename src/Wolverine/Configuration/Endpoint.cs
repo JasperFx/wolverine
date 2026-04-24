@@ -263,8 +263,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// <summary>
     /// For endpoints that send messages in batches, this is the maximum time the
     /// sender will wait to accumulate a full batch before flushing what it has.
-    /// Lower this on latency-sensitive transports (e.g. Kafka) where the default
-    /// 250ms window dominates end-to-end time on low-volume routes.
+    /// Defaults to 250ms.
     /// </summary>
     public TimeSpan MessageBatchTimeout { get; set; } = TimeSpan.FromMilliseconds(250);
 

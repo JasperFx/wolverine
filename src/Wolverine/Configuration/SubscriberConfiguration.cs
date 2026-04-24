@@ -157,8 +157,7 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
     /// <summary>
     /// For endpoints that send messages in batches, this is the maximum time the
     /// sender will wait to accumulate a full batch before flushing what it has.
-    /// Defaults to 250ms. Lower this on latency-sensitive transports (e.g. Kafka)
-    /// where the batching window dominates end-to-end time on low-volume routes.
+    /// Defaults to 250ms.
     /// </summary>
     public T MessageBatchTimeout(TimeSpan batchTimeout)
     {
