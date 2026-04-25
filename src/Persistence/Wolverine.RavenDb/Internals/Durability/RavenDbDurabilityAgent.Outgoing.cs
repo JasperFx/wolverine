@@ -44,9 +44,12 @@ public partial class RavenDbDurabilityAgent
 
             foreach (var envelope in good) await sendingAgent.EnqueueOutgoingAsync(envelope);
 
-            _logger.LogInformation(
-                "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",
-                good.Length, sendingAgent.Destination, expiredMessages.Length);
+            if (good.Length > 0 || expiredMessages.Length > 0)
+            {
+                _logger.LogInformation(
+                    "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",
+                    good.Length, sendingAgent.Destination, expiredMessages.Length);
+            }
         }
         catch (Exception e)
         {
