@@ -1,7 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+
+using NSubstitute;
 using SharedPersistenceModels.Items;
 using Shouldly;
+using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Runtime;
 
 namespace EfCoreTests.DomainEvents;
 
@@ -97,6 +101,31 @@ public class DomainEventScraperStateFilterTests
         events.OfType<ItemApproved>().ShouldContain(e => e.Id == addedItem.Id);
         events.OfType<ItemApproved>().ShouldContain(e => e.Id == modifiedItem.Id);
         events.OfType<ItemApproved>().ShouldNotContain(e => e.Id == unchangedItem.Id);
+    }
+
+    [Fact]
+    public async Task domain_event_scraper_materializes_events_before_publishing()
+    {
+        using var ctx = new ScraperTestDbContext(BuildOptions());
+
+        var item = new Item { Id = Guid.CreateVersion7(), Name = "Added" };
+        item.Events.Add(new MutatingDomainEvent(ctx));
+        ctx.Items.Add(item);
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var context = new MessageContext(runtime);
+        var scraper = new DomainEventScraper<Item, object>(x => x.Events);
+
+        await Should.NotThrowAsync(() => scraper.ScrapeEvents(ctx, context));
+    }
+}
+
+public class MutatingDomainEvent(ScraperTestDbContext dbContext) : ISendMyself
+{
+    public ValueTask ApplyAsync(IMessageContext context)
+    {
+        dbContext.Items.Add(new Item { Id = Guid.CreateVersion7(), Name = "Added by PublishAsync" });
+        return ValueTask.CompletedTask;
     }
 }
 

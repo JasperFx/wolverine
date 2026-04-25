@@ -40,7 +40,7 @@ public class DomainEventScraper<T, TEvent> : IDomainEventScraper
     public async Task ScrapeEvents(DbContext dbContext, MessageContext bus)
     {
         var eventMessages = dbContext.ChangeTracker.Entries().Select(x => x.Entity)
-            .OfType<T>().SelectMany(_source);
+            .OfType<T>().SelectMany(_source).ToArray();
 
         foreach (var eventMessage in eventMessages)
         {
