@@ -99,7 +99,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             Serializer = Serializer,
             ContentType = Serializer?.ContentType,
             TopicName = topicName,
-            WireTap = _endpoint.WireTap
+            WireTap = _endpoint.WireTap,
+            TenantId = options?.TenantId,
+            GroupId = options?.GroupId
         };
 
         if (Sender.Endpoint is LocalQueue)
@@ -113,7 +115,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.ContentType = envelope.Serializer.ContentType;
         }
 
-        // Apply application wide message grouping policies
+        // Apply application wide message grouping policies after stamping any
+        // explicit TenantId/GroupId from DeliveryOptions so partitioning can
+        // make decisions on the final outgoing envelope metadata.
         envelope.GroupId = _partitioning.DetermineGroupId(envelope);
 
         foreach (var rule in Rules) rule.Modify(envelope);

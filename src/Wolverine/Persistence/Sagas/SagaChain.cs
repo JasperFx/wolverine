@@ -215,7 +215,17 @@ public class SagaChain : HandlerChain
 
     private MethodCall[] findByNames(params string[] methodNames)
     {
-        return Handlers.Where(x => methodNames.Contains(x.Method.Name) && x.HandlerType.CanBeCastTo<Saga>()).ToArray();
+        // Match either the bare name (e.g. "Start") or its async-suffixed twin
+        // (e.g. "StartAsync"). HandlerDiscovery already strips the "Async"
+        // suffix when picking up handler methods, so without this the saga
+        // method would be discovered into the chain but silently dropped from
+        // StartingCalls / ExistingCalls / NotFoundCalls and never invoked.
+        // See https://github.com/JasperFx/wolverine/issues/2578.
+        return Handlers
+            .Where(x => x.HandlerType.CanBeCastTo<Saga>()
+                        && methodNames.Any(n =>
+                            x.Method.Name == n || x.Method.Name == n + "Async"))
+            .ToArray();
     }
 
     internal override List<Frame> DetermineFrames(GenerationRules rules, IServiceContainer container,

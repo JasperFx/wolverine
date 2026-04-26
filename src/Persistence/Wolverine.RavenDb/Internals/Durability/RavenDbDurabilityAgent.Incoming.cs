@@ -49,8 +49,11 @@ public partial class RavenDbDurabilityAgent
             await circuit.EnqueueDirectlyAsync(envelopes);
             _logger.RecoveredIncoming(envelopes);
 
-            _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
-                envelopes.Count, listener);
+            if (envelopes.Count > 0)
+            {
+                _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
+                    envelopes.Count, listener);
+            }
         }
         catch (Exception e)
         {

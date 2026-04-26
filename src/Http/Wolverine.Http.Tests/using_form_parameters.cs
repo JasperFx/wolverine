@@ -556,5 +556,24 @@ public class using_form_parameters : IntegrationContext
         formParameter.ParameterDescriptor.ShouldNotBeNull();
         formParameter.ParameterDescriptor.Name.ShouldBe("name");
         formParameter.ParameterDescriptor.ParameterType.ShouldBe(typeof(string));
+    }    
+     
+    [Fact]
+    public void form_endpoints_honor_consumes_metadata_for_supported_request_formats()
+    {
+        // fillRequestType only seeds SupportedRequestFormats from
+        // IAcceptsMetadata when the endpoint has a body request type, is
+        // not a form endpoint, and is not a GET. Form endpoints used to
+        // fall through and rely on ASP.NET Core OpenAPI's
+        // "application/x-www-form-urlencoded" default, which silently
+        // dropped [Consumes("multipart/form-data")] and caused generated
+        // clients (Orval, NSwag) to emit URLSearchParams bodies instead of
+        // multipart for file-upload endpoints.
+        var chain = HttpChains.ChainFor("POST", "/form/multipart-consumes");
+        var apiDescription = chain!.CreateApiDescription("POST");
+
+        apiDescription.SupportedRequestFormats
+            .Select(f => f.MediaType)
+            .ShouldContain("multipart/form-data");
     }
 }

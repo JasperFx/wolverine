@@ -475,8 +475,36 @@ The following method names are meaningful in `Saga` types:
 | `Orchestrate`, `Orchestrates`        | Called only when the identified saga already exists |
 | `NotFound`                           | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
 
-Note that only `Start`, `Starts`, or `NotFound` methods can be static methods because these methods logically assume that the
-identified `Saga` does not yet exist. Wolverine as of 4.6 will assert that other named `Saga` methods are instance
+Each of the names above is also accepted with the `Async` suffix when the
+method returns a `Task` or `Task<T>` — e.g. `StartAsync`, `HandleAsync`,
+`OrchestrateAsync`, `ConsumeAsync`, `StartOrHandleAsync`, `NotFoundAsync`.
+Wolverine treats the suffixed name identically to the bare name; pick whichever
+reads better in your codebase. Mixing styles within a single saga is allowed
+but generally discouraged for readability.
+
+```csharp
+public class OrderSaga : Saga
+{
+    public Guid Id { get; set; }
+
+    public Task StartAsync(StartOrder command)
+    {
+        Id = command.Id;
+        return Task.CompletedTask;
+    }
+
+    public Task HandleAsync(CompleteOrder command)
+    {
+        MarkCompleted();
+        return Task.CompletedTask;
+    }
+}
+```
+
+Note that only `Start` / `Starts` / `StartAsync` / `StartsAsync` and
+`NotFound` / `NotFoundAsync` methods can be static methods, because these
+methods logically assume that the identified `Saga` does not yet exist.
+Wolverine as of 4.6 will assert that other named `Saga` methods are instance
 methods to try to head off confusion.
 
 ## When Sagas are Not Found

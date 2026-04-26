@@ -353,9 +353,15 @@ public partial class WolverineRuntime
         // Build message-type-to-ancillary-store mapping for durable inbox routing.
         // When a handler targets an ancillary store on a different database, incoming
         // envelopes should be persisted in that store for transactional atomicity.
+        //
+        // Use AllChains() rather than Chains so per-endpoint sticky chains
+        // produced by MultipleHandlerBehavior.Separated are included.
+        // Without this, [MartenStore]-attributed handlers under Separated mode
+        // never make it into the map and inbox routing falls back to the main
+        // store. See https://github.com/JasperFx/wolverine/issues/2576.
         if (Stores != null && Stores.HasAnyAncillaryStores())
         {
-            foreach (var chain in Handlers.Chains.Where(c => c.AncillaryStoreType != null))
+            foreach (var chain in Handlers.AllChains().Where(c => c.AncillaryStoreType != null))
             {
                 var messageTypeName = chain.MessageType.ToMessageTypeName();
                 Stores.MapMessageTypeToAncillaryStore(messageTypeName, chain.AncillaryStoreType!);

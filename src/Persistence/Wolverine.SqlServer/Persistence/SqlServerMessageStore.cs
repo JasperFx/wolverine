@@ -413,6 +413,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
                 await tx.CommitAsync(cancellationToken);
 
+                // Stamp the envelope's owning store on each row so the rest of the
+                // pipeline (DelegatingMessageInbox, DurableReceiver._markAsHandled)
+                // routes its writes back to THIS store. See GH-2576.
+                foreach (var envelope in envelopes)
+                {
+                    envelope.Store = this;
+                }
+
                 // Judging that there's very little chance of errors here
                 await runtime.EnqueueDirectlyAsync(envelopes);
             }

@@ -12,6 +12,21 @@ public class DatabaseSettings
 
     public string? ConnectionString { get; set; }
     public string? SchemaName { get; set; }
+
+    /// <summary>
+    /// Returns the schema name properly quoted for use in SQL statements.
+    /// Uses ANSI SQL double quotes which work for PostgreSQL and SQL Server (with QUOTED_IDENTIFIER ON).
+    /// </summary>
+    public string QuotedSchemaName
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(SchemaName)) return SchemaName ?? string.Empty;
+            // Escape any internal double quotes by doubling them
+            var escaped = SchemaName.Replace("\"", "\"\"");
+            return $"\"{escaped}\"";
+        }
+    }
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
 
     /// <summary>

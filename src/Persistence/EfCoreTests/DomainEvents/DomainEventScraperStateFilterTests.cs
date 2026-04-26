@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using NSubstitute;
 using SharedPersistenceModels.Items;
 using Shouldly;
+using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Runtime;
 
 namespace EfCoreTests.DomainEvents;
 
@@ -97,6 +100,54 @@ public class DomainEventScraperStateFilterTests
         events.OfType<ItemApproved>().ShouldContain(e => e.Id == addedItem.Id);
         events.OfType<ItemApproved>().ShouldContain(e => e.Id == modifiedItem.Id);
         events.OfType<ItemApproved>().ShouldNotContain(e => e.Id == unchangedItem.Id);
+    }
+
+    /// <summary>
+    /// Regression test for https://github.com/JasperFx/wolverine/issues/2585.
+    ///
+    /// DomainEventScraper.ScrapeEvents used to enumerate
+    /// dbContext.ChangeTracker.Entries() lazily and call PublishAsync per
+    /// event inside the foreach. When PublishAsync runs through the EF-backed
+    /// outbox, it adds an IncomingMessage entity to the SAME DbContext —
+    /// mutating ChangeTracker mid-enumeration and throwing
+    /// InvalidOperationException: "Collection was modified; enumeration
+    /// operation may not execute."
+    ///
+    /// We reproduce the same hazard with an ISendMyself domain event whose
+    /// ApplyAsync mutates the DbContext, so the test stays self-contained
+    /// (no PostgreSQL/SqlServer outbox required). Without the .ToArray()
+    /// materialization in DomainEventScraper, this test throws.
+    ///
+    /// Adapted from the closed PR #2586 by @jf2s; same approach.
+    /// </summary>
+    [Fact]
+    public async Task domain_event_scraper_materializes_events_before_publishing()
+    {
+        using var ctx = new ScraperTestDbContext(BuildOptions());
+
+        var item = new Item { Id = Guid.CreateVersion7(), Name = "Added" };
+        item.Events.Add(new MutatingDomainEvent2585(ctx));
+        ctx.Items.Add(item);
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var context = new MessageContext(runtime);
+        var scraper = new DomainEventScraper<Item, object>(x => x.Events);
+
+        await Should.NotThrowAsync(() => scraper.ScrapeEvents(ctx, context));
+    }
+}
+
+/// <summary>
+/// Domain event used by the GH-2585 regression test. Mutates the DbContext
+/// during PublishAsync, simulating what EfCoreEnvelopeTransaction.Persist-
+/// IncomingAsync does in a real outbox-enrolled handler.
+/// </summary>
+public class MutatingDomainEvent2585(ScraperTestDbContext dbContext) : ISendMyself
+{
+    public ValueTask ApplyAsync(IMessageContext context)
+    {
+        dbContext.Items.Add(new Item { Id = Guid.CreateVersion7(), Name = "Added by PublishAsync" });
+        return ValueTask.CompletedTask;
     }
 }
 
