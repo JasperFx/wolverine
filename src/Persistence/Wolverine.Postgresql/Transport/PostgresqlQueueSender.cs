@@ -24,6 +24,7 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
     private readonly string _schemaName;
+    private readonly string _quotedStorageSchemaName;
 
     // Strictly for testing
     public PostgresqlQueueSender(PostgresqlQueue queue) : this(queue, queue.DataSource, null)
@@ -39,22 +40,24 @@ internal class PostgresqlQueueSender : IPostgresqlQueueSender
         Destination = PostgresqlQueue.ToUri(queue.Name, databaseName);
 
         _schemaName = queue.Parent.TransportSchemaName;
+        _quotedStorageSchemaName = queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
+        var quotedStorageSchema = _quotedStorageSchemaName;
         _moveFromOutgoingToQueueSql = $@"
-INSERT into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) 
-SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} 
+INSERT into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil})
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy}
 FROM
-    {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
+    {quotedStorageSchema}.{DatabaseConstants.OutgoingTable}
 WHERE {DatabaseConstants.Id} = :id;
-DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
+DELETE FROM {quotedStorageSchema}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
 ";
 
         _moveFromOutgoingToScheduledSql = $@"
-INSERT into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil}) 
-SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, :time, {DatabaseConstants.DeliverBy} 
+INSERT into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil})
+SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, :time, {DatabaseConstants.DeliverBy}
 FROM
-    {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
+    {quotedStorageSchema}.{DatabaseConstants.OutgoingTable}
 WHERE {DatabaseConstants.Id} = :id;
-DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
+DELETE FROM {quotedStorageSchema}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id;
 ";
 
         _writeDirectlyToQueueTableSql =
@@ -102,7 +105,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
     public async Task ScheduleRetryAsync(Envelope envelope, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        await conn.CreateCommand($"delete from {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = :id;" + _writeDirectlyToTheScheduledTable)
+        await conn.CreateCommand($"delete from {_quotedStorageSchemaName}.{DatabaseConstants.IncomingTable} where id = :id;" + _writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType!)
@@ -186,7 +189,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
             if (e.Message.ContainsIgnoreCase("duplicate key value"))
             {
                 await conn.CreateCommand(
-                        $"delete * from {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+                        $"delete from {_quotedStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
                     .With("id", envelope.Id)
                     .ExecuteNonQueryAsync(cancellationToken);
 

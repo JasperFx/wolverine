@@ -133,28 +133,28 @@ public abstract partial class MessageDatabase<T>
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
         return await CreateCommand(
-                $"select {DatabaseConstants.IncomingFields} from {SchemaName}.{DatabaseConstants.IncomingTable}")
+                $"select {DatabaseConstants.IncomingFields} from {QuotedSchemaName}.{DatabaseConstants.IncomingTable}")
             .FetchListAsync(r => DatabasePersistence.ReadIncomingAsync(r, _cancellation), _cancellation);
     }
 
     public Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
         return CreateCommand(
-                $"select {DatabaseConstants.OutgoingFields} from {SchemaName}.{DatabaseConstants.OutgoingTable}")
+                $"select {DatabaseConstants.OutgoingFields} from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable}")
             .FetchListAsync(r => DatabasePersistence.ReadOutgoingAsync(r, _cancellation), _cancellation);
     }
 
     public Task ReleaseAllOwnershipAsync()
     {
         return CreateCommand(
-                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0;update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0")
+                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0;update {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0")
             .ExecuteNonQueryAsync(_cancellation);
     }
 
     public Task ReleaseAllOwnershipAsync(int ownerId)
     {
         return CreateCommand(
-                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @id;update {SchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0 where owner_id = @id")
+                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = 0 where owner_id = @id;update {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} set owner_id = 0 where owner_id = @id")
             .With("id", ownerId)
             .ExecuteNonQueryAsync(_cancellation);
     }
@@ -180,19 +180,19 @@ public abstract partial class MessageDatabase<T>
         try
         {
             var tx = await conn.BeginTransactionAsync(_cancellation);
-            await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.OutgoingTable}")
+            await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
-            await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.IncomingTable}")
+            await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.IncomingTable}")
                 .ExecuteNonQueryAsync(_cancellation);
-            await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.DeadLetterTable}")
+            await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable}")
                 .ExecuteNonQueryAsync(_cancellation);
 
             if (_settings.Role == MessageStoreRole.Main)
             {
-                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.AgentRestrictionsTableName}")
+                await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.AgentRestrictionsTableName}")
                     .ExecuteNonQueryAsync(_cancellation);
                 
-                await tx.CreateCommand($"delete from {SchemaName}.{DatabaseConstants.NodeRecordTableName}")
+                await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.NodeRecordTableName}")
                     .ExecuteNonQueryAsync(_cancellation);
             }
 

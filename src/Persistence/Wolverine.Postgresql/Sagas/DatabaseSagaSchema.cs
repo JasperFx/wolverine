@@ -8,6 +8,7 @@ using Weasel.Core;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine;
+using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Sagas;
 
@@ -24,12 +25,13 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
         _settings = settings;
         IdSource = LambdaBuilder.Getter<T, TId>(definition.IdMember);
 
-        _insertSql = $"insert into {settings.SchemaName}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) values (@id, @body, 1)";
+        var quotedSchema = settings.SchemaName.QuoteIdentifier();
+        _insertSql = $"insert into {quotedSchema}.{definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) values (@id, @body, 1)";
         _updateSql =
-            $"update {settings.SchemaName}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = now() where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
-        _loadSql = $"select body, version from {settings.SchemaName}.{definition.TableName} where {DatabaseConstants.Id} = @id";
+            $"update {quotedSchema}.{definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = now() where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
+        _loadSql = $"select body, version from {quotedSchema}.{definition.TableName} where {DatabaseConstants.Id} = @id";
 
-        _deleteSql = $"delete from {settings.SchemaName}.{definition.TableName} where id = @id";
+        _deleteSql = $"delete from {quotedSchema}.{definition.TableName} where id = @id";
         
         var table = new Table(new DbObjectName(settings.SchemaName!, definition.TableName));
         table.AddColumn<TId>("id").AsPrimaryKey();

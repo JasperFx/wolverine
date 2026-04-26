@@ -34,7 +34,7 @@ public abstract partial class MessageDatabase<T>
         if (HasDisposed) return Task.CompletedTask;
 
         return CreateCommand(
-                $"delete from {SchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
+                $"delete from {QuotedSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
             .With("id", envelope.Id)
             .ExecuteNonQueryAsync(_cancellation);
     }

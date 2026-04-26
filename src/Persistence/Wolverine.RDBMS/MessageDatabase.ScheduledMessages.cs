@@ -15,7 +15,7 @@ public abstract partial class MessageDatabase<T>
 
         // Columns: 0=id, 1=message_type, 2=execution_time, 3=received_at, 4=attempts, 5=total_rows
         builder.Append(
-            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows from {SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"select{topSelect} {DatabaseConstants.Id}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.ReceivedAt}, {DatabaseConstants.Attempts}, count(*) OVER() as total_rows from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -77,7 +77,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
 
         builder.Append(
-            $"delete from {SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
+            $"delete from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
         writeScheduledMessageWhereClause(query, builder);
 
@@ -100,7 +100,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
 
         builder.Append(
-            $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.ExecutionTime} = ");
+            $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.ExecutionTime} = ");
         builder.AppendParameter(newExecutionTime.ToUniversalTime());
         builder.Append($" where {DatabaseConstants.Id} = ");
         builder.AppendParameter(envelopeId);
@@ -124,7 +124,7 @@ public abstract partial class MessageDatabase<T>
     {
         var builder = ToCommandBuilder();
         builder.Append(
-            $"select {DatabaseConstants.MessageType}, count(*) as total from {SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}' group by {DatabaseConstants.MessageType}");
+            $"select {DatabaseConstants.MessageType}, count(*) as total from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}' group by {DatabaseConstants.MessageType}");
 
         var cmd = builder.Compile();
 

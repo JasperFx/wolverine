@@ -27,7 +27,7 @@ internal class PostgresqlQueueListener : IListener
     private readonly string _tryPopMessagesDirectlySql;
     private readonly string _queueTableName;
     private readonly string _queueName;
-    private readonly string _schemaName;
+    private readonly string _quotedSchemaName;
     private readonly string _scheduledTableName;
     private readonly TimeSpan _pollingInterval;
 
@@ -47,7 +47,7 @@ internal class PostgresqlQueueListener : IListener
 
         _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
         _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
-        _schemaName = _queue.Parent.MessageStorageSchemaName;
+        _quotedSchemaName = _queue.Parent.MessageStorageSchemaName.QuoteIdentifier();
 
         _tryPopMessagesDirectlySql = $@"
 WITH message AS (
@@ -223,7 +223,7 @@ SELECT message.{DatabaseConstants.Body} from message;
     {
         var builder = new BatchBuilder();
 
-        builder.Append($"delete FROM {_queueTableName} where id in (select id from {_schemaName}.{DatabaseConstants.IncomingTable})");
+        builder.Append($"delete FROM {_queueTableName} where id in (select id from {_quotedSchemaName}.{DatabaseConstants.IncomingTable})");
         builder.StartNewCommand();
         builder.Append($"create temporary table temp_pop_{_queueName} ON COMMIT DROP as select id, body, message_type, keep_until from {_queueTableName} ORDER BY {_queueTableName}.timestamp limit ");
         builder.AppendParameter(count);
@@ -232,7 +232,7 @@ SELECT message.{DatabaseConstants.Body} from message;
         builder.StartNewCommand();
         builder.Append($"delete from {_queueTableName} where id in (select id from temp_pop_{_queueName})");
         builder.StartNewCommand();
-        var parameters = builder.AppendWithParameters($"INSERT INTO {_schemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until) SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM temp_pop_{_queueName}");
+        var parameters = builder.AppendWithParameters($"INSERT INTO {_quotedSchemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until) SELECT id, 'Incoming', ?, body, message_type, '{Address}', keep_until FROM temp_pop_{_queueName}");
         parameters[0].Value = settings.AssignedNodeNumber;
         parameters[0].NpgsqlDbType = NpgsqlDbType.Integer;
 
