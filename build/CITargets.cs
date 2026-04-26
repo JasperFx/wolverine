@@ -313,7 +313,10 @@ partial class Build
             var efCoreMultiTenancy = RootDirectory / "src" / "Persistence" / "EfCoreTests.MultiTenancy" / "EfCoreTests.MultiTenancy.csproj";
 
             BuildTestProjects(efCoreTests, efCoreMultiTenancy);
-            StartDockerServices("postgresql", "sqlserver");
+            // RabbitMQ is required by Bug_2588_ef_core_durable_outbox_with_conventional_routing,
+            // which exercises EF Core + RabbitMQ conventional routing + durable outbox policy.
+            // See GH-2588.
+            StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
             RunSingleProjectOneClassAtATime(efCoreTests);
             RunSingleProjectOneClassAtATime(efCoreMultiTenancy);
