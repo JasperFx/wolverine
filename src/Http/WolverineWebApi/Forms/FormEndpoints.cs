@@ -111,6 +111,10 @@ public static class FromFormEndpoints{
     {
         return $"{form.Name}|{form.Files?.Count}";
     }
+
+    [WolverinePost("/form/multipart-consumes")]
+    [Consumes("multipart/form-data")]
+    public static string MultipartConsumes([FromForm] string value) => value ?? "";
 }
 
 public class FormWithFile
