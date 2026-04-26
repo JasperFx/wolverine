@@ -44,7 +44,16 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, schema:"transports", transportSchema:"transports");
-                opts.ListenToPostgresqlQueue("one");
+
+                // Register the "one" queue but neutralize the host's auto-started listener.
+                // None of the tests in this fixture rely on the host listener; every test
+                // that exercises receiving creates its own PostgresqlQueueListener and
+                // calls TryPopAsync / TryPopDurablyAsync / DeleteExpiredAsync directly.
+                // Without this, the host listener can poll mid-test on slow CI (default
+                // polling interval is 5s; CI runs of pop_off_buffered take ~9s under
+                // load) and consume messages out from under the test's manual pop,
+                // making CountAsync assertions flaky.
+                opts.ListenToPostgresqlQueue("one").PollingInterval(1.Hours());
             }).StartAsync();
 
         theTransport = theHost.GetRuntime().Options.Transports.GetOrCreate<PostgresqlTransport>();
