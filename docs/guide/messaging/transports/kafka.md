@@ -687,6 +687,34 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L138-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Publisher Batching
+
+When publishing to Kafka through the default (buffered) sender, Wolverine coalesces outgoing envelopes into batches before handing them to the Kafka producer. A batch is flushed when **either** of two thresholds is hit:
+
+- the batch reaches `MessageBatchSize` envelopes (default **100**), or
+- the `MessageBatchTimeout` elapses since the first envelope entered the batch (default **250 ms**).
+
+The relevant settings on a publisher route:
+
+```cs
+opts.PublishMessage<OrderPlaced>()
+    .ToKafkaTopic("orders")
+
+    // Maximum envelopes per batch. Default 100.
+    .MessageBatchSize(100)
+
+    // Maximum time to wait for a batch to fill before flushing. Default 250ms.
+    .MessageBatchTimeout(10.Milliseconds())
+
+    // Maximum number of in-flight batches to the broker. Default 1.
+    .MessageBatchMaxDegreeOfParallelism(4)
+
+    // Bypass batching and send on the calling thread.
+    .SendInline();
+```
+
+`MessageBatchSize`, `MessageBatchTimeout`, and `MessageBatchMaxDegreeOfParallelism` apply to every transport that uses Wolverine's `BatchedSender` (Kafka, Azure Service Bus, SQS/SNS, Pub/Sub, Redis, TCP, HTTP). `SendInline()` swaps the sender type entirely; when it is set on a route, the batching settings on that same route are ignored.
+
 ## Global Partitioning
 
 Kafka topics can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Kafka topics with companion local queues for sequential processing across a multi-node cluster.
