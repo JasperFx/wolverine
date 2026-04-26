@@ -283,6 +283,18 @@
   <Project Path="build/build.csproj">
     <Build Project="false" />
   </Project>
-  <Project Path="src/Wolverine.SourceGeneration/Wolverine.SourceGeneration.csproj" />
+  <Project Path="src/Wolverine.SourceGeneration/Wolverine.SourceGeneration.csproj">
+    <!--
+      Roslyn analyzer / source generator project. Targets only netstandard2.0
+      (required for analyzer loadability) and is pulled in transitively via
+      Wolverine.csproj's ProjectReference (OutputItemType="Analyzer") entry.
+      Marking it Build="false" here keeps the project visible in the IDE
+      solution view while preventing solution-level builds (especially when
+      a single TargetFramework is forced via the dotnet build framework flag,
+      e.g. net9.0) from failing with NETSDK1005 because no net9.0 target
+      exists in this project.
+    -->
+    <Build Project="false" />
+  </Project>
   <Project Path="src/Wolverine/Wolverine.csproj" />
 </Solution>
