@@ -240,6 +240,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
+        options = applyTenantContext(options);
 
         // Cannot trust the T here. Can be "object"
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForSend(message, options);
@@ -264,6 +265,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
+        options = applyTenantContext(options);
 
         // You can't trust the T here.
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteForPublish(message, options);
@@ -288,6 +290,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
         Runtime.AssertHasStarted();
         assertNotMediatorOnly();
+        options = applyTenantContext(options);
 
         var outgoing = Runtime.RoutingFor(message.GetType()).RouteToTopic(message, topicName, options);
         return PersistOrSendAsync(outgoing);
@@ -431,5 +434,21 @@ public partial class MessageBus : IMessageBus, IMessageContext
     private bool isDurable(Envelope envelope)
     {
         return envelope.Sender?.IsDurable ?? Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination!).IsDurable;
+    }
+
+    private DeliveryOptions? applyTenantContext(DeliveryOptions? options)
+    {
+        if (TenantId.IsEmpty())
+        {
+            return options;
+        }
+
+        if (options == null)
+        {
+            return new DeliveryOptions { TenantId = TenantId };
+        }
+
+        options.TenantId ??= TenantId;
+        return options;
     }
 }

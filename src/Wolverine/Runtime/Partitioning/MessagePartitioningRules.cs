@@ -133,7 +133,7 @@ public class MessagePartitioningRules
         if (grouping == null)
         {
             grouping = new ExplicitGrouping();
-            _rules.Insert(0, grouping);
+            _rules.Add(grouping);
         }
         
         grouping.AddMessageType(messageType, messageProperty);

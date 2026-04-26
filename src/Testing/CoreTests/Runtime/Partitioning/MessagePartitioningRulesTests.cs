@@ -77,6 +77,35 @@ public class MessagePartitioningRulesTests
         envelope.Message = new Coffee3("Starbucks");
         rules.DetermineGroupId(envelope).ShouldBe("Starbucks");
     }
+
+    [Fact]
+    public void by_message_type_and_property_respects_prior_rule_order()
+    {
+        var rules = new MessagePartitioningRules(new());
+        rules.ByTenantId();
+        rules.ByMessage(typeof(Coffee1), ReflectionHelper.GetProperty<Coffee1>(x => x.Name));
+
+        var envelope = ObjectMother.Envelope();
+        envelope.TenantId = "red";
+        envelope.Message = new Coffee1("Dark", "Paul Newman's");
+
+        rules.DetermineGroupId(envelope).ShouldBe("red");
+    }
+
+    [Fact]
+    public void by_message_type_and_property_can_win_when_declared_first()
+    {
+        var rules = new MessagePartitioningRules(new());
+        rules.ByMessage(typeof(Coffee1), ReflectionHelper.GetProperty<Coffee1>(x => x.Name));
+        rules.ByTenantId();
+
+        var envelope = ObjectMother.Envelope();
+        envelope.TenantId = "red";
+        envelope.Message = new Coffee1("Dark", "Paul Newman's");
+
+        rules.DetermineGroupId(envelope).ShouldBe("Dark");
+    }
+
     [Fact]
     public void sequenced_message_with_order_uses_order_as_group_id()
     {
