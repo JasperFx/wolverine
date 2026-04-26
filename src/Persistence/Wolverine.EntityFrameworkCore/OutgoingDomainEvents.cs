@@ -39,8 +39,20 @@ public class DomainEventScraper<T, TEvent> : IDomainEventScraper
 
     public async Task ScrapeEvents(DbContext dbContext, MessageContext bus)
     {
+        // IMPORTANT: materialize the LINQ pipeline before publishing.
+        //
+        // dbContext.ChangeTracker.Entries() enumerates EF's internal entity
+        // state dictionary; PublishAsync flows through EfCoreEnvelopeTransaction.
+        // PersistIncomingAsync, which adds an IncomingMessage entity to the
+        // SAME DbContext. Mutating ChangeTracker mid-enumeration throws
+        // InvalidOperationException: "Collection was modified; enumeration
+        // operation may not execute." Reported in GH-2585.
+        //
+        // ToArray() also covers the case where _source(entity) returns a
+        // live, mutable List<TEvent> that PublishAsync (e.g. via ISendMyself)
+        // could mutate while we're iterating it.
         var eventMessages = dbContext.ChangeTracker.Entries().Select(x => x.Entity)
-            .OfType<T>().SelectMany(_source);
+            .OfType<T>().SelectMany(_source).ToArray();
 
         foreach (var eventMessage in eventMessages)
         {
