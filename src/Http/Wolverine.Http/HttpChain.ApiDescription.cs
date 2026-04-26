@@ -158,6 +158,29 @@ public partial class HttpChain
             apiDescription.ParameterDescriptions.Add(parameterDescription);
         }
 
+        // fillRequestType only honors [Consumes] / IAcceptsMetadata for body
+        // endpoints (HasRequestType && !IsFormData). Without this, form
+        // endpoints fall through and ASP.NET Core OpenAPI's GetFormRequestBody
+        // defaults SupportedRequestFormats to "application/x-www-form-urlencoded"
+        // — silently dropping [Consumes("multipart/form-data")] on file-upload
+        // endpoints and causing client generators (Orval, NSwag, Kiota) to emit
+        // URLSearchParams bodies instead of multipart.
+        if (apiDescription.SupportedRequestFormats.Count == 0 &&
+            apiDescription.ParameterDescriptions.Any(p =>
+                p.Source == BindingSource.Form || p.Source == BindingSource.FormFile))
+        {
+            foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
+            {
+                foreach (var contentType in metadata.ContentTypes)
+                {
+                    apiDescription.SupportedRequestFormats.Add(new ApiRequestFormat
+                    {
+                        MediaType = contentType
+                    });
+                }
+            }
+        }
+
         return apiDescription;
     }
 
