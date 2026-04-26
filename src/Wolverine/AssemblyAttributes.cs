@@ -50,3 +50,6 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]
 [assembly: InternalsVisibleTo("MetricsTests")]
+[assembly: InternalsVisibleTo("Wolverine.MySql")]
+[assembly: InternalsVisibleTo("Wolverine.Sqlite")]
+[assembly: InternalsVisibleTo("Wolverine.Oracle")]

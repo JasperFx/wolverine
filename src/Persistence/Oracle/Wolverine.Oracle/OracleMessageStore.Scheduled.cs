@@ -68,6 +68,13 @@ internal partial class OracleMessageStore
 
                 await tx.CommitAsync(cancellationToken);
 
+                // Stamp owning store on each row so downstream pipeline routes
+                // its writes back here. See GH-2576.
+                foreach (var envelope in envelopes)
+                {
+                    envelope.Store = this;
+                }
+
                 await runtime.EnqueueDirectlyAsync(envelopes);
             }
         }
