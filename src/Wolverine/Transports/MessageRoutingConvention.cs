@@ -24,6 +24,14 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
     protected Func<Type, string?> _queueNameForListener = t => t.ToMessageTypeName();
     private NamingSource _namingSource = NamingSource.FromMessageType;
 
+    /// <summary>
+    /// Tracks message types whose sender configuration has already been applied so that
+    /// <see cref="_configureSending"/> doesn't run twice for a given message type when
+    /// <see cref="DiscoverSenders"/> is later called following an earlier
+    /// <see cref="PreregisterSenders"/> call. See GH-2588.
+    /// </summary>
+    private readonly HashSet<Type> _configuredSenders = new();
+
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
         if(_onlyApplyToOutboundMessages)
@@ -150,19 +158,64 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
-        if(_onlyApplyToInboundMessages)
+        var endpoint = tryRegisterSenderConfiguration(messageType, runtime);
+        if (endpoint == null)
         {
             yield break;
+        }
+
+        // This will start up the sending agent. Only safe to call once the broker
+        // transport has been initialized (i.e. the sending connection is open).
+        var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
+        yield return sendingAgent.Endpoint;
+    }
+
+    void IMessageRoutingConvention.PreregisterSenders(IReadOnlyList<Type> handledMessageTypes, IWolverineRuntime runtime)
+    {
+        // Eagerly apply subscription metadata and sender configuration for the
+        // conventionally-routed sender endpoints derived from this convention's
+        // handled message types. This must run BEFORE BrokerTransport.InitializeAsync
+        // calls Compile() on the endpoints — otherwise endpoint policies like
+        // UseDurableOutboxOnAllSendingEndpoints() that gate on
+        // `endpoint.Subscriptions.Any()` won't see the subscription and won't
+        // upgrade the endpoint mode to Durable. See GH-2588.
+        //
+        // CRITICAL: do NOT build the sending agent here — the broker isn't connected
+        // yet at this phase of host startup. The agent gets built lazily later when
+        // DiscoverSenders runs on the first publish path.
+        if (_onlyApplyToInboundMessages)
+        {
+            return;
+        }
+
+        foreach (var messageType in handledMessageTypes)
+        {
+            tryRegisterSenderConfiguration(messageType, runtime);
+        }
+    }
+
+    /// <summary>
+    /// Locate or create the subscriber endpoint for <paramref name="messageType"/>, register
+    /// the subscription and apply <see cref="_configureSending"/> exactly once per message
+    /// type. Returns the endpoint, or null if filtering rules say this convention should
+    /// not produce a sender for the message type. Does NOT build the sending agent — that
+    /// is the caller's responsibility (and only safe once the broker is connected).
+    /// </summary>
+    private Endpoint? tryRegisterSenderConfiguration(Type messageType, IWolverineRuntime runtime)
+    {
+        if (_onlyApplyToInboundMessages)
+        {
+            return null;
         }
 
         if (!_typeFilters.Matches(messageType))
         {
-            yield break;
+            return null;
         }
 
         if (messageType.CanBeCastTo<INotToBeRouted>() || messageType == typeof(Envelope))
         {
-            yield break;
+            return null;
         }
 
         var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
@@ -170,7 +223,7 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         var destinationName = _identifierForSender(messageType);
         if (destinationName.IsEmpty())
         {
-            yield break;
+            return null;
         }
 
         var corrected = transport.MaybeCorrectName(destinationName);
@@ -180,19 +233,19 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
 
         // Register the subscription so that endpoint policies like
         // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
-        // endpoint when Compile() applies policies. See GH-2304.
+        // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
         if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
         {
             endpoint.Subscriptions.Add(Subscription.ForType(messageType));
         }
 
-        _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
+        if (_configuredSenders.Add(messageType))
+        {
+            _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
+            configuration.As<IDelayedEndpointConfiguration>().Apply();
+        }
 
-        configuration.As<IDelayedEndpointConfiguration>().Apply();
-
-        // This will start up the sending agent
-        var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
-        yield return sendingAgent.Endpoint;
+        return endpoint;
     }
 
     private bool _onlyApplyToOutboundMessages;

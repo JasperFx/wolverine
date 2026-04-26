@@ -459,6 +459,29 @@ public partial class WolverineRuntime
             {
                 routingConvention.DiscoverListeners(this, handledMessageTypes);
             }
+
+            // ALSO pre-register sender subscription metadata for each handled
+            // message type so that endpoint policies (e.g.
+            // UseDurableOutboxOnAllSendingEndpoints) apply to conventionally-
+            // routed sender endpoints. Without this, transports like RabbitMQ
+            // create the sender endpoint as a side effect of listener
+            // discovery (ApplyListenerRoutingDefaults), but the Subscription
+            // metadata used by AllSenders policies is added lazily by
+            // DiscoverSenders only on the first publish — by which point
+            // BrokerTransport.InitializeAsync has already Compile()'d the
+            // endpoint with no subscriptions and Endpoint._hasCompiled
+            // short-circuits the policy from ever applying. See GH-2588.
+            //
+            // PreregisterSenders is intentionally lighter than DiscoverSenders
+            // — it does NOT build the sending agent (which would need a live
+            // broker connection that hasn't been opened yet). The full
+            // DiscoverSenders still runs lazily on first publish via
+            // RoutingFor; by then the endpoint has already been compiled with
+            // the subscription in place, so the policy decisions stick.
+            foreach (var routingConvention in Options.RoutingConventions)
+            {
+                routingConvention.PreregisterSenders(handledMessageTypes, this);
+            }
         }
         else
         {
