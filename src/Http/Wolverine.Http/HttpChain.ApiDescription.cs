@@ -411,6 +411,11 @@ public partial class HttpChain
                 Name = formVariable.Name,
                 ModelMetadata = new EndpointModelMetadata(formVariable.VariableType),
                 Source = BindingSource.Form,
+                ParameterDescriptor = new ParameterDescriptor
+                {
+                    Name = formVariable.Name,
+                    ParameterType = formVariable.VariableType
+                },
                 Type = formVariable.VariableType,
                 IsRequired = false
             };

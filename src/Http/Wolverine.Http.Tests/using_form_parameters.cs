@@ -6,6 +6,7 @@ using Wolverine.Http.CodeGen;
 using Wolverine.Runtime;
 using WolverineWebApi;
 using WolverineWebApi.Forms;
+using MvcBindingSource = Microsoft.AspNetCore.Mvc.ModelBinding.BindingSource;
 
 namespace Wolverine.Http.Tests;
 
@@ -537,6 +538,26 @@ public class using_form_parameters : IntegrationContext
         variable!.Creator.ShouldBeOfType<ParsedArrayFormValue>();
     }
 
+    [Fact]
+    public void form_parameter_descriptions_have_a_parameter_descriptor()
+    {
+        // Regression: ApiParameterDescription instances emitted for [FromForm]
+        // primitive parameters used to leave ParameterDescriptor null. ASP.NET
+        // Core's OpenApiDocumentService.GetFormRequestBody groups form
+        // parameters by ParameterDescriptor.Name and NREs when it is missing,
+        // taking down the entire /openapi/v1.json response for any endpoint
+        // that has at least one such parameter.
+        var chain = HttpChains.ChainFor("POST", "/form/explicit");
+        var apiDescription = chain!.CreateApiDescription("POST");
+
+        var formParameter = apiDescription.ParameterDescriptions.Single(p => p.Name == "name");
+        formParameter.Source.ShouldBe(MvcBindingSource.Form);
+        formParameter.Type.ShouldBe(typeof(string));
+        formParameter.ParameterDescriptor.ShouldNotBeNull();
+        formParameter.ParameterDescriptor.Name.ShouldBe("name");
+        formParameter.ParameterDescriptor.ParameterType.ShouldBe(typeof(string));
+    }    
+     
     [Fact]
     public void form_endpoints_honor_consumes_metadata_for_supported_request_formats()
     {
