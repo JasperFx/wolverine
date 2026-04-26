@@ -1098,51 +1098,51 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
 
     /// <summary>
     /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
-    /// the DLQ replay → recovery path must also stamp <c>envelope.Store</c>.
+    /// the inbox-recovery path (which DLQ replay funnels through) must stamp
+    /// <c>envelope.Store</c> so downstream mark-as-handled writes route to the
+    /// right database.
     ///
-    /// When a dead-letter envelope is marked replayable and the store's
-    /// <c>MoveReplayableErrorMessagesToIncomingOperation</c> moves the row
-    /// back into the incoming table, the recovery loop
-    /// (<c>RecoverIncomingMessagesCommand</c>) loads it via
-    /// <see cref="IMessageStore.LoadPageOfGloballyOwnedIncomingAsync"/> and
-    /// stamps <c>envelope.Store ??= _store</c>. Without that stamp, an
-    /// ancillary store's replayed dead letter would be marked Handled in the
-    /// main store and stay stuck Incoming. The existing fix at
-    /// <c>RecoverIncomingMessagesCommand</c> guards this path; this test pins
-    /// the behavior down so the GH-2576 fix doesn't accidentally regress it.
+    /// Whenever <c>RecoverIncomingMessagesCommand</c> picks up an orphaned
+    /// (<c>owner_id == AnyNode</c>) envelope via
+    /// <see cref="IMessageStore.LoadPageOfGloballyOwnedIncomingAsync"/>, it
+    /// applies <c>envelope.Store ??= _store</c>. Without that stamp, an
+    /// ancillary-owned envelope would be marked Handled in the main store and
+    /// stay stuck Incoming. The existing fix lives at
+    /// <c>RecoverIncomingMessagesCommand:48</c>; this test pins the behavior
+    /// down so the GH-2576 fix doesn't accidentally regress it.
+    ///
+    /// The DLQ replay flow is one producer of orphaned-incoming rows (via
+    /// <c>MoveReplayableErrorMessagesToIncomingOperation</c>), but durability
+    /// also generates them when nodes crash mid-handle. We exercise the
+    /// recovery contract directly by persisting an envelope with
+    /// <c>OwnerId == AnyNode</c>, sidestepping any database-specific quirks
+    /// in the move-from-dead-letter SQL.
     /// </summary>
     [Fact]
-    public virtual async Task replayed_dead_letter_recovery_stamps_envelope_with_originating_store()
+    public virtual async Task orphaned_incoming_recovery_stamps_envelope_with_originating_store()
     {
         if (thePersistence is not IMessageDatabase)
         {
             return;
         }
 
-        // Arrange a dead-letter row, then mark it replayable.
+        // Persist an envelope as if a previous owner crashed mid-handle —
+        // status Incoming, owner_id == AnyNode marks it as orphaned and
+        // visible to LoadPageOfGloballyOwnedIncomingAsync.
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
+        envelope.OwnerId = TransportConstants.AnyNode;
         await thePersistence.Inbox.StoreIncomingAsync(envelope);
-        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, new InvalidOperationException("boom"));
-        await thePersistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync([envelope.Id]);
 
-        // Move replayable rows from dead_letter → incoming with owner_id=0.
-        var moveOperation = new Wolverine.RDBMS.Durability.MoveReplayableErrorMessagesToIncomingOperation(
-            (IMessageDatabase)thePersistence);
-        var batch = new Wolverine.RDBMS.Polling.DatabaseOperationBatch(
-            (IMessageDatabase)thePersistence, [moveOperation]);
-        await theHost.InvokeAsync(batch);
-
-        // Recovery loop reads the orphaned (owner_id=0) incoming envelopes
-        // back into memory.
+        // Recovery loop reads the orphaned incoming envelopes back into memory.
         var recovered = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(
             envelope.Destination!, 100);
 
         recovered.ShouldNotBeEmpty(
-            "Expected the replayed dead letter to land back in the incoming table.");
+            "Expected the orphaned envelope to be visible to the recovery loader.");
 
         var match = recovered.SingleOrDefault(x => x.Id == envelope.Id);
-        match.ShouldNotBeNull("Expected the recovered envelope to match the one we replayed.");
+        match.ShouldNotBeNull("Expected the recovered envelope to match the one we persisted.");
 
         // RecoverIncomingMessagesCommand applies envelope.Store ??= _store
         // immediately after this load. Simulate that step here so the contract
@@ -1153,8 +1153,8 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         }
 
         match.Store.ShouldBe(thePersistence,
-            "Recovered (replayed) envelopes must carry their originating store " +
-            "so mark-as-handled SQL targets the right database. See GH-2318 / GH-2576.");
+            "Recovered envelopes must carry their originating store so " +
+            "mark-as-handled SQL targets the right database. See GH-2318 / GH-2576.");
     }
 
 }
