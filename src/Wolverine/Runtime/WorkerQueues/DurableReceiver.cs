@@ -152,6 +152,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private void assignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
+        if (envelope.Store != null) return; // already stamped (e.g. from Option B at read time)
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
         if (store != null)
         {
@@ -242,6 +243,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public void Enqueue(Envelope envelope)
     {
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
+        // Envelopes can enter the queue without going through the listener
+        // arrival paths (receiveOneAsync / ProcessReceivedMessagesAsync) — for
+        // example via the scheduled-jobs poller's EnqueueDirectlyAsync. Make
+        // sure the ancillary-store routing is applied here too so the
+        // mark-as-handled SQL goes to the correct store. See GH-2576.
+        assignAncillaryStoreIfNeeded(envelope);
         _receiver.Post(envelope);
     }
 
@@ -249,6 +256,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     {
         envelope.WasPersistedInInbox = true;
         envelope.ReplyUri = envelope.ReplyUri ?? Uri;
+        // See note on Enqueue — same reason. The scheduled-jobs poller in
+        // {DatabaseFlavour}MessageStore.PollForScheduledMessagesAsync calls
+        // runtime.EnqueueDirectlyAsync, which lands here without ever passing
+        // through the assignAncillaryStoreIfNeeded calls in receiveOneAsync /
+        // ProcessReceivedMessagesAsync. See GH-2576.
+        assignAncillaryStoreIfNeeded(envelope);
         return _receiver.PostAsync(envelope);
     }
 

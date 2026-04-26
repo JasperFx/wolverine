@@ -468,6 +468,18 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
 
                 await tx.CommitAsync(cancellationToken);
 
+                // Stamp the envelope's owning store on each row so the rest of the
+                // pipeline (DelegatingMessageInbox, FlushOutgoingMessagesOnCommit,
+                // DurableReceiver._markAsHandled) routes its writes back to THIS
+                // store. Without this, an ancillary store's scheduled message wakes
+                // up with envelope.Store == null and the mark-as-handled SQL goes
+                // to the main store, leaving the row stuck Incoming.
+                // See https://github.com/JasperFx/wolverine/issues/2576.
+                foreach (var envelope in envelopes)
+                {
+                    envelope.Store = this;
+                }
+
                 // Judging that there's very little chance of errors here
                 await runtime.EnqueueDirectlyAsync(envelopes);
             }

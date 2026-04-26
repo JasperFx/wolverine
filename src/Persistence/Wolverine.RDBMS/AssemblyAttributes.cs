@@ -11,4 +11,5 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("SqliteTests")]
 [assembly: InternalsVisibleTo("Wolverine.Oracle")]
 [assembly: InternalsVisibleTo("OracleTests")]
+[assembly: InternalsVisibleTo("Wolverine.ComplianceTests")]
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")] // Castle Core proxies for NSubstitute

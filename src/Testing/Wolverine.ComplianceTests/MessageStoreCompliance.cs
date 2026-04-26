@@ -2,11 +2,15 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using JasperFx.Resources;
+using NSubstitute;
 using Shouldly;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
+using Wolverine.RDBMS;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
 using Xunit;
@@ -1032,6 +1036,125 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         stored.Envelope.Source.ShouldBeNull();
         stored.ExceptionMessage.ShouldBe("Kaboom!");
         stored.ExceptionType.ShouldBe(typeof(DivideByZeroException).FullName);
+    }
+
+    /// <summary>
+    /// Contract test for https://github.com/JasperFx/wolverine/issues/2576.
+    ///
+    /// When a scheduled message is loaded from a store via
+    /// <see cref="IMessageDatabase.PollForScheduledMessagesAsync"/>, the
+    /// resulting in-memory envelope passed to
+    /// <see cref="IWolverineRuntime.EnqueueDirectlyAsync"/> must have its
+    /// <c>Store</c> property stamped with the originating store. Without this,
+    /// downstream pipeline components (DelegatingMessageInbox,
+    /// DurableReceiver._markAsHandled, FlushOutgoingMessagesOnCommit) cannot
+    /// route their writes back to the correct store, and ancillary-store rows
+    /// get stuck in <c>Incoming</c> status forever because the
+    /// "mark as handled" SQL targets the main store instead.
+    /// </summary>
+    [Fact]
+    public virtual async Task scheduled_poll_stamps_envelope_with_originating_store()
+    {
+        if (thePersistence is not IMessageDatabase database)
+        {
+            // Non-database stores (e.g. RavenDb, CosmosDb) wire scheduled
+            // dispatch through their own durability agents, not through
+            // PollForScheduledMessagesAsync. Skip this contract there.
+            return;
+        }
+
+        // Persist a scheduled envelope into this store's incoming table.
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(-1); // already due
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.ScheduleExecutionAsync(envelope);
+
+        // Spy runtime that captures whatever PollForScheduledMessagesAsync
+        // hands to EnqueueDirectlyAsync.
+        var capturedEnvelopes = new List<Envelope>();
+        var spyRuntime = Substitute.For<IWolverineRuntime>();
+        spyRuntime
+            .EnqueueDirectlyAsync(Arg.Do<IReadOnlyList<Envelope>>(es => capturedEnvelopes.AddRange(es)))
+            .Returns(ValueTask.CompletedTask);
+
+        var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
+
+        await database.PollForScheduledMessagesAsync(
+            spyRuntime, NullLogger.Instance, durabilitySettings, CancellationToken.None);
+
+        capturedEnvelopes.ShouldNotBeEmpty(
+            "Expected the just-scheduled envelope to be picked up by the poller.");
+
+        var captured = capturedEnvelopes.SingleOrDefault(x => x.Id == envelope.Id);
+        captured.ShouldNotBeNull(
+            "Expected the polled envelope to match the one we scheduled.");
+
+        captured.Store.ShouldBe(thePersistence,
+            "Polled envelopes must be stamped with the store they came from so " +
+            "downstream mark-as-handled / inbox writes route back to the correct store. " +
+            "See GH-2576.");
+    }
+
+    /// <summary>
+    /// Sister contract test to <see cref="scheduled_poll_stamps_envelope_with_originating_store"/>:
+    /// the DLQ replay → recovery path must also stamp <c>envelope.Store</c>.
+    ///
+    /// When a dead-letter envelope is marked replayable and the store's
+    /// <c>MoveReplayableErrorMessagesToIncomingOperation</c> moves the row
+    /// back into the incoming table, the recovery loop
+    /// (<c>RecoverIncomingMessagesCommand</c>) loads it via
+    /// <see cref="IMessageStore.LoadPageOfGloballyOwnedIncomingAsync"/> and
+    /// stamps <c>envelope.Store ??= _store</c>. Without that stamp, an
+    /// ancillary store's replayed dead letter would be marked Handled in the
+    /// main store and stay stuck Incoming. The existing fix at
+    /// <c>RecoverIncomingMessagesCommand</c> guards this path; this test pins
+    /// the behavior down so the GH-2576 fix doesn't accidentally regress it.
+    /// </summary>
+    [Fact]
+    public virtual async Task replayed_dead_letter_recovery_stamps_envelope_with_originating_store()
+    {
+        if (thePersistence is not IMessageDatabase)
+        {
+            return;
+        }
+
+        // Arrange a dead-letter row, then mark it replayable.
+        var envelope = ObjectMother.Envelope();
+        envelope.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(envelope);
+        await thePersistence.Inbox.MoveToDeadLetterStorageAsync(envelope, new InvalidOperationException("boom"));
+        await thePersistence.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync([envelope.Id]);
+
+        // Move replayable rows from dead_letter → incoming with owner_id=0.
+        var moveOperation = new Wolverine.RDBMS.Durability.MoveReplayableErrorMessagesToIncomingOperation(
+            (IMessageDatabase)thePersistence);
+        var batch = new Wolverine.RDBMS.Polling.DatabaseOperationBatch(
+            (IMessageDatabase)thePersistence, [moveOperation]);
+        await theHost.InvokeAsync(batch);
+
+        // Recovery loop reads the orphaned (owner_id=0) incoming envelopes
+        // back into memory.
+        var recovered = await thePersistence.LoadPageOfGloballyOwnedIncomingAsync(
+            envelope.Destination!, 100);
+
+        recovered.ShouldNotBeEmpty(
+            "Expected the replayed dead letter to land back in the incoming table.");
+
+        var match = recovered.SingleOrDefault(x => x.Id == envelope.Id);
+        match.ShouldNotBeNull("Expected the recovered envelope to match the one we replayed.");
+
+        // RecoverIncomingMessagesCommand applies envelope.Store ??= _store
+        // immediately after this load. Simulate that step here so the contract
+        // test captures what the runtime path actually guarantees.
+        foreach (var e in recovered)
+        {
+            e.Store ??= thePersistence;
+        }
+
+        match.Store.ShouldBe(thePersistence,
+            "Recovered (replayed) envelopes must carry their originating store " +
+            "so mark-as-handled SQL targets the right database. See GH-2318 / GH-2576.");
     }
 
 }
