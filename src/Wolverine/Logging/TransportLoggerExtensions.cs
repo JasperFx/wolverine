@@ -110,12 +110,16 @@ public static class TransportLoggerExtensions
 
     public static void RecoveredIncoming(this ILogger logger, IEnumerable<Envelope> envelopes)
     {
-        _recoveredIncoming(logger, envelopes.Count(), null);
+        var count = envelopes.Count();
+        if (count == 0) return;
+        _recoveredIncoming(logger, count, null);
     }
 
     public static void RecoveredOutgoing(this ILogger logger, IEnumerable<Envelope> envelopes)
     {
-        _recoveredOutgoing(logger, envelopes.Count(), null);
+        var count = envelopes.Count();
+        if (count == 0) return;
+        _recoveredOutgoing(logger, count, null);
     }
 
     public static void DiscardedExpired(this ILogger logger, IEnumerable<Envelope> envelopes)
