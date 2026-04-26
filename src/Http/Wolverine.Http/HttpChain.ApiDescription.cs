@@ -158,30 +158,37 @@ public partial class HttpChain
             apiDescription.ParameterDescriptions.Add(parameterDescription);
         }
 
-        // fillRequestType only honors [Consumes] / IAcceptsMetadata for body
-        // endpoints (HasRequestType && !IsFormData). Without this, form
-        // endpoints fall through and ASP.NET Core OpenAPI's GetFormRequestBody
-        // defaults SupportedRequestFormats to "application/x-www-form-urlencoded"
-        // — silently dropping [Consumes("multipart/form-data")] on file-upload
-        // endpoints and causing client generators (Orval, NSwag, Kiota) to emit
+        // fillRequestType only honors [Consumes] / IAcceptsMetadata when the
+        // endpoint has a body request type, is not a form endpoint, and is
+        // not a GET (HasRequestType && !IsFormData && HttpMethod != "GET").
+        // Without this, form endpoints fall through and ASP.NET Core OpenAPI's
+        // GetFormRequestBody defaults SupportedRequestFormats to
+        // "application/x-www-form-urlencoded" — silently dropping
+        // [Consumes("multipart/form-data")] on file-upload endpoints and
+        // causing client generators (Orval, NSwag, Kiota) to emit
         // URLSearchParams bodies instead of multipart.
         if (apiDescription.SupportedRequestFormats.Count == 0 &&
             apiDescription.ParameterDescriptions.Any(p =>
                 p.Source == BindingSource.Form || p.Source == BindingSource.FormFile))
         {
-            foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
-            {
-                foreach (var contentType in metadata.ContentTypes)
-                {
-                    apiDescription.SupportedRequestFormats.Add(new ApiRequestFormat
-                    {
-                        MediaType = contentType
-                    });
-                }
-            }
+            copyAcceptsMetadataToRequestFormats(apiDescription);
         }
 
         return apiDescription;
+    }
+
+    private void copyAcceptsMetadataToRequestFormats(ApiDescription apiDescription)
+    {
+        foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
+        {
+            foreach (var contentType in metadata.ContentTypes)
+            {
+                apiDescription.SupportedRequestFormats.Add(new ApiRequestFormat
+                {
+                    MediaType = contentType
+                });
+            }
+        }
     }
 
     public override MiddlewareScoping Scoping => MiddlewareScoping.HttpEndpoints;
@@ -356,16 +363,7 @@ public partial class HttpChain
 
             apiDescription.ParameterDescriptions.Add(parameterDescription);
 
-            foreach (var metadata in Endpoint!.Metadata.OfType<IAcceptsMetadata>())
-            {
-                foreach (var contentType in metadata.ContentTypes)
-                {
-                    apiDescription.SupportedRequestFormats.Add(new ApiRequestFormat
-                    {
-                        MediaType = contentType
-                    });
-                }
-            }
+            copyAcceptsMetadataToRequestFormats(apiDescription);
         }
     }
 
