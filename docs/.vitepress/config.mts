@@ -309,6 +309,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Event Subscriptions', link: '/guide/durability/marten/subscriptions'},
                                 {text: 'Subscription/Projection Distribution', link: '/guide/durability/marten/distribution'},
                                 {text: 'Sagas', link: '/guide/durability/marten/sagas'},
+                                {text: 'Process Manager via Handlers', link: '/guide/durability/marten/process-manager-via-handlers'},
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
                                 {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'},
                             ]},
