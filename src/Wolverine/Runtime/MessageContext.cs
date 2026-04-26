@@ -794,7 +794,22 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     internal override void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
         base.TrackEnvelopeCorrelation(outbound, activity);
-        outbound.SagaId = _sagaId?.ToString() ?? Envelope?.SagaId ?? outbound.SagaId;
+
+        // Precedence (highest to lowest):
+        //   1. An explicit SagaId set on the outbound envelope by the caller
+        //      (e.g. via DeliveryOptions.SagaId in OutgoingMessages, or set
+        //      directly on the envelope). This must win — a saga's Start
+        //      method that generates its own id and tags a cascaded message
+        //      with it should not have that explicit value silently
+        //      overwritten by the inbound envelope's SagaId or the context's
+        //      _sagaId. See GH-2595.
+        //   2. The current message context's _sagaId — the saga id resolved
+        //      for the message currently being handled (set by saga handler
+        //      generated code or by ReadEnvelope from the inbound envelope).
+        //   3. The inbound envelope's SagaId as a final fallback.
+        outbound.SagaId = outbound.SagaId.IsNotEmpty()
+            ? outbound.SagaId
+            : (_sagaId?.ToString() ?? Envelope?.SagaId);
 
         if (ConversationId != Guid.Empty)
         {
