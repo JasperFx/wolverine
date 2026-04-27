@@ -34,8 +34,74 @@ public static IPolecatOp Pay([Entity] Invoice invoice)
 }
 ```
 
-There are existing Polecat ops for storing, inserting, updating, and deleting a document. There's also a specific
-helper for starting a new event stream as shown below:
+There are existing Polecat ops for storing, inserting, updating, and deleting a document.
+
+### Storing Multiple Documents
+
+Use `PolecatOps.StoreMany()` to store multiple documents of the same type, or `PolecatOps.StoreObjects()` to
+store multiple documents of different types in a single side effect:
+
+```csharp
+// Store multiple documents of the same type
+public static StoreManyDocs<Invoice> Handle(BatchInvoiceCommand command)
+{
+    var invoices = command.Items.Select(i => new Invoice { Id = i.Id, Amount = i.Amount });
+    return PolecatOps.StoreMany(invoices.ToArray());
+}
+
+// Store multiple documents of different types
+public static StoreObjects Handle(CreateOrderCommand command)
+{
+    var order = new Order { Id = command.OrderId, Total = command.Total };
+    var audit = new AuditLog { Action = "OrderCreated", EntityId = command.OrderId };
+    return PolecatOps.StoreObjects(order, audit);
+}
+```
+
+Both `StoreMany()` and `StoreObjects()` support fluent `With()` methods to incrementally add documents:
+
+```csharp
+public static StoreObjects Handle(ComplexCommand command)
+{
+    return PolecatOps.StoreObjects(new Order { Id = command.OrderId })
+        .With(new AuditLog { Action = "Created" })
+        .With(new Notification { Message = "Order created" });
+}
+```
+
+### Tenant-Scoped Operations
+
+Every `PolecatOps` factory method has an overload that accepts a `tenantId` parameter. When provided, the
+operation uses `IDocumentSession.ForTenant(tenantId)` to scope the write to a specific tenant. This is
+useful in multi-tenant systems where a handler processing a message for one tenant needs to write data
+to a different tenant's storage:
+
+```csharp
+// Store a document in a specific tenant
+public static StoreDoc<Invoice> Handle(CreateInvoiceForTenant command)
+{
+    var invoice = new Invoice { Id = command.InvoiceId, Amount = command.Amount };
+    return PolecatOps.Store(invoice, command.TenantId);
+}
+
+// Store many same-type documents in a specific tenant
+public static StoreManyDocs<LineItem> Handle(BatchLineItems command)
+{
+    return PolecatOps.StoreMany(command.TenantId, command.Items.ToArray());
+}
+
+// Store mixed-type documents in a specific tenant
+public static StoreObjects Handle(CrossTenantAudit command)
+{
+    return PolecatOps.StoreObjects(command.TargetTenantId,
+        new AuditRecord { Action = command.Action },
+        new Notification { Message = command.Message });
+}
+```
+
+All existing method signatures are unchanged — the tenant overloads are purely additive.
+
+There's also a specific helper for starting a new event stream as shown below:
 
 ```cs
 public static class TodoListEndpoint

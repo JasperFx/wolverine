@@ -99,6 +99,22 @@ public class aggregate_handler_workflow : IAsyncLifetime
     }
 
     [Fact]
+    public void generates_wolverine_stream_id_otel_tag()
+    {
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamId}\"");
+    }
+
+    [Fact]
+    public void generates_wolverine_stream_type_otel_tag()
+    {
+        var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
+
+        chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamType}\", \"{typeof(LetterAggregate).FullName}\"");
+    }
+
+    [Fact]
     public async Task events_then_response_invoke_with_return()
     {
         await GivenAggregate();

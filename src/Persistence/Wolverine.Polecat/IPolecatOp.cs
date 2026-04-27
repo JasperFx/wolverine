@@ -83,6 +83,18 @@ public static class PolecatOps
         return new StoreManyDocs<T>(documents);
     }
 
+    /// <summary>
+    /// Return a side effect of storing an enumerable of potentially mixed document types in Polecat
+    /// </summary>
+    /// <param name="documents"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public static StoreObjects StoreObjects(params object[] documents)
+    {
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        return new StoreObjects(documents);
+    }
+
     public static InsertDoc<T> Insert<T>(T document) where T : notnull
     {
         if (document == null) throw new ArgumentNullException(nameof(document));
@@ -172,6 +184,16 @@ public static class PolecatOps
         if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
         if (documents == null) throw new ArgumentNullException(nameof(documents));
         return new StoreManyDocs<T>(tenantId, documents);
+    }
+
+    /// <summary>
+    /// Return a side effect of storing an enumerable of potentially mixed document types, scoped to a specific tenant
+    /// </summary>
+    public static StoreObjects StoreObjects(string tenantId, params object[] documents)
+    {
+        if (tenantId == null) throw new ArgumentNullException(nameof(tenantId));
+        if (documents == null) throw new ArgumentNullException(nameof(documents));
+        return new StoreObjects(tenantId, documents);
     }
 
     /// <summary>
@@ -385,7 +407,65 @@ public class StoreManyDocs<T> : DocumentsOp where T : notnull
     public StoreManyDocs(params T[] documents) : base(documents.Cast<object>().ToArray()) { }
     public StoreManyDocs(IList<T> documents) : this(documents.ToArray()) { }
     public StoreManyDocs(string tenantId, params T[] documents) : base(tenantId, documents.Cast<object>().ToArray()) { }
+
+    public StoreManyDocs<T> With(T[] documents)
+    {
+        Documents.AddRange(documents.Cast<object>());
+        return this;
+    }
+
+    public StoreManyDocs<T> With(T document)
+    {
+        Documents.Add(document);
+        return this;
+    }
+
     public override void Execute(IDocumentSession session) { ResolveSession(session).Store(Documents.Cast<T>()); }
+}
+
+public class StoreObjects : DocumentsOp
+{
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, System.Reflection.MethodInfo> _storeMethods = new();
+
+    public StoreObjects(params object[] documents) : base(documents) { }
+
+    public StoreObjects(IList<object> documents) : this(documents.ToArray()) { }
+
+    public StoreObjects(string tenantId, params object[] documents) : base(tenantId, documents) { }
+
+    public StoreObjects With(object[] documents)
+    {
+        Documents.AddRange(documents);
+        return this;
+    }
+
+    public StoreObjects With(object document)
+    {
+        Documents.Add(document);
+        return this;
+    }
+
+    public override void Execute(IDocumentSession session)
+    {
+        // Polecat does not have a single StoreObjects(IEnumerable<object>) method like Marten,
+        // so we dispatch each document to Store<T> by its runtime type.
+        var target = ResolveSession(session);
+        foreach (var document in Documents)
+        {
+            if (document is null) continue;
+            var docType = document.GetType();
+            var method = _storeMethods.GetOrAdd(docType, t =>
+            {
+                var open = typeof(IDocumentOperations).GetMethods()
+                    .First(m => m.Name == nameof(IDocumentOperations.Store)
+                        && m.IsGenericMethodDefinition
+                        && m.GetParameters().Length == 1
+                        && !m.GetParameters()[0].ParameterType.IsArray);
+                return open.MakeGenericMethod(t);
+            });
+            method.Invoke(target, new[] { document });
+        }
+    }
 }
 
 public class InsertDoc<T> : DocumentOp where T : notnull
@@ -480,7 +560,12 @@ public abstract class DocumentOp : IPolecatOp
     public abstract void Execute(IDocumentSession session);
 }
 
-public abstract class DocumentsOp : IPolecatOp
+public interface IDocumentsOp : IPolecatOp
+{
+    IReadOnlyList<object> Documents { get; }
+}
+
+public abstract class DocumentsOp : IDocumentsOp
 {
     public List<object> Documents { get; } = new();
 
@@ -501,4 +586,6 @@ public abstract class DocumentsOp : IPolecatOp
     }
 
     public abstract void Execute(IDocumentSession session);
+
+    IReadOnlyList<object> IDocumentsOp.Documents => Documents;
 }
