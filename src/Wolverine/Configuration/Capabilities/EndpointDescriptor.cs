@@ -34,6 +34,8 @@ public class EndpointDescriptor : OptionsDescription
         InteropMode = ResolveInteropMode(endpoint);
         IsSystemEndpoint = endpoint.Uri?.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase) == true
                         || endpoint.Uri?.Scheme.Equals("local", StringComparison.OrdinalIgnoreCase) == true;
+        EndpointRole = endpoint.Role;
+        BrokerRole = endpoint.BrokerRole;
     }
 
     public Uri Uri { get; set; } = null!;
@@ -58,6 +60,23 @@ public class EndpointDescriptor : OptionsDescription
     /// Whether this is a Wolverine system endpoint (reply queue, control queue, etc.)
     /// </summary>
     public bool IsSystemEndpoint { get; init; }
+
+    /// <summary>
+    /// Whether the endpoint is owned by Wolverine itself (<c>System</c>) or by the
+    /// application (<c>Application</c>). Lifted from <see cref="Endpoint.Role"/> so
+    /// CritterWatch and other UIs can filter system-owned endpoints (e.g., reply
+    /// queues, control queues) without having to crack the underlying URI. See GH-2601.
+    /// </summary>
+    public EndpointRole EndpointRole { get; init; }
+
+    /// <summary>
+    /// Short, human-readable name of the underlying broker object kind this endpoint
+    /// represents — <c>"queue"</c>, <c>"exchange"</c>, <c>"topic"</c>,
+    /// <c>"subscription"</c>, <c>"stream"</c>, etc. Lifted from
+    /// <see cref="Endpoint.BrokerRole"/>; see that property for the full per-transport
+    /// mapping. See GH-2601.
+    /// </summary>
+    public string? BrokerRole { get; init; }
 
     internal static string? ResolveInteropMode(Endpoint endpoint)
     {

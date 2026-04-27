@@ -1,5 +1,6 @@
 using Shouldly;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.SharedMemory;
 using Wolverine.Transports.Stub;
@@ -30,6 +31,31 @@ public class broker_role_tests
     public void core_endpoint_has_expected_broker_role(Endpoint endpoint, string expectedRole)
     {
         endpoint.BrokerRole.ShouldBe(expectedRole);
+    }
+
+    [Fact]
+    public void endpoint_descriptor_lifts_broker_role_and_endpoint_role()
+    {
+        // EndpointDescriptor is what CritterWatch reads. Both the existing
+        // EndpointRole (System / Application) and the new BrokerRole string
+        // should be first-class properties on the descriptor, populated from
+        // the underlying Endpoint. See GH-2601.
+        var queue = new LocalQueue("queue-x");
+        var descriptor = new EndpointDescriptor(queue);
+
+        descriptor.BrokerRole.ShouldBe("queue");
+        descriptor.EndpointRole.ShouldBe(EndpointRole.Application);
+    }
+
+    [Fact]
+    public void endpoint_descriptor_endpoint_role_reflects_system_endpoints()
+    {
+        var systemSubscription = new SharedMemorySubscription(
+            new SharedMemoryTopic("topic-y"), "sub-y", EndpointRole.System);
+        var descriptor = new EndpointDescriptor(systemSubscription);
+
+        descriptor.EndpointRole.ShouldBe(EndpointRole.System);
+        descriptor.BrokerRole.ShouldBe("subscription");
     }
 
     public static TheoryData<Endpoint, string> CoreEndpoints()
