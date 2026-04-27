@@ -62,7 +62,16 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         var idProp = aggregateType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
         var idType = idProp?.PropertyType ?? typeof(Guid);
 
-        var identity = FindIdentity(aggregateType, idType, chain);
+        // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
+        // use the base class identity resolution which respects that ValueSource
+        Variable? identity = null;
+        if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
+        {
+            tryFindIdentityVariable(chain, parameter, idType, out identity);
+        }
+
+        // Fall back to WriteAggregate's standard identity resolution
+        identity ??= FindIdentity(aggregateType, idType, chain);
         var isNaturalKey = false;
 
         // If standard identity resolution failed, check for natural key support

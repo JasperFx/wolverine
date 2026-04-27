@@ -49,13 +49,23 @@ services:
       - "5672:5672"
       - "15672:15672"
 
+  # SQL Server 2025 is required by Polecat 2.0+ (UseNativeJsonType defaults to true,
+  # which uses the native `json` column type introduced in SQL Server 2025).
+  #
+  # On Apple Silicon Macs, SQL Server 2025 under Rosetta may crash due to memory
+  # constraints. If you're working locally on ARM and don't need Polecat tests,
+  # you can override this service to use `mcr.microsoft.com/azure-sql-edge:latest`
+  # via a docker-compose.override.yml — but Polecat integration tests will fail
+  # against Azure SQL Edge unless you also set `m.UseNativeJsonType = false` in
+  # the test fixture.
   sqlserver:
-    image: "mcr.microsoft.com/azure-sql-edge:latest"
+    image: "mcr.microsoft.com/mssql/server:2025-latest"
     ports:
       - "1434:1433"
     environment:
       - "ACCEPT_EULA=Y"
       - "SA_PASSWORD=P@55w0rd"
+      - "MSSQL_SA_PASSWORD=P@55w0rd"
       - "MSSQL_PID=Developer"
 
   pulsar:
