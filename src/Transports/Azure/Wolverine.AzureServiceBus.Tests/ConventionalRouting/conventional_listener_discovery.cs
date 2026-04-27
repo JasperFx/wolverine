@@ -87,7 +87,12 @@ public class conventional_listener_discovery : ConventionalRoutingContext
 
         var uri = "sqs://routed".ToUri();
         var endpoint = theRuntime.Endpoints.EndpointFor(uri);
-        endpoint.ShouldBeNull();
+
+        // An endpoint may exist at this URI as a SENDER (since a handler is
+        // registered for RoutedMessage and the framework eagerly pre-registers
+        // sender configuration for handled message types — see GH-2588), but
+        // the listener side must NOT have been created.
+        if (endpoint != null) endpoint.IsListener.ShouldBeFalse();
 
         theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
             .ShouldBeFalse();

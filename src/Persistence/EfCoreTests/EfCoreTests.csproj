@@ -42,6 +42,13 @@
         <ProjectReference Include="..\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj"/>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj"/>
         <ProjectReference Include="..\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
+        <!--
+          Wolverine.RabbitMQ is referenced for the GH-2588 reproducer
+          (Bugs/Bug_2588_*.cs). The test only inspects endpoint Mode after
+          configuration; it does NOT open a RabbitMQ connection so no broker
+          is required at test time.
+        -->
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
     </ItemGroup>
 
 </Project>

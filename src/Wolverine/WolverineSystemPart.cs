@@ -90,17 +90,24 @@ internal class WolverineSystemPart : SystemPartBase
         foreach (var messageType in messageTypes) _runtime.RoutingFor(messageType);
 
 
-        var table = new Table(){Title = new TableTitle("Subscriptions"){Style = new Style(decoration:Decoration.Bold)}};
+        var table = new Table(){Title = new TableTitle("Senders"){Style = new Style(decoration:Decoration.Bold)}};
 
         table.AddColumn("Uri", c => c.NoWrap = true);
         table.AddColumn("Name");
         table.AddColumn("Mode");
         table.AddColumn("Serializer(s)", c => c.NoWrap = true);
 
+        // Restrict to endpoints that have actually been wired up as senders. Without
+        // this filter, the table includes every endpoint registered in any transport
+        // — including listener-only queues — which makes it look like e.g. a Durable
+        // listener queue is actually a BufferedInMemory sender. An endpoint may also
+        // appear in both Senders and Listeners tables when it acts as both. See
+        // GH-2588.
         var senders = _runtime
-            .Options
-            .Transports
-            .SelectMany(x => x.Endpoints())
+            .Endpoints
+            .ActiveSendingAgents()
+            .Select(x => x.Endpoint)
+            .Distinct()
             .OrderBy(x => x.Uri.ToString());
 
         foreach (var endpoint in senders)
