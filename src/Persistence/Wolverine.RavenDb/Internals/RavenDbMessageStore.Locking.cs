@@ -31,7 +31,7 @@ public partial class RavenDbMessageStore
             NodeId = _options.UniqueNodeId,
             ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5),
         };
-        
+
         if (_leaderLock == null)
         {
             var result = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_leaderLockId, newLock, 0), token: token);
@@ -42,9 +42,9 @@ public partial class RavenDbMessageStore
                 return true;
             }
 
-            return false;
+            return await tryTakeOverIfExpiredAsync(_leaderLockId, newLock, lockSet: l => _leaderLock = l, indexSet: i => _lastLockIndex = i, token);
         }
-        
+
         var result2 = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_leaderLockId, newLock, _lastLockIndex), token: token);
         if (result2.Successful)
         {
@@ -83,7 +83,7 @@ public partial class RavenDbMessageStore
                 return true;
             }
 
-            return false;
+            return await tryTakeOverIfExpiredAsync(_scheduledLockId, newLock, lockSet: l => _scheduledLock = l, indexSet: i => _lastScheduledLockIndex = i, token);
         }
         
         var result2 = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, newLock, _lastScheduledLockIndex), token: token);
@@ -102,6 +102,24 @@ public partial class RavenDbMessageStore
         if (_scheduledLock == null) return;
         await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(_scheduledLockId, _lastScheduledLockIndex));
         _scheduledLock = null;
+    }
+
+    // A predecessor process can crash without releasing its lock, leaving the CE value
+    // behind indefinitely. The DistributedLock.ExpirationTime field is the recovery
+    // hook: if the existing lock is past its expiration, CAS-replace it using the
+    // current CE index. Mirrors the equivalent path in CosmosDbMessageStore.Locking.
+    private async Task<bool> tryTakeOverIfExpiredAsync(string lockId, DistributedLock newLock, Action<DistributedLock> lockSet, Action<long> indexSet, CancellationToken token)
+    {
+        var existing = await _store.Operations.SendAsync(new GetCompareExchangeValueOperation<DistributedLock>(lockId), token: token);
+        if (existing?.Value == null) return false;
+        if (existing.Value.ExpirationTime > DateTimeOffset.UtcNow) return false;
+
+        var takeover = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(lockId, newLock, existing.Index), token: token);
+        if (!takeover.Successful) return false;
+
+        lockSet(newLock);
+        indexSet(takeover.Index);
+        return true;
     }
 }
 
