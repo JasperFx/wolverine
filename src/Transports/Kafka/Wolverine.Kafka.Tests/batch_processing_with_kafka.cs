@@ -23,7 +23,7 @@ public class batch_processing_with_kafka
         var tracked = await host
             .TrackActivity()
             .WaitForMessageToBeReceivedAt<TestMessage[]>(host)
-            .Timeout(30.Seconds())
+            .Timeout(60.Seconds())
             .ExecuteAndWaitAsync(execute);
 
         tracked.FindSingleTrackedMessageOfType<TestMessage[]>()

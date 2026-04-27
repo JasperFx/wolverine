@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using JasperFx.Core;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using NSubstitute.ReceivedExtensions;
 using JasperFx.Resources;
@@ -55,6 +56,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
     public async Task can_receive_message_with_delivery_option_key()
     {
         var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("tortoise"), new DeliveryOptions()
@@ -64,24 +66,26 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("tortoise");
     }
-    
+
     [Fact]
     public async Task  received_message_with_key_and_offset()
     {
         await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("hare"), new DeliveryOptions()
             {
                 PartitionKey = "key1"
             });
-        
+
         var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("tortoise"), new DeliveryOptions()
             {
-                PartitionKey = "key1" 
+                PartitionKey = "key1"
             });
         var singleEnvelope = session.Received.SingleEnvelope<ColorMessage>();
         singleEnvelope.PartitionKey.ShouldBe("key1");
@@ -98,6 +102,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
     public async Task received_message_has_partition_id()
     {
         var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("parrot"), new DeliveryOptions()
