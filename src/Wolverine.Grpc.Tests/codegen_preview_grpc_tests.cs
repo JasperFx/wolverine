@@ -17,6 +17,7 @@ namespace Wolverine.Grpc.Tests;
 ///     <c>ICodeFileCollection</c> DI seam — only exists when <c>Wolverine.Grpc</c> is referenced,
 ///     so end-to-end coverage lives here rather than in <c>CoreTests</c>.
 /// </summary>
+[Collection(GrpcSerialTestsCollection.Name)]
 public class codegen_preview_grpc_tests
 {
     [Fact]
@@ -43,7 +44,8 @@ public class codegen_preview_grpc_tests
             // services.GetServices<ICodeFileCollection>() reaches it — exactly the seam
             // PreviewGrpcCode walks.
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
             graph.Chains.ShouldNotBeEmpty("the Greeter proto-first stub should be discovered");
 
             var supplemental = host.Services.GetRequiredService<WolverineSupplementalCodeFiles>();
@@ -113,7 +115,8 @@ public class codegen_preview_grpc_tests
                 .StartAsync();
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
-            graph.DiscoverServices();
+            var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
+            graph.DiscoverServices(grpcOptions);
 
             var supplemental = host.Services.GetRequiredService<WolverineSupplementalCodeFiles>();
             if (!supplemental.Collections.Contains(graph))

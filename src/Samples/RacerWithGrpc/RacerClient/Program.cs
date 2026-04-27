@@ -48,10 +48,14 @@ async IAsyncEnumerable<RacerUpdate> ProduceUpdates(
     }
 }
 
-// Server → client: full standings streamed back on every update.
+// Server → client: full standings snapshot streamed back on every racer update.
+// Each snapshot starts with position=1; print a divider to separate them visually.
 await foreach (var position in racing.RaceAsync(ProduceUpdates(cts.Token), cts.Token))
 {
-    Console.WriteLine($"  {position.RacerId,-10}  position={position.Position}  speed={position.Speed,6:F1} km/h");
+    if (position.Position == 1)
+        Console.WriteLine("\n--- Standings ---");
+
+    Console.WriteLine($"  #{position.Position}  {position.RacerId,-10}  {position.Speed,6:F1} km/h");
 }
 
 Console.WriteLine("\nRace finished.");

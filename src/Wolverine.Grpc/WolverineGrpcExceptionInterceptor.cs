@@ -41,10 +41,14 @@ namespace Wolverine.Grpc;
 public sealed class WolverineGrpcExceptionInterceptor : Interceptor
 {
     private readonly ILogger<WolverineGrpcExceptionInterceptor> _logger;
+    private readonly WolverineGrpcOptions _options;
 
-    public WolverineGrpcExceptionInterceptor(ILogger<WolverineGrpcExceptionInterceptor> logger)
+    public WolverineGrpcExceptionInterceptor(
+        ILogger<WolverineGrpcExceptionInterceptor> logger,
+        WolverineGrpcOptions options)
     {
         _logger = logger;
+        _options = options;
     }
 
     public override async Task<TResponse> UnaryServerHandler<TRequest, TResponse>(
@@ -91,6 +95,19 @@ public sealed class WolverineGrpcExceptionInterceptor : Interceptor
                 (Code)richStatus.Code,
                 richStatus.Details.Count);
             return richStatus.ToRpcException();
+        }
+
+        var userCode = _options.TryMapException(exception);
+        if (userCode.HasValue)
+        {
+            var rpc = new RpcException(new global::Grpc.Core.Status(userCode.Value, exception.Message));
+            _logger.LogWarning(
+                exception,
+                "Mapped {ExceptionType} thrown by {Method} to gRPC status {StatusCode} (user-configured mapping)",
+                exception.GetType().FullName,
+                context.Method,
+                userCode.Value);
+            return rpc;
         }
 
         var mapped = WolverineGrpcExceptionMapper.ToRpcException(exception);

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+        <RootNamespace>GreeterCodeFirstGrpc.Messages</RootNamespace>
+        <AssemblyName>GreeterCodeFirstGrpc.Messages</AssemblyName>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="protobuf-net.Grpc"/>
+    </ItemGroup>
+
+</Project>

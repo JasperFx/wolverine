@@ -30,4 +30,5 @@ public class GrpcComplianceFixture : TransportComplianceFixture, IAsyncLifetime
     public new Task DisposeAsync() => Task.CompletedTask;
 }
 
+[Collection("GrpcSerialTests")]
 public class GrpcTransportCompliance : TransportCompliance<GrpcComplianceFixture>;

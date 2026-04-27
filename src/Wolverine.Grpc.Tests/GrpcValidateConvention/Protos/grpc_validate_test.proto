@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wolverine.Grpc.Tests.GrpcValidateConvention.Generated";
+
+package wolverine.grpc.tests.validate_convention;
+
+// Test-only service exercising the Validate/ValidateAsync → Status? short-circuit
+// convention on proto-first Wolverine gRPC stubs.
+service ValidatorGreeterTest {
+  rpc Greet (ValidateGreetRequest) returns (ValidateGreetReply);
+}
+
+message ValidateGreetRequest {
+  string name = 1;
+}
+
+message ValidateGreetReply {
+  string message = 1;
+}
