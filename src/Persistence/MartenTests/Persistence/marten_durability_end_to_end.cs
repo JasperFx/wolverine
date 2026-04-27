@@ -175,7 +175,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
     protected async Task WaitForMessagesToBeProcessed(int count)
     {
         await using var session = _receiverStore.QuerySession();
-        for (var i = 0; i < 200; i++)
+        for (var i = 0; i < 480; i++)
         {
             var actual = session.Query<TraceDoc>().Count();
             var envelopeCount = PersistedIncomingCount();

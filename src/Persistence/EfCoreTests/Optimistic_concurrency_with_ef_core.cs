@@ -33,36 +33,43 @@ public class Optimistic_concurrency_with_ef_core
     [Fact]
     public async Task detect_concurrency_exception_as_SagaConcurrencyException()
     {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opt =>
-            {
-                opt.DisableConventionalDiscovery().IncludeType(typeof(ConcurrencyTestSaga));
-                
-                opt.Services.AddDbContextWithWolverineIntegration<OptConcurrencyDbContext>(o =>
-                {
-                    o.UseSqlServer(Servers.SqlServerConnectionString);
-                });
-
-                opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString);
-                opt.UseEntityFrameworkCoreTransactions();
-                opt.UseEntityFrameworkCoreWolverineManagedMigrations();
-                opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-                opt.Policies.UseDurableLocalQueues();
-                opt.Policies.AutoApplyTransactions();
-            }).StartAsync();
-
-        using var scope = host.Services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();
-
-        await dbContext.ConcurrencyTestSagas.AddAsync(new()
+        try
         {
-            Id = Guid.NewGuid(),
-            Value = "initial value",
-            Version = 0,
-        });
-        await dbContext.SaveChangesAsync();
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opt =>
+                {
+                    opt.DisableConventionalDiscovery().IncludeType(typeof(ConcurrencyTestSaga));
 
-        await Should.ThrowAsync<SagaConcurrencyException>(() => host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(Guid.NewGuid(), "updated value")));
+                    opt.Services.AddDbContextWithWolverineIntegration<OptConcurrencyDbContext>(o =>
+                    {
+                        o.UseSqlServer(Servers.SqlServerConnectionString);
+                    });
+
+                    opt.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "opt_concurrency");
+                    opt.UseEntityFrameworkCoreTransactions();
+                    opt.UseEntityFrameworkCoreWolverineManagedMigrations();
+                    opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+                    opt.Policies.UseDurableLocalQueues();
+                    opt.Policies.AutoApplyTransactions();
+                }).StartAsync();
+
+            using var scope = host.Services.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();
+
+            await dbContext.ConcurrencyTestSagas.AddAsync(new()
+            {
+                Id = Guid.NewGuid(),
+                Value = "initial value",
+                Version = 0,
+            });
+            await dbContext.SaveChangesAsync();
+
+            await Should.ThrowAsync<SagaConcurrencyException>(() => host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(Guid.NewGuid(), "updated value")));
+        }
+        finally
+        {
+            Microsoft.Data.SqlClient.SqlConnection.ClearAllPools();
+        }
     }
 }
 

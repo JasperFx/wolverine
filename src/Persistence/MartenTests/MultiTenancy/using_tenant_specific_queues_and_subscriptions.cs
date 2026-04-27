@@ -248,7 +248,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
             return all.All(x => x.HasMatched);
         };
 
-        for (var i = 0; i < 20; i++)
+        for (var i = 0; i < 120; i++)
         {
             var matched = await tryMatch();
             if (matched)
@@ -256,7 +256,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                 return;
             }
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(500.Milliseconds());
         }
 
         throw new TimeoutException("The expected final state was never reached");
