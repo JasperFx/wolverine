@@ -9,6 +9,7 @@ using Raven.TestDriver;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
+using Wolverine.Persistence.Durability;
 using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
 using Wolverine.Transports.Tcp;
@@ -108,6 +109,23 @@ public class message_store_compliance : MessageStoreCompliance
         var value = metadata["@expires"];
         Debug.WriteLine(value);
 
+    }
+
+    [Fact]
+    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
+    {
+        // Reproduces the on-startup race where ASB redelivers the same envelope twice
+        // in a single prefetched batch. The bulk Inbox.StoreIncomingAsync used to leak
+        // RavenDB's NonUniqueObjectException; DurableReceiver then mistook that for an
+        // inbox-unavailable signal and paused the listener.
+        var envelope = ObjectMother.Envelope();
+        envelope.Destination = new Uri("stub://incoming");
+        envelope.Status = EnvelopeStatus.Incoming;
+
+        await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(async () =>
+        {
+            await thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope });
+        });
     }
 
 
