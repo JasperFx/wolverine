@@ -2,10 +2,6 @@ using Wolverine.Marten;
 
 namespace ProcessManagerSample.OrderFulfillment.Handlers;
 
-/// <summary>
-/// Compensating path. Marks the process cancelled with a reason; subsequent integration events
-/// are ignored by the completion guard on each continue handler.
-/// </summary>
 [AggregateHandler]
 public static class CancelOrderFulfillmentHandler
 {

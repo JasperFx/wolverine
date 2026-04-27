@@ -33,7 +33,7 @@ public class HandlerUnitTests
         var state = InProgressState();
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.Count.ShouldBe(1);
         result[0].ShouldBeOfType<PaymentConfirmed>();
@@ -45,7 +45,7 @@ public class HandlerUnitTests
         var state = InProgressState(itemsReserved: true, shipmentConfirmed: true);
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.Count.ShouldBe(2);
         result[0].ShouldBeOfType<PaymentConfirmed>();
@@ -59,7 +59,7 @@ public class HandlerUnitTests
         var state = InProgressState(paymentConfirmed: true);
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -72,7 +72,7 @@ public class HandlerUnitTests
 
         var result = PaymentConfirmedHandler.Handle(
             new PaymentConfirmed(state.Id, state.TotalAmount),
-            state);
+            state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -85,7 +85,7 @@ public class HandlerUnitTests
 
         var result = ShipmentConfirmedHandler.Handle(
             new ShipmentConfirmed(state.Id, "TRACK-1"),
-            state);
+            state).ToList();
 
         result.ShouldBeEmpty();
     }
