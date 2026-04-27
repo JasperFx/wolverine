@@ -13,7 +13,6 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
 public class rate_limiting_end_to_end
 {
     private readonly ITestOutputHelper _output;
@@ -175,16 +174,20 @@ public class rate_limiting_end_to_end
     private static async Task alignToWindowStart(TimeSpan window)
     {
         var windowTicks = window.Ticks;
-        var thresholdTicks = 50.Milliseconds().Ticks;
+        // Looser tolerance window: must be in the first 30ms of the window (not too close
+        // to the next boundary or risk of crossing it during async hops).
+        var minTicks = 5.Milliseconds().Ticks;
+        var maxTicks = 30.Milliseconds().Ticks;
 
-        for (var attempt = 0; attempt < 200; attempt++)
+        for (var attempt = 0; attempt < 500; attempt++)
         {
-            if (DateTimeOffset.UtcNow.Ticks % windowTicks < thresholdTicks)
+            var phase = DateTimeOffset.UtcNow.Ticks % windowTicks;
+            if (phase >= minTicks && phase < maxTicks)
             {
                 return;
             }
 
-            await Task.Delay(10.Milliseconds());
+            await Task.Delay(2.Milliseconds());
         }
 
         throw new TimeoutException("Could not align to rate limit window start.");
@@ -199,8 +202,6 @@ public class rate_limiting_end_to_end
         catch (OperationCanceledException)
         {
         }
-
-        host.Dispose();
 
         try
         {

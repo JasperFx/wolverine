@@ -15,18 +15,17 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
-public class send_by_topics : IDisposable
+public class send_by_topics : IAsyncLifetime
 {
-    private readonly IHost theGreenReceiver;
-    private readonly IHost theBlueReceiver;
-    private readonly IHost theSender;
-    private readonly IHost theThirdReceiver;
+    private IHost theGreenReceiver = null!;
+    private IHost theBlueReceiver = null!;
+    private IHost theSender = null!;
+    private IHost theThirdReceiver = null!;
 
-    public send_by_topics()
+    public async Task InitializeAsync()
     {
         #region sample_binding_topics_and_topic_patterns_to_queues
-        theSender = Host.CreateDefaultBuilder()
+        theSender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
@@ -35,7 +34,7 @@ public class send_by_topics : IDisposable
                     exchange.BindTopic("color.green").ToQueue("green");
                     exchange.BindTopic("color.blue").ToQueue("blue");
                     exchange.BindTopic("color.*").ToQueue("all");
-                    
+
                     // Need this to be able to go to ONLY the green receiver for a test
                     exchange.BindTopic("special").ToQueue("green");
                 });
@@ -44,27 +43,27 @@ public class send_by_topics : IDisposable
                     .IncludeType<TriggerTopicMessageHandler>();
 
                 opts.ServiceName = "TheSender";
-  
+
                 opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
-            }).Start();
+            }).StartAsync();
 
         #endregion
 
-        theGreenReceiver = WolverineHost.For(opts =>
+        theGreenReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Green";
             opts.ListenToRabbitQueue("green");
             opts.UseRabbitMq();
         });
 
-        theBlueReceiver = WolverineHost.For(opts =>
+        theBlueReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Blue";
             opts.ListenToRabbitQueue("blue");
             opts.UseRabbitMq();
         });
 
-        theThirdReceiver = WolverineHost.For(opts =>
+        theThirdReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Third";
             opts.ListenToRabbitQueue("all");
@@ -72,12 +71,28 @@ public class send_by_topics : IDisposable
         });
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        theSender?.Dispose();
-        theGreenReceiver?.Dispose();
-        theBlueReceiver?.Dispose();
-        theThirdReceiver?.Dispose();
+        if (theSender != null)
+        {
+            await theSender.StopAsync();
+            theSender.Dispose();
+        }
+        if (theGreenReceiver != null)
+        {
+            await theGreenReceiver.StopAsync();
+            theGreenReceiver.Dispose();
+        }
+        if (theBlueReceiver != null)
+        {
+            await theBlueReceiver.StopAsync();
+            theBlueReceiver.Dispose();
+        }
+        if (theThirdReceiver != null)
+        {
+            await theThirdReceiver.StopAsync();
+            theThirdReceiver.Dispose();
+        }
     }
 
     [Fact]
@@ -120,6 +135,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new PurpleMessage());
@@ -135,18 +151,19 @@ public class send_by_topics : IDisposable
     {
         Func<IMessageContext,Task> action = async c =>
         {
-            // This should get handled by only the Green receiver 
+            // This should get handled by only the Green receiver
             // according to the configuration at the top
             var message = new RoutedMessage{TopicName = "special"};
             await c.InvokeAsync<RoutedResponse>(message);
         };
-        
+
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .ExecuteAndWaitAsync(action);
-        
+
         session.Executed.SingleRecord<RoutedMessage>()
             .ServiceName.ShouldBe("Green");
     }
@@ -155,7 +172,7 @@ public class send_by_topics : IDisposable
     public async Task remove_request_reply_with_topics()
     {
         var bus = theSender.MessageBus();
-        
+
     }
 
     [Fact]
@@ -163,6 +180,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new FirstMessage());
@@ -178,6 +196,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
@@ -194,6 +213,7 @@ public class send_by_topics : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
@@ -224,6 +244,7 @@ public class send_by_topics : IDisposable
 
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
@@ -243,7 +264,7 @@ public class send_by_topics : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .Timeout(15.Seconds())
+            .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
@@ -254,18 +275,16 @@ public class send_by_topics : IDisposable
     }
 }
 
-[Trait("Category", "Flaky")]
-public class send_by_topics_durable : IDisposable
+public class send_by_topics_durable : IAsyncLifetime
 {
-    private readonly IHost theGreenReceiver;
-    private readonly IHost theBlueReceiver;
-    private readonly IHost theSender;
-    private readonly IHost theThirdReceiver;
+    private IHost theGreenReceiver = null!;
+    private IHost theBlueReceiver = null!;
+    private IHost theSender = null!;
+    private IHost theThirdReceiver = null!;
 
-    public send_by_topics_durable()
+    public async Task InitializeAsync()
     {
-
-        theSender = Host.CreateDefaultBuilder()
+        theSender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
@@ -284,23 +303,23 @@ public class send_by_topics_durable : IDisposable
                 });
 
                 opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
-            }).Start();
+            }).StartAsync();
 
-        theGreenReceiver = WolverineHost.For(opts =>
+        theGreenReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Green";
             opts.ListenToRabbitQueue("green");
             opts.UseRabbitMq();
         });
 
-        theBlueReceiver = WolverineHost.For(opts =>
+        theBlueReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Blue";
             opts.ListenToRabbitQueue("blue");
             opts.UseRabbitMq();
         });
 
-        theThirdReceiver = WolverineHost.For(opts =>
+        theThirdReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Third";
             opts.ListenToRabbitQueue("all");
@@ -308,12 +327,28 @@ public class send_by_topics_durable : IDisposable
         });
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        theSender?.Dispose();
-        theGreenReceiver?.Dispose();
-        theBlueReceiver?.Dispose();
-        theThirdReceiver?.Dispose();
+        if (theSender != null)
+        {
+            await theSender.StopAsync();
+            theSender.Dispose();
+        }
+        if (theGreenReceiver != null)
+        {
+            await theGreenReceiver.StopAsync();
+            theGreenReceiver.Dispose();
+        }
+        if (theBlueReceiver != null)
+        {
+            await theBlueReceiver.StopAsync();
+            theBlueReceiver.Dispose();
+        }
+        if (theThirdReceiver != null)
+        {
+            await theThirdReceiver.StopAsync();
+            theThirdReceiver.Dispose();
+        }
     }
 
     internal async Task send_by_topic_sample()
@@ -332,6 +367,7 @@ public class send_by_topics_durable : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new PurpleMessage());
@@ -347,6 +383,7 @@ public class send_by_topics_durable : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(new FirstMessage());
@@ -362,6 +399,7 @@ public class send_by_topics_durable : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.green", new PurpleMessage());
@@ -378,6 +416,7 @@ public class send_by_topics_durable : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .BroadcastMessageToTopicAndWaitAsync("color.blue", new PurpleMessage());
@@ -394,6 +433,7 @@ public class send_by_topics_durable : IDisposable
     {
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<FirstMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
@@ -407,6 +447,7 @@ public class send_by_topics_durable : IDisposable
 
         var session = await theSender
             .TrackActivity()
+            .Timeout(30.Seconds())
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
@@ -426,7 +467,7 @@ public class send_by_topics_durable : IDisposable
         var session = await theSender
             .TrackActivity()
             .IncludeExternalTransports()
-            .Timeout(15.Seconds())
+            .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<RoutedMessage>(theBlueReceiver)
             .AlsoTrack(theGreenReceiver, theBlueReceiver, theThirdReceiver)
             .SendMessageAndWaitAsync(routed, new DeliveryOptions{ScheduleDelay = 3.Seconds()});
