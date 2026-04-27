@@ -129,11 +129,12 @@ public class service_location_assertions
             new ServiceLocationReport(descriptor1, "Because I said so!"),
             new ServiceLocationReport(descripter2, "I didn't like this one")
         };
-        
+
         theChain.AssertServiceLocationsAreAllowed(reports, services);
-        
-        // Don't even bother to log anything if we're AlwaysAllowed
+
         theLogger.Messages.Count.ShouldBe(2);
+        theLogger.Messages.ShouldAllBe(m => m.Contains("Wolverine 6.0"));
+        theLogger.Levels.ShouldAllBe(l => l == LogLevel.Warning);
     }
 
     [Fact]
@@ -147,10 +148,12 @@ public class service_location_assertions
             new ServiceLocationReport(descripter2, "I didn't like this one")
         };
 
-        Should.Throw<InvalidServiceLocationException>(() =>
+        var ex = Should.Throw<InvalidServiceLocationException>(() =>
         {
             theChain.AssertServiceLocationsAreAllowed(reports, services);
         });
+
+        ex.Message.ShouldContain("Wolverine 6.0");
     }
     
     [Theory]
@@ -307,10 +310,11 @@ public static class UseWidgetHandler
 public class RecordingLogger : ILoggerFactory, ILogger
 {
     public List<string> Messages { get; } = new();
-    
+    public List<LogLevel> Levels { get; } = new();
+
     public void Dispose()
     {
-        
+
     }
 
     public void AddProvider(ILoggerProvider provider)
@@ -336,6 +340,7 @@ public class RecordingLogger : ILoggerFactory, ILogger
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         Messages.Add(formatter(state, exception));
+        Levels.Add(logLevel);
     }
 }
 

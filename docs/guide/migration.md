@@ -1,5 +1,17 @@
 # Migration Guide
 
+## Coming in 6.0: ServiceLocationPolicy.NotAllowed becomes the default
+
+In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` will default to `NotAllowed` instead of `AllowedButWarn`. Apps that currently rely on Wolverine's code generation falling back to service location at runtime will throw `InvalidServiceLocationException` on startup after upgrading.
+
+To prepare while still on 5.x:
+
+1. Run your app with `Warning`-level (or lower) logging on the `Wolverine` category. Look for log messages starting with `Utilizing service location for ...`.
+2. For each one, either register the service in DI in a way that the codegen can resolve through constructor injection, or — if it genuinely must be service-located — opt in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
+3. Once the warnings are gone, you can set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` to assert the absence going forward.
+
+See [Code Generation](/guide/codegen.html) for details.
+
 ## Key Changes in 5.0
 
 5.0 had very few breaking changes in the public API, but some in "publinternals" types most users would never touch. The
