@@ -1,6 +1,6 @@
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class ShipmentConfirmedHandler

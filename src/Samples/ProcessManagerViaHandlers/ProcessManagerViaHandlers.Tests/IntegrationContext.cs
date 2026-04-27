@@ -5,7 +5,7 @@ using Wolverine;
 using Wolverine.Runtime;
 using Xunit;
 
-namespace ProcessManagerSample.Tests;
+namespace ProcessManagerViaHandlers.Tests;
 
 public class AppFixture : IAsyncLifetime
 {

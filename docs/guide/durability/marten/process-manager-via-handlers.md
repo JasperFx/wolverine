@@ -97,21 +97,25 @@ public class OutgoingMessages : List<object>, IWolverineReturnType
 
 `Delay` and `Schedule` are how you arm a payment timeout from the start handler without injecting `IMessageBus`. That keeps continue handlers testable as pure functions; the scheduled message is just an item in the returned list, and the test can assert on it directly. (The start handler itself is asymmetric, for reasons [Section 3 Step 4](#step-4-write-your-handlers) covers.)
 
-### `Events` for fluent appending
+### Returning events from handlers
 
-`Events` (from the `Wolverine.Marten` namespace) is also a `List<object>`, and it is recognized by the aggregate-handler codegen as "append each of these to the stream." It exists so you can return multiple events from one handler without having to build a tuple:
+Two return types work for multi-event appends from aggregate handlers.
+
+`IEnumerable<object>` with `yield return` and `yield break` is the cleaner shape for most continue handlers:
 
 ```csharp
-public static Events Handle(ConfirmPayment cmd, OrderFulfillmentState state)
+public static IEnumerable<object> Handle(PaymentConfirmed @event, OrderFulfillmentState state)
 {
-    var events = new Events();
-    events += new PaymentConfirmed(cmd.OrderFulfillmentStateId, cmd.Amount);
-    if (state.ItemsReserved) events += new OrderFulfillmentCompleted(cmd.OrderFulfillmentStateId);
-    return events;
+    if (state.IsTerminal) yield break;
+    yield return @event;
+    if (state.ItemsReserved && state.ShipmentConfirmed)
+        yield return new OrderFulfillmentCompleted(state.Id);
 }
 ```
 
-For the common case of one event per handler, just return the event directly and Wolverine treats it as a single-item append. Use `Events` when the count is conditional. Use a tuple `(Events, OutgoingMessages)` when you want to append events **and** schedule follow-up messages in the same handler.
+`Events` (from `Wolverine.Marten`) is a `List<object>` with the same codegen recognition. It is the natural choice when returning a tuple alongside `OutgoingMessages`, since both legs of the tuple are explicit collections. For a single unconditional event, returning the event directly is also valid.
+
+Avoid nullable single-event returns (`TEvent?`): the codegen emits `stream.AppendOne(variable)` with no null check, so `return null` calls `AppendOne(null)`. Use `IEnumerable<object>` with `yield break` or an empty `Events` for the no-op path.
 
 ### How these pieces combine
 
@@ -129,7 +133,7 @@ Taken together, the ingredients look like this:
 
 ## 3. The Recipe
 
-A Process Manager built with this pattern is a handful of small files, arranged in a predictable shape. The steps below map one-for-one to files in [the ProcessManagerSample](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample). Open that alongside the recipe; it compiles, runs, and has a full test suite behind it.
+A Process Manager built with this pattern is a handful of small files, arranged in a predictable shape. The steps below map one-for-one to files in [the ProcessManagerViaHandlers](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers). Open that alongside the recipe; it compiles, runs, and has a full test suite behind it.
 
 ### Step 1: Define the process state type
 
@@ -240,7 +244,7 @@ A plain static class. No `[AggregateHandler]` attribute. The handler returns an 
 
 The reason this is not an `[AggregateHandler]`: `AggregateHandlerAttribute` defaults `OnMissing` to `OnMissing.Simple404`. When you apply it to a handler whose aggregate does not yet exist, the middleware short-circuits before your method runs. No events are appended, no exception is thrown, and the failure is silent. `MartenOps.StartStream` is the idiomatic way to express "this command creates the stream" and it matches what the Wolverine test suite does in `src/Persistence/MartenTests/AggregateHandlerWorkflow/`.
 
-One corollary: a duplicated `StartOrderFulfillment` for the same id fails with a `Marten.Exceptions.ExistingStreamIdCollisionException` ("Stream #{id} already exists in the database"). Wolverine propagates this exception through `InvokeMessageAndWaitAsync` with its original type intact; the transaction rolls back cleanly, so the first start's data remains authoritative. If your trigger source may deliver the start command at least once, catch this exception and convert it to an idempotent "already started, ignoring" response; otherwise let the caller guarantee a unique process id at dispatch time. The sample's [`starting_the_same_process_twice_throws_and_first_start_wins`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/when_starting_a_fulfillment.cs) test covers this exact scenario.
+One corollary: a duplicated `StartOrderFulfillment` for the same id fails with a `Marten.Exceptions.ExistingStreamIdCollisionException` ("Stream #{id} already exists in the database"). Wolverine propagates this exception through `InvokeMessageAndWaitAsync` with its original type intact; the transaction rolls back cleanly, so the first start's data remains authoritative. If your trigger source may deliver the start command at least once, catch this exception and convert it to an idempotent "already started, ignoring" response; otherwise let the caller guarantee a unique process id at dispatch time. The sample's [`starting_the_same_process_twice_throws_and_first_start_wins`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/OrderFulfillment/when_starting_a_fulfillment.cs) test covers this exact scenario.
 
 #### Step 4b: Continue handlers
 
@@ -248,27 +252,22 @@ One corollary: a duplicated `StartOrderFulfillment` for the same id fails with a
 [AggregateHandler]
 public static class PaymentConfirmedHandler
 {
-    public static Events Handle(PaymentConfirmed @event, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(PaymentConfirmed @event, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.PaymentConfirmed) return new Events();
+        if (state.IsTerminal) yield break;
+        if (state.PaymentConfirmed) yield break;
 
-        var events = new Events();
-        events += @event;
+        yield return @event;
 
         if (state.ItemsReserved && state.ShipmentConfirmed)
-        {
-            events += new OrderFulfillmentCompleted(state.Id);
-        }
-
-        return events;
+            yield return new OrderFulfillmentCompleted(state.Id);
     }
 }
 ```
 
 One static class per trigger message. `[AggregateHandler]` at the class level wires `FetchForWriting` plus optimistic concurrency plus `SaveChangesAsync` around every handler method on the class. The method receives the projected `OrderFulfillmentState` already loaded from the stream.
 
-Prefer `Events` (from the `Wolverine.Marten` namespace) as the return type. You get three benefits: appending a single event, appending two events when a step also trips completion, and returning an empty `Events` for no-op paths are all the same shape. Single-event returns work too, but they force you into nullable workarounds on the no-op paths, and nullable event returns are unsafe: the aggregate-handler code generator emits an unconditional `stream.AppendOne(variable)` with no null check, so a `return null;` will call `AppendOne(null)`.
+Return `IEnumerable<object>` and use `yield return` / `yield break`. The no-op early exits are `yield break`; events to append are `yield return`. See [Returning events from handlers](#returning-events-from-handlers) for the `Events` alternative and the single-event shorthand.
 
 If the incoming message's id property does not match the `{AggregateTypeName}Id` convention, use `[WriteAggregate("CustomName")] OrderFulfillmentState state` on the parameter and drop the class-level `[AggregateHandler]`.
 
@@ -279,7 +278,7 @@ Completion means two different things. Readers and reviewers conflate them. The 
 #### Step 5a: The terminal-state guard
 
 ```csharp
-if (state.IsTerminal) return new Events();
+if (state.IsTerminal) yield break;
 ```
 
 This guard prevents a late-arriving integration event from corrupting a finished process. If the customer cancelled five minutes ago and the warehouse has not heard yet, an `ItemsReserved` message is going to arrive after `OrderFulfillmentCancelled`. Without the guard, you would append an `ItemsReserved` event to a cancelled stream and the projection would report `ItemsReserved == true` on a cancelled order. With the guard, the message is a silent no-op.
@@ -289,7 +288,7 @@ Every continue handler carries this line. For N continue handlers, that is N gua
 #### Step 5b: The step-level idempotency guard
 
 ```csharp
-if (state.PaymentConfirmed) return new Events();
+if (state.PaymentConfirmed) yield break;
 ```
 
 This guard prevents at-least-once redelivery of the same integration event from being recorded twice. Your transport will occasionally re-deliver the same `PaymentConfirmed` message. Without the guard, you would append two identical events. With it, the second delivery is a no-op.
@@ -302,9 +301,7 @@ Any continue handler can be the one that trips completion. Whichever handler obs
 
 ```csharp
 if (state.ItemsReserved && state.ShipmentConfirmed)
-{
-    events += new OrderFulfillmentCompleted(state.Id);
-}
+    yield return new OrderFulfillmentCompleted(state.Id);
 ```
 
 This keeps the terminal event in the hands of whichever step actually closes the process, rather than funnelling every step through a central "maybe complete" handler. The tradeoff is that the condition appears in every handler, with the two "other" flags named each time. For three steps this is fine; for a ten-step process this starts to ache.
@@ -315,13 +312,10 @@ The compensating handler is simpler:
 [AggregateHandler]
 public static class CancelOrderFulfillmentHandler
 {
-    public static Events Handle(CancelOrderFulfillment command, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(CancelOrderFulfillment command, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-
-        var events = new Events();
-        events += new OrderFulfillmentCancelled(state.Id, command.Reason);
-        return events;
+        if (state.IsTerminal) yield break;
+        yield return new OrderFulfillmentCancelled(state.Id, command.Reason);
     }
 }
 ```
@@ -330,18 +324,7 @@ No step-level idempotency guard; cancellation is terminal by its first occurrenc
 
 ### Step 6: Schedule timeouts
 
-You schedule a timeout without injecting `IMessageBus`. Return an `OutgoingMessages` alongside whatever the handler produces, and Wolverine dispatches each item through the outbox:
-
-```csharp
-public class OutgoingMessages : List<object>, IWolverineReturnType
-{
-    void Delay<T>(T message, TimeSpan delay);
-    void Schedule<T>(T message, DateTimeOffset time);
-    // ...
-}
-```
-
-The start handler returns a tuple. The first element creates the stream and appends the initial event; the second element schedules the timeout:
+You schedule a timeout without injecting `IMessageBus`. Return an `OutgoingMessages` alongside whatever the handler produces, and Wolverine dispatches each item through the outbox. The start handler returns a tuple. The first element creates the stream and appends the initial event; the second element schedules the timeout:
 
 ```csharp
 public static (IStartStream, OutgoingMessages) Handle(StartOrderFulfillment command)
@@ -372,19 +355,16 @@ The timeout handler is a standard `[AggregateHandler]` that uses the same guards
 [AggregateHandler]
 public static class PaymentTimeoutHandler
 {
-    public static Events Handle(PaymentTimeout _, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(PaymentTimeout _, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.PaymentConfirmed) return new Events();
-
-        var events = new Events();
-        events += new OrderFulfillmentCancelled(state.Id, "Payment timed out");
-        return events;
+        if (state.IsTerminal) yield break;
+        if (state.PaymentConfirmed) yield break;
+        yield return new OrderFulfillmentCancelled(state.Id, "Payment timed out");
     }
 }
 ```
 
-Notice what is not here: there is no API to "cancel" the scheduled message when payment arrives early. You do not need one. When the timer fires, the handler loads the current state, sees that payment already confirmed, and returns an empty `Events`. The scheduled message becomes a silent no-op.
+Notice what is not here: there is no API to "cancel" the scheduled message when payment arrives early. You do not need one. When the timer fires, the handler loads the current state, sees that payment already confirmed, and yields nothing. The scheduled message becomes a silent no-op.
 
 This is the cleanest ergonomic win this pattern has over a Saga plus explicit-cancel approach. A cancel-the-timer design has to race the cancel against the timer firing, needs a cancellation API, and breaks if the cancel message is lost. A let-state-decide design relies on the state being authoritative and always current, which is exactly what event sourcing gives you. The timeout handler stays pure. The start handler stays pure. No `IMessageBus` injection anywhere in the process.
 
@@ -497,16 +477,16 @@ await WaitForCondition(id, state => state.IsTerminal);
 
 Keep the requested delay small in tests (1 to 2 seconds) and the observation window comfortably larger than one scheduler poll cycle. Do not use a bare `Task.Delay` as an observation window; you will get a flaky test that sometimes passes because the scheduler was fast and sometimes fails because it was slow.
 
-The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/IntegrationContext.cs) shows the Alba bootstrap used here. Two settings matter for test reliability: `services.MartenDaemonModeIsSolo()` and `services.RunWolverineInSoloMode()`. Without them you will fight the distributed durability machinery on every test run.
+The sample project's [IntegrationContext.cs](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/IntegrationContext.cs) shows the Alba bootstrap used here. Two settings matter for test reliability: `services.MartenDaemonModeIsSolo()` and `services.RunWolverineInSoloMode()`. Without them you will fight the distributed durability machinery on every test run.
 
 ## 4. Worked Example
 
-This section is the reference: every file in the `OrderFulfillment` folder of [`ProcessManagerSample`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample), in the order you would read them, plus the Marten plus Wolverine wiring and one test of each style. The scenario is end-to-end order fulfillment with a payment timeout and a compensating cancellation path. 20 tests back the sample; two of them appear below.
+This section is the reference: every file in the `OrderFulfillment` folder of [`ProcessManagerViaHandlers`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers), in the order you would read them, plus the Marten plus Wolverine wiring and one test of each style. The scenario is end-to-end order fulfillment with a payment timeout and a compensating cancellation path. 20 tests back the sample; two of them appear below.
 
 ### `OrderFulfillment/OrderFulfillmentState.cs`
 
 ```csharp
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 /// <summary>
 /// Event-sourced state for the order fulfillment process. Projected inline from the event stream
@@ -557,7 +537,7 @@ public class OrderFulfillmentState
 ### `OrderFulfillment/Events.cs`
 
 ```csharp
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 public record OrderFulfillmentStarted(
     Guid OrderFulfillmentStateId,
@@ -586,7 +566,7 @@ public record OrderFulfillmentCancelled(
 ### `OrderFulfillment/Commands.cs`
 
 ```csharp
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 public record StartOrderFulfillment(
     Guid OrderFulfillmentStateId,
@@ -607,7 +587,7 @@ public record PaymentTimeout(Guid OrderFulfillmentStateId);
 using Wolverine;
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 public static class StartOrderFulfillmentHandler
 {
@@ -637,25 +617,20 @@ public static class StartOrderFulfillmentHandler
 ```csharp
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class PaymentConfirmedHandler
 {
-    public static Events Handle(PaymentConfirmed @event, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(PaymentConfirmed @event, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.PaymentConfirmed) return new Events();
+        if (state.IsTerminal) yield break;
+        if (state.PaymentConfirmed) yield break;
 
-        var events = new Events();
-        events += @event;
+        yield return @event;
 
         if (state.ItemsReserved && state.ShipmentConfirmed)
-        {
-            events += new OrderFulfillmentCompleted(state.Id);
-        }
-
-        return events;
+            yield return new OrderFulfillmentCompleted(state.Id);
     }
 }
 ```
@@ -665,25 +640,20 @@ public static class PaymentConfirmedHandler
 ```csharp
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class ItemsReservedHandler
 {
-    public static Events Handle(ItemsReserved @event, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(ItemsReserved @event, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.ItemsReserved) return new Events();
+        if (state.IsTerminal) yield break;
+        if (state.ItemsReserved) yield break;
 
-        var events = new Events();
-        events += @event;
+        yield return @event;
 
         if (state.PaymentConfirmed && state.ShipmentConfirmed)
-        {
-            events += new OrderFulfillmentCompleted(state.Id);
-        }
-
-        return events;
+            yield return new OrderFulfillmentCompleted(state.Id);
     }
 }
 ```
@@ -693,25 +663,20 @@ public static class ItemsReservedHandler
 ```csharp
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class ShipmentConfirmedHandler
 {
-    public static Events Handle(ShipmentConfirmed @event, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(ShipmentConfirmed @event, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.ShipmentConfirmed) return new Events();
+        if (state.IsTerminal) yield break;
+        if (state.ShipmentConfirmed) yield break;
 
-        var events = new Events();
-        events += @event;
+        yield return @event;
 
         if (state.PaymentConfirmed && state.ItemsReserved)
-        {
-            events += new OrderFulfillmentCompleted(state.Id);
-        }
-
-        return events;
+            yield return new OrderFulfillmentCompleted(state.Id);
     }
 }
 ```
@@ -721,18 +686,15 @@ public static class ShipmentConfirmedHandler
 ```csharp
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class CancelOrderFulfillmentHandler
 {
-    public static Events Handle(CancelOrderFulfillment command, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(CancelOrderFulfillment command, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-
-        var events = new Events();
-        events += new OrderFulfillmentCancelled(state.Id, command.Reason);
-        return events;
+        if (state.IsTerminal) yield break;
+        yield return new OrderFulfillmentCancelled(state.Id, command.Reason);
     }
 }
 ```
@@ -742,19 +704,16 @@ public static class CancelOrderFulfillmentHandler
 ```csharp
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 [AggregateHandler]
 public static class PaymentTimeoutHandler
 {
-    public static Events Handle(PaymentTimeout _, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(PaymentTimeout _, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.PaymentConfirmed) return new Events();
-
-        var events = new Events();
-        events += new OrderFulfillmentCancelled(state.Id, "Payment timed out");
-        return events;
+        if (state.IsTerminal) yield break;
+        if (state.PaymentConfirmed) yield break;
+        yield return new OrderFulfillmentCancelled(state.Id, "Payment timed out");
     }
 }
 ```
@@ -765,7 +724,7 @@ public static class PaymentTimeoutHandler
 using JasperFx;
 using Marten;
 using Marten.Events.Projections;
-using ProcessManagerSample.OrderFulfillment;
+using ProcessManagerViaHandlers.OrderFulfillment;
 using Wolverine;
 using Wolverine.Marten;
 
@@ -798,7 +757,7 @@ public partial class Program;
 
 ### Unit test (pure function)
 
-From [`HandlerUnitTests.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/HandlerUnitTests.cs):
+From [`HandlerUnitTests.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/OrderFulfillment/HandlerUnitTests.cs):
 
 ```csharp
 [Fact]
@@ -814,7 +773,7 @@ public void payment_confirmed_also_completes_when_other_two_gates_are_already_sa
     };
     var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-    var result = PaymentConfirmedHandler.Handle(@event, state);
+    var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
     result.Count.ShouldBe(2);
     result[0].ShouldBeOfType<PaymentConfirmed>();
@@ -825,7 +784,7 @@ public void payment_confirmed_also_completes_when_other_two_gates_are_already_sa
 
 ### Integration test (happy path, end to end)
 
-From [`when_completing_a_fulfillment.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/OrderFulfillment/when_completing_a_fulfillment.cs):
+From [`when_completing_a_fulfillment.cs`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/OrderFulfillment/when_completing_a_fulfillment.cs):
 
 ```csharp
 [Fact]
@@ -876,7 +835,7 @@ The "maybe-complete" check lives in every continue handler, with the two "other"
 
 ```csharp
 if (state.ItemsReserved && state.ShipmentConfirmed)
-    events += new OrderFulfillmentCompleted(state.Id);
+    yield return new OrderFulfillmentCompleted(state.Id);
 ```
 
 For three steps this is fine. For ten steps, the condition appears ten times with nine-flag expressions, and the first maintainer who adds an eleventh step will miss at least one. You can factor the predicate onto the state type (`state.ReadyToCompleteAfter(typeof(PaymentConfirmed))`) to centralize it, but that is hand-written and not something the framework will nudge you toward.
@@ -886,8 +845,8 @@ Saga centralizes this in one `checkForCompletion()` method on the saga class.
 ### Every continue handler carries two guard lines
 
 ```csharp
-if (state.IsTerminal) return new Events();
-if (state.PaymentConfirmed) return new Events();
+if (state.IsTerminal) yield break;
+if (state.PaymentConfirmed) yield break;
 ```
 
 For N continue handlers, that is 2N guard lines. They are mechanical but they are not optional, and a missed guard produces data corruption (an `ItemsReserved` event appended to a cancelled stream) that your tests may not catch because the next read of state still looks "right."
@@ -896,7 +855,7 @@ Saga's `MarkCompleted()` plus framework-managed lifecycle means Wolverine itself
 
 ### The start handler has a different shape from the continue handlers
 
-Start: plain static class, returns `IStartStream` via `MartenOps.StartStream<T>`. Continue: `[AggregateHandler]` static class, returns `Events`. Start has no `OrderFulfillmentState` parameter; continue handlers always do. The two shapes are small but they are different, and new readers will ask why.
+Start: plain static class, returns `IStartStream` via `MartenOps.StartStream<T>`. Continue: `[AggregateHandler]` static class, returns `IEnumerable<object>`. Start has no `OrderFulfillmentState` parameter; continue handlers always do. The two shapes are small but they are different, and new readers will ask why.
 
 This is a hard consequence of `AggregateHandlerAttribute.OnMissing` defaulting to `OnMissing.Simple404`. The attribute is designed around "the aggregate exists, load it, enforce concurrency." It does not naturally model "this command creates the aggregate." `MartenOps.StartStream` is the idiomatic workaround and it is fine once you know it, but you cannot hide the asymmetry from the reader.
 
@@ -908,11 +867,11 @@ If you forget and put `[AggregateHandler]` on a start handler, the middleware sh
 
 ### Nullable single-event returns are unsafe
 
-Returning `TEvent?` from a continue handler is ergonomic for the "sometimes no event" case but the aggregate-handler codegen emits `stream.AppendOne(variable)` unconditionally with no null check. A `return null;` will call `AppendOne(null)`. Use `Events` (possibly empty) for the no-op path instead. This is documented above but worth calling out as a sharp edge.
+Returning `TEvent?` from a continue handler is ergonomic for the "sometimes no event" case but the aggregate-handler codegen emits `stream.AppendOne(variable)` unconditionally with no null check. A `return null;` will call `AppendOne(null)`. Use `IEnumerable<object>` with `yield break` for the no-op path instead.
 
 ### Inline snapshot projection is a silent correctness dependency
 
-The per-step idempotency guard (`if (state.PaymentConfirmed) return new Events();`) depends on the inline projection having committed the previous step's effects before the next handler loads state. Register the projection as `SnapshotLifecycle.Inline` and this works. Forget, and duplicate deliveries will be double-written without any other test failure telling you why.
+The per-step idempotency guard (`if (state.PaymentConfirmed) yield break;`) depends on the inline projection having committed the previous step's effects before the next handler loads state. Register the projection as `SnapshotLifecycle.Inline` and this works. Forget, and duplicate deliveries will be double-written without any other test failure telling you why.
 
 ### No first-class test helper for "wait for scheduled message to fire"
 

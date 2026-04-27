@@ -1,4 +1,4 @@
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 /// <summary>
 /// Event-sourced state for the order fulfillment process. Projected inline from the event stream

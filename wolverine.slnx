@@ -174,9 +174,9 @@
     <Project Path="src/Samples/PingPong/Pinger/Pinger.csproj" />
     <Project Path="src/Samples/PingPong/Ponger/Ponger.csproj" />
   </Folder>
-  <Folder Name="/Samples/ProcessManagerSample/">
-    <Project Path="src/Samples/ProcessManagerSample/ProcessManagerSample/ProcessManagerSample.csproj" />
-    <Project Path="src/Samples/ProcessManagerSample/ProcessManagerSample.Tests/ProcessManagerSample.Tests.csproj" />
+  <Folder Name="/Samples/ProcessManagerViaHandlers/">
+    <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers/ProcessManagerViaHandlers.csproj" />
+    <Project Path="src/Samples/ProcessManagerViaHandlers/ProcessManagerViaHandlers.Tests/ProcessManagerViaHandlers.Tests.csproj" />
   </Folder>
   <Folder Name="/Samples/PingPongWithGrpc/">
     <Project Path="src/Samples/PingPongWithGrpc/Messages/Messages.csproj" />

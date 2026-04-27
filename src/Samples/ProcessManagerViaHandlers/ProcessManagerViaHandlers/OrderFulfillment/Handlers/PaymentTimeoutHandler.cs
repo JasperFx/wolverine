@@ -1,6 +1,6 @@
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 /// <summary>
 /// Fires when the scheduled <see cref="PaymentTimeout"/> message is dispatched by Wolverine's scheduler.
@@ -11,13 +11,10 @@ namespace ProcessManagerSample.OrderFulfillment.Handlers;
 [AggregateHandler]
 public static class PaymentTimeoutHandler
 {
-    public static Events Handle(PaymentTimeout _, OrderFulfillmentState state)
+    public static IEnumerable<object> Handle(PaymentTimeout _, OrderFulfillmentState state)
     {
-        if (state.IsTerminal) return new Events();
-        if (state.PaymentConfirmed) return new Events();
-
-        var events = new Events();
-        events += new OrderFulfillmentCancelled(state.Id, "Payment timed out");
-        return events;
+        if (state.IsTerminal) yield break;
+        if (state.PaymentConfirmed) yield break;
+        yield return new OrderFulfillmentCancelled(state.Id, "Payment timed out");
     }
 }

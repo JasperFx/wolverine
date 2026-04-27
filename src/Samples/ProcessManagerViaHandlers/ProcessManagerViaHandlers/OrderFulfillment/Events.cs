@@ -1,4 +1,4 @@
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 /// <summary>
 /// Emitted when the fulfillment process kicks off for a newly placed order.
