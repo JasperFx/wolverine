@@ -24,6 +24,11 @@ internal class ScheduledSendEnvelopeHandler : MessageHandler
         scheduled.Source = context.Runtime.Options.ServiceName;
         scheduled.ScheduledTime = null;
         scheduled.Status = EnvelopeStatus.Outgoing;
+        scheduled.CorrelationId = context.Envelope.CorrelationId;
+        scheduled.ConversationId = context.Envelope.ConversationId;
+        scheduled.TenantId = context.Envelope.TenantId;
+        scheduled.UserName = context.Envelope.UserName;
+        scheduled.ParentId = context.Envelope.ParentId;
 
         return context.ForwardScheduledEnvelopeAsync(scheduled).AsTask();
     }
