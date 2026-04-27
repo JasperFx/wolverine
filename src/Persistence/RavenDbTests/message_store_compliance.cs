@@ -4,6 +4,8 @@ using Microsoft.Extensions.Hosting;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
+using Raven.Client.ServerWide;
+using Raven.Client.ServerWide.Operations;
 using Raven.Embedded;
 using Raven.TestDriver;
 using Shouldly;
@@ -126,6 +128,44 @@ public class message_store_compliance : MessageStoreCompliance
         {
             await thePersistence.Inbox.StoreIncomingAsync(new[] { envelope, envelope });
         });
+    }
+
+    [Fact]
+    public async Task node_persistence_works_when_store_has_optimistic_concurrency_enabled()
+    {
+        // Node-agent persistence has two failure modes when the consumer enables optimistic
+        // concurrency on the document store:
+        //   1. PersistAsync and PersistAgentRestrictionsAsync use cluster-wide transactions,
+        //      which RavenDB rejects in combination with optimistic concurrency.
+        //   2. AddAssignmentAsync and AssignAgentsAsync used to write a brand-new
+        //      agent-assignment document by id, which fails when re-electing an agent
+        //      whose document still exists from a prior run.
+        using var optimisticStore = new DocumentStore
+        {
+            Urls = _store.Urls,
+            Database = "wolverine-optimistic-concurrency-test-" + Guid.NewGuid()
+        };
+        optimisticStore.Conventions.UseOptimisticConcurrency = true;
+        optimisticStore.Initialize();
+        await optimisticStore.Maintenance.Server.SendAsync(
+            new CreateDatabaseOperation(new DatabaseRecord(optimisticStore.Database)));
+
+        var ravenStore = new RavenDbMessageStore(optimisticStore, new WolverineOptions());
+
+        var node = new Wolverine.Runtime.Agents.WolverineNode { NodeId = Guid.NewGuid() };
+        var assigned = await ravenStore.PersistAsync(node, CancellationToken.None);
+        assigned.ShouldBe(1);
+
+        await ravenStore.PersistAgentRestrictionsAsync(
+            new[] { new Wolverine.Runtime.Agents.AgentRestriction(Guid.NewGuid(), new Uri("wolverine://test"), Wolverine.Runtime.Agents.AgentRestrictionType.Pinned, 1) },
+            CancellationToken.None);
+
+        // Re-adding the same assignment must succeed — assignments are idempotent.
+        var agentUri = new Uri("wolverine://agents/leader");
+        await ravenStore.AddAssignmentAsync(node.NodeId, agentUri, CancellationToken.None);
+        await ravenStore.AddAssignmentAsync(node.NodeId, agentUri, CancellationToken.None);
+
+        await ravenStore.AssignAgentsAsync(node.NodeId, new[] { agentUri }, CancellationToken.None);
     }
 
 
