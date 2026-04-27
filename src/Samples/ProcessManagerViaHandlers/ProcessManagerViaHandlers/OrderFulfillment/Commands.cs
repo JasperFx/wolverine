@@ -1,4 +1,4 @@
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 /// <summary>
 /// Starts the order fulfillment process. The caller assigns the identity, which

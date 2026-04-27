@@ -1,7 +1,7 @@
 using Wolverine;
 using Wolverine.Marten;
 
-namespace ProcessManagerSample.OrderFulfillment.Handlers;
+namespace ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 
 /// <summary>
 /// Bootstraps a new order fulfillment stream via <see cref="MartenOps.StartStream{T}(System.Guid, object[])"/>

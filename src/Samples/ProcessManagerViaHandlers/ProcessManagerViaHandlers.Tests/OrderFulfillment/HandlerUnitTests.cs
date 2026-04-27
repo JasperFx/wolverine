@@ -1,9 +1,9 @@
-using ProcessManagerSample.OrderFulfillment;
-using ProcessManagerSample.OrderFulfillment.Handlers;
+using ProcessManagerViaHandlers.OrderFulfillment;
+using ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 using Shouldly;
 using Xunit;
 
-namespace ProcessManagerSample.Tests.OrderFulfillment;
+namespace ProcessManagerViaHandlers.Tests.OrderFulfillment;
 
 /// <summary>
 /// Pure function tests. No Wolverine host, no Marten session. The handlers are static methods
@@ -33,7 +33,7 @@ public class HandlerUnitTests
         var state = InProgressState();
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.Count.ShouldBe(1);
         result[0].ShouldBeOfType<PaymentConfirmed>();
@@ -45,7 +45,7 @@ public class HandlerUnitTests
         var state = InProgressState(itemsReserved: true, shipmentConfirmed: true);
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.Count.ShouldBe(2);
         result[0].ShouldBeOfType<PaymentConfirmed>();
@@ -59,7 +59,7 @@ public class HandlerUnitTests
         var state = InProgressState(paymentConfirmed: true);
         var @event = new PaymentConfirmed(state.Id, state.TotalAmount);
 
-        var result = PaymentConfirmedHandler.Handle(@event, state);
+        var result = PaymentConfirmedHandler.Handle(@event, state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -72,7 +72,7 @@ public class HandlerUnitTests
 
         var result = PaymentConfirmedHandler.Handle(
             new PaymentConfirmed(state.Id, state.TotalAmount),
-            state);
+            state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -85,7 +85,7 @@ public class HandlerUnitTests
 
         var result = ShipmentConfirmedHandler.Handle(
             new ShipmentConfirmed(state.Id, "TRACK-1"),
-            state);
+            state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -96,7 +96,7 @@ public class HandlerUnitTests
         var state = InProgressState(paymentConfirmed: true);
         var command = new CancelOrderFulfillment(state.Id, "Customer requested");
 
-        var result = CancelOrderFulfillmentHandler.Handle(command, state);
+        var result = CancelOrderFulfillmentHandler.Handle(command, state).ToList();
 
         result.Count.ShouldBe(1);
         var cancelled = result[0].ShouldBeOfType<OrderFulfillmentCancelled>();
@@ -112,7 +112,7 @@ public class HandlerUnitTests
 
         var result = CancelOrderFulfillmentHandler.Handle(
             new CancelOrderFulfillment(state.Id, "Too late"),
-            state);
+            state).ToList();
 
         result.ShouldBeEmpty();
     }

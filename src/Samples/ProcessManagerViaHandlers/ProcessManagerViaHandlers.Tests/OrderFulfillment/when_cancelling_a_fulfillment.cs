@@ -1,10 +1,10 @@
 using Marten;
-using ProcessManagerSample.OrderFulfillment;
+using ProcessManagerViaHandlers.OrderFulfillment;
 using Shouldly;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace ProcessManagerSample.Tests.OrderFulfillment;
+namespace ProcessManagerViaHandlers.Tests.OrderFulfillment;
 
 public class when_cancelling_a_fulfillment : IntegrationContext
 {

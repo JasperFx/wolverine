@@ -21,6 +21,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\ProcessManagerSample\ProcessManagerSample.csproj" />
+        <ProjectReference Include="..\ProcessManagerViaHandlers\ProcessManagerViaHandlers.csproj" />
     </ItemGroup>
 </Project>

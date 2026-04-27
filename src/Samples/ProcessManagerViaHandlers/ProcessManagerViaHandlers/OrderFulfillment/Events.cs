@@ -1,4 +1,4 @@
-namespace ProcessManagerSample.OrderFulfillment;
+namespace ProcessManagerViaHandlers.OrderFulfillment;
 
 /// <summary>
 /// Emitted when the fulfillment process kicks off for a newly placed order.
@@ -17,16 +17,10 @@ public record PaymentConfirmed(
     Guid OrderFulfillmentStateId,
     decimal Amount);
 
-/// <summary>
-/// Integration event from the warehouse service.
-/// </summary>
 public record ItemsReserved(
     Guid OrderFulfillmentStateId,
     Guid ReservationId);
 
-/// <summary>
-/// Integration event from the shipping service.
-/// </summary>
 public record ShipmentConfirmed(
     Guid OrderFulfillmentStateId,
     string TrackingNumber);

@@ -1,11 +1,11 @@
 using Marten;
-using ProcessManagerSample.OrderFulfillment;
-using ProcessManagerSample.OrderFulfillment.Handlers;
+using ProcessManagerViaHandlers.OrderFulfillment;
+using ProcessManagerViaHandlers.OrderFulfillment.Handlers;
 using Shouldly;
 using Wolverine.Tracking;
 using Xunit;
 
-namespace ProcessManagerSample.Tests.OrderFulfillment;
+namespace ProcessManagerViaHandlers.Tests.OrderFulfillment;
 
 public class when_payment_times_out : IntegrationContext
 {
@@ -23,7 +23,7 @@ public class when_payment_times_out : IntegrationContext
     {
         var state = new OrderFulfillmentState { Id = Guid.NewGuid() };
 
-        var result = PaymentTimeoutHandler.Handle(new PaymentTimeout(state.Id), state);
+        var result = PaymentTimeoutHandler.Handle(new PaymentTimeout(state.Id), state).ToList();
 
         result.Count.ShouldBe(1);
         var cancelled = result[0].ShouldBeOfType<OrderFulfillmentCancelled>();
@@ -39,7 +39,7 @@ public class when_payment_times_out : IntegrationContext
             PaymentConfirmed = true
         };
 
-        var result = PaymentTimeoutHandler.Handle(new PaymentTimeout(state.Id), state);
+        var result = PaymentTimeoutHandler.Handle(new PaymentTimeout(state.Id), state).ToList();
 
         result.ShouldBeEmpty();
     }
@@ -83,7 +83,7 @@ public class when_payment_times_out : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new PaymentConfirmed(id, 10m));
 
         // Wait out the scheduler window. The timeout handler will run, observe
-        // state.PaymentConfirmed == true, and return empty Events.
+        // state.PaymentConfirmed == true, and yield break.
         await Task.Delay(SchedulerObservationWindow);
 
         await using var session = Store.LightweightSession();
