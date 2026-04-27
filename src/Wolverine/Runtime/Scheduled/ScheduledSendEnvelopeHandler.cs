@@ -24,11 +24,13 @@ internal class ScheduledSendEnvelopeHandler : MessageHandler
         scheduled.Source = context.Runtime.Options.ServiceName;
         scheduled.ScheduledTime = null;
         scheduled.Status = EnvelopeStatus.Outgoing;
-        scheduled.CorrelationId = context.Envelope.CorrelationId;
-        scheduled.ConversationId = context.Envelope.ConversationId;
-        scheduled.TenantId = context.Envelope.TenantId;
-        scheduled.UserName = context.Envelope.UserName;
-        scheduled.ParentId = context.Envelope.ParentId;
+
+        // The wrapper that just fired carries the context-correlation fields
+        // that were stamped on the way out (TenantId, CorrelationId, UserName,
+        // ParentId, ConversationId). Copy them onto the inner before forwarding
+        // so the eventual handler runs under the original tenant / correlation.
+        // See GH-2571 / PR #2572.
+        scheduled.CopyContextCorrelationFrom(context.Envelope);
 
         return context.ForwardScheduledEnvelopeAsync(scheduled).AsTask();
     }

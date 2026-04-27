@@ -211,6 +211,26 @@ public partial class Envelope
     }
 
     /// <summary>
+    ///     Copy the context-correlation fields (<see cref="CorrelationId"/>,
+    ///     <see cref="ConversationId"/>, <see cref="TenantId"/>, <see cref="UserName"/>,
+    ///     <see cref="ParentId"/>, <see cref="SagaId"/>) from <paramref name="source"/>
+    ///     onto this envelope. Used wherever a wrapped scheduled envelope is unwrapped
+    ///     and forwarded so the inner picks up the wrapper's context — the durable
+    ///     scheduled-send unwrap path (<c>ScheduledSendEnvelopeHandler</c>) and the
+    ///     in-memory tracked-session replay path (<c>TrackedSession.ReplayAll</c>).
+    ///     See GH-2571 / PR #2572.
+    /// </summary>
+    internal void CopyContextCorrelationFrom(Envelope source)
+    {
+        CorrelationId = source.CorrelationId;
+        ConversationId = source.ConversationId;
+        TenantId = source.TenantId;
+        UserName = source.UserName;
+        ParentId = source.ParentId;
+        SagaId = source.SagaId;
+    }
+
+    /// <summary>
     ///     Create a new Envelope that is a response to the current
     ///     Envelope
     /// </summary>
