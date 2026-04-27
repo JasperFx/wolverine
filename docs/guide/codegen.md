@@ -206,6 +206,10 @@ for your IoC configuration.
 As of Wolverine 5.0, you now have the ability to better control the usage of the service locator in Wolverine's
 code generation to potentially avoid unwanted usage:
 
+::: warning
+Starting in Wolverine 6.0, the default `ServiceLocationPolicy` will change from `AllowedButWarn` to `NotAllowed`. Code that currently triggers warnings will throw `InvalidServiceLocationException` after upgrading. See the [migration guide](/guide/migration.html) for how to prepare on 5.x.
+:::
+
 <!-- snippet: sample_configuring_servicelocationpolicy -->
 <a id='snippet-sample_configuring_servicelocationpolicy'></a>
 ```cs
