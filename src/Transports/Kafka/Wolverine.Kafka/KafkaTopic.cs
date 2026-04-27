@@ -24,6 +24,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         Parent = parent;
         EndpointName = topicName;
         TopicName = topicName;
+        BrokerRole = "topic";
 
         Specification.Name = topicName;
     }

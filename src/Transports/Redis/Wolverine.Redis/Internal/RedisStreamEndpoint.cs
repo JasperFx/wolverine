@@ -24,7 +24,8 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
         DatabaseId = databaseId;
         ConsumerGroup = ParseConsumerGroup(uri);
         EndpointName = StreamKey;
-        
+        BrokerRole = "stream";
+
         // Redis Streams work well in buffered mode by default
         Mode = EndpointMode.BufferedInMemory;
     }

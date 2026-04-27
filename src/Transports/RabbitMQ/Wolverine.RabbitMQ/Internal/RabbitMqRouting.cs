@@ -21,6 +21,7 @@ public class RabbitMqRouting : RabbitMqEndpoint
         _routingKey = routingKey;
 
         ExchangeName = _exchange.ExchangeName;
+        BrokerRole = "exchange";
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

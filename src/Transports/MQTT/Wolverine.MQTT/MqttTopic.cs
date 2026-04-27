@@ -38,6 +38,7 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
         }
 
         EndpointName = topicName;
+        BrokerRole = "topic";
 
         EnvelopeMapper = new MqttEnvelopeMapper(this);
         Mode = EndpointMode.BufferedInMemory;

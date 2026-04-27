@@ -18,6 +18,7 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
         _parent = parent;
         _dataSource = dataSource;
         _databaseName = databaseName;
+        BrokerRole = "queue";
     }
 
     public override async ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

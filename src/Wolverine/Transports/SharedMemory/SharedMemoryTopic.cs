@@ -26,6 +26,8 @@ public class SharedMemoryTopic : SharedMemoryEndpoint, ISender
             TopicSubscriptions[topicName] = new SharedMemorySubscription(this, topicName, EndpointRole.System);
         }
 
+        BrokerRole = "topic";
+
         // Placeholder
         ReplyUri = Uri;
     }

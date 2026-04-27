@@ -17,6 +17,7 @@ internal class DatabaseControlEndpoint : Endpoint
         _parent = parent;
         Mode = EndpointMode.BufferedInMemory;
         MaxDegreeOfParallelism = 1;
+        BrokerRole = "queue";
 
         // No otel for this one!
         TelemetryEnabled = false;

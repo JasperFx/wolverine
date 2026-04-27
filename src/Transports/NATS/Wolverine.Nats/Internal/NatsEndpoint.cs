@@ -27,6 +27,14 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         Mode = EndpointMode.BufferedInMemory;
     }
 
+    /// <summary>
+    /// NATS plays both roles: Core NATS surfaces a "subject", while JetStream surfaces
+    /// a "stream". The choice is configuration-driven (<see cref="UseJetStream"/>) so
+    /// it can change after construction — compute it on access rather than fixing it
+    /// in the constructor. See GH-2601.
+    /// </summary>
+    public override string BrokerRole => UseJetStream ? "stream" : "subject";
+
     public string Subject { get; }
     [IgnoreDescription]
     public object? NatsSerializer { get; set; }

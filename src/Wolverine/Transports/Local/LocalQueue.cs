@@ -12,6 +12,7 @@ public class LocalQueue : Endpoint
     public LocalQueue(string name) : base($"local://{name}".ToUri(), EndpointRole.Application)
     {
         EndpointName = name.ToLowerInvariant();
+        BrokerRole = "queue";
     }
 
     internal List<Type> HandledMessageTypes { get; } = new();

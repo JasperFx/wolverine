@@ -30,6 +30,7 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
         TopicName = EndpointName = topicName ?? throw new ArgumentNullException(nameof(topicName));
         Options = new CreateTopicOptions(TopicName);
+        BrokerRole = "topic";
     }
 
     public string TopicName { get; }

@@ -24,6 +24,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     public SignalRTransport() : base($"{ProtocolName}://wolverine".ToUri(), EndpointRole.Application)
     {
         IsListener = true;
+        BrokerRole = "hub";
 
         #region sample_signalr_default_json_configuration
         JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

@@ -13,6 +13,7 @@ public class GrpcEndpoint : Endpoint
     {
         Host = uri.Host;
         Port = uri.IsDefaultPort ? 5000 : uri.Port;
+        BrokerRole = "grpc";
     }
 
     public string Host { get; }
