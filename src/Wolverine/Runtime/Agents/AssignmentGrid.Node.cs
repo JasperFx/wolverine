@@ -68,6 +68,19 @@ public partial class AssignmentGrid
         {
             foreach (var agentUri in agentUris)
             {
+                // Detect split-brain residue: another node already reported
+                // this agent as running, so we have a duplicate. Record it so
+                // the leader can emit a StopRemoteAgent against the existing
+                // copy. Without this, the dictionary write below silently
+                // overwrites the first node's entry and the duplicate becomes
+                // invisible to FindDelta. See GH-2602.
+                if (_parent._agents.TryGetValue(agentUri, out var existing) &&
+                    existing.OriginalNode != null &&
+                    !ReferenceEquals(existing.OriginalNode, this))
+                {
+                    _parent.RecordDuplicateAgent(agentUri, existing.OriginalNode, this);
+                }
+
                 var agent = new Agent(agentUri, this);
                 _parent._agents[agentUri] = agent;
 

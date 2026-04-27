@@ -10,6 +10,15 @@ namespace Wolverine.Runtime.Agents;
 public interface IWolverineObserver
 {
     Task AssumedLeadership();
+
+    /// <summary>
+    /// The node was leader, detected that its underlying advisory lock had
+    /// been released server-side, and has stepped down. Default no-op so
+    /// existing custom <see cref="IWolverineObserver"/> implementations are
+    /// unaffected. See GH-2602.
+    /// </summary>
+    Task LostLeadership() => Task.CompletedTask;
+
     Task NodeStarted();
     Task NodeStopped();
     Task AgentStarted(Uri agentUri);
@@ -88,6 +97,19 @@ internal class PersistenceWolverineObserver : IWolverineObserver
     {
         await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options,
             NodeRecordType.LeadershipAssumed, NodeAgentController.LeaderUri));
+    }
+
+    public async Task LostLeadership()
+    {
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options,
+                NodeRecordType.LeadershipLost, NodeAgentController.LeaderUri));
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence; nothing to log.
+        }
     }
 
     public async Task NodeStarted()

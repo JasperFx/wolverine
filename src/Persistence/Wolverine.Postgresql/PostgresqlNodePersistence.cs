@@ -393,7 +393,42 @@ internal class AdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
-        return _conn is not { State: ConnectionState.Closed } && _locks.Contains(lockId);
+        if (_conn is null) return false;
+        if (!_locks.Contains(lockId)) return false;
+
+        // Postgres releases session-level advisory locks the moment the
+        // backend session ends — network blip, idle-connection cull,
+        // pg_terminate_backend, Postgres failover, Azure flexserver
+        // maintenance. Npgsql's NpgsqlConnection.State stays Open until
+        // we actually try to use it, so without this ping HasLock keeps
+        // claiming the lock long after another session has acquired it,
+        // and two nodes both believe they're the leader. See GH-2602.
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, _locks);
+
+            _locks.Clear();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
     }
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
