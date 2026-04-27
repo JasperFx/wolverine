@@ -14,7 +14,6 @@ using Wolverine.Tracking;
 
 namespace MartenTests;
 
-[Trait("Category", "Flaky")]
 public class batch_processing
 {
 
@@ -67,7 +66,7 @@ public class batch_processing
         };
         
         var tracked = await theHost.TrackActivity()
-            .WaitForMessageToBeReceivedAt<BatchItem[]>(theHost)
+            .WaitForCondition(new AllItemsReceived(item1, item2, item3, item4, item5, item6, item7, item8))
             .ExecuteAndWaitAsync(publish);
 
         var messages = tracked.Executed.MessagesOf<BatchItem[]>();
