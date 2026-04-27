@@ -31,6 +31,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         SignalRUri = uri;
 
         IsListener = true;
+        BrokerRole = "hub";
 
         Mode = EndpointMode.Inline;
 

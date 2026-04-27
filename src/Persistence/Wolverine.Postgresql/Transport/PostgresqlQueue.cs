@@ -37,8 +37,9 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
+        BrokerRole = "queue";
 
-        // Gotta be lazy so the schema names get set 
+        // Gotta be lazy so the schema names get set
         _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, queueTableName));
         _scheduledMessageTable =
             new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, scheduledTableName));

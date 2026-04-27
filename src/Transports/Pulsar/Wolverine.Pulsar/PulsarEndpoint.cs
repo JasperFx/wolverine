@@ -20,6 +20,7 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     {
         _parent = parent;
         Parse(uri);
+        BrokerRole = "topic";
     }
 
     protected override PulsarEnvelopeMapper buildMapper(IWolverineRuntime runtime)

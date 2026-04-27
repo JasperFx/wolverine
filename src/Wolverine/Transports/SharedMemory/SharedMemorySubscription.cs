@@ -17,6 +17,7 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
         Parent = parent;
         Name = name;
         IsListener = true;
+        BrokerRole = "subscription";
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)

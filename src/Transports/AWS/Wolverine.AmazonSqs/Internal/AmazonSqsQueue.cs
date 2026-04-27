@@ -30,6 +30,7 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         _parent = parent;
         QueueName = queueName;
         EndpointName = queueName;
+        BrokerRole = "queue";
 
         Configuration = new CreateQueueRequest(QueueName);
 

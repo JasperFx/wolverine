@@ -25,6 +25,7 @@ internal class StubEndpoint : Endpoint, ISendingAgent, ISender, IListener
         _stubTransport = stubTransport;
         Agent = this;
         EndpointName = queueName;
+        BrokerRole = "stub";
     }
 
     public ValueTask StopAsync()

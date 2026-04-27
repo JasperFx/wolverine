@@ -24,6 +24,7 @@ public class TcpEndpoint : Endpoint
 
         // ReSharper disable once VirtualMemberCallInConstructor
         EndpointName = Uri.ToString();
+        BrokerRole = "socket";
     }
 
     public string HostName { get; }

@@ -37,6 +37,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
+        BrokerRole = "queue";
 
         _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, queueTableName));
         _scheduledMessageTable =

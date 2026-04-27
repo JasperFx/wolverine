@@ -185,6 +185,17 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     }
 
     /// <summary>
+    /// Short, human-readable name of the underlying broker object kind this endpoint
+    /// represents — e.g. <c>"queue"</c>, <c>"exchange"</c>, <c>"topic"</c>,
+    /// <c>"subscription"</c>, <c>"stream"</c>. Each transport-specific subclass sets
+    /// this value in its constructor; transports whose role is only knowable at
+    /// runtime (e.g. <c>NatsEndpoint</c> choosing between Core <c>subject</c> and
+    /// JetStream <c>stream</c>) override the property. Surfaced to CritterWatch and
+    /// other diagnostic UIs to drive endpoint display. See GH-2601.
+    /// </summary>
+    public virtual string BrokerRole { get; protected set; } = "endpoint";
+
+    /// <summary>
     /// Controls the maximum number of messages that could be processed at one time.
     /// Default is the greater of Environment.ProcessorCount or 5. Setting this to 1 makes this listening endpoint
     /// be ordered in its processing.

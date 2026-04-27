@@ -42,6 +42,7 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
+        BrokerRole = "queue";
 
         // Gotta be lazy so the schema names get set
         _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName));

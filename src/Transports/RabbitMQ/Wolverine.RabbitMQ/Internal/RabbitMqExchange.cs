@@ -25,6 +25,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
         ExchangeName = name;
 
         EndpointName = name;
+        BrokerRole = "exchange";
 
         Topics = new(topic => new RabbitMqTopicEndpoint(topic, this, _parent));
         Routings = new LightweightCache<string, RabbitMqRouting>(key => new RabbitMqRouting(this, key, _parent));

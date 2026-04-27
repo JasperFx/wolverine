@@ -35,6 +35,7 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         {
             DeadLetteringOnMessageExpiration = false
         };
+        BrokerRole = "queue";
     }
 
     [ChildDescription]

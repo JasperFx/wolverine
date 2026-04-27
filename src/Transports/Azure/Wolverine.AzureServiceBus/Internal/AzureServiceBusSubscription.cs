@@ -40,6 +40,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         // This is the same rule as the one used if you
         // use CreateSubscriptionAsync() without specifying a rule
         RuleOptions = new CreateRuleOptions();
+        BrokerRole = "subscription";
     }
 
     [ChildDescription]

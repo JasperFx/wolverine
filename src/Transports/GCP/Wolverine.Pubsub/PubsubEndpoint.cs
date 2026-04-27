@@ -55,6 +55,7 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
                 : topicName
         );
         EndpointName = topicName;
+        BrokerRole = "pubsub";
 
         if (transport.DeadLetter.Enabled)
         {

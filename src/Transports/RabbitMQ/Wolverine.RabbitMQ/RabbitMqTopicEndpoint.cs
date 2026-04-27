@@ -15,6 +15,7 @@ public class RabbitMqTopicEndpoint : RabbitMqEndpoint
         Exchange = exchange;
 
         ExchangeName = Exchange.Name;
+        BrokerRole = "topic";
     }
 
     public RabbitMqExchange Exchange { get; }

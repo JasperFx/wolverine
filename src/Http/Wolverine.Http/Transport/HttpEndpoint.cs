@@ -12,6 +12,7 @@ public class HttpEndpoint : Endpoint
 {
     public HttpEndpoint(Uri uri, EndpointRole role) : base(uri, role)
     {
+        BrokerRole = "route";
     }
 
     internal bool SupportsNativeScheduledSend { get; set; }

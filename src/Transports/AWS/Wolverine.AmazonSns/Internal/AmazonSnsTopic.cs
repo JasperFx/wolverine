@@ -21,13 +21,14 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
         : base(new Uri($"{AmazonSnsTransport.SnsProtocol}://{topicName}"), EndpointRole.Application)
     {
         Parent = parent;
-        
+
         TopicName = topicName;
         EndpointName = topicName;
         TopicArn = string.Empty;
+        BrokerRole = "topic";
 
         Configuration = new CreateTopicRequest(TopicName);
-        
+
         MessageBatchSize = 10;
     }
 
