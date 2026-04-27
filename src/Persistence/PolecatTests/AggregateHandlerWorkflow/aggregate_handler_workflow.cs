@@ -101,6 +101,10 @@ public class aggregate_handler_workflow : IAsyncLifetime
     [Fact]
     public void generates_wolverine_stream_id_otel_tag()
     {
+        // Resolving the handler triggers chain compilation; without this the
+        // chain's generated SourceCode is null and the assertion below NREs.
+        // Mirrors the equivalent Marten test (MartenTests/AggregateHandlerWorkflow).
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
         var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
 
         chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamId}\"");
@@ -109,6 +113,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
     [Fact]
     public void generates_wolverine_stream_type_otel_tag()
     {
+        var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
         var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
 
         chain!.SourceCode!.ShouldContain($"SetTag(\"{Wolverine.Runtime.WolverineTracing.StreamType}\", \"{typeof(LetterAggregate).FullName}\"");
