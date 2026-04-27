@@ -195,16 +195,48 @@ internal partial class TrackedSession : ITrackedSession
     internal async Task ReplayAll(IMessageContext context, EnvelopeRecord[] records)
     {
         var envelopes = records.Select(x => x.Envelope!).Distinct().ToArray();
+        var bus = context as MessageBus;
 
-        foreach (var envelope in envelopes)
+        foreach (var capturedEnvelope in envelopes)
         {
-            if (envelope!.Destination!.Scheme == TransportConstants.Local)
+            // Captured records for scheduled sends to non-native-scheduling
+            // transports are wrappers around the original envelope (see
+            // EnvelopeScheduleExtensions.ForScheduledSend). In production the
+            // durable scheduler eventually fires the wrapper through
+            // ScheduledSendEnvelopeHandler, which unwraps the inner and
+            // copies the wrapper's context-correlation fields onto it before
+            // forwarding. Replay doesn't go through that round-trip — there's
+            // no broker, no serialization — so we have to do the same unwrap
+            // and stamp here so the inner envelope's destination + tenant /
+            // correlation / user fields drive the replay. See GH-2571 / PR #2572.
+            var dispatched = capturedEnvelope;
+            if (capturedEnvelope.MessageType == TransportConstants.ScheduledEnvelope &&
+                capturedEnvelope.Message is Envelope inner)
             {
-                await context.InvokeAsync(envelope.Message!);
+                inner.CopyContextCorrelationFrom(capturedEnvelope);
+                dispatched = inner;
+            }
+
+            // The replay context is fresh — its bus.TenantId / CorrelationId /
+            // UserName start out null. Propagate the dispatched envelope's
+            // values onto the bus so the outgoing envelope that InvokeAsync /
+            // SendAsync builds picks them up via TrackEnvelopeCorrelation.
+            // Without this, a scheduled message published under
+            // TenantId="red" would replay under no tenant.
+            if (bus != null)
+            {
+                bus.TenantId = dispatched.TenantId;
+                bus.CorrelationId = dispatched.CorrelationId;
+                bus.UserName = dispatched.UserName;
+            }
+
+            if (dispatched.Destination!.Scheme == TransportConstants.Local)
+            {
+                await context.InvokeAsync(dispatched.Message!);
             }
             else
             {
-                await context.EndpointFor(envelope.Destination).SendAsync(envelope.Message);
+                await context.EndpointFor(dispatched.Destination).SendAsync(dispatched.Message);
             }
         }
     }
