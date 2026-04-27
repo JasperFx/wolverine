@@ -24,7 +24,40 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
-        return _conn is not { State: ConnectionState.Closed } && _locks.Contains(lockId);
+        if (_conn is null) return false;
+        if (!_locks.Contains(lockId)) return false;
+
+        // SQLite advisory locks are table rows; in single-process tests
+        // the connection is unlikely to die out from under us, but for
+        // parity with the Postgres / MySQL fix and to detect any held
+        // connection that has gone bad (e.g. file deleted under us),
+        // ping before reporting the lock as held. See GH-2602.
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, _locks);
+
+            _locks.Clear();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
     }
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)

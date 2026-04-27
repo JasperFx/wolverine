@@ -28,7 +28,41 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
-        return _conn is not { State: ConnectionState.Closed } && _locks.Contains(lockId);
+        if (_conn is null) return false;
+        if (!_locks.Contains(lockId)) return false;
+
+        // MySQL named locks (GET_LOCK / RELEASE_LOCK) are session-scoped,
+        // so the lock evaporates the moment the connection's MySQL session
+        // dies — KILL CONNECTION, network drop, idle-cull. MySqlConnection
+        // doesn't surface that immediately, so we ping. Without this,
+        // HasLock keeps returning true after the lock has been transferred
+        // and two nodes race as leader. See GH-2602.
+        try
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.CommandTimeout = 2;
+            cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for database {Database}; clearing held lock ids {Locks}",
+                _databaseName, _locks);
+
+            _locks.Clear();
+            try
+            {
+                _conn.Dispose();
+            }
+            catch
+            {
+                // Already broken; nothing to do.
+            }
+            _conn = null;
+            return false;
+        }
     }
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)

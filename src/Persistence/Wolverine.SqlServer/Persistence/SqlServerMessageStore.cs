@@ -45,7 +45,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             $"select top (@limit) {DatabaseConstants.IncomingFields} from {database.SchemaName}.{DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address";
 
         _scheduledLockId = "Wolverine:Scheduled:" + database.ScheduledJobLockId.ToString();
-        AdvisoryLock = new AdvisoryLock(() => new SqlConnection(database.ConnectionString),
+        // Use the Wolverine-owned SqlServerAdvisoryLock (not Weasel.SqlServer.AdvisoryLock)
+        // so HasLock pings the held SQL session and detects KILL SPID / AlwaysOn
+        // failover / network drops. See GH-2602.
+        AdvisoryLock = new SqlServerAdvisoryLock(() => new SqlConnection(database.ConnectionString),
             logger, Identifier);
 
         foreach (var sagaTableDefinition in sagaTypes)

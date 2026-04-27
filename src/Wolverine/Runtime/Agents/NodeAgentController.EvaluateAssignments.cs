@@ -64,6 +64,22 @@ public partial class NodeAgentController
             }
         }
 
+        // Heal split-brain residue: if any agent is reported running on more
+        // than one node — most likely because a stale leader and the current
+        // leader both dispatched AssignAgent for the same agent in close
+        // succession before the stale leader stepped down — emit a
+        // StopRemoteAgent for the older copy. The freshest copy stays
+        // running; the next assignment cycle will rebalance if needed. See
+        // GH-2602.
+        foreach (var report in grid.DuplicateAgentReports)
+        {
+            _logger.LogWarning(
+                "Detected duplicate agent {AgentUri} reported running on Node {ExistingNode} and Node {NewNode} — sending StopRemoteAgent to the older copy to heal split-brain residue.",
+                report.AgentUri, report.ExistingNode.AssignedId, report.NewNode.AssignedId);
+
+            commands.Add(new StopRemoteAgent(report.AgentUri, report.ExistingNode.ToDestination()));
+        }
+
         await _observer.AssignmentsChanged(grid, commands);
 
         LastAssignments = grid;

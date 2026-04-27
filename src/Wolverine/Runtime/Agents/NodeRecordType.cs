@@ -11,7 +11,15 @@ public enum NodeRecordType
     DormantNodeEjected,
     AssignmentChanged,
     LeadershipAssumed,
-    ListenerLatched
+    ListenerLatched,
+
+    /// <summary>
+    /// A node that thought it was the leader detected that its underlying
+    /// advisory lock had been released server-side (network blip, idle-cull,
+    /// pg_terminate_backend, AlwaysOn failover, etc.) and stepped down so a
+    /// new leadership election could happen. See GH-2602.
+    /// </summary>
+    LeadershipLost
 }
 
 // This is marked as ISerializable so that it can go to CritterWatch w/o

@@ -13,6 +13,21 @@ public partial class AssignmentGrid
 {
     private readonly Dictionary<Uri, Agent> _agents = new();
     private readonly List<Node> _nodes = new();
+    private readonly List<DuplicateAgentReport> _duplicateAgentReports = new();
+
+    /// <summary>
+    /// Reports of the same agent URI being claimed-as-running by more than
+    /// one <see cref="WolverineNode"/> when this grid was assembled. The
+    /// leader uses these to emit <c>StopRemoteAgent</c> commands so the
+    /// duplicates are healed even after a stale-leader split-brain. See
+    /// GH-2602.
+    /// </summary>
+    internal IReadOnlyList<DuplicateAgentReport> DuplicateAgentReports => _duplicateAgentReports;
+
+    internal void RecordDuplicateAgent(Uri agentUri, Node existingNode, Node newNode)
+    {
+        _duplicateAgentReports.Add(new DuplicateAgentReport(agentUri, existingNode, newNode));
+    }
 
     /// <summary>
     ///     The identity of all currently unassigned agents

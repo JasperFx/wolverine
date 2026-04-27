@@ -28,7 +28,49 @@ internal class OracleAdvisoryLock : IAdvisoryLock
 
     public bool HasLock(int lockId)
     {
-        return _locks.Contains(lockId);
+        if (!_locks.Contains(lockId)) return false;
+        if (!_heldLocks.TryGetValue(lockId, out var held)) return false;
+
+        // Oracle row-level FOR UPDATE locks are tied to the transaction
+        // that took them, which is in turn tied to the holding connection.
+        // If the connection died (network drop, RAC failover, manual KILL
+        // SESSION), the row lock evaporates server-side but our in-memory
+        // state still claims it. Ping the held connection so we can detect
+        // a broken backend and self-clean. See GH-2602.
+        try
+        {
+            using var cmd = held.conn.CreateCommand();
+            cmd.CommandText = "select 1 from dual";
+            cmd.CommandTimeout = 2;
+            cmd.ExecuteScalar();
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,
+                "Lost advisory-lock connection for lock {LockId} in schema {Schema}; clearing held state",
+                lockId, _schemaName);
+
+            _locks.Remove(lockId);
+            _heldLocks.Remove(lockId);
+            try
+            {
+                held.tx.Dispose();
+            }
+            catch
+            {
+                // already broken
+            }
+            try
+            {
+                held.conn.Dispose();
+            }
+            catch
+            {
+                // already broken
+            }
+            return false;
+        }
     }
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
