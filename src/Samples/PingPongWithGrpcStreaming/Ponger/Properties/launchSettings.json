@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Ponger": {
+      "commandName": "Project",
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:64083;http://localhost:64084"
+    }
+  }
+}
