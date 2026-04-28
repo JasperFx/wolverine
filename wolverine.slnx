@@ -307,4 +307,5 @@
     <Build Project="false" />
   </Project>
   <Project Path="src/Wolverine/Wolverine.csproj" />
+  <Project Path="src/Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
 </Solution>

@@ -22,6 +22,7 @@
         <ProjectReference Include="..\OrderExtension\OrderExtension.csproj"/>
         <ProjectReference Include="..\Module1\Module1.csproj"/>
         <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 
     <ItemGroup>
