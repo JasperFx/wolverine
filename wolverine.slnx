@@ -61,6 +61,12 @@
     <Project Path="src/Persistence/SharedPersistenceModels/SharedPersistenceModels.csproj" />
     <Project Path="src/Persistence/Wolverine.RDBMS/Wolverine.RDBMS.csproj" />
   </Folder>
+  <Folder Name="/Persistence/ClaimCheck/">
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.AmazonS3/Wolverine.ClaimCheck.AmazonS3.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.AmazonS3.Tests/Wolverine.ClaimCheck.AmazonS3.Tests.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage/Wolverine.ClaimCheck.AzureBlobStorage.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage.Tests/Wolverine.ClaimCheck.AzureBlobStorage.Tests.csproj" />
+  </Folder>
   <Folder Name="/Persistence/CosmosDb/">
     <Project Path="src/Persistence/CosmosDbTests/CosmosDbTests.csproj" />
     <Project Path="src/Persistence/Wolverine.CosmosDb/Wolverine.CosmosDb.csproj" />

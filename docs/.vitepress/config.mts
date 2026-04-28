@@ -347,6 +347,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                             ]},
                         {text: 'Managing Message Storage', link: '/guide/durability/managing'},
                         {text: 'Dead Letter Storage', link: '/guide/durability/dead-letter-storage'},
+                        {text: 'Claim Checks', link: '/guide/durability/claim-checks'},
                         {text: 'Idempotent Message Delivery', link:'/guide/durability/idempotency'}
                     ]
                 },
