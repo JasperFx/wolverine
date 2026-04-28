@@ -28,7 +28,16 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         Uri = endpoint.Uri;
         _settings = runtime.DurabilitySettings;
-        _inbox = runtime.Storage.Inbox;
+
+        // When ancillary stores exist, wrap the inbox so that envelopes whose
+        // Store property has already been stamped (by ApplyAncillaryStoreFrame
+        // during handler execution) are persisted in the correct database.
+        // Without this, all local-queue messages land in the main store's inbox
+        // regardless of the handler's ancillary store association.
+        _inbox = runtime.Stores != null && runtime.Stores.HasAnyAncillaryStores()
+            ? new DelegatingMessageInbox(runtime.Storage.Inbox, runtime.Stores)
+            : runtime.Storage.Inbox;
+
         _messageLogger = runtime.MessageTracking;
         _serializer = endpoint.DefaultSerializer ??
                       throw new ArgumentOutOfRangeException(nameof(endpoint),
@@ -211,11 +220,31 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     public DateTimeOffset LastMessageSentAt => DateTimeOffset.UtcNow;
 
+    /// <summary>
+    /// If the handler for this message type targets an ancillary store on a
+    /// different database, set envelope.Store so that the DelegatingMessageInbox
+    /// persists it in the correct store for transactional atomicity.
+    /// This is a safety net for envelopes that arrive without Store already set
+    /// (e.g. from scheduled-job recovery). Envelopes published via PublishAsync
+    /// from a handler will already have Store stamped by MessageBus.
+    /// </summary>
+    private void assignAncillaryStoreIfNeeded(Envelope envelope)
+    {
+        if (_runtime.Stores == null) return;
+        if (envelope.Store != null) return;
+        var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
+        if (store != null)
+        {
+            envelope.Store = store;
+        }
+    }
+
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
         try
         {
             envelope.OwnerId = _settings.AssignedNodeNumber;
+            assignAncillaryStoreIfNeeded(envelope);
             await _inbox.StoreIncomingAsync(envelope);
             envelope.WasPersistedInInbox = true;
         }
