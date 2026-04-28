@@ -258,7 +258,11 @@ public static class WolverineEntityCoreExtensions
     public static ModelBuilder MapWolverineEnvelopeStorage(this ModelBuilder modelBuilder,
         string? databaseSchema = null)
     {
-        modelBuilder.Model.AddAnnotation(WolverineEnabled, "true");
+        // SetAnnotation rather than AddAnnotation — the model customizer can be invoked
+        // more than once on the same model (e.g., in ancillary-store scenarios where a
+        // second DbContext shares the same EF Core model instance), and AddAnnotation
+        // throws on a duplicate name. SetAnnotation is idempotent. See #2618.
+        modelBuilder.Model.SetAnnotation(WolverineEnabled, "true");
 
         modelBuilder.Entity<IncomingMessage>(eb =>
         {

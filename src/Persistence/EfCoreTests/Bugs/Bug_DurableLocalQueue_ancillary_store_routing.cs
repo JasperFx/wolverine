@@ -170,6 +170,31 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
             }).StartAsync();
+
+        // ResetState created the Wolverine envelope tables, which means the
+        // dlq_main and dlq_ancillary schemas already exist by the time the
+        // host has finished starting. EF Core's EnsureCreatedAsync is a no-op
+        // when the database exists (which it always does — these tests share
+        // the Wolverine integration-tests Postgres), so the user-defined
+        // `docs` tables never get materialised. Create them with raw DDL.
+        // See #2618.
+        await using var setupConn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await setupConn.OpenAsync();
+        await using (var cmd = setupConn.CreateCommand())
+        {
+            cmd.CommandText = """
+                CREATE TABLE IF NOT EXISTS dlq_main.docs (
+                    "Id" uuid PRIMARY KEY,
+                    "Name" text NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS dlq_ancillary.docs (
+                    "Id" uuid PRIMARY KEY,
+                    "Name" text NOT NULL
+                );
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+        await setupConn.CloseAsync();
     }
 
     public async Task DisposeAsync()
