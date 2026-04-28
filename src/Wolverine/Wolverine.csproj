@@ -37,5 +37,17 @@
                         ReferenceOutputAssembly="false" />
     </ItemGroup>
 
+    <!--
+      Pack the Wolverine.SourceGeneration analyzer DLL into the WolverineFx NuGet package so
+      it flows to consumers as an analyzer/source-generator and emits the IWolverineTypeLoader
+      manifest at compile time. See issue #1577 (cold-start optimizations).
+    -->
+    <ItemGroup>
+      <None Include="..\Wolverine.SourceGeneration\bin\$(Configuration)\netstandard2.0\Wolverine.SourceGeneration.dll"
+            Pack="true"
+            PackagePath="analyzers/dotnet/cs"
+            Visible="false" />
+    </ItemGroup>
+
     <Import Project="../../Analysis.Build.props" />
 </Project>
