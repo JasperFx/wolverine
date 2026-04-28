@@ -4,10 +4,12 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.2" />
+    <PackageVersion Include="AWSSDK.S3" Version="4.0.22.1" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
     <PackageVersion Include="Azure.Identity" Version="1.17.0" />
     <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.27.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.1" />
     <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Avro" Version="2.14.0" />
     <PackageVersion Include="Confluent.SchemaRegistry.Serdes.Json" Version="2.14.0" />
