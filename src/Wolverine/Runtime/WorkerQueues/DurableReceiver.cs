@@ -64,13 +64,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 envelope.ContentType ??= EnvelopeConstants.JsonContentType;
 
-                await pipeline.InvokeAsync(envelope, this);
+                await pipeline.InvokeAsync(envelope, this).ConfigureAwait(false);
             }
             catch (Exception? e)
             {
                 if (_receiver != null)
                 {
-                    await _receiver.PostAsync(envelope);
+                    await _receiver.PostAsync(envelope).ConfigureAwait(false);
                 }
 
                 // This *should* never happen, but of course it will
@@ -97,11 +97,11 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 // Only care about the batch if one exists
                 if (e.Batch != null)
                 {
-                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e.Batch);
+                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e.Batch).ConfigureAwait(false);
                 }
                 else
                 {
-                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e);
+                    await _inbox.MarkIncomingEnvelopeAsHandledAsync(e).ConfigureAwait(false);
                 }
             }, _logger,
             _settings.Cancellation);
@@ -125,12 +125,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             {
                 if (_deadLetterSender != null)
                 {
-                    await _deadLetterSender.SendAsync(envelope);
+                    await _deadLetterSender.SendAsync(envelope).ConfigureAwait(false);
                     return;
                 }
 
                 var report = new ErrorReport(envelope, envelope.Failure!);
-                await _inbox.MoveToDeadLetterStorageAsync(report.Envelope, report.Exception);
+                await _inbox.MoveToDeadLetterStorageAsync(report.Envelope, report.Exception).ConfigureAwait(false);
             }, _logger,
             _settings.Cancellation);
 
@@ -171,7 +171,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
     public async ValueTask DisposeAsync()
     {
-        await _receiver.WaitForCompletionAsync();
+        await _receiver.WaitForCompletionAsync().ConfigureAwait(false);
 
         _incrementAttempts.Dispose();
         _scheduleExecution.Dispose();
@@ -202,12 +202,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             foreach (var child in envelope.Batch)
             {
                 child.InBatch = false;
-                await _markAsHandled.PostAsync(child);
+                await _markAsHandled.PostAsync(child).ConfigureAwait(false);
             }
         }
         else
         {
-            await _markAsHandled.PostAsync(envelope);
+            await _markAsHandled.PostAsync(envelope).ConfigureAwait(false);
         }
     }
 
@@ -219,19 +219,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             envelope.Attempts++;
         }
 
-        await _incrementAttempts.PostAsync(envelope);
+        await _incrementAttempts.PostAsync(envelope).ConfigureAwait(false);
 
         if (_latched)
         {
             if (envelope.Listener != null)
             {
-                await _deferBlock.PostAsync(envelope);
+                await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             }
 
             return;
         }
 
-        await EnqueueAsync(envelope);
+        await EnqueueAsync(envelope).ConfigureAwait(false);
     }
 
     public IHandlerPipeline Pipeline { get; } = null!;
@@ -288,7 +288,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             if (envelope.Listener != null)
             {
-                await _deferBlock.PostAsync(envelope);
+                await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             }
 
             return;
@@ -298,7 +298,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             if (envelope.Listener != null)
             {
-                await _completeBlock.PostAsync(envelope);
+                await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
             }
 
             return;
@@ -310,7 +310,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             var now = DateTimeOffset.UtcNow;
             envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
-            await _receivingOne.PostAsync(envelope);
+            await _receivingOne.PostAsync(envelope).ConfigureAwait(false);
         }
         finally
         {
@@ -335,7 +335,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             try
             {
                 var completion = _receiver.WaitForCompletionAsync();
-                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout));
+                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout)).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -343,16 +343,16 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         }
 
-        await _incrementAttempts.DrainAsync();
-        await _scheduleExecution.DrainAsync();
-        await _markAsHandled.DrainAsync();
-        await _moveToErrors.DrainAsync();
-        await _receivingOne.DrainAsync();
+        await _incrementAttempts.DrainAsync().ConfigureAwait(false);
+        await _scheduleExecution.DrainAsync().ConfigureAwait(false);
+        await _markAsHandled.DrainAsync().ConfigureAwait(false);
+        await _moveToErrors.DrainAsync().ConfigureAwait(false);
+        await _receivingOne.DrainAsync().ConfigureAwait(false);
 
-        await _completeBlock.DrainAsync();
-        await _deferBlock.DrainAsync();
+        await _completeBlock.DrainAsync().ConfigureAwait(false);
+        await _deferBlock.DrainAsync().ConfigureAwait(false);
 
-        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri));
+        await executeWithRetriesAsync(() => _inbox.ReleaseIncomingAsync(_settings.AssignedNodeNumber, Uri)).ConfigureAwait(false);
     }
 
     public void Dispose()
@@ -399,7 +399,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 var agent = _runtime.Endpoints.FindListeningAgent(Uri);
                 if (agent is ListeningAgent la)
                 {
-                    await la.PauseForInboxRecoveryAsync();
+                    await la.PauseForInboxRecoveryAsync().ConfigureAwait(false);
                 }
             }
             catch (Exception e)
@@ -422,21 +422,21 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                     assignAncillaryStoreIfNeeded(envelope);
                     try
                     {
-                        await _inbox.StoreIncomingAsync(envelope);
+                        await _inbox.StoreIncomingAsync(envelope).ConfigureAwait(false);
                         envelope.WasPersistedInInbox = true;
                     }
                     catch (DuplicateIncomingEnvelopeException)
                     {
                         // Just get out
                     }
-                });
+                }).ConfigureAwait(false);
             }
 
             if (envelope.Listener != null)
             {
                 try
                 {
-                    await envelope.Listener.DeferAsync(envelope);
+                    await envelope.Listener.DeferAsync(envelope).ConfigureAwait(false);
                 }
                 catch (Exception e)
                 {
@@ -466,8 +466,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                     envelope.MessageType ??= $"unknown/{e.GetType().Name}";
                     envelope.Failure = e;
-                    await _moveToErrors.PostAsync(envelope);
-                    await _completeBlock.PostAsync(envelope);
+                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
                     return;
                 }
 
@@ -480,19 +480,19 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 if (envelope.MessageType.IsEmpty())
                 {
                     _logger.LogInformation("Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue", envelope.Id, envelope.Destination);
-                    await _moveToErrors.PostAsync(envelope);
-                    await _completeBlock.PostAsync(envelope);
+                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
                     return;
                 }
 
                 envelope.OwnerId = _settings.AssignedNodeNumber;
                 assignAncillaryStoreIfNeeded(envelope);
-                await _inbox.StoreIncomingAsync(envelope);
+                await _inbox.StoreIncomingAsync(envelope).ConfigureAwait(false);
                 envelope.WasPersistedInInbox = true;
             }
             catch (DuplicateIncomingEnvelopeException e)
             {
-                await handleDuplicateIncomingEnvelope(envelope, e);
+                await handleDuplicateIncomingEnvelope(envelope, e).ConfigureAwait(false);
 
                 return;
             }
@@ -505,14 +505,14 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (envelope.Status == EnvelopeStatus.Incoming)
         {
-            await EnqueueAsync(envelope);
+            await EnqueueAsync(envelope).ConfigureAwait(false);
         }
 
         _logger.IncomingReceived(envelope, Uri);
 
         if (envelope.Listener != null)
         {
-            await _completeBlock.PostAsync(envelope);
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
         }
     }
 
@@ -524,7 +524,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             try
             {
-                await envelope.Listener.CompleteAsync(envelope);
+                await envelope.Listener.CompleteAsync(envelope).ConfigureAwait(false);
             }
             catch (Exception exception)
             {
@@ -569,7 +569,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             try
             {
                 assignAncillaryStoreIfNeeded(envelopes);
-                await _inbox.StoreIncomingAsync(envelopes);
+                await _inbox.StoreIncomingAsync(envelopes).ConfigureAwait(false);
                 foreach (var envelope in envelopes)
                 {
                     envelope.WasPersistedInInbox = true;
@@ -584,7 +584,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
                 // Use finer grained retries on one envelope at a time, and this will also deal with
                 // duplicate detection
-                foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope);
+                foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope).ConfigureAwait(false);
             }
         }
         else
@@ -596,8 +596,8 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         {
             foreach (var message in envelopes)
             {
-                await EnqueueAsync(message);
-                await _completeBlock.PostAsync(message);
+                await EnqueueAsync(message).ConfigureAwait(false);
+                await _completeBlock.PostAsync(message).ConfigureAwait(false);
             }
         }
 

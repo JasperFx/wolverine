@@ -317,12 +317,12 @@ public partial class MessageBus : IMessageBus, IMessageContext
                 _outstanding.Fill(envelope);
             }
 
-            await envelope.PersistAsync(Transaction);
+            await envelope.PersistAsync(Transaction).ConfigureAwait(false);
 
             return;
         }
 
-        await envelope.StoreAndForwardAsync();
+        await envelope.StoreAndForwardAsync().ConfigureAwait(false);
     }
 
     public void EnlistInOutbox(IEnvelopeTransaction transaction)
@@ -418,7 +418,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
                 }
             }
 
-            await Transaction.PersistAsync(envelopes);
+            await Transaction.PersistAsync(envelopes).ConfigureAwait(false);
 
             lock (_outstandingLock)
             {
@@ -427,7 +427,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         }
         else
         {
-            foreach (var outgoingEnvelope in outgoing) await outgoingEnvelope.StoreAndForwardAsync();
+            foreach (var outgoingEnvelope in outgoing) await outgoingEnvelope.StoreAndForwardAsync().ConfigureAwait(false);
         }
     }
 

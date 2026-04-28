@@ -98,7 +98,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (Envelope == null || Envelope.WasPersistedInInbox ) return;
         if (Transaction == null || Transaction is MessageContext)
         {
-            var exists = await Runtime.Storage.Inbox.ExistsAsync(Envelope, cancellation);
+            var exists = await Runtime.Storage.Inbox.ExistsAsync(Envelope, cancellation).ConfigureAwait(false);
             if (exists)
             {
                 throw new DuplicateIncomingEnvelopeException(Envelope);
@@ -107,7 +107,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             return;
         }
 
-        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation);
+        var check = await Transaction.TryMakeEagerIdempotencyCheckAsync(Envelope, Runtime.Options.Durability, cancellation).ConfigureAwait(false);
         if (!check)
         {
             throw new DuplicateIncomingEnvelopeException(Envelope);
@@ -121,14 +121,14 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         var handled = Envelope.ForPersistedHandled(Envelope!, DateTimeOffset.UtcNow, Runtime.Options.Durability);
         try
         {
-            await Runtime.Storage.Inbox.StoreIncomingAsync(handled);
+            await Runtime.Storage.Inbox.StoreIncomingAsync(handled).ConfigureAwait(false);
         }
         catch (Exception e)
         {
             Runtime.Logger.LogError(e, "Error trying to mark message {Id} as handled. Retrying later.", handled.Id);
 
             // Retry this off to the side...
-            await new MessageBus(Runtime).PublishAsync(new PersistHandled(handled));
+            await new MessageBus(Runtime).PublishAsync(new PersistHandled(handled)).ConfigureAwait(false);
         }
     }
 
@@ -151,7 +151,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
         }
 
-        await AssertAnyRequiredResponseWasGenerated();
+        await AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
 
         // Snapshot under lock so concurrent publishes from a Marten projection
         // (Block parallelism = 10 in AggregationRunner) cannot corrupt the list
@@ -177,7 +177,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         if (envelope.Sender!.SupportsNativeScheduledSend)
                         {
                             Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
-                            await sendEnvelopeAsync(envelope);
+                            await sendEnvelopeAsync(envelope).ConfigureAwait(false);
                         }
                         else
                         {
@@ -199,7 +199,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 }
                 else
                 {
-                    await sendEnvelopeAsync(envelope);
+                    await sendEnvelopeAsync(envelope).ConfigureAwait(false);
                 }
             }
             catch (Exception e)
@@ -212,7 +212,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         if (ReferenceEquals(Transaction, this))
         {
-            await flushScheduledMessagesAsync();
+            await flushScheduledMessagesAsync().ConfigureAwait(false);
         }
 
         _sent ??= new();
@@ -228,11 +228,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             if (ReferenceEquals(this, Transaction))
             {
-                await envelope.StoreAndForwardAsync();
+                await envelope.StoreAndForwardAsync().ConfigureAwait(false);
             }
             else
             {
-                await envelope.QuickSendAsync();
+                await envelope.QuickSendAsync().ConfigureAwait(false);
             }
         }
     }
@@ -269,7 +269,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     failureDescription += $"No cascading messages were created by this handler for the expected response type {Envelope.ReplyRequested}";
                 }
 
-                await SendFailureAcknowledgementAsync(failureDescription);
+                await SendFailureAcknowledgementAsync(failureDescription).ConfigureAwait(false);
             }
             else
             {
@@ -288,7 +288,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         if (Envelope.HasBeenAcked) return;
 
-        await _channel.CompleteAsync(Envelope);
+        await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
         Envelope.HasBeenAcked = true;
     }
 
@@ -300,7 +300,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         }
 
         Runtime.MessageTracking.Requeued(Envelope);
-        await _channel.DeferAsync(Envelope);
+        await _channel.DeferAsync(Envelope).ConfigureAwait(false);
     }
 
     public async Task ReScheduleAsync(DateTimeOffset scheduledTime)
@@ -315,12 +315,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         if (tryGetRescheduler(_channel, Envelope) is ISupportNativeScheduling c)
         {
             Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via native scheduling to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
-            await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value);
+            await c.MoveToScheduledUntilAsync(Envelope, Envelope.ScheduledTime.Value).ConfigureAwait(false);
         }
         else
         {
             Runtime.Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) via durable inbox to {ScheduledTime}", Envelope.Id, Envelope.MessageType, scheduledTime);
-            await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope);
+            await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(Envelope).ConfigureAwait(false);
         }
     }
 
@@ -371,12 +371,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             {
                 foreach (var envelope in Envelope.Batch)
                 {
-                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception);
+                    await deadLetterQueue.MoveToErrorsAsync(envelope, exception).ConfigureAwait(false);
                 }
             }
             else
             {
-                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception);
+                await deadLetterQueue.MoveToErrorsAsync(Envelope, exception).ConfigureAwait(false);
             }
 
             return;
@@ -386,17 +386,17 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             foreach (var envelope in Envelope.Batch)
             {
-                await Storage.Inbox.MoveToDeadLetterStorageAsync(envelope, exception);
+                await Storage.Inbox.MoveToDeadLetterStorageAsync(envelope, exception).ConfigureAwait(false);
             }
         }
         else
         {
             // If persistable, persist
-            await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+            await Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception).ConfigureAwait(false);
         }
 
         // If this is Inline
-        await _channel.CompleteAsync(Envelope);
+        await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
     }
 
     public Task RetryExecutionNowAsync()
@@ -429,7 +429,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         try
         {
-            await envelope.StoreAndForwardAsync();
+            await envelope.StoreAndForwardAsync().ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -459,7 +459,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
         try
         {
-            await envelope.StoreAndForwardAsync();
+            await envelope.StoreAndForwardAsync().ConfigureAwait(false);
         }
         catch (NotSupportedException)
         {
@@ -537,7 +537,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     /// <returns></returns>
     public override async Task ReScheduleCurrentAsync(DateTimeOffset rescheduledAt)
     {
-        await ReScheduleAsync(rescheduledAt);
+        await ReScheduleAsync(rescheduledAt).ConfigureAwait(false);
     }
 
     internal async Task CopyToAsync(IEnvelopeTransaction other)
@@ -547,9 +547,9 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             snapshot = _outstanding.ToArray();
         }
-        await other.PersistOutgoingAsync(snapshot);
+        await other.PersistOutgoingAsync(snapshot).ConfigureAwait(false);
 
-        foreach (var envelope in Scheduled) await other.PersistIncomingAsync(envelope);
+        foreach (var envelope in Scheduled) await other.PersistIncomingAsync(envelope).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -567,7 +567,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         {
             try
             {
-                await Transaction.RollbackAsync();
+                await Transaction.RollbackAsync().ConfigureAwait(false);
             }
             catch (Exception)
             {
@@ -625,7 +625,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             }
             else
             {
-                await PublishAsync(message);
+                await PublishAsync(message).ConfigureAwait(false);
                 return;
             }
         }
@@ -636,7 +636,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                 return;
 
             case ISendMyself sendsMyself:
-                await sendsMyself.ApplyAsync(this);
+                await sendsMyself.ApplyAsync(this).ConfigureAwait(false);
                 return;
 
             case Envelope _:
@@ -644,12 +644,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                     "You cannot directly send an Envelope. You may want to use ISendMyself for cascading messages");
 
             case IEnumerable<object> enumerable:
-                foreach (var o in enumerable) await EnqueueCascadingAsync(o);
+                foreach (var o in enumerable) await EnqueueCascadingAsync(o).ConfigureAwait(false);
 
                 return;
 
             case IAsyncEnumerable<object> asyncEnumerable:
-                await foreach (var o in asyncEnumerable) await EnqueueCascadingAsync(o);
+                await foreach (var o in asyncEnumerable) await EnqueueCascadingAsync(o).ConfigureAwait(false);
 
                 return;
         }
@@ -662,24 +662,24 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         var cascader = ResolveTypedAsyncEnumerableCascader(message.GetType());
         if (cascader != null)
         {
-            await (Task)cascader.Invoke(null, [message, this])!;
+            await ((Task)cascader.Invoke(null, [message, this])!).ConfigureAwait(false);
             return;
         }
 
         if (Envelope?.ReplyUri != null && message.GetType().ToMessageTypeName() == Envelope.ReplyRequested)
         {
-            await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true });
+            await EndpointFor(Envelope.ReplyUri!).SendAsync(message, new DeliveryOptions { IsResponse = true }).ConfigureAwait(false);
 
             // If [AlwaysPublishResponse] was used, also publish as a cascading message
             if (Envelope.AlwaysPublishResponse)
             {
-                await PublishAsync(message);
+                await PublishAsync(message).ConfigureAwait(false);
             }
 
             return;
         }
 
-        await PublishAsync(message);
+        await PublishAsync(message).ConfigureAwait(false);
     }
 
     private static readonly MethodInfo _cascadeTypedItemsMethod =
@@ -715,7 +715,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         await foreach (var item in source)
         {
-            await context.EnqueueCascadingAsync(item);
+            await context.EnqueueCascadingAsync(item).ConfigureAwait(false);
         }
     }
 
@@ -784,7 +784,7 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             foreach (var envelope in Scheduled)
             {
                 Runtime.Logger.LogDebug("Flushing scheduled envelope {EnvelopeId} ({MessageType}) to durable inbox for retry scheduling", envelope.Id, envelope.MessageType);
-                await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope);
+                await Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope).ConfigureAwait(false);
             }
         }
 

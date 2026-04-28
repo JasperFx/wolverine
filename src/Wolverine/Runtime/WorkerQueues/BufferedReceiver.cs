@@ -52,7 +52,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             _deadLetterSender = dlq;
 
             _moveToErrors = new RetryBlock<Envelope>(
-                async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope); }, _logger,
+                async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false); }, _logger,
                 _settings.Cancellation);
         }
     }
@@ -61,7 +61,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         if (_latched && envelope.Listener != null)
         {
-            await _deferBlock.PostAsync(envelope);
+            await _deferBlock.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
 
@@ -72,7 +72,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
                 envelope.ContentType = EnvelopeConstants.JsonContentType;
             }
 
-            await Pipeline!.InvokeAsync(envelope, this);
+            await Pipeline!.InvokeAsync(envelope, this).ConfigureAwait(false);
         }
         catch (Exception? e)
         {
@@ -100,22 +100,22 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     {
         if (envelope.Listener == null)
         {
-            await EnqueueAsync(envelope);
+            await EnqueueAsync(envelope).ConfigureAwait(false);
             return;
         }
 
         try
         {
-            var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope);
+            var nativelyRequeued = await envelope.Listener.TryRequeueAsync(envelope).ConfigureAwait(false);
             if (!nativelyRequeued)
             {
-                await EnqueueAsync(envelope);
+                await EnqueueAsync(envelope).ConfigureAwait(false);
             }
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to use native dead letter queue for {Uri}", Uri);
-            await EnqueueAsync(envelope);
+            await EnqueueAsync(envelope).ConfigureAwait(false);
         }
     }
 
@@ -150,7 +150,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             try
             {
                 var completion = _receivingBlock.WaitForCompletionAsync();
-                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout));
+                await Task.WhenAny(completion, Task.Delay(_settings.DrainTimeout)).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -158,12 +158,12 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             }
         }
 
-        await _completeBlock.DrainAsync();
-        await _deferBlock.DrainAsync();
+        await _completeBlock.DrainAsync().ConfigureAwait(false);
+        await _deferBlock.DrainAsync().ConfigureAwait(false);
 
         if (_moveToErrors != null)
         {
-            await _moveToErrors.DrainAsync();
+            await _moveToErrors.DrainAsync().ConfigureAwait(false);
         }
     }
 
@@ -187,7 +187,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
-        await _receivingBlock.PostAsync(envelope);
+        await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
         activity?.Stop();
     }
 
@@ -205,10 +205,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
             if (!envelope.IsExpired())
             {
-                await EnqueueAsync(envelope);
+                await EnqueueAsync(envelope).ConfigureAwait(false);
             }
 
-            await _completeBlock.PostAsync(envelope);
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
         }
 
         _logger.IncomingBatchReceived(Uri, messages);
@@ -221,7 +221,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         if (envelope.IsExpired())
         {
-            await _completeBlock.PostAsync(envelope);
+            await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
 
@@ -231,10 +231,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
         else
         {
-            await EnqueueAsync(envelope);
+            await EnqueueAsync(envelope).ConfigureAwait(false);
         }
 
-        await _completeBlock.PostAsync(envelope);
+        await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
 
         _logger.IncomingReceived(envelope, Uri);
     }

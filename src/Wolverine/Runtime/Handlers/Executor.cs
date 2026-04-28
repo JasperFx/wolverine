@@ -106,7 +106,7 @@ internal class Executor : IExecutor
 
         try
         {
-            while (await InvokeAsync(context, cancellation) == InvokeResult.TryAgain)
+            while (await InvokeAsync(context, cancellation).ConfigureAwait(false) == InvokeResult.TryAgain)
             {
                 envelope.Attempts++;
             }
@@ -117,7 +117,7 @@ internal class Executor : IExecutor
                 Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
 
-            await context.FlushOutgoingMessagesAsync();
+            await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
             activity?.SetStatus(ActivityStatusCode.Ok);
             _tracker.ExecutionFinished(envelope);
         }
@@ -150,7 +150,7 @@ internal class Executor : IExecutor
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
-        await InvokeInlineAsync(envelope, cancellation);
+        await InvokeInlineAsync(envelope, cancellation).ConfigureAwait(false);
 
         if (envelope.Response == null)
         {
@@ -187,7 +187,7 @@ internal class Executor : IExecutor
 
         try
         {
-            await Handler.HandleAsync(context, combined.Token);
+            await Handler.HandleAsync(context, combined.Token).ConfigureAwait(false);
 
             // Record message causation after handler execution
             if (_runtime is { Options.EnableMessageCausationTracking: true })
@@ -197,7 +197,7 @@ internal class Executor : IExecutor
 
             if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
-                await context.AssertAnyRequiredResponseWasGenerated();
+                await context.AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
             }
 
             Activity.Current?.SetStatus(ActivityStatusCode.Ok);
@@ -216,7 +216,7 @@ internal class Executor : IExecutor
             _tracker
                 .ExecutionFinished(envelope, e); // Need to do this to make the MessageHistory complete
 
-            await context.ClearAllAsync();
+            await context.ClearAllAsync().ConfigureAwait(false);
 
             Activity.Current?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             return _rules.DetermineExecutionContinuation(e, envelope);
@@ -237,10 +237,10 @@ internal class Executor : IExecutor
 
         try
         {
-            await Handler.HandleAsync(context, cancellation);
+            await Handler.HandleAsync(context, cancellation).ConfigureAwait(false);
             if (context.Envelope.ReplyRequested.IsNotEmpty())
             {
-                await context.AssertAnyRequiredResponseWasGenerated();
+                await context.AssertAnyRequiredResponseWasGenerated().ConfigureAwait(false);
             }
             
             return InvokeResult.Success;
@@ -292,14 +292,14 @@ internal class Executor : IExecutor
 
         try
         {
-            await InvokeAsync(context, cancellation);
+            await InvokeAsync(context, cancellation).ConfigureAwait(false);
 
             if (_runtime is { Options.EnableMessageCausationTracking: true })
             {
                 Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
 
-            await context.FlushOutgoingMessagesAsync();
+            await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
             stream = envelope.Response as IAsyncEnumerable<T>;
             activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingStarted));
         }
@@ -327,7 +327,7 @@ internal class Executor : IExecutor
                 T current;
                 try
                 {
-                    if (!await enumerator.MoveNextAsync())
+                    if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
                     {
                         activity?.AddEvent(new ActivityEvent(WolverineTracing.StreamingCompleted));
                         activity?.SetStatus(ActivityStatusCode.Ok);
