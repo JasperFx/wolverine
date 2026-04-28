@@ -35,6 +35,32 @@ public enum MultiFlushMode
 
 public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelopeTransaction, IEnvelopeLifecycle
 {
+    /// <summary>
+    /// Ambient holder for the <see cref="MessageContext"/> currently driving the in-flight
+    /// handler invocation on this async flow. Set by <c>ServiceLocationAwareExecutor</c> when
+    /// a chain is known (at codegen time) to use service location, and consulted by the
+    /// <see cref="IMessageContext"/> / <see cref="IMessageBus"/> scoped DI registrations so
+    /// that service-located instances see the same <see cref="MessageContext"/> the handler
+    /// itself received — preserving outbox semantics.
+    ///
+    /// Chains that do not use service location never set this value, so the per-message
+    /// <see cref="System.Threading.AsyncLocal{T}"/> machinery and ExecutionContext clone
+    /// cost are avoided on the hot path. See issue #2583.
+    /// </summary>
+    private static readonly System.Threading.AsyncLocal<MessageContext?> _current = new();
+
+    /// <summary>
+    /// The <see cref="MessageContext"/> driving the current handler invocation, if any.
+    /// Set by <c>ServiceLocationAwareExecutor</c>; <see langword="null"/> outside of a
+    /// service-location-aware handler invocation. Public so that custom service registrations
+    /// can opt into the same ambient handoff.
+    /// </summary>
+    public static MessageContext? Current
+    {
+        get => _current.Value;
+        internal set => _current.Value = value;
+    }
+
     private IChannelCallback? _channel;
 
     private bool _hasFlushed;

@@ -187,8 +187,18 @@ public static class HostBuilderExtensions
         services.AddOptions();
         services.AddLogging();
 
-        services.AddScoped<IMessageBus, MessageContext>();
-        services.AddScoped<IMessageContext, MessageContext>();
+        // The scoped factories prefer MessageContext.Current when it has been set by the
+        // ServiceLocationAwareExecutor (chains compiled with service location in play). That
+        // routes any service-located IMessageContext / IMessageBus through the same instance
+        // the handler itself received, so writes through a service-located bus enrol with the
+        // active outbox instead of being silently lost. The fall-back to a fresh MessageContext
+        // preserves resolution for non-handler scopes (hosted services, admin tools, tests
+        // that resolve IMessageBus directly from the root provider). See issue #2583.
+        services.AddScoped<IMessageBus>(sp =>
+            Wolverine.Runtime.MessageContext.Current ?? sp.GetRequiredService<MessageContext>());
+        services.AddScoped<IMessageContext>(sp =>
+            Wolverine.Runtime.MessageContext.Current ?? sp.GetRequiredService<MessageContext>());
+        services.AddScoped<MessageContext>();
 
         services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
 
