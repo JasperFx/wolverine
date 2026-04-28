@@ -5,7 +5,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CodeGeneration.Services;
 using JasperFx.Core.Reflection;
-using JasperFx.RuntimeCompiler;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
 using WolverineWebApi;
@@ -30,7 +29,11 @@ public class smoke_test_code_generation_of_endpoints_with_no_service_dependencie
         registry.AddTransient<IServiceVariableSource>(c => new ServiceCollectionServerVariableSource((ServiceContainer)c.GetRequiredService<IServiceContainer>()));
         registry.AddSingleton<IServiceCollection>(registry);
         registry.AddSingleton<IServiceContainer, ServiceContainer>();
-        registry.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
+        // AssemblyGenerator is in JasperFx.RuntimeCompiler. We qualify it inline so the file
+        // doesn't `using JasperFx.RuntimeCompiler;` at the top — that import would also
+        // bring in the [Obsolete] InitializeSynchronously extension method and create an
+        // ambiguity with the same-named method in JasperFx.CodeGeneration that line 42 uses.
+        registry.AddSingleton<IAssemblyGenerator, JasperFx.RuntimeCompiler.AssemblyGenerator>();
 
         var container = registry.BuildServiceProvider().GetRequiredService<IServiceContainer>();
 
