@@ -462,16 +462,32 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                 $"{responseAwares[0].VariableType.FullNameInCode()} generates special response handling"));
     }
     
+    /// <summary>
+    /// Set to <see langword="true"/> when this chain's compiled code resolves at least one
+    /// dependency via service location (i.e., reaches into <see cref="IServiceProvider"/>
+    /// rather than receiving the dependency through a constructor / handler-method parameter).
+    /// Recorded at codegen time by <see cref="AssertServiceLocationsAreAllowed"/>.
+    ///
+    /// At runtime, the executor factory consults this flag to decide whether to wrap the chain's
+    /// <see cref="Wolverine.Runtime.Handlers.IExecutor"/> with the <see cref="System.Threading.AsyncLocal{T}"/>-based
+    /// <see cref="Wolverine.Runtime.MessageContext.Current"/> handoff that keeps service-located
+    /// <see cref="IMessageContext"/> / <see cref="IMessageBus"/> instances pointed at the same
+    /// <see cref="Wolverine.Runtime.MessageContext"/> the handler itself received. Chains that don't
+    /// service-locate skip the wrap and pay zero AsyncLocal overhead per message. See issue #2583.
+    /// </summary>
+    public bool UsesServiceLocation { get; private set; }
+
     public void AssertServiceLocationsAreAllowed(ServiceLocationReport[] reports, IServiceProvider? services)
     {
         if (!reports.Any()) return;
-        
+
         var logger = services.GetLoggerOrDefault<ICodeFile>();
         var options = services!.GetService<WolverineOptions>() ?? new WolverineOptions();
 
         switch (options.ServiceLocationPolicy)
         {
             case ServiceLocationPolicy.AllowedButWarn:
+                UsesServiceLocation = true;
                 foreach (var report in reports)
                 {
                     if (report.ServiceDescriptor.IsKeyedService)
@@ -484,11 +500,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     }
                 }
                 break;
-            
+
             case ServiceLocationPolicy.NotAllowed:
                 throw new InvalidServiceLocationException(this, reports);
-            
+
             default:
+                // ServiceLocationPolicy.AlwaysAllowed — no warning, but the chain still
+                // resolves at least one dependency via service location, so flag it for
+                // the executor wrap.
+                UsesServiceLocation = true;
                 return;
         }
 

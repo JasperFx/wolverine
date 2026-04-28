@@ -57,6 +57,17 @@ internal class Executor : IExecutor
     private readonly IMessageTracker _tracker;
     private readonly IWolverineRuntime? _runtime;
 
+    /// <summary>
+    /// When <see langword="true"/>, the executor publishes the in-flight <see cref="MessageContext"/>
+    /// through <see cref="MessageContext.Current"/> for the duration of each invocation, so
+    /// service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/> see the same
+    /// instance the handler itself received. Set by <see cref="Executor.Build"/> only when the
+    /// chain's compiled code resolves at least one dependency via service location, so chains
+    /// that don't service-locate pay zero <see cref="System.Threading.AsyncLocal{T}"/> overhead
+    /// per message. See issue #2583.
+    /// </summary>
+    private bool _capturesContextForServiceLocation;
+
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
         FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)
@@ -185,6 +196,15 @@ internal class Executor : IExecutor
         using var timeout = new CancellationTokenSource(_timeout);
         using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
 
+        // Publish the in-flight context for service location only when the chain's codegen
+        // reported at least one service-located dependency. Pure-codegen chains skip the
+        // AsyncLocal touch entirely. See #2583 / ServiceLocationAwareExecutor docs.
+        var previousAmbient = _capturesContextForServiceLocation ? MessageContext.Current : null;
+        if (_capturesContextForServiceLocation)
+        {
+            MessageContext.Current = context;
+        }
+
         try
         {
             await Handler.HandleAsync(context, combined.Token).ConfigureAwait(false);
@@ -223,7 +243,10 @@ internal class Executor : IExecutor
         }
         finally
         {
-
+            if (_capturesContextForServiceLocation)
+            {
+                MessageContext.Current = previousAmbient;
+            }
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
@@ -233,6 +256,12 @@ internal class Executor : IExecutor
         if (context.Envelope == null)
         {
             throw new ArgumentOutOfRangeException(nameof(context.Envelope));
+        }
+
+        var previousAmbient = _capturesContextForServiceLocation ? MessageContext.Current : null;
+        if (_capturesContextForServiceLocation)
+        {
+            MessageContext.Current = context;
         }
 
         try
@@ -258,6 +287,13 @@ internal class Executor : IExecutor
             return await retry
                 .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
                 .ConfigureAwait(false);
+        }
+        finally
+        {
+            if (_capturesContextForServiceLocation)
+            {
+                MessageContext.Current = previousAmbient;
+            }
         }
     }
 
@@ -359,6 +395,15 @@ internal class Executor : IExecutor
             _rules, _timeout);
     }
 
+    /// <summary>
+    /// Set by <see cref="Build"/> when the chain's compiled code is known to resolve a
+    /// dependency via service location. Toggles the per-invocation
+    /// <see cref="MessageContext.Current"/> publish/restore so service-located
+    /// <see cref="IMessageContext"/> / <see cref="IMessageBus"/> see the same instance the
+    /// handler received. See issue #2583.
+    /// </summary>
+    internal void EnableServiceLocationContextCapture() => _capturesContextForServiceLocation = true;
+
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
         HandlerGraph handlerGraph, Type messageType)
     {
@@ -383,10 +428,20 @@ internal class Executor : IExecutor
 
         if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
         {
-            return new TracingExecutor(contextPool, runtime, handler, rules, timeoutSpan);
+            var tracingExecutor = new TracingExecutor(contextPool, runtime, handler, rules, timeoutSpan);
+            if (chain?.UsesServiceLocation == true)
+            {
+                tracingExecutor.EnableServiceLocationContextCapture();
+            }
+            return tracingExecutor;
         }
 
-        return new Executor(contextPool, runtime, handler, rules, timeoutSpan);
+        var executor = new Executor(contextPool, runtime, handler, rules, timeoutSpan);
+        if (chain?.UsesServiceLocation == true)
+        {
+            executor.EnableServiceLocationContextCapture();
+        }
+        return executor;
     }
 
     public static IExecutor Build(IWolverineRuntime runtime, ObjectPool<MessageContext> contextPool,
@@ -400,9 +455,19 @@ internal class Executor : IExecutor
 
         if (runtime.Options.InvokeTracing == InvokeTracingMode.Full)
         {
-            return new TracingExecutor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+            var tracingExecutor = new TracingExecutor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+            if (chain?.UsesServiceLocation == true)
+            {
+                tracingExecutor.EnableServiceLocationContextCapture();
+            }
+            return tracingExecutor;
         }
 
-        return new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+        var executor = new Executor(contextPool, logger, handler, tracker, rules, timeoutSpan);
+        if (chain?.UsesServiceLocation == true)
+        {
+            executor.EnableServiceLocationContextCapture();
+        }
+        return executor;
     }
 }

@@ -119,6 +119,17 @@ public interface IChain
     Type? AncillaryStoreType { get; set; }
 
     /// <summary>
+    /// <see langword="true"/> when this chain's compiled code resolves at least one
+    /// dependency via service location rather than constructor / parameter injection.
+    /// Recorded at codegen time. Consumed by the executor factory to opt into the
+    /// AsyncLocal-based <see cref="Wolverine.Runtime.MessageContext.Current"/> handoff
+    /// that keeps service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/>
+    /// pointed at the same context the handler itself received. Chains where this is
+    /// <see langword="false"/> incur zero AsyncLocal overhead per invocation. See issue #2583.
+    /// </summary>
+    bool UsesServiceLocation { get; }
+
+    /// <summary>
     ///     Strategy for dealing with any return values from the handler methods
     /// </summary>
     IReturnVariableActionSource ReturnVariableActionSource { get; set; }
