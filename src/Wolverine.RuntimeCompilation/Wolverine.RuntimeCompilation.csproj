@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <Description>Opt-in runtime Roslyn compilation support for Wolverine. Add this package and call opts.UseRuntimeCompilation() to enable on-the-fly handler/middleware code generation in development mode. Production deployments that pre-generate code (TypeLoadMode.Static) do not need this package and ship without Roslyn — smaller binaries, faster cold starts, and AOT-readiness. See issue #1577.</Description>
+        <PackageId>WolverineFx.RuntimeCompilation</PackageId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="JasperFx.RuntimeCompiler" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <Import Project="../../Analysis.Build.props" />
+</Project>

@@ -101,6 +101,15 @@ public static class HostBuilderExtensions
 
         services.AddJasperFx();
         services.AddSingleton<MessageStoreCollection>();
+        // NOTE: this default registration is preserved in v5.x for backward compatibility
+        // so existing apps that rely on Wolverine compiling handler/middleware code at
+        // runtime continue to work without additional configuration. In v6, this line is
+        // expected to be removed: applications using TypeLoadMode.Dynamic / Auto fallback
+        // will need to install the WolverineFx.RuntimeCompilation package and call
+        // opts.UseRuntimeCompilation() inside UseWolverine(...). Production deployments
+        // that pre-generate code with TypeLoadMode.Static will then be able to ship
+        // without Roslyn at all (smaller binaries, faster cold start, AOT-readiness).
+        // See issue #1577 for the full cold-start optimization roadmap.
         services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
 
         services.AddSingleton(typeof(AncillaryMessageStoreApplication<>));
