@@ -577,6 +577,12 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 
                 batchSucceeded = true;
             }
+            catch (DuplicateIncomingEnvelopeException)
+            {
+                // The batch contained a duplicate (e.g. broker redelivery race). The inbox is fine;
+                // fall through to the per-envelope path which dedupes correctly. Do NOT pause the listener.
+                foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope);
+            }
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to persist incoming envelopes at {Uri}", Uri);

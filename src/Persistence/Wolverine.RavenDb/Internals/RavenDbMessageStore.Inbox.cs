@@ -3,6 +3,7 @@ using Raven.Client;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Raven.Client.Exceptions;
+using Raven.Client.Exceptions.Documents.Session;
 using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
@@ -87,16 +88,29 @@ public partial class RavenDbMessageStore : IMessageInbox
     {
         using var session = _store.OpenAsyncSession();
         session.Advanced.UseOptimisticConcurrency = true;
-        
-        foreach (var envelope in envelopes)
-        {
-            var incoming = new IncomingMessage(envelope, this);
-            await session.StoreAsync(incoming);
-        }
 
-        // It's okay if it does fail here with the duplicate detection, because that
-        // will force the DurableReceiver to try envelope at a time to get at the actual differences
-        await session.SaveChangesAsync();
+        try
+        {
+            foreach (var envelope in envelopes)
+            {
+                var incoming = new IncomingMessage(envelope, this);
+                await session.StoreAsync(incoming);
+            }
+
+            await session.SaveChangesAsync();
+        }
+        catch (NonUniqueObjectException)
+        {
+            // Same envelope identity appeared twice in this batch (e.g. broker
+            // redelivery race). Surface as a duplicate so DurableReceiver falls back
+            // to the per-envelope path, which dedupes correctly without double-executing.
+            throw new DuplicateIncomingEnvelopeException(envelopes[0]);
+        }
+        catch (ConcurrencyException)
+        {
+            // At least one envelope is already in the inbox; same fallback contract.
+            throw new DuplicateIncomingEnvelopeException(envelopes[0]);
+        }
     }
 
     public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
