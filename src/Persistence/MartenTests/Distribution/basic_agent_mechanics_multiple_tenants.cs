@@ -8,7 +8,6 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-[Trait("Category", "Flaky")]
 public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : MultiTenantContext(output)
 {
     [Fact]
@@ -23,7 +22,7 @@ public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : 
 
             // 3 projections x 2 databases = 6 total
             w.ExpectRunningAgents(theOriginalHost, 6);
-        }, 30.Seconds());
+        }, 60.Seconds());
     }
     
     [Fact]
@@ -40,7 +39,7 @@ public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : 
         
             // 3 projections x 2 databases = 6 total
             w.ExpectRunningAgents(theOriginalHost, 12);
-        }, 30.Seconds());
+        }, 60.Seconds());
 
         var host2 = await startHostAsync();
         
@@ -57,7 +56,7 @@ public class basic_agent_mechanics_multiple_tenants(ITestOutputHelper output) : 
             w.ExpectRunningAgents(host2, 3);
             w.ExpectRunningAgents(host3, 3);
             w.ExpectRunningAgents(host4, 3);
-        }, 30.Seconds());
+        }, 60.Seconds());
     }
 
 

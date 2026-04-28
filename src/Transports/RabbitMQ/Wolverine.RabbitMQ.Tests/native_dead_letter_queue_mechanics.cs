@@ -13,12 +13,13 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
-public class native_dead_letter_queue_mechanics : IDisposable
+public class native_dead_letter_queue_mechanics : IAsyncLifetime
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host = null!;
     private RabbitMqTransport theTransport = null!;
+
+    public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task afterBootstrapping()
     {
@@ -43,12 +44,15 @@ public class native_dead_letter_queue_mechanics : IDisposable
             .GetOrCreate<RabbitMqTransport>();
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
         // Try to eliminate queues to keep them from accumulating
-        _host.TeardownResources();
-
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.TeardownResources();
+            await _host.StopAsync();
+            _host.Dispose();
+        }
     }
 
     [Fact]
@@ -137,13 +141,12 @@ public class native_dead_letter_queue_mechanics : IDisposable
 
         (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
-        var attempts = 0;
-        while (attempts < 5)
+        var deadline = DateTimeOffset.UtcNow.Add(30.Seconds());
+        while (DateTimeOffset.UtcNow < deadline)
         {
             var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
-            attempts++;
             await Task.Delay(250.Milliseconds());
         }
 
@@ -296,13 +299,12 @@ public class native_dead_letter_queue_mechanics : IDisposable
 
         (await initialQueue.QueuedCountAsync()).ShouldBe(0);
 
-        var attempts = 0;
-        while (attempts < 5)
+        var deadline = DateTimeOffset.UtcNow.Add(30.Seconds());
+        while (DateTimeOffset.UtcNow < deadline)
         {
             var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
-            attempts++;
             await Task.Delay(250.Milliseconds());
         }
 

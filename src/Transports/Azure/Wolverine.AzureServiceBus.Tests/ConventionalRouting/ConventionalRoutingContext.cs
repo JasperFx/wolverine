@@ -10,14 +10,18 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
 public abstract class ConventionalRoutingContext : IAsyncLifetime
 {
+    private readonly object _hostLock = new();
     private IHost _host = null!;
 
     internal IWolverineRuntime theRuntime
     {
         get
         {
-            _host ??= WolverineHost.For(opts =>
-                opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
+            lock (_hostLock)
+            {
+                _host ??= WolverineHost.For(opts =>
+                    opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
+            }
 
             return _host.Services.GetRequiredService<IWolverineRuntime>();
         }

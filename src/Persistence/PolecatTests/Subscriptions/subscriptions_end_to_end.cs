@@ -88,7 +88,7 @@ public class subscriptions_end_to_end
 
         await session.SaveChangesAsync();
 
-        await daemon.WaitForNonStaleData(30.Seconds());
+        await daemon.WaitForNonStaleData(60.Seconds());
 
         await using var query = store.QuerySession();
         (await query.LoadAsync<PcEventTotals>("A")).Count.ShouldBe(6);
@@ -139,7 +139,7 @@ public class subscriptions_end_to_end
 
         await session.SaveChangesAsync();
 
-        await daemon.WaitForNonStaleData(30.Seconds());
+        await daemon.WaitForNonStaleData(60.Seconds());
 
         await using var query = store.QuerySession();
         (await query.LoadAsync<PcEventTotals>("A")).Count.ShouldBe(6);
@@ -182,7 +182,7 @@ public class subscriptions_end_to_end
 
         await session.SaveChangesAsync();
 
-        await daemon.WaitForNonStaleData(30.Seconds());
+        await daemon.WaitForNonStaleData(60.Seconds());
 
         PcTotalsHandler.Handled.ShouldBe(['a', 'b', 'd', 'd', 'a', 'a', 'a', 'a', 'b', 'c', 'c', 'b']);
     }
@@ -228,7 +228,7 @@ public class subscriptions_end_to_end
 
         await session.SaveChangesAsync();
 
-        await daemon.WaitForNonStaleData(30.Seconds());
+        await daemon.WaitForNonStaleData(60.Seconds());
 
         PcTotalsHandler.Handled.ShouldBe(['a', 'b', 'a', 'a', 'a', 'a', 'b', 'b']);
     }
@@ -388,7 +388,7 @@ public class subscriptions_end_to_end
 
             await session.SaveChangesAsync();
 
-            await daemon.WaitForNonStaleData(30.Seconds());
+            await daemon.WaitForNonStaleData(60.Seconds());
         };
 
         var tracked = await host
@@ -440,7 +440,7 @@ public class subscriptions_end_to_end
 
         await session.SaveChangesAsync();
 
-        await daemon.WaitForNonStaleData(20.Seconds());
+        await daemon.WaitForNonStaleData(60.Seconds());
 
         // Second round
         session.Events.StartStream(Guid.NewGuid(), new PcDEvent(), new PcDEvent(), new PcDEvent(), new PcDEvent());

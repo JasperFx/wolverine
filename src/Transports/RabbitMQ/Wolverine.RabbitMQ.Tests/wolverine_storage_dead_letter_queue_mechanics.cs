@@ -14,8 +14,7 @@ using Wolverine.Persistence.Durability;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
-public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
+public class wolverine_storage_dead_letter_queue_mechanics : IAsyncLifetime
 {
     private readonly string QueueName = Guid.NewGuid().ToString();
     private IHost _host = null!;
@@ -26,6 +25,8 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
     {
         connectionString = Servers.SqlServerConnectionString;
     }
+
+    public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task afterBootstrapping()
     {
@@ -67,11 +68,29 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
             .GetOrCreate<RabbitMqTransport>();
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
         // Try to eliminate queues to keep them from accumulating
-        _host?.TeardownResources();
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.StopAsync();
+            await _host.TeardownResources();
+            _host.Dispose();
+        }
+    }
+
+    private static async Task<DeadLetterEnvelopeResults> WaitForDeadLettersAsync(IMessageStore messageStore, int minimumCount = 1)
+    {
+        var query = new DeadLetterEnvelopeQuery { PageSize = 100 };
+        var deadline = DateTimeOffset.UtcNow.Add(30.Seconds());
+        DeadLetterEnvelopeResults? results = null;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            results = await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
+            if (results.Envelopes.Count() >= minimumCount) return results;
+            await Task.Delay(250.Milliseconds());
+        }
+        return results ?? await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
     }
 
     [Fact]
@@ -110,16 +129,9 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
         // Send a message that will fail
         await _host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(new WolverineStorageTestMessage());
 
-        // Wait a bit for processing
-        await Task.Delay(1000);
-
-        // Check that the message is in the SQL Server DLQ
+        // Poll the SQL Server DLQ until the dead letter is recorded
         var messageStore = _host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQuery
-        {
-            PageSize = 100
-        };
-        var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
+        var deadLetterResults = await WaitForDeadLettersAsync(messageStore);
 
         // Should have at least one dead letter message
         deadLetterResults.Envelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ when using WolverineStorage mode");
@@ -138,8 +150,9 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
         // Send a message that will fail
         await _host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(new WolverineStorageTestMessage());
 
-        // Wait a bit for processing
-        await Task.Delay(1000);
+        // Wait for processing to complete via DLQ persistence
+        var messageStore = _host.Services.GetRequiredService<IMessageStore>();
+        await WaitForDeadLettersAsync(messageStore);
 
         // Check that there are no messages in any RabbitMQ DLQ
         // Since we disabled dead letter queueing, there shouldn't be any DLQ
@@ -150,22 +163,15 @@ public class wolverine_storage_dead_letter_queue_mechanics : IDisposable
     public async Task should_work_with_durable_inbox()
     {
         var durableQueueName = $"durable-{Guid.NewGuid()}";
-        
+
         await CreateHost(durableQueueName, useDurableInbox: true);
 
         // Send a message that will fail
         await _host.TrackActivity().DoNotAssertOnExceptionsDetected().PublishMessageAndWaitAsync(new WolverineStorageTestMessage());
 
-        // Wait a bit for processing
-        await Task.Delay(1000);
-
-        // Check that the message is in the SQL Server DLQ
+        // Poll the SQL Server DLQ until the dead letter is recorded
         var messageStore = _host.Services.GetRequiredService<IMessageStore>();
-        var deadLetterQuery = new DeadLetterEnvelopeQuery
-        {
-            PageSize = 100
-        };
-        var deadLetterResults = await messageStore.DeadLetters.QueryAsync(deadLetterQuery, CancellationToken.None);
+        var deadLetterResults = await WaitForDeadLettersAsync(messageStore);
 
         // Should have at least one dead letter message
         deadLetterResults.Envelopes.ShouldNotBeEmpty("Failed messages should be saved to SQL Server DLQ even with durable inbox");

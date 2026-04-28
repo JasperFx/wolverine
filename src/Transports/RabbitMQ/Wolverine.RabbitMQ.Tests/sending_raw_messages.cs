@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using JasperFx.Core;
 using Marten.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -10,7 +11,6 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
 public class sending_raw_messages
 {
     [Fact]
@@ -42,6 +42,7 @@ public class sending_raw_messages
 
 
         var tracked = await publisher.TrackActivity()
+            .Timeout(30.Seconds())
             .AlsoTrack(receiver)
             .IncludeExternalTransports()
             .ExecuteAndWaitAsync(c => c.EndpointFor(theQueueName).SendRawMessageAsync(messageData, typeof(RawMessage)));
@@ -77,6 +78,7 @@ public class sending_raw_messages
 
 
         var tracked = await publisher.TrackActivity()
+            .Timeout(30.Seconds())
             .AlsoTrack(receiver)
             .IncludeExternalTransports()
             .ExecuteAndWaitAsync(c => c.EndpointFor(theQueueName).SendRawMessageAsync(messageData, typeof(RawMessage)));

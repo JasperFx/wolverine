@@ -11,7 +11,6 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-[Trait("Category", "Flaky")]
 public class Bug_2078_pause_then_requeue : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
@@ -47,8 +46,8 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
     {
         if (_host != null)
         {
-            await _host.TeardownResources();
             await _host.StopAsync();
+            await _host.TeardownResources();
             _host.Dispose();
         }
     }

@@ -61,8 +61,12 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        _host?.TeardownResources();
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.TeardownResources();
+            await _host.StopAsync();
+            _host.Dispose();
+        }
     }
 
     [Fact]
@@ -103,7 +107,6 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
     }
 
     [Fact]
-    [Trait("Category", "Flaky")]
     public async Task recovers_multiple_messages()
     {
         // Send messages that will all fail — use the bus directly
@@ -172,8 +175,12 @@ public class dead_letter_queue_recovery_with_custom_queues : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        _host?.TeardownResources();
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.TeardownResources();
+            await _host.StopAsync();
+            _host.Dispose();
+        }
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
 using IntegrationTests;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
@@ -72,6 +73,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
     public async Task end_to_end()
     {
         var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("yellow"));
@@ -128,6 +130,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
     public async Task end_to_end_without_default_incoming_message_type()
     {
         var session = await _sender.TrackActivity()
+            .Timeout(60.Seconds())
             .AlsoTrack(_receiver)
             .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .PublishMessageAndWaitAsync(new ColorMessage("yellow"));

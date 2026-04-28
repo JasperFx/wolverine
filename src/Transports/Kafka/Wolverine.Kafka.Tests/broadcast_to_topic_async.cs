@@ -51,7 +51,8 @@ public class broadcast_to_topic_async : IAsyncLifetime
     {
         var session = await _sender.TrackActivity()
             .AlsoTrack(_receiver)
-            .Timeout(30.Seconds())
+            .Timeout(60.Seconds())
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
             .ExecuteAndWaitAsync(m => m.BroadcastToTopicAsync("incoming.one", new ColorMessage("blue")));
 
         var received = session.Received.SingleMessage<ColorMessage>();

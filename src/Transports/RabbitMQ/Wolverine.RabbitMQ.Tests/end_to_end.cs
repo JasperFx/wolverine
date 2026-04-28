@@ -476,6 +476,7 @@ public class end_to_end
         {
             await publisher
                 .TrackActivity()
+                .Timeout(30.Seconds())
                 .AlsoTrack(receiver)
                 .SendMessageAndWaitAsync(new ColorChosen { Name = "Orange" });
 
@@ -597,6 +598,7 @@ public class end_to_end
         {
             var session = await publisher
                 .TrackActivity()
+                .Timeout(30.Seconds())
                 .AlsoTrack(receiver1, receiver2, receiver3)
                 .WaitForMessageToBeReceivedAt<ColorChosen>(receiver1)
                 .WaitForMessageToBeReceivedAt<ColorChosen>(receiver2)
@@ -647,6 +649,7 @@ public class end_to_end
             var message = new SpecialTopic();
             var session = await publisher
                 .TrackActivity()
+                .Timeout(30.Seconds())
                 .AlsoTrack(receiver)
                 .SendMessageAndWaitAsync(message);
 
@@ -711,6 +714,7 @@ public class end_to_end
 
         var session = await publisher
             .TrackActivity()
+            .Timeout(30.Seconds())
             .AlsoTrack(receiver1, receiver2, receiver3)
             .WaitForMessageToBeReceivedAt<ColorChosen>(receiver1)
             .WaitForMessageToBeReceivedAt<ColorChosen>(receiver2)
