@@ -78,3 +78,5 @@ combined with [Marten](https://martendb.io) into the "critter stack" for highly 
 and highly performant server side development in .NET.
 
 
+
+<!-- ci-stabilization tracer (no-op) -->
