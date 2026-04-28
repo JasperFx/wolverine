@@ -191,6 +191,28 @@ public static class WolverineMessageNaming
         return name;
     }
 
+    /// <summary>
+    /// Pre-populate the message-type-name cache with the supplied types. Called during
+    /// Wolverine startup so the per-message <see cref="ToMessageTypeName(Type)"/> hot
+    /// path never pays the first-occurrence reflection cost (attribute reads, interface
+    /// walks, generic-type pretty-printing) inside <c>Envelope</c> construction or
+    /// dispatch. See issue #1577 (cold-start optimizations).
+    /// </summary>
+    /// <param name="types">Types to resolve and cache. Duplicates are tolerated.</param>
+    public static void PrepopulateCache(IEnumerable<Type> types)
+    {
+        if (types == null) return;
+
+        foreach (var type in types)
+        {
+            if (type == null) continue;
+            if (_typeNames.TryFind(type, out _)) continue;
+
+            var name = toMessageTypeName(type);
+            _typeNames = _typeNames.AddOrUpdate(type, name);
+        }
+    }
+
     private static string toMessageTypeName(Type type)
     {
         foreach (var namingStrategy in _namingStrategies)
