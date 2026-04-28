@@ -5,6 +5,7 @@ using JasperFx.Events;
 using Polecat;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.ErrorHandling;
+using Wolverine.Middleware;
 using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Polecat.Publishing;
@@ -65,6 +66,8 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         // SQL Server transport will be configured when the message store is built
 
         options.Policies.Add<PolecatOpPolicy>();
+
+        options.CodeGeneration.AddContinuationStrategy<Wolverine.Polecat.Requirements.PolecatDataRequirementContinuationStrategy>();
 
         options.CodeGeneration.MethodPreCompilation.Add(new PolecatBatchingPolicy());
     }

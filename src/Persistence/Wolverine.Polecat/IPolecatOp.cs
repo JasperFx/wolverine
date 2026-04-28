@@ -71,6 +71,16 @@ internal class ForEachPolecatOpFrame : SyncFrame
 /// </summary>
 public static class PolecatOps
 {
+    /// <summary>
+    /// Begin a fluent declaration of a data requirement against a Polecat document. Pair with
+    /// <see cref="CheckDocument{TDoc}.MustExist{TId}"/> or
+    /// <see cref="CheckDocument{TDoc}.MustNotExist{TId}"/> to return an
+    /// <see cref="Wolverine.Polecat.Requirements.IPolecatDataRequirement"/> from a "Before" /
+    /// "Validate" method on a handler. Multiple data requirements stacked on the same chain
+    /// are batched into a single Polecat round-trip.
+    /// </summary>
+    public static CheckDocument<TDoc> Document<TDoc>() where TDoc : class => new();
+
     public static StoreDoc<T> Store<T>(T document) where T : notnull
     {
         if (document == null) throw new ArgumentNullException(nameof(document));
@@ -588,4 +598,28 @@ public abstract class DocumentsOp : IDocumentsOp
     public abstract void Execute(IDocumentSession session);
 
     IReadOnlyList<object> IDocumentsOp.Documents => Documents;
+}
+
+/// <summary>
+/// Fluent builder for declaring an <see cref="Wolverine.Polecat.Requirements.IPolecatDataRequirement"/>
+/// against a Polecat document. Returned from <see cref="PolecatOps.Document{TDoc}"/>; pair with
+/// <see cref="MustExist{TId}"/> or <see cref="MustNotExist{TId}"/> to express the desired check.
+/// </summary>
+public class CheckDocument<TDoc> where TDoc : class
+{
+    /// <summary>Require that a document of type <typeparamref name="TDoc"/> with the supplied identity exists.</summary>
+    public Wolverine.Polecat.Requirements.IPolecatDataRequirement MustExist<TId>(TId id) =>
+        new Wolverine.Polecat.Requirements.DocumentExists<TDoc, TId>(id);
+
+    /// <summary>Require that a document of type <typeparamref name="TDoc"/> with the supplied identity does NOT exist.</summary>
+    public Wolverine.Polecat.Requirements.IPolecatDataRequirement MustNotExist<TId>(TId id) =>
+        new Wolverine.Polecat.Requirements.DocumentDoesNotExist<TDoc, TId>(id);
+
+    /// <summary>Require that a document of type <typeparamref name="TDoc"/> with the supplied identity exists, with a custom failure message.</summary>
+    public Wolverine.Polecat.Requirements.IPolecatDataRequirement MustExist<TId>(TId id, string missingMessage) =>
+        new Wolverine.Polecat.Requirements.DocumentExists<TDoc, TId>(id, missingMessage);
+
+    /// <summary>Require that a document of type <typeparamref name="TDoc"/> with the supplied identity does NOT exist, with a custom failure message.</summary>
+    public Wolverine.Polecat.Requirements.IPolecatDataRequirement MustNotExist<TId>(TId id, string existsMessage) =>
+        new Wolverine.Polecat.Requirements.DocumentDoesNotExist<TDoc, TId>(id, existsMessage);
 }
