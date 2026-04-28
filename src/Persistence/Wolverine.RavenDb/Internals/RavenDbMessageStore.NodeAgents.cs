@@ -33,6 +33,9 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         {
             TransactionMode = TransactionMode.ClusterWide
         });
+        // RavenDB rejects cluster-wide transactions combined with optimistic concurrency.
+        // Disable it explicitly so a consumer-enabled convention doesn't break this session.
+        session.Advanced.UseOptimisticConcurrency = false;
 
         var sequence = await session.LoadAsync<NodeSequence>(NodeSequence.SequenceId, cancellationToken);
         sequence ??= new NodeSequence();
@@ -104,6 +107,8 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         {
             TransactionMode = TransactionMode.ClusterWide
         });
+        // Cluster-wide transactions can't run with optimistic concurrency. See PersistAsync.
+        session.Advanced.UseOptimisticConcurrency = false;
 
         foreach (var restriction in restrictions)
         {
@@ -159,10 +164,21 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     public async Task AssignAgentsAsync(Guid nodeId, IReadOnlyList<Uri> agents, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
+        // Agent assignments are idempotent: a re-assignment should overwrite the existing
+        // record. Load first so RavenDB uses the loaded change vector at save time and the
+        // write works whether or not the consumer has optimistic concurrency enabled.
         foreach (var agent in agents)
         {
-            var agentAssignment = new AgentAssignment(agent, nodeId);
-            await session.StoreAsync(agentAssignment, cancellationToken);
+            var id = AgentAssignment.ToId(agent);
+            var existing = await session.LoadAsync<AgentAssignment>(id, cancellationToken);
+            if (existing == null)
+            {
+                await session.StoreAsync(new AgentAssignment(agent, nodeId), id, cancellationToken);
+            }
+            else
+            {
+                existing.NodeId = nodeId;
+            }
         }
 
         await session.SaveChangesAsync(token: cancellationToken);
@@ -180,8 +196,19 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
     {
         using var session = _store.OpenAsyncSession();
 
-        var agentAssignment = new AgentAssignment(agentUri, nodeId);
-        await session.StoreAsync(agentAssignment, agentAssignment.Id, cancellationToken);
+        // Agent assignments are idempotent: re-electing the same agent should overwrite the
+        // existing record. Load first so RavenDB uses the loaded change vector at save time
+        // instead of trying to write a brand-new document over an existing one.
+        var id = AgentAssignment.ToId(agentUri);
+        var existing = await session.LoadAsync<AgentAssignment>(id, cancellationToken);
+        if (existing == null)
+        {
+            await session.StoreAsync(new AgentAssignment(agentUri, nodeId), id, cancellationToken);
+        }
+        else
+        {
+            existing.NodeId = nodeId;
+        }
 
         await session.SaveChangesAsync(token: cancellationToken);
     }
