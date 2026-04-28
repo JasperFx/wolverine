@@ -79,8 +79,8 @@ public class HandlerPipeline : IHandlerPipeline
 
             try
             {
-                var continuation = await executeAsync(context, envelope, activity);
-                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, activity);
+                var continuation = await executeAsync(context, envelope, activity).ConfigureAwait(false);
+                await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, activity).ConfigureAwait(false);
             }
             catch (ObjectDisposedException)
             {
@@ -88,7 +88,7 @@ public class HandlerPipeline : IHandlerPipeline
             }
             catch (Exception e)
             {
-                await channel.CompleteAsync(envelope);
+                await channel.CompleteAsync(envelope).ConfigureAwait(false);
 
                 // Gotta get the message out of here because it's something that
                 // could never be handled
@@ -138,7 +138,7 @@ public class HandlerPipeline : IHandlerPipeline
             {
                 if (serializer is IAsyncMessageSerializer asyncMessageSerializer)
                 {
-                    envelope.Message = await asyncMessageSerializer.ReadFromDataAsync(messageType, envelope);
+                    envelope.Message = await asyncMessageSerializer.ReadFromDataAsync(messageType, envelope).ConfigureAwait(false);
                 }
                 else
                 {
@@ -177,7 +177,7 @@ public class HandlerPipeline : IHandlerPipeline
 
         if (envelope.Message == null)
         {
-            var deserializationResult = await TryDeserializeEnvelope(envelope);
+            var deserializationResult = await TryDeserializeEnvelope(envelope).ConfigureAwait(false);
             if(deserializationResult is not NullContinuation)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
@@ -202,6 +202,6 @@ public class HandlerPipeline : IHandlerPipeline
 
         var executor = _executors[envelope.Message!.GetType()];
 
-        return await executor.ExecuteAsync(context, _cancellation);
+        return await executor.ExecuteAsync(context, _cancellation).ConfigureAwait(false);
     }
 }

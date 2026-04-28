@@ -1,4 +1,5 @@
-﻿using JasperFx.Core.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using JasperFx.Core.Reflection;
 using JasperFx;
 
 namespace Wolverine.Attributes;
@@ -16,7 +17,8 @@ public class WolverineModuleAttribute : JasperFxAssemblyAttribute
     /// </summary>
     /// <param name="wolverineExtensionType"></param>
     /// <exception cref="ArgumentOutOfRangeException"></exception>
-    public WolverineModuleAttribute(Type wolverineExtensionType)
+    public WolverineModuleAttribute(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type wolverineExtensionType)
     {
         WolverineExtensionType = wolverineExtensionType;
         if (!wolverineExtensionType.CanBeCastTo<IWolverineExtension>())
@@ -30,5 +32,6 @@ public class WolverineModuleAttribute : JasperFxAssemblyAttribute
     {
     }
 
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type? WolverineExtensionType { get; }
 }

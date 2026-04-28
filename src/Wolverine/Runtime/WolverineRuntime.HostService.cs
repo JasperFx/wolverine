@@ -88,6 +88,12 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
+            // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
+            // hot path inside Envelope construction never pays the first-occurrence reflection
+            // cost (attribute reads, interface walks, generic-type pretty-printing).
+            // See issue #1577 (cold-start optimizations).
+            Wolverine.Util.WolverineMessageNaming.PrepopulateCache(Handlers.AllMessageTypes());
+
             await tryMigrateStorage();
 
             // Has to be done before initializing the storage

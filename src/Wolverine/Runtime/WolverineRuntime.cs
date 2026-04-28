@@ -235,7 +235,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
     public async Task<T?> TryFindMainMessageStore<T>() where T : class
     {
-        await _stores.Value.InitializeAsync();
+        await _stores.Value.InitializeAsync().ConfigureAwait(false);
         return _stores.Value.Main as T;
     }
 
