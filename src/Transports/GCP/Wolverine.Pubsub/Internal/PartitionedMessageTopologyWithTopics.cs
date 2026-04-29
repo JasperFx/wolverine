@@ -12,7 +12,8 @@ public class PartitionedMessageTopologyWithTopics : PartitionedMessageTopology<P
 
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)
     {
-        return options.PubsubTransport().Topics[name];
+        var transport = options.PubsubTransport();
+        return transport.Topics[transport.MaybeCorrectName(name)];
     }
 
     protected override PubsubTopicListenerConfiguration buildListener(WolverineOptions options, string name)

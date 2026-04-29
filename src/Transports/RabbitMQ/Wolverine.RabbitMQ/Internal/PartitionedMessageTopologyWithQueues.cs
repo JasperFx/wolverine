@@ -12,7 +12,8 @@ public class PartitionedMessageTopologyWithQueues : PartitionedMessageTopology<R
 
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)
     {
-        return options.RabbitMqTransport().Queues[name];
+        var transport = options.RabbitMqTransport();
+        return transport.Queues[transport.MaybeCorrectName(name)];
     }
 
     protected override RabbitMqListenerConfiguration buildListener(WolverineOptions options, string name)

@@ -12,7 +12,8 @@ public class PartitionedMessageTopologyWithQueues : PartitionedMessageTopology<A
 
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)
     {
-        return options.AzureServiceBusTransport().Queues[name];
+        var transport = options.AzureServiceBusTransport();
+        return transport.Queues[transport.MaybeCorrectName(name)];
     }
 
     protected override AzureServiceBusQueueListenerConfiguration buildListener(WolverineOptions options, string name)

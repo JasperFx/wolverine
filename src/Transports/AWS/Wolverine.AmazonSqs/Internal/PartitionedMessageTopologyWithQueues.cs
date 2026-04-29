@@ -12,7 +12,8 @@ public class PartitionedMessageTopologyWithQueues : PartitionedMessageTopology<A
 
     protected override Endpoint buildEndpoint(WolverineOptions options, string name)
     {
-        return options.AmazonSqsTransport().Queues[name];
+        var transport = options.AmazonSqsTransport();
+        return transport.Queues[transport.MaybeCorrectName(name)];
     }
 
     protected override AmazonSqsListenerConfiguration buildListener(WolverineOptions options, string name)
