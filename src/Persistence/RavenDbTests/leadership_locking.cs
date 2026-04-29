@@ -1,3 +1,4 @@
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Raven.Client.Documents;
@@ -111,5 +112,30 @@ public class leadership_locking : IAsyncLifetime
         var ravenStore = new RavenDbMessageStore(_store, new WolverineOptions());
         (await ravenStore.TryAttainScheduledJobLockAsync(CancellationToken.None))
             .ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task try_attain_renews_the_server_side_lease_when_already_held()
+    {
+        // Calling TryAttain when the lease is already held must refresh the
+        // server-side entry — that's the contract the heartbeat relies on to
+        // keep the lease alive.
+        var store = _host.Services.GetService<IMessageStore>()!.As<RavenDbMessageStore>();
+        var lockId = "wolverine/leader/locking";
+
+        (await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
+        var initial = await _store.Operations.SendAsync(
+            new GetCompareExchangeValueOperation<DistributedLock>(lockId));
+
+        await Task.Delay(10);
+
+        (await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
+        var renewed = await _store.Operations.SendAsync(
+            new GetCompareExchangeValueOperation<DistributedLock>(lockId));
+
+        renewed.Index.ShouldBeGreaterThan(initial.Index);
+        renewed.Value.ExpirationTime.ShouldBeGreaterThan(initial.Value.ExpirationTime);
+
+        await store.Nodes.ReleaseLeadershipLockAsync();
     }
 }
