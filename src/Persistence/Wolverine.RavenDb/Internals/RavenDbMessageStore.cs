@@ -86,9 +86,10 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
         _leaderLockId = "wolverine/leader/" + runtime.Options.ServiceName.ToLowerInvariant();
         _scheduledLockId = _scheduledLockId + "/" + runtime.Options.ServiceName.ToLowerInvariant();
         _runtime = runtime;
-        var agent = BuildAgent(runtime);
-        agent.As<RavenDbDurabilityAgent>().StartTimers();
-        return agent;
+
+        // NodeAgentController owns the durability agent lifecycle via the
+        // wolverinedb://ravendb/durability URI; do not start a second instance here.
+        return BuildAgent(runtime);
     }
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
