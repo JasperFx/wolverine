@@ -53,3 +53,5 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.MySql")]
 [assembly: InternalsVisibleTo("Wolverine.Sqlite")]
 [assembly: InternalsVisibleTo("Wolverine.Oracle")]
+[assembly: InternalsVisibleTo("RavenDbTests")]
+[assembly: InternalsVisibleTo("CosmosDbTests")]

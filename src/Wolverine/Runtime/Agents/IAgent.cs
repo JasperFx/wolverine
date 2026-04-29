@@ -50,6 +50,12 @@ public class CompositeAgent : IAgent
         _agents = agents.ToList();
     }
 
+    /// <summary>
+    /// The agents that this composite delegates to. Exposed read-only so diagnostics
+    /// and tests can inspect the underlying agents without reflection.
+    /// </summary>
+    public IReadOnlyList<IAgent> InnerAgents => _agents;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         foreach (var agent in _agents)

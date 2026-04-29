@@ -100,6 +100,13 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
         _leaderLockId = $"lock|leader|{runtime.Options.ServiceName.ToLowerInvariant()}";
         _scheduledLockId = $"lock|scheduled|{runtime.Options.ServiceName.ToLowerInvariant()}";
         _runtime = runtime;
+
+        // Unlike the RavenDb message store, CosmosDb returns null from BuildAgentFamily,
+        // so NodeAgentController never registers a second durability agent. The agent
+        // built and started here is the only one polling — leaving the eager
+        // StartTimers() call intact is correct. See #2623 for the matching RavenDb fix
+        // that DID need to drop StartTimers because RavenDb has a competing
+        // wolverinedb://ravendb/durability agent registered through IAgentFamily.
         var agent = BuildAgent(runtime);
         agent.As<CosmosDbDurabilityAgent>().StartTimers();
         return agent;
