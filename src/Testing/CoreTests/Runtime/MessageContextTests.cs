@@ -128,6 +128,11 @@ public class MessageContextTests
     [Fact]
     public void track_envelope_correlation()
     {
+        // Source is preserved when already set on the envelope (see
+        // track_envelope_correlation_does_not_override_existing_source);
+        // clear it here so the ServiceName fallback path is exercised.
+        theEnvelope.Source = null;
+
         using var activity = new Activity("DoWork");
         activity.Start();
 
@@ -186,6 +191,36 @@ public class MessageContextTests
         theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
 
         theEnvelope.UserName.ShouldBe("envelopeuser");
+    }
+
+    [Fact]
+    public void track_envelope_correlation_does_not_override_existing_source()
+    {
+        // A CustomizeOutgoingMessagesOfType<T> rule (or any per-message
+        // DeliveryOptions override) may have already set Source — for example
+        // when publishing CloudEvents and the producer needs a spec-valid
+        // per-message `source` URI. The framework must not clobber it.
+        theEnvelope.Source = "https://api.example.com/users/123";
+
+        using var activity = new Activity("DoWork");
+        activity.Start();
+
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+
+        theEnvelope.Source.ShouldBe("https://api.example.com/users/123");
+    }
+
+    [Fact]
+    public void track_envelope_correlation_falls_back_to_service_name_when_source_is_empty()
+    {
+        theEnvelope.Source = null;
+
+        using var activity = new Activity("DoWork");
+        activity.Start();
+
+        theContext.TrackEnvelopeCorrelation(theEnvelope, activity);
+
+        theEnvelope.Source.ShouldBe("MyService");
     }
 
     [Fact]

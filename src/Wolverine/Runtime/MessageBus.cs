@@ -350,7 +350,15 @@ public partial class MessageBus : IMessageBus, IMessageContext
 
     internal virtual void TrackEnvelopeCorrelation(Envelope outbound, Activity? activity)
     {
-        outbound.Source = Runtime.Options.ServiceName;
+        // A CustomizeOutgoingMessagesOfType<T> rule (or any other DeliveryOptions
+        // override) may have already stamped a per-message Source — for example,
+        // when InteropWithCloudEvents() is in play and the producer needs to set
+        // a spec-valid CloudEvents `source` URI per message. Don't clobber it.
+        if (outbound.Source.IsEmpty())
+        {
+            outbound.Source = Runtime.Options.ServiceName;
+        }
+
         // DeliveryOptions.Override may have already stamped a per-message
         // CorrelationId (e.g. from a Marten projection's RaiseSideEffects
         // call passing MessageMetadata) — don't clobber it. See GH-2545.
