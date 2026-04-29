@@ -62,17 +62,25 @@ public partial class NodeAgentController
             await stepDownAsync("the leadership advisory lock was released server-side");
         }
 
-        if (_persistence.HasLeadershipLock())
-        {
-            IsLeader = true;
-            return await EvaluateAssignmentsAsync(nodes, restrictions);
-        }
-
+        // Always call TryAttainLeadershipLockAsync. If we're already leader it
+        // refreshes the lease so lease-based backends (RavenDb, Cosmos) don't
+        // age out and trigger a false stepdown; otherwise it's the normal
+        // election attempt.
         try
         {
             if (await _persistence.TryAttainLeadershipLockAsync(_cancellation.Token))
             {
+                if (IsLeader)
+                {
+                    return await EvaluateAssignmentsAsync(nodes, restrictions);
+                }
+
                 return await tryStartLeadershipAsync(nodes, restrictions);
+            }
+
+            if (IsLeader)
+            {
+                await stepDownAsync("the leadership advisory lock could not be renewed");
             }
         }
         catch (Exception e)
