@@ -156,4 +156,11 @@ public partial class CosmosDbDurabilityAgent : IAgent
 
     public Uri Uri { get; set; }
     public AgentStatus Status { get; set; }
+
+    /// <summary>
+    /// True once <see cref="StartTimers"/> has wired up the recovery and scheduled-job
+    /// background loops. Exposed for diagnostic and test inspection so callers can detect
+    /// the multi-instance "two pollers" condition without reflection. See #2623.
+    /// </summary>
+    public bool IsPolling => _recoveryTask is not null || _scheduledJob is not null;
 }
