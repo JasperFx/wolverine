@@ -80,6 +80,7 @@
   </Folder>
   <Folder Name="/Persistence/LeaderElection/">
     <Project Path="src/Persistence/LeaderElection/MySqlTests.LeaderElection/MySqlTests.LeaderElection.csproj" />
+    <Project Path="src/Persistence/LeaderElection/OracleTests.LeaderElection/OracleTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/PostgresqlTests.LeaderElection/PostgresqlTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/RavenDbTests.LeaderElection/RavenDbTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/SqlServerTests.LeaderElection/SqlServerTests.LeaderElection.csproj" />
