@@ -313,12 +313,32 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         await conn.CloseAsync();
     }
 
-    public Task LogRecordsAsync(params NodeRecord[] records)
+    public async Task LogRecordsAsync(params NodeRecord[] records)
     {
-        if (records.Length == 0) return Task.CompletedTask;
+        if (records.Length == 0) return;
 
-        var op = new PersistNodeRecord(_settings, records);
-        return _database.EnqueueAsync(op);
+        // OracleMessageStore.EnqueueAsync is a no-op (the shared DatabaseBatcher uses
+        // @-prefixed parameter syntax that Oracle rejects), so insert each record
+        // directly using the Oracle command extensions.
+        await using var conn = await _dataSource.OpenConnectionAsync();
+        try
+        {
+            foreach (var record in records)
+            {
+                await using var cmd = conn.CreateCommand(
+                    $"INSERT INTO {_settings.SchemaName}.{NodeRecordTableName} " +
+                    "(node_number, event_name, description) " +
+                    "VALUES (:nodeNumber, :eventName, :description)");
+                cmd.With("nodeNumber", record.NodeNumber);
+                cmd.With("eventName", record.RecordType.ToString());
+                cmd.With("description", record.Description ?? string.Empty);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
     }
 
     public async Task<IReadOnlyList<NodeRecord>> FetchRecentRecordsAsync(int count)
@@ -340,7 +360,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
                 NodeNumber = Convert.ToInt32(reader.GetValue(0)),
                 RecordType = Enum.Parse<NodeRecordType>(await reader.GetFieldValueAsync<string>(1)),
                 Timestamp = await reader.GetFieldValueAsync<DateTimeOffset>(2),
-                Description = await reader.GetFieldValueAsync<string>(3)
+                Description = await reader.IsDBNullAsync(3) ? string.Empty : await reader.GetFieldValueAsync<string>(3)
             });
         }
         await conn.CloseAsync();

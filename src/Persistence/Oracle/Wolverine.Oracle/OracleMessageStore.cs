@@ -14,6 +14,7 @@ using Weasel.Oracle.Tables;
 using Wolverine.Logging;
 using Wolverine.Oracle.Sagas;
 using Wolverine.Oracle.Schema;
+using Wolverine.Oracle.Transport;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
@@ -129,7 +130,26 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
     public void Initialize(IWolverineRuntime runtime)
     {
-        // No-op; initialization happens in MigrateAsync
+        // Mirror MessageDatabase.Initialize — when this is the main store and the host is
+        // running in Balanced durability mode, stand up the control transport and publish
+        // its endpoint as the NodeControlEndpoint so inter-node agent commands can flow
+        // without an external message broker. Without this, WolverineNode.For throws
+        // ArgumentOutOfRangeException("ControlEndpoint cannot be null for this usage") at
+        // startup.
+        //
+        // Oracle uses its own OracleControlTransport rather than the shared
+        // DatabaseControlTransport because the shared implementation assumes @-prefixed
+        // placeholders and Guid values that map directly to a DbParameter — both of which
+        // Oracle rejects (placeholders are :-prefixed and the id columns are RAW(16) so
+        // Guids must be passed as byte[]). See #2622.
+        if (Role == MessageStoreRole.Main
+            && runtime.Options.Transports.NodeControlEndpoint == null
+            && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        {
+            var transport = new OracleControlTransport(this, runtime.Options);
+            runtime.Options.Transports.Add(transport);
+            runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
+        }
     }
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
