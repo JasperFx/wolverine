@@ -101,7 +101,11 @@ public sealed partial class WolverineOptions
         throw new ArgumentOutOfRangeException(nameof(contentType));
     }
 
-    internal IMessageSerializer? TryFindSerializer(string contentType)
+    /// <summary>
+    /// Try to resolve a previously-registered serializer by its content-type.
+    /// Returns null when no serializer is registered under the given content-type.
+    /// </summary>
+    public IMessageSerializer? TryFindSerializer(string contentType)
     {
         if (_serializers.TryGetValue(contentType, out var s))
         {
