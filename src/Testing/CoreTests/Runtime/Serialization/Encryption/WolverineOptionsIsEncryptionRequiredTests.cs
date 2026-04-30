@@ -7,8 +7,10 @@ namespace CoreTests.Runtime.Serialization.Encryption;
 public class WolverineOptionsIsEncryptionRequiredTests
 {
     public interface IBase { }
+    public interface ISecondMarker { }
     public abstract class AbstractBase { }
     public sealed record ConcreteImpl(string X) : IBase;
+    public sealed record DoublyMarked(string X) : IBase, ISecondMarker;
     public sealed class ConcreteAbstract : AbstractBase { }
     public sealed record Unrelated(string X);
     public sealed record ExactType(string X);
@@ -64,6 +66,20 @@ public class WolverineOptionsIsEncryptionRequiredTests
         opts.RequiredEncryptedTypes.Add(typeof(IBase));
 
         opts.IsEncryptionRequired(null!).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void type_matching_multiple_registered_markers_returns_true()
+    {
+        // A type can implement several marker interfaces that are each registered
+        // independently. The polymorphic scan must short-circuit on the first
+        // match without depending on registration order, and the cache must
+        // memoize a single boolean answer regardless of how many markers matched.
+        var opts = new WolverineOptions();
+        opts.RequiredEncryptedTypes.Add(typeof(IBase));
+        opts.RequiredEncryptedTypes.Add(typeof(ISecondMarker));
+
+        opts.IsEncryptionRequired(typeof(DoublyMarked)).ShouldBeTrue();
     }
 
     [Fact]

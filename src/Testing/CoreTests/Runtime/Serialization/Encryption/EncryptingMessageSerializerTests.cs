@@ -624,6 +624,166 @@ public class EncryptingMessageSerializerTests
             => ValueTask.FromResult(new byte[16]);
     }
 
+    [Fact]
+    public async Task WriteAsync_throws_when_provider_returns_null_default_key_id()
+    {
+        // A custom IKeyProvider that returns a null/empty DefaultKeyId would
+        // otherwise crash with NullReferenceException inside BuildAad or
+        // surface an opaque ArgumentNullException from the provider's lookup.
+        // The serializer must reject this up front with a clear, key-id-aware
+        // diagnostic.
+        var sut = new EncryptingMessageSerializer(
+            new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()),
+            new NullDefaultKeyIdProvider());
+
+        var envelope = new Envelope { Message = new HelloMessage("x") };
+
+        var ex = await Should.ThrowAsync<EncryptionKeyNotFoundException>(
+            async () => await sut.WriteAsync(envelope));
+
+        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.Message.ShouldContain("DefaultKeyId");
+    }
+
+    private sealed class NullDefaultKeyIdProvider : IKeyProvider
+    {
+        public string DefaultKeyId => null!;
+        public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+            => ValueTask.FromResult(Enumerable.Repeat((byte)0x01, 32).ToArray());
+    }
+
+    [Fact]
+    public async Task WriteAsync_propagates_OperationCanceledException_from_key_provider()
+    {
+        // The catch filter in WriteAsync intentionally excludes
+        // OperationCanceledException so caller cancellation flows through
+        // unchanged instead of being re-thrown as EncryptionKeyNotFound.
+        // Lock that contract: a provider that throws OCE must surface OCE,
+        // not a wrapped MessageEncryptionException.
+        var sut = new EncryptingMessageSerializer(
+            new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()),
+            new CancellingKeyProvider("k1"));
+
+        var envelope = new Envelope { Message = new HelloMessage("x") };
+
+        var ex = await Should.ThrowAsync<OperationCanceledException>(
+            async () => await sut.WriteAsync(envelope));
+        ex.ShouldNotBeAssignableTo<MessageEncryptionException>();
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_propagates_OperationCanceledException_from_key_provider()
+    {
+        var sut = new EncryptingMessageSerializer(
+            new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()),
+            new CancellingKeyProvider("k1"));
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = new byte[40],
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader] = "k1"
+            }
+        };
+
+        var ex = await Should.ThrowAsync<OperationCanceledException>(
+            async () => await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+        ex.ShouldNotBeAssignableTo<MessageEncryptionException>();
+    }
+
+    private sealed class CancellingKeyProvider : IKeyProvider
+    {
+        public CancellingKeyProvider(string defaultKeyId) { DefaultKeyId = defaultKeyId; }
+        public string DefaultKeyId { get; }
+        public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+            => throw new OperationCanceledException();
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_with_empty_envelope_data_throws_decryption_exception()
+    {
+        // Wolverine's Envelope itself rejects a null Data assignment with
+        // WolverineSerializationException at the property setter, so the
+        // serializer never sees null. The realistic boundary it does have to
+        // defend against is an empty data buffer (a transport that produced
+        // a zero-length frame): the body-length guard must produce a
+        // MessageDecryptionException, not a downstream span-slicing crash.
+        var sut = NewSut();
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = Array.Empty<byte>(),
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader] = "k1"
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            async () => await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_rejects_forged_plaintext_under_encrypted_content_type()
+    {
+        // Forgery scenario: a sender (or attacker) emits an envelope that
+        // claims the encrypted content-type, supplies a plausible key-id and
+        // inner-content-type header, but the body is actually plain JSON of
+        // sufficient length to pass the 28-byte minimum. The auth tag check
+        // must still reject it as MessageDecryptionException.
+        var sut = NewSut();
+
+        var forgedJson = System.Text.Encoding.UTF8.GetBytes(
+            "{\"Greeting\":\"this-is-totally-not-encrypted-but-long-enough\"}");
+        forgedJson.Length.ShouldBeGreaterThan(28);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = forgedJson,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = "k1",
+                [EncryptionHeaders.InnerContentTypeHeader] = "application/json"
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            async () => await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_with_body_exactly_28_bytes_throws_decryption_exception()
+    {
+        // Boundary opposite to body_shorter_than_28_bytes: a 28-byte body is
+        // the minimum the length guard accepts (12 nonce + 16 tag, zero
+        // ciphertext). It then reaches AesGcm.Decrypt, where the tag check
+        // fails for arbitrary input. Verifies the path past the length guard
+        // still produces a MessageDecryptionException, not a raw crypto
+        // exception.
+        var sut = NewSut();
+
+        var twentyEight = new byte[28];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(twentyEight);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = twentyEight,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader] = "k1"
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            async () => await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
     private sealed record HelloMessage(string Greeting);
     private sealed record EncryptedPayloadStub(string Secret);
 }

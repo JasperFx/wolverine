@@ -130,6 +130,14 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
     public async ValueTask<byte[]> WriteAsync(Envelope envelope)
     {
         var keyId = _keyProvider.DefaultKeyId;
+        if (string.IsNullOrEmpty(keyId))
+        {
+            throw new EncryptionKeyNotFoundException(
+                keyId: "<null>",
+                innerException: new InvalidOperationException(
+                    $"Key provider {_keyProvider.GetType().Name} returned a null/empty DefaultKeyId. " +
+                    "Implementations must return a stable, non-empty key-id."));
+        }
         byte[] key;
         try
         {

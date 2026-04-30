@@ -271,6 +271,76 @@ public class WolverineOptionsEncryptionTests
     }
 
     [Fact]
+    public async Task no_endpoint_pipeline_still_enforces_per_type_encryption_marker()
+    {
+        // The HandlerPipeline has two constructors — with and without endpoint.
+        // The no-endpoint variant is used by non-listener invocation paths.
+        // Its RequiresEncryption check must short-circuit the listener-URI
+        // branch (no endpoint to read .Uri from) but still apply the per-type
+        // marker so a plain envelope for a marked type is dead-lettered.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1", new Dictionary<string, byte[]>
+                    {
+                        ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray()
+                    }));
+                opts.Policies.ForMessagesOfType<EncryptionRequiredMsg>().Encrypt();
+            })
+            .StartAsync();
+
+        var runtime = (WolverineRuntime)host.Services.GetRequiredService<IWolverineRuntime>();
+        var pipelineNoEndpoint = new HandlerPipeline(runtime, runtime);
+
+        var envelope = new Envelope
+        {
+            ContentType = "application/json",
+            MessageType = typeof(EncryptionRequiredMsg).ToMessageTypeName(),
+            Data        = System.Text.Encoding.UTF8.GetBytes("""{"Value":"forged"}""")
+        };
+
+        var continuation = await pipelineNoEndpoint.TryDeserializeEnvelope(envelope);
+
+        var moveToErrorQueue = continuation.ShouldBeOfType<MoveToErrorQueue>();
+        moveToErrorQueue.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+    }
+
+    [Fact]
+    public async Task unmarked_type_is_serialized_by_inner_not_encrypting_serializer()
+    {
+        // Negative AAD-binding test. With per-type Encrypt() registered for
+        // EncryptedTypeA only, publishing PlainTypeB must NOT touch the
+        // encrypting serializer at all — the routing layer picks the inner
+        // (json) serializer, no key-id header is stamped, and no AAD binding
+        // happens. Complements per_type_encrypt_routes_only_matching_type
+        // by adding an explicit assertion that the encryption-only headers
+        // are absent on the unmarked path.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseSystemTextJsonForSerialization();
+                opts.RegisterEncryptionSerializer(NewProvider());
+                opts.Policies.ForMessagesOfType<EncryptedTypeA>().Encrypt();
+
+                opts.PublishAllMessages().ToLocalQueue("target");
+                opts.LocalQueue("target");
+            })
+            .StartAsync();
+
+        var bus = host.Services.GetRequiredService<IMessageBus>();
+
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .ExecuteAndWaitAsync(_ => bus.PublishAsync(new PlainTypeB("x")));
+
+        var sent = session.Sent.SingleEnvelope<PlainTypeB>();
+        sent.Serializer.ShouldNotBeOfType<EncryptingMessageSerializer>();
+        sent.ContentType.ShouldBe(EnvelopeConstants.JsonContentType);
+        sent.Headers.ContainsKey(EncryptionHeaders.KeyIdHeader).ShouldBeFalse();
+        sent.Headers.ContainsKey(EncryptionHeaders.InnerContentTypeHeader).ShouldBeFalse();
+    }
+
+    [Fact]
     public void second_RegisterEncryptionSerializer_call_throws_to_prevent_double_wrapping()
     {
         var opts = new WolverineOptions();

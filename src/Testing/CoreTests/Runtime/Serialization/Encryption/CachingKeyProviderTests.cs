@@ -215,4 +215,40 @@ public class CachingKeyProviderTests
             lock (_counts) { return _counts.GetValueOrDefault(keyId); }
         }
     }
+
+    [Fact]
+    public async Task max_entries_one_evicts_immediately_on_second_distinct_key()
+    {
+        // Edge case: a 1-slot cache must still satisfy the LRU contract — every
+        // distinct key kicks the previous one out, but a repeat of the just-fetched
+        // key is still served from cache.
+        var inner = new MultiKeyCountingProvider("a");
+        var sut = new CachingKeyProvider(inner, TimeSpan.FromMinutes(5), maxEntries: 1);
+
+        await sut.GetKeyAsync("a", default);
+        await sut.GetKeyAsync("a", default);                 // still cached
+        inner.CallsFor("a").ShouldBe(1);
+
+        await sut.GetKeyAsync("b", default);                 // evicts 'a'
+        inner.CallsFor("b").ShouldBe(1);
+
+        await sut.GetKeyAsync("a", default);                 // 'a' was evicted, must re-fetch
+        inner.CallsFor("a").ShouldBe(2);
+    }
+
+    [Fact]
+    public async Task entry_just_before_ttl_is_still_cached()
+    {
+        // Boundary opposite to ttl_expiry_re_fetches: prove the entry remains
+        // valid up to (but not past) the TTL, so a TTL refactor that flipped
+        // > vs >= would be caught.
+        var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");
+        var caching = new CachingKeyProvider(inner, TimeSpan.FromSeconds(5));
+
+        await caching.GetKeyAsync("k1", default);
+        await Task.Delay(50);                                // well within TTL
+        await caching.GetKeyAsync("k1", default);
+
+        inner.CallCount.ShouldBe(1);
+    }
 }
