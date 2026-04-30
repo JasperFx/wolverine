@@ -39,6 +39,44 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
     public IMessageSerializer Inner => _inner;
     public string ContentType => EncryptionHeaders.EncryptedContentType;
 
+    private const string AadMagic = "wlv-enc-v1";
+
+    internal static byte[] BuildAad(string? messageType, string keyId, string innerContentType)
+    {
+        var mtSrc = messageType ?? string.Empty;
+
+        var mtLen  = System.Text.Encoding.UTF8.GetByteCount(mtSrc);
+        if (mtLen  > ushort.MaxValue) throw new ArgumentOutOfRangeException(nameof(messageType));
+
+        var kidLen = System.Text.Encoding.UTF8.GetByteCount(keyId);
+        if (kidLen > ushort.MaxValue) throw new ArgumentOutOfRangeException(nameof(keyId));
+
+        var ictLen = System.Text.Encoding.UTF8.GetByteCount(innerContentType);
+        if (ictLen > ushort.MaxValue) throw new ArgumentOutOfRangeException(nameof(innerContentType));
+
+        var magic = System.Text.Encoding.ASCII.GetBytes(AadMagic);
+        var mt    = System.Text.Encoding.UTF8.GetBytes(mtSrc);
+        var kid   = System.Text.Encoding.UTF8.GetBytes(keyId);
+        var ict   = System.Text.Encoding.UTF8.GetBytes(innerContentType);
+
+        var size = magic.Length + 2 + mt.Length + 2 + kid.Length + 2 + ict.Length;
+        var buf  = new byte[size];
+        var pos  = 0;
+
+        Buffer.BlockCopy(magic, 0, buf, pos, magic.Length); pos += magic.Length;
+
+        buf[pos++] = (byte)(mt.Length >> 8); buf[pos++] = (byte)(mt.Length & 0xFF);
+        Buffer.BlockCopy(mt, 0, buf, pos, mt.Length); pos += mt.Length;
+
+        buf[pos++] = (byte)(kid.Length >> 8); buf[pos++] = (byte)(kid.Length & 0xFF);
+        Buffer.BlockCopy(kid, 0, buf, pos, kid.Length); pos += kid.Length;
+
+        buf[pos++] = (byte)(ict.Length >> 8); buf[pos++] = (byte)(ict.Length & 0xFF);
+        Buffer.BlockCopy(ict, 0, buf, pos, ict.Length);
+
+        return buf;
+    }
+
     public byte[] Write(Envelope envelope)
     {
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks

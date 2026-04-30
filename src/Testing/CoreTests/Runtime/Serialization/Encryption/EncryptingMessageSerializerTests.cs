@@ -295,5 +295,39 @@ public class EncryptingMessageSerializerTests
             await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
     }
 
+    [Fact]
+    public void BuildAad_layout_matches_specified_byte_format()
+    {
+        // "wlv-enc-v1" || u16_be(len(MT)) || MT || u16_be(len(KeyId)) || KeyId || u16_be(len(ICT)) || ICT
+        var aad = EncryptingMessageSerializer.BuildAad(
+            messageType: "PaymentDetails",
+            keyId: "k1",
+            innerContentType: "application/json");
+
+        var expected = new List<byte>();
+        expected.AddRange(System.Text.Encoding.ASCII.GetBytes("wlv-enc-v1"));
+        var mt = System.Text.Encoding.UTF8.GetBytes("PaymentDetails");
+        expected.AddRange(new[] { (byte)(mt.Length >> 8), (byte)(mt.Length & 0xFF) });
+        expected.AddRange(mt);
+        var kid = System.Text.Encoding.UTF8.GetBytes("k1");
+        expected.AddRange(new[] { (byte)(kid.Length >> 8), (byte)(kid.Length & 0xFF) });
+        expected.AddRange(kid);
+        var ict = System.Text.Encoding.UTF8.GetBytes("application/json");
+        expected.AddRange(new[] { (byte)(ict.Length >> 8), (byte)(ict.Length & 0xFF) });
+        expected.AddRange(ict);
+
+        aad.ShouldBe(expected.ToArray());
+    }
+
+    [Fact]
+    public void BuildAad_treats_null_message_type_as_empty()
+    {
+        var aad = EncryptingMessageSerializer.BuildAad(
+            messageType: null, keyId: "k1", innerContentType: "application/json");
+        var aadEmpty = EncryptingMessageSerializer.BuildAad(
+            messageType: "", keyId: "k1", innerContentType: "application/json");
+        aad.ShouldBe(aadEmpty);
+    }
+
     private sealed record HelloMessage(string Greeting);
 }
