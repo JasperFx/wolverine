@@ -2,6 +2,27 @@ Wolverine
 ======
 
 [![Discord](https://img.shields.io/discord/1074998995086225460?color=blue&label=Chat%20on%20Discord)](https://discord.gg/WMxrvegf8H)
+[![.NET](https://github.com/JasperFx/wolverine/actions/workflows/dotnet.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/dotnet.yml)
+[![aws](https://github.com/JasperFx/wolverine/actions/workflows/aws.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/aws.yml)
+[![azure-service-bus](https://github.com/JasperFx/wolverine/actions/workflows/azure-service-bus.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/azure-service-bus.yml)
+[![cosmosdb](https://github.com/JasperFx/wolverine/actions/workflows/cosmosdb.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/cosmosdb.yml)
+[![efcore](https://github.com/JasperFx/wolverine/actions/workflows/efcore.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/efcore.yml)
+[![grpc](https://github.com/JasperFx/wolverine/actions/workflows/grpc.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/grpc.yml)
+[![http](https://github.com/JasperFx/wolverine/actions/workflows/http.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/http.yml)
+[![kafka](https://github.com/JasperFx/wolverine/actions/workflows/kafka.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/kafka.yml)
+[![marten](https://github.com/JasperFx/wolverine/actions/workflows/marten.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/marten.yml)
+[![mqtt](https://github.com/JasperFx/wolverine/actions/workflows/mqtt.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/mqtt.yml)
+[![mysql](https://github.com/JasperFx/wolverine/actions/workflows/mysql.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/mysql.yml)
+[![nats](https://github.com/JasperFx/wolverine/actions/workflows/nats.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/nats.yml)
+[![oracle](https://github.com/JasperFx/wolverine/actions/workflows/oracle.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/oracle.yml)
+[![persistence](https://github.com/JasperFx/wolverine/actions/workflows/persistence.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/persistence.yml)
+[![polecat](https://github.com/JasperFx/wolverine/actions/workflows/polecat.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/polecat.yml)
+[![pulsar](https://github.com/JasperFx/wolverine/actions/workflows/pulsar.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/pulsar.yml)
+[![rabbitmq](https://github.com/JasperFx/wolverine/actions/workflows/rabbitmq.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/rabbitmq.yml)
+[![ravendb](https://github.com/JasperFx/wolverine/actions/workflows/ravendb.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/ravendb.yml)
+[![redis](https://github.com/JasperFx/wolverine/actions/workflows/redis.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/redis.yml)
+[![sqlite](https://github.com/JasperFx/wolverine/actions/workflows/sqlite.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/sqlite.yml)
+[![sqlserver](https://github.com/JasperFx/wolverine/actions/workflows/sqlserver.yml/badge.svg)](https://github.com/JasperFx/wolverine/actions/workflows/sqlserver.yml)
 
 Wolverine is a *Next Generation .NET Mediator and Message Bus*. Check out
 the [documentation website at https://wolverinefx.net/](https://wolverinefx.net/).
