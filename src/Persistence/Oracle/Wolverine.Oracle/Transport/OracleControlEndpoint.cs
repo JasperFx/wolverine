@@ -30,6 +30,13 @@ internal class OracleControlEndpoint : Endpoint
 
     public Guid NodeId { get; }
 
+    // The Oracle control transport polls the WOLVERINE_CONTROL_QUEUE table on a
+    // 1s tick. Forcing this endpoint to Durable would route every inter-node
+    // agent command through the same Oracle store the durability agent owns
+    // (deadlock); forcing Inline would defeat the batched-poll semantics. Lock
+    // to BufferedInMemory regardless of any global endpoint policy.
+    protected override bool supportsMode(EndpointMode mode) => mode == EndpointMode.BufferedInMemory;
+
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         return new ValueTask<IListener>(new OracleControlListener(_parent, this, receiver,
