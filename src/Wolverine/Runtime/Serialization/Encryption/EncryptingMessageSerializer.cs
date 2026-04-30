@@ -133,8 +133,9 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[16];
 
+        var aad = BuildAad(envelope.MessageType, keyId, _inner.ContentType);
         using var aes = new AesGcm(key, tagSizeInBytes: 16);
-        aes.Encrypt(nonce, plaintext, ciphertext, tag);
+        aes.Encrypt(nonce, plaintext, ciphertext, tag, aad);
 
         envelope.Headers[EncryptionHeaders.KeyIdHeader] = keyId;
         envelope.Headers[EncryptionHeaders.InnerContentTypeHeader] = _inner.ContentType;
@@ -180,10 +181,19 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         var ciphertext = body.AsSpan(12,                      body.Length - 12 - 16).ToArray();
         var plaintext  = new byte[ciphertext.Length];
 
+        var hasInnerCt = envelope.Headers.TryGetValue(EncryptionHeaders.InnerContentTypeHeader, out var innerCt);
+        // AAD and the inner-serializer ContentType use deliberately different fallbacks
+        // when the header is missing/null: AAD uses empty string (encrypt always writes
+        // the header, so empty here means tamper or older sender → tag mismatch is the
+        // correct security outcome), inner ContentType falls back to _inner.ContentType
+        // for legacy-envelope compatibility on the dispatch path. Do not collapse these.
+        var innerCtForAad = hasInnerCt ? innerCt ?? string.Empty : string.Empty;
+        var aad = BuildAad(envelope.MessageType, keyId, innerCtForAad);
+
         try
         {
             using var aes = new AesGcm(key, tagSizeInBytes: 16);
-            aes.Decrypt(nonce, ciphertext, tag, plaintext);
+            aes.Decrypt(nonce, ciphertext, tag, plaintext, aad);
         }
         catch (CryptographicException ex)
         {
@@ -194,9 +204,7 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         var innerEnvelope = new Envelope
         {
             Data        = plaintext,
-            ContentType = envelope.Headers.TryGetValue(EncryptionHeaders.InnerContentTypeHeader, out var innerCt)
-                              ? innerCt
-                              : _inner.ContentType,
+            ContentType = hasInnerCt ? innerCt : _inner.ContentType,
             MessageType = envelope.MessageType,
             Headers     = new Dictionary<string, string?>(envelope.Headers)
         };

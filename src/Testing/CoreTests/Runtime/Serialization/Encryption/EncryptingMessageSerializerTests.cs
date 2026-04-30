@@ -329,5 +329,122 @@ public class EncryptingMessageSerializerTests
         aad.ShouldBe(aadEmpty);
     }
 
+    [Fact]
+    public async Task WriteAsync_uses_aad_with_messageType_keyId_innerContentType()
+    {
+        var key32 = Enumerable.Repeat((byte)0x42, 32).ToArray();
+        var provider = new InMemoryKeyProvider(
+            defaultKeyId: "k1",
+            keys: new Dictionary<string, byte[]> { ["k1"] = key32 });
+
+        var inner = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+        var sut   = new EncryptingMessageSerializer(inner, provider);
+
+        var envelope = new Envelope(new EncryptedPayloadStub("hello"))
+        {
+            MessageType = typeof(EncryptedPayloadStub).ToMessageTypeName(),
+            Headers     = new Dictionary<string, string?>()
+        };
+
+        var output = await sut.WriteAsync(envelope);
+
+        var nonce      = output.AsSpan(0, 12).ToArray();
+        var tag        = output.AsSpan(output.Length - 16, 16).ToArray();
+        var ciphertext = output.AsSpan(12, output.Length - 12 - 16).ToArray();
+        var plaintext  = new byte[ciphertext.Length];
+
+        var aad = EncryptingMessageSerializer.BuildAad(
+            typeof(EncryptedPayloadStub).ToMessageTypeName(), "k1", inner.ContentType);
+
+        using var aes = new System.Security.Cryptography.AesGcm(key32, tagSizeInBytes: 16);
+        Should.NotThrow(() => aes.Decrypt(nonce, ciphertext, tag, plaintext, aad));
+
+        // Sanity: same input WITHOUT AAD should fail (proves AAD is bound).
+        Should.Throw<System.Security.Cryptography.AuthenticationTagMismatchException>(
+            () => aes.Decrypt(nonce, ciphertext, tag, new byte[ciphertext.Length]));
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_round_trips_when_aad_intact()
+    {
+        var (sut, envelopeOnWire) = await PrepareEncryptedEnvelopeAsync(
+            messageType: typeof(EncryptedPayloadStub).ToMessageTypeName(), keyId: "k1");
+
+        var result = await sut.ReadFromDataAsync(typeof(EncryptedPayloadStub), envelopeOnWire);
+        result.ShouldBeOfType<EncryptedPayloadStub>().Secret.ShouldBe("hello");
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_throws_MessageDecryption_when_messageType_tampered()
+    {
+        var (sut, envelopeOnWire) = await PrepareEncryptedEnvelopeAsync(
+            messageType: typeof(EncryptedPayloadStub).ToMessageTypeName(), keyId: "k1");
+
+        envelopeOnWire.MessageType = "RefundIssued";
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            () => sut.ReadFromDataAsync(typeof(EncryptedPayloadStub), envelopeOnWire).AsTask());
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_throws_MessageDecryption_when_keyId_header_tampered()
+    {
+        // Two keys with identical bytes — proves AAD (not key lookup) catches the tamper.
+        var bytes = Key32(0x42);
+        var provider = new InMemoryKeyProvider(
+            defaultKeyId: "k1",
+            keys: new Dictionary<string, byte[]> { ["k1"] = bytes, ["k2"] = bytes });
+
+        var (sut, envelopeOnWire) = await PrepareEncryptedEnvelopeAsync(
+            messageType: typeof(EncryptedPayloadStub).ToMessageTypeName(), keyId: "k1", provider: provider);
+
+        envelopeOnWire.Headers[EncryptionHeaders.KeyIdHeader] = "k2";
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            () => sut.ReadFromDataAsync(typeof(EncryptedPayloadStub), envelopeOnWire).AsTask());
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_throws_MessageDecryption_when_innerContentType_tampered()
+    {
+        var (sut, envelopeOnWire) = await PrepareEncryptedEnvelopeAsync(
+            messageType: typeof(EncryptedPayloadStub).ToMessageTypeName(), keyId: "k1");
+
+        envelopeOnWire.Headers[EncryptionHeaders.InnerContentTypeHeader] = "application/x-msgpack";
+
+        await Should.ThrowAsync<MessageDecryptionException>(
+            () => sut.ReadFromDataAsync(typeof(EncryptedPayloadStub), envelopeOnWire).AsTask());
+    }
+
+    private static async Task<(EncryptingMessageSerializer sut, Envelope envelopeOnWire)>
+        PrepareEncryptedEnvelopeAsync(string messageType, string keyId, IKeyProvider? provider = null)
+    {
+        provider ??= new InMemoryKeyProvider(
+            defaultKeyId: keyId,
+            keys: new Dictionary<string, byte[]> { [keyId] = Key32(0x42) });
+
+        var inner = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+        var sut   = new EncryptingMessageSerializer(inner, provider);
+
+        var sendEnvelope = new Envelope(new EncryptedPayloadStub("hello"))
+        {
+            MessageType = messageType,
+            Headers     = new Dictionary<string, string?>()
+        };
+
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        var envelopeOnWire = new Envelope
+        {
+            Data        = bytes,
+            ContentType = sut.ContentType,
+            MessageType = sendEnvelope.MessageType,
+            Headers     = new Dictionary<string, string?>(sendEnvelope.Headers)
+        };
+
+        return (sut, envelopeOnWire);
+    }
+
     private sealed record HelloMessage(string Greeting);
+    private sealed record EncryptedPayloadStub(string Secret);
 }
