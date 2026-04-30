@@ -34,6 +34,12 @@ internal class ExclusiveListenerAgent : IAgent
 
     public AgentStatus Status { get; set; } = AgentStatus.Running;
 
+    /// <summary>
+    /// Human-readable description for monitoring tools — see
+    /// <see cref="IAgent.Description"/>.
+    /// </summary>
+    public string Description => $"Exclusive listener for {_endpoint.Uri} — only one node at a time holds the listening role for this endpoint, so the cluster avoids competing consumers.";
+
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {

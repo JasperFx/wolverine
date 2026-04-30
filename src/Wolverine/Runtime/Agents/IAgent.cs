@@ -24,6 +24,18 @@ public interface IAgent : IHostedService, IHealthCheck
     AgentStatus Status { get; }
 
     /// <summary>
+    ///     Human-readable description of what this agent does on a given
+    ///     node. Surfaced in monitoring tools (e.g. CritterWatch) so
+    ///     operators don't have to recognise an agent purely by its URI
+    ///     scheme. The default implementation returns a generic
+    ///     "{scheme} agent: {Uri}" string; override in concrete agent
+    ///     types to provide more specific text. Kept as a default
+    ///     interface member so existing <see cref="IAgent"/>
+    ///     implementations stay source-compatible.
+    /// </summary>
+    string Description => $"{Uri.Scheme} agent: {Uri}";
+
+    /// <summary>
     ///     Default health check implementation based on agent status.
     ///     Override in implementations for more specific health reporting.
     /// </summary>

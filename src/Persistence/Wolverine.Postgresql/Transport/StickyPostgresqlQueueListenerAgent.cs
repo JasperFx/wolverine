@@ -52,4 +52,10 @@ internal class StickyPostgresqlQueueListenerAgent : IAgent
     }
 
     public Uri Uri { get; }
+
+    /// <summary>
+    /// Human-readable description for monitoring tools — see
+    /// <see cref="IAgent.Description"/>.
+    /// </summary>
+    public string Description => $"Sticky Postgres queue listener — pinned to the per-tenant database '{_databaseName}' for queue '{_queue}'. Only one node listens to each tenant database to avoid duplicate consumption.";
 }
