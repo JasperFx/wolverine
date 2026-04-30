@@ -31,31 +31,6 @@ public class encryption_acceptance
     }
 
     [Fact]
-    public async Task encrypted_message_round_trips_end_to_end()
-    {
-        EncryptedPayloadHandler.Received.Clear();
-
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseEncryption(new InMemoryKeyProvider(
-                    "k1",
-                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
-
-                opts.PublishAllMessages().ToLocalQueue("encrypted-queue");
-                opts.LocalQueue("encrypted-queue");
-            })
-            .StartAsync();
-
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-
-        await host.TrackActivity().ExecuteAndWaitAsync(_ =>
-            bus.PublishAsync(new EncryptedPayload("super-secret")));
-
-        EncryptedPayloadHandler.Received.Single().Secret.ShouldBe("super-secret");
-    }
-
-    [Fact]
     public async Task envelope_on_the_wire_uses_encrypted_content_type()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -177,6 +152,181 @@ public class encryption_acceptance
         var failureRecord = session.AllRecordsInOrder()
             .Single(r => r.Exception is MessageDecryptionException);
         failureRecord.Exception.ShouldBeOfType<MessageDecryptionException>();
+    }
+
+    [Fact]
+    public async Task receive_unencrypted_message_for_required_type_routes_to_error_queue()
+    {
+        EncryptedPayloadHandler.Received.Clear();
+        var receiverPort = PortFinder.GetAvailablePort();
+
+        // Sender does NOT call UseEncryption — emits plain JSON for EncryptedPayload.
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
+                opts.ServiceName = "sender";
+            })
+            .StartAsync();
+
+        // Receiver marks EncryptedPayload as encryption-required. The HandlerPipeline
+        // guard must DLQ the forged plain-JSON envelope before any serializer runs.
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                opts.Policies.ForMessagesOfType<EncryptedPayload>().Encrypt();
+                opts.ListenAtPort(receiverPort);
+                opts.ServiceName = "receiver";
+            })
+            .StartAsync();
+
+        var session = await receiver
+            .TrackActivity(TimeSpan.FromSeconds(10))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
+            .ExecuteAndWaitAsync(_ =>
+                sender.Services.GetRequiredService<IMessageBus>()
+                    .PublishAsync(new EncryptedPayload("forged-plaintext")));
+
+        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
+        var failureRecord = session.AllRecordsInOrder()
+            .Single(r => r.Exception is EncryptionPolicyViolationException);
+        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        EncryptedPayloadHandler.Received.ShouldNotContain(p => p.Secret == "forged-plaintext");
+    }
+
+    [Fact]
+    public async Task receive_unencrypted_message_on_required_listener_routes_to_error_queue()
+    {
+        EncryptedPayloadHandler.Received.Clear();
+        var receiverPort = PortFinder.GetAvailablePort();
+
+        // Sender does NOT call UseEncryption — emits plain JSON.
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
+                opts.ServiceName = "sender";
+            })
+            .StartAsync();
+
+        // Marker is on the LISTENER (.RequireEncryption()), not on the message type.
+        // The HandlerPipeline guard must DLQ the forged plain-JSON envelope via the
+        // destination-URI branch of RequiresEncryption, not via type resolution.
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                opts.ListenAtPort(receiverPort).RequireEncryption();
+                opts.ServiceName = "receiver";
+            })
+            .StartAsync();
+
+        var session = await receiver
+            .TrackActivity(TimeSpan.FromSeconds(10))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
+            .ExecuteAndWaitAsync(_ =>
+                sender.Services.GetRequiredService<IMessageBus>()
+                    .PublishAsync(new EncryptedPayload("forged-plaintext-listener")));
+
+        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
+        var failureRecord = session.AllRecordsInOrder()
+            .Single(r => r.Exception is EncryptionPolicyViolationException);
+        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        EncryptedPayloadHandler.Received.ShouldNotContain(p => p.Secret == "forged-plaintext-listener");
+    }
+
+    [Fact]
+    public async Task encrypted_message_for_required_type_round_trips_two_host()
+    {
+        EncryptedPayloadHandler.Received.Clear();
+        var receiverPort = PortFinder.GetAvailablePort();
+
+        // Negative control: both sides configured with UseEncryption + per-type marker.
+        // Encrypted bytes go over the wire, decrypt successfully, and the handler runs.
+        // Proves the C1 guard does not block legitimate encrypted traffic.
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                opts.Policies.ForMessagesOfType<EncryptedPayload>().Encrypt();
+                opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
+                opts.ServiceName = "sender";
+            })
+            .StartAsync();
+
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                opts.Policies.ForMessagesOfType<EncryptedPayload>().Encrypt();
+                opts.ListenAtPort(receiverPort);
+                opts.ServiceName = "receiver";
+            })
+            .StartAsync();
+
+        await receiver
+            .TrackActivity(TimeSpan.FromSeconds(10))
+            .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<EncryptedPayload>(receiver)
+            .ExecuteAndWaitAsync(_ =>
+                sender.Services.GetRequiredService<IMessageBus>()
+                    .PublishAsync(new EncryptedPayload("legit-secret")));
+
+        EncryptedPayloadHandler.Received.Single().Secret.ShouldBe("legit-secret");
+    }
+
+    [Fact]
+    public async Task plain_message_for_unmarked_type_passes_when_encryption_is_configured()
+    {
+        // Documents test-gap #8 from the functional review: rolling-deploy scenario.
+        // Receiver has UseEncryption configured, but EncryptedNoOp is not marked
+        // as encryption-required. Sender publishes plain JSON. Receiver MUST process
+        // it normally — the C1 guard only fires for marked types or marked listeners.
+        var receiverPort = PortFinder.GetAvailablePort();
+
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
+                opts.ServiceName = "sender";
+            })
+            .StartAsync();
+
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                // EncryptedNoOp deliberately NOT marked.
+                opts.ListenAtPort(receiverPort);
+                opts.ServiceName = "receiver";
+            })
+            .StartAsync();
+
+        var session = await receiver
+            .TrackActivity(TimeSpan.FromSeconds(10))
+            .IncludeExternalTransports()
+            .WaitForMessageToBeReceivedAt<EncryptedNoOp>(receiver)
+            .ExecuteAndWaitAsync(_ =>
+                sender.Services.GetRequiredService<IMessageBus>()
+                    .PublishAsync(new EncryptedNoOp("rolling-deploy")));
+
+        session.AllRecordsInOrder()
+            .ShouldNotContain(r => r.MessageEventType == MessageEventType.MovedToErrorQueue);
     }
 }
 

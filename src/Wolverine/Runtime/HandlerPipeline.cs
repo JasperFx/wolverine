@@ -6,6 +6,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime;
@@ -110,10 +111,16 @@ public class HandlerPipeline : IHandlerPipeline
     public async ValueTask<IContinuation> TryDeserializeEnvelope(Envelope envelope)
     {
         if (envelope.Message != null) return NullContinuation.Instance;
-        
+
         // Try to deserialize
         try
         {
+            if (RequiresEncryption(envelope)
+                && envelope.ContentType != EncryptionHeaders.EncryptedContentType)
+            {
+                return new MoveToErrorQueue(new EncryptionPolicyViolationException(envelope));
+            }
+
             var serializer = envelope.Serializer ?? _runtime.Options.DetermineSerializer(envelope);
             serializer.UnwrapEnvelopeIfNecessary(envelope);
 
@@ -166,6 +173,17 @@ public class HandlerPipeline : IHandlerPipeline
         {
             Logger.Received(envelope);
         }
+    }
+
+    private bool RequiresEncryption(Envelope envelope)
+    {
+        var options = _runtime.Options;
+
+        return (envelope.Destination is not null
+                    && options.RequiredEncryptedListenerUris.Contains(envelope.Destination))
+               || (!string.IsNullOrEmpty(envelope.MessageType)
+                    && _graph.TryFindMessageType(envelope.MessageType, out var type)
+                    && options.RequiredEncryptedTypes.Contains(type));
     }
 
     private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
