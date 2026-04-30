@@ -23,7 +23,12 @@ public sealed class InMemoryKeyProvider : IKeyProvider
                 $"defaultKeyId '{defaultKeyId}' is not present in the keys dictionary.",
                 nameof(defaultKeyId));
 
-        _keys = new Dictionary<string, byte[]>(keys);
+        _keys = new Dictionary<string, byte[]>(keys.Count);
+        foreach (var (id, bytes) in keys)
+        {
+            _keys[id] = bytes.AsSpan().ToArray();
+        }
+
         DefaultKeyId = defaultKeyId;
     }
 

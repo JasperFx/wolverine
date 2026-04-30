@@ -148,4 +148,81 @@ public class CachingKeyProviderTests
         public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
             => ValueTask.FromResult(_resolve(keyId));
     }
+
+    [Fact]
+    public async Task per_caller_cancellation_does_not_propagate_to_co_waiters()
+    {
+        using var firstCallerCts = new CancellationTokenSource();
+        using var secondCallerCts = new CancellationTokenSource();
+
+        var gate = new TaskCompletionSource<byte[]>();
+        var inner = new GatedKeyProvider("k1", gate.Task);
+        var sut = new CachingKeyProvider(inner, TimeSpan.FromMinutes(5));
+
+        var first = sut.GetKeyAsync("k1", firstCallerCts.Token).AsTask();
+        var second = sut.GetKeyAsync("k1", secondCallerCts.Token).AsTask();
+
+        firstCallerCts.Cancel();
+
+        await Should.ThrowAsync<OperationCanceledException>(() => first);
+
+        var keyBytes = Key32(0x42);
+        gate.SetResult(keyBytes);
+
+        var secondResult = await second;
+        secondResult.ShouldBe(keyBytes);
+    }
+
+    private sealed class GatedKeyProvider : IKeyProvider
+    {
+        private readonly Task<byte[]> _gate;
+        public GatedKeyProvider(string defaultKeyId, Task<byte[]> gate)
+        {
+            DefaultKeyId = defaultKeyId;
+            _gate = gate;
+        }
+        public string DefaultKeyId { get; }
+        public async ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+            => await _gate.ConfigureAwait(false);
+    }
+
+    [Fact]
+    public async Task cache_evicts_least_recently_used_when_max_entries_exceeded()
+    {
+        var inner = new MultiKeyCountingProvider("a");
+        var sut = new CachingKeyProvider(inner, TimeSpan.FromMinutes(5), maxEntries: 3);
+
+        await sut.GetKeyAsync("a", default);
+        await sut.GetKeyAsync("b", default);
+        await sut.GetKeyAsync("c", default);
+        await sut.GetKeyAsync("a", default);  // touch 'a' so 'b' becomes oldest
+        await sut.GetKeyAsync("d", default);  // forces eviction of 'b'
+
+        inner.CallsFor("a").ShouldBe(1);
+        inner.CallsFor("b").ShouldBe(1);
+        inner.CallsFor("c").ShouldBe(1);
+        inner.CallsFor("d").ShouldBe(1);
+
+        await sut.GetKeyAsync("b", default);  // evicted, must re-fetch
+        inner.CallsFor("b").ShouldBe(2);
+
+        await sut.GetKeyAsync("a", default);  // still cached
+        inner.CallsFor("a").ShouldBe(1);
+    }
+
+    private sealed class MultiKeyCountingProvider : IKeyProvider
+    {
+        private readonly Dictionary<string, int> _counts = new();
+        public MultiKeyCountingProvider(string defaultKeyId) { DefaultKeyId = defaultKeyId; }
+        public string DefaultKeyId { get; }
+        public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+        {
+            lock (_counts) { _counts[keyId] = _counts.GetValueOrDefault(keyId) + 1; }
+            return new ValueTask<byte[]>(Enumerable.Repeat((byte)keyId[0], 32).ToArray());
+        }
+        public int CallsFor(string keyId)
+        {
+            lock (_counts) { return _counts.GetValueOrDefault(keyId); }
+        }
+    }
 }

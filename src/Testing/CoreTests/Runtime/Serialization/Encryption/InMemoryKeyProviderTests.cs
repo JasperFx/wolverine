@@ -49,4 +49,17 @@ public class InMemoryKeyProviderTests
         Should.Throw<ArgumentException>(() =>
             new InMemoryKeyProvider("missing-default", new Dictionary<string, byte[]> { ["other"] = Key32(0x01) }));
     }
+
+    [Fact]
+    public async Task constructor_takes_defensive_copy_of_caller_arrays()
+    {
+        var keyBytes = Key32(0x42);
+        var provider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = keyBytes });
+
+        Array.Clear(keyBytes);
+
+        var stored = await provider.GetKeyAsync("k1", default);
+        stored.ShouldAllBe(b => b == 0x42);
+    }
 }

@@ -1,26 +1,29 @@
-using System.Collections.Concurrent;
-
 namespace Wolverine.Runtime.Serialization.Encryption;
 
 /// <summary>
 /// Wraps an inner <see cref="IKeyProvider"/> with a per-key TTL cache and
 /// single-flight deduplication of concurrent requests for the same key-id.
-/// <see cref="DefaultKeyId"/> is forwarded to the inner without caching
-/// (it is a property read and not on the hot path).
+/// The cache is bounded by an LRU policy with a configurable maximum number
+/// of entries (default 1024); deployments that need to keep more keys hot
+/// (e.g. many tenants with per-tenant keys) should raise this limit.
+/// <see cref="DefaultKeyId"/> is forwarded to the inner without caching.
 /// </summary>
 public sealed class CachingKeyProvider : IKeyProvider
 {
     private readonly IKeyProvider _inner;
     private readonly TimeSpan _ttl;
-    private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
+    private readonly LruEntryStore _cache;
 
-    public CachingKeyProvider(IKeyProvider inner, TimeSpan ttl)
+    public CachingKeyProvider(IKeyProvider inner, TimeSpan ttl, int maxEntries = 1024)
     {
         if (ttl <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(ttl), "TTL must be positive.");
+        if (maxEntries <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxEntries), "maxEntries must be positive.");
 
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _ttl = ttl;
+        _cache = new LruEntryStore(maxEntries);
     }
 
     public string DefaultKeyId => _inner.DefaultKeyId;
@@ -29,34 +32,35 @@ public sealed class CachingKeyProvider : IKeyProvider
     {
         while (true)
         {
-            var entry = _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id, cancellationToken)));
+            var entry = _cache.GetOrAdd(keyId, id => new CacheEntry(FetchAsync(id)));
 
             if (entry.IsExpired(_ttl))
             {
-                // Race: another thread may have just inserted; if our remove
-                // succeeds, fall through to re-fetch. Otherwise loop and read
-                // the freshly inserted entry.
-                _cache.TryRemove(KeyValuePair.Create(keyId, entry));
+                _cache.TryRemove(keyId, entry);
                 continue;
             }
 
             try
             {
-                return await entry.Task.ConfigureAwait(false);
+                return await entry.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Per-caller cancellation: leave the shared inner task untouched
+                // so other waiters still see the value when the inner completes.
+                throw;
             }
             catch
             {
-                // Don't let a transient inner failure poison the cache for the
-                // full TTL; evict and let the next caller retry from scratch.
-                _cache.TryRemove(KeyValuePair.Create(keyId, entry));
+                _cache.TryRemove(keyId, entry);
                 throw;
             }
         }
     }
 
-    private async Task<byte[]> FetchAsync(string keyId, CancellationToken cancellationToken)
+    private async Task<byte[]> FetchAsync(string keyId)
     {
-        return await _inner.GetKeyAsync(keyId, cancellationToken).ConfigureAwait(false);
+        return await _inner.GetKeyAsync(keyId, CancellationToken.None).ConfigureAwait(false);
     }
 
     private sealed class CacheEntry
@@ -72,5 +76,63 @@ public sealed class CachingKeyProvider : IKeyProvider
 
         public bool IsExpired(TimeSpan ttl)
             => DateTimeOffset.UtcNow - CreatedAt > ttl;
+    }
+
+    private sealed class LruEntryStore
+    {
+        // _index gives O(1) lookup; _order tracks recency (head = MRU, tail = LRU).
+        private readonly int _maxEntries;
+        private readonly object _lock = new();
+        private readonly Dictionary<string, LinkedListNode<KeyValuePair<string, CacheEntry>>> _index = new();
+        private readonly LinkedList<KeyValuePair<string, CacheEntry>> _order = new();
+
+        public LruEntryStore(int maxEntries)
+        {
+            _maxEntries = maxEntries;
+        }
+
+        public CacheEntry GetOrAdd(string keyId, Func<string, CacheEntry> factory)
+        {
+            lock (_lock)
+            {
+                if (_index.TryGetValue(keyId, out var existing))
+                {
+                    _order.Remove(existing);
+                    _order.AddFirst(existing);
+                    return existing.Value.Value;
+                }
+
+                if (_index.Count >= _maxEntries)
+                {
+                    var evicted = _order.Last!;
+                    _order.RemoveLast();
+                    _index.Remove(evicted.Value.Key);
+                }
+
+                // The factory must be non-blocking — it wraps a hot Task, not awaits one.
+                // Anything heavier here would hold the lock for the duration of I/O.
+                var newEntry = factory(keyId);
+                var node = new LinkedListNode<KeyValuePair<string, CacheEntry>>(
+                    new KeyValuePair<string, CacheEntry>(keyId, newEntry));
+                _order.AddFirst(node);
+                _index[keyId] = node;
+                return newEntry;
+            }
+        }
+
+        public bool TryRemove(string keyId, CacheEntry expected)
+        {
+            lock (_lock)
+            {
+                if (_index.TryGetValue(keyId, out var node)
+                    && ReferenceEquals(node.Value.Value, expected))
+                {
+                    _order.Remove(node);
+                    _index.Remove(keyId);
+                    return true;
+                }
+                return false;
+            }
+        }
     }
 }
