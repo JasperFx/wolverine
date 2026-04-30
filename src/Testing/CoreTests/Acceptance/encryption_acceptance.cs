@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
-using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
@@ -83,7 +82,6 @@ public class encryption_acceptance
                 opts.UseEncryption(new InMemoryKeyProvider(
                     "k1",
                     new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
-                opts.OnException<EncryptionKeyNotFoundException>().MoveToErrorQueue();
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
@@ -133,7 +131,6 @@ public class encryption_acceptance
                 opts.UseEncryption(new InMemoryKeyProvider(
                     "k1",
                     new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) })); // different bytes!
-                opts.OnException<MessageDecryptionException>().MoveToErrorQueue();
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })

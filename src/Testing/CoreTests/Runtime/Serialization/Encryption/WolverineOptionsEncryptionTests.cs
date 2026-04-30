@@ -120,29 +120,6 @@ public class WolverineOptionsEncryptionTests
     }
 
     [Fact]
-    public async Task endpoint_encrypted_without_registered_serializer_throws_on_send()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.UseSystemTextJsonForSerialization();
-                // NOTE: deliberately NOT calling RegisterEncryptionSerializer here.
-                opts.PublishAllMessages().ToLocalQueue("encrypted-q").Encrypted();
-                opts.LocalQueue("encrypted-q");
-            })
-            .StartAsync();
-
-        var bus = host.Services.GetRequiredService<IMessageBus>();
-
-        // The throw surfaces inside the publish path because the rule's lazy lookup
-        // fires on the first envelope.
-        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
-            await bus.PublishAsync(new EncryptedTypeA("x")));
-
-        ex.Message.ShouldContain("No encrypting serializer is registered");
-    }
-
-    [Fact]
     public void RequiredEncryptedTypes_starts_empty_and_is_settable()
     {
         var opts = new WolverineOptions();
@@ -246,6 +223,35 @@ public class WolverineOptionsEncryptionTests
         var queueUri = runtime.Endpoints.EndpointByName("test-encrypted")?.Uri
             ?? throw new InvalidOperationException("test-encrypted queue not found");
         runtime.Options.RequiredEncryptedListenerUris.ShouldContain(queueUri);
+    }
+
+    [Fact]
+    public void UseSystemTextJsonForSerialization_after_UseEncryption_keeps_encryption_active()
+    {
+        var opts = new WolverineOptions();
+        var provider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray() });
+        opts.UseEncryption(provider);
+
+        opts.UseSystemTextJsonForSerialization(_ => { });
+
+        opts.DefaultSerializer.ShouldBeOfType<EncryptingMessageSerializer>();
+    }
+
+    [Fact]
+    public async Task Encrypted_on_endpoint_without_UseEncryption_throws_at_startup()
+    {
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.PublishAllMessages().ToLocalQueue("misconfigured").Encrypted();
+                })
+                .StartAsync();
+        });
+
+        ex.Message.ShouldContain("encrypting serializer");
     }
 }
 

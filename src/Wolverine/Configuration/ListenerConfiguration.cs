@@ -141,6 +141,33 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     }
 
     /// <summary>
+    /// Force this endpoint to use the AES-256-GCM encrypting serializer for
+    /// all outgoing messages. Requires the encrypting serializer to be
+    /// registered first via <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/>; if it is
+    /// not registered, the host fails to start.
+    /// </summary>
+    public TSelf Encrypted()
+    {
+        add(endpoint =>
+        {
+            var runtime = endpoint.Runtime
+                ?? throw new InvalidOperationException(
+                    "Endpoint runtime is not set. .Encrypted() requires a fully-configured endpoint.");
+
+            var encrypting = runtime.Options.TryFindSerializer(EncryptionHeaders.EncryptedContentType)
+                ?? throw new InvalidOperationException(
+                    "No encrypting serializer is registered. Call " +
+                    "WolverineOptions.UseEncryption(provider) or " +
+                    "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                    "before configuring an endpoint with .Encrypted().");
+
+            endpoint.OutgoingRules.Add(new EncryptOutgoingEndpointRule(encrypting));
+        });
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
     /// "Pin" this endpoint so that it is only active on the leader node
     /// </summary>
     /// <returns></returns>

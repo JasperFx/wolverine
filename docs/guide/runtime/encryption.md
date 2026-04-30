@@ -92,7 +92,14 @@ Both per-type and per-endpoint require `RegisterEncryptionSerializer(provider)`
 (or `UseEncryption(provider)`) earlier in the same configuration so the
 encrypting serializer is registered with the runtime.
 
-Selection precedence on send: endpoint > per-type > global default.
+Selection precedence on send: per-type > endpoint > global default. Per-type
+rules run after per-endpoint rules in the runtime pipeline, so a per-type
+marker takes effect last and wins. For the encryption feature specifically
+this distinction is moot — both per-type `Encrypt<T>()` and per-endpoint
+`Encrypted()` swap to the same encrypting-serializer instance, so the
+resulting envelope is the same regardless of which marker fired last. The
+distinction matters if you write your own envelope rules that compete with
+the built-in ones.
 
 ### Receive-side enforcement
 
