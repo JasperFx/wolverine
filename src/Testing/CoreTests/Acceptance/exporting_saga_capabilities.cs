@@ -59,9 +59,19 @@ public class exporting_saga_capabilities : IAsyncLifetime
     {
         var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
         // Wolverine pulls the saga id from each message's `{SagaName}Id`
-        // property by convention. All three of our test messages use
-        // `DemoSagaId` so they should all surface that name.
-        saga.Messages.ShouldAllBe(m => m.SagaIdMember == nameof(BeginDemoSaga.DemoSagaId));
+        // property by convention. The plain command messages all expose
+        // `DemoSagaId` so the descriptor surfaces that name. TimeoutMessage
+        // subclasses (DemoSagaReminder) don't carry the id as a property —
+        // the runtime threads it through the envelope instead — so their
+        // SagaIdMember is null on the descriptor, which is the correct
+        // signal for downstream tools rendering timeout arrows.
+        var commandMessages = saga.Messages
+            .Where(m => m.MessageType.FullName != typeof(DemoSagaReminder).FullName!)
+            .ToList();
+        commandMessages.ShouldAllBe(m => m.SagaIdMember == nameof(BeginDemoSaga.DemoSagaId));
+
+        var reminderMessage = saga.Messages.Single(m => m.MessageType.FullName == typeof(DemoSagaReminder).FullName!);
+        reminderMessage.SagaIdMember.ShouldBeNull();
     }
 
     [Fact]
@@ -97,6 +107,20 @@ public class exporting_saga_capabilities : IAsyncLifetime
     }
 
     [Fact]
+    public void marks_timeout_messages_on_message_descriptor()
+    {
+        // DemoSagaReminder derives from TimeoutMessage — the descriptor
+        // should reflect that so external tools can render saga timeout
+        // arrows with a clock affordance instead of a regular handler call.
+        var reminder = _capabilities.Messages.Single(m => m.Type.FullName == typeof(DemoSagaReminder).FullName!);
+        reminder.IsTimeoutMessage.ShouldBeTrue();
+
+        // Plain commands stay false so the flag is meaningfully discriminating.
+        var advance = _capabilities.Messages.Single(m => m.Type.FullName == typeof(AdvanceDemoSaga).FullName!);
+        advance.IsTimeoutMessage.ShouldBeFalse();
+    }
+
+    [Fact]
     public void surfaces_cascading_published_types()
     {
         // Begin* cascades a DemoSagaStarted event from its return tuple.
@@ -116,6 +140,15 @@ public record AdvanceDemoSaga(Guid DemoSagaId);
 public record EnsureDemoSaga(Guid DemoSagaId);
 public record DemoSagaStarted(Guid SagaId);
 
+/// <summary>
+/// Saga timeout message — a TimeoutMessage subclass so the
+/// MessageDescriptor.IsTimeoutMessage flag has something to assert
+/// against. In a real saga this would re-enter the saga after the
+/// configured DelayTime to drive a state transition (e.g. "if no payment
+/// received within 24h, cancel the booking").
+/// </summary>
+public record DemoSagaReminder() : TimeoutMessage(TimeSpan.FromMinutes(15));
+
 public class DemoSaga : Saga
 {
     public Guid Id { get; set; }
@@ -133,6 +166,12 @@ public class DemoSaga : Saga
     public void StartOrHandle(EnsureDemoSaga cmd)
     {
         Id = cmd.DemoSagaId;
+    }
+
+    public void Handle(DemoSagaReminder reminder)
+    {
+        // No-op: the test only cares that the message type is discovered
+        // and surfaces with IsTimeoutMessage = true on the descriptor.
     }
 }
 

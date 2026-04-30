@@ -377,6 +377,15 @@ public partial class Envelope
         activity.MaybeSetTag(WolverineTracing.PayloadSizeBytes, MessagePayloadSize);
         activity.MaybeSetTag(MetricsConstants.TenantIdKey, TenantId);
         activity.MaybeSetTag(WolverineTracing.SagaId, SagaId);
+
+        // True when this envelope was scheduled for delayed delivery and is
+        // now being processed (or sent) past its ScheduledTime. Useful for
+        // trace consumers that want to distinguish a saga-timeout
+        // re-entrance from an immediate-delivery handle.
+        if (ScheduledTime.HasValue)
+        {
+            activity.SetTag(WolverineTracing.MessageScheduled, true);
+        }
     }
 
     internal ValueTask PersistAsync(IEnvelopeTransaction transaction)
