@@ -6,6 +6,7 @@
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR" />
+        <PackageReference Include="Scalar.AspNetCore" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="StronglyTypedId" />
         <PackageReference Include="Swashbuckle.AspNetCore" />
