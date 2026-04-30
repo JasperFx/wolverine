@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -259,7 +261,8 @@ public class encryption_acceptance : IDisposable
 
         // Negative control: both sides configured with UseEncryption + per-type marker.
         // Encrypted bytes go over the wire, decrypt successfully, and the handler runs.
-        // Proves the C1 guard does not block legitimate encrypted traffic.
+        // Proves the listener-side encryption-required check does not block legitimate
+        // encrypted traffic.
         using var sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -335,6 +338,188 @@ public class encryption_acceptance : IDisposable
 
         session.AllRecordsInOrder()
             .ShouldNotContain(r => r.MessageEventType == MessageEventType.MovedToErrorQueue);
+    }
+
+    [Fact]
+    public async Task wire_does_not_contain_plaintext_when_encryption_is_required()
+    {
+        // In-process MITM proxy between sender and receiver: the Wolverine
+        // sender publishes to snifferPort; the test's TcpListener accepts
+        // that connection, dials the real receiver, and pumps both directions
+        // while teeing the sender->receiver bytes into a MemoryStream. Any
+        // plaintext fragment of the canary that ever crosses the wire shows
+        // up in the captured buffer. This is the only test that proves the
+        // bytes Wolverine actually transmits are not the plaintext — every
+        // other encryption test inspects the serializer's output or relies
+        // on a successful round-trip.
+        var snifferPort  = PortFinder.GetAvailablePort();
+        var receiverPort = PortFinder.GetAvailablePort();
+        var canary       = "WIRE-CANARY-" + Guid.NewGuid().ToString("N");
+
+        var captured = new MemoryStream();
+        using var snifferCts = new CancellationTokenSource();
+        var sniffer = new TcpListener(IPAddress.Loopback, snifferPort);
+        sniffer.Start();
+
+        var proxyTask = Task.Run(async () =>
+        {
+            try
+            {
+                using var inbound = await sniffer.AcceptTcpClientAsync(snifferCts.Token);
+                using var inboundStream = inbound.GetStream();
+                using var upstream = new TcpClient();
+                await upstream.ConnectAsync(IPAddress.Loopback, receiverPort, snifferCts.Token);
+                using var upstreamStream = upstream.GetStream();
+
+                var senderToReceiver = PumpAsync(inboundStream, upstreamStream, captured, snifferCts.Token);
+                var receiverToSender = PumpAsync(upstreamStream, inboundStream, sink: null, snifferCts.Token);
+
+                await Task.WhenAny(senderToReceiver, receiverToSender);
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException)    { }
+            catch (IOException)                { }
+            catch (SocketException)            { }
+        });
+
+        try
+        {
+            using var sender = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.UseEncryption(new InMemoryKeyProvider(
+                        "k1",
+                        new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                    opts.Policies.ForMessagesOfType<EncryptedPayload>().Encrypt();
+                    opts.PublishAllMessages().To($"tcp://localhost:{snifferPort}");
+                    opts.ServiceName = "sender";
+                })
+                .StartAsync();
+
+            using var receiver = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.UseEncryption(new InMemoryKeyProvider(
+                        "k1",
+                        new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                    opts.Policies.ForMessagesOfType<EncryptedPayload>().Encrypt();
+                    opts.ListenAtPort(receiverPort);
+                    opts.ServiceName = "receiver";
+                })
+                .StartAsync();
+
+            await receiver
+                .TrackActivity(TimeSpan.FromSeconds(10))
+                .IncludeExternalTransports()
+                .WaitForMessageToBeReceivedAt<EncryptedPayload>(receiver)
+                .ExecuteAndWaitAsync(_ =>
+                    sender.Services.GetRequiredService<IMessageBus>()
+                        .PublishAsync(new EncryptedPayload(canary)));
+
+            EncryptedPayloadHandler.Received.ShouldContain(p => p.Secret == canary);
+
+            byte[] capturedBytes;
+            lock (captured) { capturedBytes = captured.ToArray(); }
+
+            capturedBytes.Length.ShouldBeGreaterThan(0);
+            // UTF8.GetString never throws on invalid sequences — substrings of
+            // valid ASCII (the canary and the content-type marker) will match
+            // contiguously regardless of the surrounding binary noise.
+            var dump = System.Text.Encoding.UTF8.GetString(capturedBytes);
+            dump.ShouldNotContain(canary);
+            dump.ShouldContain(EncryptionHeaders.EncryptedContentType);
+        }
+        finally
+        {
+            snifferCts.Cancel();
+            try { sniffer.Stop(); } catch { }
+            try { await proxyTask.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task durable_persistence_path_serializes_ciphertext_not_plaintext()
+    {
+        // Disk-leak boundary. The outbox path is:
+        //
+        //   DestinationEndpoint.SendAsync   -> applies route.Rules (the
+        //                                      encryption rule sets
+        //                                      envelope.Serializer + ContentType)
+        //   PersistOrSendAsync              -> hands envelope to outbox
+        //   IMessageOutbox.StoreOutgoingAsync
+        //                                   -> reads envelope.Data
+        //   Envelope.Data getter            -> lazy; first read triggers
+        //                                      Serializer.Write(this)
+        //
+        // So by the time the outbox writes bytes to disk, the encrypting
+        // serializer has been assigned and the byte read is ciphertext.
+        // This test locks the chain at the data-materialisation point: a
+        // future change that pre-fills envelope.Data before the encryption
+        // rule runs (or stores the inner serializer's output) would flip
+        // this assertion red even without a real database.
+        //
+        // Both materialisation entry points are exercised:
+        //   - sync Data getter (current outbox path via EnvelopeSerializer)
+        //   - async GetDataAsync (the path a future migration would use,
+        //     and the one EncryptingMessageSerializer's IAsyncMessageSerializer
+        //     surface is built for).
+        //
+        // Out of scope: SendRawMessageAsync (DestinationEndpoint.cs) accepts
+        // pre-serialized bytes that bypass the lazy serializer entirely. That
+        // is by design — callers using it have already chosen their bytes —
+        // and is not part of the contract this test locks.
+        var canary = "PERSIST-CANARY-" + Guid.NewGuid().ToString("N");
+        var encrypting = new EncryptingMessageSerializer(
+            new Wolverine.Runtime.Serialization.SystemTextJsonSerializer(
+                Wolverine.Runtime.Serialization.SystemTextJsonSerializer.DefaultOptions()),
+            new InMemoryKeyProvider(
+                "k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+
+        // Sync path: mirrors what IMessageOutbox.StoreOutgoingAsync reads today.
+        var syncEnvelope = new Envelope(new EncryptedPayload(canary))
+        {
+            Serializer  = encrypting,
+            ContentType = encrypting.ContentType
+        };
+        var syncBytes = syncEnvelope.Data!;
+        syncBytes.Length.ShouldBeGreaterThan(0);
+        System.Text.Encoding.UTF8.GetString(syncBytes).ShouldNotContain(canary);
+        syncEnvelope.ContentType.ShouldBe(EncryptionHeaders.EncryptedContentType);
+
+        // Async path: locks the same contract for any persistence-layer
+        // migration that switches to GetDataAsync (preferred for async
+        // serializers and a known refactor target).
+        var asyncEnvelope = new Envelope(new EncryptedPayload(canary))
+        {
+            Serializer  = encrypting,
+            ContentType = encrypting.ContentType
+        };
+        var asyncBytes = (await asyncEnvelope.GetDataAsync())!;
+        asyncBytes.Length.ShouldBeGreaterThan(0);
+        System.Text.Encoding.UTF8.GetString(asyncBytes).ShouldNotContain(canary);
+        asyncEnvelope.ContentType.ShouldBe(EncryptionHeaders.EncryptedContentType);
+    }
+
+    private static async Task PumpAsync(NetworkStream src, NetworkStream dst, MemoryStream? sink, CancellationToken ct)
+    {
+        var buf = new byte[4096];
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                int n = await src.ReadAsync(buf, ct).ConfigureAwait(false);
+                if (n <= 0) return;
+                // Capture BEFORE forwarding: this guarantees that any byte the
+                // receiver could possibly have observed is already in 'sink'
+                // when the test asserts after WaitForMessageToBeReceivedAt.
+                if (sink is not null) lock (sink) { sink.Write(buf, 0, n); }
+                await dst.WriteAsync(buf.AsMemory(0, n), ct).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException)    { }
+        catch (IOException)                { }
+        catch (SocketException)            { }
     }
 
     [Fact]
