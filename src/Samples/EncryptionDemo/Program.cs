@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using EncryptionDemo;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -45,7 +44,7 @@ using var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 
-var bus = host.Services.GetRequiredService<IMessageBus>();
+var bus = host.MessageBus();
 
 await bus.PublishAsync(new PaymentDetails("4111-1111-1111-1111", 99.99m));   // encrypted
 await bus.PublishAsync(new OrderShipped(Guid.NewGuid()));                     // plain JSON

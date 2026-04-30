@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
@@ -82,7 +81,7 @@ public class encryption_acceptance : IDisposable
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var session = await host.TrackActivity().ExecuteAndWaitAsync(_ =>
             bus.PublishAsync(new EncryptedPayload("x")));
@@ -127,7 +126,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>().PublishAsync(new EncryptedNoOp("x")));
+                sender.MessageBus().PublishAsync(new EncryptedNoOp("x")));
 
         session.ShouldHaveDeadLetteredWith<EncryptionKeyNotFoundException>();
     }
@@ -167,7 +166,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>().PublishAsync(new EncryptedNoOp("x")));
+                sender.MessageBus().PublishAsync(new EncryptedNoOp("x")));
 
         session.ShouldHaveDeadLetteredWith<MessageDecryptionException>();
     }
@@ -206,7 +205,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>()
+                sender.MessageBus()
                     .PublishAsync(new EncryptedPayload("forged-plaintext")));
 
         session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();
@@ -247,7 +246,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>()
+                sender.MessageBus()
                     .PublishAsync(new EncryptedPayload("forged-plaintext-listener")));
 
         session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();
@@ -292,7 +291,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<EncryptedPayload>(receiver)
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>()
+                sender.MessageBus()
                     .PublishAsync(new EncryptedPayload("legit-secret")));
 
         EncryptedPayloadHandler.Received.Single().Secret.ShouldBe("legit-secret");
@@ -335,7 +334,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForMessageToBeReceivedAt<EncryptedNoOp>(receiver)
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>()
+                sender.MessageBus()
                     .PublishAsync(new EncryptedNoOp("rolling-deploy")));
 
         session.AllRecordsInOrder()
@@ -415,7 +414,7 @@ public class encryption_acceptance : IDisposable
                 .IncludeExternalTransports()
                 .WaitForMessageToBeReceivedAt<EncryptedPayload>(receiver)
                 .ExecuteAndWaitAsync(_ =>
-                    sender.Services.GetRequiredService<IMessageBus>()
+                    sender.MessageBus()
                         .PublishAsync(new EncryptedPayload(canary)));
 
             EncryptedPayloadHandler.Received.ShouldContain(p => p.Secret == canary);
@@ -560,7 +559,7 @@ public class encryption_acceptance : IDisposable
             .IncludeExternalTransports()
             .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
             .ExecuteAndWaitAsync(_ =>
-                sender.Services.GetRequiredService<IMessageBus>()
+                sender.MessageBus()
                     .PublishAsync(new SensitiveSubtype("forged-plaintext-subtype")));
 
         session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();

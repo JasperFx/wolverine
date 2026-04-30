@@ -69,7 +69,7 @@ public class WolverineOptionsEncryptionTests
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var sessionA = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(_ => bus.PublishAsync(new EncryptedTypeA("x")));
@@ -99,7 +99,7 @@ public class WolverineOptionsEncryptionTests
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(_ => bus.PublishAsync(new EncryptedTypeA("x")));
@@ -328,7 +328,7 @@ public class WolverineOptionsEncryptionTests
             })
             .StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
 
         var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(_ => bus.PublishAsync(new PlainTypeB("x")));
