@@ -302,10 +302,12 @@ public class encryption_acceptance : IDisposable
     public async Task plain_message_for_unmarked_type_passes_when_encryption_is_configured()
     {
         // Rolling-deploy scenario. Receiver has UseEncryption configured, but
-        // EncryptedNoOp is not marked as required. Sender publishes plain JSON.
+        // EncryptedNoOp is not marked as required and the listener is NOT
+        // marked with .RequireEncryption() either. Sender publishes plain JSON.
         // Receiver MUST process it normally so unmarked types still flow during
         // gradual rollouts — the encryption guard only fires for marked types or
-        // marked listeners.
+        // marked listeners. (Listener-marked endpoints DLQ unmarked types too;
+        // that path is covered by receive_unencrypted_message_on_required_listener.)
         var receiverPort = PortFinder.GetAvailablePort();
 
         using var sender = await Host.CreateDefaultBuilder()

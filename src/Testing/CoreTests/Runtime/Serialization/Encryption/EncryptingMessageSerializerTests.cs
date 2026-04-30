@@ -69,42 +69,37 @@ public class EncryptingMessageSerializerTests
     }
 
     [Fact]
-    public void WriteMessage_no_envelope_path_delegates_to_inner()
+    public void WriteMessage_no_envelope_path_throws_invalid_operation()
     {
-        // No envelope is available on this overload, so encryption cannot record
-        // a key-id header. The encrypting serializer delegates straight to the
-        // inner — verify by using a tracking inner that records the call.
+        // The no-envelope overload cannot stamp a key-id header, so encryption
+        // is impossible. Returning the inner serializer's plaintext under a
+        // ContentType that advertises encryption would be a silent confidentiality
+        // bug, so this overload fails loudly instead.
         var inner = new TrackingInnerSerializer();
         var sut = new EncryptingMessageSerializer(inner,
             new InMemoryKeyProvider("k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x01) }));
 
-        sut.WriteMessage(new HelloMessage("plain"));
+        var ex = Should.Throw<InvalidOperationException>(() => sut.WriteMessage(new HelloMessage("plain")));
 
-        inner.WriteMessageCallCount.ShouldBe(1);
-        inner.WriteAsyncCallCount.ShouldBe(0);
+        inner.WriteMessageCallCount.ShouldBe(0);
+        ex.Message.ShouldContain("Envelope");
     }
 
     [Fact]
-    public void ReadFromData_byte_array_no_envelope_path_delegates_to_inner_and_does_not_wrap_exception()
+    public void ReadFromData_byte_array_no_envelope_path_throws_invalid_operation()
     {
-        // The byte-array overload has no envelope, so the encrypting serializer
-        // cannot decrypt and instead delegates raw to the inner. This test
-        // proves two things: (1) the call reaches the inner (tracking counter),
-        // (2) any exception from the inner is NOT wrapped as a
-        // MessageEncryptionException — Wolverine's normal receive path uses the
-        // envelope overload, so wrapping here would mislead diagnostics.
-        var inner = new TrackingInnerSerializer
-        {
-            ReadFromDataBytesBehavior = _ => throw new NotSupportedException("inner refuses")
-        };
+        // Symmetric to WriteMessage(object): no envelope context means no
+        // key-id header, so decryption cannot proceed. Fail loudly so a stray
+        // caller can't silently bypass decryption.
+        var inner = new TrackingInnerSerializer();
         var sut = new EncryptingMessageSerializer(inner,
             new InMemoryKeyProvider("k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x01) }));
 
-        var ex = Should.Throw<NotSupportedException>(() => sut.ReadFromData(new byte[] { 1, 2, 3 }));
+        var ex = Should.Throw<InvalidOperationException>(() => sut.ReadFromData(new byte[] { 1, 2, 3 }));
 
-        inner.ReadFromDataBytesCallCount.ShouldBe(1);
+        inner.ReadFromDataBytesCallCount.ShouldBe(0);
         ex.ShouldNotBeAssignableTo<MessageEncryptionException>();
-        ex.Message.ShouldBe("inner refuses");
+        ex.Message.ShouldContain("Envelope");
     }
 
     private sealed class TrackingInnerSerializer : IMessageSerializer

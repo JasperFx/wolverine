@@ -22,11 +22,12 @@ This encrypts every outgoing message body with AES-256-GCM under the key
 registered as `k1`. Inbound messages with the encrypted content-type
 (`application/wolverine-encrypted+json`) are decrypted automatically.
 
-> **Configuration order matters.** Call `UseEncryption` (or
-> `RegisterEncryptionSerializer`) **after** any
-> `UseSystemTextJsonForSerialization` or `UseNewtonsoftForSerialization` call —
-> those calls reset the default serializer and would silently un-install the
-> encrypting one.
+> **Configuration order is order-insensitive.**
+> `UseSystemTextJsonForSerialization` and `UseNewtonsoftForSerialization` only
+> replace the default serializer when its content-type is `application/json`,
+> so calling them after `UseEncryption` is a no-op against the default and
+> leaves the encrypting serializer in place. Calling `UseEncryption` more than
+> once throws — configure encryption exactly once during host setup.
 
 ## The `IKeyProvider` interface
 

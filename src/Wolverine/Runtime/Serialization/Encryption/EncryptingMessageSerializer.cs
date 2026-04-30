@@ -18,10 +18,19 @@ namespace Wolverine.Runtime.Serialization.Encryption;
 /// so blocking is unavoidable on those paths. Most production paths use the
 /// async surface and never block.
 ///
+/// <para>The <see cref="IAsyncMessageSerializer"/> contract has no
+/// <see cref="CancellationToken"/> parameter, so calls into
+/// <see cref="IKeyProvider.GetKeyAsync"/> from <c>WriteAsync</c> and
+/// <c>ReadFromDataAsync</c> use <c>CancellationToken.None</c>. A slow KMS
+/// fetch cannot be cancelled by host shutdown; key-provider implementations
+/// SHOULD apply their own internal timeouts.</para>
+///
 /// <para><c>WriteMessage(object)</c> and <c>ReadFromData(byte[])</c> have no
-/// envelope, so the key-id header cannot be read or written — these paths
-/// delegate to the inner serializer without encryption and are not used by
-/// Wolverine's normal pipeline.</para>
+/// envelope context, so the key-id header cannot be read or written. These
+/// overloads throw <see cref="InvalidOperationException"/> because returning
+/// plaintext on a serializer whose advertised content-type is the encrypted
+/// content-type would be a silent confidentiality bug. Wolverine's normal
+/// pipeline always carries an envelope and never reaches these overloads.</para>
 /// </remarks>
 public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
 {
@@ -71,25 +80,22 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         var ictLen = System.Text.Encoding.UTF8.GetByteCount(innerContentType);
         if (ictLen > ushort.MaxValue) throw new ArgumentOutOfRangeException(nameof(innerContentType));
 
-        var magic = System.Text.Encoding.ASCII.GetBytes(AadMagic);
-        var mt    = System.Text.Encoding.UTF8.GetBytes(mtSrc);
-        var kid   = System.Text.Encoding.UTF8.GetBytes(keyId);
-        var ict   = System.Text.Encoding.UTF8.GetBytes(innerContentType);
-
-        var size = magic.Length + 2 + mt.Length + 2 + kid.Length + 2 + ict.Length;
+        var size = AadMagic.Length + 2 + mtLen + 2 + kidLen + 2 + ictLen;
         var buf  = new byte[size];
+        var span = buf.AsSpan();
         var pos  = 0;
 
-        Buffer.BlockCopy(magic, 0, buf, pos, magic.Length); pos += magic.Length;
+        // ASCII-only magic; GetBytes(string, Span<byte>) writes directly into buf.
+        pos += System.Text.Encoding.ASCII.GetBytes(AadMagic, span);
 
-        buf[pos++] = (byte)(mt.Length >> 8); buf[pos++] = (byte)(mt.Length & 0xFF);
-        Buffer.BlockCopy(mt, 0, buf, pos, mt.Length); pos += mt.Length;
+        span[pos++] = (byte)(mtLen >> 8); span[pos++] = (byte)(mtLen & 0xFF);
+        pos += System.Text.Encoding.UTF8.GetBytes(mtSrc, span.Slice(pos));
 
-        buf[pos++] = (byte)(kid.Length >> 8); buf[pos++] = (byte)(kid.Length & 0xFF);
-        Buffer.BlockCopy(kid, 0, buf, pos, kid.Length); pos += kid.Length;
+        span[pos++] = (byte)(kidLen >> 8); span[pos++] = (byte)(kidLen & 0xFF);
+        pos += System.Text.Encoding.UTF8.GetBytes(keyId, span.Slice(pos));
 
-        buf[pos++] = (byte)(ict.Length >> 8); buf[pos++] = (byte)(ict.Length & 0xFF);
-        Buffer.BlockCopy(ict, 0, buf, pos, ict.Length);
+        span[pos++] = (byte)(ictLen >> 8); span[pos++] = (byte)(ictLen & 0xFF);
+        System.Text.Encoding.UTF8.GetBytes(innerContentType, span.Slice(pos));
 
         return buf;
     }
@@ -103,12 +109,14 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
 
     public byte[] WriteMessage(object message)
     {
-        // No envelope is available here, so we cannot resolve a key-id from headers
-        // and we cannot mutate envelope headers to record the key used. Delegate to
-        // the inner serializer raw — encryption is intentionally a no-op on this path.
-        // Wolverine's normal write paths go through Write/WriteAsync(envelope), which
-        // are encrypted as expected.
-        return _inner.WriteMessage(message);
+        // No envelope is available, so the key-id header cannot be written. Returning
+        // the inner serializer's plaintext on a serializer whose ContentType advertises
+        // encryption would be a silent confidentiality bug for any caller who picks
+        // this overload by ContentType lookup. Fail loudly instead.
+        throw new InvalidOperationException(
+            "EncryptingMessageSerializer.WriteMessage(object) cannot encrypt without an Envelope. " +
+            "Wolverine's normal write paths use Write(envelope) / WriteAsync(envelope); custom callers " +
+            "must pass an Envelope so the key-id header can be stamped.");
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)
@@ -121,10 +129,13 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
     public object ReadFromData(byte[] data)
     {
         // No envelope context, so the key-id header is unavailable and decryption
-        // cannot be performed. Delegate raw to the inner serializer; this path is
-        // not used by Wolverine's normal receive pipeline (HandlerPipeline.cs always
-        // has an envelope).
-        return _inner.ReadFromData(data);
+        // cannot be performed. Wolverine's normal receive pipeline always carries
+        // an envelope (HandlerPipeline.TryDeserializeEnvelope). Fail loudly so
+        // a stray caller can't silently bypass decryption.
+        throw new InvalidOperationException(
+            "EncryptingMessageSerializer.ReadFromData(byte[]) cannot decrypt without an Envelope. " +
+            "Wolverine's normal receive paths use ReadFromData(messageType, envelope); custom callers " +
+            "must pass an Envelope so the key-id header can be read.");
     }
 
     public async ValueTask<byte[]> WriteAsync(Envelope envelope)
@@ -211,11 +222,10 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         var plaintext  = new byte[ciphertext.Length];
 
         var hasInnerCt = envelope.Headers.TryGetValue(EncryptionHeaders.InnerContentTypeHeader, out var innerCt);
-        // AAD and the inner-serializer ContentType use deliberately different fallbacks
-        // when the header is missing/null: AAD uses empty string (encrypt always writes
-        // the header, so empty here means tamper or older sender → tag mismatch is the
-        // correct security outcome), inner ContentType falls back to _inner.ContentType
-        // for legacy-envelope compatibility on the dispatch path. Do not collapse these.
+        // AAD uses empty string when the header is missing. Wolverine's WriteAsync
+        // always writes the header with the inner serializer's content-type, so a
+        // missing header here means a non-Wolverine sender or tampering — the tag
+        // check below will reject it because the AAD won't match.
         var innerCtForAad = hasInnerCt ? innerCt ?? string.Empty : string.Empty;
         var aad = BuildAad(envelope.MessageType, keyId, innerCtForAad);
 
@@ -229,11 +239,21 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
             throw new MessageDecryptionException(keyId, ex);
         }
 
+        // Defense-in-depth: the tag check passed, so AAD matched. If the sender
+        // bound an empty inner-content-type into AAD (Wolverine never does this),
+        // we have no trustworthy content-type for the inner serializer. Reject.
+        if (!hasInnerCt || string.IsNullOrEmpty(innerCt))
+        {
+            throw new MessageDecryptionException(keyId,
+                new CryptographicException(
+                    $"Encrypted envelope is missing required header '{EncryptionHeaders.InnerContentTypeHeader}'."));
+        }
+
         // Restore plaintext to a synthetic envelope view that the inner serializer expects.
         var innerEnvelope = new Envelope
         {
             Data        = plaintext,
-            ContentType = hasInnerCt ? innerCt : _inner.ContentType,
+            ContentType = innerCt,
             MessageType = envelope.MessageType,
             Headers     = new Dictionary<string, string?>(envelope.Headers)
         };

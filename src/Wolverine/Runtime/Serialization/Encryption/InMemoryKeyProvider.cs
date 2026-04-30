@@ -38,7 +38,12 @@ public sealed class InMemoryKeyProvider : IKeyProvider
     {
         if (_keys.TryGetValue(keyId, out var key))
         {
-            return ValueTask.FromResult(key);
+            // The IKeyProvider contract documents the returned array as a borrowed
+            // reference that callers MUST NOT mutate. For the in-memory provider
+            // the marginal cost (32 bytes per call) is negligible and a defensive
+            // copy guarantees that a misbehaving consumer cannot corrupt all
+            // subsequent encryptions by writing to the cached key.
+            return ValueTask.FromResult(key.AsSpan().ToArray());
         }
 
         throw new KeyNotFoundException($"No key registered for key-id '{keyId}'.");

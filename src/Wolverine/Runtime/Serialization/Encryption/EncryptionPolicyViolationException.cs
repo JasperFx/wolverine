@@ -9,7 +9,7 @@ namespace Wolverine.Runtime.Serialization.Encryption;
 public sealed class EncryptionPolicyViolationException : MessageEncryptionException
 {
     public EncryptionPolicyViolationException(Envelope envelope)
-        : base(string.Empty, BuildMessage(envelope))
+        : base(BuildMessage(envelope))
     {
     }
 

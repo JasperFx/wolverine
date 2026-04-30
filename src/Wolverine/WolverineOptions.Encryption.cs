@@ -67,34 +67,26 @@ public sealed partial class WolverineOptions
 
     private readonly ConcurrentDictionary<Type, bool> _encryptionRequiredCache = new();
 
-    /// <summary>
-    /// Message types whose envelopes MUST arrive encrypted. Populated by
-    /// <see cref="MessageTypePolicies{T}.Encrypt"/>. Read by
-    /// <see cref="IsEncryptionRequired"/> on every inbound envelope; intended
-    /// to be populated at setup time only (before <c>host.StartAsync()</c>).
-    /// Mutations after startup will not be reflected for types whose answer
-    /// has already been cached.
-    /// </summary>
-    public HashSet<Type> RequiredEncryptedTypes { get; } = new();
+    // Message types whose envelopes MUST arrive encrypted. Populated by
+    // MessageTypePolicies<T>.Encrypt(). Read by IsEncryptionRequired on every
+    // inbound envelope. Internal so the receive-side guard cannot be silently
+    // disabled at runtime by host code mutating a public collection.
+    internal HashSet<Type> RequiredEncryptedTypes { get; } = new();
 
-    /// <summary>
-    /// Listener endpoint URIs that MUST receive only encrypted envelopes.
-    /// Populated by the <c>RequireEncryption()</c> method on listener configurations.
-    /// Inbound envelopes whose <see cref="Envelope.Destination"/> is in this set
-    /// and whose content-type is not the encrypted content-type are routed to the
-    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>.
-    /// </summary>
-    public HashSet<Uri> RequiredEncryptedListenerUris { get; } = new();
+    // Listener endpoint URIs that MUST receive only encrypted envelopes.
+    // Populated by ListenerConfiguration.RequireEncryption(). Internal for the
+    // same reason as RequiredEncryptedTypes.
+    internal HashSet<Uri> RequiredEncryptedListenerUris { get; } = new();
 
     /// <summary>
     /// Returns true if envelopes carrying a message of <paramref name="messageType"/>
     /// must arrive encrypted. Performs an exact match against
-    /// <see cref="RequiredEncryptedTypes"/> first; on miss, scans for any registered
+    /// <c>RequiredEncryptedTypes</c> first; on miss, scans for any registered
     /// required type that is assignable from <paramref name="messageType"/>
     /// (mirrors the polymorphic send-side rule in EncryptMessageTypeRule&lt;T&gt;).
     /// Per-type result is cached for O(1) lookup on subsequent envelopes.
     /// </summary>
-    public bool IsEncryptionRequired(Type messageType)
+    internal bool IsEncryptionRequired(Type messageType)
     {
         if (messageType is null) return false;
 

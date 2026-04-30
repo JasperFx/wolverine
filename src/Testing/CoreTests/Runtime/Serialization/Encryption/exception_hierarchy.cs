@@ -30,11 +30,13 @@ public class exception_hierarchy
     }
 
     [Fact]
-    public void EncryptionPolicyViolationException_inherits_MessageEncryptionException_with_empty_KeyId()
+    public void EncryptionPolicyViolationException_inherits_MessageEncryptionException()
     {
+        // Policy violations are not key-related (no key is involved when an
+        // envelope is rejected for missing encryption), so KeyId is not on the
+        // base class and not on this subclass.
         var ex = new EncryptionPolicyViolationException(new Envelope { MessageType = "X", ContentType = "Y" });
         ex.ShouldBeAssignableTo<MessageEncryptionException>();
-        ex.KeyId.ShouldBe(string.Empty);
     }
 
     [Fact]
