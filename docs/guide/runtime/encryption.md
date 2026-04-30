@@ -22,6 +22,12 @@ This encrypts every outgoing message body with AES-256-GCM under the key
 registered as `k1`. Inbound messages with the encrypted content-type
 (`application/wolverine-encrypted+json`) are decrypted automatically.
 
+> **Configuration order matters.** Call `UseEncryption` (or
+> `RegisterEncryptionSerializer`) **after** any
+> `UseSystemTextJsonForSerialization` or `UseNewtonsoftForSerialization` call —
+> those calls reset the default serializer and would silently un-install the
+> encrypting one.
+
 ## The `IKeyProvider` interface
 
 ```csharp
@@ -60,8 +66,13 @@ opts.Policies.ForMessagesOfType<PaymentDetails>().Encrypt();
 Per-endpoint:
 
 ```csharp
+opts.RegisterEncryptionSerializer(provider);
 opts.PublishAllMessages().ToRabbitExchange("sensitive").Encrypted();
 ```
+
+Both per-type and per-endpoint require `RegisterEncryptionSerializer(provider)`
+(or `UseEncryption(provider)`) earlier in the same configuration so the
+encrypting serializer is registered with the runtime.
 
 Selection precedence on send: endpoint > per-type > global default. Receive
 side is fully content-type-driven: any envelope arriving with
