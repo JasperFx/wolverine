@@ -179,8 +179,10 @@ public class HandlerPipeline : IHandlerPipeline
     {
         var options = _runtime.Options;
 
-        return (envelope.Destination is not null
-                    && options.RequiredEncryptedListenerUris.Contains(envelope.Destination))
+        // Use the listener's own URI, not envelope.Destination: the latter is sender-
+        // controlled and not populated on broker transports (Rabbit/Kafka/SB).
+        return (_endpoint?.Uri is not null
+                    && options.RequiredEncryptedListenerUris.Contains(_endpoint.Uri))
                || (!string.IsNullOrEmpty(envelope.MessageType)
                     && _graph.TryFindMessageType(envelope.MessageType, out var type)
                     && options.RequiredEncryptedTypes.Contains(type));

@@ -2,10 +2,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
+using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
+using Wolverine.Transports.Local;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.Runtime.Serialization.Encryption;
@@ -173,6 +177,56 @@ public class WolverineOptionsEncryptionTests
     }
 
     [Fact]
+    public async Task RequiresEncryption_uses_listener_endpoint_uri_not_envelope_destination()
+    {
+        // Regression test: the listener-side guard must work even when the
+        // inbound envelope has no Destination header (most broker transports
+        // do not populate envelope.Destination on receive). The guard reads
+        // the listener's own _endpoint.Uri, so this still fires.
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1", new Dictionary<string, byte[]>
+                    {
+                        ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray()
+                    }));
+
+                opts.LocalQueue("encryption-required-queue").RequireEncryption();
+            })
+            .StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var endpoint = (LocalQueue?)runtime.Endpoints.EndpointByName("encryption-required-queue")
+            ?? throw new InvalidOperationException("encryption-required-queue not found");
+
+        // Sanity: the listener URI is in the required set after RequireEncryption().
+        runtime.Options.RequiredEncryptedListenerUris.ShouldContain(endpoint.Uri);
+
+        // Build an envelope as if it had arrived from a transport that does NOT
+        // populate envelope.Destination on receive. Plain JSON content-type means
+        // it has not been encrypted.
+        var envelope = new Envelope
+        {
+            Destination = null,                                   // simulate broker transport
+            ContentType = "application/json",                     // plain, not encrypted
+            MessageType = typeof(EncryptionRequiredMsg).ToMessageTypeName(),
+            Data        = System.Text.Encoding.UTF8.GetBytes("""{"Value":"forged"}""")
+        };
+
+        var receiver = (BufferedReceiver)endpoint.Agent!;
+        var continuation = await receiver.Pipeline.TryDeserializeEnvelope(envelope);
+
+        // The guard must fire via the listener's own endpoint URI. If it instead
+        // keyed off envelope.Destination (which broker transports do not populate
+        // on receive), the listener marker would be missed and the envelope would
+        // fall through to deserialization rather than going to the dead-letter queue.
+        var moveToErrorQueue = continuation.ShouldBeOfType<MoveToErrorQueue>();
+        moveToErrorQueue.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+    }
+
+    [Fact]
     public async Task RequireEncryption_on_listener_registers_listener_uri()
     {
         using var host = await Host.CreateDefaultBuilder()
@@ -198,3 +252,9 @@ public class WolverineOptionsEncryptionTests
 public sealed record EncryptedTypeA(string Value);
 public sealed record PlainTypeB(string Value);
 public sealed record SecretMessage(string S);
+public sealed record EncryptionRequiredMsg(string Value);
+
+public static class EncryptionRequiredMsgHandler
+{
+    public static void Handle(EncryptionRequiredMsg _) { }
+}
