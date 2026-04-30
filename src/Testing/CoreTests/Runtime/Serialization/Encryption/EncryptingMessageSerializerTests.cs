@@ -1,0 +1,299 @@
+using Shouldly;
+using Wolverine;
+using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Serialization.Encryption;
+using Wolverine.Util;
+using Xunit;
+
+namespace CoreTests.Runtime.Serialization.Encryption;
+
+public class EncryptingMessageSerializerTests
+{
+    private static byte[] Key32(byte fill) => Enumerable.Repeat(fill, 32).ToArray();
+
+    private static EncryptingMessageSerializer NewSut(IMessageSerializer? inner = null, IKeyProvider? provider = null)
+    {
+        inner ??= new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+        provider ??= new InMemoryKeyProvider("k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x01) });
+        return new EncryptingMessageSerializer(inner, provider);
+    }
+
+    [Fact]
+    public void content_type_is_dedicated_encrypted_value()
+    {
+        NewSut().ContentType.ShouldBe(EncryptionHeaders.EncryptedContentType);
+    }
+
+    [Fact]
+    public void implements_async_serializer()
+    {
+        NewSut().ShouldBeAssignableTo<IAsyncMessageSerializer>();
+    }
+
+    [Fact]
+    public void sync_write_bridges_to_async_and_round_trips()
+    {
+        var sut = NewSut();
+        var envelope = new Envelope { Message = new HelloMessage("sync-write") };
+
+        // Sync surface should produce the same on-the-wire envelope shape as async.
+        var bytes = sut.Write(envelope);
+
+        bytes.Length.ShouldBeGreaterThan(12 + 16);
+        envelope.Headers.ContainsKey(EncryptionHeaders.KeyIdHeader).ShouldBeTrue();
+        envelope.Headers[EncryptionHeaders.KeyIdHeader].ShouldBe("k1");
+    }
+
+    [Fact]
+    public void sync_read_from_data_envelope_bridges_to_async_and_decrypts()
+    {
+        var sut = NewSut();
+        var sendEnvelope = new Envelope { Message = new HelloMessage("sync-read") };
+        var bytes = sut.Write(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var msg = sut.ReadFromData(typeof(HelloMessage), recvEnvelope);
+
+        msg.ShouldBeOfType<HelloMessage>().Greeting.ShouldBe("sync-read");
+    }
+
+    [Fact]
+    public void write_message_delegates_to_inner_unencrypted()
+    {
+        var sut = NewSut();
+
+        // No envelope, so encryption cannot record key-id headers; we delegate to inner.
+        var bytes = sut.WriteMessage(new HelloMessage("plain"));
+
+        // Output should be the inner serializer's plain JSON, not encrypted bytes.
+        System.Text.Encoding.UTF8.GetString(bytes).ShouldContain("plain");
+    }
+
+    [Fact]
+    public void read_from_data_bytes_delegates_to_inner_unencrypted()
+    {
+        var sut = NewSut();
+        var json = sut.WriteMessage(new HelloMessage("plain-bytes"));
+
+        // The encrypting serializer's ReadFromData(byte[]) delegates raw to the
+        // inner. System.Text.Json's overload throws NotSupportedException because
+        // there is no Type to deserialize into; verify that the encrypting
+        // serializer does NOT wrap that as an encryption-specific exception.
+        var ex = Should.Throw<NotSupportedException>(() => sut.ReadFromData(json));
+        ex.ShouldNotBeAssignableTo<MessageEncryptionException>();
+    }
+
+    [Fact]
+    public async Task write_async_sets_content_type_and_key_id_headers()
+    {
+        var sut = NewSut();
+        var envelope = new Envelope { Message = new HelloMessage("world") };
+
+        var bytes = await sut.WriteAsync(envelope);
+
+        envelope.Headers.ContainsKey(EncryptionHeaders.KeyIdHeader).ShouldBeTrue();
+        envelope.Headers[EncryptionHeaders.KeyIdHeader].ShouldBe("k1");
+
+        envelope.Headers.ContainsKey(EncryptionHeaders.InnerContentTypeHeader).ShouldBeTrue();
+        envelope.Headers[EncryptionHeaders.InnerContentTypeHeader].ShouldBe(EnvelopeConstants.JsonContentType);
+
+        bytes.Length.ShouldBeGreaterThan(12 + 16); // at least nonce + tag
+    }
+
+    [Fact]
+    public async Task write_async_produces_unique_nonces_across_messages()
+    {
+        var sut = NewSut();
+        var nonces = new HashSet<string>();
+
+        for (var i = 0; i < 1000; i++)
+        {
+            var envelope = new Envelope { Message = new HelloMessage("x") };
+            var bytes = await sut.WriteAsync(envelope);
+            nonces.Add(Convert.ToHexString(bytes.AsSpan(0, 12)));
+        }
+
+        nonces.Count.ShouldBe(1000);
+    }
+
+    [Fact]
+    public async Task write_async_ciphertext_is_not_plaintext_json()
+    {
+        var sut = NewSut();
+        var envelope = new Envelope { Message = new HelloMessage("super-secret-string") };
+
+        var bytes = await sut.WriteAsync(envelope);
+        var dump = System.Text.Encoding.UTF8.GetString(bytes);
+
+        dump.ShouldNotContain("super-secret-string");
+    }
+
+    [Fact]
+    public async Task round_trip_through_system_text_json()
+    {
+        var sut = NewSut();
+
+        var sendEnvelope = new Envelope { Message = new HelloMessage("hello") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var msg = await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope);
+
+        msg.ShouldBeOfType<HelloMessage>().Greeting.ShouldBe("hello");
+    }
+
+    [Fact]
+    public async Task round_trip_through_newtonsoft()
+    {
+        var newtonsoft = new NewtonsoftSerializer(NewtonsoftSerializer.DefaultSettings());
+        var sut = NewSut(inner: newtonsoft);
+
+        var sendEnvelope = new Envelope { Message = new HelloMessage("hi") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var msg = await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope);
+        msg.ShouldBeOfType<HelloMessage>().Greeting.ShouldBe("hi");
+    }
+
+    [Fact]
+    public async Task missing_key_id_header_throws_key_not_found()
+    {
+        var sut = NewSut();
+        var sendEnvelope = new Envelope { Message = new HelloMessage("x") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope { Data = bytes, ContentType = EncryptionHeaders.EncryptedContentType };
+
+        var ex = await Should.ThrowAsync<EncryptionKeyNotFoundException>(async () =>
+            await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+
+        ex.KeyId.ShouldBe("<missing>");
+    }
+
+    [Fact]
+    public async Task unknown_key_id_throws_key_not_found_with_inner()
+    {
+        var sut = NewSut();
+        var sendEnvelope = new Envelope { Message = new HelloMessage("x") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = "ghost-key",
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var ex = await Should.ThrowAsync<EncryptionKeyNotFoundException>(async () =>
+            await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+
+        ex.KeyId.ShouldBe("ghost-key");
+        ex.InnerException.ShouldBeOfType<KeyNotFoundException>();
+    }
+
+    [Fact]
+    public async Task tampered_ciphertext_byte_throws_decryption_exception()
+    {
+        var sut = NewSut();
+        var sendEnvelope = new Envelope { Message = new HelloMessage("x") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        bytes[bytes.Length / 2] ^= 0xFF;
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(async () =>
+            await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
+    [Fact]
+    public async Task tampered_tag_byte_throws_decryption_exception()
+    {
+        var sut = NewSut();
+        var sendEnvelope = new Envelope { Message = new HelloMessage("x") };
+        var bytes = await sut.WriteAsync(sendEnvelope);
+
+        bytes[bytes.Length - 1] ^= 0xFF;
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(async () =>
+            await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
+    [Fact]
+    public async Task body_shorter_than_28_bytes_throws_decryption_exception()
+    {
+        var sut = NewSut();
+        var recvEnvelope = new Envelope
+        {
+            Data        = new byte[20],
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader] = "k1"
+            }
+        };
+
+        await Should.ThrowAsync<MessageDecryptionException>(async () =>
+            await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+    }
+
+    private sealed record HelloMessage(string Greeting);
+}

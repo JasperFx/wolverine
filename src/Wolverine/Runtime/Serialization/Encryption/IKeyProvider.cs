@@ -15,10 +15,19 @@ public interface IKeyProvider
     string DefaultKeyId { get; }
 
     /// <summary>
-    /// Resolve the 32-byte AES-256 key for the given key-id. Implementations
-    /// SHOULD throw (e.g. <see cref="KeyNotFoundException"/>) when the key is
-    /// not available; the encrypting serializer wraps any thrown exception
-    /// into <see cref="EncryptionKeyNotFoundException"/>.
+    /// Resolve the 32-byte AES-256 key for the given key-id.
     /// </summary>
+    /// <remarks>
+    /// <para>The returned array is treated as a <b>borrowed reference</b> owned by the
+    /// provider. Callers MUST NOT mutate the returned bytes or call
+    /// <c>CryptographicOperations.ZeroMemory</c> on them — doing so will corrupt
+    /// providers that cache key material (such as <see cref="InMemoryKeyProvider"/>).
+    /// Providers that intend to support caller-side zeroization must return a fresh
+    /// copy on every call and document that contract explicitly.</para>
+    ///
+    /// <para>Implementations SHOULD throw (e.g. <see cref="KeyNotFoundException"/>) when
+    /// the key is not available; the encrypting serializer wraps any thrown exception
+    /// into <see cref="EncryptionKeyNotFoundException"/>.</para>
+    /// </remarks>
     ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken);
 }
