@@ -60,8 +60,15 @@ public class encryption_acceptance : IDisposable
     }
 
     [Fact]
-    public async Task envelope_on_the_wire_uses_encrypted_content_type()
+    public async Task routing_assigns_encrypting_serializer_for_published_message()
     {
+        // Local queues do not serialize on send (in-memory pass-through), so
+        // EncryptingMessageSerializer.WriteAsync is NOT invoked here and no
+        // per-envelope KeyIdHeader is stamped. This is a routing-decision test:
+        // it verifies the published envelope is tagged with the encrypted
+        // content-type and the encrypting serializer is selected. Byte-level
+        // encryption (and the on-the-wire shape) is covered by
+        // EncryptingMessageSerializerTests.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -78,11 +85,6 @@ public class encryption_acceptance : IDisposable
         var session = await host.TrackActivity().ExecuteAndWaitAsync(_ =>
             bus.PublishAsync(new EncryptedPayload("x")));
 
-        // Local queues do not serialize on send (in-memory pass-through), so
-        // EncryptingMessageSerializer.WriteAsync is not invoked and the per-envelope
-        // KeyIdHeader is not stamped here. We assert the routing-time content-type and
-        // serializer selection — the actual byte-level encryption is covered by
-        // EncryptingMessageSerializerTests in Commit Group C2.
         var sentEnvelope = session.Sent.SingleEnvelope<EncryptedPayload>();
         sentEnvelope.ContentType.ShouldBe(EncryptionHeaders.EncryptedContentType);
         sentEnvelope.Serializer.ShouldBeOfType<EncryptingMessageSerializer>();
@@ -125,16 +127,7 @@ public class encryption_acceptance : IDisposable
             .ExecuteAndWaitAsync(_ =>
                 sender.Services.GetRequiredService<IMessageBus>().PublishAsync(new EncryptedNoOp("x")));
 
-        // Receive-side deserialization fails before the message body is materialized,
-        // so envelope.Message is null. Wolverine's tracking pipeline does NOT propagate
-        // the exception into the MovedToErrorQueue record's Exception slot, but it
-        // does record a sibling "MessageFailed" event (stored under MessageEventType.Sent
-        // in the session's record stream). Locate the failure record by its non-null
-        // Exception and assert the captured exception type.
-        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
-        var failureRecord = session.AllRecordsInOrder()
-            .Single(r => r.Exception is EncryptionKeyNotFoundException);
-        failureRecord.Exception.ShouldBeOfType<EncryptionKeyNotFoundException>();
+        session.ShouldHaveDeadLetteredWith<EncryptionKeyNotFoundException>();
     }
 
     [Fact]
@@ -174,11 +167,7 @@ public class encryption_acceptance : IDisposable
             .ExecuteAndWaitAsync(_ =>
                 sender.Services.GetRequiredService<IMessageBus>().PublishAsync(new EncryptedNoOp("x")));
 
-        // Same approach as the unknown-key test above.
-        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
-        var failureRecord = session.AllRecordsInOrder()
-            .Single(r => r.Exception is MessageDecryptionException);
-        failureRecord.Exception.ShouldBeOfType<MessageDecryptionException>();
+        session.ShouldHaveDeadLetteredWith<MessageDecryptionException>();
     }
 
     [Fact]
@@ -218,10 +207,7 @@ public class encryption_acceptance : IDisposable
                 sender.Services.GetRequiredService<IMessageBus>()
                     .PublishAsync(new EncryptedPayload("forged-plaintext")));
 
-        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
-        var failureRecord = session.AllRecordsInOrder()
-            .Single(r => r.Exception is EncryptionPolicyViolationException);
-        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();
         EncryptedPayloadHandler.Received.ShouldNotContain(p => p.Secret == "forged-plaintext");
     }
 
@@ -262,10 +248,7 @@ public class encryption_acceptance : IDisposable
                 sender.Services.GetRequiredService<IMessageBus>()
                     .PublishAsync(new EncryptedPayload("forged-plaintext-listener")));
 
-        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
-        var failureRecord = session.AllRecordsInOrder()
-            .Single(r => r.Exception is EncryptionPolicyViolationException);
-        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();
         EncryptedPayloadHandler.Received.ShouldNotContain(p => p.Secret == "forged-plaintext-listener");
     }
 
@@ -393,10 +376,7 @@ public class encryption_acceptance : IDisposable
                 sender.Services.GetRequiredService<IMessageBus>()
                     .PublishAsync(new SensitiveSubtype("forged-plaintext-subtype")));
 
-        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
-        var failureRecord = session.AllRecordsInOrder()
-            .Single(r => r.Exception is EncryptionPolicyViolationException);
-        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        session.ShouldHaveDeadLetteredWith<EncryptionPolicyViolationException>();
         SensitiveSubtypeHandler.Received
             .ShouldNotContain(p => p.Secret == "forged-plaintext-subtype");
     }
@@ -420,4 +400,31 @@ internal sealed class WaitForAnyDeadLetteredEnvelope : ITrackedCondition
     }
 
     public bool IsCompleted() => _found;
+}
+
+internal static class TrackedSessionEncryptionAssertions
+{
+    /// <summary>
+    /// Asserts that an envelope was dead-lettered AND that some tracking record
+    /// in the session carries an exception of <typeparamref name="TException"/>.
+    /// Tolerates whichever record slot the tracking pipeline writes the exception
+    /// into — currently a sibling MessageFailed record, but historically and
+    /// potentially again the MovedToErrorQueue record itself. Without this
+    /// helper, a future change to where the exception is recorded would silently
+    /// invalidate every receive-side test even though the production behavior
+    /// (DLQ + correct exception) is unchanged.
+    /// </summary>
+    public static void ShouldHaveDeadLetteredWith<TException>(this Wolverine.Tracking.ITrackedSession session)
+        where TException : Exception
+    {
+        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
+
+        var allRecords = session.AllRecordsInOrder().ToList();
+        var matched = allRecords.FirstOrDefault(r => r.Exception is TException);
+
+        matched.ShouldNotBeNull(
+            customMessage: $"Expected a tracking record carrying {typeof(TException).Name}. " +
+                           $"Got record exceptions: " +
+                           $"[{string.Join(", ", allRecords.Select(r => r.Exception?.GetType().Name ?? "<no-exception>"))}].");
+    }
 }

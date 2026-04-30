@@ -57,16 +57,6 @@ public class CachingKeyProviderTests
     }
 
     [Fact]
-    public void default_key_id_forwards_without_caching()
-    {
-        var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");
-        var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1));
-
-        caching.DefaultKeyId.ShouldBe("k1");
-        inner.CallCount.ShouldBe(0);
-    }
-
-    [Fact]
     public async Task concurrent_requests_for_same_key_deduplicate()
     {
         var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");

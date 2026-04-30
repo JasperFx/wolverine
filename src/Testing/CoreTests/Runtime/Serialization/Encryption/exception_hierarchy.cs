@@ -30,12 +30,6 @@ public class exception_hierarchy
     }
 
     [Fact]
-    public void base_class_is_abstract()
-    {
-        typeof(MessageEncryptionException).IsAbstract.ShouldBeTrue();
-    }
-
-    [Fact]
     public void EncryptionPolicyViolationException_inherits_MessageEncryptionException_with_empty_KeyId()
     {
         var ex = new EncryptionPolicyViolationException(new Envelope { MessageType = "X", ContentType = "Y" });

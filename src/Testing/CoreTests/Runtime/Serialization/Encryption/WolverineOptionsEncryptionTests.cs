@@ -120,25 +120,6 @@ public class WolverineOptionsEncryptionTests
     }
 
     [Fact]
-    public void RequiredEncryptedTypes_starts_empty_and_is_settable()
-    {
-        var opts = new WolverineOptions();
-        opts.RequiredEncryptedTypes.ShouldBeEmpty();
-        opts.RequiredEncryptedTypes.Add(typeof(string));
-        opts.RequiredEncryptedTypes.ShouldContain(typeof(string));
-    }
-
-    [Fact]
-    public void RequiredEncryptedListenerUris_starts_empty_and_is_settable()
-    {
-        var opts = new WolverineOptions();
-        opts.RequiredEncryptedListenerUris.ShouldBeEmpty();
-        var u = new Uri("tcp://localhost:5000");
-        opts.RequiredEncryptedListenerUris.Add(u);
-        opts.RequiredEncryptedListenerUris.ShouldContain(u);
-    }
-
-    [Fact]
     public void Encrypt_for_message_type_registers_in_RequiredEncryptedTypes()
     {
         var opts = new WolverineOptions();

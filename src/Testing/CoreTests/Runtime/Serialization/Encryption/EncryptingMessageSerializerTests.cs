@@ -69,29 +69,73 @@ public class EncryptingMessageSerializerTests
     }
 
     [Fact]
-    public void write_message_delegates_to_inner_unencrypted()
+    public void WriteMessage_no_envelope_path_delegates_to_inner()
     {
-        var sut = NewSut();
+        // No envelope is available on this overload, so encryption cannot record
+        // a key-id header. The encrypting serializer delegates straight to the
+        // inner — verify by using a tracking inner that records the call.
+        var inner = new TrackingInnerSerializer();
+        var sut = new EncryptingMessageSerializer(inner,
+            new InMemoryKeyProvider("k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x01) }));
 
-        // No envelope, so encryption cannot record key-id headers; we delegate to inner.
-        var bytes = sut.WriteMessage(new HelloMessage("plain"));
+        sut.WriteMessage(new HelloMessage("plain"));
 
-        // Output should be the inner serializer's plain JSON, not encrypted bytes.
-        System.Text.Encoding.UTF8.GetString(bytes).ShouldContain("plain");
+        inner.WriteMessageCallCount.ShouldBe(1);
+        inner.WriteAsyncCallCount.ShouldBe(0);
     }
 
     [Fact]
-    public void read_from_data_bytes_delegates_to_inner_unencrypted()
+    public void ReadFromData_byte_array_no_envelope_path_delegates_to_inner_and_does_not_wrap_exception()
     {
-        var sut = NewSut();
-        var json = sut.WriteMessage(new HelloMessage("plain-bytes"));
+        // The byte-array overload has no envelope, so the encrypting serializer
+        // cannot decrypt and instead delegates raw to the inner. This test
+        // proves two things: (1) the call reaches the inner (tracking counter),
+        // (2) any exception from the inner is NOT wrapped as a
+        // MessageEncryptionException — Wolverine's normal receive path uses the
+        // envelope overload, so wrapping here would mislead diagnostics.
+        var inner = new TrackingInnerSerializer
+        {
+            ReadFromDataBytesBehavior = _ => throw new NotSupportedException("inner refuses")
+        };
+        var sut = new EncryptingMessageSerializer(inner,
+            new InMemoryKeyProvider("k1", new Dictionary<string, byte[]> { ["k1"] = Key32(0x01) }));
 
-        // The encrypting serializer's ReadFromData(byte[]) delegates raw to the
-        // inner. System.Text.Json's overload throws NotSupportedException because
-        // there is no Type to deserialize into; verify that the encrypting
-        // serializer does NOT wrap that as an encryption-specific exception.
-        var ex = Should.Throw<NotSupportedException>(() => sut.ReadFromData(json));
+        var ex = Should.Throw<NotSupportedException>(() => sut.ReadFromData(new byte[] { 1, 2, 3 }));
+
+        inner.ReadFromDataBytesCallCount.ShouldBe(1);
         ex.ShouldNotBeAssignableTo<MessageEncryptionException>();
+        ex.Message.ShouldBe("inner refuses");
+    }
+
+    private sealed class TrackingInnerSerializer : IMessageSerializer
+    {
+        public int WriteMessageCallCount;
+        public int WriteAsyncCallCount;
+        public int ReadFromDataBytesCallCount;
+        public Func<byte[], object>? ReadFromDataBytesBehavior;
+
+        public string ContentType => EnvelopeConstants.JsonContentType;
+
+        public byte[] Write(Envelope model)
+        {
+            return new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()).Write(model);
+        }
+
+        public byte[] WriteMessage(object message)
+        {
+            WriteMessageCallCount++;
+            return new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()).WriteMessage(message);
+        }
+
+        public object ReadFromData(Type messageType, Envelope envelope)
+            => new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()).ReadFromData(messageType, envelope);
+
+        public object ReadFromData(byte[] data)
+        {
+            ReadFromDataBytesCallCount++;
+            if (ReadFromDataBytesBehavior is not null) return ReadFromDataBytesBehavior(data);
+            return new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()).ReadFromData(data);
+        }
     }
 
     [Fact]
