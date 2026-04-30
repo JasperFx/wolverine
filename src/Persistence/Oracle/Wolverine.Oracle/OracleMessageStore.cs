@@ -232,9 +232,9 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             nodeTable.AddColumn("description", "VARCHAR2(4000)").NotNull();
             nodeTable.AddColumn("uri", "VARCHAR2(500)").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("started")
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
             nodeTable.AddColumn<DateTimeOffset>("health_check").NotNull()
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
             nodeTable.AddColumn("version", "VARCHAR2(4000)");
             nodeTable.AddColumn("capabilities", "VARCHAR2(4000)").AllowNulls();
 
@@ -245,7 +245,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             assignmentTable.AddColumn<Guid>("node_id")
                 .ForeignKeyTo(nodeTable.Identifier, "id", onDelete: CascadeAction.Cascade);
             assignmentTable.AddColumn<DateTimeOffset>("started")
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
 
             yield return assignmentTable;
 
@@ -257,7 +257,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
                 queueTable.AddColumn<Guid>("node_id").NotNull();
                 queueTable.AddColumn(DatabaseConstants.Body, "BLOB").NotNull();
                 queueTable.AddColumn<DateTimeOffset>("posted").NotNull()
-                    .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                    .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
                 queueTable.AddColumn<DateTimeOffset>("expires");
 
                 yield return queueTable;
@@ -277,7 +277,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn("event_name", "VARCHAR2(500)").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp")
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)").NotNull();
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
             eventTable.AddColumn("description", "VARCHAR2(500)").AllowNulls();
             yield return eventTable;
 
@@ -407,7 +407,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         if (definition.TimestampColumnName.IsNotEmpty())
         {
             table.AddColumn<DateTimeOffset>(definition.TimestampColumnName)
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
         }
 
         if (definition.MessageTypeColumnName.IsNotEmpty())

@@ -103,7 +103,7 @@ public class OracleTransport : BrokerTransport<OracleQueue>
         await using var conn = await dataSource!.OpenConnectionAsync();
         try
         {
-            var cmd = conn.CreateCommand("SELECT SYS_EXTRACT_UTC(SYSTIMESTAMP) FROM DUAL");
+            var cmd = conn.CreateCommand("SELECT SYSTIMESTAMP AT TIME ZONE 'UTC' FROM DUAL");
             var raw = await cmd.ExecuteScalarAsync();
             return (DateTimeOffset)raw!;
         }

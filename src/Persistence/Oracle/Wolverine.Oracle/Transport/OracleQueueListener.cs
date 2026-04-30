@@ -147,7 +147,7 @@ internal class OracleQueueListener : IListener
             // Select scheduled messages that are ready and lock them
             var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_scheduledTableName} " +
-                $"WHERE {DatabaseConstants.ExecutionTime} <= SYS_EXTRACT_UTC(SYSTIMESTAMP) " +
+                $"WHERE {DatabaseConstants.ExecutionTime} <= SYSTIMESTAMP AT TIME ZONE 'UTC' " +
                 "FOR UPDATE SKIP LOCKED");
 
             var idsToMove = new List<Guid>();
@@ -415,11 +415,11 @@ internal class OracleQueueListener : IListener
         try
         {
             var cmd1 = conn.CreateCommand(
-                $"DELETE FROM {_queueTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                $"DELETE FROM {_queueTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYSTIMESTAMP AT TIME ZONE 'UTC'");
             await cmd1.ExecuteNonQueryAsync(cancellationToken);
 
             var cmd2 = conn.CreateCommand(
-                $"DELETE FROM {_scheduledTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                $"DELETE FROM {_scheduledTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYSTIMESTAMP AT TIME ZONE 'UTC'");
             await cmd2.ExecuteNonQueryAsync(cancellationToken);
         }
         finally

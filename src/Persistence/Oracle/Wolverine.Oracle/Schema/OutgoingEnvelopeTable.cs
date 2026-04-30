@@ -21,7 +21,7 @@ internal class OutgoingEnvelopeTable : Table
         if (durability.OutboxStaleTime.HasValue)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
         }
     }
 }
