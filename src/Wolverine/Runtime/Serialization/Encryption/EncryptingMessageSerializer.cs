@@ -41,6 +41,23 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
 
     private const string AadMagic = "wlv-enc-v1";
 
+    private static void EnsureKeyMatchesAes256(string keyId, byte[]? key)
+    {
+        // The AesGcm constructor would throw CryptographicException for any other length,
+        // but at a code site that sits outside the WriteAsync/ReadFromDataAsync try-catch,
+        // so it would surface as a raw CryptographicException to user code. Wrap here
+        // with the key-id surfaced so misconfigured custom IKeyProvider implementations
+        // produce a diagnosable error instead of an opaque crypto exception.
+        if (key is null || key.Length != 32)
+        {
+            throw new EncryptionKeyNotFoundException(
+                keyId,
+                new InvalidOperationException(
+                    $"Key provider returned a key of {key?.Length ?? 0} bytes for key-id '{keyId}'; " +
+                    "AES-256-GCM requires exactly 32 bytes."));
+        }
+    }
+
     internal static byte[] BuildAad(string? messageType, string keyId, string innerContentType)
     {
         var mtSrc = messageType ?? string.Empty;
@@ -123,6 +140,8 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
             throw new EncryptionKeyNotFoundException(keyId, ex);
         }
 
+        EnsureKeyMatchesAes256(keyId, key);
+
         var plaintext = _innerAsync is not null
             ? await _innerAsync.WriteAsync(envelope).ConfigureAwait(false)
             : _inner.Write(envelope);
@@ -167,6 +186,8 @@ public sealed class EncryptingMessageSerializer : IAsyncMessageSerializer
         {
             throw new EncryptionKeyNotFoundException(keyId, ex);
         }
+
+        EnsureKeyMatchesAes256(keyId, key);
 
         var body = envelope.Data ?? Array.Empty<byte>();
         if (body.Length < 12 + 16)

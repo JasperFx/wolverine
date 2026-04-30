@@ -10,15 +10,35 @@ using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class encryption_acceptance
+public class encryption_acceptance : IDisposable
 {
     private static byte[] Key32(byte fill) => Enumerable.Repeat(fill, 32).ToArray();
+
+    public encryption_acceptance()
+    {
+        // The handler-receive lists are static (Wolverine handlers are static
+        // methods discovered by convention), so per-test isolation has to be
+        // enforced explicitly. xUnit constructs a new test class instance per
+        // [Fact], so clearing here gives every test a clean slate without
+        // relying on each test to remember to .Clear() up front.
+        EncryptedPayloadHandler.Received.Clear();
+        SensitiveSubtypeHandler.Received.Clear();
+    }
+
+    public void Dispose()
+    {
+        EncryptedPayloadHandler.Received.Clear();
+        SensitiveSubtypeHandler.Received.Clear();
+    }
 
     public sealed record EncryptedPayload(string Secret);
 
     public static class EncryptedPayloadHandler
     {
-        public static List<EncryptedPayload> Received = new();
+        // ConcurrentBag protects against handler invocations from different
+        // listener threads racing on List<T>.Add — a real hazard once xUnit
+        // class-parallel runs ever shares a process with these tests.
+        public static readonly System.Collections.Concurrent.ConcurrentBag<EncryptedPayload> Received = new();
         public static void Handle(EncryptedPayload payload) => Received.Add(payload);
     }
 
@@ -35,7 +55,7 @@ public class encryption_acceptance
 
     public static class SensitiveSubtypeHandler
     {
-        public static List<SensitiveSubtype> Received = new();
+        public static readonly System.Collections.Concurrent.ConcurrentBag<SensitiveSubtype> Received = new();
         public static void Handle(SensitiveSubtype payload) => Received.Add(payload);
     }
 
@@ -164,7 +184,6 @@ public class encryption_acceptance
     [Fact]
     public async Task receive_unencrypted_message_for_required_type_routes_to_error_queue()
     {
-        EncryptedPayloadHandler.Received.Clear();
         var receiverPort = PortFinder.GetAvailablePort();
 
         // Sender does NOT call UseEncryption — emits plain JSON for EncryptedPayload.
@@ -209,7 +228,6 @@ public class encryption_acceptance
     [Fact]
     public async Task receive_unencrypted_message_on_required_listener_routes_to_error_queue()
     {
-        EncryptedPayloadHandler.Received.Clear();
         var receiverPort = PortFinder.GetAvailablePort();
 
         // Sender does NOT call UseEncryption — emits plain JSON.
@@ -254,7 +272,6 @@ public class encryption_acceptance
     [Fact]
     public async Task encrypted_message_for_required_type_round_trips_two_host()
     {
-        EncryptedPayloadHandler.Received.Clear();
         var receiverPort = PortFinder.GetAvailablePort();
 
         // Negative control: both sides configured with UseEncryption + per-type marker.
@@ -340,7 +357,6 @@ public class encryption_acceptance
     [Fact]
     public async Task receive_unencrypted_message_for_required_supertype_routes_to_error_queue()
     {
-        SensitiveSubtypeHandler.Received.Clear();
         var receiverPort = PortFinder.GetAvailablePort();
 
         // Sender does NOT call UseEncryption — emits plain JSON for SensitiveSubtype.

@@ -445,6 +445,141 @@ public class EncryptingMessageSerializerTests
         return (sut, envelopeOnWire);
     }
 
+    [Fact]
+    public async Task round_trip_with_newtonsoft_sender_and_system_text_json_receiver()
+    {
+        // Cross-inner-serializer compatibility: AAD binds the SENDER's _inner.ContentType
+        // ("application/json") into the auth tag. As long as the receiver's encrypting
+        // serializer is also wrapping a JSON inner (whichever flavor), the AAD inputs
+        // match (InnerContentTypeHeader is sent over the wire) and decryption succeeds.
+        // The plaintext bytes happen to be valid JSON for both libraries, so the inner
+        // dispatch on the receive side parses the same wire payload regardless of
+        // sender/receiver inner choice.
+        var key = Key32(0x42);
+        var senderProvider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = key });
+        var receiverProvider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = key });
+
+        var senderInner = new NewtonsoftSerializer(NewtonsoftSerializer.DefaultSettings());
+        var receiverInner = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+
+        var sender = new EncryptingMessageSerializer(senderInner, senderProvider);
+        var receiver = new EncryptingMessageSerializer(receiverInner, receiverProvider);
+
+        var sendEnvelope = new Envelope { Message = new HelloMessage("cross-flavor") };
+        var bytes = await sender.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var msg = await receiver.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope);
+        msg.ShouldBeOfType<HelloMessage>().Greeting.ShouldBe("cross-flavor");
+    }
+
+    [Fact]
+    public async Task round_trip_with_system_text_json_sender_and_newtonsoft_receiver()
+    {
+        var key = Key32(0x42);
+        var senderProvider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = key });
+        var receiverProvider = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = key });
+
+        var senderInner = new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions());
+        var receiverInner = new NewtonsoftSerializer(NewtonsoftSerializer.DefaultSettings());
+
+        var sender = new EncryptingMessageSerializer(senderInner, senderProvider);
+        var receiver = new EncryptingMessageSerializer(receiverInner, receiverProvider);
+
+        var sendEnvelope = new Envelope { Message = new HelloMessage("cross-flavor-reverse") };
+        var bytes = await sender.WriteAsync(sendEnvelope);
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = bytes,
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            MessageType = typeof(HelloMessage).ToMessageTypeName(),
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader]            = sendEnvelope.Headers[EncryptionHeaders.KeyIdHeader],
+                [EncryptionHeaders.InnerContentTypeHeader] = sendEnvelope.Headers[EncryptionHeaders.InnerContentTypeHeader]
+            }
+        };
+
+        var msg = await receiver.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope);
+        msg.ShouldBeOfType<HelloMessage>().Greeting.ShouldBe("cross-flavor-reverse");
+    }
+
+    [Fact]
+    public async Task WriteAsync_wraps_wrong_key_length_from_custom_provider_in_EncryptionKeyNotFoundException()
+    {
+        // Custom IKeyProvider implementations that return a key that is not
+        // exactly 32 bytes would otherwise surface as a raw CryptographicException
+        // from the AesGcm constructor — at a call site outside the WriteAsync
+        // try-catch, with no key-id information attached. The serializer must
+        // wrap this into the same diagnostic shape as a missing/unknown key.
+        var sut = new EncryptingMessageSerializer(
+            new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()),
+            new ShortKeyProvider("k1"));
+
+        var envelope = new Envelope { Message = new HelloMessage("x") };
+
+        var ex = await Should.ThrowAsync<EncryptionKeyNotFoundException>(
+            async () => await sut.WriteAsync(envelope));
+
+        ex.KeyId.ShouldBe("k1");
+        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.Message.ShouldContain("32 bytes");
+        ex.InnerException!.Message.ShouldContain("16 bytes");
+    }
+
+    [Fact]
+    public async Task ReadFromDataAsync_wraps_wrong_key_length_from_custom_provider_in_EncryptionKeyNotFoundException()
+    {
+        // Same hazard on the receive path: a provider that returns a wrong-sized
+        // key for a key-id that resolved successfully must produce an
+        // EncryptionKeyNotFoundException, not a raw CryptographicException
+        // bubbling out of AesGcm's constructor.
+        var sut = new EncryptingMessageSerializer(
+            new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()),
+            new ShortKeyProvider("k1"));
+
+        var recvEnvelope = new Envelope
+        {
+            Data        = new byte[40],
+            ContentType = EncryptionHeaders.EncryptedContentType,
+            Headers     =
+            {
+                [EncryptionHeaders.KeyIdHeader] = "k1"
+            }
+        };
+
+        var ex = await Should.ThrowAsync<EncryptionKeyNotFoundException>(
+            async () => await sut.ReadFromDataAsync(typeof(HelloMessage), recvEnvelope));
+
+        ex.KeyId.ShouldBe("k1");
+        ex.InnerException.ShouldBeOfType<InvalidOperationException>();
+        ex.InnerException!.Message.ShouldContain("32 bytes");
+    }
+
+    private sealed class ShortKeyProvider : IKeyProvider
+    {
+        public ShortKeyProvider(string defaultKeyId) { DefaultKeyId = defaultKeyId; }
+        public string DefaultKeyId { get; }
+        public ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
+            => ValueTask.FromResult(new byte[16]);
+    }
+
     private sealed record HelloMessage(string Greeting);
     private sealed record EncryptedPayloadStub(string Secret);
 }

@@ -253,6 +253,58 @@ public class WolverineOptionsEncryptionTests
 
         ex.Message.ShouldContain("encrypting serializer");
     }
+
+    [Fact]
+    public async Task RequireEncryption_on_listener_without_UseEncryption_throws_at_startup()
+    {
+        // Symmetric to Encrypted() on the sender side: a listener marked
+        // RequireEncryption() with no encrypting serializer registered would
+        // dead-letter every inbound envelope, because there is no serializer
+        // capable of producing the encrypted content-type for it to accept.
+        var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await Host.CreateDefaultBuilder()
+                .UseWolverine(opts =>
+                {
+                    opts.LocalQueue("misconfigured-listener").RequireEncryption();
+                })
+                .StartAsync();
+        });
+
+        ex.Message.ShouldContain("encrypting serializer");
+    }
+
+    [Fact]
+    public void second_UseEncryption_call_throws_to_prevent_double_wrapping()
+    {
+        var opts = new WolverineOptions();
+        var provider1 = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray() });
+        var provider2 = new InMemoryKeyProvider("k2",
+            new Dictionary<string, byte[]> { ["k2"] = Enumerable.Repeat((byte)0x33, 32).ToArray() });
+
+        opts.UseEncryption(provider1);
+
+        var ex = Should.Throw<InvalidOperationException>(() => opts.UseEncryption(provider2));
+        ex.Message.ShouldContain("already been called");
+    }
+
+    [Fact]
+    public void second_RegisterEncryptionSerializer_call_throws_to_prevent_double_wrapping()
+    {
+        var opts = new WolverineOptions();
+        opts.UseSystemTextJsonForSerialization();
+
+        var provider1 = new InMemoryKeyProvider("k1",
+            new Dictionary<string, byte[]> { ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray() });
+        var provider2 = new InMemoryKeyProvider("k2",
+            new Dictionary<string, byte[]> { ["k2"] = Enumerable.Repeat((byte)0x33, 32).ToArray() });
+
+        opts.RegisterEncryptionSerializer(provider1);
+
+        var ex = Should.Throw<InvalidOperationException>(() => opts.RegisterEncryptionSerializer(provider2));
+        ex.Message.ShouldContain("already registered");
+    }
 }
 
 public sealed record EncryptedTypeA(string Value);

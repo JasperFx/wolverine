@@ -16,6 +16,18 @@ public sealed partial class WolverineOptions
     {
         if (keyProvider is null) throw new ArgumentNullException(nameof(keyProvider));
 
+        // Calling UseEncryption twice would wrap an already-wrapping serializer:
+        // outgoing messages would be encrypted twice, but the receive-side path
+        // only unwraps one layer, so messages would silently be undecryptable.
+        if (DefaultSerializer is EncryptingMessageSerializer)
+        {
+            throw new InvalidOperationException(
+                "UseEncryption has already been called on this WolverineOptions. " +
+                "Calling it more than once would double-wrap the default serializer " +
+                "and produce envelopes that cannot be decrypted on receive. " +
+                "Configure encryption exactly once during host setup.");
+        }
+
         var inner = DefaultSerializer;
         var encrypting = new EncryptingMessageSerializer(inner, keyProvider);
 
@@ -35,6 +47,17 @@ public sealed partial class WolverineOptions
     public void RegisterEncryptionSerializer(IKeyProvider keyProvider)
     {
         if (keyProvider is null) throw new ArgumentNullException(nameof(keyProvider));
+
+        // Same hazard as UseEncryption: a second registration replaces the first
+        // under the same content-type but the inner-of-inner reference would now
+        // point at the previous EncryptingMessageSerializer, double-wrapping every
+        // future per-type / per-endpoint encryption.
+        if (TryFindSerializer(EncryptionHeaders.EncryptedContentType) is not null)
+        {
+            throw new InvalidOperationException(
+                "An encrypting serializer is already registered on this WolverineOptions. " +
+                "Configure encryption exactly once during host setup.");
+        }
 
         var inner = DefaultSerializer;
         var encrypting = new EncryptingMessageSerializer(inner, keyProvider);

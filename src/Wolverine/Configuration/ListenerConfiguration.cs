@@ -132,11 +132,31 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// Inbound envelopes whose content-type is not
     /// <c>application/wolverine-encrypted+json</c> are routed to the
     /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>
-    /// before any serializer runs.
+    /// before any serializer runs. Requires the encrypting serializer to be
+    /// registered first via <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/>; without it
+    /// the listener has no way to decrypt accepted envelopes and would
+    /// dead-letter every inbound message.
     /// </summary>
     public TSelf RequireEncryption()
     {
-        add(e => e.Runtime!.Options.RequiredEncryptedListenerUris.Add(e.Uri));
+        add(endpoint =>
+        {
+            var runtime = endpoint.Runtime
+                ?? throw new InvalidOperationException(
+                    "Endpoint runtime is not set. .RequireEncryption() requires a fully-configured endpoint.");
+
+            if (runtime.Options.TryFindSerializer(EncryptionHeaders.EncryptedContentType) is null)
+            {
+                throw new InvalidOperationException(
+                    "No encrypting serializer is registered. Call " +
+                    "WolverineOptions.UseEncryption(provider) or " +
+                    "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                    "before configuring a listener with .RequireEncryption().");
+            }
+
+            runtime.Options.RequiredEncryptedListenerUris.Add(endpoint.Uri);
+        });
         return this.As<TSelf>();
     }
 
