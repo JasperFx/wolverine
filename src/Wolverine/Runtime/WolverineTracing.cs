@@ -124,6 +124,17 @@ internal static class WolverineTracing
     public const string SagaId = "wolverine.saga.id";
 
     /// <summary>
+    /// Activity tag set when an envelope being processed carries a
+    /// <see cref="Envelope.ScheduledTime"/> — i.e. it was previously
+    /// scheduled for delayed delivery (saga timeout, deferred command,
+    /// retry-with-delay, …) rather than dispatched immediately. Useful
+    /// for trace queries that want to distinguish "first-time delivery"
+    /// from "scheduled re-entry" in saga workflows where timeout
+    /// messages re-enter the saga after a wait.
+    /// </summary>
+    public const string MessageScheduled = "wolverine.message.scheduled";
+
+    /// <summary>
     /// Activity tag for the saga type full name when processing a saga message
     /// </summary>
     public const string SagaType = "wolverine.saga.type";

@@ -133,3 +133,33 @@ public class when_saga_id_is_set_on_envelope
         theActivity.GetTagItem(WolverineTracing.SagaId).ShouldBe(theEnvelope.SagaId);
     }
 }
+
+public class when_envelope_is_scheduled
+{
+    [Fact]
+    public void tags_activity_when_scheduled_time_is_set()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(5);
+
+        var activity = new Activity("process");
+        envelope.WriteTags(activity);
+
+        // Distinguishes a scheduled re-entrance (saga timeout firing,
+        // deferred command, retry-with-delay) from an immediate dispatch
+        // — see WolverineTracing.MessageScheduled.
+        activity.GetTagItem(WolverineTracing.MessageScheduled).ShouldBe(true);
+    }
+
+    [Fact]
+    public void does_not_tag_activity_when_scheduled_time_is_null()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.ScheduledTime = null;
+
+        var activity = new Activity("process");
+        envelope.WriteTags(activity);
+
+        activity.GetTagItem(WolverineTracing.MessageScheduled).ShouldBeNull();
+    }
+}

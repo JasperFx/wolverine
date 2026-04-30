@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
@@ -20,9 +21,11 @@ public class MessageDescriptor
             ReadHandlerChain(handlerChain, handlers);
         }
     }
-    
+
     public MessageDescriptor(Type messageType, IWolverineRuntime runtime) : this(TypeDescriptor.For(messageType))
     {
+        IsTimeoutMessage = messageType.CanBeCastTo<TimeoutMessage>();
+
         var routes = runtime.RoutingFor(messageType).Routes;
         Subscriptions.AddRange(routes.Select(x => x.Describe()));
 
@@ -40,6 +43,17 @@ public class MessageDescriptor
     }
 
     public TypeDescriptor Type { get; }
+
+    /// <summary>
+    /// True when the message type derives from <see cref="TimeoutMessage"/>.
+    /// Surfaced so external monitoring tools (e.g. CritterWatch's saga
+    /// visualization) can render timeout messages distinctly — they're a
+    /// fundamentally different narrative element in saga workflows
+    /// ("delay then re-enter the saga") versus regular handler-driven
+    /// messages, and visualizations look much clearer when they're
+    /// shaped differently.
+    /// </summary>
+    public bool IsTimeoutMessage { get; set; }
 
     public List<MessageHandlerDescriptor> Handlers { get; set; } = new();
 
