@@ -131,7 +131,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     protected (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(string path)
     {
         var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
-        var document = swagger.GetSwagger("v1");
+        var document = swagger.GetSwagger("default");
 
         if (document.Paths.TryGetValue(path, out var item))
         {
@@ -144,7 +144,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     public (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(OperationType httpMethod, string path)
     {
         var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
-        var document = swagger.GetSwagger("v1");
+        var document = swagger.GetSwagger("default");
 
         if (document.Paths.TryGetValue(path, out var item))
         {

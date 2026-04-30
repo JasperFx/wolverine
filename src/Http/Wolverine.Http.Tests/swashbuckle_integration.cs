@@ -15,7 +15,7 @@ public class swashbuckle_integration : IntegrationContext
     [Fact]
     public async Task wolverine_stuff_is_in_the_document()
     {
-        var results = await Scenario(x => { x.Get.Url("/swagger/v1/swagger.json"); });
+        var results = await Scenario(x => { x.Get.Url("/swagger/default/swagger.json"); });
 
         var doc = results.ReadAsText();
 
@@ -30,7 +30,7 @@ public class swashbuckle_integration : IntegrationContext
         HttpChains.Chains.Any(x => x.RoutePattern!.RawText == "/ignore").ShouldBeTrue();
 
         var generator = Host.Services.GetRequiredService<ISwaggerProvider>();
-        var doc = generator.GetSwagger("v1");
+        var doc = generator.GetSwagger("default");
 
         doc.Paths.Any(x => x.Key == "/ignore").ShouldBeFalse();
     }

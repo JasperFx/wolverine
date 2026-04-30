@@ -12,18 +12,22 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
 using Wolverine;
 using Wolverine.AdminApi;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.FluentValidation;
 using Wolverine.Http;
+using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.FluentValidation;
 using Wolverine.Http.Marten;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
 using Wolverine.Http.Transport;
 using Wolverine.Marten;
 using WolverineWebApi;
+using WolverineWebApi.ApiVersioning;
 using WolverineWebApi.Bugs;
 using WolverineWebApi.Marten;
 using WolverineWebApi.Samples;
@@ -56,7 +60,14 @@ public class Program
         #region sample_register_custom_swashbuckle_filter
         builder.Services.AddSwaggerGen(x =>
         {
+            x.SwaggerDoc("default", new OpenApiInfo { Title = "Wolverine Web API", Version = "default" });
+            x.SwaggerDoc("v1", new OpenApiInfo { Title = "Wolverine Web API v1", Version = "v1" });
+            x.SwaggerDoc("v2", new OpenApiInfo { Title = "Wolverine Web API v2", Version = "v2" });
+            x.SwaggerDoc("v3", new OpenApiInfo { Title = "Wolverine Web API v3", Version = "v3" });
             x.OperationFilter<WolverineOperationFilter>();
+            x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
+            x.DocInclusionPredicate((docName, api) =>
+                docName == "default" || api.GroupName == docName);
             x.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
         });
 
@@ -207,7 +218,29 @@ public class Program
 
 // Configure the HTTP request pipeline.
         app.UseSwagger();
-        app.UseSwaggerUI();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/default/swagger.json", "default");
+            foreach (var description in app.DescribeWolverineApiVersions())
+            {
+                c.SwaggerEndpoint(
+                    $"/swagger/{description.DocumentName}/swagger.json",
+                    description.DisplayName + (description.IsDeprecated ? " (deprecated)" : ""));
+            }
+        });
+
+        app.MapScalarApiReference(options =>
+        {
+            options.AddDocument("default", "Wolverine Web API (all)",
+                $"/swagger/default/swagger.json");
+            foreach (var description in app.DescribeWolverineApiVersions())
+            {
+                options.AddDocument(
+                    description.DocumentName,
+                    description.DisplayName + (description.IsDeprecated ? " (deprecated)" : ""),
+                    $"/swagger/{description.DocumentName}/swagger.json");
+            }
+        });
 
         app.UseAuthorization();
 
@@ -249,6 +282,16 @@ public class Program
         #region sample_using_configure_endpoints
         app.MapWolverineEndpoints(opts =>
         {
+            opts.UseApiVersioning(v =>
+            {
+                // Existing unversioned endpoints are left unchanged
+                v.UnversionedPolicy = UnversionedPolicy.PassThrough;
+                v.Sunset("3.0").On(DateTimeOffset.Parse("2027-01-01T00:00:00Z"))
+                    .WithLink(new Uri("https://example.com/migrate-to-v2"), "Migration guide", "text/html");
+                v.Deprecate("1.0").On(DateTimeOffset.Parse("2026-12-31T00:00:00Z"))
+                    .WithLink(new Uri("https://example.com/sunset-v1"));
+            });
+
             // This is strictly to test the endpoint policy
 
             opts.ConfigureEndpoints(httpChain =>
