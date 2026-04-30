@@ -31,7 +31,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         _insertSql =
             $"INSERT INTO {schemaName}.{tableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) VALUES (:id, :body, 1)";
         _updateSql =
-            $"UPDATE {schemaName}.{tableName} SET {DatabaseConstants.Body} = :body, {DatabaseConstants.Version} = :version + 1, last_modified = SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE {DatabaseConstants.Id} = :id AND {DatabaseConstants.Version} = :version";
+            $"UPDATE {schemaName}.{tableName} SET {DatabaseConstants.Body} = :body, {DatabaseConstants.Version} = :version + 1, last_modified = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE {DatabaseConstants.Id} = :id AND {DatabaseConstants.Version} = :version";
         _loadSql =
             $"SELECT body, version FROM {schemaName}.{tableName} WHERE {DatabaseConstants.Id} = :id";
 
@@ -64,8 +64,8 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         table.AddColumn(DatabaseConstants.Body, "CLOB").NotNull();
         table.AddColumn(DatabaseConstants.Version, "NUMBER(10)").DefaultValue(1).NotNull();
-        table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)").NotNull();
-        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)").NotNull();
+        table.AddColumn<DateTimeOffset>("created").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
+        table.AddColumn<DateTimeOffset>("last_modified").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''").NotNull();
 
         Table = table;
     }

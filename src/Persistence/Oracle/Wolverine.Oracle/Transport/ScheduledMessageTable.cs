@@ -14,7 +14,7 @@ internal class ScheduledMessageTable : Table
         AddColumn(DatabaseConstants.MessageType, "VARCHAR2(500)").NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.ExecutionTime).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
-        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+        AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
 
         Indexes.Add(new IndexDefinition($"idx_{tableName}_execution_time")
         {

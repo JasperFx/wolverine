@@ -299,7 +299,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     {
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         var cmd = conn.CreateCommand(
-            $"UPDATE {_nodeTable} SET health_check = SYS_EXTRACT_UTC(SYSTIMESTAMP) WHERE id = :id");
+            $"UPDATE {_nodeTable} SET health_check = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE id = :id");
         cmd.With("id", node.NodeId);
         var count = await cmd.ExecuteNonQueryAsync(token);
 

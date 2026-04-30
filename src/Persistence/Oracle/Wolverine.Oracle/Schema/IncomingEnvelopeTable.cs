@@ -32,7 +32,7 @@ internal class IncomingEnvelopeTable : Table
         if (durability.InboxStaleTime.HasValue)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp)
-                .DefaultValueByExpression("SYS_EXTRACT_UTC(SYSTIMESTAMP)");
+                .DefaultValueByExpression("SYSTIMESTAMP AT TIME ZONE ''UTC''");
         }
     }
 }
