@@ -130,6 +130,7 @@
     <Project Path="src/Samples/ChaosSender/ChaosSender.csproj" />
     <Project Path="src/Samples/CommandBus/CommandBus.csproj" />
     <Project Path="src/Samples/DocumentationSamples/DocumentationSamples.csproj" />
+    <Project Path="src/Samples/EncryptionDemo/EncryptionDemo.csproj" />
     <Project Path="src/Samples/InMemoryMediator/InMemoryMediator.csproj" />
     <Project Path="src/Samples/OptimizedArtifactWorkflowSample/OptimizedArtifactWorkflowSample.csproj" />
     <Project Path="src/Samples/OrderSagaSample/OrderSagaSample.csproj" />
