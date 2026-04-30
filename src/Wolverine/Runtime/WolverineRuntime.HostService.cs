@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -499,23 +500,48 @@ public partial class WolverineRuntime
 
     private IWolverineTypeLoader? tryDiscoverTypeLoaderFromAttribute()
     {
-        try
+        // Walk the application assembly *and* every assembly the user added via
+        // Discovery.IncludeAssembly. The Wolverine source generator emits a
+        // [WolverineTypeManifest] attribute on every handler-bearing assembly; reading
+        // only Options.ApplicationAssembly silently drops handlers that live in
+        // referenced projects. See #2632.
+        var seen = new HashSet<Assembly>();
+        var loaders = new List<IWolverineTypeLoader>();
+
+        var candidates = new List<Assembly?> { Options.ApplicationAssembly };
+        candidates.AddRange(Options.Discovery.Assemblies);
+
+        foreach (var assembly in candidates)
         {
-            var assembly = Options.ApplicationAssembly;
-            if (assembly == null) return null;
+            if (assembly is null || !seen.Add(assembly)) continue;
 
-            var attribute = assembly.GetCustomAttributes(typeof(WolverineTypeManifestAttribute), false)
-                .FirstOrDefault() as WolverineTypeManifestAttribute;
+            try
+            {
+                var attribute = assembly
+                    .GetCustomAttributes(typeof(WolverineTypeManifestAttribute), false)
+                    .FirstOrDefault() as WolverineTypeManifestAttribute;
 
-            if (attribute?.LoaderType == null) return null;
+                if (attribute?.LoaderType is null) continue;
 
-            return Activator.CreateInstance(attribute.LoaderType) as IWolverineTypeLoader;
+                if (Activator.CreateInstance(attribute.LoaderType) is IWolverineTypeLoader loader)
+                {
+                    loaders.Add(loader);
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning(e,
+                    "Failed to instantiate source-generated IWolverineTypeLoader from {Assembly}; the loaders from other assemblies will still be used",
+                    assembly.FullName);
+            }
         }
-        catch (Exception e)
+
+        return loaders.Count switch
         {
-            Logger.LogWarning(e, "Failed to instantiate source-generated IWolverineTypeLoader from assembly attribute, falling back to runtime scanning");
-            return null;
-        }
+            0 => null,
+            1 => loaders[0],
+            _ => new CompositeWolverineTypeLoader(loaders)
+        };
     }
 
     internal Task StartLightweightAsync()
