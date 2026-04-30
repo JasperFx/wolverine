@@ -137,7 +137,64 @@ public class WolverineOptionsEncryptionTests
 
         ex.Message.ShouldContain("No encrypting serializer is registered");
     }
+
+    [Fact]
+    public void RequiredEncryptedTypes_starts_empty_and_is_settable()
+    {
+        var opts = new WolverineOptions();
+        opts.RequiredEncryptedTypes.ShouldBeEmpty();
+        opts.RequiredEncryptedTypes.Add(typeof(string));
+        opts.RequiredEncryptedTypes.ShouldContain(typeof(string));
+    }
+
+    [Fact]
+    public void RequiredEncryptedListenerUris_starts_empty_and_is_settable()
+    {
+        var opts = new WolverineOptions();
+        opts.RequiredEncryptedListenerUris.ShouldBeEmpty();
+        var u = new Uri("tcp://localhost:5000");
+        opts.RequiredEncryptedListenerUris.Add(u);
+        opts.RequiredEncryptedListenerUris.ShouldContain(u);
+    }
+
+    [Fact]
+    public void Encrypt_for_message_type_registers_in_RequiredEncryptedTypes()
+    {
+        var opts = new WolverineOptions();
+        opts.UseEncryption(new InMemoryKeyProvider(
+            "k1", new Dictionary<string, byte[]>
+            {
+                ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray()
+            }));
+
+        opts.Policies.ForMessagesOfType<SecretMessage>().Encrypt();
+
+        opts.RequiredEncryptedTypes.ShouldContain(typeof(SecretMessage));
+    }
+
+    [Fact]
+    public async Task RequireEncryption_on_listener_registers_listener_uri()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1", new Dictionary<string, byte[]>
+                    {
+                        ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray()
+                    }));
+
+                opts.LocalQueue("test-encrypted").RequireEncryption();
+            })
+            .StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var queueUri = runtime.Endpoints.EndpointByName("test-encrypted")?.Uri
+            ?? throw new InvalidOperationException("test-encrypted queue not found");
+        runtime.Options.RequiredEncryptedListenerUris.ShouldContain(queueUri);
+    }
 }
 
 public sealed record EncryptedTypeA(string Value);
 public sealed record PlainTypeB(string Value);
+public sealed record SecretMessage(string S);

@@ -77,10 +77,12 @@ public class MessageTypePolicies<T>
 
     /// <summary>
     /// Mark messages assignable to <typeparamref name="T"/> as requiring AES-256-GCM
-    /// encryption on send. Resolves the encrypting serializer at the time this
-    /// method is invoked, so <see cref="WolverineOptions.UseEncryption"/> or
+    /// encryption on send and on receive. Resolves the encrypting serializer at the
+    /// time this method is invoked, so <see cref="WolverineOptions.UseEncryption"/> or
     /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/> must be called
-    /// <b>before</b> this method is invoked.
+    /// <b>before</b> this method is invoked. Inbound envelopes of this type whose
+    /// content-type is not the encrypted content-type are routed to the dead-letter
+    /// queue with <see cref="EncryptionPolicyViolationException"/>.
     /// </summary>
     public MessageTypePolicies<T> Encrypt()
     {
@@ -92,6 +94,7 @@ public class MessageTypePolicies<T>
                 $"before .ForMessagesOfType<{typeof(T).Name}>().Encrypt().");
 
         _parent.MetadataRules.Add(new EncryptMessageTypeRule<T>(encrypting));
+        _parent.RequiredEncryptedTypes.Add(typeof(T));
         return this;
     }
 }

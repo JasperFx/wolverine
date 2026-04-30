@@ -1,4 +1,5 @@
 using Shouldly;
+using Wolverine;
 using Wolverine.Runtime.Serialization.Encryption;
 using Xunit;
 
@@ -32,5 +33,29 @@ public class exception_hierarchy
     public void base_class_is_abstract()
     {
         typeof(MessageEncryptionException).IsAbstract.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void EncryptionPolicyViolationException_inherits_MessageEncryptionException_with_empty_KeyId()
+    {
+        var ex = new EncryptionPolicyViolationException(new Envelope { MessageType = "X", ContentType = "Y" });
+        ex.ShouldBeAssignableTo<MessageEncryptionException>();
+        ex.KeyId.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public void EncryptionPolicyViolationException_message_names_type_and_content_type_only()
+    {
+        var envelope = new Envelope
+        {
+            MessageType = "PaymentDetails",
+            ContentType = "application/json"
+        };
+
+        var ex = new EncryptionPolicyViolationException(envelope);
+
+        ex.Message.ShouldContain("PaymentDetails");
+        ex.Message.ShouldContain("application/json");
+        ex.Message.ShouldContain("encryption is required");
     }
 }

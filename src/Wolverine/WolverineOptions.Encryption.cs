@@ -40,4 +40,22 @@ public sealed partial class WolverineOptions
 
         AddSerializer(encrypting);
     }
+
+    /// <summary>
+    /// Message types whose envelopes MUST arrive encrypted. Populated by
+    /// <see cref="MessageTypePolicies{T}.Encrypt"/>. Inbound envelopes whose
+    /// <see cref="Envelope.MessageType"/> resolves to a type in this set and
+    /// whose content-type is not the encrypted content-type are routed to the
+    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>.
+    /// </summary>
+    public HashSet<Type> RequiredEncryptedTypes { get; } = new();
+
+    /// <summary>
+    /// Listener endpoint URIs that MUST receive only encrypted envelopes.
+    /// Populated by the <c>Encrypted()</c> method on listener configurations.
+    /// Inbound envelopes whose <see cref="Envelope.Destination"/> is in this set
+    /// and whose content-type is not the encrypted content-type are routed to the
+    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>.
+    /// </summary>
+    public HashSet<Uri> RequiredEncryptedListenerUris { get; } = new();
 }

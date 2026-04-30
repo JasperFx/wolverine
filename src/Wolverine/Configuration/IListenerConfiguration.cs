@@ -1,6 +1,7 @@
 ﻿using System.Threading.Tasks.Dataflow;
 using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 
 namespace Wolverine.Configuration;
@@ -158,6 +159,14 @@ public interface IListenerConfiguration<T> : IEndpointConfiguration<T>
     /// </summary>
     /// <returns></returns>
     public T ListenOnlyAtLeader();
+
+    /// <summary>
+    /// Mark this listener as accepting only AES-256-GCM encrypted envelopes.
+    /// Inbound envelopes whose content-type is not the encrypted variant are
+    /// routed to the dead-letter queue with <see cref="EncryptionPolicyViolationException"/>
+    /// before any serializer runs.
+    /// </summary>
+    public T RequireEncryption();
 }
 
 public interface IListenerConfiguration : IListenerConfiguration<IListenerConfiguration>;

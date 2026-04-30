@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
@@ -117,12 +118,25 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// <summary>
     /// In the case of being part of tenancy aware group of message transports, this
     /// setting makes this listening endpoint a "global" endpoint rather than a tenant id
-    /// aware endpoint that spans multiple message brokers. 
+    /// aware endpoint that spans multiple message brokers.
     /// </summary>
     /// <returns></returns>
     public TSelf GlobalListener()
     {
         add(e => e.TenancyBehavior = TenancyBehavior.Global);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Mark this listener as accepting only AES-256-GCM encrypted envelopes.
+    /// Inbound envelopes whose content-type is not
+    /// <c>application/wolverine-encrypted+json</c> are routed to the
+    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>
+    /// before any serializer runs.
+    /// </summary>
+    public TSelf RequireEncryption()
+    {
+        add(e => e.Runtime!.Options.RequiredEncryptedListenerUris.Add(e.Uri));
         return this.As<TSelf>();
     }
 
