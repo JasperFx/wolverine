@@ -29,6 +29,16 @@ public class encryption_acceptance
         public static void Handle(EncryptedNoOp _) { /* no-op; failure paths are tested */ }
     }
 
+    public interface ISensitivePayload { }
+
+    public sealed record SensitiveSubtype(string Secret) : ISensitivePayload;
+
+    public static class SensitiveSubtypeHandler
+    {
+        public static List<SensitiveSubtype> Received = new();
+        public static void Handle(SensitiveSubtype payload) => Received.Add(payload);
+    }
+
     [Fact]
     public async Task envelope_on_the_wire_uses_encrypted_content_type()
     {
@@ -325,6 +335,54 @@ public class encryption_acceptance
 
         session.AllRecordsInOrder()
             .ShouldNotContain(r => r.MessageEventType == MessageEventType.MovedToErrorQueue);
+    }
+
+    [Fact]
+    public async Task receive_unencrypted_message_for_required_supertype_routes_to_error_queue()
+    {
+        SensitiveSubtypeHandler.Received.Clear();
+        var receiverPort = PortFinder.GetAvailablePort();
+
+        // Sender does NOT call UseEncryption — emits plain JSON for SensitiveSubtype.
+        using var sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
+                opts.ServiceName = "sender";
+            })
+            .StartAsync();
+
+        // Receiver marks the SUPERTYPE (interface) as encryption-required. The
+        // wire MessageType resolves to the concrete SensitiveSubtype, which is
+        // not in RequiredEncryptedTypes by exact match. The polymorphic guard
+        // must still DLQ the envelope before the serializer runs.
+        using var receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1",
+                    new Dictionary<string, byte[]> { ["k1"] = Key32(0x42) }));
+                opts.Policies.ForMessagesOfType<ISensitivePayload>().Encrypt();
+                opts.ListenAtPort(receiverPort);
+                opts.ServiceName = "receiver";
+            })
+            .StartAsync();
+
+        var session = await receiver
+            .TrackActivity(TimeSpan.FromSeconds(10))
+            .DoNotAssertOnExceptionsDetected()
+            .IncludeExternalTransports()
+            .WaitForCondition(new WaitForAnyDeadLetteredEnvelope())
+            .ExecuteAndWaitAsync(_ =>
+                sender.Services.GetRequiredService<IMessageBus>()
+                    .PublishAsync(new SensitiveSubtype("forged-plaintext-subtype")));
+
+        session.MovedToErrorQueue.RecordsInOrder().ShouldNotBeEmpty();
+        var failureRecord = session.AllRecordsInOrder()
+            .Single(r => r.Exception is EncryptionPolicyViolationException);
+        failureRecord.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+        SensitiveSubtypeHandler.Received
+            .ShouldNotContain(p => p.Secret == "forged-plaintext-subtype");
     }
 }
 

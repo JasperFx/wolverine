@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Wolverine.Runtime.Serialization.Encryption;
 
 namespace Wolverine;
@@ -41,12 +42,15 @@ public sealed partial class WolverineOptions
         AddSerializer(encrypting);
     }
 
+    private readonly ConcurrentDictionary<Type, bool> _encryptionRequiredCache = new();
+
     /// <summary>
     /// Message types whose envelopes MUST arrive encrypted. Populated by
-    /// <see cref="MessageTypePolicies{T}.Encrypt"/>. Inbound envelopes whose
-    /// <see cref="Envelope.MessageType"/> resolves to a type in this set and
-    /// whose content-type is not the encrypted content-type are routed to the
-    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>.
+    /// <see cref="MessageTypePolicies{T}.Encrypt"/>. Read by
+    /// <see cref="IsEncryptionRequired"/> on every inbound envelope; intended
+    /// to be populated at setup time only (before <c>host.StartAsync()</c>).
+    /// Mutations after startup will not be reflected for types whose answer
+    /// has already been cached.
     /// </summary>
     public HashSet<Type> RequiredEncryptedTypes { get; } = new();
 
@@ -58,4 +62,36 @@ public sealed partial class WolverineOptions
     /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>.
     /// </summary>
     public HashSet<Uri> RequiredEncryptedListenerUris { get; } = new();
+
+    /// <summary>
+    /// Returns true if envelopes carrying a message of <paramref name="messageType"/>
+    /// must arrive encrypted. Performs an exact match against
+    /// <see cref="RequiredEncryptedTypes"/> first; on miss, scans for any registered
+    /// required type that is assignable from <paramref name="messageType"/>
+    /// (mirrors the polymorphic send-side rule in EncryptMessageTypeRule&lt;T&gt;).
+    /// Per-type result is cached for O(1) lookup on subsequent envelopes.
+    /// </summary>
+    public bool IsEncryptionRequired(Type messageType)
+    {
+        if (messageType is null) return false;
+
+        // Cache lookup first so previously computed answers survive any later
+        // mutation of RequiredEncryptedTypes (the documented contract). Cheap
+        // when the cache is empty (no-encryption-configured deployments).
+        if (_encryptionRequiredCache.TryGetValue(messageType, out var cached)) return cached;
+
+        // No cached answer. If no markers are configured, return false without
+        // caching — avoids unbounded cache growth on no-encryption hosts.
+        if (RequiredEncryptedTypes.Count == 0) return false;
+
+        return _encryptionRequiredCache.GetOrAdd(messageType, static (mt, set) =>
+        {
+            if (set.Contains(mt)) return true;
+            foreach (var required in set)
+            {
+                if (required.IsAssignableFrom(mt)) return true;
+            }
+            return false;
+        }, RequiredEncryptedTypes);
+    }
 }

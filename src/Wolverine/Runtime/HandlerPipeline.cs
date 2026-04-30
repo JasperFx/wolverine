@@ -181,11 +181,14 @@ public class HandlerPipeline : IHandlerPipeline
 
         // Use the listener's own URI, not envelope.Destination: the latter is sender-
         // controlled and not populated on broker transports (Rabbit/Kafka/SB).
+        // For per-type enforcement, defer to IsEncryptionRequired so the check
+        // mirrors the polymorphic send-side rule (CanBeCastTo<T>) and a plaintext
+        // envelope for a concrete subtype of an interface/abstract marker is rejected.
         return (_endpoint?.Uri is not null
                     && options.RequiredEncryptedListenerUris.Contains(_endpoint.Uri))
                || (!string.IsNullOrEmpty(envelope.MessageType)
                     && _graph.TryFindMessageType(envelope.MessageType, out var type)
-                    && options.RequiredEncryptedTypes.Contains(type));
+                    && options.IsEncryptionRequired(type));
     }
 
     private async Task<IContinuation> executeAsync(MessageContext context, Envelope envelope, Activity? activity)
