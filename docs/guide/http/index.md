@@ -273,4 +273,10 @@ leads to code that is hard to reason about and hence, potentially buggy in real 
 need this functionality in the real world, so here you go. 
 :::
 
+## API Versioning <Badge type="tip" text="5.36" />
+
+Wolverine.Http has native support for versioning your HTTP APIs over time using URL-segment strategies (e.g.
+`/v1/orders`, `/v2/orders`), per-version sunset and deprecation policies with RFC 9745/8594 response headers,
+and automatic OpenAPI document partitioning. See the [HTTP API Versioning guide](./versioning.md) for full details.
+
 

@@ -58,6 +58,12 @@ public static void Configure(HttpChain chain)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http/Runtime/PublishingEndpoint.cs#L15-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_one_off_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+For HTTP API versioning that partitions the OpenAPI output into one document per version, see the
+[Versioning guide](./versioning.md). It covers the multi-document `SwaggerDoc` setup, `DocInclusionPredicate`,
+`DescribeWolverineApiVersions()`, and Scalar integration.
+:::
+
 ## Swashbuckle and Wolverine
 
 [Swashbuckle](https://github.com/domaindrivendev/Swashbuckle.AspNetCore) is de facto the OpenAPI tooling for ASP.Net Core

@@ -264,6 +264,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Exception Handling', link: '/guide/http/exception-handling'},
                         {text: 'Policies', link: '/guide/http/policies.md'},
                         {text: 'OpenAPI Metadata', link: '/guide/http/metadata'},
+                        {text: 'API Versioning', link: '/guide/http/versioning'},
                         {text: 'Using as Mediator', link: '/guide/http/mediator'},
                         {text: 'Multi-Tenancy and ASP.Net Core', link: '/guide/http/multi-tenancy'},
                         {text: 'Publishing Messages', link: '/guide/http/messaging'},
