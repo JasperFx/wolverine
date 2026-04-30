@@ -1,9 +1,9 @@
+using JasperFx;
+using Microsoft.Extensions.Logging;
 using System.Data;
 using System.Data.Common;
-using Microsoft.Extensions.Logging;
 using Weasel.Core;
-using Wolverine.RDBMS;
-using Wolverine.Runtime;
+using Weasel.Sqlite;
 
 namespace Wolverine.Sqlite;
 
@@ -12,7 +12,8 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
     private readonly DbDataSource _dataSource;
     private readonly ILogger _logger;
     private readonly string _databaseName;
-    private readonly List<int> _locks = new();
+    private readonly HashSet<int> _locks = [];
+    private bool _hasLocksTable;
     private DbConnection? _conn;
 
     public SqliteAdvisoryLock(DbDataSource dataSource, ILogger logger, string databaseName)
@@ -89,23 +90,43 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         {
             // SQLite doesn't have advisory locks like PostgreSQL
             // We'll use a simple table-based lock approach
-            var result = await _conn.CreateCommand("INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) VALUES (@lockId, datetime('now'))")
+            await CreateLocksTableIfMissing(_conn, token);
+            var result = await _conn.CreateCommand(
+                "INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) " +
+                "VALUES (@lockId, datetime('now'))")
                 .With("lockId", lockId)
                 .ExecuteNonQueryAsync(token);
 
             if (result > 0)
-            {
                 _locks.Add(lockId);
-                return true;
-            }
 
-            return false;
+            return HasLock(lockId);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error trying to attain advisory lock {LockId}", lockId);
             return false;
         }
+    }
+
+    private async Task CreateLocksTableIfMissing(DbConnection connection, CancellationToken token)
+    {
+        if (_hasLocksTable)
+            return;
+
+        var table = new Weasel.Sqlite.Tables.Table(new SqliteObjectName("wolverine_locks"));
+        table.AddColumn("lock_id", "INTEGER").AsPrimaryKey();
+        table.AddColumn("acquired_at", "TEXT").NotNull();
+        table.AddColumn("owner_id", "INTEGER");
+
+        var migration = await SchemaMigration.DetermineAsync(connection, default(CancellationToken), table);
+        if (migration.Difference != SchemaPatchDifference.None)
+        {
+            await new SqliteMigrator()
+                .ApplyAllAsync(connection, migration, AutoCreate.CreateOrUpdate, ct: token);
+        }
+
+        _hasLocksTable = true;
     }
 
     public async Task ReleaseLockAsync(int lockId)
@@ -128,7 +149,7 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
                 .ExecuteNonQueryAsync();
             _locks.Remove(lockId);
 
-            if (!_locks.Any())
+            if (_locks.Count == 0)
             {
                 await _conn.CloseAsync().ConfigureAwait(false);
                 await _conn.DisposeAsync().ConfigureAwait(false);
@@ -151,12 +172,7 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         try
         {
             foreach (var lockId in _locks.ToList())
-            {
                 await ReleaseLockAsync(lockId);
-            }
-
-            await _conn.CloseAsync().ConfigureAwait(false);
-            await _conn.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -166,9 +182,7 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         finally
         {
             if (_conn != null)
-            {
                 await _conn.DisposeAsync().ConfigureAwait(false);
-            }
         }
     }
 }

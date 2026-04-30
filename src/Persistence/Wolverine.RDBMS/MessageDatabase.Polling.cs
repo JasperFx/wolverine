@@ -65,7 +65,7 @@ public abstract partial class MessageDatabase<T>
 
     /// <summary>
     /// Releases a previously-acquired session-scoped advisory lock. Default
-    /// implementation is a no-op for providers (e.g., SQLite) where the lock
+    /// implementation is a no-op for providers where the lock
     /// is automatically released when the connection closes.
     /// </summary>
     protected virtual Task ReleaseLockAsync(int lockId, T connection, CancellationToken token)

@@ -7,7 +7,6 @@ using JasperFx.Descriptors;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
-using Weasel.Core.Migrations;
 using Weasel.Sqlite;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -18,7 +17,6 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Sqlite.Schema;
 using Wolverine.Sqlite.Sagas;
-using Wolverine.Sqlite.Util;
 using Wolverine.Transports;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
@@ -152,20 +150,14 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             .ExecuteNonQueryAsync();
     }
 
-    protected override async Task<bool> TryAttainLockAsync(int lockId, SqliteConnection connection, CancellationToken token)
+    protected override Task<bool> TryAttainLockAsync(int lockId, SqliteConnection _, CancellationToken token)
     {
-        // SQLite uses BEGIN EXCLUSIVE TRANSACTION for locking
-        // We'll use a simple advisory lock table approach
-        try
-        {
-            await connection.CreateCommand($"INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) VALUES ({lockId}, datetime('now'))")
-                .ExecuteNonQueryAsync(token);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return AdvisoryLock.TryAttainLockAsync(lockId, token);
+    }
+
+    protected override Task ReleaseLockAsync(int lockId, SqliteConnection _, CancellationToken token)
+    {
+        return AdvisoryLock.ReleaseLockAsync(lockId);
     }
 
     protected override DbCommand buildFetchSql(SqliteConnection conn, DbObjectName tableName, string[] columnNames, int maxRecords)
@@ -462,12 +454,6 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             restrictionTable.AddColumn("type", "TEXT").NotNull();
             restrictionTable.AddColumn("node", "INTEGER").NotNull().DefaultValue(0);
             yield return restrictionTable;
-
-            // Advisory lock table for SQLite
-            var lockTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName("wolverine_locks"));
-            lockTable.AddColumn("lock_id", "INTEGER").AsPrimaryKey();
-            lockTable.AddColumn("acquired_at", "TEXT").NotNull();
-            yield return lockTable;
         }
 
         foreach (var table in _otherTables)
