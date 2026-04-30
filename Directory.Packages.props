@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.2" />
+    <PackageVersion Include="Asp.Versioning.Abstractions" Version="10.0.0" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.22.1" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
@@ -83,6 +84,7 @@
     <PackageVersion Include="RavenDB.TestDriver" Version="7.0.2" />
     <PackageVersion Include="Refit" Version="8.0.0" />
     <PackageVersion Include="Refit.HttpClientFactory" Version="8.0.0" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.14.8" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="Spectre.Console" Version="0.55.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />

@@ -8,5 +8,6 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App"/>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <PackageReference Include="Asp.Versioning.Abstractions"/>
     </ItemGroup>
 </Project>

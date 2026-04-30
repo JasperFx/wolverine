@@ -7,6 +7,7 @@ using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
 using Wolverine.Configuration;
+using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Policies;
 using Wolverine.Http.Resources;
@@ -150,6 +151,27 @@ public class WolverineHttpOptions
     public void UseDataAnnotationsValidationProblemDetailMiddleware()
     {
         AddPolicy<HttpChainDataAnnotationsValidationPolicy>();
+    }
+
+    internal WolverineApiVersioningOptions? ApiVersioning { get; private set; }
+
+    /// <summary>
+    /// Enable native API versioning support. On the first call, creates the
+    /// <see cref="WolverineApiVersioningOptions"/> instance and registers an
+    /// <c>ApiVersioningPolicy</c> that applies versioning semantics at bootstrap time.
+    /// Subsequent calls accumulate configuration onto the same options instance without
+    /// registering a second policy.
+    /// </summary>
+    /// <param name="configure">An action to configure the <see cref="WolverineApiVersioningOptions"/>.</param>
+    public void UseApiVersioning(Action<WolverineApiVersioningOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (ApiVersioning is null)
+        {
+            ApiVersioning = new WolverineApiVersioningOptions();
+            Policies.Add(new ApiVersioningPolicy(ApiVersioning));
+        }
+        configure(ApiVersioning);
     }
     
     public async ValueTask<string?> TryDetectTenantId(HttpContext httpContext)

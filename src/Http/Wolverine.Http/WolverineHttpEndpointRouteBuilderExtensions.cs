@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
+using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.Transport;
 using Wolverine.Http.Validation;
@@ -168,6 +169,14 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
 
         services.AddSingleton<ICapabilityDescriptor, HttpCapabilityDescriptor>();
+
+        // Registered unconditionally — harmless when no versioned endpoint uses it.
+        services.AddSingleton<ApiVersionHeaderWriter>(sp =>
+        {
+            var httpOptions = sp.GetRequiredService<WolverineHttpOptions>();
+            var versioningOptions = httpOptions.ApiVersioning ?? new WolverineApiVersioningOptions();
+            return new ApiVersionHeaderWriter(versioningOptions);
+        });
 
         services.ConfigureWolverine(opts =>
         {

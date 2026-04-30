@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using Asp.Versioning;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -249,6 +250,22 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// Required TenancyMode for this http chain
     /// </summary>
     public TenancyMode? TenancyMode { get; set; }
+
+    /// <summary>API version declared for this endpoint via [ApiVersion] or fluent configuration. Null when the endpoint is version-neutral.</summary>
+    public ApiVersion? ApiVersion { get; set; }
+
+    /// <summary>Sunset policy for this endpoint's API version. Populated by configuration during app startup.</summary>
+    public SunsetPolicy? SunsetPolicy { get; set; }
+
+    /// <summary>Deprecation policy for this endpoint's API version. Populated by configuration during app startup.</summary>
+    public DeprecationPolicy? DeprecationPolicy { get; set; }
+
+    /// <summary>Fluent helper to declare an API version on this chain. Returns this chain.</summary>
+    public HttpChain HasApiVersion(ApiVersion version)
+    {
+        ApiVersion = version;
+        return this;
+    }
 
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
@@ -746,6 +763,18 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     string IEndpointNameMetadata.EndpointName => HasExplicitOperationId ? OperationId : ToString();
 
     string IEndpointSummaryMetadata.Summary => EndpointSummary ?? ToString();
+
+    /// <summary>
+    /// Sets an explicit operation ID (endpoint name) and marks it as explicit so it is used
+    /// as the endpoint name in the ASP.NET Core routing infrastructure. This is used by
+    /// <see cref="ApiVersioning.ApiVersioningPolicy"/> to disambiguate endpoints that share the
+    /// same handler method name after URL-segment version prefixes are applied.
+    /// </summary>
+    internal void SetExplicitOperationId(string operationId)
+    {
+        OperationId = operationId;
+        HasExplicitOperationId = true;
+    }
 
     public List<ParameterInfo> FileParameters { get; } = [];
 
