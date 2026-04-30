@@ -236,6 +236,8 @@
     <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
     <Project Path="src/Testing/Module1/Module1.csproj" />
     <Project Path="src/Testing/Module2/Module2.csproj" />
+    <Project Path="src/Testing/TypeLoaderManifestModuleA/TypeLoaderManifestModuleA.csproj" />
+    <Project Path="src/Testing/TypeLoaderManifestModuleB/TypeLoaderManifestModuleB.csproj" />
     <Project Path="src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/OtelWebApiWolverineMarten.csproj" />
     <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
     <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
