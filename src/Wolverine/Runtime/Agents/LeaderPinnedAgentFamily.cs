@@ -34,6 +34,12 @@ internal class LeaderPinnedListenerAgent : IAgent
 
     public AgentStatus Status { get; set; } = AgentStatus.Running;
 
+    /// <summary>
+    /// Human-readable description for monitoring tools — see
+    /// <see cref="IAgent.Description"/>.
+    /// </summary>
+    public string Description => $"Leader-pinned listener for {_endpoint.Uri} — runs only on the cluster's elected leader node, so the listening role moves with leader elections.";
+
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {

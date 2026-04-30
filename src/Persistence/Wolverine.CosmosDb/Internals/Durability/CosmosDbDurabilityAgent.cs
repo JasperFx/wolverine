@@ -158,6 +158,12 @@ public partial class CosmosDbDurabilityAgent : IAgent
     public AgentStatus Status { get; set; }
 
     /// <summary>
+    /// Human-readable description for monitoring tools — see
+    /// <see cref="IAgent.Description"/>.
+    /// </summary>
+    public string Description => $"Wolverine Cosmos DB durability agent for {Uri} — recovers persisted inbox/outbox messages and runs scheduled jobs against the Cosmos DB message store.";
+
+    /// <summary>
     /// True once <see cref="StartTimers"/> has wired up the recovery and scheduled-job
     /// background loops. Exposed for diagnostic and test inspection so callers can detect
     /// the multi-instance "two pollers" condition without reflection. See #2623.

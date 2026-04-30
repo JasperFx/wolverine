@@ -149,6 +149,16 @@ internal class DurabilityAgent : IAgent
 
     public Uri Uri { get; internal set; }
 
+    /// <summary>
+    /// Human-readable description for monitoring tools — see
+    /// <see cref="IAgent.Description"/>. This agent recovers
+    /// persisted inbox / outbox messages from the relational
+    /// message store, runs scheduled jobs, and emits persistence
+    /// metrics. The URI carries the store identity so operators
+    /// can disambiguate when a service has multiple stores.
+    /// </summary>
+    public string Description => $"Wolverine durability agent for {Uri} — recovers persisted inbox/outbox messages, runs scheduled jobs, and emits persistence metrics.";
+
     public static Uri SimplifyUri(Uri uri)
     {
         return new Uri($"{PersistenceConstants.AgentScheme}://{uri.Host}");
