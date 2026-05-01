@@ -217,8 +217,19 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.Endpoints = new HttpGraph(runtime.Options, serviceProvider.GetRequiredService<IServiceContainer>());
 
         configure?.Invoke(options);
-        
+
         options.Policies.Add(new ProblemDetailsFromMiddleware());
+
+        // If ApiVersioning is enabled, append a finalization policy that re-positions the header
+        // writer to index 0 of every relevant chain after every user-supplied policy has run.
+        // FluentValidation / DataAnnotations / RequestId / TenantId middleware all also insert at
+        // index 0; the writer must outrank them so its OnStarting callback registers before any
+        // short-circuit return. See ApiVersionHeaderFinalizationPolicy.
+        var versioningPolicy = options.Policies.OfType<ApiVersioning.ApiVersioningPolicy>().FirstOrDefault();
+        if (versioningPolicy is not null)
+        {
+            options.Policies.Add(new ApiVersioning.ApiVersionHeaderFinalizationPolicy(versioningPolicy.ChainsRequiringHeaderWriter));
+        }
         
         if (DynamicCodeBuilder.WithinCodegenCommand)
         {

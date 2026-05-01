@@ -1,6 +1,7 @@
 using System.Globalization;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Shouldly;
 using Wolverine.Http.ApiVersioning;
 
@@ -8,22 +9,52 @@ namespace Wolverine.Http.Tests.ApiVersioning;
 
 public class ApiVersionHeaderWriterTests
 {
-    // Helper: build a DefaultHttpContext that has the given state attached as endpoint metadata.
-    private static DefaultHttpContext ContextWithState(ApiVersionEndpointHeaderState state)
+    // Test response feature that captures OnStarting callbacks so we can fire them deterministically.
+    private sealed class CapturingResponseFeature : HttpResponseFeature
     {
-        var ctx = new DefaultHttpContext();
-        var endpoint = new Endpoint(
-            _ => Task.CompletedTask,
-            new EndpointMetadataCollection(state),
-            "test");
-        ctx.SetEndpoint(endpoint);
+        public List<(Func<object, Task> Callback, object State)> StartingCallbacks { get; } = new();
+
+        public override void OnStarting(Func<object, Task> callback, object state)
+            => StartingCallbacks.Add((callback, state));
+
+        public override void OnCompleted(Func<object, Task> callback, object state) { }
+    }
+
+    private static DefaultHttpContext BuildContext(ApiVersionEndpointHeaderState? state, out CapturingResponseFeature feature)
+    {
+        feature = new CapturingResponseFeature { Headers = new HeaderDictionary() };
+        var features = new FeatureCollection();
+        features.Set<IHttpResponseFeature>(feature);
+        features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(Stream.Null));
+        features.Set<IHttpRequestFeature>(new HttpRequestFeature());
+
+        var ctx = new DefaultHttpContext(features);
+        if (state is not null)
+        {
+            var endpoint = new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(state), "test");
+            ctx.SetEndpoint(endpoint);
+        }
         return ctx;
     }
 
-    // Helper: build a DefaultHttpContext with NO endpoint state.
+    private static DefaultHttpContext ContextWithState(ApiVersionEndpointHeaderState state)
+        => BuildContext(state, out _);
+
     private static DefaultHttpContext ContextWithNoState()
+        => BuildContext(null, out _);
+
+    // Drain the captured OnStarting callbacks so the in-memory header dictionary reflects what would
+    // be flushed to the client. WriteAsync registers a callback rather than writing synchronously.
+    private static async Task FlushOnStartingAsync(HttpContext ctx)
     {
-        return new DefaultHttpContext();
+        var feature = ctx.Features.Get<IHttpResponseFeature>();
+        if (feature is CapturingResponseFeature capturing)
+        {
+            foreach (var (callback, state) in capturing.StartingCallbacks)
+            {
+                await callback(state);
+            }
+        }
     }
 
     // 1 — no state → no headers emitted
@@ -35,6 +66,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithNoState();
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         ctx.Response.Headers.ContainsKey("api-supported-versions").ShouldBeFalse();
         ctx.Response.Headers.ContainsKey("Deprecation").ShouldBeFalse();
@@ -61,6 +93,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         ctx.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 2.0");
     }
@@ -77,6 +110,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         var expected = depDate.UtcDateTime.ToString("R", CultureInfo.InvariantCulture);
         ctx.Response.Headers["Deprecation"].ToString().ShouldBe(expected);
@@ -93,6 +127,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         ctx.Response.Headers["Deprecation"].ToString().ShouldBe("true");
     }
@@ -109,6 +144,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         var expected = sunsetDate.UtcDateTime.ToString("R", CultureInfo.InvariantCulture);
         ctx.Response.Headers["Sunset"].ToString().ShouldBe(expected);
@@ -128,6 +164,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         ctx.Response.Headers["Link"].ToString()
             .ShouldBe("<https://example.com/info>; rel=\"sunset\"; title=\"Info\"; type=\"text/html\"");
@@ -149,6 +186,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         var linkHeader = ctx.Response.Headers["Link"].ToString();
         linkHeader.ShouldContain("<https://example.com/first>; rel=\"sunset\"");
@@ -179,6 +217,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         // api-supported-versions should still be present
         ctx.Response.Headers.ContainsKey("api-supported-versions").ShouldBeTrue();
@@ -206,6 +245,7 @@ public class ApiVersionHeaderWriterTests
         var ctx = ContextWithState(state);
 
         await writer.WriteAsync(ctx);
+        await FlushOnStartingAsync(ctx);
 
         ctx.Response.Headers.ContainsKey("api-supported-versions").ShouldBeFalse();
         // Deprecation still fires

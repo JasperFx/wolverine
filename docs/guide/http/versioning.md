@@ -301,6 +301,42 @@ When a versioned endpoint is matched, Wolverine emits response headers according
 | `Sunset` | RFC 8594 | Endpoints with a sunset date configured |
 | `Link` | RFC 8288 | Endpoints with link references on either policy |
 
+Headers are emitted on **every framework-produced response**, regardless of HTTP status code. That
+includes:
+
+- 2xx success responses
+- 4xx responses returned via `Results.NotFound()`, `Results.Unauthorized()`, etc.
+- 400 validation `ProblemDetails` responses produced by FluentValidation or DataAnnotations middleware
+- Middleware short-circuits that return an `IResult` (e.g. an authentication guard returning `Results.Unauthorized()`)
+
+Internally, Wolverine registers the headers via `HttpResponse.OnStarting(...)` from the very first
+frame of the chain's middleware list, so emission is correct even when a downstream frame returns
+out of the generated handler before the success path completes.
+
+::: warning Exception path is out of scope
+Responses produced by the global ASP.NET Core exception handler (e.g. an unhandled exception caught
+by `UseExceptionHandler` or `UseDeveloperExceptionPage`) bypass the chain's pipeline entirely, so the
+versioning headers are **not** emitted on those responses. If you need them on 5xx, attach a small
+ASP.NET Core middleware on the exception path that reads the matched endpoint's
+`ApiVersionEndpointHeaderState` metadata and writes the headers itself:
+
+```csharp
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.OnStarting(static state =>
+    {
+        var c = (HttpContext)state;
+        if (c.Response.StatusCode < 500) return Task.CompletedTask;
+        var s = c.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
+        if (s?.Deprecation is not null) c.Response.Headers["Deprecation"] = "true";
+        // ...emit Sunset / Link / api-supported-versions as needed
+        return Task.CompletedTask;
+    }, ctx);
+    await next();
+});
+```
+:::
+
 Toggle the headers globally:
 
 ```csharp
