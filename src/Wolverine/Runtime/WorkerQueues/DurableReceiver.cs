@@ -579,9 +579,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (DuplicateIncomingEnvelopeException)
             {
-                // The batch contained a duplicate (e.g. broker redelivery race). The inbox is fine;
-                // fall through to the per-envelope path which dedupes correctly. Do NOT pause the listener.
-                foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope);
+                // The batch contained at least one duplicate. We cannot trust which
+                // envelopes were actually persisted (some drivers autocommit per
+                // statement on multi-statement batches), so we re-attempt every
+                // envelope through the per-envelope path. The single-envelope
+                // StoreIncomingAsync correctly distinguishes fresh inserts from
+                // duplicates: fresh ones get persisted and pipelined, duplicates
+                // throw and are completed at the listener via
+                // handleDuplicateIncomingEnvelope. Do NOT pause the listener.
+                foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope).ConfigureAwait(false);
             }
             catch (Exception e)
             {
