@@ -109,6 +109,14 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this){ServiceProviderSource = wolverineHttpOptions.ServiceProviderSource}));
 
+        // Expand multi-version handlers before any policy runs, so middleware, route prefix,
+        // and other policies are applied uniformly to every per-version clone. Without this,
+        // clones would miss whatever the policies subsequently mutate.
+        if (wolverineHttpOptions.ApiVersioning is not null)
+        {
+            ApiVersioning.MultiVersionExpansion.Expand(_chains);
+        }
+
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 

@@ -53,12 +53,19 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         AttachHeaderState(chains);
     }
 
-    /// <summary>Step A — read <c>[ApiVersion]</c> / <c>[ApiVersionNeutral]</c> from the handler method and propagate to the chain.</summary>
+    /// <summary>Step A — read <c>[ApiVersion]</c> / <c>[ApiVersionNeutral]</c> from the handler method and propagate to the chain.
+    /// Multi-version expansion runs earlier in <see cref="HttpGraph.DiscoverEndpoints"/>, so chains
+    /// produced by expansion already have their version assigned and are skipped here.</summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
             if (chain.Method?.Method is null)
+                continue;
+
+            // Chains produced by multi-version expansion already have ApiVersion assigned;
+            // skip resolver work to avoid throwing on the still-multi-version method attributes.
+            if (chain.ApiVersion is not null)
                 continue;
 
             // Single reflection pass — resolves neutrality and validates that [ApiVersion] +
@@ -67,9 +74,6 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (ApiVersionNeutralResolver.Resolve(chain.Method.Method))
             {
                 chain.IsApiVersionNeutral = true;
-                // Clear any prior fluent HasApiVersion(...) assignment — a method-level
-                // [ApiVersionNeutral] overriding a versioned class must not leave a stale version
-                // on the chain that DetectDuplicateRoutes / RewriteRoutes would later observe.
                 chain.ApiVersion = null;
                 continue;
             }
@@ -78,8 +82,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (resolution is null)
                 continue;
 
-            if (chain.ApiVersion is null)
-                chain.ApiVersion = resolution.Value.Version;
+            chain.ApiVersion = resolution.Value.Version;
 
             if (resolution.Value.IsDeprecated && chain.DeprecationPolicy is null)
                 chain.DeprecationPolicy = new DeprecationPolicy();

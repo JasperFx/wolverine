@@ -275,6 +275,46 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         return this;
     }
 
+    /// <summary>
+    /// Builds a fresh <see cref="HttpChain"/> from the same handler method so it can serve a
+    /// distinct API version. The clone re-runs the standard ctor pipeline (attributes, configure
+    /// methods, parameter matching, implied middleware), so attribute-driven policies — auth,
+    /// fluent validation, before/after middleware, cascading messages — are reapplied per version.
+    /// The clone's <see cref="ApiVersion"/> is set to <paramref name="version"/> and its
+    /// <see cref="DeprecationPolicy"/> is set when <paramref name="isDeprecated"/> is true.
+    /// </summary>
+    /// <remarks>
+    /// Used by multi-version expansion at bootstrap. Expansion runs before any policy in the
+    /// HTTP pipeline so middleware, route prefix, and downstream policies are applied to clones
+    /// uniformly with the source chain.
+    /// </remarks>
+    internal HttpChain CloneForVersion(ApiVersion version, bool isDeprecated)
+    {
+        // Each clone needs its own MethodCall so JasperFx codegen can wire each handler frame
+        // independently. Re-using the source MethodCall makes the second clone's codegen throw
+        // "Frame chain is being re-arranged" when JasperFx tries to set Next on a frame that's
+        // already chained from the first clone.
+        var clonedMethodCall = new MethodCall(Method.HandlerType, Method.Method);
+        var clone = new HttpChain(clonedMethodCall, _parent)
+        {
+            ServiceProviderSource = ServiceProviderSource,
+            ApiVersion = version
+        };
+
+        // Multi-version expansion produces N chains sharing the same handler method, so the
+        // ctor-derived OperationId collides across clones. Suffix it with the version to keep
+        // ASP.NET Core's "endpoint names must be globally unique" invariant intact.
+        var versionSuffix = version.ToString().Replace('.', '_');
+        clone.OperationId = $"{clone.OperationId}_v{versionSuffix}";
+
+        if (isDeprecated)
+        {
+            clone.DeprecationPolicy ??= new DeprecationPolicy();
+        }
+
+        return clone;
+    }
+
     public static HttpChain ChainFor<T>(Expression<Action<T>> expression, HttpGraph? parent = null)
     {
         var method = ReflectionHelper.GetMethod(expression);
