@@ -166,6 +166,85 @@ opts.UseApiVersioning(v =>
 });
 ```
 
+## Version-Neutral Endpoints <Badge type="tip" text="5.36" />
+
+Some endpoints — health checks, webhooks, metrics, infrastructure utilities — are intentionally outside the
+versioning lifecycle. Mark them with `[ApiVersionNeutral]` to opt out explicitly:
+
+- The chain keeps its declared route — no `/v1`, `/v2`, etc. prefix is injected.
+- No `Deprecation`, `Sunset`, `Link`, or `api-supported-versions` headers are emitted.
+- The chain is excluded from duplicate-detection on the version axis (a neutral chain at the same
+  `(verb, route)` as a versioned chain does **not** collide).
+- The chain satisfies `UnversionedPolicy.RequireExplicit` — neutrality is treated as an explicit choice,
+  not a missing annotation.
+
+### Class-level neutrality
+
+```csharp
+[ApiVersionNeutral]
+public static class HealthCheckEndpoint
+{
+    [WolverineGet("/health")]
+    public static HealthCheckResponse Get() => new("ok");
+}
+```
+
+### Method-level neutrality
+
+A single utility method on an otherwise versioned controller can opt out without affecting its siblings.
+Method-level `[ApiVersionNeutral]` overrides the class-level `[ApiVersion]` for that method only:
+
+```csharp
+[ApiVersion("1.0")]
+public static class CustomersEndpoint
+{
+    // Versioned at v1.0, lives at /v1/customers
+    [WolverineGet("/customers")]
+    public static CustomerList GetCustomers() => /* ... */;
+
+    // Version-neutral; lives at /customers/ping with no version-related headers
+    [ApiVersionNeutral]
+    [WolverineGet("/customers/ping")]
+    public static string Ping() => "pong";
+}
+```
+
+Combining `[ApiVersion]` and `[ApiVersionNeutral]` on **the same target** (same method or same class) is
+contradictory and fails fast at startup with an `InvalidOperationException`.
+
+### OpenAPI integration
+
+Neutral chains receive `Asp.Versioning.ApiVersionMetadata.Neutral` (so `IsApiVersionNeutral` is `true` on
+the metadata), but they deliberately get no `IEndpointGroupNameMetadata`. Without a group name they do not
+match the default Swashbuckle partitioning (`api.GroupName == doc`), so by default they will not appear in
+any versioned document.
+
+To make a neutral endpoint visible across every versioned OpenAPI document, opt it in from your
+`DocInclusionPredicate`. The most common pattern is "include if the endpoint has no group name OR the
+group matches the document":
+
+```csharp
+builder.Services.AddSwaggerGen(x =>
+{
+    x.SwaggerDoc("v1", new OpenApiInfo { Title = "API v1", Version = "v1" });
+    x.SwaggerDoc("v2", new OpenApiInfo { Title = "API v2", Version = "v2" });
+
+    // Version-neutral chains have no GroupName — surface them in every document.
+    x.DocInclusionPredicate((docName, api) =>
+        api.GroupName is null || api.GroupName == docName);
+
+    x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
+});
+```
+
+If you maintain a separate `default` document for unversioned/neutral endpoints (as the WolverineWebApi
+sample does), keep that branch in your predicate:
+
+```csharp
+x.DocInclusionPredicate((docName, api) =>
+    docName == "default" || api.GroupName == docName);
+```
+
 ## Sunset and Deprecation Policies
 
 Beyond the attribute-driven `Deprecated = true` flag, you can configure per-version sunset and deprecation

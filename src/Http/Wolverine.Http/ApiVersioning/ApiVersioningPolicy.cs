@@ -46,13 +46,24 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         WireHeaderPostprocessors(chains);
     }
 
-    /// <summary>Step A — read <c>[ApiVersion]</c> from the handler method and propagate to the chain.</summary>
+    /// <summary>Step A — read <c>[ApiVersion]</c> / <c>[ApiVersionNeutral]</c> from the handler method and propagate to the chain.</summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
             if (chain.Method?.Method is null)
                 continue;
+
+            // Same-target [ApiVersion] + [ApiVersionNeutral] is contradictory — fail fast at startup.
+            ApiVersionNeutralResolver.ValidateNoConflict(chain.Method.Method);
+
+            // Method-level [ApiVersionNeutral] wins over class-level [ApiVersion]; surface it before
+            // running the resolver so a versioned class with a single neutral utility method works.
+            if (ApiVersionNeutralResolver.IsNeutral(chain.Method.Method))
+            {
+                chain.IsApiVersionNeutral = true;
+                continue;
+            }
 
             var resolution = ApiVersionResolver.Resolve(chain.Method.Method);
             if (resolution is null)
@@ -66,12 +77,15 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         }
     }
 
-    /// <summary>Step B — handle chains still missing a version per the configured fallback rule.</summary>
+    /// <summary>Step B — handle chains still missing a version per the configured fallback rule.
+    /// Chains carrying <see cref="HttpChain.IsApiVersionNeutral"/> are treated as having made an
+    /// explicit version-neutral choice, so they are exempt from <see cref="UnversionedPolicy.RequireExplicit"/>
+    /// and <see cref="UnversionedPolicy.AssignDefault"/>.</summary>
     private void ApplyUnversionedPolicy(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
-            if (chain.ApiVersion is not null)
+            if (chain.ApiVersion is not null || chain.IsApiVersionNeutral)
                 continue;
 
             switch (_options.UnversionedPolicy)
@@ -83,7 +97,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
                     throw new InvalidOperationException(
                         $"Endpoint '{Identify(chain)}' does not declare an [ApiVersion] attribute. " +
                         $"The current UnversionedPolicy is '{UnversionedPolicy.RequireExplicit}', which requires every endpoint " +
-                        "to carry an explicit version.");
+                        "to carry an explicit version. To opt an endpoint out of versioning, mark it with [ApiVersionNeutral].");
 
                 case UnversionedPolicy.AssignDefault:
                     chain.ApiVersion = _options.DefaultVersion
@@ -183,12 +197,26 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         return "/" + _options.UrlSegmentPrefix!.Replace("{version}", versionSegment).TrimStart('/');
     }
 
-    /// <summary>Step F — attach group-name, ApiVersionMetadata, and ensure unique endpoint names.</summary>
+    /// <summary>Step F — attach group-name, ApiVersionMetadata, and ensure unique endpoint names.
+    /// Version-neutral chains receive <see cref="ApiVersionMetadata.Neutral"/> so consumers of the
+    /// metadata graph (Asp.Versioning tooling, the Swashbuckle filter) can recognise them, but they
+    /// deliberately get no <c>IEndpointGroupNameMetadata</c>. Without a group name they are skipped
+    /// by Swashbuckle's default group-name partitioning; users opt them into versioned documents
+    /// from <c>DocInclusionPredicate</c> (see <c>versioning.md</c>).</summary>
     private void AttachMetadata(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
-            if (chain.ApiVersion is null || !_processedChains.Add(chain))
+            if (!_processedChains.Add(chain))
+                continue;
+
+            if (chain.IsApiVersionNeutral)
+            {
+                chain.Metadata.WithMetadata(ApiVersionMetadata.Neutral);
+                continue;
+            }
+
+            if (chain.ApiVersion is null)
                 continue;
 
             var groupName = _options.OpenApi.DocumentNameStrategy(chain.ApiVersion);
