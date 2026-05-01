@@ -39,9 +39,16 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     ///     are read and how outgoing messages are written to SNS
     /// </summary>
     public ISnsEnvelopeMapper? Mapper { get; set; }
-    
-    
+
+
     internal Func<AmazonSnsTopic, IWolverineRuntime, ISnsEnvelopeMapper>? MapperFactory = null;
+
+    // AmazonSnsTopic inherits raw Endpoint (not the typed Endpoint<,>), so the
+    // generic base override doesn't apply. Surface "user wired their own SNS
+    // mapper or factory" through the same protected hook so the
+    // EndpointDescriptor reports InteropMode = "Custom" for SNS too. See #2641.
+    protected internal override bool HasCustomEnvelopeMapper =>
+        Mapper is not null || MapperFactory is not null;
     
     internal ISnsEnvelopeMapper BuildMapper(IWolverineRuntime runtime)
     {

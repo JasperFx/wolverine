@@ -152,13 +152,23 @@ public abstract class Endpoint<TMapper, TConcreteMapper> : Endpoint
     }
 
     protected abstract TConcreteMapper buildMapper(IWolverineRuntime runtime);
-    
-    
+
+
     /// <summary>
     /// When set, overrides the built in envelope mapping with a custom
     /// implementation
     /// </summary>
     public TMapper? EnvelopeMapper { get; set; }
+
+    /// <summary>
+    /// True when the user has explicitly wired a custom mapper instance or factory in
+    /// place of the per-transport default <see cref="buildMapper"/>. Drives the
+    /// <c>"Custom"</c> value on <see cref="Capabilities.EndpointDescriptor.InteropMode"/>
+    /// so monitoring tools (e.g. CritterWatch) can flag endpoints that are using a
+    /// non-default envelope shape. See #2641.
+    /// </summary>
+    protected internal override bool HasCustomEnvelopeMapper =>
+        EnvelopeMapper is not null || _mapperFactory is not null;
 }
 
 /// <summary>
@@ -320,6 +330,17 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     [IgnoreDescription]
     internal IWireTap? WireTap { get; set; }
+
+    /// <summary>
+    /// Used by <see cref="Capabilities.EndpointDescriptor"/> to surface a <c>"Custom"</c>
+    /// interop mode when the user has wired a non-default envelope mapper for this
+    /// endpoint. The base implementation returns <c>false</c> so non-typed endpoints
+    /// (local queues, the database control transports, TCP, etc.) are reported as
+    /// using the framework default. The generic <see cref="Endpoint{TMapper, TConcreteMapper}"/>
+    /// overrides this. See #2641.
+    /// </summary>
+    [IgnoreDescription]
+    protected internal virtual bool HasCustomEnvelopeMapper => false;
 
     /// <summary>
     ///     Get or override the default message serializer for just this endpoint
