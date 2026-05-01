@@ -88,24 +88,27 @@ public class Bug_2588_ef_core_durable_outbox_with_conventional_routing : IAsyncL
     {
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
-        var routes = runtime.RoutingFor(typeof(Bug2588Message))
-            .ShouldBeOfType<MessageRouter<Bug2588Message>>()
-            .Routes;
+        // Find the conventional broker sender directly via the public Transports
+        // collection — looking for the non-local endpoint that has a subscription
+        // matching our message type. Local routing wins precedence over
+        // MessageRoutingConventions for handled types so we can't go through
+        // RoutingFor; we need to inspect the broker endpoint that PreregisterSenders
+        // + BrokerTransport.InitializeAsync compiled at startup, which is where the
+        // AllSenders policy needed to fire.
+        //
+        // Reporter's symptom in unit-test form: with
+        // UseDurableOutboxOnAllSendingEndpoints() the conventionally-routed RabbitMQ
+        // exchange should have EndpointMode.Durable so cascading messages participate
+        // in the outbox transaction. Before the GH-2588 fix this came back as
+        // BufferedInMemory because the exchange was Compile()'d during
+        // BrokerTransport.InitializeAsync (before DiscoverSenders ran) and the
+        // AllSenders policy gated on `e.Subscriptions.Any()` short-circuited.
+        var brokerEndpoint = runtime.Options.Transports
+            .AllEndpoints()
+            .Single(e => e.Uri.Scheme != "local"
+                      && e.Subscriptions.Any(s => s.Matches(typeof(Bug2588Message))));
 
-        routes.Length.ShouldBeGreaterThan(0);
-
-        var route = routes.Single().ShouldBeOfType<MessageRoute>();
-        var endpoint = route.Sender.Endpoint;
-
-        // Reporter's symptom in unit-test form. With
-        // UseDurableOutboxOnAllSendingEndpoints() the conventionally-routed
-        // RabbitMQ exchange should have EndpointMode.Durable so cascading
-        // messages participate in the outbox transaction. On main with the
-        // handler registered, this comes back as BufferedInMemory because
-        // the exchange was Compile()'d during BrokerTransport.InitializeAsync
-        // (before DiscoverSenders ran) and the AllSenders policy gated on
-        // `e.Subscriptions.Any()` short-circuited.
-        endpoint.Mode.ShouldBe(EndpointMode.Durable);
+        brokerEndpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
 }
 
