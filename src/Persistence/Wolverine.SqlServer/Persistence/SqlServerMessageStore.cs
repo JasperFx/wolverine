@@ -127,7 +127,14 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
 
     protected override bool isExceptionFromDuplicateEnvelope(Exception ex)
     {
-        return ex is SqlException sqlEx && sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint");
+        if (ex is SqlException sqlEx)
+        {
+            if (sqlEx.Number == 2627 || sqlEx.Number == 2601) return true;
+            return sqlEx.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")
+                || sqlEx.Message.ContainsIgnoreCase("Violation of UNIQUE KEY constraint");
+        }
+
+        return false;
     }
 
     protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)

@@ -74,7 +74,8 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
     {
         if (ex is MySqlException mySqlException)
         {
-            return mySqlException.Number == 1062;
+            if (mySqlException.Number == 1062) return true;
+            return mySqlException.Message.Contains("Duplicate entry");
         }
 
         return false;

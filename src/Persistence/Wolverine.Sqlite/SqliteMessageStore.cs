@@ -90,8 +90,17 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     {
         if (ex is SqliteException sqliteException)
         {
-            return sqliteException.SqliteErrorCode == 19 || // SQLITE_CONSTRAINT
-                   sqliteException.Message.Contains("UNIQUE constraint failed");
+            // SQLITE_CONSTRAINT_PRIMARYKEY (1555) or SQLITE_CONSTRAINT_UNIQUE (2067)
+            if (sqliteException.SqliteExtendedErrorCode == 1555
+                || sqliteException.SqliteExtendedErrorCode == 2067)
+            {
+                return true;
+            }
+
+            // Fallback: SQLITE_CONSTRAINT (19) plus message-match
+            return sqliteException.SqliteErrorCode == 19
+                && (sqliteException.Message.Contains("UNIQUE constraint failed")
+                    || sqliteException.Message.Contains("PRIMARY KEY"));
         }
 
         return false;

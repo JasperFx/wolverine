@@ -163,6 +163,35 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
+    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
+    {
+        var existing = ObjectMother.Envelope();
+        existing.Destination = new Uri("stub://incoming-bulk-dup");
+        existing.Status = EnvelopeStatus.Incoming;
+        await thePersistence.Inbox.StoreIncomingAsync(existing);
+
+        var fresh1 = ObjectMother.Envelope();
+        fresh1.Destination = existing.Destination;
+        fresh1.Status = EnvelopeStatus.Incoming;
+
+        var fresh2 = ObjectMother.Envelope();
+        fresh2.Destination = existing.Destination;
+        fresh2.Status = EnvelopeStatus.Incoming;
+
+        var batch = new[] { fresh1, existing, fresh2 };
+
+        var ex = await Should.ThrowAsync<DuplicateIncomingEnvelopeException>(
+            () => thePersistence.Inbox.StoreIncomingAsync(batch));
+
+        // Only the actually-existing envelope is reported as a duplicate.
+        // Fresh envelopes must NOT appear in Duplicates — otherwise DurableReceiver
+        // would route them straight to listener.CompleteAsync and the handler would
+        // never run for legitimate messages.
+        ex.Duplicates.Count.ShouldBe(1);
+        ex.Duplicates.Single().Id.ShouldBe(existing.Id);
+    }
+
+    [Fact]
     public async Task store_a_single_outgoing_envelope()
     {
         var envelope = ObjectMother.Envelope();

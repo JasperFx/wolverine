@@ -119,8 +119,8 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
     {
         if (ex is PostgresException postgresException)
         {
-            return
-                postgresException.Message.Contains("duplicate key value violates unique constraint");
+            if (postgresException.SqlState == "23505") return true;
+            return postgresException.Message.Contains("duplicate key value violates unique constraint");
         }
 
         return false;
