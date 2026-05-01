@@ -163,7 +163,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     }
 
     [Fact]
-    public async Task bulk_store_with_intra_batch_duplicate_throws_DuplicateIncomingEnvelopeException()
+    public async Task bulk_store_intra_batch_duplicate_reports_only_actual_duplicates()
     {
         var existing = ObjectMother.Envelope();
         existing.Destination = new Uri("stub://incoming-bulk-dup");
