@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Alba" Version="8.5.2" />
-    <PackageVersion Include="Asp.Versioning.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Asp.Versioning.Abstractions" Version="[10.0.0,11.0.0)" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.22.1" />
     <PackageVersion Include="AWSSDK.SimpleNotificationService" Version="4.0.2.14" />
     <PackageVersion Include="AWSSDK.SQS" Version="4.0.2.14" />
