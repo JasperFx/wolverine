@@ -38,4 +38,50 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
     {
         return _sender.ScheduleRetryAsync(envelope, cancellation);
     }
+
+    /// <summary>
+    /// Cheap connectivity ping against the per-tenant database. Used by
+    /// <see cref="StickyPostgresqlQueueListenerAgent.CheckHealthAsync"/> to surface
+    /// per-tenant DB reachability as a health signal.
+    /// </summary>
+    internal async Task PingDatabaseAsync(CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1";
+            await cmd.ExecuteScalarAsync(cancellationToken);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    /// <summary>
+    /// Returns the row count of the parent queue table on this tenant's database. Used
+    /// by <see cref="StickyPostgresqlQueueListenerAgent.CheckHealthAsync"/> to surface
+    /// per-tenant queue depth as a health signal.
+    /// </summary>
+    internal async Task<long> GetQueueDepthAsync(CancellationToken cancellationToken)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = $"select count(*) from {_parent.QueueTable.Identifier}";
+            var raw = await cmd.ExecuteScalarAsync(cancellationToken);
+            return raw switch
+            {
+                long l => l,
+                int i => i,
+                _ => Convert.ToInt64(raw)
+            };
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
 }
