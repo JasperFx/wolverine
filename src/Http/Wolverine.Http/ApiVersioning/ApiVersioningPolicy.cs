@@ -27,6 +27,13 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     private readonly HashSet<HttpChain> _processedChains = new();
     private readonly HashSet<HttpChain> _headerProcessedChains = new();
 
+    /// <summary>
+    /// Chains for which Step G attached <see cref="ApiVersionEndpointHeaderState"/> metadata, exposed
+    /// for <see cref="ApiVersionHeaderFinalizationPolicy"/> to position the writer call at index 0
+    /// after all other user-supplied policies have run.
+    /// </summary>
+    internal IReadOnlyCollection<HttpChain> ChainsRequiringHeaderWriter => _headerProcessedChains;
+
     /// <summary>Initializes a new instance of <see cref="ApiVersioningPolicy"/>.</summary>
     /// <param name="options">The API versioning options that drive this policy's behaviour.</param>
     public ApiVersioningPolicy(WolverineApiVersioningOptions options)
@@ -206,7 +213,15 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         }
     }
 
-    /// <summary>Step G — register the response-header postprocessor for chains that emit headers.</summary>
+    /// <summary>
+    /// Step G — attach the per-chain <see cref="ApiVersionEndpointHeaderState"/> metadata that the
+    /// writer reads at request time. The actual <c>chain.Middleware.Insert(0, …)</c> for the writer
+    /// itself is deferred to <see cref="ApiVersionHeaderFinalizationPolicy"/>, which is registered
+    /// at the end of <c>MapWolverineEndpoints</c> so it executes after every user-supplied policy
+    /// (notably FluentValidation, which itself inserts a short-circuiting frame at index 0). Doing
+    /// the insert here would leave the writer below those frames and the OnStarting hook would not
+    /// register before <c>return;</c> on the validation-fail path.
+    /// </summary>
     private void WireHeaderPostprocessors(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
@@ -220,10 +235,6 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             // Per-chain state lives on endpoint metadata so the singleton writer can read it at request time.
             var state = new ApiVersionEndpointHeaderState(chain.ApiVersion, chain.SunsetPolicy, chain.DeprecationPolicy);
             chain.Metadata.WithMetadata(state);
-
-            // MethodCall has no .Target — Wolverine codegen resolves ApiVersionHeaderWriter from DI
-            // at request time, then satisfies HttpContext from the request scope.
-            chain.Postprocessors.Add(MethodCall.For<ApiVersionHeaderWriter>(x => x.WriteAsync(null!)));
         }
     }
 

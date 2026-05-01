@@ -37,9 +37,10 @@ public class ApiVersioningPolicyHeaderWiringTests
     private static void Apply(ApiVersioningPolicy policy, params HttpChain[] chains)
         => policy.Apply(chains, new GenerationRules(), null!);
 
-    // 1 — chain with sunset policy gets ApiVersionHeaderWriter postprocessor
+    // 1 — chain with sunset policy is flagged as needing a header writer; the finalization policy
+    // is what actually inserts the writer call at index 0.
     [Fact]
-    public void chain_with_sunset_policy_gets_header_writer_postprocessor()
+    public void chain_with_sunset_policy_is_flagged_for_header_finalization()
     {
         var date = new DateTimeOffset(2027, 6, 1, 0, 0, 0, TimeSpan.Zero);
         var opts = new WolverineApiVersioningOptions();
@@ -50,15 +51,26 @@ public class ApiVersioningPolicyHeaderWiringTests
 
         Apply(policy, chain);
 
-        chain.Postprocessors
+        policy.ChainsRequiringHeaderWriter.ShouldContain(chain);
+
+        // The writer is *not* yet inserted by ApiVersioningPolicy itself — that is the job of
+        // ApiVersionHeaderFinalizationPolicy, registered after every user policy in MapWolverineEndpoints.
+        chain.Middleware
             .OfType<MethodCall>()
             .Any(c => c.HandlerType == typeof(ApiVersionHeaderWriter))
-            .ShouldBeTrue();
+            .ShouldBeFalse();
+
+        // Driving the finalization policy directly puts the writer at index 0.
+        var finalization = new ApiVersionHeaderFinalizationPolicy(policy.ChainsRequiringHeaderWriter);
+        finalization.Apply(new[] { chain }, new GenerationRules(), null!);
+
+        chain.Middleware.OfType<MethodCall>().First()
+            .HandlerType.ShouldBe(typeof(ApiVersionHeaderWriter));
     }
 
-    // 2 — chain with all header emit flags disabled and no deprecation/sunset gets no postprocessor
+    // 2 — chain with all header emit flags disabled and no deprecation/sunset is not flagged.
     [Fact]
-    public void chain_with_no_policies_and_emit_supported_disabled_gets_no_postprocessor()
+    public void chain_with_no_policies_and_emit_supported_disabled_is_not_flagged()
     {
         var opts = new WolverineApiVersioningOptions
         {
@@ -71,7 +83,12 @@ public class ApiVersioningPolicyHeaderWiringTests
 
         Apply(policy, chain);
 
-        chain.Postprocessors
+        policy.ChainsRequiringHeaderWriter.ShouldNotContain(chain);
+
+        var finalization = new ApiVersionHeaderFinalizationPolicy(policy.ChainsRequiringHeaderWriter);
+        finalization.Apply(new[] { chain }, new GenerationRules(), null!);
+
+        chain.Middleware
             .OfType<MethodCall>()
             .Any(c => c.HandlerType == typeof(ApiVersionHeaderWriter))
             .ShouldBeFalse();
@@ -99,9 +116,10 @@ public class ApiVersioningPolicyHeaderWiringTests
         state.Sunset!.Date.ShouldBe(date);
     }
 
-    // 4 — apply twice does not add duplicate header postprocessor (idempotency guard)
+    // 4 — apply finalization twice does not add a duplicate header writer (idempotency guard);
+    // covers the case where another policy inserts at index 0 between the two finalization runs.
     [Fact]
-    public void apply_twice_does_not_add_duplicate_header_postprocessor()
+    public void finalization_twice_does_not_duplicate_and_keeps_writer_at_head()
     {
         var opts = new WolverineApiVersioningOptions();
         opts.Sunset("1.0").On(DateTimeOffset.UtcNow.AddDays(30));
@@ -109,11 +127,17 @@ public class ApiVersioningPolicyHeaderWiringTests
         var chain = HttpChain.ChainFor<OrdersHeaderTestHandler>(x => x.Get());
 
         Apply(policy, chain);
-        var firstCount = chain.Postprocessors.OfType<MethodCall>().Count(c => c.HandlerType == typeof(ApiVersionHeaderWriter));
 
-        Apply(policy, chain);
-        var secondCount = chain.Postprocessors.OfType<MethodCall>().Count(c => c.HandlerType == typeof(ApiVersionHeaderWriter));
+        var finalization = new ApiVersionHeaderFinalizationPolicy(policy.ChainsRequiringHeaderWriter);
+        finalization.Apply(new[] { chain }, new GenerationRules(), null!);
+        var firstCount = chain.Middleware.OfType<MethodCall>().Count(c => c.HandlerType == typeof(ApiVersionHeaderWriter));
 
-        secondCount.ShouldBe(firstCount);
+        finalization.Apply(new[] { chain }, new GenerationRules(), null!);
+        var secondCount = chain.Middleware.OfType<MethodCall>().Count(c => c.HandlerType == typeof(ApiVersionHeaderWriter));
+
+        firstCount.ShouldBe(1);
+        secondCount.ShouldBe(1);
+        chain.Middleware.OfType<MethodCall>().First()
+            .HandlerType.ShouldBe(typeof(ApiVersionHeaderWriter));
     }
 }

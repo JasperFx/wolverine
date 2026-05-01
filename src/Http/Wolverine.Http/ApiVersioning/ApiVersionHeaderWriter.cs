@@ -49,10 +49,18 @@ public sealed class ApiVersionHeaderWriter
     }
 
     /// <summary>
-    /// Writes the applicable versioning response headers to <paramref name="context"/>.
-    /// Reads per-chain state from <see cref="ApiVersionEndpointHeaderState"/> stored in the
-    /// matched endpoint's metadata. If no state is present the method returns immediately.
+    /// Registers a <see cref="HttpResponse.OnStarting(Func{Task})"/> callback that writes the applicable
+    /// versioning response headers immediately before the response headers are flushed to the client.
+    /// Headers are emitted for every framework-produced response regardless of status code (2xx, 4xx,
+    /// validation <c>ProblemDetails</c>, middleware short-circuits returning <c>IResult</c>). Responses
+    /// produced by the global exception handler bypass the chain pipeline entirely and therefore never
+    /// invoke this callback — wire deprecation headers on the exception path via separate middleware.
     /// </summary>
+    /// <remarks>
+    /// The method name remains <c>WriteAsync</c> because Wolverine's runtime code generation references
+    /// it by name. It is invoked once per request, near the head of the chain's middleware list, before
+    /// any status-branch divergence in the generated code.
+    /// </remarks>
     /// <param name="context">The current HTTP context.</param>
     public Task WriteAsync(HttpContext context)
     {
@@ -60,6 +68,18 @@ public sealed class ApiVersionHeaderWriter
         if (state is null)
             return Task.CompletedTask;
 
+        context.Response.OnStarting(static stateObj =>
+        {
+            var (writer, ctx, hdrState) = ((ApiVersionHeaderWriter, HttpContext, ApiVersionEndpointHeaderState))stateObj;
+            writer.ApplyHeaders(ctx, hdrState);
+            return Task.CompletedTask;
+        }, (this, context, state));
+
+        return Task.CompletedTask;
+    }
+
+    private void ApplyHeaders(HttpContext context, ApiVersionEndpointHeaderState state)
+    {
         var headers = context.Response.Headers;
 
         if (_options.EmitApiSupportedVersionsHeader && _supportedVersionsHeader.Value.Length > 0)
@@ -81,8 +101,6 @@ public sealed class ApiVersionHeaderWriter
             if (links.Length > 0)
                 headers["Link"] = links;
         }
-
-        return Task.CompletedTask;
     }
 
     private static string BuildSupportedVersionsHeader(WolverineApiVersioningOptions options)
