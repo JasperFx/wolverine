@@ -37,6 +37,20 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Polecat 2.0+ defaults UseNativeJsonType=true, which requires the native
+      # `json` column type introduced in SQL Server 2025. The repo-wide
+      # docker-compose.yml pins sqlserver to 2022-latest because 2025-latest
+      # crashes on first boot under Apple Silicon (Windows build paths in
+      # master.mdf — see comment in docker-compose.yml). On the GitHub Linux
+      # x64 runner, 2025-latest works fine, so override the image just here.
+      - name: Override SQL Server image to 2025-latest for Polecat
+        run: |
+          cat > docker-compose.override.yml <<'EOF'
+          services:
+            sqlserver:
+              image: mcr.microsoft.com/mssql/server:2025-latest
+          EOF
+
       - name: Run Polecat Tests
         run: ./build.sh CIPolecat --framework net9.0
 

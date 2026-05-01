@@ -47,15 +47,18 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IDi
     {
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
-        // Pull the conventional broker sender directly from the convention. Local
-        // routing wins precedence over MessageRoutingConventions for handled message
-        // types, so RoutingFor(...).Routes will surface the local handler queue —
-        // not the broker endpoint #2588 is about. We need to verify that the broker
-        // sender pre-registered by PreregisterSenders had the AllSenders policy
-        // applied during BrokerTransport.InitializeAsync's Compile() call.
-        var brokerEndpoint = runtime.Options.RoutingConventions
-            .SelectMany(c => c.DiscoverSenders(typeof(Bug2588SqsMessage), runtime))
-            .Single();
+        // Find the conventional broker sender directly via the public Transports
+        // collection — looking for the non-local endpoint that has a subscription
+        // matching our message type. Local routing wins precedence over
+        // MessageRoutingConventions for handled types so we can't go through
+        // RoutingFor; we need to inspect the broker endpoint that PreregisterSenders
+        // + BrokerTransport.InitializeAsync compiled at startup, which is where the
+        // AllSenders policy needed to fire. (Avoids the internal RoutingConventions
+        // API so this works in test projects without InternalsVisibleTo coverage.)
+        var brokerEndpoint = runtime.Options.Transports
+            .AllEndpoints()
+            .Single(e => e.Uri.Scheme != "local"
+                      && e.Subscriptions.Any(s => s.Matches(typeof(Bug2588SqsMessage))));
 
         brokerEndpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
