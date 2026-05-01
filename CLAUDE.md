@@ -83,6 +83,21 @@ Valid handler method names: `Handle`, `HandleAsync`, `Consume`, `ConsumeAsync` (
 
 Handlers are discovered by scanning assemblies. Use attributes like `[WolverineHandler]`, `[WolverineMessage]`, `[WolverineIgnore]` to control discovery.
 
+## Test conventions
+
+### Getting an `IMessageBus` from an `IHost` in tests
+
+`IMessageBus` is scoped per-message, so resolving it from the host's root container yields a bus that isn't wired into the active `MessageContext` and won't behave correctly under tracking, outbox, or context-propagation tests.
+
+```csharp
+// ❌ Don't — pulls the bus from the root scope, missing the per-message context
+var bus = host.Services.GetRequiredService<IMessageBus>();
+
+// ✅ Do — extension method in the `Wolverine` namespace that hands you a
+// scoped bus already attached to the current message context
+var bus = host.MessageBus();
+```
+
 ## Configuration Organization
 
 WolverineOptions uses partial classes to organize concerns:
