@@ -1,5 +1,6 @@
 using Wolverine.Configuration;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports.Sending;
@@ -64,6 +65,26 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
 
     public ValueTask EnqueueOutgoingAsync(Envelope envelope)
     {
+        // AlwaysMakeScheduledMessagesDurable: BufferedLocalQueue's "native" scheduling
+        // is the in-process IScheduledJobProcessor — non-persistent, lost on restart.
+        // The policy redirects scheduled envelopes to the durable inbox so they're
+        // recovered by the scheduled-job poller after a crash. Recovery-path enqueues
+        // (IListenerCircuit.EnqueueDirectlyAsync, line ~48) bypass this — those envelopes
+        // came FROM the message store and must not be re-stored.
+        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow)
+            && _runtime.Options.Durability.AlwaysMakeScheduledMessagesDurable
+            && _runtime.Storage is not NullMessageStore)
+        {
+            _messageTracker.Sent(envelope);
+            envelope.ReplyUri ??= ReplyUri;
+            // RescheduleExistingEnvelopeForRetryAsync is the misnamed-but-correct API for
+            // both new scheduled envelopes and retry rescheduling — it sets Status=Scheduled
+            // + OwnerId=AnyNode, then upserts via StoreIncomingAsync. Mirrors the call in
+            // MessageContext.flushScheduledMessagesAsync. ScheduleExecutionAsync (UPDATE-only)
+            // would silently no-op for envelopes that aren't already in the database.
+            return new ValueTask(_runtime.Storage.Inbox.RescheduleExistingEnvelopeForRetryAsync(envelope));
+        }
+
         EnqueueDirectly(envelope);
 
         return ValueTask.CompletedTask;

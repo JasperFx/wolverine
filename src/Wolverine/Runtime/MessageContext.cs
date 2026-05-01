@@ -207,6 +207,11 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
                         }
                         else
                         {
+                            // Non-durable sender, no native scheduling. In current Wolverine this
+                            // branch is effectively unreachable for non-local transports — the
+                            // routing layer (MessageRoute.WriteEnvelope) already swaps such
+                            // envelopes to the local://durable queue, which means Sender.IsDurable
+                            // would be true above. Kept for defense in depth.
                             Runtime.Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution (non-durable, no native scheduling) to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             Runtime.ScheduleLocalExecutionInMemory(envelope.ScheduledTime!.Value, envelope);
                         }
