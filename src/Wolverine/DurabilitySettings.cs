@@ -223,6 +223,27 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan NodeEventRecordExpirationTime { get; set; } = 5.Days();
 
     /// <summary>
+    /// Health-check threshold for dead-letter-queue growth. When the persisted DLQ count grows
+    /// faster than this many envelopes per minute between two consecutive health-check evaluations,
+    /// the durability agent reports Degraded. Default is 100/min. See #2646.
+    /// </summary>
+    public int HealthDeadLetterGrowthPerMinuteThreshold { get; set; } = 100;
+
+    /// <summary>
+    /// Health-check threshold for stuck recovery / scheduled-job pollers. When the persisted
+    /// inbox+outbox count (or the scheduled count) is non-zero and has not decreased over this
+    /// many consecutive evaluations, the durability agent reports Degraded. Default is 3. See #2646.
+    /// </summary>
+    public int HealthStuckPollCycleThreshold { get; set; } = 3;
+
+    /// <summary>
+    /// Health-check threshold for consecutive persistence-layer failures. After this many
+    /// consecutive failed poll cycles, the durability agent reports Unhealthy (a single failure
+    /// reports Degraded). Default is 3. See #2646.
+    /// </summary>
+    public int HealthConsecutiveFailureUnhealthyThreshold { get; set; } = 3;
+
+    /// <summary>
     ///     How long a sending agent can be idle before it is considered stale
     ///     and eligible for cleanup. Default is 5 minutes.
     /// </summary>
