@@ -35,6 +35,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         Configuration = new CreateQueueRequest(QueueName);
 
         MessageBatchSize = 10;
+
+        DeadLetterQueueName = parent.DefaultDeadLetterQueueName;
     }
 
     /// <summary>

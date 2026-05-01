@@ -58,6 +58,14 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     public bool UseLocalStackInDevelopment { get; set; }
     public bool DisableDeadLetterQueues { get; set; }
 
+
+    /// <summary>
+    /// Override the default dead letter queue name applied to all SQS listener queues.
+    /// Defaults to <see cref="DeadLetterQueueConstants.DefaultQueueName"/>.
+    /// Per-queue overrides via <c>ConfigureDeadLetterQueue</c> still take precedence.
+    /// </summary>
+    public string DefaultDeadLetterQueueName { get; set; } = DeadLetterQueueConstants.DefaultQueueName;
+
     /// <summary>
     /// Is this transport connection allowed to build and use response and control queues
     /// for just this node? Default is false, requiring explicit opt-in.

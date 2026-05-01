@@ -106,6 +106,17 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     }
 
     /// <summary>
+    /// Override the global default dead letter queue name applied to all SQS listener queues.
+    /// Per-queue overrides via <c>ConfigureDeadLetterQueue</c> still take precedence.
+    /// </summary>
+    /// <param name="queueName">The base queue name (without environment prefix).</param>
+    public AmazonSqsTransportConfiguration DefaultDeadLetterQueueName(string queueName)
+    {
+        Transport.DefaultDeadLetterQueueName = AmazonSqsTransport.SanitizeSqsName(queueName);
+        return this;
+    }
+
+    /// <summary>
     /// Enable Wolverine system queues for request/reply support.
     /// Creates a per-node response queue that is automatically cleaned up.
     /// </summary>
