@@ -77,7 +77,7 @@ public class service_location_message_context
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync();
 
-        var bus = host.Services.GetRequiredService<IMessageBus>();
+        var bus = host.MessageBus();
         bus.ShouldNotBeNull();
     }
 
