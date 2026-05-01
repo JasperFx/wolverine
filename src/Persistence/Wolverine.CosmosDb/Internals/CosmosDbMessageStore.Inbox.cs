@@ -89,6 +89,7 @@ public partial class CosmosDbMessageStore : IMessageInbox
 
     public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
+        var duplicates = new List<Envelope>();
         foreach (var envelope in envelopes)
         {
             var incoming = new IncomingMessage(envelope, this);
@@ -98,8 +99,16 @@ public partial class CosmosDbMessageStore : IMessageInbox
             }
             catch (CosmosException e) when (e.StatusCode == HttpStatusCode.Conflict)
             {
-                // Skip duplicates in batch mode; DurableReceiver will retry one at a time
+                duplicates.Add(envelope);
             }
+        }
+
+        if (duplicates.Count > 0)
+        {
+            // Surface so DurableReceiver completes only the actual duplicates at the
+            // listener and re-pipelines the fresh ones; silently swallowing would
+            // route every envelope (including the duplicate) to the handler.
+            throw new DuplicateIncomingEnvelopeException(duplicates);
         }
     }
 
