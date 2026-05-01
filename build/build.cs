@@ -472,7 +472,8 @@ partial class Build : NukeBuild
         { "jasperfx", ["JasperFx", "JasperFx.Events", "EventTests", "JasperFx.RuntimeCompiler"] },
         { "weasel", ["Weasel.Core", "Weasel.Postgresql", "Weasel.SqlServer"] },
         {"lamar", ["Lamar", "Lamar.Microsoft.DependencyInjection"]},
-        {"marten", ["Marten"]}
+        {"marten", ["Marten"]},
+        {"polecat", ["Polecat"]}
     };
 
     //string[] Nugets = ["JasperFx", "JasperFx.Events", "JasperFx.RuntimeCompiler", "Weasel.Postgresql"];
@@ -482,11 +483,12 @@ partial class Build : NukeBuild
     private IEnumerable<NugetToProjectReference> nugetReferences()
     {
         yield return new(Solution.Wolverine, ["JasperFx", "JasperFx.RuntimeCompiler", "JasperFx.Events"]);
-        
+
         yield return new(Solution.Persistence.PostgreSQL.Wolverine_Postgresql, ["Weasel.Postgresql"]);
         yield return new(Solution.Persistence.Wolverine_RDBMS, ["Weasel.Core"]);
         yield return new(Solution.Persistence.SqlServer.Wolverine_SqlServer, ["Weasel.SqlServer"]);
         yield return new(Solution.Persistence.Marten.Wolverine_Marten, ["Marten"]);
+        yield return new(Solution.Persistence.Polecat.Wolverine_Polecat, ["Polecat"]);
     }
     
     Target Attach => _ => _.Executes(() =>
