@@ -115,6 +115,35 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
+    /// <summary>
+    /// Force this sender endpoint to use the AES-256-GCM encrypting serializer
+    /// for all outgoing messages. Requires the encrypting serializer to be
+    /// registered first via <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/>; if it is not
+    /// registered, the host fails to start.
+    /// </summary>
+    public T Encrypted()
+    {
+        add(endpoint =>
+        {
+            var runtime = endpoint.Runtime
+                ?? throw new InvalidOperationException(
+                    "Endpoint runtime is not set. .Encrypted() requires a fully-configured endpoint.");
+
+            var encrypting = runtime.Options.TryFindSerializer(
+                    Wolverine.Runtime.Serialization.Encryption.EncryptionHeaders.EncryptedContentType)
+                ?? throw new InvalidOperationException(
+                    "No encrypting serializer is registered. Call " +
+                    "WolverineOptions.UseEncryption(provider) or " +
+                    "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                    "before configuring an endpoint with .Encrypted().");
+
+            var rule = new Wolverine.Runtime.Serialization.Encryption.EncryptOutgoingEndpointRule(encrypting);
+            endpoint.OutgoingRules.Add(rule);
+        });
+        return this.As<T>();
+    }
+
     public T Named(string name)
     {
         add(e => e.EndpointName = name);

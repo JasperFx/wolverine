@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using JasperFx.Core.Reflection;
 using Wolverine.Logging;
 using Wolverine.RateLimiting;
+using Wolverine.Runtime.Serialization.Encryption;
 
 namespace Wolverine;
 
@@ -71,6 +72,29 @@ public class MessageTypePolicies<T>
         configure?.Invoke(schedule);
         _parent.ConfigureRateLimit(typeof(T), schedule, key);
 
+        return this;
+    }
+
+    /// <summary>
+    /// Mark messages assignable to <typeparamref name="T"/> as requiring AES-256-GCM
+    /// encryption on send and on receive. Resolves the encrypting serializer at the
+    /// time this method is invoked, so <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/> must be called
+    /// <b>before</b> this method is invoked. Inbound envelopes of this type whose
+    /// content-type is not the encrypted content-type are routed to the dead-letter
+    /// queue with <see cref="EncryptionPolicyViolationException"/>.
+    /// </summary>
+    public MessageTypePolicies<T> Encrypt()
+    {
+        var encrypting = _parent.TryFindSerializer(EncryptionHeaders.EncryptedContentType)
+            ?? throw new InvalidOperationException(
+                "No encrypting serializer is registered. Call " +
+                "WolverineOptions.UseEncryption(provider) or " +
+                "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                $"before .ForMessagesOfType<{typeof(T).Name}>().Encrypt().");
+
+        _parent.MetadataRules.Add(new EncryptMessageTypeRule<T>(encrypting));
+        _parent.RequiredEncryptedTypes.Add(typeof(T));
         return this;
     }
 }

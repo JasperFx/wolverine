@@ -86,7 +86,15 @@ public sealed partial class WolverineOptions
         configuration?.Invoke(options);
 
         var serializer = new SystemTextJsonSerializer(options);
-        _defaultSerializer = serializer;
+
+        if (_defaultSerializer?.ContentType == "application/json")
+        {
+            _defaultSerializer = serializer;
+        }
+        else
+        {
+            _defaultSerializer ??= serializer;
+        }
 
         _serializers[serializer.ContentType] = serializer;
     }
@@ -101,6 +109,10 @@ public sealed partial class WolverineOptions
         throw new ArgumentOutOfRangeException(nameof(contentType));
     }
 
+    /// <summary>
+    /// Try to resolve a previously-registered serializer by its content-type.
+    /// Returns null when no serializer is registered under the given content-type.
+    /// </summary>
     internal IMessageSerializer? TryFindSerializer(string contentType)
     {
         if (_serializers.TryGetValue(contentType, out var s))

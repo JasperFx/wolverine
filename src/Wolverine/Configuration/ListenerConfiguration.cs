@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 
@@ -117,12 +118,72 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// <summary>
     /// In the case of being part of tenancy aware group of message transports, this
     /// setting makes this listening endpoint a "global" endpoint rather than a tenant id
-    /// aware endpoint that spans multiple message brokers. 
+    /// aware endpoint that spans multiple message brokers.
     /// </summary>
     /// <returns></returns>
     public TSelf GlobalListener()
     {
         add(e => e.TenancyBehavior = TenancyBehavior.Global);
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Mark this listener as accepting only AES-256-GCM encrypted envelopes.
+    /// Inbound envelopes whose content-type is not
+    /// <c>application/wolverine-encrypted+json</c> are routed to the
+    /// dead-letter queue with <see cref="EncryptionPolicyViolationException"/>
+    /// before any serializer runs. Requires the encrypting serializer to be
+    /// registered first via <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/>; without it
+    /// the listener has no way to decrypt accepted envelopes and would
+    /// dead-letter every inbound message.
+    /// </summary>
+    public TSelf RequireEncryption()
+    {
+        add(endpoint =>
+        {
+            var runtime = endpoint.Runtime
+                ?? throw new InvalidOperationException(
+                    "Endpoint runtime is not set. .RequireEncryption() requires a fully-configured endpoint.");
+
+            if (runtime.Options.TryFindSerializer(EncryptionHeaders.EncryptedContentType) is null)
+            {
+                throw new InvalidOperationException(
+                    "No encrypting serializer is registered. Call " +
+                    "WolverineOptions.UseEncryption(provider) or " +
+                    "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                    "before configuring a listener with .RequireEncryption().");
+            }
+
+            runtime.Options.RequiredEncryptedListenerUris.Add(endpoint.Uri);
+        });
+        return this.As<TSelf>();
+    }
+
+    /// <summary>
+    /// Force this endpoint to use the AES-256-GCM encrypting serializer for
+    /// all outgoing messages. Requires the encrypting serializer to be
+    /// registered first via <see cref="WolverineOptions.UseEncryption"/> or
+    /// <see cref="WolverineOptions.RegisterEncryptionSerializer"/>; if it is
+    /// not registered, the host fails to start.
+    /// </summary>
+    public TSelf Encrypted()
+    {
+        add(endpoint =>
+        {
+            var runtime = endpoint.Runtime
+                ?? throw new InvalidOperationException(
+                    "Endpoint runtime is not set. .Encrypted() requires a fully-configured endpoint.");
+
+            var encrypting = runtime.Options.TryFindSerializer(EncryptionHeaders.EncryptedContentType)
+                ?? throw new InvalidOperationException(
+                    "No encrypting serializer is registered. Call " +
+                    "WolverineOptions.UseEncryption(provider) or " +
+                    "WolverineOptions.RegisterEncryptionSerializer(provider) " +
+                    "before configuring an endpoint with .Encrypted().");
+
+            endpoint.OutgoingRules.Add(new EncryptOutgoingEndpointRule(encrypting));
+        });
         return this.As<TSelf>();
     }
 
