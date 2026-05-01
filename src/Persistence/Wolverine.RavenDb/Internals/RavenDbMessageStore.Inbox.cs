@@ -102,15 +102,33 @@ public partial class RavenDbMessageStore : IMessageInbox
         catch (NonUniqueObjectException)
         {
             // Same envelope identity appeared twice in this batch (e.g. broker
-            // redelivery race). Surface as a duplicate so DurableReceiver falls back
-            // to the per-envelope path, which dedupes correctly without double-executing.
-            throw new DuplicateIncomingEnvelopeException(envelopes[0]);
+            // redelivery race). Identify which envelopes already exist so
+            // DurableReceiver only completes the actual duplicates and
+            // re-pipelines the fresh ones.
+            throw new DuplicateIncomingEnvelopeException(await findDuplicatesAsync(envelopes));
         }
         catch (ConcurrencyException)
         {
             // At least one envelope is already in the inbox; same fallback contract.
-            throw new DuplicateIncomingEnvelopeException(envelopes[0]);
+            throw new DuplicateIncomingEnvelopeException(await findDuplicatesAsync(envelopes));
         }
+    }
+
+    private async Task<IReadOnlyList<Envelope>> findDuplicatesAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        var duplicates = new List<Envelope>();
+        foreach (var envelope in envelopes)
+        {
+            if (await ExistsAsync(envelope, CancellationToken.None).ConfigureAwait(false))
+            {
+                duplicates.Add(envelope);
+            }
+        }
+
+        // Backend reported a duplicate but no envelope id matches an existing
+        // row (e.g. intra-batch collision with no prior insert). Surface every
+        // envelope so the per-envelope retry path can sort it out.
+        return duplicates.Count > 0 ? duplicates : envelopes;
     }
 
     public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
