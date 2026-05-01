@@ -120,6 +120,19 @@ public class DurabilitySettings : IDescribeMyself
     public bool DurabilityAgentEnabled { get; set; } = true;
 
     /// <summary>
+    /// When true, scheduled-for-later messages destined for non-durable
+    /// <see cref="Transports.Local.BufferedLocalQueue"/> instances route to
+    /// <c>IMessageStore.Inbox</c> instead of the in-process
+    /// <c>IScheduledJobProcessor</c>. Set via
+    /// <see cref="IPolicies.AlwaysMakeScheduledMessagesDurable"/>.
+    ///
+    /// Other scheduling paths already provide durability without this flag — see the
+    /// XML doc on <see cref="IPolicies.AlwaysMakeScheduledMessagesDurable"/> for the
+    /// full matrix. No-ops when no message store is configured.
+    /// </summary>
+    public bool AlwaysMakeScheduledMessagesDurable { get; set; }
+
+    /// <summary>
     ///     How long should successfully handled messages be kept to use in idempotency checking
     /// </summary>
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
