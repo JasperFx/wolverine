@@ -524,7 +524,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
 
     internal bool ShouldSendMessage(Type messageType)
     {
-        return Subscriptions.Any(x => x.Matches(messageType));
+        // Subscriptions added by an IMessageRoutingConvention's PreregisterSenders pass
+        // (GH-2588) are NOT explicit publish rules — they exist solely so endpoint
+        // policies like UseDurableOutboxOnAllSendingEndpoints can see Subscriptions.Any()
+        // at Compile() time. ExplicitRouting and the diagnostics command both call this
+        // method to identify user-wired publish rules; counting conventional subscriptions
+        // here would short-circuit past LocalRouting / MessageRoutingConventions and break
+        // routing precedence for handled messages.
+        return Subscriptions.Any(x => !x.IsFromConvention && x.Matches(messageType));
     }
 
     protected virtual bool supportsMode(EndpointMode mode)

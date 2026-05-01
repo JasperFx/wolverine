@@ -427,6 +427,27 @@ partial class Build
             RunSingleProjectOneClassAtATime(circuitTests);
         });
 
+    /// <summary>
+    /// MessageRoutingTests live in src/Testing but exercise core routing precedence
+    /// against a real RabbitMQ broker (the convention surface that matters in
+    /// production). The PR #2596 PreregisterSenders regression that motivated this
+    /// target is not catchable from CoreTests — it only manifests when conventional
+    /// routing actually creates broker endpoints. Keep this in CI going forward so
+    /// any future refactor that breaks routing precedence between Explicit /
+    /// LocalRouting / MessageRoutingConventions fails fast on PRs.
+    /// </summary>
+    Target CIMessageRouting => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Testing" / "MessageRoutingTests" / "MessageRoutingTests.csproj";
+
+            BuildTestProjects(tests);
+            StartDockerServices("rabbitmq");
+
+            RunSingleProjectOneClassAtATime(tests);
+        });
+
     Target CICosmosDb => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

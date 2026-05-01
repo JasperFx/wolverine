@@ -56,7 +56,7 @@ partial class Build : NukeBuild
         });
 
     Target CI => _ => _
-        .DependsOn(CoreTests);
+        .DependsOn(CoreTests, CIMessageRouting);
 
     Target Test => _ => _
         .DependsOn(CoreTests, TestExtensions, Commands, PolicyTests, HttpTests);

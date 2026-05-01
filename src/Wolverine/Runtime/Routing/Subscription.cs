@@ -46,6 +46,18 @@ public class Subscription
     public Type? BaseType { get; init; }
 
     /// <summary>
+    /// True when this subscription was added by an <see cref="IMessageRoutingConvention"/>
+    /// pre-registering a sender (so endpoint policies like
+    /// <c>UseDurableOutboxOnAllSendingEndpoints</c> can see <c>Subscriptions.Any() == true</c>
+    /// before the broker connects). Routing precedence layers that exist to honour
+    /// <em>explicit</em> publish rules — chiefly <c>ExplicitRouting</c> — must ignore these
+    /// so they don't short-circuit past local handler routing or override user-wired routes.
+    /// See GH-2588 (the original outbox fix that introduced pre-registration) and the
+    /// follow-up MessageRoutingTests regression that motivated this flag.
+    /// </summary>
+    internal bool IsFromConvention { get; init; }
+
+    /// <summary>
     ///     Create a subscription for a specific message type
     /// </summary>
     /// <param name="type"></param>
@@ -56,6 +68,20 @@ public class Subscription
         {
             Scope = RoutingScope.Type,
             Match = type.FullName!
+        };
+    }
+
+    /// <summary>
+    /// Create a subscription for a specific message type that was added by a routing
+    /// convention as part of pre-registering a sender endpoint. See <see cref="IsFromConvention"/>.
+    /// </summary>
+    internal static Subscription ForConventionalType(Type type)
+    {
+        return new Subscription
+        {
+            Scope = RoutingScope.Type,
+            Match = type.FullName!,
+            IsFromConvention = true
         };
     }
 

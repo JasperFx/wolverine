@@ -48,6 +48,14 @@ jobs:
       - name: Test
         run: ./build.sh ci
 
+      # The CI target now also runs MessageRoutingTests, which boots a real
+      # RabbitMQ broker (started inline by the build target via docker compose).
+      # Tear it down on exit so the runner is clean for downstream steps and
+      # so no orphaned container lingers if the build fails.
+      - name: Stop containers
+        if: always()
+        run: docker compose down
+
       - name: Package
         if: github.event_name != 'pull_request'
         run: ./build.sh pack
