@@ -1,10 +1,13 @@
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
+using Wolverine.Logging;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -28,7 +31,8 @@ public partial class RavenDbDurabilityAgent : IAgent
     private readonly CancellationTokenSource _cancellation = new();
     private readonly CancellationTokenSource _combined;
     private PersistenceMetrics _metrics = null!;
-    
+    private readonly DurabilityHealthSignals _health;
+
     public RavenDbDurabilityAgent(IDocumentStore store, IWolverineRuntime runtime, RavenDbMessageStore parent)
     {
         _store = store;
@@ -40,8 +44,9 @@ public partial class RavenDbDurabilityAgent : IAgent
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://ravendb/durability");
 
         _logger = runtime.LoggerFactory.CreateLogger<RavenDbDurabilityAgent>();
-        
+
         _combined = CancellationTokenSource.CreateLinkedTokenSource(runtime.Cancellation, _cancellation.Token);
+        _health = new DurabilityHealthSignals(_settings);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -70,18 +75,28 @@ public partial class RavenDbDurabilityAgent : IAgent
             while (!_combined.IsCancellationRequested)
             {
                 var lastExpiredTime = DateTimeOffset.UtcNow;
-                
-                await tryRecoverIncomingMessages();
-                await tryRecoverOutgoingMessagesAsync();
 
-                if (_settings.DeadLetterQueueExpirationEnabled)
+                try
                 {
-                    // Crudely just doing this every hour
-                    var now = DateTimeOffset.UtcNow;
-                    if (now > lastExpiredTime.AddHours(1))
+                    await tryRecoverIncomingMessages();
+                    await tryRecoverOutgoingMessagesAsync();
+
+                    if (_settings.DeadLetterQueueExpirationEnabled)
                     {
-                        await tryDeleteExpiredDeadLetters();
+                        // Crudely just doing this every hour
+                        var now = DateTimeOffset.UtcNow;
+                        if (now > lastExpiredTime.AddHours(1))
+                        {
+                            await tryDeleteExpiredDeadLetters();
+                        }
                     }
+
+                    _health.RecordPollSuccess();
+                }
+                catch (Exception e) when (!_combined.IsCancellationRequested)
+                {
+                    _health.RecordPollFailure(e);
+                    _logger.LogError(e, "Recovery loop tick failed");
                 }
 
                 await timer.WaitForNextTickAsync(_combined.Token);
@@ -92,14 +107,43 @@ public partial class RavenDbDurabilityAgent : IAgent
         {
             await Task.Delay(recoveryStart, _combined.Token);
             using var timer = new PeriodicTimer(_settings.ScheduledJobPollingTime);
-            
+
             while (!_combined.IsCancellationRequested)
             {
-                await runScheduledJobs();
+                try
+                {
+                    await runScheduledJobs();
+                    _health.RecordPollSuccess();
+                }
+                catch (Exception e) when (!_combined.IsCancellationRequested)
+                {
+                    _health.RecordPollFailure(e);
+                    _logger.LogError(e, "Scheduled-job loop tick failed");
+                }
+
                 await timer.WaitForNextTickAsync(_combined.Token);
             }
         }, _combined.Token);
 
+    }
+
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        PersistedCounts? counts = null;
+        if (Status == AgentStatus.Running)
+        {
+            try
+            {
+                counts = await _parent.Admin.FetchCountsAsync();
+            }
+            catch (Exception e)
+            {
+                _health.RecordPollFailure(e);
+            }
+        }
+
+        return _health.Evaluate(Status, Uri, counts, DateTimeOffset.UtcNow);
     }
 
     private async Task tryDeleteExpiredDeadLetters()

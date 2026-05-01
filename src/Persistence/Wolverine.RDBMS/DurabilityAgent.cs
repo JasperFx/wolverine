@@ -5,6 +5,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
+using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS.Durability;
@@ -29,8 +30,7 @@ internal class DurabilityAgent : IAgent
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
 
-    private int _successCount;
-    private int _exceptionCount;
+    private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
 
     public DurabilityAgent(IWolverineRuntime runtime, IMessageDatabase database)
@@ -45,6 +45,8 @@ internal class DurabilityAgent : IAgent
 
         _logger = runtime.LoggerFactory.CreateLogger<DurabilityAgent>();
 
+        _health = new DurabilityHealthSignals(_settings);
+
         _runningBlock = new Block<IAgentCommand>(async batch =>
         {
             if (runtime.Cancellation.IsCancellationRequested)
@@ -55,11 +57,11 @@ internal class DurabilityAgent : IAgent
             try
             {
                 await executor.InvokeAsync(batch, new MessageBus(runtime));
-                Interlocked.Increment(ref _successCount);
+                _health.RecordPollSuccess();
             }
             catch (Exception e)
             {
-                Interlocked.Increment(ref _exceptionCount);
+                _health.RecordPollFailure(e);
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
         });
@@ -242,28 +244,27 @@ internal class DurabilityAgent : IAgent
                 _settings, _settings.ScheduledJobFirstExecution, _settings.ScheduledJobPollingTime);
     }
 
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        if (Status != AgentStatus.Running)
-        {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
-        }
-
-        var exceptions = Interlocked.Exchange(ref _exceptionCount, 0);
-        var successes = Interlocked.Exchange(ref _successCount, 0);
         _lastHealthCheck = DateTime.UtcNow;
 
-        if (exceptions > 0 && successes == 0)
+        // Skip the count fetch when the agent isn't running — the status check below will
+        // short-circuit anyway, and a stopped agent shouldn't spin up a fresh DB query just
+        // to be told the same thing.
+        PersistedCounts? counts = null;
+        if (Status == AgentStatus.Running)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy("All database operations failed"));
+            try
+            {
+                counts = await _database.FetchCountsAsync();
+            }
+            catch (Exception e)
+            {
+                _health.RecordPollFailure(e);
+            }
         }
 
-        if (exceptions > 0)
-        {
-            return Task.FromResult(HealthCheckResult.Degraded("Some database operations failed"));
-        }
-
-        return Task.FromResult(HealthCheckResult.Healthy());
+        return _health.Evaluate(Status, Uri, counts, DateTimeOffset.UtcNow);
     }
 }
