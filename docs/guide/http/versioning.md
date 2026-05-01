@@ -11,8 +11,8 @@ versioning entirely through its own `IHttpPolicy` pipeline, so there is no confl
 `AddApiVersioning()` registration, and no additional ASP.NET Core middleware is needed.
 
 ::: info
-This release supports **URL-segment versioning** (e.g. `/v1/...`, `/v2/...`). Each endpoint declares a single
-`[ApiVersion]`; multi-version handlers via `[MapToApiVersion]` are not supported.
+This release supports **URL-segment versioning** (e.g. `/v1/...`, `/v2/...`) and multi-version handlers
+via repeated `[ApiVersion]` attributes or `[MapToApiVersion]`. See [Multi-version handlers](#multi-version-handlers).
 :::
 
 ## Quick Start
@@ -72,12 +72,84 @@ public static class OrdersV2Endpoint
 }
 ```
 
-### One version per endpoint
+### Multi-version handlers
 
-Declaring **multiple** `[ApiVersion]` attributes on the same handler method is not supported in v1. The resolver
-picks the first attribute encountered and ignores any additional ones. If you have two incompatible response shapes
-for the same resource, create separate endpoint classes — one per version — as shown in the sample app
-(`OrdersV1Endpoint`, `OrdersV2Endpoint`, `OrdersV3PreviewEndpoint`).
+A single handler method can serve multiple API versions by repeating `[ApiVersion]` attributes either at the
+method or class level. Wolverine expands the chain at bootstrap into one HTTP endpoint per declared version,
+with the URL-segment prefix, sunset / deprecation policies, OpenAPI group name, and `ApiVersionMetadata`
+applied per clone. Duplicate-route detection runs across the *expanded* set so two handlers serving the same
+`(verb, route, version)` triple still fail fast with a descriptive error.
+
+#### Method-level multi-version
+
+```csharp
+public static class OrdersHandler
+{
+    [WolverineGet("/orders")]
+    [ApiVersion("1.0")]
+    [ApiVersion("2.0")]
+    public static OrdersResponse Get() => new(["a", "b"]);
+}
+```
+
+This produces both `/v1/orders` and `/v2/orders` and registers both in the OpenAPI documents.
+
+#### Class-level multi-version
+
+```csharp
+[ApiVersion("1.0", Deprecated = true)]
+[ApiVersion("2.0")]
+[ApiVersion("3.0")]
+public static class CustomersEndpoint
+{
+    [WolverineGet("/customers")]
+    public static CustomersResponse Get() => new(["alice", "bob"]);
+}
+```
+
+Per-version deprecation propagates to the matching clone only: in this example `/v1/customers` carries the
+`Deprecation` response header while `/v2/customers` and `/v3/customers` do not.
+
+#### `[MapToApiVersion]` — opt a method into a subset of class versions
+
+When a class declares many versions but a particular method only applies to a subset, decorate the method
+with `[MapToApiVersion]` instead of redeclaring `[ApiVersion]`:
+
+```csharp
+[ApiVersion("1.0")]
+[ApiVersion("2.0")]
+[ApiVersion("3.0")]
+public static class CustomersEndpoint
+{
+    // Lives at /v2/customers/v2-only — v1 and v3 are NOT registered for this method.
+    [WolverineGet("/customers/v2-only")]
+    [MapToApiVersion("2.0")]
+    public static CustomersResponse Get() => new(["v2-only"]);
+}
+```
+
+Resolution rules:
+
+- **Method-level `[ApiVersion]` overrides class-level entirely.** If both are present, only the method
+  attribute is read; class-level versions are ignored for that method.
+- **Method-level `[MapToApiVersion]` filters class-level versions.** Every version listed must also appear
+  at class level, otherwise startup fails fast with an exception naming both the method and the class.
+- **A method may not carry both `[ApiVersion]` and `[MapToApiVersion]`.** Pick one — `[ApiVersion]` declares
+  versions independently of the class, `[MapToApiVersion]` selects from them. Mixing the two on one method
+  triggers a startup exception.
+
+#### Per-version metadata semantics
+
+When a chain is expanded into clones, every per-version policy is applied to its respective clone:
+
+| Per-clone state | Source |
+|---|---|
+| `RoutePattern` | Rewritten with `UrlSegmentPrefix` for that clone's version |
+| `ApiVersionMetadata` | Set with the model containing only that single version |
+| `IEndpointGroupNameMetadata` | `OpenApi.DocumentNameStrategy(clone.ApiVersion)` |
+| `DeprecationPolicy` | `[ApiVersion(..., Deprecated = true)]` for that version, or `Deprecate("X.Y")` from options |
+| `SunsetPolicy` | `Sunset("X.Y")` from options |
+| Response headers (`Deprecation`, `Sunset`, `Link`, `api-supported-versions`) | Per the policies attached to that clone |
 
 ### Marking a version as deprecated via attribute
 
@@ -459,7 +531,14 @@ assembly scan, must carry `[ApiVersion]`. Switch to `PassThrough` (the default) 
 remain unversioned, or add the attribute. The exception message lists the offending endpoint by its display name.
 
 **Multiple `[ApiVersion]` attributes on the same method.**
-Only the first attribute is used; subsequent attributes are silently ignored. If you need to expose a resource at
-two different versions, create separate endpoint classes — one per version — sharing the same route template. The
-duplicate-detection step in `ApiVersioningPolicy` will catch any `(verb, route, version)` triple that appears
-more than once and throw a descriptive `InvalidOperationException` at startup.
+Wolverine expands the chain at bootstrap into one HTTP endpoint per declared version. See
+[Multi-version handlers](#multi-version-handlers). Duplicate detection still applies across the expanded set
+and rejects any `(verb, route, version)` triple that appears more than once.
+
+**`[MapToApiVersion]` lists a version that the class does not declare.**
+Startup throws an `InvalidOperationException` naming both the method and the declaring class. Add the missing
+version to the class-level `[ApiVersion]` list, or remove it from `[MapToApiVersion]`.
+
+**Both `[ApiVersion]` and `[MapToApiVersion]` on the same method.**
+Startup throws. Use only one: `[ApiVersion]` declares versions independently of the class; `[MapToApiVersion]`
+selects from class-level versions.
