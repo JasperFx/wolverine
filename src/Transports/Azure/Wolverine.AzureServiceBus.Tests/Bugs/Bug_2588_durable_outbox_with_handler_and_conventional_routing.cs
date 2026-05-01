@@ -51,16 +51,17 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
     {
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
-        var routes = runtime.RoutingFor(typeof(Bug2588AsbMessage))
-            .ShouldBeOfType<MessageRouter<Bug2588AsbMessage>>()
-            .Routes;
+        // Pull the conventional broker sender directly from the convention. Local
+        // routing wins precedence over MessageRoutingConventions for handled message
+        // types, so RoutingFor(...).Routes will surface the local handler queue —
+        // not the broker endpoint #2588 is about. We need to verify that the broker
+        // sender pre-registered by PreregisterSenders had the AllSenders policy
+        // applied during BrokerTransport.InitializeAsync's Compile() call.
+        var brokerEndpoint = runtime.Options.RoutingConventions
+            .SelectMany(c => c.DiscoverSenders(typeof(Bug2588AsbMessage), runtime))
+            .Single();
 
-        routes.Length.ShouldBeGreaterThan(0);
-
-        var route = routes.Single().ShouldBeOfType<MessageRoute>();
-        var endpoint = route.Sender.Endpoint;
-
-        endpoint.Mode.ShouldBe(EndpointMode.Durable);
+        brokerEndpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
 }
 
@@ -109,16 +110,17 @@ public class Bug_2588_durable_outbox_with_handler_and_topic_broadcasting_routing
     {
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
-        var routes = runtime.RoutingFor(typeof(Bug2588AsbMessage))
-            .ShouldBeOfType<MessageRouter<Bug2588AsbMessage>>()
-            .Routes;
+        // Pull the conventional broker sender directly from the convention. Local
+        // routing wins precedence over MessageRoutingConventions for handled message
+        // types, so RoutingFor(...).Routes will surface the local handler queue —
+        // not the broker endpoint #2588 is about. We need to verify that the broker
+        // sender pre-registered by PreregisterSenders had the AllSenders policy
+        // applied during BrokerTransport.InitializeAsync's Compile() call.
+        var brokerEndpoint = runtime.Options.RoutingConventions
+            .SelectMany(c => c.DiscoverSenders(typeof(Bug2588AsbMessage), runtime))
+            .Single();
 
-        routes.Length.ShouldBeGreaterThan(0);
-
-        var route = routes.Single().ShouldBeOfType<MessageRoute>();
-        var endpoint = route.Sender.Endpoint;
-
-        endpoint.Mode.ShouldBe(EndpointMode.Durable);
+        brokerEndpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
 }
 

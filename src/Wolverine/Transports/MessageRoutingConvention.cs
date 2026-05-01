@@ -234,9 +234,18 @@ public abstract class MessageRoutingConvention<TTransport, TListener, TSubscribe
         // Register the subscription so that endpoint policies like
         // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
         // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
+        //
+        // Marked IsFromConvention=true so ExplicitRouting (and the diagnostics command)
+        // don't mistake the conventional sender for a user-wired publish rule. Without
+        // this flag, ExplicitRouting picks up the conventional sender via
+        // Endpoint.ShouldSendMessage and short-circuits past LocalRouting — handled
+        // messages stop routing to their local handlers and explicit publish rules get
+        // duplicated against the conventional broker exchange. See the MessageRoutingTests
+        // regression that motivated splitting Subscription.ForType from
+        // Subscription.ForConventionalType.
         if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
         {
-            endpoint.Subscriptions.Add(Subscription.ForType(messageType));
+            endpoint.Subscriptions.Add(Subscription.ForConventionalType(messageType));
         }
 
         if (_configuredSenders.Add(messageType))
