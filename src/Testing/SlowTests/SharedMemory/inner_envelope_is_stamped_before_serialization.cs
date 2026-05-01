@@ -1,14 +1,20 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Shouldly;
+using Wolverine;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports.SharedMemory;
 using Xunit;
 
-namespace CoreTests.Runtime.Scheduled;
+namespace SlowTests.SharedMemory;
 
+// Moved out of CoreTests because the only [Fact] here is end-to-end and depends
+// on a 2-minute Task.Delay to give the scheduled-job poller time to fire — that
+// makes it the slowest test in the entire CoreTests suite by an order of
+// magnitude. SlowTests is the right home; CoreTests stays fast.
 public class inner_envelope_is_stamped_before_serialization : IAsyncLifetime
 {
     private IHost _host = null!;
@@ -44,10 +50,10 @@ public class inner_envelope_is_stamped_before_serialization : IAsyncLifetime
             .Timeout(10.Seconds())
             .ExecuteAndWaitAsync(_ =>
                 bus.PublishAsync(new Message1(), new DeliveryOptions { ScheduleDelay = 1.Minutes() }).AsTask());
-        
+
         await tracked.PlayScheduledMessagesAsync(2.Hours());
         await Task.Delay(2.Minutes());
-        
+
         var captured = await ScheduledEnvelopeCapture.WaitAsync(5.Seconds());
         captured.TenantId.ShouldBe("red");
         captured.CorrelationId.ShouldBe("corr-123");
