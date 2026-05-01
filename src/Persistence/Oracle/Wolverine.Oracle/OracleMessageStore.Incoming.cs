@@ -54,6 +54,8 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
+        var duplicates = new List<Envelope>();
+
         foreach (var envelope in envelopes)
         {
             var data = envelope.Status == EnvelopeStatus.Handled
@@ -81,12 +83,17 @@ internal partial class OracleMessageStore
             }
             catch (OracleException e) when (e.Number == 1)
             {
-                // Idempotent
+                duplicates.Add(envelope);
             }
         }
 
         await tx.CommitAsync(_cancellation);
         await conn.CloseAsync();
+
+        if (duplicates.Count > 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(duplicates);
+        }
     }
 
     public async Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation)
@@ -311,6 +318,8 @@ internal partial class OracleMessageStore
     // IMessageDatabase
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
+        var duplicates = new List<Envelope>();
+
         foreach (var envelope in envelopes)
         {
             var data = envelope.Status == EnvelopeStatus.Handled
@@ -338,8 +347,13 @@ internal partial class OracleMessageStore
             }
             catch (OracleException e) when (e.Number == 1)
             {
-                // Idempotent
+                duplicates.Add(envelope);
             }
+        }
+
+        if (duplicates.Count > 0)
+        {
+            throw new DuplicateIncomingEnvelopeException(duplicates);
         }
     }
 }

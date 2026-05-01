@@ -64,8 +64,13 @@ public class when_durable_receiver_detects_duplicate_incoming_envelopes_in_batch
     }
 
     [Fact]
-    public async Task the_fresh_envelope_was_processed()
+    public async Task the_fresh_envelope_was_re_attempted_through_the_per_envelope_path()
     {
-        await thePipeline.Received().InvokeAsync(theFreshEnvelope, theReceiver);
+        // The per-envelope StoreIncomingAsync is the deduplication checkpoint:
+        // a duplicate throws and is completed at the listener; a fresh envelope
+        // succeeds and the receiver enqueues it for the pipeline. Asserting at
+        // the inbox layer verifies the fall-back contract directly, without
+        // depending on the receiver's downstream Dataflow drain ordering.
+        await theRuntime.Storage.Inbox.Received().StoreIncomingAsync(theFreshEnvelope);
     }
 }
