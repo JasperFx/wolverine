@@ -43,6 +43,13 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     /// </summary>
     public ISqsEnvelopeMapper? Mapper { get; set; }
 
+    // AmazonSqsQueue inherits raw Endpoint (not the typed Endpoint<,>), so the
+    // generic base override doesn't apply. Surface "user wired their own SQS
+    // mapper or factory" through the same protected hook so the
+    // EndpointDescriptor reports InteropMode = "Custom" for SQS too. See #2641.
+    protected internal override bool HasCustomEnvelopeMapper =>
+        Mapper is not null || MapperFactory is not null;
+
     public string QueueName { get; }
 
     internal bool IsFifoQueue => QueueName.EndsWith(".fifo", StringComparison.OrdinalIgnoreCase);

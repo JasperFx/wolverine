@@ -31,6 +31,7 @@ public class EndpointDescriptor : OptionsDescription
         Uri = endpoint.Uri;
         TransportType = ResolveTransportType(endpoint);
         SerializerType = endpoint.DefaultSerializer?.GetType().Name;
+        DefaultSerializerDescription = ResolveSerializerDescription(SerializerType);
         InteropMode = ResolveInteropMode(endpoint);
         IsSystemEndpoint = endpoint.Uri?.ToString().Contains("wolverine.response", StringComparison.OrdinalIgnoreCase) == true
                         || endpoint.Uri?.Scheme.Equals("local", StringComparison.OrdinalIgnoreCase) == true;
@@ -51,8 +52,22 @@ public class EndpointDescriptor : OptionsDescription
     public string? SerializerType { get; init; }
 
     /// <summary>
-    /// Interop mode if using a pre-canned interop format.
-    /// Values: "CloudEvents", "NServiceBus", "MassTransit", "RawJson", or null for default Wolverine format.
+    /// Human-readable name of the default serializer wired up for this endpoint
+    /// (e.g. <c>"System.Text.Json"</c>, <c>"MessagePack"</c>, <c>"CloudEvents"</c>).
+    /// Maps the framework's well-known <see cref="SerializerType"/> values to a
+    /// friendlier rendering for monitoring tools so operators don't have to recognize
+    /// the raw type name. Falls through to the raw type name when no friendly mapping
+    /// exists. <c>null</c> when no serializer is configured. See #2641.
+    /// </summary>
+    public string? DefaultSerializerDescription { get; init; }
+
+    /// <summary>
+    /// Interop mode for this endpoint. Values:
+    /// <list type="bullet">
+    ///   <item><c>"CloudEvents"</c> / <c>"NServiceBus"</c> / <c>"MassTransit"</c> / <c>"RawJson"</c> — well-known interop formats detected by serializer name.</item>
+    ///   <item><c>"Custom"</c> — the endpoint has a non-default <see cref="IEnvelopeMapper"/> wired in (mapper signal takes precedence over serializer name; #2641).</item>
+    ///   <item><c>null</c> — default Wolverine format.</item>
+    /// </list>
     /// </summary>
     public string? InteropMode { get; init; }
 
@@ -80,6 +95,12 @@ public class EndpointDescriptor : OptionsDescription
 
     internal static string? ResolveInteropMode(Endpoint endpoint)
     {
+        // Mapper signal wins over serializer signal (last-usage-wins). If the user
+        // wired their own envelope mapper for this endpoint, that's the louder
+        // operator-relevant signal regardless of which serializer happens to be
+        // attached. See #2641.
+        if (endpoint.HasCustomEnvelopeMapper) return "Custom";
+
         return ResolveInteropMode(endpoint.DefaultSerializer?.GetType().Name);
     }
 
@@ -91,6 +112,33 @@ public class EndpointDescriptor : OptionsDescription
         if (serializerTypeName.Contains("MassTransit", StringComparison.OrdinalIgnoreCase)) return "MassTransit";
         if (serializerTypeName.Contains("RawJson", StringComparison.OrdinalIgnoreCase)) return "RawJson";
         return null;
+    }
+
+    /// <summary>
+    /// Map a raw serializer type name to a friendly display string for
+    /// <see cref="DefaultSerializerDescription"/>. Well-known names get
+    /// human-readable equivalents (<c>"SystemTextJsonSerializer"</c> →
+    /// <c>"System.Text.Json"</c>, etc.); anything else falls through to the
+    /// raw type name unchanged.
+    /// </summary>
+    public static string? ResolveSerializerDescription(string? serializerTypeName)
+    {
+        if (string.IsNullOrEmpty(serializerTypeName)) return null;
+
+        // Order matters: more specific matches first (e.g. CloudEventsJsonSerializer
+        // hits the CloudEvents branch before falling into the System.Text.Json branch).
+        if (serializerTypeName.Contains("CloudEvents", StringComparison.OrdinalIgnoreCase)) return "CloudEvents";
+        if (serializerTypeName.Contains("NServiceBus", StringComparison.OrdinalIgnoreCase)) return "NServiceBus";
+        if (serializerTypeName.Contains("MassTransit", StringComparison.OrdinalIgnoreCase)) return "MassTransit";
+        if (serializerTypeName.Contains("RawJson", StringComparison.OrdinalIgnoreCase)) return "Raw JSON";
+        if (serializerTypeName.Contains("SystemTextJson", StringComparison.OrdinalIgnoreCase)) return "System.Text.Json";
+        if (serializerTypeName.Contains("Newtonsoft", StringComparison.OrdinalIgnoreCase)) return "Newtonsoft.Json";
+        if (serializerTypeName.Contains("MessagePack", StringComparison.OrdinalIgnoreCase)) return "MessagePack";
+        if (serializerTypeName.Contains("MemoryPack", StringComparison.OrdinalIgnoreCase)) return "MemoryPack";
+        if (serializerTypeName.Contains("Protobuf", StringComparison.OrdinalIgnoreCase)) return "Protobuf";
+        if (serializerTypeName.Contains("Avro", StringComparison.OrdinalIgnoreCase)) return "Avro";
+
+        return serializerTypeName;
     }
 
     internal static string ResolveTransportType(Endpoint endpoint) => ResolveTransportType(endpoint.GetType().Name);
