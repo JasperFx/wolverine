@@ -228,7 +228,7 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         var versioningPolicy = options.Policies.OfType<ApiVersioning.ApiVersioningPolicy>().FirstOrDefault();
         if (versioningPolicy is not null)
         {
-            options.Policies.Add(new ApiVersioning.ApiVersionHeaderFinalizationPolicy(versioningPolicy.ChainsRequiringHeaderWriter));
+            options.Policies.Add(new ApiVersioning.ApiVersionHeaderFinalizationPolicy(versioningPolicy.ChainsRequiringHeaderEmission));
         }
         
         if (DynamicCodeBuilder.WithinCodegenCommand)
