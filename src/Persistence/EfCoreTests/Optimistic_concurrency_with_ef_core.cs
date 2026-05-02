@@ -20,7 +20,6 @@ using Xunit.Abstractions;
 namespace EfCoreTests;
 
 [Collection("sqlserver")]
-[Trait("Category", "Flaky")]
 public class Optimistic_concurrency_with_ef_core
 {
     private readonly ITestOutputHelper _output;
@@ -56,15 +55,27 @@ public class Optimistic_concurrency_with_ef_core
             using var scope = host.Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();
 
+            // The saga's Id and the message's Id must match — Wolverine looks up the
+            // saga by the message's correlation Id (the `Id` field on
+            // UpdateConcurrencyTestSaga). Without a matching row the load throws
+            // UnknownSagaException before the handler can fake a concurrent update,
+            // which is what was making this test unconditionally fail (it was tagged
+            // [Flaky] but the failure was deterministic, not racy). With matching
+            // ids the saga loads, the handler's `OriginalValue = 999` trick simulates
+            // a stale read, SaveChangesAsync raises DbUpdateConcurrencyException, and
+            // EFCorePersistenceFrameProvider.WrapSagaConcurrencyException rethrows it
+            // as SagaConcurrencyException.
+            var sagaId = Guid.NewGuid();
             await dbContext.ConcurrencyTestSagas.AddAsync(new()
             {
-                Id = Guid.NewGuid(),
+                Id = sagaId,
                 Value = "initial value",
                 Version = 0,
             });
             await dbContext.SaveChangesAsync();
 
-            await Should.ThrowAsync<SagaConcurrencyException>(() => host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(Guid.NewGuid(), "updated value")));
+            await Should.ThrowAsync<SagaConcurrencyException>(() =>
+                host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(sagaId, "updated value")));
         }
         finally
         {

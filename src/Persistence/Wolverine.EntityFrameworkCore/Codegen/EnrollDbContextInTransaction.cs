@@ -8,7 +8,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
-internal class EnrollDbContextInTransaction : AsyncFrame
+internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
 {
     private readonly Type _dbContextType;
     private readonly IdempotencyStyle _idempotencyStyle;
