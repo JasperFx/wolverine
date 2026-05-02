@@ -219,31 +219,52 @@ the metadata), but they deliberately get no `IEndpointGroupNameMetadata`. Withou
 match the default Swashbuckle partitioning (`api.GroupName == doc`), so by default they will not appear in
 any versioned document.
 
-To make a neutral endpoint visible across every versioned OpenAPI document, opt it in from your
-`DocInclusionPredicate`. The most common pattern is "include if the endpoint has no group name OR the
-group matches the document":
+#### Recommended: surface neutral endpoints only in a dedicated `default` document
+
+The conservative default — and the pattern the WolverineWebApi sample uses — is to keep a separate
+`default` Swagger document for unversioned/neutral endpoints and route them there only:
 
 ```csharp
 builder.Services.AddSwaggerGen(x =>
 {
+    x.SwaggerDoc("default", new OpenApiInfo { Title = "Internal & Neutral", Version = "default" });
     x.SwaggerDoc("v1", new OpenApiInfo { Title = "API v1", Version = "v1" });
     x.SwaggerDoc("v2", new OpenApiInfo { Title = "API v2", Version = "v2" });
 
-    // Version-neutral chains have no GroupName — surface them in every document.
+    // Neutral chains have no GroupName — show them only in the "default" document.
     x.DocInclusionPredicate((docName, api) =>
-        api.GroupName is null || api.GroupName == docName);
+        (docName == "default" && api.GroupName is null) || api.GroupName == docName);
 
     x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
 });
 ```
 
-If you maintain a separate `default` document for unversioned/neutral endpoints (as the WolverineWebApi
-sample does), keep that branch in your predicate:
+This keeps `/swagger/v1` and `/swagger/v2` clean: only endpoints that explicitly belong to a public
+version appear there. Health checks, webhook receivers, internal admin endpoints, and other neutral
+chains stay out of the consumer-facing contract.
+
+#### Alternative: include neutral endpoints in every versioned document
+
+If a neutral endpoint really is part of every public version's contract (a global ping or `/whoami`
+endpoint, for example), broaden the predicate to include neutral chains in every doc as well:
 
 ```csharp
 x.DocInclusionPredicate((docName, api) =>
-    docName == "default" || api.GroupName == docName);
+    api.GroupName is null || api.GroupName == docName);
 ```
+
+Trade-off: every neutral endpoint will now appear in **every** versioned document. That is rarely what
+you want for things like webhook receivers or internal-only endpoints, since publishing them in `v1` and
+`v2` invites consumers to call them under those versions and creates an implicit compatibility promise
+you did not intend to make. Prefer the `default`-only pattern unless you are certain the endpoint is a
+true cross-version concern.
+
+#### Combining the two
+
+You can mix both: surface most neutral endpoints in `default` only, and use a per-endpoint convention
+(for instance, an attribute or a marker tag) to selectively include the genuinely cross-version ones in
+every document. The `DocInclusionPredicate` receives the full `ApiDescription`, so you can branch on
+metadata you attach yourself.
 
 ## Sunset and Deprecation Policies
 
