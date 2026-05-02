@@ -11,6 +11,20 @@ namespace Wolverine.Http.ApiVersioning;
 internal static class ApiVersionNeutralResolver
 {
     /// <summary>
+    /// Display name for <see cref="ApiVersionAttribute"/> as it appears in conflict messages and tests.
+    /// Defined here as the single source of truth so the resolver template strings and the asserting
+    /// tests cannot drift apart silently.
+    /// </summary>
+    internal const string ApiVersionAttributeName = "[ApiVersion]";
+
+    /// <summary>
+    /// Display name for <see cref="ApiVersionNeutralAttribute"/> as it appears in conflict messages and tests.
+    /// Defined here as the single source of truth so the resolver template strings and the asserting
+    /// tests cannot drift apart silently.
+    /// </summary>
+    internal const string ApiVersionNeutralAttributeName = "[ApiVersionNeutral]";
+
+    /// <summary>
     /// Reads the <c>[ApiVersion]</c> and <c>[ApiVersionNeutral]</c> attribute presence from the
     /// method and its declaring class in a single reflection pass. Throws if the same target
     /// (method or class) declares both. Method-level attributes win over class-level attributes
@@ -55,23 +69,8 @@ internal static class ApiVersionNeutralResolver
         return classHasNeutral;
     }
 
-    /// <summary>
-    /// Returns true when the handler method (or, when absent, its declaring class) is decorated
-    /// with <see cref="ApiVersionNeutralAttribute"/>. A method-level <c>[ApiVersion]</c> overrides
-    /// class-level <c>[ApiVersionNeutral]</c> (and vice versa). Throws on same-target conflict.
-    /// </summary>
-    public static bool IsNeutral(MethodInfo method) => Resolve(method);
-
-    /// <summary>
-    /// Validates that <c>[ApiVersion]</c> and <c>[ApiVersionNeutral]</c> are not both present on
-    /// the same target (method or class). Mixing the two on a single target is contradictory and
-    /// fails fast at startup. A method-level <c>[ApiVersionNeutral]</c> on a method inside a class
-    /// that carries <c>[ApiVersion]</c> is permitted — the method opts out, siblings stay versioned.
-    /// </summary>
-    public static void ValidateNoConflict(MethodInfo method) => Resolve(method);
-
     private static InvalidOperationException BuildConflict(string identity) =>
-        new($"'{identity}' declares both [ApiVersion] and [ApiVersionNeutral]. " +
+        new($"'{identity}' declares both {ApiVersionAttributeName} and {ApiVersionNeutralAttributeName}. " +
             "These attributes are mutually exclusive on the same target — pick one.");
 
     private static string MethodIdentity(MethodInfo method) =>

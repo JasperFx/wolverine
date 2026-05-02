@@ -133,38 +133,46 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     /// the first request.</summary>
     private static void DetectDuplicateRoutes(IReadOnlyList<HttpChain> chains)
     {
-        var versionedConflicts = chains
-            .Where(c => c.ApiVersion is not null)
-            .GroupBy(c => (
+        DetectConflicts(
+            chains,
+            include: c => c.ApiVersion is not null,
+            keyOf: c => (
                 Verb: c.HttpMethods.FirstOrDefault() ?? "",
                 Route: c.RoutePattern?.RawText ?? "",
-                Version: c.ApiVersion!.ToString()))
-            .Where(g => g.Count() > 1);
-
-        foreach (var conflict in versionedConflicts)
-        {
-            var names = string.Join(", ", conflict.Select(Identify));
-            throw new InvalidOperationException(
+                Version: c.ApiVersion!.ToString()),
+            describe: (key, names) =>
                 $"Duplicate endpoint registration detected: " +
-                $"[{conflict.Key.Verb}] '{conflict.Key.Route}' at version '{conflict.Key.Version}'. " +
+                $"[{key.Verb}] '{key.Route}' at version '{key.Version}'. " +
                 $"Conflicting chains: {names}");
-        }
 
-        var neutralConflicts = chains
-            .Where(c => c.IsApiVersionNeutral)
-            .GroupBy(c => (
+        DetectConflicts(
+            chains,
+            include: c => c.IsApiVersionNeutral,
+            keyOf: c => (
                 Verb: c.HttpMethods.FirstOrDefault() ?? "",
-                Route: c.RoutePattern?.RawText ?? ""))
-            .Where(g => g.Count() > 1);
-
-        foreach (var conflict in neutralConflicts)
-        {
-            var names = string.Join(", ", conflict.Select(Identify));
-            throw new InvalidOperationException(
+                Route: c.RoutePattern?.RawText ?? ""),
+            describe: (key, names) =>
                 $"Duplicate version-neutral endpoint registration detected: " +
-                $"[{conflict.Key.Verb}] '{conflict.Key.Route}'. " +
+                $"[{key.Verb}] '{key.Route}'. " +
                 $"Version-neutral chains are not partitioned by version, so two chains at the " +
                 $"same (verb, route) collide unconditionally. Conflicting chains: {names}");
+    }
+
+    private static void DetectConflicts<TKey>(
+        IReadOnlyList<HttpChain> chains,
+        Func<HttpChain, bool> include,
+        Func<HttpChain, TKey> keyOf,
+        Func<TKey, string, string> describe)
+    {
+        var conflicts = chains
+            .Where(include)
+            .GroupBy(keyOf)
+            .Where(g => g.Count() > 1);
+
+        foreach (var conflict in conflicts)
+        {
+            var names = string.Join(", ", conflict.Select(Identify));
+            throw new InvalidOperationException(describe(conflict.Key, names));
         }
     }
 
@@ -246,8 +254,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
                 // different routes still hit a duplicate-name collision because the underlying
                 // ToString() is not unique per chain. Set the OperationId — already unique per
                 // handler type + method — as the explicit endpoint name, just like versioned chains.
-                if (!chain.HasExplicitOperationId)
-                    chain.SetExplicitOperationId(chain.OperationId);
+                EnsureExplicitOperationId(chain);
 
                 continue;
             }
@@ -268,9 +275,14 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             // endpoint name. Without this, ASP.NET Core uses ToString() which is derived from
             // the original route pattern and collides when multiple versions share the same
             // route template (e.g. [WolverineGet("/orders")] on three different classes).
-            if (!chain.HasExplicitOperationId)
-                chain.SetExplicitOperationId(chain.OperationId);
+            EnsureExplicitOperationId(chain);
         }
+    }
+
+    private static void EnsureExplicitOperationId(HttpChain chain)
+    {
+        if (!chain.HasExplicitOperationId)
+            chain.SetExplicitOperationId(chain.OperationId);
     }
 
     /// <summary>Step G — register the response-header postprocessor for chains that emit headers.</summary>

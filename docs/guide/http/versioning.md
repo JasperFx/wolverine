@@ -222,7 +222,11 @@ any versioned document.
 #### Recommended: surface neutral endpoints only in a dedicated `default` document
 
 The conservative default — and the pattern the WolverineWebApi sample uses — is to keep a separate
-`default` Swagger document for unversioned/neutral endpoints and route them there only:
+`default` Swagger document for unversioned/neutral endpoints and route them there only.
+
+Note: chains that pass through `UnversionedPolicy.PassThrough` (no `[ApiVersion]`, not `[ApiVersionNeutral]`)
+also land in `default` since they share the null `GroupName` with neutral chains, so the predicate below
+treats both alike:
 
 ```csharp
 builder.Services.AddSwaggerGen(x =>

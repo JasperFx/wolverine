@@ -95,6 +95,16 @@ internal class FluentlyVersionedNeutralHandler
     public string Ping() => "pong";
 }
 
+// Sibling chain at a *different* route with [ApiVersion("3.0")]. Used in test 10 to
+// prove that a neutral chain whose pre-policy ApiVersion was 3.0 (cleared by ResolveAttributes)
+// does not poison the version axis seen by DetectDuplicateRoutes.
+[ApiVersion("3.0")]
+internal class V3SiblingHandler
+{
+    [WolverineGet("/legacy/sibling")]
+    public string Get() => "v3-sibling";
+}
+
 // ---------- Tests ----------
 
 public class ApiVersionNeutralTests
@@ -103,7 +113,13 @@ public class ApiVersionNeutralTests
     // Passing null! works while ApiVersioningPolicy never touches the container, but as soon
     // as any future step (or a misordered call) does, null! produces an opaque NRE far from
     // the call site. A real container is a few lines of code and zero risk.
-    private static IServiceContainer NewContainer()
+    //
+    // Cached at class level: 13 tests * multiple Apply() calls would otherwise leak ~20+ fresh
+    // ServiceProviders per run. None of the tests mutate DI state, so a single container is
+    // safe and meaningfully faster.
+    private static readonly IServiceContainer _container = BuildContainer();
+
+    private static IServiceContainer BuildContainer()
     {
         var registry = new ServiceCollection();
         registry.AddSingleton<IServiceContainer, ServiceContainer>();
@@ -112,7 +128,7 @@ public class ApiVersionNeutralTests
     }
 
     private static void Apply(ApiVersioningPolicy policy, params HttpChain[] chains)
-        => policy.Apply(chains, new GenerationRules(), NewContainer());
+        => policy.Apply(chains, new GenerationRules(), _container);
 
     // 1 — class-level neutrality: no rewrite, no version, ApiVersion stays null
     [Fact]
@@ -217,8 +233,8 @@ public class ApiVersionNeutralTests
 
         var ex = Should.Throw<InvalidOperationException>(() => Apply(policy, chain));
         ex.Message.ShouldContain(nameof(ConflictingClassHandler));
-        ex.Message.ShouldContain("[ApiVersion]");
-        ex.Message.ShouldContain("[ApiVersionNeutral]");
+        ex.Message.ShouldContain(ApiVersionNeutralResolver.ApiVersionAttributeName);
+        ex.Message.ShouldContain(ApiVersionNeutralResolver.ApiVersionNeutralAttributeName);
     }
 
     // 4b — method-level conflict: message names handler type, method name, and both attributes.
@@ -232,8 +248,8 @@ public class ApiVersionNeutralTests
         var ex = Should.Throw<InvalidOperationException>(() => Apply(policy, chain));
         ex.Message.ShouldContain(nameof(ConflictingMethodHandler));
         ex.Message.ShouldContain(nameof(ConflictingMethodHandler.Get));
-        ex.Message.ShouldContain("[ApiVersion]");
-        ex.Message.ShouldContain("[ApiVersionNeutral]");
+        ex.Message.ShouldContain(ApiVersionNeutralResolver.ApiVersionAttributeName);
+        ex.Message.ShouldContain(ApiVersionNeutralResolver.ApiVersionNeutralAttributeName);
     }
 
     // 5 — neutral chain skipped from duplicate-detection on the version axis: a versioned chain
@@ -302,14 +318,30 @@ public class ApiVersionNeutralTests
     }
 
     // 8 — direction A of "method wins": class-level [ApiVersion] + method-level [ApiVersionNeutral]
-    // → method is neutral. (Already covered by test 2 above; reasserted here to keep both
-    // directions visible side by side for the spec.)
+    // → method is neutral. Mirrors test 9 (the inverse direction) so both branches of the
+    // "method wins" rule are exercised through the full ApiVersioningPolicy pipeline (chain build →
+    // Apply → assert IsApiVersionNeutral / ApiVersion / RoutePattern), not via direct resolver
+    // reflection. This is the symmetric counterpart to test 9.
     [Fact]
     public void method_level_neutral_overrides_class_level_apiversion()
     {
-        ApiVersionNeutralResolver.Resolve(
-            typeof(MixedVersionedHandler).GetMethod(nameof(MixedVersionedHandler.Ping))!)
-            .ShouldBeTrue();
+        var opts = new WolverineApiVersioningOptions();
+        var policy = new ApiVersioningPolicy(opts);
+
+        var customersChain = HttpChain.ChainFor<MixedVersionedHandler>(x => x.GetCustomers());
+        var pingChain = HttpChain.ChainFor<MixedVersionedHandler>(x => x.Ping());
+
+        Apply(policy, customersChain, pingChain);
+
+        // GetCustomers keeps class-level [ApiVersion("1.0")].
+        customersChain.IsApiVersionNeutral.ShouldBeFalse();
+        customersChain.ApiVersion.ShouldBe(new ApiVersion(1, 0));
+        customersChain.RoutePattern!.RawText.ShouldBe("/v1/customers");
+
+        // Ping carries method-level [ApiVersionNeutral] which must beat class-level [ApiVersion].
+        pingChain.IsApiVersionNeutral.ShouldBeTrue();
+        pingChain.ApiVersion.ShouldBeNull();
+        pingChain.RoutePattern!.RawText.ShouldBe("/customers/ping");
     }
 
     // 9 — direction B of "method wins": class-level [ApiVersionNeutral] + method-level [ApiVersion]
@@ -340,21 +372,35 @@ public class ApiVersionNeutralTests
     // 10 — method-level [ApiVersionNeutral] must clear any earlier fluent HasApiVersion(...)
     // assignment before later steps (DetectDuplicateRoutes, RewriteRoutes) observe the chain.
     // Otherwise a rogue version would survive on a chain the user explicitly opted out.
+    //
+    // The companion versioned sibling at /legacy/sibling@3.0 proves the cleared neutral chain
+    // does NOT poison the version axis: if ResolveAttributes failed to null out the stale 3.0
+    // on the neutral chain, DetectDuplicateRoutes would group both chains at version 3.0 and
+    // — because they're at different routes — wouldn't throw on the version axis directly, but
+    // the cleared chain would appear in the versioned (verb,route,version) bucket at all,
+    // which is the bug. Asserting NotThrow here pins the contract: a chain marked neutral is
+    // entirely absent from the versioned conflict pass.
     [Fact]
     public void method_level_neutral_clears_prior_fluent_apiversion_assignment()
     {
         var opts = new WolverineApiVersioningOptions();
         var policy = new ApiVersioningPolicy(opts);
-        var chain = HttpChain.ChainFor<FluentlyVersionedNeutralHandler>(x => x.Ping());
-        var originalRoute = chain.RoutePattern!.RawText;
+        var neutralChain = HttpChain.ChainFor<FluentlyVersionedNeutralHandler>(x => x.Ping());
+        var originalRoute = neutralChain.RoutePattern!.RawText;
+        var versionedSibling = HttpChain.ChainFor<V3SiblingHandler>(x => x.Get());
 
         // Simulate a fluent .HasApiVersion("3.0") assignment that ran before the policy.
-        chain.ApiVersion = new ApiVersion(3, 0);
+        neutralChain.ApiVersion = new ApiVersion(3, 0);
 
-        Apply(policy, chain);
+        Should.NotThrow(() => Apply(policy, neutralChain, versionedSibling));
 
-        chain.IsApiVersionNeutral.ShouldBeTrue();
-        chain.ApiVersion.ShouldBeNull();
-        chain.RoutePattern!.RawText.ShouldBe(originalRoute);   // not rewritten
+        neutralChain.IsApiVersionNeutral.ShouldBeTrue();
+        neutralChain.ApiVersion.ShouldBeNull();
+        neutralChain.RoutePattern!.RawText.ShouldBe(originalRoute);   // not rewritten
+
+        // The genuinely versioned sibling is unaffected by the neutral chain's prior 3.0.
+        versionedSibling.IsApiVersionNeutral.ShouldBeFalse();
+        versionedSibling.ApiVersion.ShouldBe(new ApiVersion(3, 0));
+        versionedSibling.RoutePattern!.RawText.ShouldBe("/v3/legacy/sibling");
     }
 }
