@@ -112,6 +112,44 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L124-L146' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_only_use_sending_connection_with_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connecting to a RabbitMQ cluster
+
+If you run RabbitMQ in a high-availability cluster, declare each node via
+`AddClusterNode`. Wolverine forwards the list to the RabbitMQ.NET client,
+which selects a node and transparently fails over to another if the
+chosen node becomes unreachable.
+
+<!-- snippet: sample_rabbit_mq_cluster_nodes -->
+<!-- endSnippet -->
+
+`AddClusterNode(host, port)` copies the TLS settings configured on the
+`ConnectionFactory` onto the new endpoint, so a homogeneous cluster only
+needs `Ssl` configured once. To override per node — for example, with
+distinct certificates — pass an
+[`AmqpTcpEndpoint`](https://www.rabbitmq.com/client-libraries/dotnet-api-guide#endpoints)
+directly:
+
+```csharp
+opts.UseRabbitMq(f => { f.UserName = "guest"; f.Password = "guest"; })
+    .AddClusterNode(new AmqpTcpEndpoint("rabbit-1.local", 5671, new SslOption
+    {
+        Enabled = true,
+        ServerName = "rabbit-1.local",
+        CertPath = "/etc/wolverine/rabbit-1.pem"
+    }));
+```
+
+Multi-tenant configurations that share a cluster (i.e. tenants separated
+by virtual host via `AddTenant(tenantId, virtualHostName)`) inherit the
+parent transport's cluster nodes automatically. Tenants configured via
+`AddTenant(tenantId, Uri)` or `AddTenant(tenantId, Action<ConnectionFactory>)`
+do **not** inherit the cluster — those overloads are intended for tenants
+on separate brokers and bring their own connection settings. Put differently:
+virtual-host tenants share the same broker and therefore the same cluster
+topology; URI- and Action-based tenants are explicitly pointed at a
+different broker, so inheriting cluster nodes from the parent would be
+wrong.
+
 ## Aspire Integration
 
 ::: tip

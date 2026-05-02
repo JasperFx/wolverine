@@ -6,16 +6,23 @@ namespace Wolverine.RabbitMQ.Internal;
 /// <summary>
 /// Secret-safe description of a <see cref="ConnectionFactory"/> for use with
 /// <see cref="OptionsDescription"/>. Exposes non-secret connection fields
-/// (host, port, vhost, username, SSL, heartbeat) and deliberately omits the
-/// password and any credential-carrying properties.
+/// (host, port, vhost, username, SSL, heartbeat, cluster nodes) and
+/// deliberately omits the password and any credential-carrying properties.
 /// </summary>
 public sealed class RabbitMqConnectionDescription : IDescribeMyself
 {
     private readonly ConnectionFactory _factory;
+    private readonly IReadOnlyList<AmqpTcpEndpoint> _clusterNodes;
 
     public RabbitMqConnectionDescription(ConnectionFactory factory)
+        : this(factory, Array.Empty<AmqpTcpEndpoint>())
+    {
+    }
+
+    public RabbitMqConnectionDescription(ConnectionFactory factory, IReadOnlyList<AmqpTcpEndpoint> clusterNodes)
     {
         _factory = factory;
+        _clusterNodes = clusterNodes ?? Array.Empty<AmqpTcpEndpoint>();
     }
 
     public OptionsDescription ToDescription()
@@ -46,6 +53,12 @@ public sealed class RabbitMqConnectionDescription : IDescribeMyself
                 description.AddValue("Ssl.ServerName", _factory.Ssl.ServerName ?? string.Empty);
                 description.AddValue("Ssl.Version", _factory.Ssl.Version.ToString());
             }
+        }
+
+        for (var i = 0; i < _clusterNodes.Count; i++)
+        {
+            var ep = _clusterNodes[i];
+            description.AddValue($"ClusterNodes[{i}]", $"{ep.HostName}:{ep.Port}");
         }
 
         return description;
