@@ -131,4 +131,4 @@ When working on specific areas, consult these files:
 
 ## Version
 
-Current: **5.36.0** (see `Directory.Build.props`)
+Current: **5.36.1** (see `Directory.Build.props`)
