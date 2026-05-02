@@ -20,7 +20,9 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
 
-        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeTrue();
+        // The header must list both versions discovered from sunset/deprecation policies in Program.cs:
+        // Deprecate("1.0") and Sunset("3.0"), sorted ascending.
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
         result.Context.Response.Headers["Link"].FirstOrDefault().ShouldContain("rel=\"deprecation\"");
     }
@@ -35,7 +37,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeTrue();
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
@@ -49,7 +51,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBe(401);
         });
 
-        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeTrue();
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
@@ -64,7 +66,26 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeTrue();
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
+    }
+
+    // Regression: 5xx responses produced by the global ASP.NET Core exception handler bypass
+    // the chain's middleware pipeline and therefore must NOT receive versioning headers.
+    // This is a documented out-of-scope (see docs/guide/http/versioning.md). UseExceptionHandler
+    // is scoped to /v1/orders/throws inside Program.cs so other tests are unaffected.
+    [Fact]
+    public async Task headers_do_not_emit_on_global_exception_handler_response()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/v1/orders/throws");
+            x.StatusCodeShouldBe(500);
+        });
+
+        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeFalse();
+        result.Context.Response.Headers.ContainsKey("Deprecation").ShouldBeFalse();
+        result.Context.Response.Headers.ContainsKey("Sunset").ShouldBeFalse();
+        result.Context.Response.Headers.ContainsKey("Link").ShouldBeFalse();
     }
 }
