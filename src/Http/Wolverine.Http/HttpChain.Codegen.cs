@@ -174,6 +174,8 @@ public partial class HttpChain
 
     private bool requiresFlush(Frame[] actionsOnOtherReturnValues)
     {
+        if (Middleware.Any(x => x is IFlushesMessages)) return false;
+        if (Postprocessors.Any(x => x is IFlushesMessages)) return false;
         if (Postprocessors.Any(x => x.MaySendMessages())) return true;
         if (actionsOnOtherReturnValues.Any(x => x.MaySendMessages())) return true;
 
