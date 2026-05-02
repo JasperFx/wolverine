@@ -8,5 +8,5 @@ public static class OrdersV1ThrowsEndpoint
 {
     [WolverineGet("/orders/throws", OperationId = "OrdersV1ThrowsEndpoint.Get")]
     public static string Get()
-        => throw new InvalidOperationException("intentional failure for exception-handler regression test");
+        => throw new InvalidOperationException("OrdersV1ThrowsEndpoint: intentional regression-test failure — IGNORE");
 }
