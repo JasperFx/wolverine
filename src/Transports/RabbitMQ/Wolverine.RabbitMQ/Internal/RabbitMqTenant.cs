@@ -40,6 +40,18 @@ internal class RabbitMqTenant
 
                 f.VirtualHost = VirtualHostName;
             });
+
+            // Inherit the parent's cluster endpoints so virtual-host tenants
+            // share the broker topology declared on the parent transport.
+            // Guard against duplicate appends if Compile() runs more than once
+            // on the same tenant instance.
+            if (Transport.AmqpTcpEndpoints.Count == 0)
+            {
+                foreach (var ep in parent.AmqpTcpEndpoints)
+                {
+                    Transport.AmqpTcpEndpoints.Add(ep);
+                }
+            }
         }
 
         CloneDeadLetterQueue(parent);
