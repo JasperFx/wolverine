@@ -116,10 +116,9 @@ public class ApiVersioningPolicyHeaderWiringTests
         state.Sunset!.Date.ShouldBe(date);
     }
 
-    // 4 — apply finalization twice does not add a duplicate header writer (idempotency guard);
-    // covers the case where another policy inserts at index 0 between the two finalization runs.
+    // 4 — finalization is idempotent: re-running does not duplicate the writer when it is already at index 0.
     [Fact]
-    public void finalization_twice_does_not_duplicate_and_keeps_writer_at_head()
+    public void finalization_is_idempotent_when_writer_already_at_head()
     {
         var opts = new WolverineApiVersioningOptions();
         opts.Sunset("1.0").On(DateTimeOffset.UtcNow.AddDays(30));

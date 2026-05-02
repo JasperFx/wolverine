@@ -214,7 +214,8 @@ Responses produced by the global ASP.NET Core exception handler (e.g. an unhandl
 by `UseExceptionHandler` or `UseDeveloperExceptionPage`) bypass the chain's pipeline entirely, so the
 versioning headers are **not** emitted on those responses. If you need them on 5xx, attach a small
 ASP.NET Core middleware on the exception path that reads the matched endpoint's
-`ApiVersionEndpointHeaderState` metadata and writes the headers itself:
+`ApiVersionEndpointHeaderState` metadata and delegates header emission to the registered
+`ApiVersionHeaderWriter` so the source of truth (RFC formatting, options toggles) stays in one place:
 
 ```csharp
 app.Use(async (ctx, next) =>
@@ -223,9 +224,12 @@ app.Use(async (ctx, next) =>
     {
         var c = (HttpContext)state;
         if (c.Response.StatusCode < 500) return Task.CompletedTask;
-        var s = c.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
-        if (s?.Deprecation is not null) c.Response.Headers["Deprecation"] = "true";
-        // ...emit Sunset / Link / api-supported-versions as needed
+
+        var endpointState = c.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
+        if (endpointState is null) return Task.CompletedTask;
+
+        var writer = c.RequestServices.GetService<ApiVersionHeaderWriter>();
+        writer?.WriteVersioningHeadersTo(c, endpointState);
         return Task.CompletedTask;
     }, ctx);
     await next();

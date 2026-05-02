@@ -2,6 +2,7 @@ using System.Globalization;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Http.ApiVersioning;
 
@@ -20,7 +21,10 @@ public class ApiVersionHeaderWriterTests
         public override void OnCompleted(Func<object, Task> callback, object state) { }
     }
 
-    private static DefaultHttpContext BuildContext(ApiVersionEndpointHeaderState? state, out CapturingResponseFeature feature)
+    private static DefaultHttpContext BuildContext(
+        ApiVersionEndpointHeaderState? state,
+        ApiVersionHeaderWriter writer,
+        out CapturingResponseFeature feature)
     {
         feature = new CapturingResponseFeature { Headers = new HeaderDictionary() };
         var features = new FeatureCollection();
@@ -29,6 +33,13 @@ public class ApiVersionHeaderWriterTests
         features.Set<IHttpRequestFeature>(new HttpRequestFeature());
 
         var ctx = new DefaultHttpContext(features);
+        // The OnStarting callback inside WriteAsync re-resolves the writer from RequestServices
+        // (so the lambda can stay static and avoid per-request boxing). The test container must
+        // therefore expose the same singleton instance the production container would.
+        var services = new ServiceCollection();
+        services.AddSingleton(writer);
+        ctx.RequestServices = services.BuildServiceProvider();
+
         if (state is not null)
         {
             var endpoint = new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(state), "test");
@@ -37,11 +48,11 @@ public class ApiVersionHeaderWriterTests
         return ctx;
     }
 
-    private static DefaultHttpContext ContextWithState(ApiVersionEndpointHeaderState state)
-        => BuildContext(state, out _);
+    private static DefaultHttpContext ContextWithState(ApiVersionEndpointHeaderState state, ApiVersionHeaderWriter writer)
+        => BuildContext(state, writer, out _);
 
-    private static DefaultHttpContext ContextWithNoState()
-        => BuildContext(null, out _);
+    private static DefaultHttpContext ContextWithNoState(ApiVersionHeaderWriter writer)
+        => BuildContext(null, writer, out _);
 
     // Drain the captured OnStarting callbacks so the in-memory header dictionary reflects what would
     // be flushed to the client. WriteAsync registers a callback rather than writing synchronously.
@@ -63,7 +74,7 @@ public class ApiVersionHeaderWriterTests
     {
         var opts = new WolverineApiVersioningOptions();
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithNoState();
+        var ctx = ContextWithNoState(writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -90,7 +101,7 @@ public class ApiVersionHeaderWriterTests
             new ApiVersion(1, 0),
             opts.SunsetPolicies[new ApiVersion(1, 0)],
             null);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -107,7 +118,7 @@ public class ApiVersionHeaderWriterTests
         var depPolicy = new DeprecationPolicy(depDate);
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), null, depPolicy);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -124,7 +135,7 @@ public class ApiVersionHeaderWriterTests
         var depPolicy = new DeprecationPolicy();
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), null, depPolicy);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -141,7 +152,7 @@ public class ApiVersionHeaderWriterTests
         var sunsetPolicy = new SunsetPolicy(sunsetDate);
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), sunsetPolicy, null);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -161,7 +172,7 @@ public class ApiVersionHeaderWriterTests
         var opts = new WolverineApiVersioningOptions();
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), sunsetPolicy, null);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -183,7 +194,7 @@ public class ApiVersionHeaderWriterTests
         var opts = new WolverineApiVersioningOptions();
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), sunsetPolicy, null);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -214,7 +225,7 @@ public class ApiVersionHeaderWriterTests
 
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), sunsetPolicy, depPolicy);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);
@@ -242,7 +253,7 @@ public class ApiVersionHeaderWriterTests
         var depPolicy = opts.DeprecationPolicies[new ApiVersion(1, 0)];
         var state = new ApiVersionEndpointHeaderState(new ApiVersion(1, 0), null, depPolicy);
         var writer = new ApiVersionHeaderWriter(opts);
-        var ctx = ContextWithState(state);
+        var ctx = ContextWithState(state, writer);
 
         await writer.WriteAsync(ctx);
         await FlushOnStartingAsync(ctx);

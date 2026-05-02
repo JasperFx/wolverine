@@ -18,21 +18,21 @@ namespace Wolverine.Http.ApiVersioning;
 ///   <item><description>D — Reject duplicate (verb, route, version) triples.</description></item>
 ///   <item><description>E — Rewrite route patterns with the URL-segment version prefix.</description></item>
 ///   <item><description>F — Attach group-name and <c>Asp.Versioning.ApiVersionMetadata</c> to the endpoint.</description></item>
-///   <item><description>G — Wire the response-header postprocessor on chains that need it.</description></item>
+///   <item><description>G — Attach the per-chain header state metadata read by the writer at request time.</description></item>
 /// </list>
 /// </summary>
 internal sealed class ApiVersioningPolicy : IHttpPolicy
 {
     private readonly WolverineApiVersioningOptions _options;
     private readonly HashSet<HttpChain> _processedChains = new();
-    private readonly HashSet<HttpChain> _headerProcessedChains = new();
+    private readonly HashSet<HttpChain> _headerStateChains = new();
 
     /// <summary>
     /// Chains for which Step G attached <see cref="ApiVersionEndpointHeaderState"/> metadata, exposed
     /// for <see cref="ApiVersionHeaderFinalizationPolicy"/> to position the writer call at index 0
     /// after all other user-supplied policies have run.
     /// </summary>
-    internal IReadOnlyCollection<HttpChain> ChainsRequiringHeaderWriter => _headerProcessedChains;
+    internal IReadOnlySet<HttpChain> ChainsRequiringHeaderWriter => _headerStateChains;
 
     /// <summary>Initializes a new instance of <see cref="ApiVersioningPolicy"/>.</summary>
     /// <param name="options">The API versioning options that drive this policy's behaviour.</param>
@@ -50,7 +50,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         DetectDuplicateRoutes(chains);
         RewriteRoutes(chains);
         AttachMetadata(chains);
-        WireHeaderPostprocessors(chains);
+        AttachHeaderState(chains);
     }
 
     /// <summary>Step A — read <c>[ApiVersion]</c> from the handler method and propagate to the chain.</summary>
@@ -222,14 +222,14 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     /// the insert here would leave the writer below those frames and the OnStarting hook would not
     /// register before <c>return;</c> on the validation-fail path.
     /// </summary>
-    private void WireHeaderPostprocessors(IReadOnlyList<HttpChain> chains)
+    private void AttachHeaderState(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
-            if (chain.ApiVersion is null || !RequiresHeaderWriter(chain))
+            if (chain.ApiVersion is null || !RequiresHeaderEmission(chain))
                 continue;
 
-            if (!_headerProcessedChains.Add(chain))
+            if (!_headerStateChains.Add(chain))
                 continue;
 
             // Per-chain state lives on endpoint metadata so the singleton writer can read it at request time.
@@ -238,7 +238,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         }
     }
 
-    private bool RequiresHeaderWriter(HttpChain chain) =>
+    private bool RequiresHeaderEmission(HttpChain chain) =>
         chain.SunsetPolicy is not null
         || chain.DeprecationPolicy is not null
         || _options.EmitApiSupportedVersionsHeader;
