@@ -58,8 +58,8 @@ public sealed class ApiVersionHeaderWriter
     /// </summary>
     /// <remarks>
     /// The method name remains <c>WriteAsync</c> because Wolverine's runtime code generation references
-    /// it by name. It is invoked once per request, near the head of the chain's middleware list, before
-    /// any status-branch divergence in the generated code.
+    /// it by name. It is invoked once per request as the first frame of the chain, before any
+    /// status-branch divergence in the generated code.
     /// </remarks>
     /// <param name="context">The current HTTP context.</param>
     public Task WriteAsync(HttpContext context)
@@ -70,13 +70,33 @@ public sealed class ApiVersionHeaderWriter
 
         context.Response.OnStarting(static stateObj =>
         {
-            var (writer, ctx, hdrState) = ((ApiVersionHeaderWriter, HttpContext, ApiVersionEndpointHeaderState))stateObj;
-            writer.ApplyHeaders(ctx, hdrState);
+            var ctx = (HttpContext)stateObj;
+            var endpoint = ctx.GetEndpoint();
+            var hdrState = endpoint?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
+            if (hdrState is null)
+                return Task.CompletedTask;
+
+            var services = ctx.RequestServices;
+            var writer = services.GetService(typeof(ApiVersionHeaderWriter)) as ApiVersionHeaderWriter;
+            writer?.ApplyHeaders(ctx, hdrState);
             return Task.CompletedTask;
-        }, (this, context, state));
+        }, context);
 
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Writes the applicable RFC 9745 / RFC 8594 / RFC 8288 response headers (<c>Deprecation</c>,
+    /// <c>Sunset</c>, <c>Link</c>, <c>api-supported-versions</c>) to <paramref name="context"/>.<see cref="HttpContext.Response"/>
+    /// based on the supplied per-endpoint <paramref name="state"/>. Public so application code on the
+    /// exception path (e.g. a custom <c>UseExceptionHandler</c> middleware) can emit the same headers
+    /// the chain pipeline would have written for non-exception responses.
+    /// </summary>
+    /// <param name="context">The current HTTP context whose response headers will be written.</param>
+    /// <param name="state">The per-endpoint header state, typically read from
+    /// <c>context.GetEndpoint()?.Metadata.GetMetadata&lt;ApiVersionEndpointHeaderState&gt;()</c>.</param>
+    public void WriteVersioningHeadersTo(HttpContext context, ApiVersionEndpointHeaderState state)
+        => ApplyHeaders(context, state);
 
     private void ApplyHeaders(HttpContext context, ApiVersionEndpointHeaderState state)
     {

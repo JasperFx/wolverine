@@ -216,6 +216,20 @@ public class Program
 
         app.UseRequestLocalization(localizationOptions);
 
+        // Scoped UseExceptionHandler — only on the dedicated regression-test path. Pinning the
+        // documented out-of-scope: 5xx responses produced by the global ASP.NET Core exception
+        // handler bypass the chain pipeline and therefore must NOT carry versioning headers.
+        // Restricted to /v1/orders/throws so other tests that intentionally produce 5xx via
+        // Wolverine's own ProblemDetails OnException middleware are unaffected.
+        app.UseWhen(
+            ctx => ctx.Request.Path.StartsWithSegments("/v1/orders/throws"),
+            branch => branch.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
+            {
+                ctx.Response.StatusCode = 500;
+                ctx.Response.ContentType = "text/plain";
+                await ctx.Response.WriteAsync("global-exception-handler");
+            })));
+
 // Configure the HTTP request pipeline.
         app.UseSwagger();
         app.UseSwaggerUI(c =>
