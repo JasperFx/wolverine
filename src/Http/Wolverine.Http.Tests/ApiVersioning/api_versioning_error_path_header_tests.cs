@@ -6,6 +6,11 @@ namespace Wolverine.Http.Tests.ApiVersioning;
 [Collection("integration")]
 public class api_versioning_error_path_header_tests : IntegrationContext
 {
+    // Mirrors the sunset/deprecation policies registered in WolverineWebApi/Program.cs:303-306
+    // (Sunset("3.0") + Deprecate("1.0")). Centralised so config drift in Program.cs surfaces here
+    // as a clear single failure rather than four near-identical ones.
+    private const string ExpectedSupportedVersions = "1.0, 3.0";
+
     public api_versioning_error_path_header_tests(AppFixture fixture) : base(fixture)
     {
     }
@@ -22,7 +27,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
 
         // The header must list both versions discovered from sunset/deprecation policies in Program.cs:
         // Deprecate("1.0") and Sunset("3.0"), sorted ascending.
-        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe(ExpectedSupportedVersions);
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
         result.Context.Response.Headers["Link"].FirstOrDefault().ShouldContain("rel=\"deprecation\"");
     }
@@ -37,7 +42,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe(ExpectedSupportedVersions);
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
@@ -51,7 +56,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBe(401);
         });
 
-        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe(ExpectedSupportedVersions);
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
@@ -66,7 +71,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe("1.0, 3.0");
+        result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe(ExpectedSupportedVersions);
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
@@ -82,6 +87,12 @@ public class api_versioning_error_path_header_tests : IntegrationContext
             x.Get.Url("/v1/orders/throws");
             x.StatusCodeShouldBe(500);
         });
+
+        // Body marker proves the response really came from the scoped UseExceptionHandler in
+        // Program.cs (not from Wolverine's own ProblemDetails OnException middleware). Without
+        // this, a future change that lets Wolverine itself answer the throws endpoint with a 500
+        // would silently turn the absent-headers assertion into a tautology.
+        (await result.ReadAsTextAsync()).ShouldContain("global-exception-handler");
 
         result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeFalse();
         result.Context.Response.Headers.ContainsKey("Deprecation").ShouldBeFalse();

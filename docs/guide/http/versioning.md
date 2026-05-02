@@ -322,6 +322,8 @@ ASP.NET Core middleware on the exception path that reads the matched endpoint's
 `ApiVersionHeaderWriter` so the source of truth (RFC formatting, options toggles) stays in one place:
 
 ```csharp
+using Microsoft.Extensions.DependencyInjection;
+
 app.Use(async (ctx, next) =>
 {
     ctx.Response.OnStarting(static state =>
@@ -332,8 +334,8 @@ app.Use(async (ctx, next) =>
         var endpointState = c.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
         if (endpointState is null) return Task.CompletedTask;
 
-        var writer = c.RequestServices.GetService<ApiVersionHeaderWriter>();
-        writer?.WriteVersioningHeadersTo(c, endpointState);
+        var writer = c.RequestServices.GetRequiredService<ApiVersionHeaderWriter>();
+        writer.WriteVersioningHeadersTo(c, endpointState);
         return Task.CompletedTask;
     }, ctx);
     await next();

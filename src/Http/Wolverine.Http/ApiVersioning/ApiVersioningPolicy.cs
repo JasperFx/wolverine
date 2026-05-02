@@ -32,7 +32,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     /// for <see cref="ApiVersionHeaderFinalizationPolicy"/> to position the writer call at index 0
     /// after all other user-supplied policies have run.
     /// </summary>
-    internal IReadOnlySet<HttpChain> ChainsRequiringHeaderWriter => _headerStateChains;
+    internal IReadOnlySet<HttpChain> ChainsRequiringHeaderEmission => _headerStateChains;
 
     /// <summary>Initializes a new instance of <see cref="ApiVersioningPolicy"/>.</summary>
     /// <param name="options">The API versioning options that drive this policy's behaviour.</param>

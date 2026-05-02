@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Globalization;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.Http.ApiVersioning;
 
@@ -24,9 +26,19 @@ public sealed record ApiVersionEndpointHeaderState(
 /// singleton with no per-chain constructor arguments.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Must remain public: Wolverine's dynamic code generation emits handler code at runtime that references
 /// this type by name for postprocessor wiring. The generated code is in a separate assembly without
 /// InternalsVisibleTo access to Wolverine.Http, so internal types are not accessible.
+/// </para>
+/// <para>
+/// The class exposes two intentionally asymmetric entry points:
+/// <see cref="WriteAsync(HttpContext)"/> is the chain-pipeline frame Wolverine's codegen calls automatically
+/// for every versioned endpoint — its name is locked by codegen and its signature is locked to the
+/// <c>HttpContext</c>-only convention. <see cref="WriteVersioningHeadersTo(HttpContext, ApiVersionEndpointHeaderState)"/>
+/// is a synchronous helper for advanced scenarios such as exception-handler middleware that
+/// needs to emit the same RFC headers on the 5xx exception path (where the chain pipeline has been bypassed).
+/// </para>
 /// </remarks>
 public sealed class ApiVersionHeaderWriter
 {
@@ -64,6 +76,7 @@ public sealed class ApiVersionHeaderWriter
     /// <param name="context">The current HTTP context.</param>
     public Task WriteAsync(HttpContext context)
     {
+        // Early-exit gate: skip the OnStarting registration entirely on chains with no header state.
         var state = context.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
         if (state is null)
             return Task.CompletedTask;
@@ -71,14 +84,14 @@ public sealed class ApiVersionHeaderWriter
         context.Response.OnStarting(static stateObj =>
         {
             var ctx = (HttpContext)stateObj;
+            // Re-fetch inside OnStarting because the endpoint can be re-routed by middleware between this frame and header-flush time.
             var endpoint = ctx.GetEndpoint();
             var hdrState = endpoint?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
             if (hdrState is null)
                 return Task.CompletedTask;
 
-            var services = ctx.RequestServices;
-            var writer = services.GetService(typeof(ApiVersionHeaderWriter)) as ApiVersionHeaderWriter;
-            writer?.ApplyHeaders(ctx, hdrState);
+            var writer = ctx.RequestServices.GetRequiredService<ApiVersionHeaderWriter>();
+            writer.ApplyHeaders(ctx, hdrState);
             return Task.CompletedTask;
         }, context);
 
@@ -95,6 +108,7 @@ public sealed class ApiVersionHeaderWriter
     /// <param name="context">The current HTTP context whose response headers will be written.</param>
     /// <param name="state">The per-endpoint header state, typically read from
     /// <c>context.GetEndpoint()?.Metadata.GetMetadata&lt;ApiVersionEndpointHeaderState&gt;()</c>.</param>
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
     public void WriteVersioningHeadersTo(HttpContext context, ApiVersionEndpointHeaderState state)
         => ApplyHeaders(context, state);
 

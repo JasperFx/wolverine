@@ -221,6 +221,7 @@ public class Program
         // handler bypass the chain pipeline and therefore must NOT carry versioning headers.
         // Restricted to /v1/orders/throws so other tests that intentionally produce 5xx via
         // Wolverine's own ProblemDetails OnException middleware are unaffected.
+        // Must be registered before MapWolverineEndpoints so it wraps the chain pipeline.
         app.UseWhen(
             ctx => ctx.Request.Path.StartsWithSegments("/v1/orders/throws"),
             branch => branch.UseExceptionHandler(errorApp => errorApp.Run(async ctx =>
