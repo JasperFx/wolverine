@@ -122,4 +122,36 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBe(404);
         });
     }
+
+    [Fact]
+    public async Task multi_version_endpoint_emits_api_supported_versions_with_sibling_set()
+    {
+        // GET /v1/customers is one clone of CustomersMultiVersionEndpoint, which declares 1.0/2.0/3.0,
+        // and the same (verb, route-after-strip-prefix) is also served by CustomersV4AttributeDeprecatedEndpoint
+        // at v4.0. The api-supported-versions header on this clone must report the FULL sibling union
+        // (every version that serves GET /customers regardless of which handler class), not just the
+        // per-options policy keys nor the per-clone version. This pins the per-endpoint metadata wiring.
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/v1/customers");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var supported = result.Context.Response.Headers["api-supported-versions"].FirstOrDefault();
+        supported.ShouldNotBeNull();
+
+        var values = supported!
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .OrderBy(v => v)
+            .ToArray();
+
+        // v1 is deprecated (per-attribute) so reported under deprecated, not supported. v2/v3 supported
+        // come from CustomersMultiVersionEndpoint, v4 is deprecated (per-attribute) so reported under
+        // deprecated. The combined api-supported-versions header reports the full sibling chain, so
+        // every version that has a clone at GET /customers must appear.
+        values.ShouldContain("1.0");
+        values.ShouldContain("2.0");
+        values.ShouldContain("3.0");
+        values.ShouldContain("4.0");
+    }
 }

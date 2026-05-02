@@ -94,7 +94,10 @@ public class api_versioning_integration_tests : IntegrationContext
     [Fact]
     public async Task api_supported_versions_header_lists_all_versions()
     {
-        // Any versioned endpoint emits api-supported-versions
+        // Any versioned endpoint emits api-supported-versions, built from the per-endpoint
+        // ApiVersionMetadata seeded by ApiVersioningPolicy with the full sibling union at the
+        // shared (verb, route-after-strip-prefix). For /vN/orders the siblings are v1+v2+v3
+        // (OrdersV1Endpoint, OrdersV2Endpoint, OrdersV3PreviewEndpoint).
         var result = await Scenario(x =>
         {
             x.Get.Url("/v2/orders");
@@ -103,8 +106,7 @@ public class api_versioning_integration_tests : IntegrationContext
 
         var header = result.Context.Response.Headers["api-supported-versions"].FirstOrDefault();
         header.ShouldNotBeNull();
-        // The header is built from SunsetPolicies (3.0) + DeprecationPolicies (1.0), sorted ascending
-        header.ShouldBe("1.0, 3.0");
+        header.ShouldBe("1.0, 2.0, 3.0");
     }
 
     [Fact]

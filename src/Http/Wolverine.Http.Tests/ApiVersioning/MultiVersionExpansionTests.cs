@@ -93,6 +93,23 @@ internal class DateBasedVersionHandler
     public string Get() => "dated";
 }
 
+// Two distinct handler classes serving different versions of the SAME (verb, route).
+// Used to pin the cross-class sibling-merge behaviour in ApiVersioningPolicy.AttachMetadata.
+internal class FirstInventoryEndpointHandler
+{
+    [WolverineGet("/inventory")]
+    [ApiVersion("1.0")]
+    [ApiVersion("2.0")]
+    public string Get() => "first";
+}
+
+internal class SecondInventoryEndpointHandler
+{
+    [WolverineGet("/inventory")]
+    [ApiVersion("3.0")]
+    public string Get() => "second";
+}
+
 public class MultiVersionExpansionTests
 {
     private static List<HttpChain> ListOf(params HttpChain[] chains) => new(chains);
@@ -268,6 +285,11 @@ public class MultiVersionExpansionTests
         ex.Message.ShouldContain("Duplicate endpoint registration");
         ex.Message.ShouldContain("/reports");
         ex.Message.ShouldContain("2.0");
+
+        // The diagnostic must name BOTH conflicting handler classes so the developer can locate
+        // the source of the collision without grepping. Regression guard for issue triage UX.
+        ex.Message.ShouldContain(nameof(FirstReportsMultiVersionHandler));
+        ex.Message.ShouldContain(nameof(SecondReportsMultiVersionHandler));
     }
 
     // 11 — [MapToApiVersion("X")] producing exactly one version: expansion leaves the chain in place,
@@ -323,7 +345,44 @@ public class MultiVersionExpansionTests
         var suffixes = chains.Select(c => c.OperationId.Substring(c.OperationId.LastIndexOf("_v"))).ToList();
         suffixes.ShouldAllBe(suffix => !suffix.Contains('-') && !suffix.Contains('.'));
 
-        suffixes.ShouldContain("_v2024_01_01");
-        suffixes.ShouldContain("_v2025_06_15");
+        // ShouldStartWith (rather than exact equality) leaves room for future Asp.Versioning
+        // changes that may append status/group decorations after the sanitised version body.
+        suffixes.ShouldContain(s => s.StartsWith("_v2024_01_01"));
+        suffixes.ShouldContain(s => s.StartsWith("_v2025_06_15"));
+    }
+
+    // 14 — multi-version handlers in DIFFERENT classes that share a (verb, route) merge into one
+    // sibling chain when ApiVersioningPolicy.AttachMetadata builds the api-supported-versions
+    // model. This pins the cross-class union behaviour that matches Asp.Versioning convention:
+    // any chain at the route is part of the same logical version set, regardless of which class
+    // declared which version.
+    [Fact]
+    public void cross_class_chains_at_same_route_share_supported_versions()
+    {
+        var chains = ListOf(
+            HttpChain.ChainFor<FirstInventoryEndpointHandler>(x => x.Get()),
+            HttpChain.ChainFor<SecondInventoryEndpointHandler>(x => x.Get()));
+
+        MultiVersionExpansion.ExpandInPlace(chains);
+
+        var policy = new ApiVersioningPolicy(new WolverineApiVersioningOptions());
+        policy.Apply(chains, new GenerationRules(), null!);
+
+        chains.Count.ShouldBe(3);
+        chains.Select(c => c.ApiVersion!.ToString()).OrderBy(s => s)
+            .ShouldBe(new[] { "1.0", "2.0", "3.0" });
+
+        var allVersions = new[] { new ApiVersion(1, 0), new ApiVersion(2, 0), new ApiVersion(3, 0) };
+
+        foreach (var chain in chains)
+        {
+            var endpoint = chain.BuildEndpoint(RouteWarmup.Lazy);
+            var model = endpoint.Metadata.GetMetadata<ApiVersionMetadata>()!.Map(ApiVersionMapping.Explicit);
+
+            // SupportedApiVersions is the union of every sibling at (GET, /vN/inventory) regardless
+            // of which handler class produced the clone. ImplementedApiVersions therefore contains
+            // every version any sibling serves at that logical route.
+            model.ImplementedApiVersions.OrderBy(v => v).ShouldBe(allVersions);
+        }
     }
 }

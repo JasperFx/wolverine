@@ -48,10 +48,9 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
 
     /// <summary>Step A — read <c>[ApiVersion]</c> from the handler method and propagate to the chain.
     /// Multi-version expansion runs earlier in <see cref="HttpGraph.DiscoverEndpoints"/>, so chains
-    /// reaching this step have either no version or one already set by the expansion. Use
-    /// <see cref="ApiVersionResolver.ResolveVersions"/> directly with FirstOrDefault — it is safe
-    /// here because every chain at this point declares at most one version (expansion removed
-    /// the multi-version cases and inserted per-version clones).</summary>
+    /// reaching this step have either no version or one already set by the expansion. Index the
+    /// resolver result explicitly after a count check so the <c>default(ApiVersionResolution)</c>
+    /// foot-gun (a struct with a null <c>Version</c>) is not relied on for the empty case.</summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
@@ -64,10 +63,11 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (chain.ApiVersion is not null)
                 continue;
 
-            var resolution = ApiVersionResolver.ResolveVersions(chain.Method.Method).FirstOrDefault();
-            if (resolution.Version is null)
+            var versions = ApiVersionResolver.ResolveVersions(chain.Method.Method);
+            if (versions.Count == 0)
                 continue;
 
+            var resolution = versions[0];
             chain.ApiVersion = resolution.Version;
 
             if (resolution.IsDeprecated && chain.DeprecationPolicy is null)
@@ -132,7 +132,11 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
 
         foreach (var conflict in conflicts)
         {
-            var names = string.Join(", ", conflict.Select(Identify));
+            // Use OperationId here (rather than the shared DisplayName) so the diagnostic names
+            // every conflicting clone individually — the version-suffixed OperationIds make each
+            // clone uniquely identifiable when sibling clones across distinct handler classes
+            // collide at the same (verb, route, version) triple.
+            var names = string.Join(", ", conflict.Select(c => c.OperationId));
             throw new InvalidOperationException(
                 $"Duplicate endpoint registration detected: " +
                 $"[{conflict.Key.Verb}] '{conflict.Key.Route}' at version '{conflict.Key.Version}'. " +
@@ -196,6 +200,17 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     /// The <c>ApiVersionMetadata</c> model is seeded with the union of versions implemented at the
     /// same (verb, route) pair so the <c>api-supported-versions</c> response header reports every
     /// sibling clone, not just this clone's own version.</summary>
+    /// <remarks>
+    /// The sibling grouping key is <c>(verb, route-after-strip-prefix)</c>, NOT
+    /// <c>(verb, route-after-strip-prefix, handler-type)</c>. Chains from distinct handler classes
+    /// that publish the same logical route are merged into one sibling set. This matches the
+    /// Asp.Versioning convention where any chain at the route is part of the same logical version
+    /// set regardless of which class declared which version (e.g.
+    /// <c>OrdersV1V2Endpoint</c> declaring v1+v2 and <c>OrdersV3Endpoint</c> declaring v3 at the
+    /// same <c>(GET, /orders)</c> route are merged into one sibling chain advertising 1.0/2.0/3.0
+    /// in <c>api-supported-versions</c>). The <c>cross_class_chains_at_same_route_share_supported_versions</c>
+    /// integration test pins this behaviour.
+    /// </remarks>
     private void AttachMetadata(IReadOnlyList<HttpChain> chains)
     {
         // Group versioned chains by (verb, route-without-version-prefix). Two chains in the same
@@ -303,6 +318,14 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         || chain.DeprecationPolicy is not null
         || _options.EmitApiSupportedVersionsHeader;
 
+    /// <summary>
+    /// Diagnostic identifier for a chain in error messages from the unversioned-policy and other
+    /// non-clone code paths. Prefers <see cref="HttpChain.DisplayName"/> so consumer-friendly
+    /// labels (e.g. <c>"GET /orders (unversioned)"</c>) are preserved verbatim. The duplicate-route
+    /// detector in <see cref="DetectDuplicateRoutes"/> intentionally uses
+    /// <see cref="HttpChain.OperationId"/> instead because clones share a DisplayName but have
+    /// version-suffixed OperationIds.
+    /// </summary>
     private static string Identify(HttpChain chain) =>
         chain.DisplayName
         ?? (chain.Method?.Method?.DeclaringType?.FullName + "." + chain.Method?.Method?.Name)

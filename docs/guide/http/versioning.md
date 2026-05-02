@@ -146,7 +146,7 @@ When a chain is expanded into clones, every per-version policy is applied to its
 |---|---|
 | `RoutePattern` | Rewritten with `UrlSegmentPrefix` for that clone's version |
 | `ApiVersionMetadata` | Built per clone: `DeclaredApiVersions` is the single clone version; `SupportedApiVersions` and `DeprecatedApiVersions` are the union of all sibling clones at the same `(verb, route-without-version-prefix)` |
-| `OperationId` | Inherited from the source chain plus a `_v{major}_{minor}` suffix (sanitised to ASCII alphanumerics + `_`, so date-based versions like `2024-01-01` become `_v2024_01_01`) |
+| `OperationId` | Inherited from the source chain plus a `_v{sanitised-version-string}` suffix — every non-alphanumeric character is replaced with `_`, so `2.0` → `_v2_0` and date-based versions like `2024-01-01` → `_v2024_01_01` |
 | `IEndpointGroupNameMetadata` | `OpenApi.DocumentNameStrategy(clone.ApiVersion)` |
 | `DeprecationPolicy` | `[ApiVersion(..., Deprecated = true)]` for that version, or `Deprecate("X.Y")` from options |
 | `SunsetPolicy` | `Sunset("X.Y")` from options |

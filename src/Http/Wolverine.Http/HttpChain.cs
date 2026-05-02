@@ -319,15 +319,11 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         {
             for (var i = builder.Metadata.Count - 1; i >= 0; i--)
             {
-                switch (builder.Metadata[i])
-                {
-                    case ApiVersionAttribute apiAttr when !apiAttr.Versions.Contains(version):
-                        builder.Metadata.RemoveAt(i);
-                        break;
-                    case MapToApiVersionAttribute mapAttr when !mapAttr.Versions.Contains(version):
-                        builder.Metadata.RemoveAt(i);
-                        break;
-                }
+                var m = builder.Metadata[i];
+                if (m is ApiVersionAttribute a && !a.Versions.Contains(version))
+                    builder.Metadata.RemoveAt(i);
+                else if (m is MapToApiVersionAttribute mp && !mp.Versions.Contains(version))
+                    builder.Metadata.RemoveAt(i);
             }
         });
 

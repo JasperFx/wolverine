@@ -14,10 +14,14 @@ namespace WolverineWebApi.ApiVersioning;
 [ApiVersion("3.0")]
 public static class CustomersMultiVersionEndpoint
 {
-    // The explicit OperationId is the short type-name form. CloneForVersion appends a
-    // sanitised "_v{major}_{minor}" suffix to each clone so the resulting endpoint names
-    // (e.g. CustomersMultiVersionEndpoint.Get_v1, CustomersMultiVersionEndpoint.Get_v2,
-    // CustomersMultiVersionEndpoint.Get_v3) stay globally unique without any per-clone setup.
+    // The explicit OperationId is retained here because WolverineWebApi is also loaded by
+    // tests that DO NOT call options.UseApiVersioning(). In that mode MultiVersionExpansion
+    // and ApiVersioningPolicy never run, so the per-clone auto-suffix and the SetExplicitOperationId
+    // call in AttachMetadata never fire — without an explicit OperationId on the source attribute,
+    // multiple chains at /customers (this class plus CustomersV4AttributeDeprecatedEndpoint) would
+    // collide on the route-derived endpoint name 'GET_customers'. When versioning IS enabled, the
+    // policy auto-suffixes each clone (CustomersMultiVersionEndpoint.Get_v1_0, _v2_0, _v3_0) so
+    // global uniqueness is guaranteed regardless of this attribute.
     [WolverineGet("/customers", OperationId = "CustomersMultiVersionEndpoint.Get")]
     public static CustomersResponse Get() => new(["alice", "bob"]);
 }
@@ -46,6 +50,10 @@ public static class CustomersV2OnlyEndpoint
 [ApiVersion("4.0", Deprecated = true)]
 public static class CustomersV4AttributeDeprecatedEndpoint
 {
+    // Explicit OperationId required for the same reason documented on CustomersMultiVersionEndpoint:
+    // tests that load WolverineWebApi without UseApiVersioning() must still produce unique endpoint
+    // names. Both chains share GET /customers; without explicit operation IDs they collide on
+    // 'GET_customers' before any policy can disambiguate them.
     [WolverineGet("/customers", OperationId = "CustomersV4AttributeDeprecatedEndpoint.Get")]
     public static CustomersResponse Get() => new(["v4-alice"]);
 }
