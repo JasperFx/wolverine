@@ -145,11 +145,13 @@ When a chain is expanded into clones, every per-version policy is applied to its
 | Per-clone state | Source |
 |---|---|
 | `RoutePattern` | Rewritten with `UrlSegmentPrefix` for that clone's version |
-| `ApiVersionMetadata` | Set with the model containing only that single version |
+| `ApiVersionMetadata` | Built per clone: `DeclaredApiVersions` is the single clone version; `SupportedApiVersions` and `DeprecatedApiVersions` are the union of all sibling clones at the same `(verb, route-without-version-prefix)` |
+| `OperationId` | Inherited from the source chain plus a `_v{major}_{minor}` suffix (sanitised to ASCII alphanumerics + `_`, so date-based versions like `2024-01-01` become `_v2024_01_01`) |
 | `IEndpointGroupNameMetadata` | `OpenApi.DocumentNameStrategy(clone.ApiVersion)` |
 | `DeprecationPolicy` | `[ApiVersion(..., Deprecated = true)]` for that version, or `Deprecate("X.Y")` from options |
 | `SunsetPolicy` | `Sunset("X.Y")` from options |
 | Response headers (`Deprecation`, `Sunset`, `Link`, `api-supported-versions`) | Per the policies attached to that clone |
+| `Endpoint.Metadata` `[ApiVersion]` / `[MapToApiVersion]` | Filtered to only the clone's own version — sibling-version attributes are scrubbed so OpenAPI tooling reports each clone as implementing exactly one declared version |
 
 ### Marking a version as deprecated via attribute
 

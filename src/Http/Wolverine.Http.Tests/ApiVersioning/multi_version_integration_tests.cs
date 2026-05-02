@@ -51,7 +51,7 @@ public class multi_version_integration_tests : IntegrationContext
     }
 
     [Fact]
-    public async Task multi_version_endpoint_v1_is_marked_deprecated()
+    public async Task multi_version_endpoint_v1_carries_globally_configured_deprecation()
     {
         var result = await Scenario(x =>
         {
@@ -59,7 +59,10 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        // Per-version deprecation: v1 carries [ApiVersion("1.0", Deprecated=true)].
+        // Program.cs registers options.Deprecate("1.0") globally, so v1 endpoints emit the
+        // header regardless of the per-version [ApiVersion(..., Deprecated = true)] attribute.
+        // This test pins down the options-driven path. Attribute-only deprecation is asserted
+        // separately on /v4/customers, which has no matching options.Deprecate call.
         var deprecation = result.Context.Response.Headers["Deprecation"].FirstOrDefault();
         deprecation.ShouldNotBeNull();
     }
@@ -76,6 +79,22 @@ public class multi_version_integration_tests : IntegrationContext
         // v2 has [ApiVersion("2.0")] without Deprecated; no per-version Deprecation header.
         var deprecation = result.Context.Response.Headers["Deprecation"].FirstOrDefault();
         deprecation.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task v4_endpoint_deprecation_comes_from_attribute_alone()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/v4/customers");
+            x.StatusCodeShouldBeOk();
+        });
+
+        // CustomersV4AttributeDeprecatedEndpoint is decorated with [ApiVersion("4.0", Deprecated = true)]
+        // and Program.cs registers no options.Deprecate("4.0"). The Deprecation header therefore
+        // proves the attribute-driven deprecation path works independently of the options map.
+        var deprecation = result.Context.Response.Headers["Deprecation"].FirstOrDefault();
+        deprecation.ShouldNotBeNull();
     }
 
     [Fact]

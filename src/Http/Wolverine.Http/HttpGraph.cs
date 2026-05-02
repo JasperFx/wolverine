@@ -114,7 +114,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         // clones would miss whatever the policies subsequently mutate.
         if (wolverineHttpOptions.ApiVersioning is not null)
         {
-            ApiVersioning.MultiVersionExpansion.Expand(_chains);
+            ApiVersioning.MultiVersionExpansion.ExpandInPlace(_chains);
         }
 
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);

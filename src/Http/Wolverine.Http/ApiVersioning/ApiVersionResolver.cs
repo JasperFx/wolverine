@@ -8,28 +8,6 @@ internal readonly record struct ApiVersionResolution(ApiVersion Version, bool Is
 internal static class ApiVersionResolver
 {
     /// <summary>
-    /// Resolves the API version declared on a handler method. The method's [ApiVersion] wins;
-    /// the declaring class's [ApiVersion] is used as a fallback. Throws when more than one
-    /// version is declared — callers expecting multi-version support should use
-    /// <see cref="ResolveVersions"/>.
-    /// </summary>
-    /// <param name="method">The handler method.</param>
-    /// <returns>The single resolved ApiVersion with deprecation status, or null if no [ApiVersion] is present.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when multiple versions are declared.</exception>
-    public static ApiVersionResolution? Resolve(MethodInfo method)
-    {
-        var versions = ResolveVersions(method);
-        if (versions.Count == 0) return null;
-        if (versions.Count == 1) return versions[0];
-
-        var methodIdentity = MethodIdentity(method);
-        var versionList = string.Join(", ", versions.Select(v => v.Version.ToString()));
-        throw new InvalidOperationException(
-            $"Handler method '{methodIdentity}' declares multiple API versions [{versionList}]. " +
-            "Use ResolveVersions to support multi-version handlers.");
-    }
-
-    /// <summary>
     /// Resolves all API versions a handler method serves. Resolution rules:
     /// <list type="bullet">
     ///   <item>Method-level <c>[ApiVersion]</c> attributes (if any) override class-level entirely.</item>
@@ -56,7 +34,8 @@ internal static class ApiVersionResolver
         // Method-level [ApiVersion] overrides class entirely.
         if (methodApiVersionAttrs.Count > 0)
         {
-            return BuildResolutions(methodApiVersionAttrs);
+            var methodVersions = methodApiVersionAttrs.SelectMany(a => a.Versions).Distinct().ToList();
+            return BuildResolutions(methodVersions, methodApiVersionAttrs);
         }
 
         var classApiVersionAttrs = method.DeclaringType?
@@ -89,27 +68,28 @@ internal static class ApiVersionResolver
             }
 
             // Deprecation flags on the class still apply to the filtered subset.
-            var resolutions = new List<ApiVersionResolution>(requestedVersions.Count);
-            foreach (var version in requestedVersions)
-            {
-                var isDeprecated = classApiVersionAttrs.Any(a => a.Deprecated && a.Versions.Contains(version));
-                resolutions.Add(new ApiVersionResolution(version, isDeprecated));
-            }
-            return resolutions;
+            return BuildResolutions(requestedVersions, classApiVersionAttrs);
         }
 
         if (classApiVersionAttrs.Count == 0) return Array.Empty<ApiVersionResolution>();
-        return BuildResolutions(classApiVersionAttrs);
+        var classDeclared = classApiVersionAttrs.SelectMany(a => a.Versions).Distinct().ToList();
+        return BuildResolutions(classDeclared, classApiVersionAttrs);
     }
 
-    private static IReadOnlyList<ApiVersionResolution> BuildResolutions(IEnumerable<ApiVersionAttribute> attrs)
+    /// <summary>
+    /// Builds resolutions for the given <paramref name="versions"/> in order, marking each as
+    /// deprecated when any attribute in <paramref name="deprecationSource"/> declares the version
+    /// with <see cref="ApiVersionAttribute.Deprecated"/>. Used by every branch of
+    /// <see cref="ResolveVersions"/>: class-only, method-only, and [MapToApiVersion] filtering.
+    /// </summary>
+    private static IReadOnlyList<ApiVersionResolution> BuildResolutions(
+        IReadOnlyCollection<ApiVersion> versions,
+        IReadOnlyCollection<ApiVersionAttribute> deprecationSource)
     {
-        var attrList = attrs.ToList();
-        var versions = attrList.SelectMany(a => a.Versions).Distinct().ToList();
         var result = new List<ApiVersionResolution>(versions.Count);
         foreach (var version in versions)
         {
-            var isDeprecated = attrList.Any(a => a.Deprecated && a.Versions.Contains(version));
+            var isDeprecated = deprecationSource.Any(a => a.Deprecated && a.Versions.Contains(version));
             result.Add(new ApiVersionResolution(version, isDeprecated));
         }
         return result;

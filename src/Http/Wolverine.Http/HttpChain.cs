@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Asp.Versioning;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -55,6 +56,10 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public static readonly Variable[] HttpContextVariables =
         Variable.VariablesForProperties<HttpContext>(HttpGraph.Context);
+
+    // Used by CloneForVersion to sanitize ApiVersion text (e.g. "2024-01-01") into a legal
+    // identifier suffix for OperationId. Compiled once; only ASCII alphanumerics survive.
+    private static readonly Regex NonAlphanumeric = new(@"[^A-Za-z0-9]", RegexOptions.Compiled);
 
     internal Variable? RequestBodyVariable { get; set; }
 
@@ -296,13 +301,35 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         // Multi-version expansion produces N chains sharing the same handler method, so the
         // ctor-derived OperationId collides across clones. Suffix it with the version to keep
         // ASP.NET Core's "endpoint names must be globally unique" invariant intact.
-        var versionSuffix = version.ToString().Replace('.', '_');
+        // Sanitize by replacing every non-alphanumeric character so date-based versions like
+        // 2024-01-01 still produce a legal identifier (2024_01_01) instead of leaking hyphens.
+        var versionSuffix = NonAlphanumeric.Replace(version.ToString(), "_");
         clone.OperationId = $"{clone.OperationId}_v{versionSuffix}";
 
         if (isDeprecated)
         {
             clone.DeprecationPolicy ??= new DeprecationPolicy();
         }
+
+        // Strip [ApiVersion] / [MapToApiVersion] attributes that don't match this clone's version.
+        // applyMetadata() copied every class- and method-level attribute onto the clone, so without
+        // this pass each clone's ASP.NET Core endpoint metadata reports ALL of the multi-version
+        // declarations and OpenAPI tooling reports each clone as implementing every sibling version.
+        clone.Metadata.Add(builder =>
+        {
+            for (var i = builder.Metadata.Count - 1; i >= 0; i--)
+            {
+                switch (builder.Metadata[i])
+                {
+                    case ApiVersionAttribute apiAttr when !apiAttr.Versions.Contains(version):
+                        builder.Metadata.RemoveAt(i);
+                        break;
+                    case MapToApiVersionAttribute mapAttr when !mapAttr.Versions.Contains(version):
+                        builder.Metadata.RemoveAt(i);
+                        break;
+                }
+            }
+        });
 
         return clone;
     }

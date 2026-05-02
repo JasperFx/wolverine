@@ -48,7 +48,10 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
 
     /// <summary>Step A — read <c>[ApiVersion]</c> from the handler method and propagate to the chain.
     /// Multi-version expansion runs earlier in <see cref="HttpGraph.DiscoverEndpoints"/>, so chains
-    /// reaching this step have either no version or one already set by the expansion.</summary>
+    /// reaching this step have either no version or one already set by the expansion. Use
+    /// <see cref="ApiVersionResolver.ResolveVersions"/> directly with FirstOrDefault — it is safe
+    /// here because every chain at this point declares at most one version (expansion removed
+    /// the multi-version cases and inserted per-version clones).</summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
@@ -61,13 +64,13 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (chain.ApiVersion is not null)
                 continue;
 
-            var resolution = ApiVersionResolver.Resolve(chain.Method.Method);
-            if (resolution is null)
+            var resolution = ApiVersionResolver.ResolveVersions(chain.Method.Method).FirstOrDefault();
+            if (resolution.Version is null)
                 continue;
 
-            chain.ApiVersion = resolution.Value.Version;
+            chain.ApiVersion = resolution.Version;
 
-            if (resolution.Value.IsDeprecated && chain.DeprecationPolicy is null)
+            if (resolution.IsDeprecated && chain.DeprecationPolicy is null)
                 chain.DeprecationPolicy = new DeprecationPolicy();
         }
     }
@@ -189,9 +192,33 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         return "/" + _options.UrlSegmentPrefix!.Replace("{version}", versionSegment).TrimStart('/');
     }
 
-    /// <summary>Step F — attach group-name, ApiVersionMetadata, and ensure unique endpoint names.</summary>
+    /// <summary>Step F — attach group-name, ApiVersionMetadata, and ensure unique endpoint names.
+    /// The <c>ApiVersionMetadata</c> model is seeded with the union of versions implemented at the
+    /// same (verb, route) pair so the <c>api-supported-versions</c> response header reports every
+    /// sibling clone, not just this clone's own version.</summary>
     private void AttachMetadata(IReadOnlyList<HttpChain> chains)
     {
+        // Group versioned chains by (verb, route-without-version-prefix). Two chains in the same
+        // group are siblings — typically multi-version clones, but also any chains that happen to
+        // share a verb and the post-strip route. Each clone's model advertises the full sibling set
+        // as supported / deprecated so the response header consumers see the union.
+        var siblingsByKey = new Dictionary<(string Verb, string Route), List<HttpChain>>();
+        foreach (var chain in chains)
+        {
+            if (chain.ApiVersion is null) continue;
+
+            var key = (
+                Verb: chain.HttpMethods.FirstOrDefault() ?? "",
+                Route: StripVersionPrefix(chain));
+
+            if (!siblingsByKey.TryGetValue(key, out var bucket))
+            {
+                bucket = new List<HttpChain>();
+                siblingsByKey[key] = bucket;
+            }
+            bucket.Add(chain);
+        }
+
         foreach (var chain in chains)
         {
             if (chain.ApiVersion is null || !_processedChains.Add(chain))
@@ -200,7 +227,28 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             var groupName = _options.OpenApi.DocumentNameStrategy(chain.ApiVersion);
             chain.Metadata.WithGroupName(groupName);
 
-            var model = new ApiVersionModel(chain.ApiVersion);
+            var key = (
+                Verb: chain.HttpMethods.FirstOrDefault() ?? "",
+                Route: StripVersionPrefix(chain));
+
+            var siblings = siblingsByKey[key];
+            var supported = siblings
+                .Where(s => s.DeprecationPolicy is null)
+                .Select(s => s.ApiVersion!)
+                .Distinct()
+                .ToArray();
+            var deprecated = siblings
+                .Where(s => s.DeprecationPolicy is not null)
+                .Select(s => s.ApiVersion!)
+                .Distinct()
+                .ToArray();
+
+            var model = new ApiVersionModel(
+                declaredVersions: new[] { chain.ApiVersion },
+                supportedVersions: supported,
+                deprecatedVersions: deprecated,
+                advertisedVersions: Array.Empty<ApiVersion>(),
+                deprecatedAdvertisedVersions: Array.Empty<ApiVersion>());
             chain.Metadata.WithMetadata(new ApiVersionMetadata(model, model));
 
             // Make the OperationId (already unique per handler type + method) the explicit
@@ -210,6 +258,23 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (!chain.HasExplicitOperationId)
                 chain.SetExplicitOperationId(chain.OperationId);
         }
+    }
+
+    /// <summary>Removes the URL-segment version prefix (if one was injected by <see cref="RewriteRoutes"/>)
+    /// from the chain's current route, returning the trailing portion that is identical across all
+    /// sibling versions. When <see cref="WolverineApiVersioningOptions.UrlSegmentPrefix"/> is null
+    /// the original route is returned unchanged.</summary>
+    private string StripVersionPrefix(HttpChain chain)
+    {
+        var route = chain.RoutePattern?.RawText ?? string.Empty;
+        if (_options.UrlSegmentPrefix is null) return route;
+
+        var prefix = BuildExpectedPrefix(chain.ApiVersion!);
+        if (route == prefix) return string.Empty;
+        if (route.StartsWith(prefix + "/", StringComparison.Ordinal))
+            return route.Substring(prefix.Length);
+
+        return route;
     }
 
     /// <summary>Step G — register the response-header postprocessor for chains that emit headers.</summary>
