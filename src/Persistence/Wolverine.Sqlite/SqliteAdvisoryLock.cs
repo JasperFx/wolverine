@@ -62,6 +62,11 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
+        // Idempotent: if we already hold this lock and the connection is healthy,
+        // re-attempting must report success. The previous implementation would run
+        // INSERT OR IGNORE again, get result==0, and falsely return false.
+        if (HasLock(lockId)) return true;
+
         if (_conn == null)
         {
             _conn = await _dataSource.OpenConnectionAsync(token).ConfigureAwait(false);
@@ -87,8 +92,11 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
 
         try
         {
-            // SQLite doesn't have advisory locks like PostgreSQL
-            // We'll use a simple table-based lock approach
+            // SQLite doesn't have advisory locks like PostgreSQL.
+            // We use a row in wolverine_locks; the table is created by the message
+            // store's normal schema migration. The migration lock itself uses
+            // BEGIN EXCLUSIVE (see SqliteMessageStore.acquireMigrationLockAsync) so
+            // there is no chicken-and-egg between this table and migration.
             var result = await _conn.CreateCommand("INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) VALUES (@lockId, datetime('now'))")
                 .With("lockId", lockId)
                 .ExecuteNonQueryAsync(token);
@@ -155,8 +163,10 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
                 await ReleaseLockAsync(lockId);
             }
 
-            await _conn.CloseAsync().ConfigureAwait(false);
-            await _conn.DisposeAsync().ConfigureAwait(false);
+            // ReleaseLockAsync nulls _conn once the last lock is released. The
+            // finally block below handles disposal in both paths (released-all
+            // vs released-some); calling Close/Dispose here as well caused a
+            // NullReferenceException on the all-released path.
         }
         catch (Exception e)
         {
