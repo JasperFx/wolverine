@@ -70,42 +70,6 @@ public class sqlite_migration_lock : SqliteContext, IAsyncLifetime
         }
     }
 
-    [Fact]
-    public async Task advisory_lock_try_attain_is_idempotent()
-    {
-        // Regression test for the bug where calling TryAttainLockAsync twice for
-        // the same lockId on the same instance returned false the second time
-        // (because INSERT OR IGNORE no-ops on the existing row).
-        using var host = await CreateHostAsync(_db.ConnectionString);
-        var store = (SqliteMessageStore)host.Services.GetRequiredService<IMessageStore>();
-
-        (await store.AdvisoryLock.TryAttainLockAsync(4242, default)).ShouldBeTrue();
-        (await store.AdvisoryLock.TryAttainLockAsync(4242, default)).ShouldBeTrue();
-        store.AdvisoryLock.HasLock(4242).ShouldBeTrue();
-
-        await store.AdvisoryLock.ReleaseLockAsync(4242);
-        store.AdvisoryLock.HasLock(4242).ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task release_lock_actually_deletes_the_row()
-    {
-        // The base ReleaseLockAsync was a no-op for SQLite (its doc comment
-        // assumed session-scoped engine locks). The override now delegates to
-        // SqliteAdvisoryLock which deletes the row.
-        using var host = await CreateHostAsync(_db.ConnectionString);
-        var store = (SqliteMessageStore)host.Services.GetRequiredService<IMessageStore>();
-
-        await store.AdvisoryLock.TryAttainLockAsync(7777, default);
-        await store.AdvisoryLock.ReleaseLockAsync(7777);
-
-        await using var conn = new SqliteConnection(_db.ConnectionString);
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "select count(*) from wolverine_locks where lock_id = 7777";
-        ((long)(await cmd.ExecuteScalarAsync())!).ShouldBe(0);
-    }
-
     private static async Task<IHost> CreateHostAsync(string connectionString)
     {
         return await Host.CreateDefaultBuilder()

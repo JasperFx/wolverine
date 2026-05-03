@@ -9,17 +9,37 @@ namespace Wolverine.Sqlite;
 
 internal class SqliteAdvisoryLock : IAdvisoryLock
 {
+    // wolverine_locks rows are not bound to the writing connection (unlike the
+    // BEGIN EXCLUSIVE migration lock), so a hard-killed holder leaves a row
+    // that no peer would ever reap. Pair a TTL sweep on each attempt with a
+    // heartbeat refresh of acquired_at on each re-attempt by the live holder:
+    // - Live holders re-attain on every poll tick (HealthCheckPollingTime,
+    //   ScheduledJobPollingTime), which advances acquired_at well inside TTL.
+    // - A dead holder stops refreshing; peers reap the row once it ages past
+    //   TTL on a subsequent attempt.
+    // TTL must be > 2× the slowest poll cadence using this lock. Default 2m
+    // accommodates the 10s heartbeat default with healthy headroom for GC
+    // pauses, slow recovery cycles, or temporary I/O stalls.
+    internal static readonly TimeSpan DefaultLockTtl = TimeSpan.FromMinutes(2);
+
     private readonly DbDataSource _dataSource;
     private readonly ILogger _logger;
     private readonly string _databaseName;
+    private readonly TimeSpan _lockTtl;
     private readonly List<int> _locks = new();
     private DbConnection? _conn;
 
     public SqliteAdvisoryLock(DbDataSource dataSource, ILogger logger, string databaseName)
+        : this(dataSource, logger, databaseName, DefaultLockTtl)
+    {
+    }
+
+    internal SqliteAdvisoryLock(DbDataSource dataSource, ILogger logger, string databaseName, TimeSpan lockTtl)
     {
         _dataSource = dataSource;
         _logger = logger;
         _databaseName = databaseName;
+        _lockTtl = lockTtl;
     }
 
     public bool HasLock(int lockId)
@@ -65,7 +85,11 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         // Idempotent: if we already hold this lock and the connection is healthy,
         // re-attempting must report success. The previous implementation would run
         // INSERT OR IGNORE again, get result==0, and falsely return false.
-        if (HasLock(lockId)) return true;
+        if (HasLock(lockId))
+        {
+            await refreshHeartbeatAsync(lockId, token).ConfigureAwait(false);
+            return true;
+        }
 
         if (_conn == null)
         {
@@ -97,6 +121,17 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
             // store's normal schema migration. The migration lock itself uses
             // BEGIN EXCLUSIVE (see SqliteMessageStore.acquireMigrationLockAsync) so
             // there is no chicken-and-egg between this table and migration.
+            //
+            // Stale-row sweep: if a previous holder died without releasing, its
+            // row would block all peers forever. Reap rows whose acquired_at is
+            // older than TTL before attempting INSERT OR IGNORE. Live holders
+            // refresh acquired_at on every re-attempt, so they're never reaped.
+            await _conn.CreateCommand(
+                    "DELETE FROM wolverine_locks WHERE lock_id = @lockId AND acquired_at < @cutoff")
+                .With("lockId", lockId)
+                .With("cutoff", DateTime.UtcNow.Subtract(_lockTtl).ToString("yyyy-MM-dd HH:mm:ss"))
+                .ExecuteNonQueryAsync(token);
+
             var result = await _conn.CreateCommand("INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) VALUES (@lockId, datetime('now'))")
                 .With("lockId", lockId)
                 .ExecuteNonQueryAsync(token);
@@ -113,6 +148,25 @@ internal class SqliteAdvisoryLock : IAdvisoryLock
         {
             _logger.LogError(ex, "Error trying to attain advisory lock {LockId}", lockId);
             return false;
+        }
+    }
+
+    private async Task refreshHeartbeatAsync(int lockId, CancellationToken token)
+    {
+        if (_conn == null) return;
+
+        try
+        {
+            await _conn.CreateCommand(
+                    "UPDATE wolverine_locks SET acquired_at = datetime('now') WHERE lock_id = @lockId")
+                .With("lockId", lockId)
+                .ExecuteNonQueryAsync(token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to refresh advisory-lock heartbeat for {LockId} on database {Database}; lock may be reaped if the failure persists past TTL",
+                lockId, _databaseName);
         }
     }
 
