@@ -41,8 +41,29 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                 {
                     if (_context.Envelope.Store is PostgresqlMessageStore envelopeStore)
                     {
-                        // Envelope was routed to a specific store (possibly this one)
-                        incomingTableName = envelopeStore.IncomingFullName;
+                        // Envelope was routed to a specific store. Only fold the
+                        // handled-update into THIS Marten transaction if envelopeStore
+                        // sits on the same connection / schema as _messageStore — the
+                        // session is open against _messageStore's database, so an
+                        // UPDATE against a different database's inbox table simply
+                        // can't run here. Compare by Uri (the existing same-database
+                        // heuristic in the envelope.Store==null branch below uses
+                        // the same approach), which keeps this from depending on
+                        // IMessageStore.Id and matches the local notion of "same
+                        // store" the rest of this method already uses.
+                        //
+                        // Cross-store envelopes (e.g. a main-store handler dispatches
+                        // a local message to an ancillary-store handler — GH-2669)
+                        // are skipped here so the envelope's owning store handles
+                        // the mark-handled separately via its own connection.
+                        if (envelopeStore.Uri == _messageStore.Uri)
+                        {
+                            incomingTableName = envelopeStore.IncomingFullName;
+                        }
+                        else
+                        {
+                            return Task.CompletedTask;
+                        }
                     }
                     else if (_context.Envelope.Store == null)
                     {

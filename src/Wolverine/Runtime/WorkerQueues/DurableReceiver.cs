@@ -147,12 +147,15 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     /// <summary>
     /// If the handler for this message type targets an ancillary store on a
     /// different database, set envelope.Store so that the DelegatingMessageInbox
-    /// persists it in the correct store for transactional atomicity.
+    /// persists it in the correct store for transactional atomicity. The
+    /// receiving handler's store association wins over the publishing context's
+    /// store — see the equivalent method on
+    /// <see cref="Wolverine.Transports.Local.DurableLocalQueue"/> for the full
+    /// rationale (GH-2669).
     /// </summary>
     private void assignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
-        if (envelope.Store != null) return; // already stamped (e.g. from Option B at read time)
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
         if (store != null)
         {

@@ -223,15 +223,18 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     /// <summary>
     /// If the handler for this message type targets an ancillary store on a
     /// different database, set envelope.Store so that the DelegatingMessageInbox
-    /// persists it in the correct store for transactional atomicity.
-    /// This is a safety net for envelopes that arrive without Store already set
-    /// (e.g. from scheduled-job recovery). Envelopes published via PublishAsync
-    /// from a handler will already have Store stamped by MessageBus.
+    /// persists it in the correct store for transactional atomicity. The
+    /// receiving handler's store association wins over the publishing context's
+    /// store: a message published from a main-store handler can be persisted
+    /// transactionally by an ancillary-store handler. Without overriding here,
+    /// a publisher-stamped envelope.Store (the main store) would carry through
+    /// the inbox and cause FlushOutgoingMessagesOnCommit to point at the
+    /// publisher's inbox table while the receiving Marten/Polecat session was
+    /// connected to the ancillary database. See GH-2669.
     /// </summary>
     private void assignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
-        if (envelope.Store != null) return;
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
         if (store != null)
         {
