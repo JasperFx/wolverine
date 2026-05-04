@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Globalization;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.Http.ApiVersioning;
 
@@ -81,19 +80,17 @@ public sealed class ApiVersionHeaderWriter
         if (state is null)
             return Task.CompletedTask;
 
-        context.Response.OnStarting(static stateObj =>
+        // Capture this + context: writer is already resolved from DI by the generated handler
+        // (Wolverine codegen via MethodCall.For), so no service location is needed in the callback.
+        // One closure allocation per request matches the cost ASP.NET Core middleware pays for OnStarting.
+        context.Response.OnStarting(() =>
         {
-            var ctx = (HttpContext)stateObj;
             // Re-fetch inside OnStarting because the endpoint can be re-routed by middleware between this frame and header-flush time.
-            var endpoint = ctx.GetEndpoint();
-            var hdrState = endpoint?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
-            if (hdrState is null)
-                return Task.CompletedTask;
-
-            var writer = ctx.RequestServices.GetRequiredService<ApiVersionHeaderWriter>();
-            writer.ApplyHeaders(ctx, hdrState);
+            var hdrState = context.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
+            if (hdrState is not null)
+                ApplyHeaders(context, hdrState);
             return Task.CompletedTask;
-        }, context);
+        });
 
         return Task.CompletedTask;
     }
