@@ -199,7 +199,23 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         chain.Postprocessors.Add(call);
 
-        if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
+        // Eager mode wraps the rest of the chain in EnrollDbContextInTransaction's
+        // try/catch and ends the try block with `efCoreEnvelopeTransaction.CommitAsync(...)`.
+        // EfCoreEnvelopeTransaction.CommitAsync commits the EF Core transaction and THEN
+        // flushes outgoing messages — that's the only ordering that lets the post-send
+        // outbox bookkeeping see the wolverine_outgoing row this chain just inserted.
+        // Adding a standalone FlushOutgoingMessages postprocessor here would inject the
+        // flush BEFORE the commit, and the post-send DELETE would no-op against the
+        // still-uncommitted INSERT, leaving the row stranded for the durability agent
+        // (at-least-once instead of exactly-once). See the dmytro-pryvedeniuk/outbox
+        // sample report and the failing HTTP test in
+        // Wolverine.Http.Tests/Bug_efcore_outbox_flush_before_commit.cs.
+        //
+        // Lightweight mode skips EnrollDbContextInTransaction (no try-block wrap, no
+        // CommitAsync), so the standalone FlushOutgoingMessages postprocessor is the
+        // only flush trigger and must stay.
+        if (mode != TransactionMiddlewareMode.Eager
+            && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
             chain.Postprocessors.Add(new FlushOutgoingMessages());
@@ -283,7 +299,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         chain.Postprocessors.Add(call);
 
-        if (chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
+        // See the rationale in the no-entity ApplyTransactionSupport overload above.
+        // Same constraint: in Eager mode, EnrollDbContextInTransaction's CommitAsync is
+        // the sole legitimate flush trigger; a standalone postprocessor would flush
+        // before the EF Core commit and strand the wolverine_outgoing row.
+        if (mode != TransactionMiddlewareMode.Eager
+            && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
         {
 #pragma warning disable CS4014
             chain.Postprocessors.Add(new FlushOutgoingMessages());

@@ -254,6 +254,14 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     /// <summary>API version declared for this endpoint via [ApiVersion] or fluent configuration. Null when the endpoint is version-neutral.</summary>
     public ApiVersion? ApiVersion { get; set; }
 
+    /// <summary>
+    /// True when this endpoint has been explicitly marked version-neutral via
+    /// <see cref="Asp.Versioning.ApiVersionNeutralAttribute"/>. Neutral chains keep their declared
+    /// route, are skipped by version-aware route rewriting, duplicate detection on the version axis,
+    /// and response-header emission, and satisfy <see cref="ApiVersioning.UnversionedPolicy.RequireExplicit"/>.
+    /// </summary>
+    public bool IsApiVersionNeutral { get; set; }
+
     /// <summary>Sunset policy for this endpoint's API version. Populated by configuration during app startup.</summary>
     public SunsetPolicy? SunsetPolicy { get; set; }
 

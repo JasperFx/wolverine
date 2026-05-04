@@ -161,19 +161,59 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             .ExecuteNonQueryAsync();
     }
 
-    protected override async Task<bool> TryAttainLockAsync(int lockId, SqliteConnection connection, CancellationToken token)
+    // Polling lock: delegate to the AdvisoryLock instance. The previous override here
+    // ran INSERT OR IGNORE and returned true unconditionally, which falsely reported
+    // "lock acquired" whenever another row already held the slot. SqliteAdvisoryLock
+    // checks the affected row count.
+    protected override Task<bool> TryAttainLockAsync(int lockId, SqliteConnection connection, CancellationToken token)
     {
-        // SQLite uses BEGIN EXCLUSIVE TRANSACTION for locking
-        // We'll use a simple advisory lock table approach
+        return AdvisoryLock.TryAttainLockAsync(lockId, token);
+    }
+
+    protected override Task ReleaseLockAsync(int lockId, SqliteConnection connection, CancellationToken token)
+    {
+        return AdvisoryLock.ReleaseLockAsync(lockId);
+    }
+
+    // Migration lock: SQLite's row-based wolverine_locks scheme can't be used here,
+    // because the table itself is created by the migration the lock is supposed to
+    // serialize. Use BEGIN EXCLUSIVE TRANSACTION instead — it doesn't depend on any
+    // schema and is automatically released when the connection closes (so process
+    // crashes during migration don't leave stale locks).
+    protected override async Task<bool> acquireMigrationLockAsync(int lockId, SqliteConnection conn, CancellationToken token)
+    {
+        const int maxAttempts = 10;
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                await using var cmd = conn.CreateCommand();
+                cmd.CommandText = "BEGIN EXCLUSIVE TRANSACTION";
+                await cmd.ExecuteNonQueryAsync(token);
+                return true;
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 5 /* SQLITE_BUSY */
+                                              || ex.SqliteErrorCode == 6 /* SQLITE_LOCKED */)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), token);
+            }
+        }
+
+        return false;
+    }
+
+    protected override async Task releaseMigrationLockAsync(int lockId, SqliteConnection conn, CancellationToken token)
+    {
         try
         {
-            await connection.CreateCommand($"INSERT OR IGNORE INTO wolverine_locks (lock_id, acquired_at) VALUES ({lockId}, datetime('now'))")
-                .ExecuteNonQueryAsync(token);
-            return true;
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "COMMIT";
+            await cmd.ExecuteNonQueryAsync(token);
         }
         catch
         {
-            return false;
+            // Best-effort. Closing the connection rolls back the transaction
+            // without ill effect — the migration itself succeeded.
         }
     }
 

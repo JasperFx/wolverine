@@ -238,7 +238,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     }
 
     [Fact]
-    public async Task can_send_from_one_node_to_another_by_destination()
+    public virtual async Task can_send_from_one_node_to_another_by_destination()
     {
         var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
             .AlsoTrack(theReceiver)

@@ -48,6 +48,15 @@ public class ServiceCapabilities : OptionsDescription
 
     public List<EventStoreUsage> EventStores { get; set; } = [];
 
+    /// <summary>
+    /// Diagnostic snapshots of every <c>IDocumentStore</c> registered in the
+    /// service container — Marten and Polecat alike. Populated by walking
+    /// <see cref="IDocumentStoreUsageSource"/> services through DI; mirrors
+    /// the <see cref="EventStores"/> collection so monitoring tools
+    /// (CritterWatch) can render document-side configuration the same way.
+    /// </summary>
+    public List<DocumentStoreUsage> DocumentStores { get; set; } = [];
+
     public List<MessageDescriptor> Messages { get; set; } = [];
 
     /// <summary>
@@ -95,6 +104,8 @@ public class ServiceCapabilities : OptionsDescription
         await readMessageStores(runtime, capabilities);
 
         await readEventStores(runtime, token, capabilities);
+
+        await readDocumentStores(runtime, token, capabilities);
 
         readMessageTypes(runtime, capabilities);
 
@@ -263,6 +274,38 @@ public class ServiceCapabilities : OptionsDescription
         }
 
         capabilities.EventStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
+    }
+
+    /// <summary>
+    /// Mirror of <see cref="readEventStores"/> for the document side. Walks
+    /// every <see cref="IDocumentStoreUsageSource"/> registered in DI (Marten
+    /// stores satisfy this via <c>IDocumentStore</c>; Polecat stores too), and
+    /// asks each one for a <see cref="DocumentStoreUsage"/> snapshot. Stores
+    /// that return null (transient-init failure) are silently skipped — same
+    /// permissive policy as the event-store path.
+    /// </summary>
+    private static async Task readDocumentStores(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var stores = runtime.Services.GetServices<IDocumentStoreUsageSource>();
+        var seen = new HashSet<Uri>();
+        var storeList = new List<DocumentStoreUsage>();
+        foreach (var store in stores)
+        {
+            // Marten stores typically also register as IEventStore on the same
+            // instance — once Wolverine boots both interfaces resolve to the
+            // same concrete object. Dedupe by Subject URI so we don't double-
+            // count when a store wears both hats.
+            if (!seen.Add(store.Subject)) continue;
+
+            var usage = await store.TryCreateUsage(token);
+            if (usage != null)
+            {
+                storeList.Add(usage);
+            }
+        }
+
+        capabilities.DocumentStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
     }
 
     private static async Task readMessageStores(IWolverineRuntime runtime, ServiceCapabilities capabilities)

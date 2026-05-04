@@ -38,6 +38,28 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void UseDurableOutboxOnAllSendingEndpoints();
 
     /// <summary>
+    ///     Persist scheduled-for-later messages destined for non-durable local queues
+    ///     through <c>IMessageStore</c> rather than the in-process
+    ///     <c>IScheduledJobProcessor</c>, so they survive process restarts. The remaining
+    ///     scheduling paths already provide durability without this policy:
+    ///     <list type="bullet">
+    ///       <item>Native broker scheduling (Azure Service Bus, Pulsar, Redis, Pub/Sub):
+    ///         persisted server-side by the broker.</item>
+    ///       <item>Non-native broker senders (RabbitMQ, SQS, Kafka): the routing layer
+    ///         (<c>MessageRoute.WriteEnvelope</c>) automatically swaps scheduled envelopes
+    ///         onto the <c>local://durable</c> system queue, which writes to the message
+    ///         store inbox.</item>
+    ///       <item>Local queues configured with <c>UseDurableInbox()</c>: already write
+    ///         to the message store via <c>DurableLocalQueue</c>.</item>
+    ///     </list>
+    ///     The unique gap this policy plugs is the default <c>BufferedInMemory</c> local
+    ///     queue case — without the policy those scheduled messages live only in memory.
+    ///     No-ops when no message store is configured (a startup warning is emitted in
+    ///     that case).
+    /// </summary>
+    void AlwaysMakeScheduledMessagesDurable();
+
+    /// <summary>
     ///     Create a policy for all listening *non local* endpoints
     /// </summary>
     /// <param name="configure"></param>
