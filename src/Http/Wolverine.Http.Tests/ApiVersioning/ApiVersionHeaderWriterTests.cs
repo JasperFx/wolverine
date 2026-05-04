@@ -2,7 +2,6 @@ using System.Globalization;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
-using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Http.ApiVersioning;
 
@@ -26,6 +25,7 @@ public class ApiVersionHeaderWriterTests
         ApiVersionHeaderWriter writer,
         out CapturingResponseFeature feature)
     {
+        _ = writer;
         feature = new CapturingResponseFeature { Headers = new HeaderDictionary() };
         var features = new FeatureCollection();
         features.Set<IHttpResponseFeature>(feature);
@@ -33,12 +33,6 @@ public class ApiVersionHeaderWriterTests
         features.Set<IHttpRequestFeature>(new HttpRequestFeature());
 
         var ctx = new DefaultHttpContext(features);
-        // The OnStarting callback inside WriteAsync re-resolves the writer from RequestServices
-        // (so the lambda can stay static and avoid per-request boxing). The test container must
-        // therefore expose the same singleton instance the production container would.
-        var services = new ServiceCollection();
-        services.AddSingleton(writer);
-        ctx.RequestServices = services.BuildServiceProvider();
 
         if (state is not null)
         {
@@ -56,6 +50,8 @@ public class ApiVersionHeaderWriterTests
 
     // Drain the captured OnStarting callbacks so the in-memory header dictionary reflects what would
     // be flushed to the client. WriteAsync registers a callback rather than writing synchronously.
+    // Both overloads of OnStarting (callback-only and callback+state) route through the
+    // (Func<object, Task>, object) overload internally, so this drain handles both forms.
     private static async Task FlushOnStartingAsync(HttpContext ctx)
     {
         var feature = ctx.Features.Get<IHttpResponseFeature>();
@@ -263,39 +259,4 @@ public class ApiVersionHeaderWriterTests
         ctx.Response.Headers.ContainsKey("Deprecation").ShouldBeTrue();
     }
 
-    // 10 — fail-fast when ApiVersionHeaderWriter is absent from RequestServices.
-    // Bootstrap registers the writer as a singleton, so a missing registration is a programmer
-    // error (e.g. a custom IServiceProviderFactory that did not propagate it). The OnStarting
-    // callback re-resolves the writer via GetRequiredService — null was historically swallowed,
-    // making lost headers invisible. Pinning the throw prevents regression to silent failure.
-    [Fact]
-    public async Task missing_writer_in_request_services_throws()
-    {
-        var opts = new WolverineApiVersioningOptions();
-        opts.Sunset("1.0").On(new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero));
-
-        var writer = new ApiVersionHeaderWriter(opts);
-        var state = new ApiVersionEndpointHeaderState(
-            new ApiVersion(1, 0),
-            opts.SunsetPolicies[new ApiVersion(1, 0)],
-            null);
-
-        // Build a context whose RequestServices does NOT contain the writer.
-        var feature = new CapturingResponseFeature { Headers = new HeaderDictionary() };
-        var features = new FeatureCollection();
-        features.Set<IHttpResponseFeature>(feature);
-        features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(Stream.Null));
-        features.Set<IHttpRequestFeature>(new HttpRequestFeature());
-        var ctx = new DefaultHttpContext(features);
-        ctx.RequestServices = new ServiceCollection().BuildServiceProvider(); // empty container
-        var endpoint = new Endpoint(_ => Task.CompletedTask, new EndpointMetadataCollection(state), "test");
-        ctx.SetEndpoint(endpoint);
-
-        await writer.WriteAsync(ctx); // schedules OnStarting; should not throw here.
-
-        await Should.ThrowAsync<InvalidOperationException>(async () =>
-        {
-            await FlushOnStartingAsync(ctx);
-        });
-    }
 }
