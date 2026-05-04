@@ -41,8 +41,19 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
                 {
                     if (_context.Envelope.Store is PostgresqlMessageStore envelopeStore)
                     {
-                        // Envelope was routed to a specific store (possibly this one)
-                        incomingTableName = envelopeStore.IncomingFullName;
+                        // Envelope was routed to a specific store (possibly this one).
+                        // Only fold the handled update into this Marten transaction if the
+                        // inbox table is reachable from the current session connection.
+                        if (envelopeStore.Id.Equals(_messageStore.Id))
+                        {
+                            incomingTableName = envelopeStore.IncomingFullName;
+                        }
+                        else
+                        {
+                            // Different database - can't update cross-database in one transaction.
+                            // Let DurableReceiver handle it via the envelope's owning store.
+                            return Task.CompletedTask;
+                        }
                     }
                     else if (_context.Envelope.Store == null)
                     {

@@ -30,8 +30,8 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _settings = runtime.DurabilitySettings;
 
         // When ancillary stores exist, wrap the inbox so that envelopes whose
-        // Store property has already been stamped (by ApplyAncillaryStoreFrame
-        // during handler execution) are persisted in the correct database.
+        // Store property is stamped for the receiving handler are persisted in
+        // the correct database.
         // Without this, all local-queue messages land in the main store's inbox
         // regardless of the handler's ancillary store association.
         _inbox = runtime.Stores != null && runtime.Stores.HasAnyAncillaryStores()
@@ -224,14 +224,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     /// If the handler for this message type targets an ancillary store on a
     /// different database, set envelope.Store so that the DelegatingMessageInbox
     /// persists it in the correct store for transactional atomicity.
-    /// This is a safety net for envelopes that arrive without Store already set
-    /// (e.g. from scheduled-job recovery). Envelopes published via PublishAsync
-    /// from a handler will already have Store stamped by MessageBus.
+    /// The receiving handler's store association wins over the publishing
+    /// context's store. A message can be published from the main store and handled
+    /// transactionally by an ancillary store.
     /// </summary>
     private void assignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
-        if (envelope.Store != null) return;
         var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
         if (store != null)
         {
