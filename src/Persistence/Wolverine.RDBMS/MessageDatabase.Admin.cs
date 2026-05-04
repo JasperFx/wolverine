@@ -74,7 +74,7 @@ public abstract partial class MessageDatabase<T>
                 {
                     try
                     {
-                        await ReleaseLockAsync(lockId, typedConn, _cancellation);
+                        await releaseMigrationLockAsync(lockId, typedConn, _cancellation);
                     }
                     catch
                     {
@@ -112,8 +112,13 @@ public abstract partial class MessageDatabase<T>
     /// false if not acquired after the retry budget — in which case another process
     /// is presumably finishing the migration; we proceed and let our own SchemaMigration
     /// detect "no changes" as a no-op.
+    ///
+    /// Providers whose advisory-lock primitive depends on schema that is itself part
+    /// of the migration (e.g., SQLite's row-based lock on <c>wolverine_locks</c>)
+    /// should override this with a primitive that does not depend on the schema —
+    /// for example, SQLite's <c>BEGIN EXCLUSIVE</c>.
     /// </summary>
-    private async Task<bool> acquireMigrationLockAsync(int lockId, T conn, CancellationToken token)
+    protected virtual async Task<bool> acquireMigrationLockAsync(int lockId, T conn, CancellationToken token)
     {
         const int maxAttempts = 10;
         for (var attempt = 0; attempt < maxAttempts; attempt++)
@@ -128,6 +133,17 @@ public abstract partial class MessageDatabase<T>
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Release the lock previously acquired by <see cref="acquireMigrationLockAsync"/>.
+    /// Default implementation delegates to the polling-lock release path; providers
+    /// that override <see cref="acquireMigrationLockAsync"/> with a different primitive
+    /// (e.g., a transaction) must override this too.
+    /// </summary>
+    protected virtual Task releaseMigrationLockAsync(int lockId, T conn, CancellationToken token)
+    {
+        return ReleaseLockAsync(lockId, conn, token);
     }
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()

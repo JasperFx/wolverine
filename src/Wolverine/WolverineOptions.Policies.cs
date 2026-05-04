@@ -109,6 +109,11 @@ public sealed partial class WolverineOptions : IPolicies
         });
     }
 
+    void IPolicies.AlwaysMakeScheduledMessagesDurable()
+    {
+        Durability.AlwaysMakeScheduledMessagesDurable = true;
+    }
+
     void IPolicies.AllListeners(Action<ListenerConfiguration> configure)
     {
         var policy = new LambdaEndpointPolicy<Endpoint>((e, _) =>

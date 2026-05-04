@@ -114,7 +114,9 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
     /// </summary>
     [ChildDescription]
     public RabbitMqConnectionDescription? ConnectionDescription =>
-        ConnectionFactory == null ? null : new RabbitMqConnectionDescription(ConnectionFactory);
+        ConnectionFactory == null
+            ? null
+            : new RabbitMqConnectionDescription(ConnectionFactory, AmqpTcpEndpoints.ToList());
 
     internal void ConfigureFactory(Action<ConnectionFactory> configure)
     {

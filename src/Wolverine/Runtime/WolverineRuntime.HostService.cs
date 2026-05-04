@@ -63,6 +63,19 @@ public partial class WolverineRuntime
 
             await _stores.Value.InitializeAsync();
 
+            // AlwaysMakeScheduledMessagesDurable opts every non-durable scheduled send onto
+            // the message store inbox; if no store is configured, we silently fall through
+            // to in-process scheduling (lost on restart) — defeating the policy. Surface
+            // this as a startup warning so a misconfiguration is observable rather than a
+            // silent durability gap.
+            if (Options.Durability.AlwaysMakeScheduledMessagesDurable && Storage is NullMessageStore)
+            {
+                Logger.LogWarning(
+                    "Policies.AlwaysMakeScheduledMessagesDurable() is set but no message store is configured. " +
+                    "Scheduled messages will continue to use in-process scheduling and will be lost on restart. " +
+                    "Configure a message store (e.g. PersistMessagesWithPostgresql) to make the policy effective.");
+            }
+
             if (!Options.ExternalTransportsAreStubbed)
             {
                 foreach (var configuresRuntime in Options.Transports.OfType<ITransportConfiguresRuntime>().ToArray())

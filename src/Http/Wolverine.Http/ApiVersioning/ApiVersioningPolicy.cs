@@ -46,11 +46,13 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         WireHeaderPostprocessors(chains);
     }
 
-    /// <summary>Step A — read <c>[ApiVersion]</c> from the handler method and propagate to the chain.
-    /// Multi-version expansion runs earlier in <see cref="HttpGraph.DiscoverEndpoints"/>, so chains
-    /// reaching this step have either no version or one already set by the expansion. Index the
-    /// resolver result explicitly after a count check so the <c>default(ApiVersionResolution)</c>
-    /// foot-gun (a struct with a null <c>Version</c>) is not relied on for the empty case.</summary>
+    /// <summary>Step A — read <c>[ApiVersion]</c> / <c>[ApiVersionNeutral]</c> from the handler
+    /// method and propagate to the chain. Multi-version expansion runs earlier in
+    /// <see cref="HttpGraph.DiscoverEndpoints"/>, so chains reaching this step have either no
+    /// version or one already set by the expansion; the latter skip resolver work entirely.
+    /// Single-version chains take the first entry of <see cref="ApiVersionResolver.ResolveVersions"/>
+    /// after an explicit count check so the <c>default(ApiVersionResolution)</c> foot-gun (a struct
+    /// with a null <c>Version</c>) is not relied on for the empty case.</summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
@@ -59,9 +61,25 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
                 continue;
 
             // Chains produced by multi-version expansion already have ApiVersion assigned;
-            // skip resolver work to avoid throwing on the still-multi-version method attributes.
+            // skip resolver work to avoid picking the wrong version (ResolveVersions on a
+            // multi-version method returns every declared version, and indexing [0] would
+            // silently misclassify clones), and to bypass the neutrality check which is
+            // structurally impossible for an expanded chain.
             if (chain.ApiVersion is not null)
                 continue;
+
+            // Single reflection pass — resolves neutrality and validates that [ApiVersion] +
+            // [ApiVersionNeutral] are not both declared on the same target (throws on conflict).
+            // Method-level wins over class-level in both directions.
+            if (ApiVersionNeutralResolver.Resolve(chain.Method.Method))
+            {
+                chain.IsApiVersionNeutral = true;
+                // Clear any prior fluent HasApiVersion(...) assignment — a method-level
+                // [ApiVersionNeutral] overriding a versioned class must not leave a stale version
+                // on the chain that DetectDuplicateRoutes / RewriteRoutes would later observe.
+                chain.ApiVersion = null;
+                continue;
+            }
 
             var versions = ApiVersionResolver.ResolveVersions(chain.Method.Method);
             if (versions.Count == 0)
@@ -75,12 +93,15 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         }
     }
 
-    /// <summary>Step B — handle chains still missing a version per the configured fallback rule.</summary>
+    /// <summary>Step B — handle chains still missing a version per the configured fallback rule.
+    /// Chains carrying <see cref="HttpChain.IsApiVersionNeutral"/> are treated as having made an
+    /// explicit version-neutral choice, so they are exempt from <see cref="UnversionedPolicy.RequireExplicit"/>
+    /// and <see cref="UnversionedPolicy.AssignDefault"/>.</summary>
     private void ApplyUnversionedPolicy(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
         {
-            if (chain.ApiVersion is not null)
+            if (chain.ApiVersion is not null || chain.IsApiVersionNeutral)
                 continue;
 
             switch (_options.UnversionedPolicy)
@@ -92,7 +113,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
                     throw new InvalidOperationException(
                         $"Endpoint '{Identify(chain)}' does not declare an [ApiVersion] attribute. " +
                         $"The current UnversionedPolicy is '{UnversionedPolicy.RequireExplicit}', which requires every endpoint " +
-                        "to carry an explicit version.");
+                        "to carry an explicit version. To opt an endpoint out of versioning, mark it with [ApiVersionNeutral].");
 
                 case UnversionedPolicy.AssignDefault:
                     chain.ApiVersion = _options.DefaultVersion
@@ -119,28 +140,59 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
         }
     }
 
-    /// <summary>Step D — fail fast when two chains share <c>(verb, route, version)</c>.</summary>
+    /// <summary>Step D — fail fast when two chains collide. Versioned chains collide on
+    /// <c>(verb, route, version)</c>; neutral chains collide on <c>(verb, route)</c> alone, since
+    /// they are not partitioned by version. Without this second check, two neutral chains at the
+    /// same route would both register and ASP.NET Core would throw an opaque routing error at
+    /// the first request.</summary>
     private static void DetectDuplicateRoutes(IReadOnlyList<HttpChain> chains)
     {
-        var conflicts = chains
-            .Where(c => c.ApiVersion is not null)
-            .GroupBy(c => (
+        DetectConflicts(
+            chains,
+            include: c => c.ApiVersion is not null,
+            keyOf: c => (
                 Verb: c.HttpMethods.FirstOrDefault() ?? "",
                 Route: c.RoutePattern?.RawText ?? "",
-                Version: c.ApiVersion!.ToString()))
+                Version: c.ApiVersion!.ToString()),
+            describe: (key, names) =>
+                $"Duplicate endpoint registration detected: " +
+                $"[{key.Verb}] '{key.Route}' at version '{key.Version}'. " +
+                $"Conflicting chains: {names}");
+
+        DetectConflicts(
+            chains,
+            include: c => c.IsApiVersionNeutral,
+            keyOf: c => (
+                Verb: c.HttpMethods.FirstOrDefault() ?? "",
+                Route: c.RoutePattern?.RawText ?? ""),
+            describe: (key, names) =>
+                $"Duplicate version-neutral endpoint registration detected: " +
+                $"[{key.Verb}] '{key.Route}'. " +
+                $"Version-neutral chains are not partitioned by version, so two chains at the " +
+                $"same (verb, route) collide unconditionally. Conflicting chains: {names}");
+    }
+
+    private static void DetectConflicts<TKey>(
+        IReadOnlyList<HttpChain> chains,
+        Func<HttpChain, bool> include,
+        Func<HttpChain, TKey> keyOf,
+        Func<TKey, string, string> describe)
+    {
+        var conflicts = chains
+            .Where(include)
+            .GroupBy(keyOf)
             .Where(g => g.Count() > 1);
 
         foreach (var conflict in conflicts)
         {
-            // Use OperationId here (rather than the shared DisplayName) so the diagnostic names
-            // every conflicting clone individually — the version-suffixed OperationIds make each
-            // clone uniquely identifiable when sibling clones across distinct handler classes
-            // collide at the same (verb, route, version) triple.
+            // Use OperationId here (rather than the shared DisplayName via Identify) so the
+            // diagnostic names every conflicting clone individually — the version-suffixed
+            // OperationIds make each clone uniquely identifiable when sibling clones across
+            // distinct handler classes collide at the same (verb, route, version) triple.
+            // Neutral chains likewise have unique OperationIds, so the same naming works for both
+            // describe() callers.
             var names = string.Join(", ", conflict.Select(c => c.OperationId));
-            throw new InvalidOperationException(
-                $"Duplicate endpoint registration detected: " +
-                $"[{conflict.Key.Verb}] '{conflict.Key.Route}' at version '{conflict.Key.Version}'. " +
-                $"Conflicting chains: {names}");
+            throw new InvalidOperationException(describe(conflict.Key, names));
         }
     }
 
@@ -197,15 +249,20 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     }
 
     /// <summary>Step F — attach group-name, ApiVersionMetadata, and ensure unique endpoint names.
-    /// The <c>ApiVersionMetadata</c> model is seeded with the union of versions implemented at the
-    /// same (verb, route) pair so the <c>api-supported-versions</c> response header reports every
-    /// sibling clone, not just this clone's own version.</summary>
+    /// Versioned chains' <c>ApiVersionMetadata</c> model is seeded with the union of versions
+    /// implemented at the same (verb, route) pair so the <c>api-supported-versions</c> response
+    /// header reports every sibling clone, not just this clone's own version. Version-neutral
+    /// chains receive <see cref="ApiVersionMetadata.Neutral"/> so consumers of the metadata graph
+    /// (Asp.Versioning tooling, the Swashbuckle filter) can recognise them, but they deliberately
+    /// get no <c>IEndpointGroupNameMetadata</c>. Without a group name they are skipped by
+    /// Swashbuckle's default group-name partitioning; users opt them into versioned documents
+    /// from <c>DocInclusionPredicate</c> (see <c>versioning.md</c>).</summary>
     /// <remarks>
-    /// The sibling grouping key is <c>(verb, route-after-strip-prefix)</c>, NOT
-    /// <c>(verb, route-after-strip-prefix, handler-type)</c>. Chains from distinct handler classes
-    /// that publish the same logical route are merged into one sibling set. This matches the
-    /// Asp.Versioning convention where any chain at the route is part of the same logical version
-    /// set regardless of which class declared which version (e.g.
+    /// The sibling grouping key for versioned chains is <c>(verb, route-after-strip-prefix)</c>,
+    /// NOT <c>(verb, route-after-strip-prefix, handler-type)</c>. Chains from distinct handler
+    /// classes that publish the same logical route are merged into one sibling set. This matches
+    /// the Asp.Versioning convention where any chain at the route is part of the same logical
+    /// version set regardless of which class declared which version (e.g.
     /// <c>OrdersV1V2Endpoint</c> declaring v1+v2 and <c>OrdersV3Endpoint</c> declaring v3 at the
     /// same <c>(GET, /orders)</c> route are merged into one sibling chain advertising 1.0/2.0/3.0
     /// in <c>api-supported-versions</c>). The <c>cross_class_chains_at_same_route_share_supported_versions</c>
@@ -236,7 +293,31 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
 
         foreach (var chain in chains)
         {
-            if (chain.ApiVersion is null || !_processedChains.Add(chain))
+            // Mirror ApplyUnversionedPolicy: deal with the neutral branch first so the intent of
+            // each branch is obvious. The _processedChains guard then prevents double-attachment
+            // of versioned metadata if Apply() is called twice on the same chain.
+            if (chain.IsApiVersionNeutral)
+            {
+                if (!_processedChains.Add(chain))
+                    continue;
+
+                chain.Metadata.WithMetadata(ApiVersionMetadata.Neutral);
+
+                // Two neutral chains can share the same handler-method name (e.g. two classes
+                // each declaring a method called Get). Without an explicit OperationId, ASP.NET
+                // Core derives EndpointName from the route pattern, and two neutral handlers at
+                // different routes still hit a duplicate-name collision because the underlying
+                // ToString() is not unique per chain. Set the OperationId — already unique per
+                // handler type + method — as the explicit endpoint name, just like versioned chains.
+                EnsureExplicitOperationId(chain);
+
+                continue;
+            }
+
+            if (!_processedChains.Add(chain))
+                continue;
+
+            if (chain.ApiVersion is null)
                 continue;
 
             var groupName = _options.OpenApi.DocumentNameStrategy(chain.ApiVersion);
@@ -270,8 +351,7 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             // endpoint name. Without this, ASP.NET Core uses ToString() which is derived from
             // the original route pattern and collides when multiple versions share the same
             // route template (e.g. [WolverineGet("/orders")] on three different classes).
-            if (!chain.HasExplicitOperationId)
-                chain.SetExplicitOperationId(chain.OperationId);
+            EnsureExplicitOperationId(chain);
         }
     }
 
@@ -290,6 +370,12 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             return route.Substring(prefix.Length);
 
         return route;
+    }
+
+    private static void EnsureExplicitOperationId(HttpChain chain)
+    {
+        if (!chain.HasExplicitOperationId)
+            chain.SetExplicitOperationId(chain.OperationId);
     }
 
     /// <summary>Step G — register the response-header postprocessor for chains that emit headers.</summary>

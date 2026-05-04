@@ -240,6 +240,110 @@ opts.UseApiVersioning(v =>
 });
 ```
 
+## Version-Neutral Endpoints <Badge type="tip" text="5.36" />
+
+Some endpoints — health checks, webhooks, metrics, infrastructure utilities — are intentionally outside the
+versioning lifecycle. Mark them with `[ApiVersionNeutral]` to opt out explicitly:
+
+- The chain keeps its declared route — no `/v1`, `/v2`, etc. prefix is injected.
+- No `Deprecation`, `Sunset`, `Link`, or `api-supported-versions` headers are emitted.
+- The chain is excluded from duplicate-detection on the version axis (a neutral chain at the same
+  `(verb, route)` as a versioned chain does **not** collide).
+- The chain satisfies `UnversionedPolicy.RequireExplicit` — neutrality is treated as an explicit choice,
+  not a missing annotation.
+
+### Class-level neutrality
+
+```csharp
+[ApiVersionNeutral]
+public static class HealthCheckEndpoint
+{
+    [WolverineGet("/health")]
+    public static HealthCheckResponse Get() => new("ok");
+}
+```
+
+### Method-level neutrality
+
+A single utility method on an otherwise versioned controller can opt out without affecting its siblings.
+Method-level `[ApiVersionNeutral]` overrides the class-level `[ApiVersion]` for that method only:
+
+```csharp
+[ApiVersion("1.0")]
+public static class CustomersEndpoint
+{
+    // Versioned at v1.0, lives at /v1/customers
+    [WolverineGet("/customers")]
+    public static CustomerList GetCustomers() => /* ... */;
+
+    // Version-neutral; lives at /customers/ping with no version-related headers
+    [ApiVersionNeutral]
+    [WolverineGet("/customers/ping")]
+    public static string Ping() => "pong";
+}
+```
+
+Combining `[ApiVersion]` and `[ApiVersionNeutral]` on **the same target** (same method or same class) is
+contradictory and fails fast at startup with an `InvalidOperationException`.
+
+### OpenAPI integration
+
+Neutral chains receive `Asp.Versioning.ApiVersionMetadata.Neutral` (so `IsApiVersionNeutral` is `true` on
+the metadata), but they deliberately get no `IEndpointGroupNameMetadata`. Without a group name they do not
+match the default Swashbuckle partitioning (`api.GroupName == doc`), so by default they will not appear in
+any versioned document.
+
+#### Recommended: surface neutral endpoints only in a dedicated `default` document
+
+The conservative default — and the pattern the WolverineWebApi sample uses — is to keep a separate
+`default` Swagger document for unversioned/neutral endpoints and route them there only.
+
+Note: chains that pass through `UnversionedPolicy.PassThrough` (no `[ApiVersion]`, not `[ApiVersionNeutral]`)
+also land in `default` since they share the null `GroupName` with neutral chains, so the predicate below
+treats both alike:
+
+```csharp
+builder.Services.AddSwaggerGen(x =>
+{
+    x.SwaggerDoc("default", new OpenApiInfo { Title = "Internal & Neutral", Version = "default" });
+    x.SwaggerDoc("v1", new OpenApiInfo { Title = "API v1", Version = "v1" });
+    x.SwaggerDoc("v2", new OpenApiInfo { Title = "API v2", Version = "v2" });
+
+    // Neutral chains have no GroupName — show them only in the "default" document.
+    x.DocInclusionPredicate((docName, api) =>
+        (docName == "default" && api.GroupName is null) || api.GroupName == docName);
+
+    x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
+});
+```
+
+This keeps `/swagger/v1` and `/swagger/v2` clean: only endpoints that explicitly belong to a public
+version appear there. Health checks, webhook receivers, internal admin endpoints, and other neutral
+chains stay out of the consumer-facing contract.
+
+#### Alternative: include neutral endpoints in every versioned document
+
+If a neutral endpoint really is part of every public version's contract (a global ping or `/whoami`
+endpoint, for example), broaden the predicate to include neutral chains in every doc as well:
+
+```csharp
+x.DocInclusionPredicate((docName, api) =>
+    api.GroupName is null || api.GroupName == docName);
+```
+
+Trade-off: every neutral endpoint will now appear in **every** versioned document. That is rarely what
+you want for things like webhook receivers or internal-only endpoints, since publishing them in `v1` and
+`v2` invites consumers to call them under those versions and creates an implicit compatibility promise
+you did not intend to make. Prefer the `default`-only pattern unless you are certain the endpoint is a
+true cross-version concern.
+
+#### Combining the two
+
+You can mix both: surface most neutral endpoints in `default` only, and use a per-endpoint convention
+(for instance, an attribute or a marker tag) to selectively include the genuinely cross-version ones in
+every document. The `DocInclusionPredicate` receives the full `ApiDescription`, so you can branch on
+metadata you attach yourself.
+
 ## Sunset and Deprecation Policies
 
 Beyond the attribute-driven `Deprecated = true` flag, you can configure per-version sunset and deprecation

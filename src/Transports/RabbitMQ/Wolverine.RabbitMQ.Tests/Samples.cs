@@ -146,6 +146,30 @@ public class Samples
         #endregion
     }
 
+    public static async Task configure_rabbit_mq_cluster_nodes()
+    {
+        #region sample_rabbit_mq_cluster_nodes
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // Configure the shared connection settings (credentials, TLS, etc.)
+                // first via UseRabbitMq, then declare each cluster node. The
+                // RabbitMQ.NET client picks one node and handles failover
+                // between them on connection loss.
+                opts.UseRabbitMq(f =>
+                    {
+                        f.UserName = "guest";
+                        f.Password = "guest";
+                        f.Ssl.Enabled = true;
+                        f.Ssl.ServerName = "rabbit-cluster";
+                    })
+                    .AddClusterNode("rabbit-1.local")
+                    .AddClusterNode("rabbit-2.local")
+                    .AddClusterNode("rabbit-3.local");
+            }).StartAsync();
+        #endregion
+    }
+
     public static async Task listen_to_queue()
     {
         #region sample_listening_to_rabbitmq_queue

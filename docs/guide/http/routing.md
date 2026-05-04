@@ -173,38 +173,6 @@ When multiple prefix sources are configured, the following precedence applies (m
 3. Global prefix
 
 Only one prefix is applied per endpoint -- they do not stack.
-## Route Prefixes
-
-You can apply a common URL prefix to all endpoints in a handler class using the `[RoutePrefix]` attribute:
-
-```csharp
-[RoutePrefix("/api/v1")]
-public static class V1Endpoints
-{
-    // Resolves to /api/v1/orders
-    [WolverineGet("/orders")]
-    public static string GetOrders() => "V1 Orders";
-
-    // Resolves to /api/v1/orders/{id}
-    [WolverineGet("/orders/{id}")]
-    public static string GetOrder(int id) => $"V1 Order {id}";
-}
-```
-
-You can also configure route prefixes globally or by namespace in your application setup:
-
-```csharp
-app.MapWolverineEndpoints(opts =>
-{
-    // Apply a global prefix to all Wolverine endpoints
-    opts.RoutePrefix("api");
-
-    // Apply a prefix to all endpoints in a specific namespace
-    opts.RoutePrefix("api/v2", forEndpointsInNamespace: "MyApp.Endpoints.V2");
-});
-```
-
-When multiple prefix sources apply, the precedence is: `[RoutePrefix]` attribute > namespace prefix > global prefix. Only one prefix is applied per endpoint — they do not stack.
 
 ## API Versioning
 

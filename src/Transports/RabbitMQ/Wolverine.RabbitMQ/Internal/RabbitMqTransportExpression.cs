@@ -113,6 +113,71 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
         return this;
     }
 
+    /// <summary>
+    /// Add a RabbitMQ cluster node. Wolverine passes all configured nodes to the
+    /// RabbitMQ client, which selects one and handles failover between them. If
+    /// TLS is configured on the ConnectionFactory, the same SslOption values
+    /// are copied onto the new endpoint as a fresh SslOption instance, so TLS
+    /// applies to all cluster nodes by default. To control TLS or any other
+    /// AmqpTcpEndpoint setting per node, use the
+    /// <see cref="AddClusterNode(AmqpTcpEndpoint)"/> overload instead.
+    /// </summary>
+    /// <param name="hostName">Hostname of the broker node.</param>
+    /// <param name="port">Port. Defaults to -1, which the AmqpTcpEndpoint constructor
+    /// resolves to 5672 (or 5671 when TLS is enabled).</param>
+    public RabbitMqTransportExpression AddClusterNode(string hostName, int port = -1)
+    {
+        if (Transport.ConnectionFactory == null)
+        {
+            throw new InvalidOperationException(
+                "Call UseRabbitMq(...) or UseRabbitMqUsingNamedConnection(...) before adding cluster nodes so that connection settings (TLS, credentials) can be inherited.");
+        }
+
+        var ssl = CloneSslOption(Transport.ConnectionFactory.Ssl);
+        Transport.AmqpTcpEndpoints.Add(new AmqpTcpEndpoint(hostName, port, ssl));
+        return this;
+    }
+
+    /// <summary>
+    /// Add a RabbitMQ cluster node with full per-node control (e.g. per-node TLS
+    /// or non-default port). The supplied AmqpTcpEndpoint is used as-is — no
+    /// values are inherited from the ConnectionFactory.
+    /// </summary>
+    public RabbitMqTransportExpression AddClusterNode(AmqpTcpEndpoint endpoint)
+    {
+        if (endpoint == null)
+        {
+            throw new ArgumentNullException(nameof(endpoint));
+        }
+
+        if (Transport.ConnectionFactory == null)
+        {
+            throw new InvalidOperationException(
+                "Call UseRabbitMq(...) or UseRabbitMqUsingNamedConnection(...) before adding cluster nodes so that connection settings (TLS, credentials) can be inherited.");
+        }
+
+        Transport.AmqpTcpEndpoints.Add(endpoint);
+        return this;
+    }
+
+    private static SslOption CloneSslOption(SslOption? source)
+    {
+        if (source == null) return new SslOption();
+
+        return new SslOption
+        {
+            Enabled = source.Enabled,
+            ServerName = source.ServerName,
+            CertPath = source.CertPath,
+            CertPassphrase = source.CertPassphrase,
+            AcceptablePolicyErrors = source.AcceptablePolicyErrors,
+            Version = source.Version,
+            CheckCertificateRevocation = source.CheckCertificateRevocation,
+            CertificateValidationCallback = source.CertificateValidationCallback,
+            CertificateSelectionCallback = source.CertificateSelectionCallback
+        };
+    }
+
     protected override RabbitMqListenerConfiguration createListenerExpression(RabbitMqQueue listenerEndpoint)
     {
         return new RabbitMqListenerConfiguration(listenerEndpoint, Transport);

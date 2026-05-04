@@ -123,6 +123,51 @@ public class api_versioning_integration_tests : IntegrationContext
     }
 
     [Fact]
+    public async Task neutral_endpoint_keeps_its_declared_route()
+    {
+        // [ApiVersionNeutral] HealthCheckEndpoint declares "/health" and must NOT be rewritten to /v?/health.
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/health");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var response = result.ReadAsJson<HealthCheckResponse>();
+        response.ShouldNotBeNull();
+        response.Status.ShouldBe("ok");
+    }
+
+    [Fact]
+    public async Task neutral_endpoint_does_not_emit_version_headers()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/health");
+            x.StatusCodeShouldBeOk();
+        });
+
+        result.Context.Response.Headers.ContainsKey("api-supported-versions").ShouldBeFalse();
+        result.Context.Response.Headers.ContainsKey("Sunset").ShouldBeFalse();
+        result.Context.Response.Headers.ContainsKey("Deprecation").ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task neutral_endpoint_appears_in_default_swagger_doc()
+    {
+        // The default doc opts in unconditionally via DocInclusionPredicate; neutral chains have no
+        // group-name metadata, so the only Swashbuckle doc that picks them up is one whose predicate
+        // includes everything (which is exactly what /swagger/default does in the sample app).
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/swagger/default/swagger.json");
+            x.StatusCodeShouldBeOk();
+        });
+
+        var body = result.ReadAsText();
+        body.ShouldContain("/health");
+    }
+
+    [Fact]
     public async Task swagger_v1_doc_contains_orders_endpoint()
     {
         var result = await Scenario(x =>
