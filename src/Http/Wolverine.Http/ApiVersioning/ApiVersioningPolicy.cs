@@ -47,12 +47,20 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
     }
 
     /// <summary>Step A — read <c>[ApiVersion]</c> / <c>[ApiVersionNeutral]</c> from the handler
-    /// method and propagate to the chain. Multi-version expansion runs earlier in
-    /// <see cref="HttpGraph.DiscoverEndpoints"/>, so chains reaching this step have either no
-    /// version or one already set by the expansion; the latter skip resolver work entirely.
-    /// Single-version chains take the first entry of <see cref="ApiVersionResolver.ResolveVersions"/>
-    /// after an explicit count check so the <c>default(ApiVersionResolution)</c> foot-gun (a struct
-    /// with a null <c>Version</c>) is not relied on for the empty case.</summary>
+    /// method and propagate to the chain. Order matters here:
+    /// <list type="number">
+    ///   <item><description>Check neutrality first so a method-level <c>[ApiVersionNeutral]</c>
+    ///     can clear a prior fluent <c>HasApiVersion(...)</c> assignment on the chain
+    ///     (test pin: <c>method_level_neutral_clears_prior_fluent_apiversion_assignment</c>).</description></item>
+    ///   <item><description>If the chain already carries a version after the neutrality check, it
+    ///     came from multi-version expansion or a fluent assignment — keep it as-is. Falling
+    ///     through to <see cref="ApiVersionResolver.ResolveVersions"/> on a multi-version method
+    ///     would return every declared version and indexing <c>[0]</c> would silently misclassify
+    ///     clones.</description></item>
+    ///   <item><description>Otherwise resolve from method/class attributes; take the first entry
+    ///     after an explicit count check so the <c>default(ApiVersionResolution)</c> foot-gun
+    ///     (a struct with a null <c>Version</c>) is not relied on for the empty case.</description></item>
+    /// </list></summary>
     private static void ResolveAttributes(IReadOnlyList<HttpChain> chains)
     {
         foreach (var chain in chains)
@@ -60,17 +68,12 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
             if (chain.Method?.Method is null)
                 continue;
 
-            // Chains produced by multi-version expansion already have ApiVersion assigned;
-            // skip resolver work to avoid picking the wrong version (ResolveVersions on a
-            // multi-version method returns every declared version, and indexing [0] would
-            // silently misclassify clones), and to bypass the neutrality check which is
-            // structurally impossible for an expanded chain.
-            if (chain.ApiVersion is not null)
-                continue;
-
             // Single reflection pass — resolves neutrality and validates that [ApiVersion] +
             // [ApiVersionNeutral] are not both declared on the same target (throws on conflict).
-            // Method-level wins over class-level in both directions.
+            // Method-level wins over class-level in both directions. Run this before the
+            // already-assigned guard below so a fluent HasApiVersion(...) does not suppress a
+            // method-level [ApiVersionNeutral] override. Multi-version clones cannot be neutral
+            // (their underlying method declares [ApiVersion]s, so the resolver returns false).
             if (ApiVersionNeutralResolver.Resolve(chain.Method.Method))
             {
                 chain.IsApiVersionNeutral = true;
@@ -80,6 +83,13 @@ internal sealed class ApiVersioningPolicy : IHttpPolicy
                 chain.ApiVersion = null;
                 continue;
             }
+
+            // Chains produced by multi-version expansion already have ApiVersion assigned;
+            // chains with a fluent HasApiVersion(...) likewise. In both cases the prior assignment
+            // wins. Skipping ResolveVersions here also avoids picking versions[0] on a
+            // multi-version clone and silently misclassifying it.
+            if (chain.ApiVersion is not null)
+                continue;
 
             var versions = ApiVersionResolver.ResolveVersions(chain.Method.Method);
             if (versions.Count == 0)
