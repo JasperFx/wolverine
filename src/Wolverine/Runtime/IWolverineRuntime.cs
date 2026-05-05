@@ -129,8 +129,9 @@ internal static class WolverineRuntimeExtensions
         this IWolverineRuntime runtime,
         IEnvelopeLifecycle lifecycle,
         Exception exception,
-        FaultTrigger trigger)
+        FaultTrigger trigger,
+        System.Diagnostics.Activity? activity)
         => runtime is WolverineRuntime concrete
-            ? concrete.FaultPublisher.PublishIfEnabledAsync(lifecycle, exception, trigger)
+            ? concrete.FaultPublisher.PublishIfEnabledAsync(lifecycle, exception, trigger, activity)
             : ValueTask.CompletedTask;
 }

@@ -23,7 +23,8 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
 
             await runtime.PublishFaultIfEnabledAsync(lifecycle,
                 new EnvelopeDiscardedException(lifecycle.Envelope!),
-                FaultTrigger.Discarded);
+                FaultTrigger.Discarded,
+                activity);
 
             await lifecycle.CompleteAsync();
         }

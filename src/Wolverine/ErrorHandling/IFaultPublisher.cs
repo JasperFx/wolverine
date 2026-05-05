@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Wolverine.ErrorHandling;
 
 internal interface IFaultPublisher
@@ -12,5 +14,6 @@ internal interface IFaultPublisher
     ValueTask PublishIfEnabledAsync(
         IEnvelopeLifecycle lifecycle,
         Exception exception,
-        FaultTrigger trigger);
+        FaultTrigger trigger,
+        Activity? activity);
 }

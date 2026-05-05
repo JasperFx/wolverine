@@ -1,8 +1,10 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace CoreTests.ErrorHandling.Faults;
@@ -45,7 +47,7 @@ public class FaultPublisherTests
         var (publisher, _, lifecycle) = CreatePublisher();
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
@@ -58,7 +60,7 @@ public class FaultPublisherTests
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         await publisher.PublishIfEnabledAsync(lifecycle, new InvalidOperationException("boom"),
-            FaultTrigger.MovedToErrorQueue);
+            FaultTrigger.MovedToErrorQueue, activity: null);
 
         await lifecycle.Received(1).PublishAsync(
             Arg.Is<Fault<Foo>>(f => f.Message.Name == "a" && f.Exception.Message == "boom"),
@@ -72,7 +74,7 @@ public class FaultPublisherTests
         policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.Discarded);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.Discarded, activity: null);
 
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
@@ -84,7 +86,7 @@ public class FaultPublisherTests
         policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqAndDiscard;
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("oops"), FaultTrigger.Discarded);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("oops"), FaultTrigger.Discarded, activity: null);
 
         await lifecycle.Received(1).PublishAsync(
             Arg.Any<Fault<Foo>>(),
@@ -106,7 +108,7 @@ public class FaultPublisherTests
             .When(x => x.PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>()))
             .Do(_ => throw new InvalidOperationException("transport down"));
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
         logger.Received(1).Log(
             LogLevel.Error,
@@ -125,7 +127,7 @@ public class FaultPublisherTests
         env.Message = null;
         lifecycle.Envelope.Returns(env);
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
@@ -143,7 +145,7 @@ public class FaultPublisherTests
             .When(x => x.PublishAsync(Arg.Any<Fault<Foo>>(), Arg.Any<DeliveryOptions?>()))
             .Do(call => captured = call.Arg<Fault<Foo>>());
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("kaput"), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("kaput"), FaultTrigger.MovedToErrorQueue, activity: null);
 
         captured.ShouldNotBeNull();
         captured!.Attempts.ShouldBe(3);
@@ -167,7 +169,7 @@ public class FaultPublisherTests
         };
         lifecycle.Envelope.Returns(env);
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
         // No exceptions thrown, no log entries added — silent no-op.
@@ -194,10 +196,93 @@ public class FaultPublisherTests
             .When(x => x.PublishAsync(Arg.Any<Fault<Foo>>(), Arg.Any<DeliveryOptions?>()))
             .Do(call => captured = call.Arg<Fault<Foo>>());
 
-        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue);
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
         captured.ShouldNotBeNull();
         captured!.Headers.ContainsKey("nullable-header").ShouldBeTrue();
         captured.Headers["nullable-header"].ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task no_op_when_message_is_already_a_fault()
+    {
+        var (publisher, policy, lifecycle) = CreatePublisher();
+        policy.GlobalMode = FaultPublishingMode.DlqOnly;
+
+        var faultMessage = new Fault<Foo>(
+            new Foo("inner"),
+            ExceptionInfo.From(new InvalidOperationException("inner")),
+            Attempts: 1,
+            FailedAt: DateTimeOffset.UtcNow,
+            CorrelationId: null,
+            ConversationId: Guid.NewGuid(),
+            TenantId: null,
+            Source: null,
+            Headers: new Dictionary<string, string?>());
+
+        var env = new Envelope
+        {
+            Message = faultMessage,
+            Id = Guid.NewGuid(),
+            ConversationId = Guid.NewGuid(),
+            Source = "tests",
+            Attempts = 1,
+        };
+        lifecycle.Envelope.Returns(env);
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("subscriber blew up"),
+            FaultTrigger.MovedToErrorQueue, activity: null);
+
+        await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
+    }
+
+    [Fact]
+    public async Task records_fault_published_event_on_activity_on_success()
+    {
+        var (publisher, policy, lifecycle) = CreatePublisher();
+        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+
+        using var activitySource = new ActivitySource("test-source");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var activity = activitySource.StartActivity("test")!;
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
+
+        activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultPublished);
+    }
+
+    [Fact]
+    public async Task records_fault_publish_failed_event_on_activity_on_failure()
+    {
+        var policy = new FaultPublishingPolicy { GlobalMode = FaultPublishingMode.DlqOnly };
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
+        var publisher = new FaultPublisher(policy, NullLogger<FaultPublisher>.Instance, meter);
+
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+        lifecycle
+            .When(x => x.PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>()))
+            .Do(_ => throw new InvalidOperationException("transport down"));
+
+        using var activitySource = new ActivitySource("test-source");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var activity = activitySource.StartActivity("test")!;
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
+
+        activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultPublishFailed);
     }
 }

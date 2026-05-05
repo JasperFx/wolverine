@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
+using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
@@ -26,19 +28,28 @@ internal sealed class FaultPublisher : IFaultPublisher
     public async ValueTask PublishIfEnabledAsync(
         IEnvelopeLifecycle lifecycle,
         Exception exception,
-        FaultTrigger trigger)
+        FaultTrigger trigger,
+        Activity? activity)
     {
         var original = lifecycle.Envelope;
         if (original?.Message is null) return;
 
         var messageType = original.Message.GetType();
+
+        // Recursion guard: never publish a Fault<Fault<T>>. A failed Fault<T>
+        // subscriber falls through to the standard failure pipeline instead.
+        if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
+        {
+            return;
+        }
+
+        // Silent no-op for value-type messages — Fault<T> requires `T : class`.
+        if (messageType.IsValueType) return;
+
         var mode = _policy.Resolve(messageType);
 
         if (mode == FaultPublishingMode.None) return;
         if (trigger == FaultTrigger.Discarded && mode != FaultPublishingMode.DlqAndDiscard) return;
-
-        // Silent no-op for value-type messages — Fault<T> requires `T : class`.
-        if (messageType.IsValueType) return;
 
         try
         {
@@ -50,6 +61,8 @@ internal sealed class FaultPublisher : IFaultPublisher
             options.Headers[FaultHeaders.AutoPublished] = "true";
 
             await lifecycle.PublishAsync(faultMessage, options);
+
+            activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublished));
         }
         catch (Exception ex)
         {
@@ -60,6 +73,8 @@ internal sealed class FaultPublisher : IFaultPublisher
                 1,
                 new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, messageType.FullName ?? messageType.Name),
                 new KeyValuePair<string, object?>(MetricsConstants.ExceptionType, ex.GetType().FullName ?? ex.GetType().Name));
+
+            activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublishFailed));
         }
     }
 

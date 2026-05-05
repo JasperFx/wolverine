@@ -35,7 +35,19 @@ internal static class WolverineTracing
     /// ActivityEvent marking when an incoming envelope is being moved to the error queue
     /// </summary>
     public const string MovedToErrorQueue = "wolverine.error.queued";
-    
+
+    /// <summary>
+    /// ActivityEvent marking that a Fault&lt;T&gt; was successfully auto-published
+    /// for an envelope being moved to the error queue or discarded.
+    /// </summary>
+    public const string FaultPublished = "wolverine.fault.published";
+
+    /// <summary>
+    /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; failed —
+    /// the underlying error is logged and metered, never thrown.
+    /// </summary>
+    public const string FaultPublishFailed = "wolverine.fault.publish_failed";
+
     /// <summary>
     /// ActivityEvent marking when an incoming envelope does not have a known message
     /// handler and is being shunted to registered "NoHandler" actions
