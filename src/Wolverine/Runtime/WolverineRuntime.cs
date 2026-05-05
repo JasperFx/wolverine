@@ -115,10 +115,10 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
 
-        FaultPublisher = new FaultPublisher(
-            Options.FindOrCreateFaultPublishingPolicy(),
-            LoggerFactory.CreateLogger<FaultPublisher>(),
-            Meter);
+        // Resolve IFaultPublisher lazily: the DI factory in HostBuilderExtensions reads
+        // back IWolverineRuntime to get the Meter, which would deadlock if we resolved
+        // it eagerly here while the runtime singleton is still being constructed.
+        _faultPublisher = new Lazy<IFaultPublisher>(() => _container.GetInstance<IFaultPublisher>());
 
         var activators = container.GetAllInstances<IWolverineActivator>();
         foreach (var activator in activators)
@@ -127,7 +127,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
         }
     }
 
-    internal IFaultPublisher FaultPublisher { get; }
+    private readonly Lazy<IFaultPublisher> _faultPublisher;
+    internal IFaultPublisher FaultPublisher => _faultPublisher.Value;
 
     public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 

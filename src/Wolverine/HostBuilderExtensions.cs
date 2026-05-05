@@ -18,7 +18,9 @@ using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Resources;
 using JasperFx.RuntimeCompiler;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -178,6 +180,17 @@ public static class HostBuilderExtensions
         });
 
         services.AddSingleton<IWolverineRuntime, WolverineRuntime>();
+
+        services.AddSingleton<IFaultPublisher>(sp =>
+        {
+            var wolverineOptions = sp.GetRequiredService<WolverineOptions>();
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            var runtime = sp.GetRequiredService<IWolverineRuntime>();
+            return new FaultPublisher(
+                wolverineOptions.FindOrCreateFaultPublishingPolicy(),
+                loggerFactory.CreateLogger<FaultPublisher>(),
+                runtime.Meter);
+        });
 
         services.AddSingleton<ISystemPart, WolverineSystemPart>();
 
