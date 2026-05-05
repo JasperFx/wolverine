@@ -20,6 +20,11 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
         {
             activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeDiscarded));
             runtime.MessageTracking.DiscardedEnvelope(lifecycle.Envelope!);
+
+            await runtime.PublishFaultIfEnabledAsync(lifecycle,
+                new EnvelopeDiscardedException(lifecycle.Envelope!),
+                FaultTrigger.Discarded);
+
             await lifecycle.CompleteAsync();
         }
         catch (Exception e)

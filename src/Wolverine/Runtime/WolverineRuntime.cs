@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -114,12 +115,19 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
 
+        FaultPublisher = new FaultPublisher(
+            Options.FindOrCreateFaultPublishingPolicy(),
+            LoggerFactory.CreateLogger<FaultPublisher>(),
+            Meter);
+
         var activators = container.GetAllInstances<IWolverineActivator>();
         foreach (var activator in activators)
         {
             activator.Apply(this);
         }
     }
+
+    internal IFaultPublisher FaultPublisher { get; }
 
     public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 

@@ -47,7 +47,12 @@ internal class MoveToErrorQueue : IContinuation
         }
 
         await lifecycle.MoveToDeadLetterQueueAsync(Exception);
-        
+
+        // Auto-publish Fault<T> if opted in. The publish enrols in the active
+        // outbox transaction when one is open on the inbound MessageContext;
+        // otherwise it is a best-effort post-DLQ-move publish. Never throws.
+        await runtime.PublishFaultIfEnabledAsync(lifecycle, Exception, FaultTrigger.MovedToErrorQueue);
+
         await lifecycle.CompleteAsync();
 
         activity?.AddEvent(new ActivityEvent(WolverineTracing.MovedToErrorQueue));

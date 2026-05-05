@@ -6,6 +6,7 @@ public class MetricsConstants
     public const string ExecutionTime = "wolverine-execution-time";
     public const string MessagesSucceeded = "wolverine-messages-succeeded";
     public const string DeadLetterQueue = "wolverine-dead-letter-queue";
+    public const string FaultsPublishFailed = "wolverine-faults-publish-failed";
     public const string EffectiveMessageTime = "wolverine-effective-time";
 
     public const string Milliseconds = "Milliseconds";
