@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 5.37.2
+
+### WolverineFx (core)
+
+- Removed the experimental Wolverine-specific Roslyn source generator (`Wolverine.SourceGeneration`)
+  and the `IWolverineTypeLoader` / `[WolverineTypeManifest]` / `CompositeWolverineTypeLoader`
+  surface it produced. The compile-time handler-discovery path was never wired up to anything in
+  steady state — handler graph compilation always falls back to `compileWithRuntimeScanning`, which
+  has been the only code path exercised by tests and downstream consumers. Stripping it removes a
+  netstandard2.0 analyzer DLL from the WolverineFx NuGet, the analyzer ProjectReference from
+  `Wolverine.csproj`, the source-gen branches in `ExtensionLoader.ApplyExtensions`,
+  `WolverineRuntime.HostService` startup, `HandlerGraph.Compile`, and `HandlerChain.AttachTypes`,
+  plus the two `TypeLoaderManifestModule*` test fixtures and their aggregation tests. The
+  `JasperFx.SourceGeneration` analyzer (separate package) is unaffected.
+
 ## 5.37.0
 
 ### WolverineFx.Marten

@@ -277,24 +277,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        // Use the source-generated type loader for O(1) lookup when available,
-        // falling back to linear scan of assembly.ExportedTypes.
-        // Phase D: First try the PreGeneratedHandlerTypes dictionary for O(1) lookup,
-        // then fall back to TryFindPreGeneratedType for backward compatibility.
-        var typeLoader = _parent?.TypeLoader;
-        if (typeLoader is { HasPreGeneratedHandlers: true })
-        {
-            if (typeLoader.PreGeneratedHandlerTypes?.TryGetValue(TypeName, out var preGenType) == true)
-            {
-                _handlerType = preGenType;
-            }
-            else
-            {
-                _handlerType = typeLoader.TryFindPreGeneratedType(TypeName);
-            }
-        }
-
-        _handlerType ??= assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
+        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName);
 
         if (_handlerType == null)
         {

@@ -21,8 +21,6 @@
         <ProjectReference Include="..\Module2\Module2.csproj"/>
         <ProjectReference Include="..\OrderExtension\OrderExtension.csproj"/>
         <ProjectReference Include="..\Module1\Module1.csproj"/>
-        <ProjectReference Include="..\TypeLoaderManifestModuleA\TypeLoaderManifestModuleA.csproj"/>
-        <ProjectReference Include="..\TypeLoaderManifestModuleB\TypeLoaderManifestModuleB.csproj"/>
         <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
