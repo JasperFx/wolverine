@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using JasperFx.Core.Reflection;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.RateLimiting;
 using Wolverine.Runtime.Serialization.Encryption;
@@ -95,6 +96,34 @@ public class MessageTypePolicies<T>
 
         _parent.MetadataRules.Add(new EncryptMessageTypeRule<T>(encrypting));
         _parent.RequiredEncryptedTypes.Add(typeof(T));
+        return this;
+    }
+
+    /// <summary>
+    /// Opt this message type into auto-published <see cref="Fault{T}"/> events on
+    /// terminal handler failure. Overrides any global setting.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Fault{T}"/> requires <typeparamref name="T"/> to be a reference type.
+    /// Calling this for value-type messages compiles but will not produce a fault at runtime.
+    /// </remarks>
+    public MessageTypePolicies<T> PublishFault(bool includeDiscarded = false)
+    {
+        var policy = _parent.FindOrCreateFaultPublishingPolicy();
+        policy.PerTypeOverrides[typeof(T)] = includeDiscarded
+            ? FaultPublishingMode.DlqAndDiscard
+            : FaultPublishingMode.DlqOnly;
+        return this;
+    }
+
+    /// <summary>
+    /// Opt this message type out of auto-published <see cref="Fault{T}"/> events,
+    /// even when the global default is on.
+    /// </summary>
+    public MessageTypePolicies<T> DoNotPublishFault()
+    {
+        var policy = _parent.FindOrCreateFaultPublishingPolicy();
+        policy.PerTypeOverrides[typeof(T)] = FaultPublishingMode.None;
         return this;
     }
 }
