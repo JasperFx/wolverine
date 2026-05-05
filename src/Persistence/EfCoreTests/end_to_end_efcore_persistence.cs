@@ -213,7 +213,6 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
             var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>()
                 .ShouldBeOfType<DbContextOutbox<ItemsDbContext>>();
 
-            await messaging.DbContext.Database.BeginTransactionAsync();
             await messaging.Transaction!.PersistOutgoingAsync(envelope);
             messaging.DbContext.Items.Add(new Item { Id = Guid.NewGuid(), Name = Guid.NewGuid().ToString() });
 
