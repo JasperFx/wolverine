@@ -84,21 +84,6 @@ public partial class WolverineRuntime
                 }
             }
 
-            // Check for a source-generated type loader to bypass runtime assembly scanning
-            var typeLoader = _container.Services.GetService(typeof(IWolverineTypeLoader)) as IWolverineTypeLoader;
-            if (typeLoader == null)
-            {
-                // Also check for the assembly-level attribute as a discovery mechanism
-                typeLoader = tryDiscoverTypeLoaderFromAttribute();
-            }
-
-            if (typeLoader != null)
-            {
-                Logger.LogInformation(
-                    "Source-generated IWolverineTypeLoader detected, using compile-time discovery to reduce startup time");
-                Handlers.UseTypeLoader(typeLoader);
-            }
-
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
@@ -509,52 +494,6 @@ public partial class WolverineRuntime
         }
 
         Options.LocalRouting.DiscoverListeners(this, handledMessageTypes);
-    }
-
-    private IWolverineTypeLoader? tryDiscoverTypeLoaderFromAttribute()
-    {
-        // Walk the application assembly *and* every assembly the user added via
-        // Discovery.IncludeAssembly. The Wolverine source generator emits a
-        // [WolverineTypeManifest] attribute on every handler-bearing assembly; reading
-        // only Options.ApplicationAssembly silently drops handlers that live in
-        // referenced projects. See #2632.
-        var seen = new HashSet<Assembly>();
-        var loaders = new List<IWolverineTypeLoader>();
-
-        var candidates = new List<Assembly?> { Options.ApplicationAssembly };
-        candidates.AddRange(Options.Discovery.Assemblies);
-
-        foreach (var assembly in candidates)
-        {
-            if (assembly is null || !seen.Add(assembly)) continue;
-
-            try
-            {
-                var attribute = assembly
-                    .GetCustomAttributes(typeof(WolverineTypeManifestAttribute), false)
-                    .FirstOrDefault() as WolverineTypeManifestAttribute;
-
-                if (attribute?.LoaderType is null) continue;
-
-                if (Activator.CreateInstance(attribute.LoaderType) is IWolverineTypeLoader loader)
-                {
-                    loaders.Add(loader);
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.LogWarning(e,
-                    "Failed to instantiate source-generated IWolverineTypeLoader from {Assembly}; the loaders from other assemblies will still be used",
-                    assembly.FullName);
-            }
-        }
-
-        return loaders.Count switch
-        {
-            0 => null,
-            1 => loaders[0],
-            _ => new CompositeWolverineTypeLoader(loaders)
-        };
     }
 
     internal Task StartLightweightAsync()
