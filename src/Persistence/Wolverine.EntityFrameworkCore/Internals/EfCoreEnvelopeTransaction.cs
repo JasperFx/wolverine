@@ -48,8 +48,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         }
         else
         {
+            if (DbContext.Database.CurrentTransaction == null)
+            {
+                await DbContext.Database.BeginTransactionAsync();
+            }
             var conn = DbContext.Database.GetDbConnection();
-            var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
+            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
             var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
@@ -71,8 +75,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         }
         else
         {
+            if (DbContext.Database.CurrentTransaction == null)
+            {
+                await DbContext.Database.BeginTransactionAsync();
+            }
             var conn = DbContext.Database.GetDbConnection();
-            var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
+            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
             var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
