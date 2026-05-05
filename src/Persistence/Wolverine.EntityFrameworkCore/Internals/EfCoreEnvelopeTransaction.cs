@@ -42,11 +42,6 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
-        if (DbContext.Database.CurrentTransaction == null)
-        {
-            await DbContext.Database.BeginTransactionAsync();
-        }
-
         if (DbContext.IsWolverineEnabled())
         {
             DbContext.Add(new OutgoingMessage(envelope));
@@ -54,15 +49,13 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         else
         {
             var conn = DbContext.Database.GetDbConnection();
-            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
+            var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
             var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
             await cmd.ExecuteNonQueryAsync();
         }
-
-
     }
 
     public async Task PersistOutgoingAsync(Envelope[] envelopes)
@@ -72,11 +65,6 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             return;
         }
 
-        if (DbContext.Database.CurrentTransaction == null)
-        {
-            await DbContext.Database.BeginTransactionAsync();
-        }
-
         if (DbContext.IsWolverineEnabled())
         {
             DbContext.AddRange(envelopes.Select(e => new OutgoingMessage(e)));
@@ -84,7 +72,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         else
         {
             var conn = DbContext.Database.GetDbConnection();
-            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
+            var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
             var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
@@ -176,7 +164,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (_messaging.Envelope != null && _messaging.Envelope.Destination != null)
         {
             var conn = DbContext.Database.GetDbConnection();
-            var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
+            var tx = DbContext.Database.CurrentTransaction?.GetDbTransaction();
             
             // Are we marking an existing envelope as persisted?
             if (_messaging.Envelope.WasPersistedInInbox)
