@@ -94,15 +94,26 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
             }
             else
             {
-                if (e.TenantId != StorageConstants.DefaultTenantId)
+                // Under conjoined tenancy the tenant lives in the row, not the database, so
+                // IEvent<T>.TenantId is the authoritative attribution and must reach the
+                // outbound envelope verbatim — including StorageConstants.DefaultTenantId for
+                // default-tenant events. Otherwise WolverineSubscriptionRunner's
+                // bus.TenantId (= operations.Database.Identifier, a database identity) would
+                // misroute them. For non-conjoined stores the existing fallthrough is
+                // preserved so that any setup relying on the database identifier as the
+                // message tenant keeps working.
+                var tenancyStyle = ((IDocumentSession)operations).DocumentStore
+                    .Options.Events.TenancyStyle;
+
+                if (e.TenantId != StorageConstants.DefaultTenantId
+                    || tenancyStyle == TenancyStyle.Conjoined)
                 {
-                    await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
+                    await bus.PublishAsync(e, new DeliveryOptions { TenantId = e.TenantId });
                 }
                 else
                 {
                     await bus.PublishAsync(e);
                 }
-                
             }
         }
     }
