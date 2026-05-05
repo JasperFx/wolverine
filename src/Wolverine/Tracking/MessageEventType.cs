@@ -15,6 +15,7 @@ public enum MessageEventType
     Requeued,
     Scheduled,
     Discarded,
-    Status
+    Status,
+    AutoFaultPublished,
 }
 #endregion

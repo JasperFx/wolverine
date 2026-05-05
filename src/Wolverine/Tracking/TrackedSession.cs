@@ -252,6 +252,7 @@ internal partial class TrackedSession : ITrackedSession
     public RecordCollection NoHandlers => new(MessageEventType.NoHandlers, this);
     public RecordCollection NoRoutes => new(MessageEventType.NoRoutes, this);
     public RecordCollection MovedToErrorQueue => new(MessageEventType.MovedToErrorQueue, this);
+    public RecordCollection AutoFaultsPublished => new(MessageEventType.AutoFaultPublished, this);
     public RecordCollection Requeued => new(MessageEventType.Requeued, this);
     public RecordCollection Executed => new(MessageEventType.ExecutionFinished, this);
 
@@ -467,6 +468,32 @@ internal partial class TrackedSession : ITrackedSession
         if (ex != null)
         {
             _exceptions.Add(ex);
+        }
+
+        // Auto-fault detection: if this is a Sent event for an envelope that the failure
+        // pipeline auto-published as a Fault<T>, also record an AutoFaultPublished event
+        // for assertion via ITrackedSession.AutoFaultsPublished.
+        if (eventType == MessageEventType.Sent
+            && envelope.Headers.TryGetValue(FaultHeaders.AutoPublished, out var marker)
+            && marker == "true")
+        {
+            var autoFaultRecord = new EnvelopeRecord(MessageEventType.AutoFaultPublished, envelope,
+                _stopwatch.ElapsedMilliseconds, null)
+            {
+                ServiceName = serviceName,
+                UniqueNodeId = uniqueNodeId
+            };
+
+            if (AlwaysTrackExternalTransports || _otherHosts.Any())
+            {
+                history.RecordCrossApplication(autoFaultRecord);
+            }
+            else
+            {
+                history.RecordLocally(autoFaultRecord);
+            }
+
+            foreach (var condition in _conditions) condition.Record(autoFaultRecord);
         }
 
         if (IsCompleted())
