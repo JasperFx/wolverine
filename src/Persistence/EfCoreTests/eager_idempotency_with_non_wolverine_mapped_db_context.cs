@@ -106,6 +106,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         };
 
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
+        await dbContext.Database.BeginTransactionAsync();
         await transaction.PersistOutgoingAsync([envelope1, envelope2]);
         await dbContext.Database.CurrentTransaction!.CommitAsync();
 
