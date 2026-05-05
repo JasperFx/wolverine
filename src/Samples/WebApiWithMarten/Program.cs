@@ -38,13 +38,9 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
-
 
 app.MapGet("/orders", (IQuerySession session, HttpContext context)
     => session.Query<Order>().WriteArray(context));
@@ -78,10 +74,8 @@ app.MapPost("/orders/create3", async (CreateOrder command, IDocumentSession sess
 
 #endregion
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
-app.UseSwagger();
-app.UseSwaggerUI();
+app.MapOpenApi();
+app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
 // Lot of Wolverine and Marten diagnostics and administrative tools
 // come through JasperFx command line support

@@ -12,6 +12,6 @@ To run this example do the following:
    Notice the output in the console. You will see that Marten and Wolverine create the initial schemas in the PostgreSQL
    database.
 
-The browser should open to the swagger page
-at [http://localhost:5193/swagger/index.html](http://localhost:5193/swagger/index.html) 
+The browser should open to the OpenApi page
+at [http://localhost:5193/openapi/v1.json](http://localhost:5193/openapi/v1.json) 
 

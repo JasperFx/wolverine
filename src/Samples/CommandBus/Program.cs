@@ -13,9 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.ApplyJasperFxExtensions();
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 builder.Services.AddSingleton<IRestaurantProxy, RealRestaurantProxy>();
 
@@ -54,8 +52,7 @@ app.MapPost("/reservations/confirm", (ConfirmReservation command, IMessageBus bu
 app.MapGet("/reservations",
     (HttpContext context, IQuerySession session) => session.Query<Reservation>().WriteArray(context));
 
-app.UseSwagger();
-app.UseSwaggerUI();
+app.MapOpenApi();
 
 // This opts into using JasperFx for extended command line options for this app
 // JasperFx is also a transitive dependency of Wolverine itself
