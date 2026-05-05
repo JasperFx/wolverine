@@ -405,7 +405,7 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         logger.LogInformation(
             "Using source-generated type loader for handler discovery, bypassing runtime assembly scanning");
 
-        var handlerTypes = _typeLoader!.DiscoveredHandlerTypes;
+        var handlerTypes = _typeLoader!.DiscoveredHandlerTypes.Concat(Discovery.ExplicitTypes);
 
         // Still use Discovery's method filtering on the pre-discovered types,
         // but skip the expensive assembly scanning to find those types

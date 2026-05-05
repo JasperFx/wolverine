@@ -186,7 +186,9 @@ public sealed partial class HandlerDiscovery
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
     }
-    
+
+    internal IList<Type> ExplicitTypes => _explicitTypes;
+
     /// <summary>
     /// Discovers and includes all assemblies marked with [WolverineHandlerModule] attribute.
     /// </summary>
