@@ -106,6 +106,10 @@ internal class EnvelopeHistory
                 // Do nothing, just informative
                 break;
 
+            case MessageEventType.AutoFaultPublished:
+                // Informational marker derived from the outgoing Sent envelope; never affects completion.
+                break;
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);
         }
@@ -167,8 +171,12 @@ internal class EnvelopeHistory
             case MessageEventType.NoRoutes:
                 record.IsComplete = true;
                 break;
-            
+
             case MessageEventType.Requeued:
+                break;
+
+            case MessageEventType.AutoFaultPublished:
+                // Informational marker derived from the outgoing Sent envelope; never affects completion.
                 break;
 
             default:
