@@ -6,10 +6,9 @@ namespace Wolverine.Http.Tests.ApiVersioning;
 [Collection("integration")]
 public class api_versioning_error_path_header_tests : IntegrationContext
 {
-    // Mirrors the sunset/deprecation policies registered in WolverineWebApi/Program.cs:303-306
-    // (Sunset("3.0") + Deprecate("1.0")). Centralised so config drift in Program.cs surfaces here
-    // as a clear single failure rather than four near-identical ones.
-    private const string ExpectedSupportedVersions = "1.0, 3.0";
+    // Per-endpoint sibling union: these error-path endpoints only declare v1 and have no v3
+    // sibling at the same (verb, route), so api-supported-versions correctly reports "1.0" only.
+    private const string ExpectedSupportedVersions = "1.0";
 
     public api_versioning_error_path_header_tests(AppFixture fixture) : base(fixture)
     {
