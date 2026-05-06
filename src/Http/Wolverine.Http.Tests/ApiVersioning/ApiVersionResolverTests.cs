@@ -34,55 +34,56 @@ public class ApiVersionResolverTests
         => typeof(T).GetMethod(name, BindingFlags.Public | BindingFlags.Instance)!;
 
     [Fact]
-    public void no_attribute_returns_null()
+    public void no_attribute_returns_empty()
     {
         var method = MethodOf<NoVersionHandler>(nameof(NoVersionHandler.Handle));
-        ApiVersionResolver.Resolve(method).ShouldBeNull();
+        ApiVersionResolver.ResolveVersions(method).ShouldBeEmpty();
     }
 
     [Fact]
     public void class_only_attribute_resolves_to_class_version()
     {
         var method = MethodOf<ClassOnlyVersionHandler>(nameof(ClassOnlyVersionHandler.Handle));
-        var result = ApiVersionResolver.Resolve(method);
-        result!.Value.Version.ShouldBe(new ApiVersion(2, 0));
-        result.Value.IsDeprecated.ShouldBeFalse();
+        var result = ApiVersionResolver.ResolveVersions(method);
+        result.ShouldHaveSingleItem();
+        result[0].Version.ShouldBe(new ApiVersion(2, 0));
+        result[0].IsDeprecated.ShouldBeFalse();
     }
 
     [Fact]
     public void method_attribute_resolves_to_method_version()
     {
         var method = MethodOf<MethodOnlyVersionHandler>(nameof(MethodOnlyVersionHandler.Handle));
-        var result = ApiVersionResolver.Resolve(method);
-        result!.Value.Version.ShouldBe(new ApiVersion(1, 0));
-        result.Value.IsDeprecated.ShouldBeFalse();
+        var result = ApiVersionResolver.ResolveVersions(method);
+        result.ShouldHaveSingleItem();
+        result[0].Version.ShouldBe(new ApiVersion(1, 0));
+        result[0].IsDeprecated.ShouldBeFalse();
     }
 
     [Fact]
     public void method_attribute_overrides_class_attribute()
     {
         var method = MethodOf<MethodOverridesClassHandler>(nameof(MethodOverridesClassHandler.Handle));
-        var result = ApiVersionResolver.Resolve(method);
-        result!.Value.Version.ShouldBe(new ApiVersion(1, 0));
-        result.Value.IsDeprecated.ShouldBeFalse();
+        var result = ApiVersionResolver.ResolveVersions(method);
+        result.ShouldHaveSingleItem();
+        result[0].Version.ShouldBe(new ApiVersion(1, 0));
+        result[0].IsDeprecated.ShouldBeFalse();
     }
 
     [Fact]
-    public void multiple_versions_on_same_method_throws()
+    public void multiple_versions_on_same_method_returns_all_of_them()
     {
         var method = MethodOf<MultipleVersionsOnMethodHandler>(nameof(MultipleVersionsOnMethodHandler.Handle));
-        var ex = Should.Throw<InvalidOperationException>(() => ApiVersionResolver.Resolve(method));
-        ex.Message.ShouldContain("MultipleVersionsOnMethodHandler.Handle");
-        ex.Message.ShouldContain("1.0");
-        ex.Message.ShouldContain("2.0");
+        var result = ApiVersionResolver.ResolveVersions(method);
+        result.Select(r => r.Version).ShouldBe(new[] { new ApiVersion(1, 0), new ApiVersion(2, 0) });
     }
 
     [Fact]
     public void deprecated_attribute_flag_is_propagated()
     {
-        var result = ApiVersionResolver.Resolve(MethodOf<DeprecatedMethodHandler>(nameof(DeprecatedMethodHandler.Handle)));
-        result.ShouldNotBeNull();
-        result.Value.Version.ShouldBe(new ApiVersion(1, 0));
-        result.Value.IsDeprecated.ShouldBeTrue();
+        var result = ApiVersionResolver.ResolveVersions(MethodOf<DeprecatedMethodHandler>(nameof(DeprecatedMethodHandler.Handle)));
+        result.ShouldHaveSingleItem();
+        result[0].Version.ShouldBe(new ApiVersion(1, 0));
+        result[0].IsDeprecated.ShouldBeTrue();
     }
 }

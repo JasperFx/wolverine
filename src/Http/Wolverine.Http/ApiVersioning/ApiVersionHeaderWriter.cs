@@ -44,10 +44,12 @@ public sealed class ApiVersionHeaderWriter
     private readonly WolverineApiVersioningOptions _options;
 
     // Computed once on first request via Lazy<T>. Policies added to the options
-    // dictionaries after the first request will not appear in this header. In normal
+    // dictionaries after the first request will not appear in this fallback header.
+    // The fallback only applies to chains whose endpoint has no ApiVersionMetadata
+    // (i.e. chains not produced by ApiVersioningPolicy's per-clone wiring); in normal
     // app startup all policies are registered before any HTTP request is processed,
     // so this is a safe optimization.
-    private readonly Lazy<string> _supportedVersionsHeader;
+    private readonly Lazy<string> _fallbackSupportedVersionsHeader;
 
     /// <summary>
     /// Initializes a new instance of <see cref="ApiVersionHeaderWriter"/>.
@@ -56,7 +58,7 @@ public sealed class ApiVersionHeaderWriter
     public ApiVersionHeaderWriter(WolverineApiVersioningOptions options)
     {
         _options = options;
-        _supportedVersionsHeader = new Lazy<string>(() => BuildSupportedVersionsHeader(options));
+        _fallbackSupportedVersionsHeader = new Lazy<string>(() => BuildFallbackSupportedVersionsHeader(options));
     }
 
     /// <summary>
@@ -66,6 +68,11 @@ public sealed class ApiVersionHeaderWriter
     /// validation <c>ProblemDetails</c>, middleware short-circuits returning <c>IResult</c>). Responses
     /// produced by the global exception handler bypass the chain pipeline entirely and therefore never
     /// invoke this callback — wire deprecation headers on the exception path via separate middleware.
+    /// The <c>api-supported-versions</c> header reads from the endpoint's
+    /// <see cref="ApiVersionMetadata"/> (seeded by <see cref="ApiVersioningPolicy"/> with the
+    /// full sibling union for chains at the same <c>(verb, route-after-strip-prefix)</c>),
+    /// falling back to the options-driven sunset/deprecation key union when no metadata is
+    /// present on the endpoint.
     /// </summary>
     /// <remarks>
     /// The method name remains <c>WriteAsync</c> because Wolverine's runtime code generation references
@@ -75,8 +82,8 @@ public sealed class ApiVersionHeaderWriter
     /// <param name="context">The current HTTP context.</param>
     public Task WriteAsync(HttpContext context)
     {
-        // Early-exit gate: skip the OnStarting registration entirely on chains with no header state.
-        var state = context.GetEndpoint()?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
+        var endpoint = context.GetEndpoint();
+        var state = endpoint?.Metadata.GetMetadata<ApiVersionEndpointHeaderState>();
         if (state is null)
             return Task.CompletedTask;
 
@@ -113,8 +120,16 @@ public sealed class ApiVersionHeaderWriter
     {
         var headers = context.Response.Headers;
 
-        if (_options.EmitApiSupportedVersionsHeader && _supportedVersionsHeader.Value.Length > 0)
-            headers["api-supported-versions"] = _supportedVersionsHeader.Value;
+        if (_options.EmitApiSupportedVersionsHeader)
+        {
+            var endpoint = context.GetEndpoint();
+            if (endpoint is not null)
+            {
+                var supportedHeader = BuildSupportedVersionsHeader(endpoint);
+                if (supportedHeader.Length > 0)
+                    headers["api-supported-versions"] = supportedHeader;
+            }
+        }
 
         if (_options.EmitDeprecationHeaders)
         {
@@ -134,7 +149,33 @@ public sealed class ApiVersionHeaderWriter
         }
     }
 
-    private static string BuildSupportedVersionsHeader(WolverineApiVersioningOptions options)
+    /// <summary>
+    /// Build the <c>api-supported-versions</c> header value for a single request. The endpoint's
+    /// <see cref="ApiVersionMetadata"/> is the authoritative source — it carries the full sibling
+    /// union assembled by <see cref="ApiVersioningPolicy"/> at startup, so the header reflects every
+    /// version that serves the same <c>(verb, route-after-strip-prefix)</c>, supported and
+    /// deprecated alike (matching the Asp.Versioning convention of reporting
+    /// <c>ImplementedApiVersions</c>). Falls back to the options-driven union for chains that have
+    /// no per-endpoint metadata (e.g. chains wired up outside the policy pipeline).
+    /// </summary>
+    private string BuildSupportedVersionsHeader(Endpoint endpoint)
+    {
+        var metadata = endpoint.Metadata.GetMetadata<ApiVersionMetadata>();
+        if (metadata is null)
+            return _fallbackSupportedVersionsHeader.Value;
+
+        var model = metadata.Map(ApiVersionMapping.Explicit);
+        var versions = model.ImplementedApiVersions;
+        if (versions.Count == 0)
+            return _fallbackSupportedVersionsHeader.Value;
+
+        return string.Join(", ", versions
+            .OrderBy(v => v.MajorVersion ?? int.MaxValue)
+            .ThenBy(v => v.MinorVersion ?? int.MaxValue)
+            .Select(v => v.ToString()));
+    }
+
+    private static string BuildFallbackSupportedVersionsHeader(WolverineApiVersioningOptions options)
     {
         var versions = options.SunsetPolicies.Keys
             .Concat(options.DeprecationPolicies.Keys)

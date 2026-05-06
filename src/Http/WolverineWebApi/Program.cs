@@ -64,6 +64,9 @@ public class Program
             x.SwaggerDoc("v1", new OpenApiInfo { Title = "Wolverine Web API v1", Version = "v1" });
             x.SwaggerDoc("v2", new OpenApiInfo { Title = "Wolverine Web API v2", Version = "v2" });
             x.SwaggerDoc("v3", new OpenApiInfo { Title = "Wolverine Web API v3", Version = "v3" });
+            // v4 has no options.Deprecate("4.0") — used by integration tests to prove the
+            // attribute-driven [ApiVersion("4.0", Deprecated = true)] is honoured on its own.
+            x.SwaggerDoc("v4", new OpenApiInfo { Title = "Wolverine Web API v4", Version = "v4" });
             x.OperationFilter<WolverineOperationFilter>();
             x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
             x.DocInclusionPredicate((docName, api) =>
