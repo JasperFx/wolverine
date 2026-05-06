@@ -104,8 +104,15 @@ public class MessageTypePolicies<T>
     /// terminal handler failure. Overrides any global setting.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <see cref="Fault{T}"/> requires <typeparamref name="T"/> to be a reference type.
     /// Calling this for value-type messages compiles but will not produce a fault at runtime.
+    /// </para>
+    /// <para>
+    /// <b>Delivery semantics.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool)"/>
+    /// — auto-published fault events are best-effort and not transactionally co-committed with
+    /// the dead-letter-queue move.
+    /// </para>
     /// </remarks>
     public MessageTypePolicies<T> PublishFault(bool includeDiscarded = false)
     {

@@ -107,7 +107,8 @@ internal class EnvelopeHistory
                 break;
 
             case MessageEventType.AutoFaultPublished:
-                // Informational marker derived from the outgoing Sent envelope; never affects completion.
+                // Informational marker derived from the outgoing Sent envelope; never blocks completion.
+                record.IsComplete = true;
                 break;
 
             default:
@@ -176,7 +177,8 @@ internal class EnvelopeHistory
                 break;
 
             case MessageEventType.AutoFaultPublished:
-                // Informational marker derived from the outgoing Sent envelope; never affects completion.
+                // Informational marker derived from the outgoing Sent envelope; never blocks completion.
+                record.IsComplete = true;
                 break;
 
             default:

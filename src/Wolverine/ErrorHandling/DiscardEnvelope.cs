@@ -4,13 +4,28 @@ using Wolverine.Runtime;
 
 namespace Wolverine.ErrorHandling;
 
-public class DiscardEnvelope : IContinuation, IContinuationSource
+internal sealed class DiscardEnvelopeSource : IContinuationSource
 {
-    public static readonly DiscardEnvelope Instance = new();
+    public static readonly DiscardEnvelopeSource Instance = new();
 
-    private DiscardEnvelope()
+    private DiscardEnvelopeSource()
     {
     }
+
+    public string Description => "Discard the message";
+
+    public IContinuation Build(Exception ex, Envelope envelope)
+        => new DiscardEnvelope(ex);
+}
+
+public sealed class DiscardEnvelope : IContinuation
+{
+    public DiscardEnvelope(Exception exception)
+    {
+        Exception = exception ?? throw new ArgumentNullException(nameof(exception));
+    }
+
+    public Exception Exception { get; }
 
     public async ValueTask ExecuteAsync(IEnvelopeLifecycle lifecycle,
         IWolverineRuntime runtime,
@@ -22,7 +37,7 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
             runtime.MessageTracking.DiscardedEnvelope(lifecycle.Envelope!);
 
             await runtime.PublishFaultIfEnabledAsync(lifecycle,
-                new EnvelopeDiscardedException(lifecycle.Envelope!),
+                Exception,
                 FaultTrigger.Discarded,
                 activity);
 
@@ -32,12 +47,5 @@ public class DiscardEnvelope : IContinuation, IContinuationSource
         {
             runtime.Logger.LogError(e, "Failure while attempting to discard an envelope");
         }
-    }
-
-    public string Description => "Discard the message";
-
-    public IContinuation Build(Exception ex, Envelope envelope)
-    {
-        return this;
     }
 }

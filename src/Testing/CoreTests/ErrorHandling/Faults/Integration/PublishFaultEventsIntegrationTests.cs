@@ -167,6 +167,11 @@ public class PublishFaultEventsIntegrationTests
                 .MessagesOf<Fault<OrderPlaced>>()
                 .Single().Message.OrderId.ShouldBe("o-4");
             collector.Order.Single().Message.OrderId.ShouldBe("o-4");
+
+            collector.Order[0].Exception.Type
+                .ShouldBe(typeof(InvalidOperationException).FullName);
+            collector.Order[0].Exception.Message
+                .ShouldBe("synthetic order failure");
         }
         finally { await host.StopAsync(); }
     }
