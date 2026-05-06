@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ErrorHandling;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 
 namespace CoreTests.ErrorHandling.Faults.Integration;
@@ -206,6 +208,74 @@ public class PublishFaultEventsIntegrationTests
                 async () => await bus.InvokeAsync(new OrderPlaced("o-6")));
 
             collector.Order.ShouldBeEmpty();
+        }
+        finally { await host.StopAsync(); }
+    }
+
+    [Fact]
+    public async Task manually_published_fault_does_not_carry_auto_header()
+    {
+        var (host, _) = await StartHostAsync(opts => opts.PublishFaultEvents());
+        try
+        {
+            var manualFault = new Fault<OrderPlaced>(
+                Message: new OrderPlaced("manual-1"),
+                Exception: ExceptionInfo.From(new InvalidOperationException("manual")),
+                Attempts: 0,
+                FailedAt: DateTimeOffset.UtcNow,
+                CorrelationId: null,
+                ConversationId: Guid.Empty,
+                TenantId: null,
+                Source: null,
+                Headers: new Dictionary<string, string?>());
+
+            var session = await host.TrackActivity()
+                .DoNotAssertOnExceptionsDetected()
+                .PublishMessageAndWaitAsync(manualFault);
+
+            // AutoFaultsPublished is the auto-detected set — populated only when the Sent
+            // envelope carries FaultHeaders.AutoPublished == "true". A manual publish via
+            // bus.PublishAsync doesn't set that header, so the tracking record must be absent.
+            session.AutoFaultsPublished
+                .MessagesOf<Fault<OrderPlaced>>()
+                .ShouldBeEmpty();
+        }
+        finally { await host.StopAsync(); }
+    }
+
+    [Fact]
+    public async Task fault_envelope_inherits_trace_context_from_failing_handler()
+    {
+        var captured = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = src => src.Name == "Wolverine",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = a => captured.Add(a),
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var (host, _) = await StartHostAsync(opts => opts.PublishFaultEvents());
+        try
+        {
+            await host.TrackActivity()
+                .DoNotAssertOnExceptionsDetected()
+                .PublishMessageAndWaitAsync(new OrderPlaced("trace-1"));
+
+            // WolverineTracing.StartExecuting uses envelope.MessageType as the span name.
+            // Substring filter is fragile (the test class name itself contains "Fault"),
+            // so match by exact ToMessageTypeName().
+            var orderPlacedTypeName = typeof(OrderPlaced).ToMessageTypeName();
+            var faultTypeName = typeof(Fault<OrderPlaced>).ToMessageTypeName();
+            var executeSpan = captured.SingleOrDefault(a =>
+                a.OperationName == orderPlacedTypeName && a.Kind == ActivityKind.Internal);
+            var faultSpan = captured.SingleOrDefault(a =>
+                a.OperationName == faultTypeName && a.Kind == ActivityKind.Internal);
+
+            executeSpan.ShouldNotBeNull();
+            faultSpan.ShouldNotBeNull();
+            faultSpan!.TraceId.ShouldBe(executeSpan!.TraceId);
+            faultSpan.ParentSpanId.ShouldBe(executeSpan.SpanId);
         }
         finally { await host.StopAsync(); }
     }

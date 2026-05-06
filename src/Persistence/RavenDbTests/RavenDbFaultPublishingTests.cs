@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Raven.Client.Documents;
@@ -8,6 +9,7 @@ using Wolverine.ComplianceTests.ErrorHandling.Faults;
 using Wolverine.ErrorHandling;
 using Wolverine.RavenDb;
 using Wolverine.RavenDb.Internals;
+using Wolverine.Util;
 
 namespace RavenDbTests;
 
@@ -17,7 +19,7 @@ namespace RavenDbTests;
 /// RavenTestDriver is itself a class (it manages an embedded RavenDB server) and
 /// DurableFaultPublishingCompliance is also a class — so single inheritance forces
 /// us to host the compliance via composition. The bridge below adapts back to the
-/// abstract base so all three [Fact]s in DurableFaultPublishingCompliance run as
+/// abstract base so both [Fact]s in DurableFaultPublishingCompliance run as
 /// owned facts of this class.
 /// </summary>
 public class RavenDbFaultPublishingTests : RavenTestDriver
@@ -52,6 +54,7 @@ public class RavenDbFaultPublishingTests : RavenTestDriver
             .UseWolverine(opts =>
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.KeepAfterMessageHandling = 5.Minutes();
 
                 opts.UseRavenDbPersistence();
                 opts.Services.AddSingleton(store);
@@ -82,13 +85,14 @@ public class RavenDbFaultPublishingTests : RavenTestDriver
         // The Fault<T> envelope is persisted via the inbox for an in-process durable
         // local queue (UseDurableLocalQueues) and via the outbox for a remote durable
         // destination. Sum both so the atomicity assertion holds in either topology.
+        var faultTypeName = typeof(Fault<OrderPlaced>).ToMessageTypeName();
         var outgoingFaultCount = await session
             .Query<OutgoingMessage>()
-            .Where(o => o.MessageType.Contains("Fault"))
+            .Where(o => o.MessageType == faultTypeName)
             .CountAsync();
         var incomingFaultCount = await session
             .Query<IncomingMessage>()
-            .Where(i => i.MessageType.Contains("Fault"))
+            .Where(i => i.MessageType == faultTypeName)
             .CountAsync();
 
         return new DurableSnapshot(dlqCount, outgoingFaultCount + incomingFaultCount);

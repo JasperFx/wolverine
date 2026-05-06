@@ -345,4 +345,43 @@ public class FaultPublisherTests
         // the pre-check short-circuits before delegating to MessageBus.
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
+
+    [Fact]
+    public async Task counter_increments_when_fault_publish_fails()
+    {
+        var policy = new FaultPublishingPolicy { GlobalMode = FaultPublishingMode.DlqOnly };
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+
+        // Use a unique meter name so a parallel run of records_fault_publish_failed_event_on_activity_on_failure
+        // doesn't share an instrument with this test.
+        var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests-counter");
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(new[] { new Envelope() });
+
+        long observed = 0;
+        using var listener = new System.Diagnostics.Metrics.MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter == meter && instrument.Name == MetricsConstants.FaultsPublishFailed)
+                l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<long>((_, m, _, _) => Interlocked.Add(ref observed, m));
+        listener.Start();
+
+        var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
+
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+        lifecycle
+            .When(x => x.PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>()))
+            .Do(_ => throw new InvalidOperationException("transport down"));
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
+
+        observed.ShouldBe(1L);
+    }
 }

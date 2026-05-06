@@ -16,6 +16,8 @@ public abstract class DurableFaultPublishingCompliance : IAsyncLifetime
     ///  - Register AlwaysFailsHandler so OrderPlaced terminally fails after one attempt.
     ///  - Set OnException&lt;Exception&gt;().MoveToErrorQueue() (no retries).
     ///  - Call PublishFaultEvents() globally.
+    ///  - Lock <c>Durability.KeepAfterMessageHandling</c> to a value &gt;= 5 minutes; the
+    ///    snapshot assertion depends on processed envelopes still being present.
     ///  - Apply optionalCompose before StartAsync so individual tests can inject decorators.
     /// </summary>
     public abstract Task<IHost> BuildCleanHostAsync(Action<WolverineOptions>? optionalCompose = null);
