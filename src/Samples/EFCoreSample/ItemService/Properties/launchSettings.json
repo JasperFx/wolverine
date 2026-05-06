@@ -1,11 +1,11 @@
-﻿{
+{
   "$schema": "https://json.schemastore.org/launchsettings.json",
   "profiles": {
     "ItemService": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
-      "launchUrl": "swagger",
+      "launchUrl": "openapi/v1.json",
       "applicationUrl": "http://localhost:5299",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"

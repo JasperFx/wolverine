@@ -42,14 +42,12 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-app.MapGet("/", () => Results.Redirect("/swagger"));
+app.MapOpenApi();
+app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
 app.MapPost("/send", async (MessageBatch batch, IMessageBus bus) =>
 {
@@ -65,13 +63,9 @@ app.MapGet("/status", async (IMessageRecordRepository repository) =>
 
 app.MapWolverineAdminApiEndpoints();
 
-app.UseSwagger();
-app.UseSwaggerUI();
-
 // Lot of Wolverine and Marten diagnostics and administrative tools
 // come through JasperFx command line support
 return await app.RunJasperFxCommands(args);
-
 
 public record MessageBatch(int BatchSize, int Milliseconds)
 {

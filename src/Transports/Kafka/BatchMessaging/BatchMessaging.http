@@ -1,6 +1,0 @@
-@BatchMessaging_HostAddress = http://localhost:5089
-
-GET {{BatchMessaging_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

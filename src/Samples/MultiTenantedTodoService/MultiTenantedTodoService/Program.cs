@@ -54,19 +54,15 @@ builder.Host.UseWolverine(opts =>
 
 #endregion
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 builder.Services.AddWolverineHttp();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
 }
 
 #region sample_configuring_tenant_id_detection_for_todo_service

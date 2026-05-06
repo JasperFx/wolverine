@@ -1,10 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <ItemGroup>
-        <PackageReference Include="Swashbuckle.AspNetCore"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <ProjectReference Include="..\TeleHealth.Common\TeleHealth.Common.csproj"/>
     </ItemGroup>
 
