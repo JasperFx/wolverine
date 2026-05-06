@@ -1,16 +1,16 @@
-using Wolverine.Configuration;
-
 namespace Wolverine.ErrorHandling;
 
-internal class FaultPublishingPolicy : IWolverinePolicy
+internal sealed class FaultPublishingPolicy
 {
+    private readonly Dictionary<Type, FaultPublishingMode> _perTypeOverrides = new();
+
     public FaultPublishingMode GlobalMode { get; set; } = FaultPublishingMode.None;
-    public Dictionary<Type, FaultPublishingMode> PerTypeOverrides { get; } = new();
+
+    public void SetOverride(Type messageType, FaultPublishingMode mode)
+        => _perTypeOverrides[messageType] = mode;
 
     public FaultPublishingMode Resolve(Type messageType)
-    {
-        return PerTypeOverrides.TryGetValue(messageType, out var overrideMode)
+        => _perTypeOverrides.TryGetValue(messageType, out var overrideMode)
             ? overrideMode
             : GlobalMode;
-    }
 }

@@ -113,13 +113,16 @@ public class MessageTypePolicies<T>
     /// — auto-published fault events are best-effort and not transactionally co-committed with
     /// the dead-letter-queue move.
     /// </para>
+    /// <para>
+    /// <b>Scope.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool)"/> — fault events
+    /// are not emitted for send-side DLQ movements or unknown-message-type envelopes.
+    /// </para>
     /// </remarks>
     public MessageTypePolicies<T> PublishFault(bool includeDiscarded = false)
     {
-        var policy = _parent.FindOrCreateFaultPublishingPolicy();
-        policy.PerTypeOverrides[typeof(T)] = includeDiscarded
+        _parent.FaultPublishing.SetOverride(typeof(T), includeDiscarded
             ? FaultPublishingMode.DlqAndDiscard
-            : FaultPublishingMode.DlqOnly;
+            : FaultPublishingMode.DlqOnly);
         return this;
     }
 
@@ -129,8 +132,7 @@ public class MessageTypePolicies<T>
     /// </summary>
     public MessageTypePolicies<T> DoNotPublishFault()
     {
-        var policy = _parent.FindOrCreateFaultPublishingPolicy();
-        policy.PerTypeOverrides[typeof(T)] = FaultPublishingMode.None;
+        _parent.FaultPublishing.SetOverride(typeof(T), FaultPublishingMode.None);
         return this;
     }
 }

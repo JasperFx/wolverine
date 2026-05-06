@@ -23,7 +23,7 @@ using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
+public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRuntimeInternal, IHostedService
 {
     private readonly IServiceContainer _container;
     private readonly EndpointCollection _endpoints;
@@ -128,7 +128,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
     }
 
     private readonly Lazy<IFaultPublisher> _faultPublisher;
-    internal IFaultPublisher FaultPublisher => _faultPublisher.Value;
+    IFaultPublisher IWolverineRuntimeInternal.FaultPublisher => _faultPublisher.Value;
 
     public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 

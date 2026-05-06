@@ -5,6 +5,13 @@ namespace Wolverine;
 public sealed partial class WolverineOptions
 {
     /// <summary>
+    /// Internal policy holder for auto-publishing of <see cref="Fault{T}"/> events.
+    /// Configured via <see cref="PublishFaultEvents"/> and per-type overrides on
+    /// <see cref="MessageTypePolicies{T}"/>.
+    /// </summary>
+    internal FaultPublishingPolicy FaultPublishing { get; } = new();
+
+    /// <summary>
     /// Globally enable auto-publishing of <see cref="Fault{T}"/> events whenever
     /// a handler permanently fails for a message that has been moved to the
     /// dead-letter queue. Per-message-type opt-out is available via
@@ -19,23 +26,20 @@ public sealed partial class WolverineOptions
     /// where the fault event is itself critical, treat the DLQ as the source of truth and
     /// reconcile from there.
     /// </para>
+    /// <para>
+    /// <b>Scope.</b> Fault events are emitted only on the receiving end, when a handler permanently
+    /// fails and the envelope is moved to the dead-letter queue (or discarded, with
+    /// <c>includeDiscarded: true</c>). Two paths bypass this and never produce a fault event:
+    /// send-side dead-letter movements (when an outgoing envelope can't be delivered after retries),
+    /// and envelopes whose message-type name doesn't resolve to a known handler — there is no
+    /// <c>T</c> to construct a <see cref="Fault{T}"/> for in that case.
+    /// </para>
     /// </remarks>
     public WolverineOptions PublishFaultEvents(bool includeDiscarded = false)
     {
-        var policy = FindOrCreateFaultPublishingPolicy();
-        policy.GlobalMode = includeDiscarded
+        FaultPublishing.GlobalMode = includeDiscarded
             ? FaultPublishingMode.DlqAndDiscard
             : FaultPublishingMode.DlqOnly;
         return this;
-    }
-
-    internal FaultPublishingPolicy FindOrCreateFaultPublishingPolicy()
-    {
-        var existing = RegisteredPolicies.OfType<FaultPublishingPolicy>().FirstOrDefault();
-        if (existing != null) return existing;
-
-        var policy = new FaultPublishingPolicy();
-        RegisteredPolicies.Add(policy);
-        return policy;
     }
 }

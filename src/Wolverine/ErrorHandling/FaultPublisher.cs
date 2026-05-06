@@ -9,13 +9,19 @@ namespace Wolverine.ErrorHandling;
 internal sealed class FaultPublisher : IFaultPublisher
 {
     private readonly FaultPublishingPolicy _policy;
+    private readonly IWolverineRuntime _runtime;
     private readonly ILogger<FaultPublisher> _logger;
     private readonly Counter<long> _publishFailedCounter;
     private readonly ConcurrentDictionary<Type, Func<object, ExceptionInfo, Envelope, object>> _factories = new();
 
-    public FaultPublisher(FaultPublishingPolicy policy, ILogger<FaultPublisher> logger, Meter meter)
+    public FaultPublisher(
+        FaultPublishingPolicy policy,
+        IWolverineRuntime runtime,
+        ILogger<FaultPublisher> logger,
+        Meter meter)
     {
         _policy = policy ?? throw new ArgumentNullException(nameof(policy));
+        _runtime = runtime ?? throw new ArgumentNullException(nameof(runtime));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         if (meter is null) throw new ArgumentNullException(nameof(meter));
 
@@ -59,6 +65,17 @@ internal sealed class FaultPublisher : IFaultPublisher
 
             var options = new DeliveryOptions();
             options.Headers[FaultHeaders.AutoPublished] = "true";
+
+            var router = _runtime.RoutingFor(faultMessage.GetType());
+            var outgoing = router.RouteForPublish(faultMessage, options);
+            if (outgoing.Length == 0)
+            {
+                _logger.LogDebug(
+                    "No routes configured for auto-published Fault<{MessageType}>; envelope {EnvelopeId} skipped",
+                    messageType.FullName, original.Id);
+                activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultNoRoute));
+                return;
+            }
 
             await lifecycle.PublishAsync(faultMessage, options);
 

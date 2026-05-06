@@ -103,6 +103,11 @@ public interface IExecutorFactory
     IExecutor BuildFor(Type messageType, Endpoint endpoint);
 }
 
+internal interface IWolverineRuntimeInternal : IWolverineRuntime
+{
+    IFaultPublisher FaultPublisher { get; }
+}
+
 // This was for testing
 internal static class WolverineRuntimeExtensions
 {
@@ -131,7 +136,7 @@ internal static class WolverineRuntimeExtensions
         Exception exception,
         FaultTrigger trigger,
         System.Diagnostics.Activity? activity)
-        => runtime is WolverineRuntime concrete
-            ? concrete.FaultPublisher.PublishIfEnabledAsync(lifecycle, exception, trigger, activity)
+        => runtime is IWolverineRuntimeInternal wri
+            ? wri.FaultPublisher.PublishIfEnabledAsync(lifecycle, exception, trigger, activity)
             : ValueTask.CompletedTask;
 }

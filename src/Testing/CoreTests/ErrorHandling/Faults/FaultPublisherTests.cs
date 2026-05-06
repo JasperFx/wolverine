@@ -15,14 +15,24 @@ public class FaultPublisherTests
 
     private record struct ValueMessage(int N);
 
-    private static (FaultPublisher publisher, FaultPublishingPolicy policy, IEnvelopeLifecycle lifecycle)
+    private static (FaultPublisher publisher, FaultPublishingPolicy policy, IEnvelopeLifecycle lifecycle, IWolverineRuntime runtime)
         CreatePublisher()
     {
         var policy = new FaultPublishingPolicy();
         var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+
+        // Default: routing returns one envelope so the existing tests keep their behavior.
+        // The new no-route test overrides this on its own substitute.
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(new[] { new Envelope() });
+
         var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
-        var publisher = new FaultPublisher(policy, NullLogger<FaultPublisher>.Instance, meter);
-        return (publisher, policy, lifecycle);
+        var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
+        return (publisher, policy, lifecycle, runtime);
     }
 
     private static Envelope EnvelopeFor(object message)
@@ -44,7 +54,7 @@ public class FaultPublisherTests
     [Fact]
     public async Task no_op_when_mode_is_none()
     {
-        var (publisher, _, lifecycle) = CreatePublisher();
+        var (publisher, _, lifecycle, _) = CreatePublisher();
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
@@ -55,8 +65,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task publishes_fault_with_auto_header_when_dlq_only_and_trigger_is_dlq()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         await publisher.PublishIfEnabledAsync(lifecycle, new InvalidOperationException("boom"),
@@ -70,8 +80,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task no_op_on_discard_when_dlq_only()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.Discarded, activity: null);
@@ -82,8 +92,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task publishes_on_discard_when_dlq_and_discard()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqAndDiscard;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqAndDiscard);
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception("oops"), FaultTrigger.Discarded, activity: null);
@@ -97,11 +107,19 @@ public class FaultPublisherTests
     public async Task publish_failure_is_swallowed_and_does_not_throw()
     {
         var policy = new FaultPublishingPolicy();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         var logger = Substitute.For<ILogger<FaultPublisher>>();
         var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
-        var publisher = new FaultPublisher(policy, logger, meter);
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(new[] { new Envelope() });
+
+        var publisher = new FaultPublisher(policy, runtime, logger, meter);
 
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
         lifecycle
@@ -121,7 +139,7 @@ public class FaultPublisherTests
     [Fact]
     public async Task no_op_when_envelope_message_is_null()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
         policy.GlobalMode = FaultPublishingMode.DlqOnly;
         var env = EnvelopeFor(new Foo("a"));
         env.Message = null;
@@ -135,8 +153,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task fault_carries_envelope_metadata()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         var env = EnvelopeFor(new Foo("a"));
         lifecycle.Envelope.Returns(env);
 
@@ -159,7 +177,7 @@ public class FaultPublisherTests
     [Fact]
     public async Task no_op_when_message_type_is_value_type()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
         policy.GlobalMode = FaultPublishingMode.DlqOnly;
 
         var env = new Envelope
@@ -178,8 +196,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task fault_preserves_headers_with_null_values()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         var env = new Envelope
         {
             Message = new Foo("a"),
@@ -206,7 +224,7 @@ public class FaultPublisherTests
     [Fact]
     public async Task no_op_when_message_is_already_a_fault()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
         policy.GlobalMode = FaultPublishingMode.DlqOnly;
 
         var faultMessage = new Fault<Foo>(
@@ -239,8 +257,8 @@ public class FaultPublisherTests
     [Fact]
     public async Task records_fault_published_event_on_activity_on_success()
     {
-        var (publisher, policy, lifecycle) = CreatePublisher();
-        policy.PerTypeOverrides[typeof(Foo)] = FaultPublishingMode.DlqOnly;
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
 
         using var activitySource = new ActivitySource("test-source");
@@ -264,7 +282,15 @@ public class FaultPublisherTests
         var policy = new FaultPublishingPolicy { GlobalMode = FaultPublishingMode.DlqOnly };
         var lifecycle = Substitute.For<IEnvelopeLifecycle>();
         var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
-        var publisher = new FaultPublisher(policy, NullLogger<FaultPublisher>.Instance, meter);
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(new[] { new Envelope() });
+
+        var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
 
         lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
         lifecycle
@@ -284,5 +310,39 @@ public class FaultPublisherTests
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
 
         activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultPublishFailed);
+    }
+
+    [Fact]
+    public async Task records_fault_no_route_event_when_no_routes_configured()
+    {
+        var (publisher, policy, lifecycle, runtime) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+
+        // Override the default routing substitute: no routes configured for Fault<Foo>.
+        var emptyRouter = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        emptyRouter
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(Array.Empty<Envelope>());
+        runtime.RoutingFor(typeof(Fault<Foo>)).Returns(emptyRouter);
+
+        using var activitySource = new ActivitySource("test-source");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var activity = activitySource.StartActivity("test")!;
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
+
+        activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultNoRoute);
+        activity.Events.ShouldNotContain(e => e.Name == WolverineTracing.FaultPublished);
+
+        // The lifecycle's PublishAsync must NOT be called when no routes exist —
+        // the pre-check short-circuits before delegating to MessageBus.
+        await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
 }

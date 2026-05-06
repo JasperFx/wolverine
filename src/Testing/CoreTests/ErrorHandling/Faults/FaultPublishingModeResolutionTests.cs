@@ -8,14 +8,12 @@ public class FaultPublishingModeResolutionTests
     private record Foo;
     private record Bar;
 
-    private static FaultPublishingPolicy GetPolicy(WolverineOptions opts) =>
-        opts.RegisteredPolicies.OfType<FaultPublishingPolicy>().Single();
+    private static FaultPublishingPolicy GetPolicy(WolverineOptions opts) => opts.FaultPublishing;
 
     [Fact]
     public void global_off_no_override_resolves_none()
     {
         var opts = new WolverineOptions();
-        opts.RegisteredPolicies.Add(new FaultPublishingPolicy());
 
         GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.None);
     }

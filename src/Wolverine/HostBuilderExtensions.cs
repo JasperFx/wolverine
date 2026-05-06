@@ -187,7 +187,8 @@ public static class HostBuilderExtensions
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
             return new FaultPublisher(
-                wolverineOptions.FindOrCreateFaultPublishingPolicy(),
+                wolverineOptions.FaultPublishing,
+                runtime,
                 loggerFactory.CreateLogger<FaultPublisher>(),
                 runtime.Meter);
         });

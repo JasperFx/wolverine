@@ -49,6 +49,13 @@ internal static class WolverineTracing
     public const string FaultPublishFailed = "wolverine.fault.publish_failed";
 
     /// <summary>
+    /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; was skipped because
+    /// no routes are configured for the fault message type. Operator must wire either
+    /// a remote subscriber (PublishMessage&lt;Fault&lt;T&gt;&gt;().To(...)) or a local handler.
+    /// </summary>
+    public const string FaultNoRoute = "wolverine.fault.no_route";
+
+    /// <summary>
     /// ActivityEvent marking when an incoming envelope does not have a known message
     /// handler and is being shunted to registered "NoHandler" actions
     /// </summary>
