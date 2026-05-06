@@ -310,6 +310,7 @@ public class FaultPublisherTests
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
 
         activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultPublishFailed);
+        activity.Status.ShouldBe(ActivityStatusCode.Error);
     }
 
     [Fact]
@@ -363,14 +364,14 @@ public class FaultPublisherTests
             .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
             .Returns(new[] { new Envelope() });
 
-        long observed = 0;
+        int observed = 0;
         using var listener = new System.Diagnostics.Metrics.MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
             if (instrument.Meter == meter && instrument.Name == MetricsConstants.FaultsPublishFailed)
                 l.EnableMeasurementEvents(instrument);
         };
-        listener.SetMeasurementEventCallback<long>((_, m, _, _) => Interlocked.Add(ref observed, m));
+        listener.SetMeasurementEventCallback<int>((_, m, _, _) => Interlocked.Add(ref observed, m));
         listener.Start();
 
         var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
@@ -382,6 +383,42 @@ public class FaultPublisherTests
 
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity: null);
 
-        observed.ShouldBe(1L);
+        observed.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task records_fault_recursion_suppressed_event_when_publishing_fault_of_fault()
+    {
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.GlobalMode = FaultPublishingMode.DlqOnly;
+
+        // Inbound envelope's message is itself a Fault<Foo> — the recursion guard must fire.
+        var faultMessage = new Fault<Foo>(
+            Message: new Foo("inner"),
+            Exception: ExceptionInfo.From(new Exception("prior")),
+            Attempts: 1,
+            FailedAt: DateTimeOffset.UtcNow,
+            CorrelationId: null,
+            ConversationId: Guid.Empty,
+            TenantId: null,
+            Source: null,
+            Headers: new Dictionary<string, string?>());
+        var env = new Envelope { Message = faultMessage, Id = Guid.NewGuid() };
+        lifecycle.Envelope.Returns(env);
+
+        using var activitySource = new ActivitySource("test-source");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var activity = activitySource.StartActivity("test")!;
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
+
+        activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultRecursionSuppressed);
+        await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
 }

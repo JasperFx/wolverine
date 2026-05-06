@@ -46,7 +46,7 @@ internal static class WolverineTracing
     /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; failed —
     /// the underlying error is logged and metered, never thrown.
     /// </summary>
-    public const string FaultPublishFailed = "wolverine.fault.publish_failed";
+    public const string FaultPublishFailed = "wolverine.fault.publish.failed";
 
     /// <summary>
     /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; was skipped because
@@ -54,6 +54,13 @@ internal static class WolverineTracing
     /// a remote subscriber (PublishMessage&lt;Fault&lt;T&gt;&gt;().To(...)) or a local handler.
     /// </summary>
     public const string FaultNoRoute = "wolverine.fault.no_route";
+
+    /// <summary>
+    /// ActivityEvent marking that auto-publishing was suppressed because the message being
+    /// processed is itself a Fault&lt;T&gt; — Wolverine never publishes Fault&lt;Fault&lt;T&gt;&gt;.
+    /// Almost always indicates a misconfigured recursive handler.
+    /// </summary>
+    public const string FaultRecursionSuppressed = "wolverine.fault.recursion_suppressed";
 
     /// <summary>
     /// ActivityEvent marking when an incoming envelope does not have a known message

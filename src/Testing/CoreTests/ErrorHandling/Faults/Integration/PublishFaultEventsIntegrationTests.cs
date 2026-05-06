@@ -279,4 +279,28 @@ public class PublishFaultEventsIntegrationTests
         }
         finally { await host.StopAsync(); }
     }
+
+    [Fact]
+    public async Task fault_envelope_carries_original_correlation_headers()
+    {
+        var (host, _) = await StartHostAsync(opts => opts.PublishFaultEvents());
+        try
+        {
+            var session = await host.TrackActivity()
+                .DoNotAssertOnExceptionsDetected()
+                .PublishMessageAndWaitAsync(new OrderPlaced("o-corr-1"));
+
+            var faultEnvelope = session.AutoFaultsPublished
+                .Envelopes()
+                .Single(e => e.Message is Fault<OrderPlaced>);
+
+            // wolverine.fault.original_id is the Guid string of the original envelope.
+            // We don't know that Guid up front, so just assert it's a parseable Guid.
+            Guid.TryParse(faultEnvelope.Headers[FaultHeaders.OriginalId], out _).ShouldBeTrue();
+
+            faultEnvelope.Headers[FaultHeaders.OriginalType]
+                .ShouldBe(typeof(OrderPlaced).ToMessageTypeName());
+        }
+        finally { await host.StopAsync(); }
+    }
 }

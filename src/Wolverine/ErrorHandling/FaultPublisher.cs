@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Util;
 
 namespace Wolverine.ErrorHandling;
 
@@ -11,7 +12,7 @@ internal sealed class FaultPublisher : IFaultPublisher
     private readonly FaultPublishingPolicy _policy;
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger<FaultPublisher> _logger;
-    private readonly Counter<long> _publishFailedCounter;
+    private readonly Counter<int> _publishFailedCounter;
     private readonly ConcurrentDictionary<Type, Func<object, ExceptionInfo, Envelope, object>> _factories = new();
 
     public FaultPublisher(
@@ -25,7 +26,7 @@ internal sealed class FaultPublisher : IFaultPublisher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         if (meter is null) throw new ArgumentNullException(nameof(meter));
 
-        _publishFailedCounter = meter.CreateCounter<long>(
+        _publishFailedCounter = meter.CreateCounter<int>(
             MetricsConstants.FaultsPublishFailed,
             unit: MetricsConstants.Messages,
             description: "Number of auto-Fault<T> publishes that failed (logged and swallowed).");
@@ -46,6 +47,10 @@ internal sealed class FaultPublisher : IFaultPublisher
         // subscriber falls through to the standard failure pipeline instead.
         if (messageType.IsGenericType && messageType.GetGenericTypeDefinition() == typeof(Fault<>))
         {
+            _logger.LogDebug(
+                "Suppressed auto-publish of Fault<{MessageType}> — message is itself a Fault<T> (recursion guard); envelope {EnvelopeId}",
+                messageType.FullName, original.Id);
+            activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultRecursionSuppressed));
             return;
         }
 
@@ -65,6 +70,8 @@ internal sealed class FaultPublisher : IFaultPublisher
 
             var options = new DeliveryOptions();
             options.Headers[FaultHeaders.AutoPublished] = "true";
+            options.Headers[FaultHeaders.OriginalId] = original.Id.ToString();
+            options.Headers[FaultHeaders.OriginalType] = messageType.ToMessageTypeName();
 
             var router = _runtime.RoutingFor(faultMessage.GetType());
             var outgoing = router.RouteForPublish(faultMessage, options);
@@ -91,6 +98,7 @@ internal sealed class FaultPublisher : IFaultPublisher
                 new KeyValuePair<string, object?>(MetricsConstants.MessageTypeKey, messageType.FullName ?? messageType.Name),
                 new KeyValuePair<string, object?>(MetricsConstants.ExceptionType, ex.GetType().FullName ?? ex.GetType().Name));
 
+            activity?.SetStatus(ActivityStatusCode.Error, ex.GetType().Name);
             activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultPublishFailed));
         }
     }
