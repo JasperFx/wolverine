@@ -133,6 +133,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Message Encryption', link: '/guide/runtime/encryption'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
+                        {text: 'Health Checks', link: '/guide/health-checks'},
                         {text: 'Serverless Hosting', link: '/guide/serverless'},          
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
