@@ -349,6 +349,14 @@ using var host = await Host.CreateDefaultBuilder()
 
 This creates RabbitMQ queues named `sequenced1` through `sequenced5` with companion local queues `global-sequenced1` through `global-sequenced5`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
+## Broker health monitoring
+
+The RabbitMQ transport implements [`IBrokerHealthProbe`](../broker-health-probes.md),
+so monitoring layers (such as CritterWatch) can render a non-destructive,
+point-in-time view of the broker connection -- including reconnect counts and
+TLS certificate expiry. See [Broker Health Probes](../broker-health-probes.md)
+for details on the contract and discovery pattern.
+
 ## Compatibility Note
 
 ::: info

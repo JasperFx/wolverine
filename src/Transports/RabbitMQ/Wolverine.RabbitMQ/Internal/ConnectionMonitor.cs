@@ -36,6 +36,9 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     {
         _connection = await _transport.CreateConnectionAsync();
         IsConnected = true;
+        // Initial connection -- record the timestamp but don't bump the
+        // reconnect counter (that's reserved for genuine recoveries).
+        _transport.RecordInitialConnection();
 
         _connection.ConnectionShutdownAsync += connectionOnConnectionShutdownAsync;
         _connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
@@ -98,6 +101,7 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     private async Task connectionOnRecoverySucceededAsync(object sender, AsyncEventArgs @event)
     {
         IsConnected = true;
+        _transport.RecordReconnection();
 
         foreach (var agent in _agents)
         {
@@ -134,6 +138,11 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     private Task connectionOnConnectionShutdownAsync(object? sender, ShutdownEventArgs e)
     {
         IsConnected = false;
+
+        // Capture the close reason for health snapshots (host-initiated shutdowns
+        // included — they're informative if the probe is called mid-shutdown).
+        _transport.RecordShutdown(e);
+
         if (e.Initiator == ShutdownInitiator.Application) return Task.CompletedTask;
 
         if (e.Exception != null)
@@ -142,6 +151,12 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         }
         return Task.CompletedTask;
     }
+
+    /// <summary>
+    /// Exposes the underlying RabbitMQ connection for diagnostics and probes.
+    /// May be null before <see cref="ConnectAsync"/> has run or after disposal.
+    /// </summary>
+    internal IConnection? Connection => _connection;
 
     public void Remove(RabbitMqChannelAgent agent)
     {
