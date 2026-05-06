@@ -296,5 +296,7 @@
     <Build Project="false" />
   </Project>
   <Project Path="src/Wolverine/Wolverine.csproj" />
+  <Project Path="src/Wolverine.HealthChecks/Wolverine.HealthChecks.csproj" />
+  <Project Path="src/Wolverine.HealthChecks.Tests/Wolverine.HealthChecks.Tests.csproj" />
   <Project Path="src/Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
 </Solution>
