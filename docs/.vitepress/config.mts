@@ -131,6 +131,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Configuration', link: '/guide/configuration'},
                         {text: 'Runtime Architecture', link: '/guide/runtime'},
                         {text: 'Message Encryption', link: '/guide/runtime/encryption'},
+                        {text: 'Heartbeats', link: '/guide/runtime/heartbeats'},
                         {text: 'Instrumentation and Metrics', link: '/guide/logging'},
                         {text: 'Diagnostics', link: '/guide/diagnostics'},
                         {text: 'Serverless Hosting', link: '/guide/serverless'},          

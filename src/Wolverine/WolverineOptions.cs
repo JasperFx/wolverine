@@ -350,6 +350,15 @@ public sealed partial class WolverineOptions
     public DurabilitySettings Durability { get; }
 
     /// <summary>
+    ///     Configuration for the periodic <see cref="Wolverine.Runtime.Heartbeat.WolverineHeartbeat"/>
+    ///     emission used by external monitoring tools to detect node liveness. The hosted service
+    ///     that emits heartbeats is registered through
+    ///     <see cref="WolverineOptionsExtensions.EnableHeartbeats"/>.
+    /// </summary>
+    [ChildDescription]
+    public HeartbeatPolicy Heartbeat { get; } = new();
+
+    /// <summary>
     ///     The default message execution timeout for local queues. This uses a CancellationTokenSource
     ///     behind the scenes, and the timeout enforcement is dependent on the usage within handlers
     /// </summary>
