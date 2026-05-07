@@ -594,6 +594,67 @@ public const string StreamType = "wolverine.stream.type";
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />
+
+The default span surface above covers cluster-level events (listener pause, retries, scheduled redelivery, etc.). Wolverine ships a separate, **opt-in** layer of structured diagnostics aimed at handler-execution timing — useful when you're tuning latency, looking for queue dwell, or debugging `await`-graph interleaving inside the handler. Each flag lives on `WolverineOptions.Tracking` and **defaults to `false`**, so apps that don't ask for the surface pay nothing for it.
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // wolverine.handler.started / wolverine.handler.finished ActivityEvents
+    // around the user handler body, plus per-envelope timing tags.
+    opts.Tracking.HandlerExecutionDiagnosticsEnabled = true;
+
+    // wolverine.deserialize span around inbound envelope deserialization,
+    // tagged with messaging.message_payload_size_bytes.
+    opts.Tracking.DeserializationSpanEnabled = true;
+
+    // wolverine.outbox.flushing / wolverine.outbox.published ActivityEvents
+    // around the FlushOutgoingMessages call in the generated handler chain.
+    opts.Tracking.OutboxDiagnosticsEnabled = true;
+});
+```
+
+Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. The legacy `WolverineOptions.EnableMessageCausationTracking` property is preserved as an `[Obsolete]` shim that delegates to `Tracking.EnableMessageCausationTracking`.
+
+### `HandlerExecutionDiagnosticsEnabled`
+
+When set, two ActivityEvents and two activity tags are emitted around each handler invocation:
+
+| Name | Kind | Meaning |
+|---|---|---|
+| `wolverine.handler.started` | ActivityEvent | Emitted immediately before the user handler body runs, after every middleware frame has completed. Lets you measure middleware overhead independently. |
+| `wolverine.handler.finished` | ActivityEvent | Emitted immediately after the user handler body returns successfully. |
+| `wolverine.envelope.transport_lag_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.SentAt` — the elapsed time from when the producer stamped the envelope's send timestamp to when the consumer's handler activity started. Skipped for negative values (clock drift). |
+| `wolverine.envelope.receive_dwell_ms` | tag (double, milliseconds) | `activity.StartTimeUtc - envelope.ReceivedAt` — the elapsed time from when the listener stamped the envelope as received (`Envelope.MarkReceived`) to when the handler activity started. Useful for spotting in-process worker-queue backpressure separately from upstream transport latency. Absent for envelopes that didn't traverse a receiver (inline `IMessageBus.InvokeAsync` calls). |
+
+The two ActivityEvents are emitted by the JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface, so they wrap exactly the user handler `MethodCall` — middleware frames before the handler body stay unmarked. The two timing tags are stamped by an `ApplyExecutionDiagnosticTagsFrame` that's prepended to the generated chain when the flag is set, so all the tag computation happens inline in the generated handler with no runtime branching in `Executor` or `HandlerPipeline`.
+
+### `DeserializationSpanEnabled`
+
+When set, Wolverine starts a `wolverine.deserialize` span (kind = `Internal`) around the inbound envelope deserialization that runs before the handler chain executes. The span carries:
+
+| Tag | Meaning |
+|---|---|
+| `messaging.message_payload_size_bytes` | The size of the raw envelope `Data` array in bytes. |
+
+The span's status is set to `Error` (with the exception type name as description) when deserialization throws — useful for separating "transport delivered me garbage" from "my handler blew up" in trace dashboards. The span only starts when the flag is on, so apps that don't enable it see no extra spans.
+
+### `OutboxDiagnosticsEnabled`
+
+When set, Wolverine emits two ActivityEvents around the post-handler call to `IMessageContext.FlushOutgoingMessagesAsync` in the generated handler chain:
+
+| Name | Meaning |
+|---|---|
+| `wolverine.outbox.flushing` | Emitted immediately before the outbox flush call. |
+| `wolverine.outbox.published` | Emitted immediately after the outbox flush call returns successfully. |
+
+This is provider-agnostic — it fires regardless of which transactional middleware (Marten, EF Core, RDBMS, Polecat, etc.) added the `FlushOutgoingMessages` postprocessor frame. The annotation is emitted via the same JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface as the handler events, so when the flag is off the generated outbox-flush call has no extra emission.
+
+### `Envelope.ReceivedAt`
+
+The `wolverine.envelope.receive_dwell_ms` tag depends on a new `Envelope.ReceivedAt` property that's stamped by `Envelope.MarkReceived` — the single point all receivers (`BufferedReceiver`, `DurableReceiver`, etc.) call when a message is handed off from a listener to the worker pipeline. The property is `[JsonIgnore]` and only set by Wolverine itself; it stays `null` for envelopes that didn't traverse a receiver (inline `InvokeAsync` calls).
+
 ## Handler Type Tagging
 
 Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.
