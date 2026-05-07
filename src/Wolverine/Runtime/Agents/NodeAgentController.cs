@@ -70,6 +70,15 @@ public partial class NodeAgentController
         {
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
             _agentFamilies[LeaderPinnedListenerFamily.SchemeName] = new LeaderPinnedListenerFamily(runtime);
+
+            // GH-2685: durable, dynamically-registered listener URIs (e.g. per-IoT-device
+            // MQTT topics). Opt-in via Durability.EnableDynamicListeners — when off, the
+            // family isn't instantiated and the listener-registry table is never queried.
+            if (runtime.Options.Durability.EnableDynamicListeners)
+            {
+                _agentFamilies[DynamicListenerUriEncoding.SchemeName] =
+                    new DynamicListenerAgentFamily(runtime);
+            }
         }
 
         if (runtime.Options.Durability.DurabilityAgentEnabled)
