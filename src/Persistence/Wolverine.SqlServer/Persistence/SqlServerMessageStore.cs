@@ -547,6 +547,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             eventTable.AddColumn("description", "varchar(500)").AllowNulls();
             yield return eventTable;
 
+            // Dynamic listener registry (GH-2685). Provisioned only when the opt-in
+            // flag is set so existing apps see no migration churn.
+            if (Durability.EnableDynamicListeners)
+            {
+                var listenerTable =
+                    new Table(new DbObjectName(SchemaName, DatabaseConstants.ListenersTableName));
+                listenerTable.AddColumn<string>("uri").AsPrimaryKey();
+                yield return listenerTable;
+            }
         }
         
         foreach (var entry in _sagaStorage.Enumerate())

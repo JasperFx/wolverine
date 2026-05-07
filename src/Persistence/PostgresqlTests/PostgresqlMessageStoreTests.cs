@@ -33,6 +33,11 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
                 }).IntegrateWithWolverine();
 
                 opts.ListenAtPort(2345).UseDurableInbox();
+
+                // Exercise the real RdbmsListenerStore impl in the IListenerStore
+                // compliance tests (GH-2685). When this flag is off the suite falls
+                // back to the NullListenerStore short-circuit in MessageStoreCompliance.
+                opts.Durability.EnableDynamicListeners = true;
             }).StartAsync();
 
         var store = host.Get<IDocumentStore>();

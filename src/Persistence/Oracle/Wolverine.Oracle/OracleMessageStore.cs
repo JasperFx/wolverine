@@ -79,6 +79,14 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         if (Role == MessageStoreRole.Main)
         {
             _nodes = new OracleNodePersistence(_settings, this, _dataSource);
+
+            // Dynamic-listener registry (GH-2685). Only the Main store hosts the
+            // registry; gated on the opt-in flag so existing apps see no schema
+            // migration churn on upgrade.
+            if (durability.EnableDynamicListeners)
+            {
+                Listeners = new OracleListenerStore(_dataSource, _schemaName);
+            }
         }
 
         var descriptor = Describe();
@@ -293,6 +301,16 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             restrictionTable.AddColumn("type", "VARCHAR2(4000)").NotNull();
             restrictionTable.AddColumn<int>("node").NotNull().DefaultValue(0);
             yield return restrictionTable;
+
+            // Dynamic listener registry (GH-2685). Provisioned only when the opt-in
+            // flag is set so existing apps see no migration churn. Oracle uses
+            // VARCHAR2(500) for uri to match the node-table convention.
+            if (_durability.EnableDynamicListeners)
+            {
+                var listenerTable = new Table(new OracleObjectName(SchemaName, DatabaseConstants.ListenersTableName.ToUpperInvariant()));
+                listenerTable.AddColumn("uri", "VARCHAR2(500)").AsPrimaryKey();
+                yield return listenerTable;
+            }
         }
 
         foreach (var table in _otherTables)
