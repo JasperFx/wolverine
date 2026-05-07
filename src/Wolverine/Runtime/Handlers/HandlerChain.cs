@@ -616,6 +616,15 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             }
         }
 
+        // Cause-and-effect tracking lives between the handler return-value frames
+        // (which enqueue cascading messages onto the message context) and the
+        // postprocessor frames (which include FlushOutgoingMessages). Codegen-only
+        // gating: when the flag is off the frame isn't emitted into the chain and
+        // no runtime check is performed in the framework Executor / HandlerPipeline.
+        IEnumerable<Frame> causation = options?.Tracking.EnableMessageCausationTracking == true
+            ? new Frame[] { new RecordMessageCausationFrame() }
+            : Array.Empty<Frame>();
+
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
         return preamble
@@ -623,6 +632,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             .Concat(container.TryCreateConstructorFrames(Handlers))
             .Concat(Handlers)
             .Concat(handlerReturnValueFrames)
+            .Concat(causation)
             .Concat(Postprocessors)
             .ToList();
     }
