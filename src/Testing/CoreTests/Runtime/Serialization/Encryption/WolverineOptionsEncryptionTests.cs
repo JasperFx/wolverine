@@ -185,6 +185,43 @@ public class WolverineOptionsEncryptionTests
     }
 
     [Fact]
+    public async Task fault_envelope_to_listener_with_RequireEncryption_is_DLQd_when_unencrypted()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseEncryption(new InMemoryKeyProvider(
+                    "k1", new Dictionary<string, byte[]>
+                    {
+                        ["k1"] = Enumerable.Repeat((byte)0x42, 32).ToArray()
+                    }));
+                opts.LocalQueue("fault-encryption-required").RequireEncryption();
+            })
+            .StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var endpoint = (LocalQueue?)runtime.Endpoints.EndpointByName("fault-encryption-required")
+            ?? throw new InvalidOperationException("fault-encryption-required not found");
+
+        // Plaintext Fault<EncryptedTypeA> envelope arriving at a RequireEncryption()
+        // listener — the listener-level guard rejects regardless of message type,
+        // so Fault<T> gets the same treatment as any other unencrypted envelope.
+        var envelope = new Envelope
+        {
+            Destination = null,
+            ContentType = "application/json",
+            MessageType = typeof(Fault<EncryptedTypeA>).ToMessageTypeName(),
+            Data        = System.Text.Encoding.UTF8.GetBytes("""{"Message":{"Value":"forged"}}"""),
+        };
+
+        var receiver = (BufferedReceiver)endpoint.Agent!;
+        var continuation = await receiver.Pipeline.TryDeserializeEnvelope(envelope);
+
+        var moveToErrorQueue = continuation.ShouldBeOfType<MoveToErrorQueue>();
+        moveToErrorQueue.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
+    }
+
+    [Fact]
     public async Task RequireEncryption_on_listener_registers_listener_uri()
     {
         using var host = await Host.CreateDefaultBuilder()
