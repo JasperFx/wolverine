@@ -108,10 +108,6 @@ internal class Executor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
-        // No runtime gate for HandlerExecutionDiagnosticsEnabled here — when the flag
-        // is on, codegen prepends an ApplyExecutionDiagnosticTagsFrame to the generated
-        // chain that stamps the timing tags on Activity.Current inline; when the flag
-        // is off, that frame isn't emitted and we pay nothing. See GH-2694.
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
@@ -124,12 +120,6 @@ internal class Executor : IExecutor
             while (await InvokeAsync(context, cancellation).ConfigureAwait(false) == InvokeResult.TryAgain)
             {
                 envelope.Attempts++;
-            }
-
-            // Record message causation before flushing outgoing messages
-            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
-            {
-                Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
 
             await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
@@ -212,12 +202,6 @@ internal class Executor : IExecutor
         try
         {
             await Handler.HandleAsync(context, combined.Token).ConfigureAwait(false);
-
-            // Record message causation after handler execution
-            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
-            {
-                Handler.RecordCauseAndEffect(context, _runtime.Observer);
-            }
 
             if (context.Envelope!.ReplyRequested.IsNotEmpty())
             {
@@ -323,8 +307,6 @@ internal class Executor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartStreaming(envelope) : null;
 
-        // See InvokeInlineAsync above — diagnostic tag stamping lives in the codegen
-        // ApplyExecutionDiagnosticTagsFrame, not here. GH-2694.
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
@@ -336,11 +318,6 @@ internal class Executor : IExecutor
         try
         {
             await InvokeAsync(context, cancellation).ConfigureAwait(false);
-
-            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
-            {
-                Handler.RecordCauseAndEffect(context, _runtime.Observer);
-            }
 
             await context.FlushOutgoingMessagesAsync().ConfigureAwait(false);
             stream = envelope.Response as IAsyncEnumerable<T>;

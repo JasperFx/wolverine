@@ -54,11 +54,15 @@ public abstract class MessageHandler : IMessageHandler
     /// Records cause-and-effect relationships between the incoming message type
     /// and any outgoing messages produced during handling. Latched: each unique
     /// (incoming, outgoing) pair is only reported once to the observer.
+    ///
+    /// Gating is owned by codegen: <c>RecordMessageCausationFrame</c> is the only
+    /// caller in production hot paths and is emitted into the generated handler
+    /// only when <c>WolverineOptions.Tracking.EnableMessageCausationTracking</c>
+    /// is set at codegen time. No runtime <c>if/then</c> guard here — when the
+    /// flag is off, this method is never called from generated handlers.
     /// </summary>
     public void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer)
     {
-        if (!context.Runtime.Options.Tracking.EnableMessageCausationTracking) return;
-
         // Skip the entire causation report when the incoming message itself is a
         // framework-internal type (IAgentCommand, INotToBeRouted, IInternalMessage, etc.).
         // See GH-2520.

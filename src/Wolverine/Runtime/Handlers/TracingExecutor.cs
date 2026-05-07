@@ -83,9 +83,6 @@ internal class TracingExecutor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
-        // No runtime check for HandlerExecutionDiagnosticsEnabled — see GH-2694.
-        // Diagnostic tag stamping is baked into the generated handler chain via
-        // ApplyExecutionDiagnosticTagsFrame when the flag is set at codegen time.
         _tracker.ExecutionStarted(envelope);
         _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
 
