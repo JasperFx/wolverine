@@ -23,6 +23,18 @@ public partial class NodeAgentController
             nodes = new List<WolverineNode> { WolverineNode.For(_runtime.Options) };
             nodes[0].AssignAgents([LeaderUri]);
         }
+        else if (nodes.All(x => x.NodeId != _runtime.Options.UniqueNodeId))
+        {
+            // GH-2682 defense in depth: if the caller hands us a non-empty
+            // node list that's missing the current node (e.g. a stale snapshot
+            // read filtered self out), inject self so the assignment grid
+            // doesn't omit the leader. The current node only owes the LeaderUri
+            // here when IsLeader is true on this tick — the heartbeat path
+            // upstream is responsible for actually calling AddAssignmentAsync.
+            var self = WolverineNode.For(_runtime.Options);
+            if (IsLeader) self.AssignAgents([LeaderUri]);
+            nodes = nodes.Concat(new[] { self }).ToList();
+        }
         
         var grid = new AssignmentGrid();
 

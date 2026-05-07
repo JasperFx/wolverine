@@ -39,12 +39,34 @@ public partial class NodeAgentController
         await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
-        
 
-        // Check for stale nodes that are no longer writing health checks
+
+        // Check for stale nodes that are no longer writing health checks. By
+        // definition we just wrote our own heartbeat above, so we must never
+        // consider ourselves stale on this tick — a stale snapshot read (read
+        // replica lag, snapshot isolation, GC pause between the write and the
+        // read, Oracle session-TZ round-trip, an aggressive StaleNodeTimeout)
+        // could otherwise fold us into staleNodes. That path crashes
+        // tryStartLeadershipAsync with NRE on `self!.AssignAgents([LeaderUri])`
+        // *after* IsLeader=true, the lock is held, AssumedLeadership has
+        // fired, and the assignment row is written — leaving the cluster in a
+        // half-elected state with no agent dispatch. See GH-2682.
+        var selfNodeId = _runtime.Options.UniqueNodeId;
         var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
-        var staleNodes = nodes.Where(x => x.LastHealthCheck < staleTime).ToArray();
+        var staleNodes = nodes
+            .Where(x => x.LastHealthCheck < staleTime && x.NodeId != selfNodeId)
+            .ToArray();
         nodes = nodes.Where(x => !staleNodes.Contains(x)).ToList();
+
+        // Defensive: if the snapshot didn't include our own row at all
+        // (read-after-write lag against the upsert above, brand-new node still
+        // propagating), inject self so downstream leader-election and
+        // assignment-evaluation code can find us. We rely on the next tick to
+        // pick up the persisted row with its full Capabilities / ActiveAgents.
+        if (nodes.All(x => x.NodeId != selfNodeId))
+        {
+            nodes = nodes.Concat(new[] { WolverineNode.For(_runtime.Options) }).ToList();
+        }
 
         // Do it no matter what
         await ejectStaleNodes(staleNodes);
