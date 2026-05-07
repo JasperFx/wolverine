@@ -462,7 +462,7 @@ public static class WolverineOptionsMartenExtensions
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
-            var relay = new PublishingRelay(subscriptionName);
+            var relay = new PublishingRelay(subscriptionName, opts.Events.TenancyStyle);
             configure?.Invoke(relay);
 
             var subscription = new WolverineSubscriptionRunner(relay, runtime);
