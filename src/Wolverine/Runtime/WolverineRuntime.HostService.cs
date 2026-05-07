@@ -282,9 +282,12 @@ public partial class WolverineRuntime
             {
                 await _stores.Value.DrainAsync();
             }
-            catch (TaskCanceledException)
+            catch (OperationCanceledException)
             {
-                // This can timeout, just swallow it here
+                // Best-effort drain. TaskCanceledException is the common shape, but
+                // some ADO.NET drivers (Npgsql, MySqlConnector) raise a plain
+                // OperationCanceledException when the host's shutdown timeout fires
+                // mid-command — catch the parent so we cover both.
             }
 
             try
@@ -296,6 +299,17 @@ public partial class WolverineRuntime
             catch (ObjectDisposedException)
             {
                 // This could happen if DisposeAsync() is called before StopAsync()
+            }
+            catch (OperationCanceledException)
+            {
+                // Best-effort cleanup — when the host's shutdown timeout fires (or the
+                // caller passes an already-cancelled token through Host.StopAsync),
+                // every persistence command picks up the cancellation and the SQL
+                // driver throws OperationCanceledException. Swallow it: any envelopes
+                // left as owner_id = node_id will be reclaimed by the durability
+                // agent's recovery polling on the next live node, so dropping the
+                // release here is functionally safe and avoids surfacing a normal
+                // shutdown race as a test/run failure. Same reasoning as GH-2671.
             }
         }
 
