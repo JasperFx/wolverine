@@ -1,4 +1,8 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Wolverine;
 using Wolverine.ErrorHandling;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace CoreTests.ErrorHandling.Faults;
@@ -85,5 +89,38 @@ public class FaultPublishingPolicyResolveTests
         // and accidentally falls through to globals.
         decision.IncludeExceptionMessage.ShouldBeTrue();
         decision.IncludeStackTrace.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void set_override_succeeds_before_freeze()
+    {
+        var policy = new FaultPublishingPolicy();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
+
+        var decision = policy.Resolve(typeof(Foo));
+        decision.Mode.ShouldBe(FaultPublishingMode.DlqOnly);
+    }
+
+    [Fact]
+    public void set_override_throws_after_freeze()
+    {
+        var policy = new FaultPublishingPolicy();
+        policy.Freeze();
+
+        var ex = Should.Throw<InvalidOperationException>(() =>
+            policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly));
+        ex.Message.ShouldContain("frozen");
+    }
+
+    [Fact]
+    public async Task wolverine_runtime_freezes_fault_publishing_policy_at_startup()
+    {
+        using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .UseWolverine(opts => opts.PublishFaultEvents())
+            .StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        Should.Throw<InvalidOperationException>(() =>
+            runtime.Options.FaultPublishing.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly));
     }
 }

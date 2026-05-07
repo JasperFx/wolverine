@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 
@@ -72,6 +75,22 @@ internal class SendingEnvelopeLifecycle : IEnvelopeLifecycle
         if (Envelope != null)
         {
             await _bus.Runtime.Storage.Inbox.MoveToDeadLetterStorageAsync(Envelope, exception);
+
+            // Send-side DLQ moves bypass auto-Fault publishing — Fault<T> is a
+            // receive-side concept. Emit a one-line trace so operators can correlate
+            // missing fault events back to send-side failures.
+            if (_bus.Runtime.Options.FaultPublishing.GlobalMode != FaultPublishingMode.None)
+            {
+                _bus.Runtime.Logger.LogDebug(
+                    "Send-side DLQ for envelope {EnvelopeId} ({MessageType}) bypassed auto-Fault publishing",
+                    Envelope.Id, Envelope.MessageType);
+                Activity.Current?.AddEvent(new ActivityEvent(
+                    WolverineTracing.FaultBypassedSendSide,
+                    tags: new ActivityTagsCollection
+                    {
+                        [WolverineTracing.MessageType] = Envelope.MessageType
+                    }));
+            }
         }
     }
 

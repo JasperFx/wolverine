@@ -14,6 +14,7 @@ internal readonly record struct FaultPublishingDecision(
 internal sealed class FaultPublishingPolicy
 {
     private readonly Dictionary<Type, FaultPublishingDecision> _perTypeOverrides = new();
+    private bool _frozen;
 
     public FaultPublishingMode GlobalMode { get; set; } = FaultPublishingMode.None;
     public bool GlobalIncludeExceptionMessage { get; set; } = true;
@@ -25,9 +26,23 @@ internal sealed class FaultPublishingPolicy
         bool includeExceptionMessage = true,
         bool includeStackTrace = true)
     {
+        if (_frozen)
+        {
+            throw new InvalidOperationException(
+                "FaultPublishingPolicy is frozen — per-type overrides must be configured " +
+                "before WolverineRuntime starts. Move the call inside the host's UseWolverine " +
+                "configuration callback.");
+        }
+
         _perTypeOverrides[messageType] = new FaultPublishingDecision(
             mode, includeExceptionMessage, includeStackTrace);
     }
+
+    /// <summary>
+    /// Mark the policy read-only. Called once during runtime startup so per-type
+    /// overrides cannot be silently mutated from message handler code at runtime.
+    /// </summary>
+    public void Freeze() => _frozen = true;
 
     public FaultPublishingDecision Resolve(Type messageType)
         => _perTypeOverrides.TryGetValue(messageType, out var ov)

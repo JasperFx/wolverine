@@ -399,7 +399,7 @@ public class FaultPublisherTests
         using var listener = new System.Diagnostics.Metrics.MeterListener();
         listener.InstrumentPublished = (instrument, l) =>
         {
-            if (instrument.Meter == meter && instrument.Name == MetricsConstants.FaultsPublishFailed)
+            if (instrument.Meter == meter && instrument.Name == MetricsConstants.FaultPublishFailures)
                 l.EnableMeasurementEvents(instrument);
         };
         listener.SetMeasurementEventCallback<int>((_, m, _, _) => Interlocked.Add(ref observed, m));
@@ -479,6 +479,67 @@ public class FaultPublisherTests
         await publisher.PublishIfEnabledAsync(lifecycle, new Exception(), FaultTrigger.MovedToErrorQueue, activity);
 
         activity.Events.ShouldContain(e => e.Name == WolverineTracing.FaultRecursionSuppressed);
+        await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
+    }
+
+    [Fact]
+    public async Task fault_no_route_event_includes_message_type_tag()
+    {
+        var policy = new FaultPublishingPolicy();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns(Array.Empty<Envelope>()); // forces the no-route path
+
+        var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+
+        using var activitySource = new ActivitySource("test-source");
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = _ => true,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        using var activity = activitySource.StartActivity("test")!;
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("boom"),
+            FaultTrigger.MovedToErrorQueue, activity);
+
+        var noRouteEvent = activity.Events.FirstOrDefault(e => e.Name == WolverineTracing.FaultNoRoute);
+        noRouteEvent.Name.ShouldBe(WolverineTracing.FaultNoRoute);
+        noRouteEvent.Tags.ShouldContain(t =>
+            t.Key == WolverineTracing.MessageType && (string?)t.Value == typeof(Foo).FullName);
+    }
+
+    [Fact]
+    public async Task null_route_collection_does_not_throw()
+    {
+        var policy = new FaultPublishingPolicy();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
+        var lifecycle = Substitute.For<IEnvelopeLifecycle>();
+        var meter = new System.Diagnostics.Metrics.Meter("FaultPublisherTests");
+
+        var runtime = Substitute.For<IWolverineRuntime>();
+        var router = Substitute.For<Wolverine.Runtime.Routing.IMessageRouter>();
+        runtime.RoutingFor(Arg.Any<Type>()).Returns(router);
+        router
+            .RouteForPublish(Arg.Any<object>(), Arg.Any<DeliveryOptions?>())
+            .Returns((Envelope[]?)null);
+
+        var publisher = new FaultPublisher(policy, runtime, NullLogger<FaultPublisher>.Instance, meter);
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+
+        await publisher.PublishIfEnabledAsync(lifecycle, new Exception("boom"),
+            FaultTrigger.MovedToErrorQueue, activity: null);
+
         await lifecycle.DidNotReceive().PublishAsync(Arg.Any<object>(), Arg.Any<DeliveryOptions?>());
     }
 }

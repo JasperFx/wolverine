@@ -63,6 +63,21 @@ internal static class WolverineTracing
     public const string FaultRecursionSuppressed = "wolverine.fault.recursion_suppressed";
 
     /// <summary>
+    /// ActivityEvent marking that a send-side dead-letter movement bypassed
+    /// auto-Fault publishing (the fault subsystem is receive-side only). Emitted
+    /// only when fault publishing is globally enabled — operators using per-type
+    /// PublishFault opt-in only will not see this event.
+    /// </summary>
+    public const string FaultBypassedSendSide = "wolverine.fault.bypassed.send_side";
+
+    /// <summary>
+    /// ActivityEvent marking that an unknown-message-type DLQ movement bypassed
+    /// auto-Fault publishing (no T to construct Fault&lt;T&gt; for). Emitted only
+    /// when fault publishing is globally enabled.
+    /// </summary>
+    public const string FaultBypassedUnknownType = "wolverine.fault.bypassed.unknown_type";
+
+    /// <summary>
     /// ActivityEvent marking when an incoming envelope does not have a known message
     /// handler and is being shunted to registered "NoHandler" actions
     /// </summary>

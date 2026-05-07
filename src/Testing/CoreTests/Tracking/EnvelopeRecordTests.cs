@@ -2,6 +2,7 @@ using System.Diagnostics;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit;
@@ -47,4 +48,33 @@ public class EnvelopeRecordTests
         parent.Stop();
         child.Stop();
     }
+
+    [Fact]
+    public void to_string_for_auto_fault_published_event_uses_dedicated_format()
+    {
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Message = new Fault<Foo>(
+                Message: new Foo("a"),
+                Exception: ExceptionInfo.From(new InvalidOperationException("boom")),
+                Attempts: 1,
+                FailedAt: DateTimeOffset.UtcNow,
+                CorrelationId: null,
+                ConversationId: Guid.NewGuid(),
+                TenantId: null,
+                Source: null,
+                Headers: new Dictionary<string, string?>()),
+        };
+
+        var record = new EnvelopeRecord(MessageEventType.AutoFaultPublished, envelope, sessionTime: 100, exception: null)
+        {
+            ServiceName = "test-service",
+            UniqueNodeId = Guid.NewGuid(),
+        };
+
+        record.ToString().ShouldContain("Auto-published Fault for");
+    }
+
+    private record Foo(string Name);
 }

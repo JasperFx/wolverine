@@ -166,6 +166,11 @@ public partial class WolverineRuntime
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
 
+            // Freeze fault-publishing policy so per-type overrides cannot be silently
+            // mutated from runtime code after host startup completes. All bootstrap
+            // callbacks (UseWolverine + per-type PublishFault calls) have run by now.
+            Options.FaultPublishing.Freeze();
+
             // Subscribe to the host shutdown signal so we can immediately latch all receivers
             // the moment SIGTERM/ApplicationStopping fires, rather than waiting until our
             // IHostedService.StopAsync is called (which may be delayed by other hosted services)

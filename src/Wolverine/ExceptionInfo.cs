@@ -28,16 +28,36 @@ public record ExceptionInfo(
         Exception exception,
         bool includeMessage = true,
         bool includeStackTrace = true)
+        => From(exception, includeMessage, includeStackTrace, depth: 0);
+
+    private const int MaxDepth = 32;
+    private const string TruncatedTypeMarker = "__truncated__";
+    private static readonly string TruncatedMessage = $"[Inner exception chain truncated at depth {MaxDepth}]";
+
+    private static ExceptionInfo From(
+        Exception exception,
+        bool includeMessage,
+        bool includeStackTrace,
+        int depth)
     {
         ArgumentNullException.ThrowIfNull(exception);
+
+        if (depth >= MaxDepth)
+        {
+            return new ExceptionInfo(
+                Type: TruncatedTypeMarker,
+                Message: TruncatedMessage,
+                StackTrace: null,
+                InnerExceptions: Array.Empty<ExceptionInfo>());
+        }
 
         var inners = exception switch
         {
             AggregateException agg => agg.InnerExceptions
-                .Select(e => From(e, includeMessage, includeStackTrace))
+                .Select(e => From(e, includeMessage, includeStackTrace, depth + 1))
                 .ToArray(),
             _ when exception.InnerException is { } inner =>
-                new[] { From(inner, includeMessage, includeStackTrace) },
+                new[] { From(inner, includeMessage, includeStackTrace, depth + 1) },
             _ => Array.Empty<ExceptionInfo>(),
         };
 

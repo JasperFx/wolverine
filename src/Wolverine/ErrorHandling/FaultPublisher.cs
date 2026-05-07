@@ -28,7 +28,7 @@ internal sealed class FaultPublisher : IFaultPublisher
         if (meter is null) throw new ArgumentNullException(nameof(meter));
 
         _publishFailedCounter = meter.CreateCounter<int>(
-            MetricsConstants.FaultsPublishFailed,
+            MetricsConstants.FaultPublishFailures,
             unit: MetricsConstants.Messages,
             description: "Number of auto-Fault<T> publishes that failed (logged and swallowed).");
     }
@@ -79,12 +79,17 @@ internal sealed class FaultPublisher : IFaultPublisher
 
             var router = _runtime.RoutingFor(faultMessage.GetType());
             var outgoing = router.RouteForPublish(faultMessage, options);
-            if (outgoing.Length == 0)
+            if (outgoing is null || outgoing.Length == 0)
             {
                 _logger.LogDebug(
                     "No routes configured for auto-published Fault<{MessageType}>; envelope {EnvelopeId} skipped",
                     messageType.FullName, original.Id);
-                activity?.AddEvent(new ActivityEvent(WolverineTracing.FaultNoRoute));
+                activity?.AddEvent(new ActivityEvent(
+                    WolverineTracing.FaultNoRoute,
+                    tags: new ActivityTagsCollection
+                    {
+                        [WolverineTracing.MessageType] = messageType.FullName
+                    }));
                 return;
             }
 

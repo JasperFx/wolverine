@@ -142,4 +142,28 @@ public class ExceptionInfoTests
         info.InnerExceptions[0].Message.ShouldBe(string.Empty);
         info.InnerExceptions[1].Message.ShouldBe(string.Empty);
     }
+
+    [Fact]
+    public void from_truncates_at_max_depth()
+    {
+        Exception inner = new InvalidOperationException("level-0");
+        for (int i = 1; i < 50; i++)
+        {
+            inner = new InvalidOperationException($"level-{i}", inner);
+        }
+
+        var info = ExceptionInfo.From(inner);
+
+        var current = info;
+        for (int i = 0; i < 32; i++)
+        {
+            current.InnerExceptions.Count.ShouldBe(1);
+            current = current.InnerExceptions[0];
+        }
+
+        current.Type.ShouldBe("__truncated__");
+        current.Message.ShouldBe("[Inner exception chain truncated at depth 32]");
+        current.StackTrace.ShouldBeNull();
+        current.InnerExceptions.ShouldBeEmpty();
+    }
 }
