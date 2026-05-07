@@ -537,10 +537,26 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         }
     }
 
+    /// <summary>
+    /// Bounded retry helper used for best-effort persistence operations like
+    /// <see cref="IMessageInbox.ReleaseIncomingAsync"/> on drain. Three properties
+    /// matter for shutdown correctness (see GH-2671):
+    /// <list type="bullet">
+    /// <item>The loop is finite — capped at <see cref="MaxReleaseRetries"/> attempts —
+    /// so a permanently unreachable database can't hang shutdown.</item>
+    /// <item>The loop honours <see cref="DurabilitySettings.Cancellation"/>: when the
+    /// host is stopping we exit immediately on the first failure rather than
+    /// hammering an already-disposed connection pool.</item>
+    /// <item>Log severity is demoted to Debug when cancellation has been signalled.
+    /// During teardown, transient socket / connection failures from the data
+    /// source are expected and don't warrant Error-level noise.</item>
+    /// </list>
+    /// </summary>
+    internal const int MaxReleaseRetries = 5;
+
     private async Task executeWithRetriesAsync(Func<Task> action)
     {
-        var i = 0;
-        while (true)
+        for (var attempt = 1; ; attempt++)
         {
             try
             {
@@ -549,9 +565,41 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Unexpected failure");
-                i++;
-                await Task.Delay(i * 100).ConfigureAwait(false);
+                // Shutdown-aware exit: when the cancellation token has been signalled
+                // we treat any failure as terminal and demote the log level. Retrying
+                // here is futile (the DataSource is being torn down) and the inbox
+                // ownership we failed to release will be reclaimed by the durability
+                // agent on the next live node.
+                if (_settings.Cancellation.IsCancellationRequested)
+                {
+                    _logger.LogDebug(e,
+                        "Database operation failed during shutdown at {Uri}; exiting retry loop",
+                        Uri);
+                    return;
+                }
+
+                if (attempt >= MaxReleaseRetries)
+                {
+                    _logger.LogError(e,
+                        "Database operation at {Uri} failed after {Attempts} attempts; giving up",
+                        Uri, attempt);
+                    return;
+                }
+
+                _logger.LogError(e,
+                    "Unexpected failure at {Uri} (attempt {Attempt}/{Max})",
+                    Uri, attempt, MaxReleaseRetries);
+
+                try
+                {
+                    await Task.Delay(attempt * 100, _settings.Cancellation).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Cancellation fired while we were backing off — exit cleanly
+                    // instead of throwing out of a best-effort cleanup path.
+                    return;
+                }
             }
         }
     }
