@@ -175,6 +175,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
+        envelope.AppQueueEnqueuedAt = DateTimeOffset.UtcNow;
         _receivingBlock.Post(envelope);
         activity?.Stop();
     }
@@ -187,6 +188,7 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
 
         var activity = _endpoint.TelemetryEnabled ? WolverineTracing.StartReceiving(envelope) : null;
+        envelope.AppQueueEnqueuedAt = DateTimeOffset.UtcNow;
         await _receivingBlock.PostAsync(envelope).ConfigureAwait(false);
         activity?.Stop();
     }

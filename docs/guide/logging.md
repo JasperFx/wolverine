@@ -594,6 +594,43 @@ public const string StreamType = "wolverine.stream.type";
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Handler Boundary Activity Events
+
+The generated message handler emits a sequence of `Activity` events on the executing handler activity that lets you
+decompose the handler's wall-clock time into framework prep, user-handler work, database commit, and post-commit
+envelope routing without attaching a profiler.
+
+| Event | Marks |
+|---|---|
+| `wolverine.handler.user_started` | After middleware (DI scope, document session, aggregate `FetchForWriting`, etc.) has completed and immediately before the user handler method body is invoked. |
+| `wolverine.outbox.flushing` | Just before `IDocumentSession.SaveChangesAsync` (or the EF Core equivalent) is awaited. |
+| `wolverine.outbox.flushed` | Immediately after the unit-of-work commit returns. |
+| `wolverine.outbox.published` | After post-commit outgoing envelopes have been flushed to their senders. |
+
+In a tracing UI:
+
+- activity start → `user_started` ≈ middleware / framework preparation (DI scope, document session, `FetchForWriting`, etc.)
+- `user_started` → `flushing` ≈ user handler body execution
+- `flushing` → `flushed` ≈ database commit + outbox-envelope insert latency
+- `flushed` → `published` ≈ post-commit envelope routing and in-process dispatch
+
+`wolverine.handler.user_started` is emitted on every handler chain. The `outbox.*` events are emitted only when a
+persistence integration applies the standard outbox postprocessors (i.e. when the handler's chain uses Marten/EF Core
+transactional support). All four events are no-ops when no `Activity` is currently recording, so there is no
+observability cost when tracing is disabled.
+
+### Envelope Transport Lag
+
+Every Wolverine activity (receive, execute, send, streaming) carries a
+`wolverine.envelope.transport_lag_ms` tag holding the wall-clock milliseconds between when the
+producing side stamped `Envelope.SentAt` and when the consuming side started its activity. On a
+receive / execute activity this captures broker queue + transport + in-process partition-queue
+dwell — i.e. everything that happens to the envelope before the handler runs. On a send activity
+the value is typically zero. The tag is omitted when the computed lag is negative (clock skew).
+
+This is the metric to chart when you want to see how long messages are queued up before being
+processed, independent of handler execution time.
+
 ## Handler Type Tagging
 
 Wolverine automatically tags Open Telemetry activity spans with the handler type name during message processing. This provides per-handler tracing visibility in observability backends like Jaeger, Zipkin, or Honeycomb without any additional configuration.

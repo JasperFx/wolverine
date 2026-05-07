@@ -246,6 +246,12 @@ public partial class Envelope : IHasTenantId
     public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
+    /// Wall-clock timestamp set when the envelope is posted onto the in-process worker queue.
+    /// </summary>
+    [JsonIgnore]
+    public DateTimeOffset? AppQueueEnqueuedAt { get; set; }
+
+    /// <summary>
     ///     The name of the service that sent this envelope
     /// </summary>
     public string? Source { get; set; }

@@ -165,6 +165,41 @@ internal static class WolverineTracing
     /// </summary>
     public const string StreamingCompleted = "wolverine.stream.handler.completed";
 
+    /// <summary>
+    /// ActivityEvent emitted immediately before the user handler body runs, after middleware completes.
+    /// </summary>
+    public const string HandlerUserStarted = "wolverine.handler.user_started";
+
+    /// <summary>
+    /// ActivityEvent emitted immediately before the transactional unit-of-work is committed.
+    /// </summary>
+    public const string OutboxFlushing = "wolverine.outbox.flushing";
+
+    /// <summary>
+    /// ActivityEvent emitted immediately after the transactional unit-of-work commit returns.
+    /// </summary>
+    public const string OutboxFlushed = "wolverine.outbox.flushed";
+
+    /// <summary>
+    /// ActivityEvent emitted after post-commit outgoing messages have been flushed to their senders.
+    /// </summary>
+    public const string OutboxPublished = "wolverine.outbox.published";
+
+    /// <summary>
+    /// Activity tag (milliseconds): elapsed time from producer <see cref="Envelope.SentAt"/> to consumer activity start.
+    /// </summary>
+    public const string EnvelopeTransportLagMs = "wolverine.envelope.transport_lag_ms";
+
+    /// <summary>
+    /// Activity tag (milliseconds): elapsed time from worker-queue enqueue to handler activity start.
+    /// </summary>
+    public const string EnvelopeAppQueueDwellMs = "wolverine.envelope.app_queue_dwell_ms";
+
+    /// <summary>
+    /// Span emitted around inbound envelope deserialization.
+    /// </summary>
+    public const string Deserialize = "wolverine.deserialize";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(
@@ -188,7 +223,18 @@ internal static class WolverineTracing
 
     public static Activity? StartExecuting(Envelope envelope)
     {
-        return StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+        var activity = StartEnvelopeActivity(envelope.MessageType ?? "process", envelope);
+
+        if (activity != null && envelope.AppQueueEnqueuedAt.HasValue)
+        {
+            var dwellMs = (activity.StartTimeUtc - envelope.AppQueueEnqueuedAt.Value.UtcDateTime).TotalMilliseconds;
+            if (dwellMs >= 0)
+            {
+                activity.SetTag(EnvelopeAppQueueDwellMs, dwellMs);
+            }
+        }
+
+        return activity;
     }
 
     public static Activity? StartEnvelopeActivity(string spanName, Envelope envelope,
@@ -204,6 +250,12 @@ internal static class WolverineTracing
         }
 
         envelope.WriteTags(activity);
+
+        var lagMs = (activity.StartTimeUtc - envelope.SentAt.UtcDateTime).TotalMilliseconds;
+        if (lagMs >= 0)
+        {
+            activity.SetTag(EnvelopeTransportLagMs, lagMs);
+        }
 
         return activity;
     }

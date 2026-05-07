@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -114,6 +115,41 @@ public class when_reading_and_writing_CloudEvents_data
 
         envelope.Message.ShouldBeOfType<ApproveOrder>().OrderId.ShouldBe(1);
         envelope.MessageType.ShouldBe(typeof(ApproveOrder).ToMessageTypeName());
+    }
+
+    [Fact]
+    public async Task try_deserialize_envelope_emits_deserialize_span()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.RegisterMessageType(typeof(ApproveOrder), "com.dapr.event.sent");
+            }).StartAsync();
+
+        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+        var serializer = new CloudEventsMapper(runtime.Options.HandlerGraph,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        var captured = new List<Activity>();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Wolverine",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = activity => captured.Add(activity)
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var envelope = new Envelope
+        {
+            Data = Encoding.UTF8.GetBytes(Json),
+            Serializer = serializer
+        };
+
+        await runtime.Pipeline.TryDeserializeEnvelope(envelope);
+
+        var deserialize = captured.ShouldHaveSingleItem();
+        deserialize.DisplayName.ShouldBe(WolverineTracing.Deserialize);
+        deserialize.GetTagItem(WolverineTracing.PayloadSizeBytes).ShouldBe(envelope.Data!.Length);
     }
 }
 

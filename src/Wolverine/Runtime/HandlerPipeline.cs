@@ -112,6 +112,8 @@ public class HandlerPipeline : IHandlerPipeline
     {
         if (envelope.Message != null) return NullContinuation.Instance;
 
+        using var activity = WolverineTracing.ActivitySource.StartActivity(WolverineTracing.Deserialize, ActivityKind.Internal);
+
         // Try to deserialize
         try
         {
@@ -129,6 +131,8 @@ public class HandlerPipeline : IHandlerPipeline
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "Envelope does not have a message or deserialized message data");
             }
+
+            activity?.SetTag(WolverineTracing.PayloadSizeBytes, envelope.Data.Length);
 
             if (envelope.Message != null)
             {
@@ -167,6 +171,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
         catch (Exception? e)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             return new MoveToErrorQueue(e);
         }
         finally

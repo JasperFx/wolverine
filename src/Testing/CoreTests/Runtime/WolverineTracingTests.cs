@@ -163,3 +163,70 @@ public class when_envelope_is_scheduled
         activity.GetTagItem(WolverineTracing.MessageScheduled).ShouldBeNull();
     }
 }
+
+public class when_starting_envelope_activity : IDisposable
+{
+    private readonly ActivityListener _listener;
+
+    public when_starting_envelope_activity()
+    {
+        _listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Wolverine",
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded
+        };
+        ActivitySource.AddActivityListener(_listener);
+    }
+
+    public void Dispose() => _listener.Dispose();
+
+    [Fact]
+    public void sets_transport_lag_tag_from_sent_at()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.SentAt = DateTimeOffset.UtcNow.AddMilliseconds(-500);
+
+        using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope);
+
+        activity.ShouldNotBeNull();
+        var lag = activity.GetTagItem(WolverineTracing.EnvelopeTransportLagMs).ShouldBeOfType<double>();
+        lag.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
+    public void does_not_set_transport_lag_tag_when_sent_at_is_in_the_future()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.SentAt = DateTimeOffset.UtcNow.AddMinutes(1);
+
+        using var activity = WolverineTracing.StartEnvelopeActivity("process", envelope);
+
+        activity.ShouldNotBeNull();
+        activity.GetTagItem(WolverineTracing.EnvelopeTransportLagMs).ShouldBeNull();
+    }
+
+    [Fact]
+    public void start_executing_sets_app_queue_dwell_tag_when_enqueued_at_is_set()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.AppQueueEnqueuedAt = DateTimeOffset.UtcNow.AddMilliseconds(-50);
+
+        using var activity = WolverineTracing.StartExecuting(envelope);
+
+        activity.ShouldNotBeNull();
+        var dwell = activity.GetTagItem(WolverineTracing.EnvelopeAppQueueDwellMs).ShouldBeOfType<double>();
+        dwell.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
+    public void start_executing_omits_app_queue_dwell_tag_when_enqueued_at_is_null()
+    {
+        var envelope = ObjectMother.Envelope();
+        envelope.AppQueueEnqueuedAt = null;
+
+        using var activity = WolverineTracing.StartExecuting(envelope);
+
+        activity.ShouldNotBeNull();
+        activity.GetTagItem(WolverineTracing.EnvelopeAppQueueDwellMs).ShouldBeNull();
+    }
+}

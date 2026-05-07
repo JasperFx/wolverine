@@ -252,6 +252,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // sure the ancillary-store routing is applied here too so the
         // mark-as-handled SQL goes to the correct store. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
+        envelope.AppQueueEnqueuedAt = DateTimeOffset.UtcNow;
         _receiver.Post(envelope);
     }
 
@@ -265,6 +266,7 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         // through the assignAncillaryStoreIfNeeded calls in receiveOneAsync /
         // ProcessReceivedMessagesAsync. See GH-2576.
         assignAncillaryStoreIfNeeded(envelope);
+        envelope.AppQueueEnqueuedAt = DateTimeOffset.UtcNow;
         return _receiver.PostAsync(envelope);
     }
 

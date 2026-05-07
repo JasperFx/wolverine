@@ -575,10 +575,17 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var methodCall in Middleware.OfType<MethodCall>())
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
 
+        var userStartedMarker = new[] { new ActivityEventFrame(WolverineTracing.HandlerUserStarted) };
+
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers)
-            .Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
+        return Middleware
+            .Concat(userStartedMarker)
+            .Concat(container.TryCreateConstructorFrames(Handlers))
+            .Concat(Handlers)
+            .Concat(handlerReturnValueFrames)
+            .Concat(Postprocessors)
+            .ToList();
     }
 
     protected void applyCustomizations(GenerationRules rules, IServiceContainer container)

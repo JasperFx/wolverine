@@ -43,12 +43,15 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         {
             if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any())
             {
+                chain.Postprocessors.Add(new ActivityEventFrame(WolverineTracing.OutboxFlushing));
                 chain.Postprocessors.Add(new DocumentSessionSaveChanges());
+                chain.Postprocessors.Add(new ActivityEventFrame(WolverineTracing.OutboxFlushed));
             }
 
             if (!chain.Postprocessors.OfType<FlushOutgoingMessages>().Any())
             {
                 chain.Postprocessors.Add(new FlushOutgoingMessages());
+                chain.Postprocessors.Add(new ActivityEventFrame(WolverineTracing.OutboxPublished));
             }
         }
     }
