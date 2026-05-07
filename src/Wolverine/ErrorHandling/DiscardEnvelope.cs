@@ -44,12 +44,21 @@ public sealed class DiscardEnvelope : IContinuation
                 activity);
 
             await lifecycle.CompleteAsync();
-
-            runtime.MessageTracking.DiscardedEnvelope(lifecycle.Envelope!);
         }
         catch (Exception e)
         {
             runtime.Logger.LogError(e, "Failure while attempting to discard an envelope");
+        }
+        finally
+        {
+            // Tracking must fire even when CompleteAsync throws — otherwise
+            // TrackedSession hangs on IsCompleted() until timeout. Broker
+            // redelivery may run discard again and emit a second event; that
+            // is acceptable noise.
+            if (lifecycle.Envelope is { } env)
+            {
+                runtime.MessageTracking.DiscardedEnvelope(env);
+            }
         }
     }
 }

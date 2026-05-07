@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Wolverine.ErrorHandling;
 
 /// <summary>
@@ -13,7 +15,8 @@ internal readonly record struct FaultPublishingDecision(
 
 internal sealed class FaultPublishingPolicy
 {
-    private readonly Dictionary<Type, FaultPublishingDecision> _perTypeOverrides = new();
+    private readonly Dictionary<Type, FaultPublishingDecision> _builderOverrides = new();
+    private FrozenDictionary<Type, FaultPublishingDecision>? _frozenOverrides;
     private bool _frozen;
 
     public FaultPublishingMode GlobalMode { get; set; } = FaultPublishingMode.None;
@@ -34,19 +37,42 @@ internal sealed class FaultPublishingPolicy
                 "configuration callback.");
         }
 
-        _perTypeOverrides[messageType] = new FaultPublishingDecision(
+        _builderOverrides[messageType] = new FaultPublishingDecision(
             mode, includeExceptionMessage, includeStackTrace);
     }
 
     /// <summary>
-    /// Mark the policy read-only. Called once during runtime startup so per-type
-    /// overrides cannot be silently mutated from message handler code at runtime.
+    /// Mark the policy read-only. Snapshots the per-type overrides into a
+    /// FrozenDictionary so post-Freeze reads on the failure path observe the
+    /// pre-Freeze writes via an explicit memory barrier rather than relying on
+    /// implicit host-startup synchronization.
     /// </summary>
-    public void Freeze() => _frozen = true;
+    public void Freeze()
+    {
+        // Snapshot first, flag second. Volatile.Write provides the release fence
+        // matched by the Volatile.Read in Resolve.
+        Volatile.Write(ref _frozenOverrides, _builderOverrides.ToFrozenDictionary());
+        _frozen = true;
+    }
 
     public FaultPublishingDecision Resolve(Type messageType)
-        => _perTypeOverrides.TryGetValue(messageType, out var ov)
-            ? ov
-            : new FaultPublishingDecision(
-                GlobalMode, GlobalIncludeExceptionMessage, GlobalIncludeStackTrace);
+    {
+        var snapshot = Volatile.Read(ref _frozenOverrides);
+        if (snapshot is not null)
+        {
+            if (snapshot.TryGetValue(messageType, out var frozen))
+            {
+                return frozen;
+            }
+        }
+        else if (_builderOverrides.TryGetValue(messageType, out var builder))
+        {
+            // Pre-Freeze single-threaded bootstrap path — same thread that
+            // wrote via SetOverride is reading here. No memory barrier needed.
+            return builder;
+        }
+
+        return new FaultPublishingDecision(
+            GlobalMode, GlobalIncludeExceptionMessage, GlobalIncludeStackTrace);
+    }
 }

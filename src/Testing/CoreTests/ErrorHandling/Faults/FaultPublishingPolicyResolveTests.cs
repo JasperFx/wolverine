@@ -123,4 +123,25 @@ public class FaultPublishingPolicyResolveTests
         Should.Throw<InvalidOperationException>(() =>
             runtime.Options.FaultPublishing.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly));
     }
+
+    [Fact]
+    public void override_value_is_visible_after_freeze()
+    {
+        // Pins the pre-Freeze→post-Freeze handover: the FrozenDictionary
+        // snapshot built inside Freeze() must contain every override that
+        // was written before Freeze.
+        var policy = new FaultPublishingPolicy();
+        policy.SetOverride(
+            typeof(Foo),
+            FaultPublishingMode.DlqOnly,
+            includeExceptionMessage: false,
+            includeStackTrace: false);
+        policy.Freeze();
+
+        var decision = policy.Resolve(typeof(Foo));
+
+        decision.Mode.ShouldBe(FaultPublishingMode.DlqOnly);
+        decision.IncludeExceptionMessage.ShouldBeFalse();
+        decision.IncludeStackTrace.ShouldBeFalse();
+    }
 }
