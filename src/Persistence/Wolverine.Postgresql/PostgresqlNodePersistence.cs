@@ -433,6 +433,22 @@ internal class AdvisoryLock : IAdvisoryLock
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
+        // Idempotent against repeated calls on the same session. Postgres
+        // session-level advisory locks STACK ("Multiple lock requests stack,
+        // so that if the same resource is locked three times it must then be
+        // unlocked three times to be released" — Postgres docs). Since the
+        // a84d6a262 heartbeat-renewal change calls TryAttainLeadershipLockAsync
+        // every tick — including ticks where the leader already holds the
+        // lock — without this short-circuit the leader's lock count grows by
+        // one per heartbeat. The single ReleaseLeadershipLockAsync call
+        // during DisableAgentsAsync or stepDownAsync then only decrements
+        // once, leaving the lock still held server-side and silently
+        // blocking failover (no error logged, just a stalled election).
+        if (_locks.Contains(lockId) && HasLock(lockId))
+        {
+            return true;
+        }
+
         if (_conn == null)
         {
             _conn = _source.CreateConnection();

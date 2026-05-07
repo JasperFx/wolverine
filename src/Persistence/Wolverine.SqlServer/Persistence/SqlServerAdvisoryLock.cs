@@ -73,6 +73,24 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
 
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
+        // Idempotent against repeated calls on the same session. SQL Server
+        // session-scoped application locks (sp_getapplock) are reentrant —
+        // "If a lock has been requested in the current transaction or by the
+        // current session, sp_getapplock can be called multiple times for it
+        // (with the same name and lock owner). For each request that returns
+        // success ... sp_releaseapplock must also be called." The
+        // a84d6a262 heartbeat-renewal change calls TryAttainLeadershipLockAsync
+        // every tick — including ticks where the leader already holds the
+        // lock — so without this short-circuit the leader's lock count grows
+        // by one per heartbeat. The single ReleaseLeadershipLockAsync call
+        // during DisableAgentsAsync or stepDownAsync then only decrements
+        // once, leaving the lock still held server-side and silently
+        // blocking failover (no error logged, just a stalled election).
+        if (_locks.Contains(lockId) && HasLock(lockId))
+        {
+            return true;
+        }
+
         if (_conn == null)
         {
             _conn = _source();
