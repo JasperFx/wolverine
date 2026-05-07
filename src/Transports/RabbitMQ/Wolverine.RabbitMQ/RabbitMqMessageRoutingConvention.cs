@@ -23,16 +23,31 @@ public class RabbitMqMessageRoutingConvention : MessageRoutingConvention<RabbitM
     protected override void ApplyListenerRoutingDefaults(string listenerIdentifier, RabbitMqTransport transport, Type messageType)
     {
         var queue = transport.Queues[listenerIdentifier];
-        // If there's no custom bindings, bind to an exchange with the default convention
-        if (!queue.HasBindings)
+
+        var identifier = _identifierForSender(messageType);
+        if (identifier is null)
+            return;
+
+        var name = transport.MaybeCorrectName(identifier);
+        var exchange = transport.Exchanges[name];
+
+        // Per-exchange dedup. The original guard short-circuited on
+        // `queue.HasBindings` so user-configured custom bindings on this queue
+        // wouldn't get a default binding stacked on top — but under
+        // NamingSource.FromHandlerType a single handler queue legitimately needs
+        // a binding to every message-type exchange the handler accepts, and that
+        // pattern dispatches ApplyListenerRoutingDefaults once per (handlerType,
+        // messageType) pair. The earlier guard silently dropped every binding
+        // after the first. Narrow the suppression to "we already bind THIS queue
+        // to THIS exchange" so the multi-message-type case binds correctly while
+        // still leaving custom user bindings (and prior passes for the same
+        // message type) untouched. See GH-2681.
+        if (queue.Bindings().Any(b => b.ExchangeName == exchange.Name))
         {
-            var identifier = _identifierForSender(messageType);
-            if (identifier is null)
-                return;
-            var name = transport.MaybeCorrectName(identifier);
-            var exchange = transport.Exchanges[name];
-            queue.BindExchange(exchange.Name, exchange.Name);
+            return;
         }
+
+        queue.BindExchange(exchange.Name, exchange.Name);
     }
 
     protected override (RabbitMqExchangeConfiguration, Endpoint) FindOrCreateSubscriber(string identifier,
