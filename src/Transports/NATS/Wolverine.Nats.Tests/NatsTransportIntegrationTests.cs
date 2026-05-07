@@ -8,6 +8,7 @@ using Wolverine.Tracking;
 using Xunit;
 using Xunit.Abstractions;
 using FluentAssertions;
+using NATS.Client.Core;
 
 namespace Wolverine.Nats.Tests;
 
@@ -184,6 +185,42 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task receive_message_without_type_header_using_default_incoming_message()
+    {
+        var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
+        if (!await IsNatsAvailable(natsUrl)) return;
+
+        var subject = Guid.NewGuid().ToString();
+
+        using var receiver = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "ReceiverWithDefault";
+                opts.UseNats(natsUrl).AutoProvision();
+                opts.ListenToNatsSubject(subject)
+                    .DefaultIncomingMessage<DefaultTestMessage>()
+                    .BufferedInMemory();
+            })
+            .StartAsync();
+
+        await using var nats = new NatsConnection(new NatsOpts { Url = natsUrl });
+        await nats.ConnectAsync();
+
+        var messageData = System.Text.Encoding.UTF8.GetBytes("{\"Text\":\"Hello without header\"}");
+
+        var tracked = await receiver.TrackActivity()
+            .Timeout(10.Seconds())
+            .WaitForMessageToBeReceivedAt<DefaultTestMessage>(receiver)
+            .ExecuteAndWaitAsync(c =>
+            {
+                return nats.PublishAsync(subject, messageData).AsTask();
+            });
+
+        tracked.Received.SingleMessage<DefaultTestMessage>().Text.Should().Be("Hello without header");
+    }
+
     private async Task<bool> IsNatsAvailable(string natsUrl)
     {
         try
@@ -210,6 +247,15 @@ public record TestMessage(Guid Id, string Text);
 public class TestMessageHandler
 {
     public void Handle(TestMessage message)
+    {
+    }
+}
+
+public record DefaultTestMessage(string Text);
+
+public class DefaultTestMessageHandler
+{
+    public void Handle(DefaultTestMessage message)
     {
     }
 }
