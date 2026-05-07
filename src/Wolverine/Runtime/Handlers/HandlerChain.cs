@@ -575,6 +575,36 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var methodCall in Middleware.OfType<MethodCall>())
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
 
+        // Opt-in stamping driven by WolverineOptions.Tracking.* — both flags pile their
+        // ActivityEvent annotations onto JasperFx MethodCalls already in the frame
+        // sequence, so the hot path itself stays free of conditional plumbing once
+        // codegen has run.
+        var options = container.GetInstance<WolverineOptions>();
+        if (options?.Tracking.HandlerExecutionDiagnosticsEnabled == true)
+        {
+            // Bracket every user handler MethodCall with wolverine.handler.started /
+            // wolverine.handler.finished. Middleware MethodCalls earlier in the frame
+            // sequence stay unmarked — the events wrap only the actual handler body.
+            foreach (var handlerCall in Handlers)
+            {
+                handlerCall.ActivityEventBeforeCall = WolverineTracing.HandlerStarted;
+                handlerCall.ActivityEventAfterCall = WolverineTracing.HandlerFinished;
+            }
+        }
+
+        if (options?.Tracking.OutboxDiagnosticsEnabled == true)
+        {
+            // Bracket FlushOutgoingMessages with wolverine.outbox.flushing /
+            // wolverine.outbox.published. Provider-agnostic — every persistence backend
+            // adds the same FlushOutgoingMessages postprocessor frame, so the events
+            // appear identically regardless of which transactional middleware is in play.
+            foreach (var flush in Postprocessors.OfType<FlushOutgoingMessages>())
+            {
+                flush.ActivityEventBeforeCall = WolverineTracing.OutboxFlushing;
+                flush.ActivityEventAfterCall = WolverineTracing.OutboxPublished;
+            }
+        }
+
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
         return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers)

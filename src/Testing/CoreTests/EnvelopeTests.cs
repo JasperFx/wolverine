@@ -214,6 +214,28 @@ public class EnvelopeTests
     }
 
     [Fact]
+    public void mark_received_stamps_received_at_with_the_supplied_clock()
+    {
+        // ReceivedAt is the wall-clock anchor for the opt-in
+        // wolverine.envelope.receive_dwell_ms tag — it must be the same
+        // timestamp callers pass into MarkReceived (not DateTimeOffset.UtcNow
+        // taken inside the method) so the dwell measurement is exactly the
+        // queue-handoff-to-handler-start interval the receivers care about.
+        var envelope = ObjectMother.Envelope();
+        envelope.ReceivedAt.ShouldBeNull();
+
+        var uri = TransportConstants.LocalUri;
+        var listener = Substitute.For<IListener>();
+        listener.Address.Returns(uri);
+        var settings = new DurabilitySettings();
+
+        var receivedAt = new DateTimeOffset(2026, 5, 7, 12, 34, 56, TimeSpan.Zero);
+        envelope.MarkReceived(listener, receivedAt, settings);
+
+        envelope.ReceivedAt.ShouldBe(receivedAt);
+    }
+
+    [Fact]
     public async Task should_persist_when_sender_is_durable_and_it_is_outgoing()
     {
         var transaction = Substitute.For<IEnvelopeTransaction>();

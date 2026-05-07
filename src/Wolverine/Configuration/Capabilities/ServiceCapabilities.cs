@@ -38,6 +38,14 @@ public class ServiceCapabilities : OptionsDescription
         AddValue(nameof(options.ServiceLocationPolicy), options.ServiceLocationPolicy);
         AddValue("MetricsMode", options.Metrics.Mode);
         AddValue("MetricsSamplingPeriod", options.Metrics.SamplingPeriod);
+
+        // Surface the WolverineOptions.Tracking flags so CritterWatch can render which
+        // opt-in tracing diagnostics this service has enabled. Each flag matches its
+        // property name on TrackingOptions (no rename through this layer).
+        AddValue(nameof(options.Tracking.EnableMessageCausationTracking), options.Tracking.EnableMessageCausationTracking);
+        AddValue(nameof(options.Tracking.HandlerExecutionDiagnosticsEnabled), options.Tracking.HandlerExecutionDiagnosticsEnabled);
+        AddValue(nameof(options.Tracking.DeserializationSpanEnabled), options.Tracking.DeserializationSpanEnabled);
+        AddValue(nameof(options.Tracking.OutboxDiagnosticsEnabled), options.Tracking.OutboxDiagnosticsEnabled);
     }
 
     public DateTimeOffset Evaluated { get; set; } = DateTimeOffset.UtcNow;

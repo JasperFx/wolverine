@@ -246,6 +246,16 @@ public partial class Envelope : IHasTenantId
     public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
+    /// Wall-clock UTC timestamp set inside <see cref="MarkReceived"/> when the envelope
+    /// is handed off from a listener to the receiver pipeline. Stays <c>null</c> for
+    /// envelopes that haven't been through a receiver yet (e.g. outbound). Read by the
+    /// opt-in <c>wolverine.envelope.receive_dwell_ms</c> activity tag from
+    /// <see cref="TrackingOptions.HandlerExecutionDiagnosticsEnabled"/>; not serialized.
+    /// </summary>
+    [JsonIgnore]
+    public DateTimeOffset? ReceivedAt { get; set; }
+
+    /// <summary>
     ///     The name of the service that sent this envelope
     /// </summary>
     public string? Source { get; set; }

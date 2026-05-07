@@ -187,6 +187,7 @@ public partial class Envelope
     {
         Listener = listener;
         WireTap = wireTap;
+        ReceivedAt = now;
 
         // If this is a stream with multiple consumers, use the consumer-specific address
         if (listener is ISupportMultipleConsumers multiConsumerListener)
