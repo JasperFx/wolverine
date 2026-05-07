@@ -182,19 +182,34 @@ public class batch_processing
 
 public class AllItemsReceived(params BatchItem[] Items) : ITrackedCondition
 {
+    // Record fires from the tracking infrastructure on whichever thread the
+    // handler completes on. In end_to_end_with_tenancy two tenant batches
+    // ("blue" and "green") complete in parallel and both reach Record at the
+    // same time. List<T>.AddRange is not thread-safe — concurrent callers
+    // race on the internal array resize and writes, leaving null slots that
+    // surface as an NRE when IsCompleted reads `r.Id` in the polling
+    // predicate. Lock both the writer and the reader so the polling thread
+    // sees a consistent snapshot.
+    private readonly object _lock = new();
     private readonly List<BatchItem> _received = new();
-    
+
     public void Record(EnvelopeRecord record)
     {
         if (record.MessageEventType == MessageEventType.MessageSucceeded && record.Message is BatchItem[] items)
         {
-            _received.AddRange(items);
+            lock (_lock)
+            {
+                _received.AddRange(items);
+            }
         }
     }
 
     public bool IsCompleted()
     {
-        return Items.All(x => _received.Any(r => r.Id == x.Id));
+        lock (_lock)
+        {
+            return Items.All(x => _received.Any(r => r.Id == x.Id));
+        }
     }
 }
 
