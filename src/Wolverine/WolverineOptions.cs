@@ -173,7 +173,12 @@ public class TrackingOptions
     /// When enabled, Wolverine emits <c>wolverine.outbox.flushing</c> /
     /// <c>wolverine.outbox.published</c> <see cref="System.Diagnostics.ActivityEvent"/>s
     /// around the call to <c>FlushOutgoingMessages</c> in the generated handler
-    /// chain code. Default is <c>false</c>.
+    /// chain code. When the chain pulls in Wolverine.Marten transactional middleware
+    /// this flag also brackets the Marten <c>IDocumentSession.SaveChangesAsync</c>
+    /// postprocessor with <c>marten.savechanges.start</c> /
+    /// <c>marten.savechanges.finished</c> ActivityEvents. Useful for performance
+    /// optimization — separating slow database commits from slow broker publishes
+    /// when profiling a transactional handler. Default is <c>false</c>.
     /// </summary>
     public bool OutboxDiagnosticsEnabled { get; set; }
 }

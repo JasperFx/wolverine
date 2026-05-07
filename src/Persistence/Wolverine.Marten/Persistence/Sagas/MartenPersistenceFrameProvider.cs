@@ -38,7 +38,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         {
             chain.Middleware.Add(new CreateDocumentSessionFrame(chain));
         }
-        
+
         if (chain is not SagaChain)
         {
             if (!chain.Postprocessors.OfType<DocumentSessionSaveChanges>().Any())
@@ -49,6 +49,22 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
             if (!chain.Postprocessors.OfType<FlushOutgoingMessages>().Any())
             {
                 chain.Postprocessors.Add(new FlushOutgoingMessages());
+            }
+        }
+
+        // Codegen-time opt-in: when WolverineOptions.Tracking.OutboxDiagnosticsEnabled
+        // is set, bracket the Marten SaveChangesAsync postprocessor with
+        // marten.savechanges.start / marten.savechanges.finished ActivityEvents so
+        // operators can profile slow transactional commits via OTel without paying
+        // the cost when the flag is off (the ActivityEvent calls aren't generated
+        // at all in that case — same no-runtime-if/then design as GH-2694).
+        var options = container.GetInstance<WolverineOptions>();
+        if (options?.Tracking.OutboxDiagnosticsEnabled == true)
+        {
+            foreach (var saveChanges in chain.Postprocessors.OfType<DocumentSessionSaveChanges>())
+            {
+                saveChanges.ActivityEventBeforeCall = MartenTracing.MartenSaveChangesStarted;
+                saveChanges.ActivityEventAfterCall = MartenTracing.MartenSaveChangesFinished;
             }
         }
     }
