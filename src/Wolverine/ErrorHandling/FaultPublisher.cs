@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Util;
 
 namespace Wolverine.ErrorHandling;
@@ -117,6 +118,22 @@ internal sealed class FaultPublisher : IFaultPublisher
             env.ConversationId,                                     // Guid
             env.TenantId,                                           // string?
             env.Source,                                             // string?
-            new Dictionary<string, string?>(env.Headers))!;
+            FilterEncryptionHeaders(env.Headers))!;
+    }
+
+    // Strip wolverine.encryption.* keys when materializing Fault<T>.Headers.
+    // Those headers are routing/AAD metadata for the original envelope; they
+    // would mislead consumers inspecting the Fault payload (and leak the
+    // active key-id) if copied verbatim into the Fault body.
+    private static Dictionary<string, string?> FilterEncryptionHeaders(Dictionary<string, string?> source)
+    {
+        var copy = new Dictionary<string, string?>(source.Count);
+        foreach (var kv in source)
+        {
+            if (kv.Key.StartsWith(EncryptionHeaders.HeaderPrefix, StringComparison.Ordinal))
+                continue;
+            copy[kv.Key] = kv.Value;
+        }
+        return copy;
     }
 }

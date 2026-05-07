@@ -96,6 +96,31 @@ public class MessageTypePolicies<T>
 
         _parent.MetadataRules.Add(new EncryptMessageTypeRule<T>(encrypting));
         _parent.RequiredEncryptedTypes.Add(typeof(T));
+
+        // Pair the rule for Fault<T> so auto-published fault events for this
+        // message type are also routed through the encrypting serializer. The
+        // EncryptMessageTypeRule<T>.Modify gate is invariant in T, so a separate
+        // rule is required (the one for T does not match Fault<T>).
+        //
+        // Skipped when T is a value type because Fault<T> is constrained to
+        // T : class. The FaultPublisher already silently no-ops on value-type
+        // messages, so no Fault<T> is ever produced for those types.
+        //
+        // Reflective construction keeps Encrypt<T>() callable for any T (no
+        // new generic constraint at the entry point). If a user calls Encrypt<T>()
+        // for the same T more than once, the rules accumulate in MetadataRules
+        // (a list, not a set, mirroring the existing behavior for the T rule);
+        // the duplicate rules are behaviorally idempotent — the second swap of
+        // Serializer/ContentType writes the same values — but the list grows.
+        if (!typeof(T).IsValueType)
+        {
+            var faultType = typeof(Fault<>).MakeGenericType(typeof(T));
+            var faultRuleType = typeof(EncryptMessageTypeRule<>).MakeGenericType(faultType);
+            var faultRule = (IEnvelopeRule)Activator.CreateInstance(faultRuleType, encrypting)!;
+            _parent.MetadataRules.Add(faultRule);
+            _parent.RequiredEncryptedTypes.Add(faultType);
+        }
+
         return this;
     }
 

@@ -5,6 +5,7 @@ using NSubstitute;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Serialization.Encryption;
 using Xunit;
 
 namespace CoreTests.ErrorHandling.Faults;
@@ -219,6 +220,36 @@ public class FaultPublisherTests
         captured.ShouldNotBeNull();
         captured!.Headers.ContainsKey("nullable-header").ShouldBeTrue();
         captured.Headers["nullable-header"].ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task auto_published_fault_strips_wolverine_encryption_namespace_headers()
+    {
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(typeof(Foo), FaultPublishingMode.DlqOnly);
+
+        var env = EnvelopeFor(new Foo("a"));
+        env.Headers[EncryptionHeaders.KeyIdHeader] = "k1";
+        env.Headers[EncryptionHeaders.InnerContentTypeHeader] = "application/json";
+        // Non-encryption wolverine.* key — must survive (proves the prefix isn't
+        // over-broad, e.g. that nobody widened it to just "wolverine.").
+        env.Headers["wolverine.something-else"] = "kept";
+        lifecycle.Envelope.Returns(env);
+
+        Fault<Foo>? captured = null;
+        lifecycle
+            .When(x => x.PublishAsync(Arg.Any<Fault<Foo>>(), Arg.Any<DeliveryOptions?>()))
+            .Do(call => captured = call.Arg<Fault<Foo>>());
+
+        await publisher.PublishIfEnabledAsync(
+            lifecycle, new Exception("boom"), FaultTrigger.MovedToErrorQueue, activity: null);
+
+        captured.ShouldNotBeNull();
+        captured!.Headers["x-custom"].ShouldBe("v");
+        captured.Headers["wolverine.something-else"].ShouldBe("kept");
+        captured.Headers.Keys
+            .Where(k => k.StartsWith(EncryptionHeaders.HeaderPrefix, StringComparison.Ordinal))
+            .ShouldBeEmpty();
     }
 
     [Fact]
