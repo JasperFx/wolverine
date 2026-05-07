@@ -98,6 +98,17 @@ public interface IMessageStore : IAsyncDisposable
 
     INodeAgentPersistence Nodes { get; }
 
+    /// <summary>
+    /// Registry of dynamic, runtime-registered listener URIs. Backed by a
+    /// transport-agnostic store (one URI per entry); each URI is turned into
+    /// an actual listener at runtime by <c>DynamicListenerAgentFamily</c> via
+    /// the appropriate transport. Opt-in via
+    /// <see cref="DurabilitySettings.EnableDynamicListeners"/>; providers must
+    /// return <see cref="NullListenerStore.Instance"/> (and skip schema
+    /// migrations for the listener table) when the flag is <c>false</c>.
+    /// </summary>
+    IListenerStore Listeners { get; }
+
     IMessageStoreAdmin Admin { get; }
 
     IDeadLetters DeadLetters { get; }

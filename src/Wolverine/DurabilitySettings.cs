@@ -200,6 +200,18 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
 
     /// <summary>
+    /// Opt-in switch for the dynamic listener registry: persisted listener URIs that
+    /// are activated at runtime in addition to the listeners declared statically
+    /// through <see cref="WolverineOptions"/>. When <c>true</c>, <c>IMessageStore.Listeners</c>
+    /// is backed by durable storage (and database-backed message stores create their
+    /// listener registry table on first migration); when <c>false</c> (the default),
+    /// <c>IMessageStore.Listeners</c> is a no-op store and no listener-registry
+    /// schema is provisioned. Default is <c>false</c> so users upgrading Wolverine
+    /// see no schema migration churn.
+    /// </summary>
+    public bool EnableDynamicListeners { get; set; } = false;
+
+    /// <summary>
     /// If using any kind of dynamic multi-tenancy where Wolverine should discover new
     /// tenants, this is the polling time. Default is 5 seconds
     /// </summary>

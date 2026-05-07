@@ -358,6 +358,13 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public IDeadLetters DeadLetters => this;
     public IScheduledMessages ScheduledMessages => Main.ScheduledMessages;
     public INodeAgentPersistence Nodes => this;
+
+    // Multi-tenant store delegates dynamic-listener registration to the main
+    // store. Listener URIs aren't tenant-scoped — registering the same URI
+    // across tenants would create duplicate listeners — so the master is
+    // authoritative for the registry.
+    public IListenerStore Listeners => Main.Listeners;
+
     public IMessageStoreAdmin Admin => this;
 
     public DatabaseDescriptor Describe()
