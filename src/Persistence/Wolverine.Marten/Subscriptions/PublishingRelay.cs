@@ -60,9 +60,24 @@ public interface IPublishingRelay
 internal class PublishingRelay : BatchSubscription, IPublishingRelay
 {
     private ImHashMap<Type, IPublisher> _publishers = ImHashMap<Type, IPublisher>.Empty;
+    private readonly Func<IEvent, IMessageBus, ValueTask> _relay;
 
-    public PublishingRelay(string subscriptionName) : base(subscriptionName)
+    public PublishingRelay(string subscriptionName, TenancyStyle tenancyStyle) : base(subscriptionName)
     {
+        // Bind the per-event publish path once at construction so the hot loop in
+        // ProcessEventsAsync needs neither a TenancyStyle comparison nor a downcast
+        // through IDocumentSession.DocumentStore. Under conjoined tenancy
+        // IEvent<T>.TenantId is the authoritative attribution (the tenant lives in
+        // the row, not the database) and must reach the outbound envelope verbatim
+        // — including StorageConstants.DefaultTenantId for default-tenant events,
+        // otherwise WolverineSubscriptionRunner's bus.TenantId
+        // (= operations.Database.Identifier) silently misroutes them. For
+        // non-conjoined stores the legacy fallthrough is preserved so any setup
+        // relying on the database identifier as the message tenant keeps working.
+        // See GH-2675.
+        _relay = tenancyStyle == TenancyStyle.Conjoined
+            ? RelayWithEventTenant
+            : RelayWithLegacyFallthrough;
     }
 
     public void PublishEvent<T>(Func<IEvent<T>, IMessageBus, ValueTask> publish) where T : notnull
@@ -94,18 +109,18 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
             }
             else
             {
-                if (e.TenantId != StorageConstants.DefaultTenantId)
-                {
-                    await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
-                }
-                else
-                {
-                    await bus.PublishAsync(e);
-                }
-                
+                await _relay(e, bus);
             }
         }
     }
+
+    private static ValueTask RelayWithEventTenant(IEvent e, IMessageBus bus)
+        => bus.PublishAsync(e, new DeliveryOptions { TenantId = e.TenantId });
+
+    private static ValueTask RelayWithLegacyFallthrough(IEvent e, IMessageBus bus)
+        => e.TenantId != StorageConstants.DefaultTenantId
+            ? bus.PublishAsync(e, new DeliveryOptions { TenantId = e.TenantId })
+            : bus.PublishAsync(e);
 
     internal interface IPublisher
     {
