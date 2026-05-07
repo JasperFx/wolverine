@@ -596,7 +596,7 @@ public const string StreamType = "wolverine.stream.type";
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />
 
-The default span surface above covers cluster-level events (listener pause, retries, scheduled redelivery, etc.). Wolverine ships a separate, **opt-in** layer of structured diagnostics aimed at handler-execution timing — useful when you're tuning latency, looking for queue dwell, or debugging `await`-graph interleaving inside the handler. Each flag lives on `WolverineOptions.Tracking` and **defaults to `false`**, so apps that don't ask for the surface pay nothing for it.
+The default span surface above covers cluster-level events (listener pause, retries, scheduled redelivery, etc.). Wolverine ships a separate, **opt-in** layer of structured diagnostics aimed primarily at **performance optimization** — handler latency tuning, spotting queue dwell or backpressure, profiling slow transactional commits, and debugging `await`-graph interleaving inside the handler. Each flag lives on `WolverineOptions.Tracking` and **defaults to `false`**, so apps that don't ask for the surface pay nothing for it.
 
 ```csharp
 builder.UseWolverine(opts =>
@@ -610,12 +610,19 @@ builder.UseWolverine(opts =>
     opts.Tracking.DeserializationSpanEnabled = true;
 
     // wolverine.outbox.flushing / wolverine.outbox.published ActivityEvents
-    // around the FlushOutgoingMessages call in the generated handler chain.
+    // around the FlushOutgoingMessages call in the generated handler chain,
+    // and (when Wolverine.Marten transactional middleware is in play)
+    // marten.savechanges.start / marten.savechanges.finished ActivityEvents
+    // around the Marten IDocumentSession.SaveChangesAsync call.
     opts.Tracking.OutboxDiagnosticsEnabled = true;
+
+    // RecordCauseAndEffect call after the handler body that reports unique
+    // (incoming, outgoing) message-type pairs to IWolverineObserver.
+    opts.Tracking.EnableMessageCausationTracking = true;
 });
 ```
 
-Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. The legacy `WolverineOptions.EnableMessageCausationTracking` property is preserved as an `[Obsolete]` shim that delegates to `Tracking.EnableMessageCausationTracking`.
+Each flag is independent. The runtime checks each flag at code-generation time only — when a flag is `false`, the corresponding annotations are not emitted into the generated handler at all, so there is **zero per-message runtime cost** for any feature you haven't enabled. That codegen-time gating is the whole point: in tight production hot paths you want a flag that costs literally nothing when it's off, not one guarded by a runtime `if`. The legacy `WolverineOptions.EnableMessageCausationTracking` property is preserved as an `[Obsolete]` shim that delegates to `Tracking.EnableMessageCausationTracking`.
 
 ### `HandlerExecutionDiagnosticsEnabled`
 
@@ -651,9 +658,75 @@ When set, Wolverine emits two ActivityEvents around the post-handler call to `IM
 
 This is provider-agnostic — it fires regardless of which transactional middleware (Marten, EF Core, RDBMS, Polecat, etc.) added the `FlushOutgoingMessages` postprocessor frame. The annotation is emitted via the same JasperFx `MethodCall.ActivityEventBeforeCall` / `.ActivityEventAfterCall` codegen surface as the handler events, so when the flag is off the generated outbox-flush call has no extra emission.
 
+When the chain pulls in **Wolverine.Marten** transactional middleware, `OutboxDiagnosticsEnabled` also brackets the Marten transactional commit:
+
+| Name | Meaning |
+|---|---|
+| `marten.savechanges.start` | Emitted immediately before `IDocumentSession.SaveChangesAsync(CancellationToken)`. |
+| `marten.savechanges.finished` | Emitted immediately after `SaveChangesAsync` returns successfully. |
+
+Useful for separating "the database commit is slow" from "the broker publish is slow" when profiling a transactional handler — the two pairs of events bracket the two distinct stages.
+
+### `EnableMessageCausationTracking`
+
+When set, Wolverine emits a `RecordCauseAndEffect(context, context.Runtime.Observer)` call into the generated handler **between** the handler body and the postprocessor frames. Each unique `(incoming → outgoing, handler)` triple is reported once to `IWolverineObserver.MessageCausedBy` for downstream topology visualization (CritterWatch enables this flag automatically). Latched on the framework side, so the call itself is cheap on the steady-state path; the codegen-time gate guarantees zero cost for users who don't enable it.
+
 ### `Envelope.ReceivedAt`
 
 The `wolverine.envelope.receive_dwell_ms` tag depends on a new `Envelope.ReceivedAt` property that's stamped by `Envelope.MarkReceived` — the single point all receivers (`BufferedReceiver`, `DurableReceiver`, etc.) call when a message is handed off from a listener to the worker pipeline. The property is `[JsonIgnore]` and only set by Wolverine itself; it stays `null` for envelopes that didn't traverse a receiver (inline `InvokeAsync` calls).
+
+### Sample of the generated handler code
+
+The "zero per-message runtime cost when off" property is easiest to see by inspecting the C# Wolverine actually generates. Take a trivial handler:
+
+```csharp
+public record TrackingDiagnosticsMessage(string Text);
+
+public static class TrackingDiagnosticsHandler
+{
+    public static void Handle(TrackingDiagnosticsMessage message) { /* no-op */ }
+}
+```
+
+With **all flags off** (the default), the generated `HandleAsync` body is the bare handler invocation — no diagnostic plumbing is emitted at all:
+
+```csharp
+public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
+{
+    var trackingDiagnosticsMessage = (TrackingDiagnosticsMessage)context.Envelope.Message;
+
+    Activity.Current?.SetTag("message.handler", "TrackingDiagnosticsHandler");
+    Activity.Current?.SetTag("handler.type",    "TrackingDiagnosticsHandler");
+
+    TrackingDiagnosticsHandler.Handle(trackingDiagnosticsMessage);
+
+    return Task.CompletedTask;
+}
+```
+
+With `Tracking.HandlerExecutionDiagnosticsEnabled = true` and `Tracking.EnableMessageCausationTracking = true`, the generated body picks up an `ApplyExecutionDiagnosticTags` call at the top, ActivityEvents bracketing the handler body, and a `RecordCauseAndEffect` call between the handler and the postprocessor frames:
+
+```csharp
+public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
+{
+    var trackingDiagnosticsMessage = (TrackingDiagnosticsMessage)context.Envelope.Message;
+
+    WolverineTracing.ApplyExecutionDiagnosticTags(Activity.Current, context.Envelope);
+    Activity.Current?.SetTag("message.handler", "TrackingDiagnosticsHandler");
+    Activity.Current?.SetTag("handler.type",    "TrackingDiagnosticsHandler");
+
+    Activity.Current?.AddEvent(new ActivityEvent("wolverine.handler.started"));
+    TrackingDiagnosticsHandler.Handle(trackingDiagnosticsMessage);
+    Activity.Current?.AddEvent(new ActivityEvent("wolverine.handler.finished"));
+
+    RecordCauseAndEffect(context, context.Runtime.Observer);
+    return Task.CompletedTask;
+}
+```
+
+Compare the two and the design pattern is concrete: each opt-in flag adds a specific line to the generated method; turning it back off removes the line entirely. There's no runtime `if (options.Tracking.X)` check anywhere in the framework hot path — the chain's `assembleFrames` reads each flag once at codegen time and decides which frames to emit.
+
+If you want to inspect what your own handlers look like, set `WolverineOptions.CodeGeneration.SourceCodeWritingEnabled = true` and dump the generated code (or call `host.Services.GetRequiredService<HandlerGraph>().ChainFor<MyMessage>()!.SourceCode`); the same `tracking_diagnostics_opt_in` test suite in the Wolverine repo writes the generated source to xUnit output for every flag combination, so the contract is regression-tested rather than just illustrated here.
 
 ## Handler Type Tagging
 
