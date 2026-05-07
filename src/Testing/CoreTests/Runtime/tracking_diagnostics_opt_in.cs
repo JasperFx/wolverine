@@ -3,8 +3,10 @@ using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace CoreTests.Runtime;
 
@@ -18,7 +20,14 @@ namespace CoreTests.Runtime;
 /// </summary>
 public class tracking_diagnostics_opt_in
 {
-    private static async Task<(IHost host, List<Activity> captured, ActivityListener listener)> startWithTrackingAsync(
+    private readonly ITestOutputHelper _output;
+
+    public tracking_diagnostics_opt_in(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    private async Task<(IHost host, List<Activity> captured, ActivityListener listener)> startWithTrackingAsync(
         Action<TrackingOptions>? configureTracking)
     {
         var captured = new List<Activity>();
@@ -40,6 +49,24 @@ public class tracking_diagnostics_opt_in
         return (host, captured, listener);
     }
 
+    /// <summary>
+    /// Forces codegen for the <see cref="TrackingDiagnosticsHandler"/> chain and writes
+    /// the generated C# source to the xUnit test output so reviewers can see — for the
+    /// configured Tracking flags — exactly which framework calls have been baked into
+    /// the generated handler.
+    /// </summary>
+    private void writeGeneratedSource(IHost host, string label)
+    {
+        // Force code generation by resolving the handler
+        host.GetRuntime().Handlers.HandlerFor<TrackingDiagnosticsMessage>();
+
+        var chain = host.GetRuntime().Handlers.ChainFor<TrackingDiagnosticsMessage>();
+        chain.ShouldNotBeNull();
+
+        _output.WriteLine($"=== Generated source for {nameof(TrackingDiagnosticsHandler)} ({label}) ===");
+        _output.WriteLine(chain.SourceCode);
+    }
+
     [Fact]
     public async Task all_tracking_flags_default_to_false()
     {
@@ -53,6 +80,65 @@ public class tracking_diagnostics_opt_in
         options.Tracking.OutboxDiagnosticsEnabled.ShouldBeFalse();
     }
 
+    #region EnableMessageCausationTracking
+
+    [Fact]
+    public async Task record_cause_and_effect_call_baked_into_codegen_when_enabled()
+    {
+        var (host, _, listener) = await startWithTrackingAsync(t =>
+            t.EnableMessageCausationTracking = true);
+
+        try
+        {
+            writeGeneratedSource(host, "EnableMessageCausationTracking = true");
+
+            var chain = host.GetRuntime().Handlers.ChainFor<TrackingDiagnosticsMessage>();
+            chain.ShouldNotBeNull();
+            chain.SourceCode.ShouldNotBeNull();
+
+            // The codegen frame emits an unqualified instance call on the
+            // generated handler class (which extends MessageHandler), passing
+            // the live MessageContext and its Runtime.Observer.
+            chain.SourceCode.ShouldContain($"{nameof(MessageHandler.RecordCauseAndEffect)}(");
+        }
+        finally
+        {
+            listener.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task record_cause_and_effect_call_absent_from_codegen_when_disabled()
+    {
+        var (host, _, listener) = await startWithTrackingAsync(_ => { });
+
+        try
+        {
+            writeGeneratedSource(host, "EnableMessageCausationTracking = false (default)");
+
+            var chain = host.GetRuntime().Handlers.ChainFor<TrackingDiagnosticsMessage>();
+            chain.ShouldNotBeNull();
+            chain.SourceCode.ShouldNotBeNull();
+
+            // When the flag is off the RecordMessageCausationFrame is never
+            // appended to the chain's frame list, so the generated handler
+            // contains no call to RecordCauseAndEffect at all. This is the
+            // "zero runtime cost" property the codegen-time gate is meant to
+            // give us.
+            chain.SourceCode.ShouldNotContain($"{nameof(MessageHandler.RecordCauseAndEffect)}(");
+        }
+        finally
+        {
+            listener.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    #endregion
+
     #region HandlerExecutionDiagnosticsEnabled
 
     [Fact]
@@ -65,6 +151,8 @@ public class tracking_diagnostics_opt_in
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
             await Task.Delay(100.Milliseconds());
+
+            writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = true");
 
             var handlerActivity = captured.FirstOrDefault(a =>
                 a.GetTagItem(WolverineTracing.MessageHandler) is string h
@@ -92,6 +180,8 @@ public class tracking_diagnostics_opt_in
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
             await Task.Delay(100.Milliseconds());
+
+            writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = false (default)");
 
             var handlerActivity = captured.FirstOrDefault(a =>
                 a.GetTagItem(WolverineTracing.MessageHandler) is string h
