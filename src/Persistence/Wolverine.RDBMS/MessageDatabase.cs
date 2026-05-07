@@ -16,6 +16,7 @@ using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Transports;
+using Wolverine.RDBMS.DynamicListeners;
 using DbCommandBuilder = Weasel.Core.DbCommandBuilder;
 
 namespace Wolverine.RDBMS;
@@ -81,6 +82,31 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         }
 
         Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
+
+        // Dynamic-listener registry (GH-2685). Only the Main store hosts the registry —
+        // ancillary / tenant stores keep the no-op default and never see the
+        // wolverine_listeners table provisioned. Gated on the opt-in flag so existing
+        // apps see no schema migration churn on upgrade.
+        if (settings.EnableDynamicListeners && Role == MessageStoreRole.Main)
+        {
+            // ReSharper disable once VirtualMemberCallInConstructor
+            Listeners = BuildListenerStore();
+        }
+    }
+
+    /// <summary>
+    /// Factory hook for constructing the per-database <see cref="IListenerStore"/> when
+    /// <see cref="DurabilitySettings.EnableDynamicListeners"/> is set on a
+    /// <see cref="MessageStoreRole.Main"/> store. The default returns
+    /// <see cref="RdbmsListenerStore"/>, which is portable across providers that use
+    /// <c>@</c>-prefixed bind variables and <see cref="DbDataSource"/>-driven command
+    /// creation (Postgres, SqlServer, MySQL, SQLite). Oracle's
+    /// <c>OracleMessageStore</c> does not inherit from <see cref="MessageDatabase{T}"/>
+    /// and supplies its own listener-store implementation directly.
+    /// </summary>
+    protected virtual IListenerStore BuildListenerStore()
+    {
+        return new RdbmsListenerStore(_dataSource, QuotedSchemaName, IsUniqueConstraintViolation);
     }
 
     public MessageStoreRole Role { get; private set; }

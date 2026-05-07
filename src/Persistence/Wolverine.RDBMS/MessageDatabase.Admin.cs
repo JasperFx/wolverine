@@ -207,9 +207,19 @@ public abstract partial class MessageDatabase<T>
             {
                 await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.AgentRestrictionsTableName}")
                     .ExecuteNonQueryAsync(_cancellation);
-                
+
                 await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.NodeRecordTableName}")
                     .ExecuteNonQueryAsync(_cancellation);
+
+                // Clear the dynamic-listener registry too, so test hosts that call
+                // ResetResourceState / ClearAllAsync get a truly clean slate. Only
+                // attempted when the registry is opted in, since otherwise the
+                // wolverine_listeners table doesn't exist.
+                if (Durability.EnableDynamicListeners)
+                {
+                    await tx.CreateCommand($"delete from {QuotedSchemaName}.{DatabaseConstants.ListenersTableName}")
+                        .ExecuteNonQueryAsync(_cancellation);
+                }
             }
 
             await tx.CommitAsync(_cancellation);

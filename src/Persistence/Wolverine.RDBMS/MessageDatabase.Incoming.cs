@@ -246,5 +246,15 @@ public abstract partial class MessageDatabase<T>
         return false;
     }
 
+    /// <summary>
+    /// Internal alias on top of <see cref="IsDuplicateEnvelopeException"/> for use by
+    /// other components in this assembly that need cross-provider unique-constraint
+    /// violation detection on inserts they own (e.g. the dynamic listener registry).
+    /// The underlying exception shape is the same regardless of which table fired
+    /// the unique constraint, so the per-provider <c>isExceptionFromDuplicateEnvelope</c>
+    /// override is reused as-is.
+    /// </summary>
+    internal bool IsUniqueConstraintViolation(Exception ex) => IsDuplicateEnvelopeException(ex);
+
     protected abstract bool isExceptionFromDuplicateEnvelope(Exception ex);
 }

@@ -40,6 +40,14 @@ public class DatabaseConstants
 
     public const string AgentRestrictionsTableName = "wolverine_agent_restrictions";
 
+    /// <summary>
+    /// Table backing the dynamic listener registry (GH-2685). One row per
+    /// runtime-registered listener URI; the URI itself is the primary key.
+    /// Provisioned only when <c>DurabilitySettings.EnableDynamicListeners</c>
+    /// is set, so existing apps see no schema migration churn on upgrade.
+    /// </summary>
+    public const string ListenersTableName = "wolverine_listeners";
+
     public const string Expires = "expires";
 
     public static readonly string IncomingFields =

@@ -517,6 +517,16 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             lockTable.AddColumn("lock_id", "INTEGER").AsPrimaryKey();
             lockTable.AddColumn("acquired_at", "TEXT").NotNull();
             yield return lockTable;
+
+            // Dynamic listener registry (GH-2685). Provisioned only when the opt-in
+            // flag is set so existing apps see no migration churn.
+            if (Durability.EnableDynamicListeners)
+            {
+                var listenerTable =
+                    new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.ListenersTableName));
+                listenerTable.AddColumn("uri", "TEXT").AsPrimaryKey();
+                yield return listenerTable;
+            }
         }
 
         foreach (var table in _otherTables)
