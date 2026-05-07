@@ -3,7 +3,7 @@ using JasperFx.Core;
 
 namespace Wolverine.Runtime;
 
-internal static class WolverineTracing
+public static class WolverineTracing
 {
     // See https://opentelemetry.io/docs/reference/specification/trace/semantic_conventions/messaging/ for more information
 
@@ -265,15 +265,25 @@ internal static class WolverineTracing
     }
 
     /// <summary>
-    /// Gated by <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>. Stamps the
-    /// handler activity with two timing tags derived from the envelope's wall-clock anchors:
-    ///   <c>wolverine.envelope.transport_lag_ms</c> = (now - <see cref="Envelope.SentAt"/>),
-    ///   <c>wolverine.envelope.receive_dwell_ms</c> = (now - <see cref="Envelope.ReceivedAt"/>).
+    /// Stamp the handler activity with two timing tags derived from the envelope's
+    /// wall-clock anchors:
+    ///   <c>wolverine.envelope.transport_lag_ms</c> = (activity start − <see cref="Envelope.SentAt"/>),
+    ///   <c>wolverine.envelope.receive_dwell_ms</c> = (activity start − <see cref="Envelope.ReceivedAt"/>).
     /// Skips negative values (clock drift) and skips the dwell tag when <c>ReceivedAt</c> is
-    /// null (envelope hasn't been through a receiver, e.g. inline invocation).
+    /// null (envelope hasn't been through a receiver, e.g. inline invocation). No-ops on a
+    /// null activity so generated code can call this unconditionally.
+    ///
+    /// Public so the codegen frame
+    /// <c>ApplyExecutionDiagnosticTagsFrame</c> can emit a fully qualified static call
+    /// — this avoids a runtime if/then in the framework's <c>Executor</c> /
+    /// <c>HandlerPipeline</c> for the opt-in <c>HandlerExecutionDiagnosticsEnabled</c>
+    /// flag. When the flag is off the frame isn't emitted into the generated handler
+    /// at all, and this method is never called.
     /// </summary>
-    internal static void ApplyExecutionDiagnosticTags(this Activity activity, Envelope envelope)
+    public static void ApplyExecutionDiagnosticTags(Activity? activity, Envelope envelope)
     {
+        if (activity is null) return;
+
         var startUtc = activity.StartTimeUtc;
 
         var lagMs = (startUtc - envelope.SentAt.UtcDateTime).TotalMilliseconds;

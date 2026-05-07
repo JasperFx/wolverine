@@ -63,11 +63,10 @@ public class HandlerPipeline : IHandlerPipeline
 
         using var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
-        if (activity is not null && _runtime.Options.Tracking.HandlerExecutionDiagnosticsEnabled)
-        {
-            activity.ApplyExecutionDiagnosticTags(envelope);
-        }
-
+        // No runtime check for HandlerExecutionDiagnosticsEnabled — diagnostic tag
+        // stamping is baked into the generated handler chain via
+        // ApplyExecutionDiagnosticTagsFrame when the flag is set at codegen time.
+        // See GH-2694.
         return InvokeAsync(envelope, channel, activity);
     }
 

@@ -108,11 +108,10 @@ internal class Executor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
-        if (activity is not null && _runtime?.Options.Tracking.HandlerExecutionDiagnosticsEnabled == true)
-        {
-            activity.ApplyExecutionDiagnosticTags(envelope);
-        }
-
+        // No runtime gate for HandlerExecutionDiagnosticsEnabled here — when the flag
+        // is on, codegen prepends an ApplyExecutionDiagnosticTagsFrame to the generated
+        // chain that stamps the timing tags on Activity.Current inline; when the flag
+        // is off, that frame isn't emitted and we pay nothing. See GH-2694.
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
@@ -324,11 +323,8 @@ internal class Executor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartStreaming(envelope) : null;
 
-        if (activity is not null && _runtime?.Options.Tracking.HandlerExecutionDiagnosticsEnabled == true)
-        {
-            activity.ApplyExecutionDiagnosticTags(envelope);
-        }
-
+        // See InvokeInlineAsync above — diagnostic tag stamping lives in the codegen
+        // ApplyExecutionDiagnosticTagsFrame, not here. GH-2694.
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();

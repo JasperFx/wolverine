@@ -575,13 +575,24 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         foreach (var methodCall in Middleware.OfType<MethodCall>())
             methodCall.TryReplaceVariableCreationWithAssignment(messageVariable);
 
-        // Opt-in stamping driven by WolverineOptions.Tracking.* — both flags pile their
-        // ActivityEvent annotations onto JasperFx MethodCalls already in the frame
-        // sequence, so the hot path itself stays free of conditional plumbing once
-        // codegen has run.
+        // Opt-in stamping driven by WolverineOptions.Tracking.* — every diagnostic is
+        // baked into the generated handler at codegen time. When the corresponding
+        // flag is off the frame / event annotation simply isn't emitted, so the hot
+        // path has zero runtime conditionals for any of these features. This is the
+        // explicit no-runtime-if/then design discussed for GH-2694.
         var options = container.GetInstance<WolverineOptions>();
+        IEnumerable<Frame> preamble = Array.Empty<Frame>();
+
         if (options?.Tracking.HandlerExecutionDiagnosticsEnabled == true)
         {
+            // wolverine.envelope.transport_lag_ms / receive_dwell_ms tags get stamped
+            // by an ApplyExecutionDiagnosticTagsFrame at the very front of the chain,
+            // before middleware. The frame emits a fully qualified static call to
+            // WolverineTracing.ApplyExecutionDiagnosticTags(Activity.Current, envelope)
+            // — Executor / HandlerPipeline / TracingExecutor never need to read the
+            // flag at runtime.
+            preamble = preamble.Append(new ApplyExecutionDiagnosticTagsFrame());
+
             // Bracket every user handler MethodCall with wolverine.handler.started /
             // wolverine.handler.finished. Middleware MethodCalls earlier in the frame
             // sequence stay unmarked — the events wrap only the actual handler body.
@@ -607,8 +618,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
         // The Enqueue cascading needs to happen before the post processors because of the
         // transactional & outbox support
-        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(Handlers)
-            .Concat(handlerReturnValueFrames).Concat(Postprocessors).ToList();
+        return preamble
+            .Concat(Middleware)
+            .Concat(container.TryCreateConstructorFrames(Handlers))
+            .Concat(Handlers)
+            .Concat(handlerReturnValueFrames)
+            .Concat(Postprocessors)
+            .ToList();
     }
 
     protected void applyCustomizations(GenerationRules rules, IServiceContainer container)

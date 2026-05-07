@@ -40,32 +40,18 @@ internal class TracingExecutor : IExecutor
     /// </summary>
     private bool _capturesContextForServiceLocation;
 
-    /// <summary>
-    /// Captured at construction so the activity-stamping branch in InvokeInlineAsync
-    /// stays a single boolean check (no <c>IWolverineRuntime</c> chain) on the hot path.
-    /// </summary>
-    private readonly bool _handlerExecutionDiagnosticsEnabled;
-
     internal void EnableServiceLocationContextCapture() => _capturesContextForServiceLocation = true;
 
     public TracingExecutor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime,
         IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler,
-            runtime.MessageTracking, rules, timeout, runtime.Options.Tracking.HandlerExecutionDiagnosticsEnabled)
+            runtime.MessageTracking, rules, timeout)
     {
     }
 
     public TracingExecutor(ObjectPool<MessageContext> contextPool, ILogger logger,
         IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout)
-        : this(contextPool, logger, handler, tracker, rules, timeout, handlerExecutionDiagnosticsEnabled: false)
     {
-    }
-
-    public TracingExecutor(ObjectPool<MessageContext> contextPool, ILogger logger,
-        IMessageHandler handler, IMessageTracker tracker, FailureRuleCollection rules, TimeSpan timeout,
-        bool handlerExecutionDiagnosticsEnabled)
-    {
-        _handlerExecutionDiagnosticsEnabled = handlerExecutionDiagnosticsEnabled;
         _contextPool = contextPool;
         Handler = handler;
         _tracker = tracker;
@@ -97,11 +83,9 @@ internal class TracingExecutor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
-        if (activity is not null && _handlerExecutionDiagnosticsEnabled)
-        {
-            activity.ApplyExecutionDiagnosticTags(envelope);
-        }
-
+        // No runtime check for HandlerExecutionDiagnosticsEnabled — see GH-2694.
+        // Diagnostic tag stamping is baked into the generated handler chain via
+        // ApplyExecutionDiagnosticTagsFrame when the flag is set at codegen time.
         _tracker.ExecutionStarted(envelope);
         _executionStarted(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
 
