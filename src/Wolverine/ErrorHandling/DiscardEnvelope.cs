@@ -35,6 +35,9 @@ public sealed class DiscardEnvelope : IContinuation
         {
             activity?.AddEvent(new ActivityEvent(WolverineTracing.EnvelopeDiscarded));
 
+            // Publish-fault BEFORE CompleteAsync and BEFORE the DiscardedEnvelope
+            // tracking event: the original envelope's terminal sweep would otherwise
+            // close the tracking session before the fault publish lands.
             await runtime.PublishFaultIfEnabledAsync(lifecycle,
                 Exception,
                 FaultTrigger.Discarded,

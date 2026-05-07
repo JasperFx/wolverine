@@ -29,10 +29,11 @@ public sealed partial class WolverineOptions
     /// <para>
     /// <b>Scope.</b> Fault events are emitted only on the receiving end, when a handler permanently
     /// fails and the envelope is moved to the dead-letter queue (or discarded, with
-    /// <c>includeDiscarded: true</c>). Two paths bypass this and never produce a fault event:
-    /// send-side dead-letter movements (when an outgoing envelope can't be delivered after retries),
-    /// and envelopes whose message-type name doesn't resolve to a known handler — there is no
-    /// <c>T</c> to construct a <see cref="Fault{T}"/> for in that case.
+    /// <c>includeDiscarded: true</c>). Three paths bypass this and never produce a fault event:
+    /// send-side dead-letter movements (when an outgoing envelope can't be delivered after retries);
+    /// envelopes whose message-type name doesn't resolve to a known handler (no <c>T</c> to construct
+    /// a <see cref="Fault{T}"/> for); and envelopes that arrive expired (their <c>DeliverBy</c> has
+    /// elapsed and they are discarded before deserialization).
     /// </para>
     /// <para>
     /// <b>Exception redaction.</b> By default, <see cref="Fault{T}.Exception"/> carries the full
@@ -46,6 +47,17 @@ public sealed partial class WolverineOptions
     /// recursively to inner exceptions and to <see cref="AggregateException.InnerExceptions"/>.
     /// Per-type overrides via <see cref="MessageTypePolicies{T}.PublishFault"/> set their own
     /// redaction values explicitly and do not inherit subsequent changes to these globals.
+    /// If <c>T</c> itself is sensitive, pair this with <see cref="MessageTypePolicies{T}.Encrypt"/>
+    /// so the entire <see cref="Fault{T}"/> body travels encrypted on the wire; the encryption
+    /// guide's "Fault events" section covers the full interaction model.
+    /// </para>
+    /// <para>
+    /// <b>Pre-handler failures.</b> Envelopes that fail before handler dispatch produce no
+    /// <see cref="Fault{T}"/> because the message instance is not available to wrap — including
+    /// <see cref="Wolverine.Runtime.Serialization.Encryption.MessageDecryptionException"/>,
+    /// <see cref="Wolverine.Runtime.Serialization.Encryption.EncryptionKeyNotFoundException"/>,
+    /// and <see cref="Wolverine.Runtime.Serialization.Encryption.EncryptionPolicyViolationException"/>.
+    /// The original envelope still routes to the dead-letter queue.
     /// </para>
     /// </remarks>
     public WolverineOptions PublishFaultEvents(
