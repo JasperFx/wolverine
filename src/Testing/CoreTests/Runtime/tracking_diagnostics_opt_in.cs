@@ -201,6 +201,70 @@ public class tracking_diagnostics_opt_in
     }
 
     [Fact]
+    public async Task handler_started_and_finished_event_calls_baked_into_codegen_when_enabled()
+    {
+        var (host, _, listener) = await startWithTrackingAsync(t =>
+            t.HandlerExecutionDiagnosticsEnabled = true);
+
+        try
+        {
+            writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = true (codegen check)");
+
+            var chain = host.GetRuntime().Handlers.ChainFor<TrackingDiagnosticsMessage>();
+            chain.ShouldNotBeNull();
+            chain.SourceCode.ShouldNotBeNull();
+
+            // The HandlerExecutionDiagnosticsEnabled flag drives two codegen
+            // additions:
+            //   1. Before/after-call ActivityEvents wrapped around the
+            //      handler invocation, using the WolverineTracing event-name
+            //      constants.
+            //   2. A fully-qualified static call to
+            //      WolverineTracing.ApplyExecutionDiagnosticTags(...) that
+            //      stamps the wolverine.envelope.transport_lag_ms /
+            //      receive_dwell_ms tags on the current Activity.
+            chain.SourceCode.ShouldContain($"\"{WolverineTracing.HandlerStarted}\"");
+            chain.SourceCode.ShouldContain($"\"{WolverineTracing.HandlerFinished}\"");
+            chain.SourceCode.ShouldContain($"{nameof(WolverineTracing)}.{nameof(WolverineTracing.ApplyExecutionDiagnosticTags)}(");
+        }
+        finally
+        {
+            listener.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task handler_started_and_finished_event_calls_absent_from_codegen_when_disabled()
+    {
+        var (host, _, listener) = await startWithTrackingAsync(_ => { });
+
+        try
+        {
+            writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = false (codegen check)");
+
+            var chain = host.GetRuntime().Handlers.ChainFor<TrackingDiagnosticsMessage>();
+            chain.ShouldNotBeNull();
+            chain.SourceCode.ShouldNotBeNull();
+
+            // When the flag is off neither the ActivityEvent calls nor the
+            // ApplyExecutionDiagnosticTags helper call are emitted into the
+            // generated handler — the framework path is not just skipped at
+            // runtime, it isn't compiled in at all.
+            chain.SourceCode.ShouldNotContain($"\"{WolverineTracing.HandlerStarted}\"");
+            chain.SourceCode.ShouldNotContain($"\"{WolverineTracing.HandlerFinished}\"");
+            chain.SourceCode.ShouldNotContain($"{nameof(WolverineTracing)}.{nameof(WolverineTracing.ApplyExecutionDiagnosticTags)}(");
+        }
+        finally
+        {
+            listener.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    [Fact]
     public async Task transport_lag_tag_emits_when_handler_diagnostics_enabled()
     {
         var (host, captured, listener) = await startWithTrackingAsync(t =>
