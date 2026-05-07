@@ -165,6 +165,54 @@ internal static class WolverineTracing
     /// </summary>
     public const string StreamingCompleted = "wolverine.stream.handler.completed";
 
+    /// <summary>
+    /// ActivityEvent emitted by the codegen wrapper around the user handler MethodCall
+    /// immediately before the handler body runs. Opt-in via
+    /// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string HandlerStarted = "wolverine.handler.started";
+
+    /// <summary>
+    /// ActivityEvent emitted by the codegen wrapper around the user handler MethodCall
+    /// immediately after the handler body returns successfully. Opt-in via
+    /// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string HandlerFinished = "wolverine.handler.finished";
+
+    /// <summary>
+    /// ActivityEvent emitted by the codegen wrapper around the FlushOutgoingMessages
+    /// MethodCall immediately before the call. Opt-in via
+    /// <c>WolverineOptions.Tracking.OutboxDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string OutboxFlushing = "wolverine.outbox.flushing";
+
+    /// <summary>
+    /// ActivityEvent emitted by the codegen wrapper around the FlushOutgoingMessages
+    /// MethodCall immediately after the call returns. Opt-in via
+    /// <c>WolverineOptions.Tracking.OutboxDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string OutboxPublished = "wolverine.outbox.published";
+
+    /// <summary>
+    /// Activity tag (milliseconds): elapsed time from producer <see cref="Envelope.SentAt"/>
+    /// to consumer activity start. Opt-in via
+    /// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string EnvelopeTransportLagMs = "wolverine.envelope.transport_lag_ms";
+
+    /// <summary>
+    /// Activity tag (milliseconds): elapsed time from worker-queue handoff
+    /// (<see cref="Envelope.ReceivedAt"/>) to handler activity start. Opt-in via
+    /// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+    /// </summary>
+    public const string EnvelopeReceiveDwellMs = "wolverine.envelope.receive_dwell_ms";
+
+    /// <summary>
+    /// Span name emitted around inbound envelope deserialization. Opt-in via
+    /// <c>WolverineOptions.Tracking.DeserializationSpanEnabled</c>.
+    /// </summary>
+    public const string Deserialize = "wolverine.deserialize";
+
     #endregion
 
     public static ActivitySource ActivitySource { get; } = new(
@@ -213,6 +261,34 @@ internal static class WolverineTracing
         if (value != null)
         {
             activity.SetTag(tagName, value);
+        }
+    }
+
+    /// <summary>
+    /// Gated by <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>. Stamps the
+    /// handler activity with two timing tags derived from the envelope's wall-clock anchors:
+    ///   <c>wolverine.envelope.transport_lag_ms</c> = (now - <see cref="Envelope.SentAt"/>),
+    ///   <c>wolverine.envelope.receive_dwell_ms</c> = (now - <see cref="Envelope.ReceivedAt"/>).
+    /// Skips negative values (clock drift) and skips the dwell tag when <c>ReceivedAt</c> is
+    /// null (envelope hasn't been through a receiver, e.g. inline invocation).
+    /// </summary>
+    internal static void ApplyExecutionDiagnosticTags(this Activity activity, Envelope envelope)
+    {
+        var startUtc = activity.StartTimeUtc;
+
+        var lagMs = (startUtc - envelope.SentAt.UtcDateTime).TotalMilliseconds;
+        if (lagMs >= 0)
+        {
+            activity.SetTag(EnvelopeTransportLagMs, lagMs);
+        }
+
+        if (envelope.ReceivedAt.HasValue)
+        {
+            var dwellMs = (startUtc - envelope.ReceivedAt.Value.UtcDateTime).TotalMilliseconds;
+            if (dwellMs >= 0)
+            {
+                activity.SetTag(EnvelopeReceiveDwellMs, dwellMs);
+            }
         }
     }
 }

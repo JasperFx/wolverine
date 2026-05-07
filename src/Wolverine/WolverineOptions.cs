@@ -126,12 +126,56 @@ public class MetricsOptions
     /// How should Wolverine collect and publish metrics about message handling and publications?
     /// </summary>
     public WolverineMetricsMode Mode { get; set; } = WolverineMetricsMode.SystemDiagnosticsMeter;
-    
+
     /// <summary>
     /// If using either CritterWatch or Hybrid metrics publishing, this is the period in which
     /// Wolverine will sample and publish metric data collection. Default is 5 seconds
     /// </summary>
     public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
+}
+
+/// <summary>
+/// Opt-in tracking and tracing diagnostics. Each of the boolean flags controls a
+/// separate slice of structured tracing surface — handler-execution events / tags,
+/// the deserialization span, and outbox-flush events around
+/// <c>FlushOutgoingMessages</c>. All default to <c>false</c>; users opt into the
+/// extra emission only when they want to pay for it.
+/// </summary>
+public class TrackingOptions
+{
+    /// <summary>
+    /// When enabled, Wolverine tracks which message types are produced as a result
+    /// of handling other message types (cause and effect). New causation pairs are
+    /// reported to <c>IWolverineObserver.MessageCausedBy</c> for CritterWatch topology
+    /// visualization. Default is <c>false</c>; <c>Wolverine.CritterWatch</c> enables this
+    /// automatically.
+    /// </summary>
+    public bool EnableMessageCausationTracking { get; set; }
+
+    /// <summary>
+    /// When enabled, Wolverine emits structured diagnostics around each handler
+    /// invocation: <c>wolverine.handler.started</c> / <c>wolverine.handler.finished</c>
+    /// <see cref="System.Diagnostics.ActivityEvent"/>s wrapping the actual user
+    /// handler body, plus <c>wolverine.envelope.transport_lag_ms</c> and
+    /// <c>wolverine.envelope.receive_dwell_ms</c> tags on envelope activities.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool HandlerExecutionDiagnosticsEnabled { get; set; }
+
+    /// <summary>
+    /// When enabled, Wolverine starts a <c>wolverine.deserialize</c> span around
+    /// inbound envelope deserialization, tagging it with the payload size in bytes.
+    /// Default is <c>false</c>.
+    /// </summary>
+    public bool DeserializationSpanEnabled { get; set; }
+
+    /// <summary>
+    /// When enabled, Wolverine emits <c>wolverine.outbox.flushing</c> /
+    /// <c>wolverine.outbox.published</c> <see cref="System.Diagnostics.ActivityEvent"/>s
+    /// around the call to <c>FlushOutgoingMessages</c> in the generated handler
+    /// chain code. Default is <c>false</c>.
+    /// </summary>
+    public bool OutboxDiagnosticsEnabled { get; set; }
 }
 
 /// <summary>
@@ -193,6 +237,14 @@ public sealed partial class WolverineOptions
 
     [ChildDescription]
     public MetricsOptions Metrics { get; } = new();
+
+    /// <summary>
+    /// Opt-in tracking and tracing diagnostics. See <see cref="TrackingOptions"/> for the
+    /// individual flags. Default is "off everything" — users opt into the extra surface only
+    /// when they want the structured emission.
+    /// </summary>
+    [ChildDescription]
+    public TrackingOptions Tracking { get; } = new();
 
     /// <summary>
     /// Global default settings for entity loading behavior with [Entity], [Document],
@@ -427,12 +479,17 @@ public sealed partial class WolverineOptions
     public bool EnableAutomaticFailureAcks { get; set; } = false;
 
     /// <summary>
-    /// When enabled, Wolverine tracks which message types are produced as a result
-    /// of handling other message types (cause and effect). New causation pairs are
-    /// reported to IWolverineObserver.MessageCausedBy for CritterWatch topology
-    /// visualization. Default is false; Wolverine.CritterWatch enables this automatically.
+    /// Legacy flag for message-causation tracking. Reads and writes flow through
+    /// <see cref="TrackingOptions.EnableMessageCausationTracking"/> on the
+    /// <see cref="Tracking"/> sub-config. Use the new property directly going
+    /// forward.
     /// </summary>
-    public bool EnableMessageCausationTracking { get; set; }
+    [Obsolete("Use Tracking.EnableMessageCausationTracking instead")]
+    public bool EnableMessageCausationTracking
+    {
+        get => Tracking.EnableMessageCausationTracking;
+        set => Tracking.EnableMessageCausationTracking = value;
+    }
 
     private void deriveServiceName()
     {

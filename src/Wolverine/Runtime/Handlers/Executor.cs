@@ -108,6 +108,11 @@ internal class Executor : IExecutor
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
+        if (activity is not null && _runtime?.Options.Tracking.HandlerExecutionDiagnosticsEnabled == true)
+        {
+            activity.ApplyExecutionDiagnosticTags(envelope);
+        }
+
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
@@ -123,7 +128,7 @@ internal class Executor : IExecutor
             }
 
             // Record message causation before flushing outgoing messages
-            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
             {
                 Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
@@ -210,7 +215,7 @@ internal class Executor : IExecutor
             await Handler.HandleAsync(context, combined.Token).ConfigureAwait(false);
 
             // Record message causation after handler execution
-            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
             {
                 Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }
@@ -318,6 +323,12 @@ internal class Executor : IExecutor
         [EnumeratorCancellation] CancellationToken cancellation)
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartStreaming(envelope) : null;
+
+        if (activity is not null && _runtime?.Options.Tracking.HandlerExecutionDiagnosticsEnabled == true)
+        {
+            activity.ApplyExecutionDiagnosticTags(envelope);
+        }
+
         _tracker.ExecutionStarted(envelope);
 
         var context = _contextPool.Get();
@@ -330,7 +341,7 @@ internal class Executor : IExecutor
         {
             await InvokeAsync(context, cancellation).ConfigureAwait(false);
 
-            if (_runtime is { Options.EnableMessageCausationTracking: true })
+            if (_runtime is { Options.Tracking.EnableMessageCausationTracking: true })
             {
                 Handler.RecordCauseAndEffect(context, _runtime.Observer);
             }

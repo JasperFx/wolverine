@@ -57,7 +57,7 @@ public abstract class MessageHandler : IMessageHandler
     /// </summary>
     public void RecordCauseAndEffect(MessageContext context, IWolverineObserver observer)
     {
-        if (!context.Runtime.Options.EnableMessageCausationTracking) return;
+        if (!context.Runtime.Options.Tracking.EnableMessageCausationTracking) return;
 
         // Skip the entire causation report when the incoming message itself is a
         // framework-internal type (IAgentCommand, INotToBeRouted, IInternalMessage, etc.).

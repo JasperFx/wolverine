@@ -63,6 +63,11 @@ public class HandlerPipeline : IHandlerPipeline
 
         using var activity = TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
 
+        if (activity is not null && _runtime.Options.Tracking.HandlerExecutionDiagnosticsEnabled)
+        {
+            activity.ApplyExecutionDiagnosticTags(envelope);
+        }
+
         return InvokeAsync(envelope, channel, activity);
     }
 
@@ -112,6 +117,14 @@ public class HandlerPipeline : IHandlerPipeline
     {
         if (envelope.Message != null) return NullContinuation.Instance;
 
+        // Opt-in via WolverineOptions.Tracking.DeserializationSpanEnabled.
+        // The span only starts when the flag is on AND we have a current Activity
+        // listener — ActivitySource.StartActivity returns null otherwise, which
+        // keeps the no-op cost trivial.
+        using var activity = _runtime.Options.Tracking.DeserializationSpanEnabled
+            ? WolverineTracing.ActivitySource.StartActivity(WolverineTracing.Deserialize, ActivityKind.Internal)
+            : null;
+
         // Try to deserialize
         try
         {
@@ -129,6 +142,8 @@ public class HandlerPipeline : IHandlerPipeline
                 throw new ArgumentOutOfRangeException(nameof(envelope),
                     "Envelope does not have a message or deserialized message data");
             }
+
+            activity?.SetTag(WolverineTracing.PayloadSizeBytes, envelope.Data.Length);
 
             if (envelope.Message != null)
             {
@@ -167,6 +182,7 @@ public class HandlerPipeline : IHandlerPipeline
         }
         catch (Exception? e)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
             return new MoveToErrorQueue(e);
         }
         finally
