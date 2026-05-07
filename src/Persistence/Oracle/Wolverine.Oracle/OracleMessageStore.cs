@@ -113,6 +113,12 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => _nodes!;
+
+    // Real Oracle-backed listener store wired in once the schema bits land.
+    // Default no-op keeps the Wolverine boot path clean while
+    // EnableDynamicListeners is false (no schema, no behavior).
+    public IListenerStore Listeners { get; protected set; } = NullListenerStore.Instance;
+
     public IMessageStoreAdmin Admin => this;
     public IDeadLetters DeadLetters => this;
     public string Name { get; set; }

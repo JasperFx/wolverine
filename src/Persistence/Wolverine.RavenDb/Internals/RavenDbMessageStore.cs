@@ -60,6 +60,12 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => this;
+
+    // Default no-op listener store; real RavenDb-backed listener registry is
+    // a follow-up implementation. Stays a no-op while EnableDynamicListeners
+    // is false (default).
+    public IListenerStore Listeners { get; protected set; } = NullListenerStore.Instance;
+
     public IMessageStoreAdmin Admin => this;
     public IDeadLetters DeadLetters => this;
     public void Initialize(IWolverineRuntime runtime)

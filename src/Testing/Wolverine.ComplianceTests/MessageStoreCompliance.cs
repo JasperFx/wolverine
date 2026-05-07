@@ -1186,4 +1186,107 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
             "mark-as-handled SQL targets the right database. See GH-2318 / GH-2576.");
     }
 
+    #region IListenerStore compliance — see GH-2685
+
+    /// <summary>
+    /// Provider opts into the dynamic-listener registry by setting
+    /// <c>Durability.EnableDynamicListeners = true</c> in its <see cref="BuildCleanHost"/>.
+    /// Tests below short-circuit when <c>Listeners</c> is the no-op store so providers
+    /// can adopt the contract incrementally — once a provider opts in, the same suite
+    /// validates real persistence end-to-end.
+    /// </summary>
+    private bool listenersAreSupported => thePersistence.Listeners is not NullListenerStore;
+
+    [Fact]
+    public async Task all_listeners_returns_empty_on_a_clean_store()
+    {
+        if (!listenersAreSupported) return;
+
+        var listeners = await thePersistence.Listeners.AllListenersAsync();
+        listeners.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task register_listener_persists_uri()
+    {
+        if (!listenersAreSupported) return;
+
+        var uri = new Uri("mqtt://topic/devices/foo/status");
+        await thePersistence.Listeners.RegisterListenerAsync(uri);
+
+        var all = await thePersistence.Listeners.AllListenersAsync();
+        all.ShouldContain(uri);
+    }
+
+    [Fact]
+    public async Task register_listener_is_idempotent()
+    {
+        if (!listenersAreSupported) return;
+
+        var uri = new Uri("mqtt://topic/devices/dup");
+        await thePersistence.Listeners.RegisterListenerAsync(uri);
+        await thePersistence.Listeners.RegisterListenerAsync(uri); // no-op, no exception
+
+        var all = await thePersistence.Listeners.AllListenersAsync();
+        all.Count(x => x == uri).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task remove_listener_removes_the_uri()
+    {
+        if (!listenersAreSupported) return;
+
+        var uri = new Uri("mqtt://topic/devices/removable");
+        await thePersistence.Listeners.RegisterListenerAsync(uri);
+        await thePersistence.Listeners.RemoveListenerAsync(uri);
+
+        var all = await thePersistence.Listeners.AllListenersAsync();
+        all.ShouldNotContain(uri);
+    }
+
+    [Fact]
+    public async Task remove_listener_is_idempotent_on_unknown_uri()
+    {
+        if (!listenersAreSupported) return;
+
+        // Should not throw — the registry tolerates removing a uri that was
+        // never registered (matches the "register then crash mid-handler"
+        // recovery shape the runtime API depends on).
+        await thePersistence.Listeners.RemoveListenerAsync(new Uri("mqtt://topic/never-registered"));
+    }
+
+    [Fact]
+    public async Task register_then_remove_then_re_register_works()
+    {
+        if (!listenersAreSupported) return;
+
+        var uri = new Uri("mqtt://topic/devices/cycle");
+        await thePersistence.Listeners.RegisterListenerAsync(uri);
+        await thePersistence.Listeners.RemoveListenerAsync(uri);
+        await thePersistence.Listeners.RegisterListenerAsync(uri);
+
+        var all = await thePersistence.Listeners.AllListenersAsync();
+        all.ShouldContain(uri);
+    }
+
+    [Fact]
+    public async Task all_listeners_includes_every_registered_uri()
+    {
+        if (!listenersAreSupported) return;
+
+        var a = new Uri("mqtt://topic/a");
+        var b = new Uri("mqtt://topic/b");
+        var c = new Uri("mqtt://topic/c");
+        await thePersistence.Listeners.RegisterListenerAsync(a);
+        await thePersistence.Listeners.RegisterListenerAsync(b);
+        await thePersistence.Listeners.RegisterListenerAsync(c);
+
+        var all = await thePersistence.Listeners.AllListenersAsync();
+        all.ShouldContain(a);
+        all.ShouldContain(b);
+        all.ShouldContain(c);
+    }
+
+    #endregion
+
 }

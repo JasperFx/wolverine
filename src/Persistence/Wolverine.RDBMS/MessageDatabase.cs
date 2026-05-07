@@ -127,6 +127,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public INodeAgentPersistence Nodes { get; }
 
+    /// <summary>
+    /// Set by <see cref="Initialize"/> after <see cref="DurabilitySettings.EnableDynamicListeners"/>
+    /// is read off the runtime — defaults to <see cref="NullListenerStore.Instance"/>
+    /// when the flag is off so the listener-registry table is never provisioned.
+    /// </summary>
+    public IListenerStore Listeners { get; protected set; } = NullListenerStore.Instance;
+
     public IMessageInbox Inbox => this;
 
     public IMessageOutbox Outbox => this;

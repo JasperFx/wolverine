@@ -66,6 +66,12 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
     public INodeAgentPersistence Nodes => this;
+
+    // Default no-op listener store. CosmosDB-backed listener registry is a
+    // follow-up implementation; stays a no-op while EnableDynamicListeners
+    // is false (default).
+    public IListenerStore Listeners { get; protected set; } = NullListenerStore.Instance;
+
     public IMessageStoreAdmin Admin => this;
     public IDeadLetters DeadLetters => this;
 

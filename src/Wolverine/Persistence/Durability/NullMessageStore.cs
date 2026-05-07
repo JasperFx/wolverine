@@ -145,6 +145,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public IScheduledMessages ScheduledMessages => this;
     public INodeAgentPersistence Nodes => throw new NotSupportedException();
 
+    // No durable backing → no dynamic-listener registry. Solo-mode hosts that
+    // *do* want dynamic listeners need a real message store.
+    public IListenerStore Listeners => NullListenerStore.Instance;
+
     public IMessageStoreAdmin Admin => this;
 
     public DatabaseDescriptor Describe()
