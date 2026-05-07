@@ -418,6 +418,35 @@ public class FaultPublisherTests
     }
 
     [Fact]
+    public async Task resolves_redaction_from_policy_and_passes_flags_to_ExceptionInfo()
+    {
+        var (publisher, policy, lifecycle, _) = CreatePublisher();
+        policy.SetOverride(
+            typeof(Foo),
+            FaultPublishingMode.DlqOnly,
+            includeExceptionMessage: false,
+            includeStackTrace: false);
+        lifecycle.Envelope.Returns(EnvelopeFor(new Foo("a")));
+
+        Fault<Foo>? captured = null;
+        lifecycle
+            .When(x => x.PublishAsync(Arg.Any<Fault<Foo>>(), Arg.Any<DeliveryOptions?>()))
+            .Do(call => captured = call.Arg<Fault<Foo>>());
+
+        Exception thrown;
+        try { throw new InvalidOperationException("secret-canary-001"); }
+        catch (Exception ex) { thrown = ex; }
+
+        await publisher.PublishIfEnabledAsync(
+            lifecycle, thrown, FaultTrigger.MovedToErrorQueue, activity: null);
+
+        captured.ShouldNotBeNull();
+        captured!.Exception.Type.ShouldBe(typeof(InvalidOperationException).FullName);
+        captured.Exception.Message.ShouldBe(string.Empty);
+        captured.Exception.StackTrace.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task records_fault_recursion_suppressed_event_when_publishing_fault_of_fault()
     {
         var (publisher, policy, lifecycle, _) = CreatePublisher();

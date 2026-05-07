@@ -134,20 +134,33 @@ public class MessageTypePolicies<T>
     /// Calling this for value-type messages compiles but will not produce a fault at runtime.
     /// </para>
     /// <para>
-    /// <b>Delivery semantics.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool)"/>
+    /// <b>Delivery semantics.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool, bool, bool)"/>
     /// — auto-published fault events are best-effort and not transactionally co-committed with
     /// the dead-letter-queue move.
     /// </para>
     /// <para>
-    /// <b>Scope.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool)"/> — fault events
-    /// are not emitted for send-side DLQ movements or unknown-message-type envelopes.
+    /// <b>Scope.</b> See <see cref="WolverineOptions.PublishFaultEvents(bool, bool, bool)"/> —
+    /// fault events are not emitted for send-side DLQ movements or unknown-message-type envelopes.
+    /// </para>
+    /// <para>
+    /// <b>Fully-specified override.</b> The values passed here — including the defaults for
+    /// <paramref name="includeExceptionMessage"/> and <paramref name="includeStackTrace"/> — are
+    /// stored as the override for <typeparamref name="T"/>. They do <i>not</i> inherit subsequent
+    /// changes to globals on <see cref="WolverineOptions.PublishFaultEvents(bool, bool, bool)"/>.
+    /// If you want this type to redact exception messages, pass
+    /// <c>includeExceptionMessage: false</c> here explicitly.
     /// </para>
     /// </remarks>
-    public MessageTypePolicies<T> PublishFault(bool includeDiscarded = false)
+    public MessageTypePolicies<T> PublishFault(
+        bool includeDiscarded = false,
+        bool includeExceptionMessage = true,
+        bool includeStackTrace = true)
     {
-        _parent.FaultPublishing.SetOverride(typeof(T), includeDiscarded
+        var mode = includeDiscarded
             ? FaultPublishingMode.DlqAndDiscard
-            : FaultPublishingMode.DlqOnly);
+            : FaultPublishingMode.DlqOnly;
+        _parent.FaultPublishing.SetOverride(
+            typeof(T), mode, includeExceptionMessage, includeStackTrace);
         return this;
     }
 

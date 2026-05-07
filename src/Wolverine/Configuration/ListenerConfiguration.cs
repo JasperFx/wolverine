@@ -138,6 +138,16 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// the listener has no way to decrypt accepted envelopes and would
     /// dead-letter every inbound message.
     /// </summary>
+    /// <remarks>
+    /// Scope is the inbound listener only. Outgoing republishes — including
+    /// auto-published <see cref="Fault{T}"/> events that originate from a
+    /// failure on this listener — route via the global routing graph and are
+    /// not constrained by this marker. To require encryption on outbound
+    /// fault events, configure outbound encryption via
+    /// <see cref="MessageTypePolicies{T}.Encrypt"/> or per-endpoint
+    /// <c>.Encrypted()</c>; both pair automatically with the corresponding
+    /// <see cref="Fault{T}"/> envelopes.
+    /// </remarks>
     public TSelf RequireEncryption()
     {
         add(endpoint =>

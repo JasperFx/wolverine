@@ -118,6 +118,65 @@ with `EncryptionPolicyViolationException`. No bytes are ever passed to a
 serializer for a forged plaintext envelope. Either marker is sufficient
 on its own.
 
+### Fault events
+
+Wolverine's auto-published `Fault<T>` events interact with encryption in
+three ways worth calling out explicitly.
+
+**Per-type encryption auto-pairs with `Fault<T>`.** When you call
+`Policies.ForMessagesOfType<PaymentDetails>().Encrypt()`, Wolverine also
+registers the encrypting serializer rule for `Fault<PaymentDetails>` and
+adds `typeof(Fault<PaymentDetails>)` to the receive-side encryption
+requirement set. The auto-published fault for a failing `PaymentDetails`
+handler reaches the broker as ciphertext, and a `Fault<PaymentDetails>`
+arriving plaintext at any listener is dead-lettered with
+`EncryptionPolicyViolationException` — same protection, both sides. No
+manual setup. Skipped for value-type `T` because `Fault<T>` requires
+`T : class`.
+
+**Exception messages may carry payload-derived plaintext.** A handler that
+throws `new ValidationException($"Card {model.CardNumber} declined")`
+captures the card number into `Fault<T>.Exception.Message`. Even with
+encryption enabled on the wire, the exception text is in the body and
+visible to any subscriber that decrypts the fault. For regulated
+environments, suppress the message and/or stack trace via the redaction
+knobs on `PublishFaultEvents`:
+
+```csharp
+// Type-only — redacts every Fault<T>.Exception.Message and .StackTrace
+// across the whole host. Type names survive (they are in your source
+// code anyway).
+opts.PublishFaultEvents(includeExceptionMessage: false, includeStackTrace: false);
+
+// Per-type — only PaymentDetails faults are redacted; other types keep
+// the full default. The per-type call is fully specified — the values
+// you pass are stored as-is and do not inherit subsequent changes to
+// the global defaults above.
+opts.Policies.ForMessagesOfType<PaymentDetails>()
+    .PublishFault(includeExceptionMessage: false);
+```
+
+The redaction recurses through inner exceptions and
+`AggregateException.InnerExceptions`. The `Type` field is always
+preserved. Redacted values are `string.Empty` for `Message` and `null`
+for `StackTrace`.
+
+> **Note:** redaction targets `Fault<T>.Exception` only. The original
+> message instance `T` carried as `Fault<T>.Message` is unchanged — that
+> is what fault events are for. If `T` itself is sensitive, the per-type
+> `Encrypt()` pairing above is the right tool: the entire fault body
+> (including `T` and the `ExceptionInfo`) travels encrypted on the wire.
+
+**`RequireEncryption()` is a receive-side guard only.** Marking a listener
+with `.RequireEncryption()` rejects unencrypted inbound envelopes on that
+listener but does not constrain outbound republishes. An auto-published
+`Fault<T>` triggered by a failure on a `RequireEncryption()` listener
+routes via the global routing graph; whether it is encrypted on its
+outbound hop depends on the per-type / per-endpoint encryption
+configuration for `Fault<T>` (or, with the auto-pairing above, for `T`).
+The two markers solve different problems and intentionally do not
+cross-cut.
+
 ## Key rotation
 
 Static `DefaultKeyId`. Rotate by deploying a new provider with the new

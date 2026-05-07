@@ -58,14 +58,17 @@ internal sealed class FaultPublisher : IFaultPublisher
         // Silent no-op for value-type messages — Fault<T> requires `T : class`.
         if (messageType.IsValueType) return;
 
-        var mode = _policy.Resolve(messageType);
+        var decision = _policy.Resolve(messageType);
 
-        if (mode == FaultPublishingMode.None) return;
-        if (trigger == FaultTrigger.Discarded && mode != FaultPublishingMode.DlqAndDiscard) return;
+        if (decision.Mode == FaultPublishingMode.None) return;
+        if (trigger == FaultTrigger.Discarded && decision.Mode != FaultPublishingMode.DlqAndDiscard) return;
 
         try
         {
-            var exceptionInfo = ExceptionInfo.From(exception);
+            var exceptionInfo = ExceptionInfo.From(
+                exception,
+                decision.IncludeExceptionMessage,
+                decision.IncludeStackTrace);
             var factory = _factories.GetOrAdd(messageType, BuildFactory);
             var faultMessage = factory(original.Message, exceptionInfo, original);
 

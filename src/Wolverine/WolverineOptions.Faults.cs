@@ -34,12 +34,30 @@ public sealed partial class WolverineOptions
     /// and envelopes whose message-type name doesn't resolve to a known handler — there is no
     /// <c>T</c> to construct a <see cref="Fault{T}"/> for in that case.
     /// </para>
+    /// <para>
+    /// <b>Exception redaction.</b> By default, <see cref="Fault{T}.Exception"/> carries the full
+    /// exception message and stack trace, recursed through inner exceptions. A common throw
+    /// pattern like <c>throw new ValidationException($"Card {model.CardNumber} declined")</c>
+    /// places payload-derived plaintext in the captured message. In regulated environments,
+    /// pass <c>includeExceptionMessage: false</c> to set every captured
+    /// <see cref="ExceptionInfo.Message"/> to <see cref="string.Empty"/>, and/or
+    /// <c>includeStackTrace: false</c> to drop every captured <see cref="ExceptionInfo.StackTrace"/>.
+    /// The <see cref="ExceptionInfo.Type"/> field is always preserved. Both flags apply
+    /// recursively to inner exceptions and to <see cref="AggregateException.InnerExceptions"/>.
+    /// Per-type overrides via <see cref="MessageTypePolicies{T}.PublishFault"/> set their own
+    /// redaction values explicitly and do not inherit subsequent changes to these globals.
+    /// </para>
     /// </remarks>
-    public WolverineOptions PublishFaultEvents(bool includeDiscarded = false)
+    public WolverineOptions PublishFaultEvents(
+        bool includeDiscarded = false,
+        bool includeExceptionMessage = true,
+        bool includeStackTrace = true)
     {
         FaultPublishing.GlobalMode = includeDiscarded
             ? FaultPublishingMode.DlqAndDiscard
             : FaultPublishingMode.DlqOnly;
+        FaultPublishing.GlobalIncludeExceptionMessage = includeExceptionMessage;
+        FaultPublishing.GlobalIncludeStackTrace = includeStackTrace;
         return this;
     }
 }

@@ -57,4 +57,89 @@ public class ExceptionInfoTests
         info.InnerExceptions[0].Message.ShouldBe("a");
         info.InnerExceptions[1].Message.ShouldBe("b");
     }
+
+    [Fact]
+    public void from_with_default_args_includes_message_and_stacktrace()
+    {
+        Exception captured;
+        try { throw new InvalidOperationException("boom"); }
+        catch (Exception ex) { captured = ex; }
+
+        var info = ExceptionInfo.From(captured);
+
+        info.Type.ShouldBe(typeof(InvalidOperationException).FullName);
+        info.Message.ShouldBe("boom");
+        info.StackTrace.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void from_with_includeMessage_false_clears_message_keeps_type_and_stacktrace()
+    {
+        Exception captured;
+        try { throw new InvalidOperationException("secret-canary"); }
+        catch (Exception ex) { captured = ex; }
+
+        var info = ExceptionInfo.From(captured, includeMessage: false);
+
+        info.Type.ShouldBe(typeof(InvalidOperationException).FullName);
+        info.Message.ShouldBe(string.Empty);
+        info.StackTrace.ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void from_with_includeStackTrace_false_clears_stacktrace_keeps_type_and_message()
+    {
+        Exception captured;
+        try { throw new InvalidOperationException("boom"); }
+        catch (Exception ex) { captured = ex; }
+
+        var info = ExceptionInfo.From(captured, includeStackTrace: false);
+
+        info.Type.ShouldBe(typeof(InvalidOperationException).FullName);
+        info.Message.ShouldBe("boom");
+        info.StackTrace.ShouldBeNull();
+    }
+
+    [Fact]
+    public void from_with_both_flags_false_keeps_only_type()
+    {
+        Exception captured;
+        try { throw new InvalidOperationException("secret"); }
+        catch (Exception ex) { captured = ex; }
+
+        var info = ExceptionInfo.From(captured, includeMessage: false, includeStackTrace: false);
+
+        info.Type.ShouldBe(typeof(InvalidOperationException).FullName);
+        info.Message.ShouldBe(string.Empty);
+        info.StackTrace.ShouldBeNull();
+    }
+
+    [Fact]
+    public void from_recursion_propagates_flags_to_inner_exception()
+    {
+        var inner = new ArgumentException("inner-secret");
+        var outer = new InvalidOperationException("outer-secret", inner);
+
+        var info = ExceptionInfo.From(outer, includeMessage: false);
+
+        info.Message.ShouldBe(string.Empty);
+        info.InnerExceptions.Count.ShouldBe(1);
+        info.InnerExceptions[0].Type.ShouldBe(typeof(ArgumentException).FullName);
+        info.InnerExceptions[0].Message.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public void from_recursion_propagates_flags_to_aggregate_inner_exceptions()
+    {
+        var a = new InvalidOperationException("secret-a");
+        var b = new ArgumentException("secret-b");
+        var agg = new AggregateException(a, b);
+
+        var info = ExceptionInfo.From(agg, includeMessage: false);
+
+        info.Type.ShouldBe(typeof(AggregateException).FullName);
+        info.InnerExceptions.Count.ShouldBe(2);
+        info.InnerExceptions[0].Message.ShouldBe(string.Empty);
+        info.InnerExceptions[1].Message.ShouldBe(string.Empty);
+    }
 }

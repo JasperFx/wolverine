@@ -15,7 +15,7 @@ public class FaultPublishingModeResolutionTests
     {
         var opts = new WolverineOptions();
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.None);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.None);
     }
 
     [Fact]
@@ -24,7 +24,7 @@ public class FaultPublishingModeResolutionTests
         var opts = new WolverineOptions();
         opts.Policies.ForMessagesOfType<Foo>().PublishFault();
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqOnly);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqOnly);
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class FaultPublishingModeResolutionTests
         var opts = new WolverineOptions();
         opts.Policies.ForMessagesOfType<Foo>().PublishFault(includeDiscarded: true);
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqAndDiscard);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqAndDiscard);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class FaultPublishingModeResolutionTests
         var opts = new WolverineOptions();
         opts.PublishFaultEvents();
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqOnly);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqOnly);
     }
 
     [Fact]
@@ -51,7 +51,7 @@ public class FaultPublishingModeResolutionTests
         var opts = new WolverineOptions();
         opts.PublishFaultEvents(includeDiscarded: true);
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqAndDiscard);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqAndDiscard);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class FaultPublishingModeResolutionTests
         opts.PublishFaultEvents();
         opts.Policies.ForMessagesOfType<Foo>().DoNotPublishFault();
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.None);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.None);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class FaultPublishingModeResolutionTests
         opts.PublishFaultEvents(includeDiscarded: true);
         opts.Policies.ForMessagesOfType<Foo>().PublishFault();
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqOnly);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqOnly);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class FaultPublishingModeResolutionTests
         opts.PublishFaultEvents();
         opts.Policies.ForMessagesOfType<Foo>().DoNotPublishFault();
 
-        GetPolicy(opts).Resolve(typeof(Bar)).ShouldBe(FaultPublishingMode.DlqOnly);
+        GetPolicy(opts).Resolve(typeof(Bar)).Mode.ShouldBe(FaultPublishingMode.DlqOnly);
     }
 
     [Fact]
@@ -91,6 +91,6 @@ public class FaultPublishingModeResolutionTests
         opts.Policies.ForMessagesOfType<Foo>().PublishFault();
         opts.Policies.ForMessagesOfType<Foo>().PublishFault(includeDiscarded: true);
 
-        GetPolicy(opts).Resolve(typeof(Foo)).ShouldBe(FaultPublishingMode.DlqAndDiscard);
+        GetPolicy(opts).Resolve(typeof(Foo)).Mode.ShouldBe(FaultPublishingMode.DlqAndDiscard);
     }
 }
