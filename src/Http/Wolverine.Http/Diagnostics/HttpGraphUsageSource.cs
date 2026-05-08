@@ -284,12 +284,39 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
     }
 
     private static string computeStableId(string route, List<string> methods, string handlerType, string methodName)
+        => HttpChainIds.ComputeStableId(route, methods, handlerType, methodName);
+}
+
+/// <summary>
+/// Public façade over the same stable-id hash <see cref="HttpGraphUsageSource"/>
+/// stamps onto every <c>HttpChainDescriptor</c>. Exposed for downstream
+/// integration packages (e.g. <c>Wolverine.CritterWatch.Http</c>) that need to
+/// match a runtime <see cref="HttpChain"/> back to a CritterWatch-side
+/// descriptor by chain id without round-tripping through the descriptor pipeline.
+/// </summary>
+public static class HttpChainIds
+{
+    /// <summary>
+    /// Compute the stable 16-character hex chain id for a chain identified by
+    /// route, HTTP method set, handler type full name, and handler method
+    /// name. The hash is stable across rebuilds so deep links and detail-page
+    /// URLs survive deploys.
+    /// </summary>
+    public static string ComputeStableId(string route, IEnumerable<string> methods, string handlerType, string methodName)
     {
-        // Stable across rebuilds — operator can bookmark detail-page URLs.
-        // Hash combines route + method set + handler so Wolverine generated
-        // chains and renamed methods produce predictable, distinct ids.
         var input = $"{methods.OrderBy(m => m).Join(",")}::{route}::{handlerType}.{methodName}";
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input));
         return Convert.ToHexString(bytes.AsSpan(0, 8)).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Convenience overload that pulls route + methods + handler from a live
+    /// <see cref="HttpChain"/>. Mirrors <see cref="HttpGraphUsageSource"/>'s
+    /// own usage so identifiers stay in lockstep.
+    /// </summary>
+    public static string For(HttpChain chain)
+    {
+        var route = chain.RoutePattern?.RawText ?? string.Empty;
+        return ComputeStableId(route, chain.HttpMethods, chain.Method.HandlerType.FullNameInCode(), chain.Method.Method.Name);
     }
 }
