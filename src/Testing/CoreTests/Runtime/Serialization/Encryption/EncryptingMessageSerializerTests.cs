@@ -106,9 +106,7 @@ public class EncryptingMessageSerializerTests
     private sealed class TrackingInnerSerializer : IMessageSerializer
     {
         public int WriteMessageCallCount;
-        public int WriteAsyncCallCount;
         public int ReadFromDataBytesCallCount;
-        public Func<byte[], object>? ReadFromDataBytesBehavior;
 
         public string ContentType => EnvelopeConstants.JsonContentType;
 
@@ -129,7 +127,6 @@ public class EncryptingMessageSerializerTests
         public object ReadFromData(byte[] data)
         {
             ReadFromDataBytesCallCount++;
-            if (ReadFromDataBytesBehavior is not null) return ReadFromDataBytesBehavior(data);
             return new SystemTextJsonSerializer(SystemTextJsonSerializer.DefaultOptions()).ReadFromData(data);
         }
     }
@@ -429,7 +426,7 @@ public class EncryptingMessageSerializerTests
     [Fact]
     public async Task ReadFromDataAsync_throws_MessageDecryption_when_keyId_header_tampered()
     {
-        // Two keys with identical bytes — proves AAD (not key lookup) catches the tamper.
+        // Two keys with identical bytes - proves AAD (not key lookup) catches the tamper.
         var bytes = Key32(0x42);
         var provider = new InMemoryKeyProvider(
             defaultKeyId: "k1",
@@ -565,7 +562,7 @@ public class EncryptingMessageSerializerTests
     {
         // Custom IKeyProvider implementations that return a key that is not
         // exactly 32 bytes would otherwise surface as a raw CryptographicException
-        // from the AesGcm constructor — at a call site outside the WriteAsync
+        // from the AesGcm constructor - at a call site outside the WriteAsync
         // try-catch, with no key-id information attached. The serializer must
         // wrap this into the same diagnostic shape as a missing/unknown key.
         var sut = new EncryptingMessageSerializer(
