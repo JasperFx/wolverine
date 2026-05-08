@@ -523,7 +523,7 @@ public class DeleteDocById<T> : IPolecatOp where T : class
             case Guid idAsGuid: target.Delete<T>(idAsGuid); break;
             case long idAsLong: target.Delete<T>(idAsLong); break;
             case int idAsInt: target.Delete<T>(idAsInt); break;
-            default: throw new InvalidOperationException($"Cannot delete by id of type {_id.GetType()}"); break;
+            default: throw new InvalidOperationException($"Cannot delete by id of type {_id.GetType()}");
         }
     }
 }
