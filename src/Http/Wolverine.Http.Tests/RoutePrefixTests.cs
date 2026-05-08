@@ -162,6 +162,56 @@ public class RoutePrefixTests
         // Should match the most specific (longest) namespace
         prefix.ShouldBe("api/http/tests");
     }
+
+    [Fact]
+    public void apply_honors_attribute_prefix_when_no_global_or_namespace_prefix_configured()
+    {
+        // Regression for GH-2705: when no global/namespace prefix is configured, the
+        // policy used to short-circuit before iterating chains, silently dropping every
+        // [RoutePrefix] attribute. Surfaced when API Versioning was enabled because the
+        // version-segment policy still ran, producing routes like "v1/create" instead of
+        // "v1/items/create" for [RoutePrefix("items")].
+        var options = new WolverineHttpOptions();
+
+        var chain = HttpChain.ChainFor<PrefixedEndpoints>(x => x.GetOrders());
+        chain.RoutePattern!.RawText.ShouldBe("/orders");
+
+        var policy = new RoutePrefixPolicy(options);
+        policy.Apply(new[] { chain }, new JasperFx.CodeGeneration.GenerationRules(), null!);
+
+        chain.RoutePattern!.RawText.ShouldBe("/v2/orders/orders");
+    }
+
+    [Fact]
+    public void gh_2705_attribute_prefix_combines_with_api_versioning()
+    {
+        // Mirrors the exact reproduction from GH-2705:
+        //   [RoutePrefix("items")]
+        //   public static class TodoCreationEndpoint
+        //   {
+        //       [WolverinePost("/create")] public static void Post() { }
+        //   }
+        // with API Versioning configured DefaultVersion=v1 + AssignDefault.
+        // Expected route: /v1/items/create.
+        var httpOptions = new WolverineHttpOptions();
+        var versioningOptions = new Wolverine.Http.ApiVersioning.WolverineApiVersioningOptions
+        {
+            DefaultVersion = new Asp.Versioning.ApiVersion(1, 0),
+            UnversionedPolicy = Wolverine.Http.ApiVersioning.UnversionedPolicy.AssignDefault
+        };
+
+        var chain = HttpChain.ChainFor(typeof(TodoCreationEndpoint), nameof(TodoCreationEndpoint.Post));
+        chain.RoutePattern!.RawText.ShouldBe("/create");
+
+        // HttpGraph.DiscoverEndpoints applies RoutePrefixPolicy before the API versioning policy,
+        // so reproduce that order here.
+        new RoutePrefixPolicy(httpOptions)
+            .Apply(new[] { chain }, new JasperFx.CodeGeneration.GenerationRules(), null!);
+        new Wolverine.Http.ApiVersioning.ApiVersioningPolicy(versioningOptions)
+            .Apply(new[] { chain }, new JasperFx.CodeGeneration.GenerationRules(), null!);
+
+        chain.RoutePattern!.RawText.ShouldBe("/v1/items/create");
+    }
 }
 
 // Test handler types
@@ -179,4 +229,13 @@ public class PrefixedEndpoints
 {
     [WolverineGet("/orders")]
     public string GetOrders() => "orders";
+}
+
+[RoutePrefix("items")]
+public static class TodoCreationEndpoint
+{
+    [WolverinePost("/create")]
+    public static void Post()
+    {
+    }
 }
