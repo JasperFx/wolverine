@@ -16,12 +16,6 @@ internal class RoutePrefixPolicy : IHttpPolicy
 
     public void Apply(IReadOnlyList<HttpChain> chains, GenerationRules rules, IServiceContainer container)
     {
-        // Nothing to do if no prefixes are configured
-        if (_options.GlobalRoutePrefix == null && _options.NamespacePrefixes.Count == 0)
-        {
-            return;
-        }
-
         foreach (var chain in chains)
         {
             if (chain.RoutePattern == null) continue;
