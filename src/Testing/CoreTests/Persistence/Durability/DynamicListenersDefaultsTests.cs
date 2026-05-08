@@ -8,7 +8,7 @@ namespace CoreTests.Persistence.Durability;
 /// Lock down the upgrade-safety contract for the new dynamic-listener registry:
 ///   the opt-in flag defaults to <c>false</c>, the default
 ///   <c>IMessageStore.Listeners</c> is the no-op store, and existing apps that
-///   bump Wolverine without touching options pay nothing — no schema migration,
+///   bump Wolverine without touching options pay nothing - no schema migration,
 ///   no behavioural change, no agent family registration.
 /// </summary>
 public class DynamicListenersDefaultsTests
@@ -16,7 +16,7 @@ public class DynamicListenersDefaultsTests
     [Fact]
     public void enable_dynamic_listeners_defaults_to_false_on_a_fresh_durability_settings()
     {
-        // Direct construction (no host bootstrap) — guards against a future
+        // Direct construction (no host bootstrap) - guards against a future
         // ctor or property-initializer regression flipping the default.
         new DurabilitySettings().EnableDynamicListeners.ShouldBeFalse();
     }
@@ -24,20 +24,19 @@ public class DynamicListenersDefaultsTests
     [Fact]
     public void enable_dynamic_listeners_defaults_to_false_on_wolverine_options()
     {
-        // Whole-options walk — covers any indirect mutation that
+        // Whole-options walk - covers any indirect mutation that
         // WolverineOptions' constructor could introduce on Durability.
         new WolverineOptions().Durability.EnableDynamicListeners.ShouldBeFalse();
     }
 
     [Fact]
-    public void null_listener_store_register_is_a_no_op()
+    public async Task null_listener_store_register_is_a_no_op()
     {
         // The default store every IMessageStore.Listeners points at when the
         // flag is off. Locks down the no-op contract: no exception, no state.
         var store = NullListenerStore.Instance;
 
-        store.RegisterListenerAsync(new Uri("mqtt://topic/devices/abc"))
-            .GetAwaiter().GetResult(); // sync drain — no-op should be sync-completed
+        await store.RegisterListenerAsync(new Uri("mqtt://topic/devices/abc"));
     }
 
     [Fact]
