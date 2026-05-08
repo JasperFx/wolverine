@@ -1,3 +1,4 @@
+using NATS.Client.JetStream.Models;
 using Wolverine.Configuration;
 using Wolverine.Nats.Internal;
 
@@ -79,6 +80,44 @@ public class NatsListenerConfiguration
         add(endpoint =>
         {
             endpoint.DeadLetterSubject = deadLetterSubject;
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the JetStream consumer's <c>DeliverPolicy</c> for this listener
+    /// only — wins over any transport-wide default set via
+    /// <c>UseJetStream(d =&gt; d.DeliverPolicy = ...)</c>.
+    ///
+    /// Use <see cref="ConsumerConfigDeliverPolicy.New"/> to start an
+    /// auto-provisioned consumer at "only messages that arrive after this
+    /// consumer is created" — the typical answer when standing up a new
+    /// listener against an existing stream you don't want to replay from the
+    /// beginning. Other useful values include
+    /// <see cref="ConsumerConfigDeliverPolicy.Last"/> ("only the latest
+    /// message"), <see cref="ConsumerConfigDeliverPolicy.LastPerSubject"/>
+    /// (compaction-style: latest per subject filter), and the explicit
+    /// <see cref="ConsumerConfigDeliverPolicy.All"/> (the NATS-server default
+    /// when nothing is configured — replay every message currently in the
+    /// stream). For <see cref="ConsumerConfigDeliverPolicy.ByStartSequence"/>
+    /// or <see cref="ConsumerConfigDeliverPolicy.ByStartTime"/> you must
+    /// pre-create the consumer outside Wolverine and reference it by name in
+    /// <c>UseJetStream(...)</c> — the supplemental
+    /// <c>OptStartSeq</c> / <c>OptStartTime</c> properties have no
+    /// listener-configuration surface here.
+    ///
+    /// Only applies to consumers Wolverine itself auto-provisions; if you
+    /// reference a pre-created consumer by name via
+    /// <c>UseJetStream(streamName, consumerName)</c>, Wolverine will reuse
+    /// that consumer's existing config and ignore this override (matches the
+    /// existing reuse-by-name behaviour in <c>JetStreamSubscriber</c>).
+    /// </summary>
+    public NatsListenerConfiguration DeliverFrom(ConsumerConfigDeliverPolicy deliverPolicy)
+    {
+        add(endpoint =>
+        {
+            endpoint.DeliverPolicy = deliverPolicy;
         });
 
         return this;

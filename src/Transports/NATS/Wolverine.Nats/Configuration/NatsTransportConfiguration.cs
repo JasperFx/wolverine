@@ -1,5 +1,6 @@
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 
 namespace Wolverine.Nats.Configuration;
 
@@ -92,6 +93,22 @@ public class JetStreamDefaults
     public TimeSpan AckWait { get; set; } = TimeSpan.FromSeconds(30);
     public int MaxDeliver { get; set; } = 3;
     public TimeSpan DuplicateWindow { get; set; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// Transport-wide default for the JetStream consumer's <c>DeliverPolicy</c>.
+    /// When <c>null</c> (the default) Wolverine leaves the consumer config's
+    /// <c>DeliverPolicy</c> unset, which falls through to the NATS server's
+    /// own default — <see cref="ConsumerConfigDeliverPolicy.All"/> — replaying
+    /// every message currently in the stream when an auto-provisioned consumer
+    /// first connects.
+    ///
+    /// Per-listener overrides via <c>NatsListenerConfiguration.DeliverFrom(...)</c>
+    /// always win over this transport-wide default. The override only applies
+    /// to consumers Wolverine itself auto-provisions; pre-created consumers
+    /// referenced by name keep whatever <c>DeliverPolicy</c> they were
+    /// originally created with.
+    /// </summary>
+    public ConsumerConfigDeliverPolicy? DeliverPolicy { get; set; }
 }
 
 public interface ITenantIdResolver
