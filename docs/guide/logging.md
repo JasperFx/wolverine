@@ -438,11 +438,17 @@ builder.Services.AddOpenTelemetryTracing(x =>
 ```cs
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => { tracing.AddSource("Wolverine"); })
-    .WithMetrics(metrics => { metrics.AddMeter("Wolverine"); })
+    .WithMetrics(metrics => { metrics.AddMeter("Wolverine*"); })
     .UseOtlpExporter();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/Program.cs#L36-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_open_telemetry-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: tip
+The exported `Meter` is named `Wolverine:{ApplicationName}` (e.g. `Wolverine:MyService`), so the wildcard
+`AddMeter("Wolverine*")` is required — a bare `AddMeter("Wolverine")` matches nothing. The `ActivitySource`
+for traces is still just `Wolverine`.
+:::
 
 ::: tip
 Wolverine 1.7 added the ability to disable Open Telemetry tracing on an endpoint by endpoint basis, and **finally** turned
