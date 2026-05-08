@@ -96,10 +96,37 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     [ChildDescription]
     public CreateQueueRequest Configuration { get; }
 
+    private string? _deadLetterQueueName;
+    private bool _deadLetterQueueNameSetExplicitly;
+
     /// <summary>
-    ///     Name of the dead letter queue for this SQS queue where failed messages will be moved
+    ///     Name of the dead letter queue for this SQS queue where failed messages will be moved.
+    ///     Resolution order:
+    ///     <list type="number">
+    ///       <item>If <c>ConfigureDeadLetterQueue</c> or <c>DisableDeadLetterQueueing</c> ran on
+    ///       this listener, the explicit value (including <c>null</c> for "disabled") wins.</item>
+    ///       <item>Otherwise, falls back to
+    ///       <see cref="AmazonSqsTransport.DefaultDeadLetterQueueName"/> on the parent transport
+    ///       — which itself defaults to <see cref="AmazonSqsTransport.DeadLetterQueueName"/>
+    ///       (<c>"wolverine-dead-letter-queue"</c>) for hosts that haven't opted into a custom
+    ///       transport-wide default.</item>
+    ///     </list>
+    ///     This means an unconfigured queue picks up whatever the transport's default is at the
+    ///     point Wolverine reads the property — the order between
+    ///     <c>UseAmazonSqsTransport().DefaultDeadLetterQueueName(...)</c> and the per-listener
+    ///     bootstrap calls doesn't matter.
     /// </summary>
-    public string? DeadLetterQueueName { get; set; } = AmazonSqsTransport.DeadLetterQueueName;
+    public string? DeadLetterQueueName
+    {
+        get => _deadLetterQueueNameSetExplicitly
+            ? _deadLetterQueueName
+            : _parent.DefaultDeadLetterQueueName;
+        set
+        {
+            _deadLetterQueueName = value;
+            _deadLetterQueueNameSetExplicitly = true;
+        }
+    }
 
     /// <summary>
     ///     Optional list of message attribute names to request in ReceiveMessage.
