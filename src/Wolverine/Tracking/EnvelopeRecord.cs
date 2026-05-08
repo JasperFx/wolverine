@@ -90,6 +90,9 @@ public class EnvelopeRecord
 
             case MessageEventType.MovedToErrorQueue:
                 return $"{prefix}{message} was moved to the dead letter queue";
+
+            case MessageEventType.AutoFaultPublished:
+                return $"{prefix}Auto-published Fault for {message}";
         }
 
         var icon = IsComplete ? "+" : "-";

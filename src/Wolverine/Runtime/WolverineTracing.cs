@@ -35,7 +35,48 @@ public static class WolverineTracing
     /// ActivityEvent marking when an incoming envelope is being moved to the error queue
     /// </summary>
     public const string MovedToErrorQueue = "wolverine.error.queued";
-    
+
+    /// <summary>
+    /// ActivityEvent marking that a Fault&lt;T&gt; was successfully auto-published
+    /// for an envelope being moved to the error queue or discarded.
+    /// </summary>
+    public const string FaultPublished = "wolverine.fault.published";
+
+    /// <summary>
+    /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; failed —
+    /// the underlying error is logged and metered, never thrown.
+    /// </summary>
+    public const string FaultPublishFailed = "wolverine.fault.publish.failed";
+
+    /// <summary>
+    /// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; was skipped because
+    /// no routes are configured for the fault message type. Operator must wire either
+    /// a remote subscriber (PublishMessage&lt;Fault&lt;T&gt;&gt;().To(...)) or a local handler.
+    /// </summary>
+    public const string FaultNoRoute = "wolverine.fault.no_route";
+
+    /// <summary>
+    /// ActivityEvent marking that auto-publishing was suppressed because the message being
+    /// processed is itself a Fault&lt;T&gt; — Wolverine never publishes Fault&lt;Fault&lt;T&gt;&gt;.
+    /// Almost always indicates a misconfigured recursive handler.
+    /// </summary>
+    public const string FaultRecursionSuppressed = "wolverine.fault.recursion_suppressed";
+
+    /// <summary>
+    /// ActivityEvent marking that a send-side dead-letter movement bypassed
+    /// auto-Fault publishing (the fault subsystem is receive-side only). Emitted
+    /// only when fault publishing is globally enabled — operators using per-type
+    /// PublishFault opt-in only will not see this event.
+    /// </summary>
+    public const string FaultBypassedSendSide = "wolverine.fault.bypassed.send_side";
+
+    /// <summary>
+    /// ActivityEvent marking that an unknown-message-type DLQ movement bypassed
+    /// auto-Fault publishing (no T to construct Fault&lt;T&gt; for). Emitted only
+    /// when fault publishing is globally enabled.
+    /// </summary>
+    public const string FaultBypassedUnknownType = "wolverine.fault.bypassed.unknown_type";
+
     /// <summary>
     /// ActivityEvent marking when an incoming envelope does not have a known message
     /// handler and is being shunted to registered "NoHandler" actions

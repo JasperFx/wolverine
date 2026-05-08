@@ -290,7 +290,7 @@ internal class FailureActions : IAdditionalActions, IFailureActions
 
     public IAdditionalActions Discard()
     {
-        var slot = _rule.AddSlot(DiscardEnvelope.Instance);
+        var slot = _rule.AddSlot(DiscardEnvelopeSource.Instance);
         _slots.Add(slot);
         return this;
     }

@@ -59,7 +59,14 @@ public interface ITrackedSession
     ///    Records of all messages that were moved to the error queue
     /// </summary>
     RecordCollection MovedToErrorQueue { get; }
-    
+
+    /// <summary>
+    ///    Records of <see cref="Fault{T}"/> events auto-published by the failure pipeline
+    ///    when handlers permanently fail. Identified by the <see cref="FaultHeaders.AutoPublished"/>
+    ///    header on the outgoing envelope.
+    /// </summary>
+    RecordCollection AutoFaultsPublished { get; }
+
     /// <summary>
     ///     Records of all messages that were requeued
     /// </summary>

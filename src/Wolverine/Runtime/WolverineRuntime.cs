@@ -8,6 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -22,7 +23,7 @@ using Wolverine.Transports.Stub;
 
 namespace Wolverine.Runtime;
 
-public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
+public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRuntimeInternal, IHostedService
 {
     private readonly IServiceContainer _container;
     private readonly EndpointCollection _endpoints;
@@ -114,12 +115,20 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IHostedService
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
 
+        // Resolve IFaultPublisher lazily: the DI factory in HostBuilderExtensions reads
+        // back IWolverineRuntime to get the Meter, which would deadlock if we resolved
+        // it eagerly here while the runtime singleton is still being constructed.
+        _faultPublisher = new Lazy<IFaultPublisher>(() => _container.GetInstance<IFaultPublisher>());
+
         var activators = container.GetAllInstances<IWolverineActivator>();
         foreach (var activator in activators)
         {
             activator.Apply(this);
         }
     }
+
+    private readonly Lazy<IFaultPublisher> _faultPublisher;
+    IFaultPublisher IWolverineRuntimeInternal.FaultPublisher => _faultPublisher.Value;
 
     public IStubHandlers Stubs => Options.Transports.GetOrCreate<StubTransport>();
 

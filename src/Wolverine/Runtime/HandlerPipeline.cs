@@ -210,7 +210,7 @@ public class HandlerPipeline : IHandlerPipeline
     {
         if (envelope.IsExpired())
         {
-            return DiscardEnvelope.Instance;
+            return new DiscardEnvelope(new EnvelopeExpiredException(envelope));
         }
 
         if (envelope.Message == null)

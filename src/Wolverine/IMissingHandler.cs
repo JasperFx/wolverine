@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 
@@ -25,6 +28,24 @@ internal class MoveUnknownMessageToDeadLetterQueue : IMissingHandler
 {
     public async ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root)
     {
-        await context.MoveToDeadLetterQueueAsync(new UnknownMessageTypeNameException($"Unknown message type: '{context.Envelope!.MessageType}'"));
+        var envelope = context.Envelope!;
+        await context.MoveToDeadLetterQueueAsync(
+            new UnknownMessageTypeNameException($"Unknown message type: '{envelope.MessageType}'"));
+
+        // Unknown-message-type DLQ moves bypass auto-Fault publishing — there is
+        // no T to construct Fault<T> for. Emit a one-line trace so operators can
+        // correlate missing fault events back to unknown-type failures.
+        if (root.Options.FaultPublishing.GlobalMode != FaultPublishingMode.None)
+        {
+            root.Logger.LogDebug(
+                "Unknown-message-type DLQ for envelope {EnvelopeId} (type-name '{MessageType}') bypassed auto-Fault publishing",
+                envelope.Id, envelope.MessageType);
+            Activity.Current?.AddEvent(new ActivityEvent(
+                WolverineTracing.FaultBypassedUnknownType,
+                tags: new ActivityTagsCollection
+                {
+                    [WolverineTracing.MessageType] = envelope.MessageType
+                }));
+        }
     }
 }

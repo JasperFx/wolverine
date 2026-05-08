@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
@@ -102,6 +103,11 @@ public interface IExecutorFactory
     IExecutor BuildFor(Type messageType, Endpoint endpoint);
 }
 
+internal interface IWolverineRuntimeInternal : IWolverineRuntime
+{
+    IFaultPublisher FaultPublisher { get; }
+}
+
 // This was for testing
 internal static class WolverineRuntimeExtensions
 {
@@ -123,4 +129,14 @@ internal static class WolverineRuntimeExtensions
         var router = runtime.RoutingFor(message.GetType());
         return router.RouteForSend(message, options);
     }
+
+    internal static ValueTask PublishFaultIfEnabledAsync(
+        this IWolverineRuntime runtime,
+        IEnvelopeLifecycle lifecycle,
+        Exception exception,
+        FaultTrigger trigger,
+        System.Diagnostics.Activity? activity)
+        => runtime is IWolverineRuntimeInternal wri
+            ? wri.FaultPublisher.PublishIfEnabledAsync(lifecycle, exception, trigger, activity)
+            : ValueTask.CompletedTask;
 }
