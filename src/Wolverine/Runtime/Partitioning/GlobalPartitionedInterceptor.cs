@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
@@ -12,17 +14,16 @@ namespace Wolverine.Runtime.Partitioning;
 internal class GlobalPartitionedInterceptor : IReceiver
 {
     private readonly IReceiver _inner;
-    private readonly IMessageBus _messageBus;
+    private readonly IWolverineRuntime _runtime;
     private readonly List<GlobalPartitionedMessageTopology> _topologies;
     private readonly ILogger _logger;
 
-    public GlobalPartitionedInterceptor(IReceiver inner, IMessageBus messageBus,
-        List<GlobalPartitionedMessageTopology> topologies, ILogger logger)
+    public GlobalPartitionedInterceptor(IReceiver inner, IWolverineRuntime runtime)
     {
         _inner = inner;
-        _messageBus = messageBus;
-        _topologies = topologies;
-        _logger = logger;
+        _runtime = runtime;
+        _topologies = runtime.Options.MessagePartitioning.GlobalPartitionedTopologies;
+        _logger = runtime.LoggerFactory.CreateLogger<GlobalPartitionedInterceptor>();
     }
 
     public IHandlerPipeline Pipeline => _inner.Pipeline;
@@ -81,12 +82,18 @@ internal class GlobalPartitionedInterceptor : IReceiver
                 }
             }
 
-            // Re-route through Wolverine's routing which will hit GlobalPartitionedRoute
-            await _messageBus.PublishAsync(envelope.Message!, new DeliveryOptions
+            var options = new DeliveryOptions
             {
                 GroupId = envelope.GroupId,
-                TenantId = envelope.TenantId
-            });
+                TenantId = envelope.TenantId,
+                CorrelationId = envelope.CorrelationId,
+            };
+
+            var bus = new RouteBus(_runtime, envelope);
+
+            using var activity = StartReRouteActivity(envelope);
+
+            await bus.PublishAsync(envelope.Message!, options);
             await listener.CompleteAsync(envelope);
             return true;
         }
@@ -97,6 +104,19 @@ internal class GlobalPartitionedInterceptor : IReceiver
             await listener.DeferAsync(envelope);
             return true;
         }
+    }
+
+    private static Activity? StartReRouteActivity(Envelope envelope)
+    {
+        if (envelope.ParentId.IsEmpty())
+        {
+            return null;
+        }
+
+        return WolverineTracing.ActivitySource.StartActivity(
+            "wolverine global-partitioning re-route",
+            ActivityKind.Internal,
+            envelope.ParentId);
     }
 
     public ValueTask DrainAsync() => _inner.DrainAsync();
@@ -118,5 +138,16 @@ internal class GlobalPartitionedInterceptor : IReceiver
         }
 
         return false;
+    }
+
+    private sealed class RouteBus : MessageBus
+    {
+        public RouteBus(IWolverineRuntime runtime, Envelope inbound) : base(runtime)
+        {
+            Envelope = inbound;
+            CorrelationId = inbound.CorrelationId;
+            TenantId = inbound.TenantId;
+            UserName = inbound.UserName;
+        }
     }
 }
