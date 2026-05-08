@@ -316,11 +316,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
                  && !Endpoint.UsedInShardedTopology
                  && Endpoint.Uri.Scheme != "local")
         {
-            _receiver = new GlobalPartitionedInterceptor(
-                _receiver,
-                new Runtime.MessageBus(_runtime),
-                _runtime.Options.MessagePartitioning.GlobalPartitionedTopologies,
-                _logger);
+            _receiver = new GlobalPartitionedInterceptor(_receiver, _runtime);
         }
 
         if (Endpoint.ListenerCount > 1)
