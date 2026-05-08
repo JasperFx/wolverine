@@ -87,7 +87,7 @@ public class MultiTenantedQueueListener : IListener
 
     public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _activator?.SafeDispose();
         foreach (var entry in _listeners.Enumerate())
         {
@@ -96,9 +96,10 @@ public class MultiTenantedQueueListener : IListener
     }
 
     public Uri Address { get; set; }
+
     public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         foreach (var entry in _listeners.Enumerate())
         {
             await entry.Value.StopAsync();

@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Net.Sockets;
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
@@ -52,7 +52,9 @@ public class SocketListener : IListener, IDisposable
 
     public async ValueTask DisposeAsync()
     {
-        _listenerCancellation?.Cancel();
+        if (_listenerCancellation is not null)
+            await _listenerCancellation.CancelAsync();
+
         _listener?.Stop();
         _listener = null;
 
@@ -64,7 +66,7 @@ public class SocketListener : IListener, IDisposable
             }
             catch (OperationCanceledException)
             {
-                // Expected during disposal — the receiving loop was cancelled
+                // Expected during disposal - the receiving loop was cancelled
             }
 
             _receivingLoop.Dispose();
