@@ -65,6 +65,16 @@ public class ServiceCapabilities : OptionsDescription
     /// </summary>
     public List<DocumentStoreUsage> DocumentStores { get; set; } = [];
 
+    /// <summary>
+    /// Diagnostic snapshots of every EF Core <c>DbContext</c> registered in
+    /// the service container, populated by walking
+    /// <see cref="IDbContextUsageSource"/> services through DI. Mirrors
+    /// <see cref="DocumentStores"/> on the EF Core side so CritterWatch's
+    /// Storage tab can render the third subsection alongside Event Stores
+    /// and Document Stores. (#102)
+    /// </summary>
+    public List<DbContextUsage> DbContexts { get; set; } = [];
+
     public List<MessageDescriptor> Messages { get; set; } = [];
 
     /// <summary>
@@ -114,6 +124,8 @@ public class ServiceCapabilities : OptionsDescription
         await readEventStores(runtime, token, capabilities);
 
         await readDocumentStores(runtime, token, capabilities);
+
+        await readDbContexts(runtime, token, capabilities);
 
         readMessageTypes(runtime, capabilities);
 
@@ -314,6 +326,39 @@ public class ServiceCapabilities : OptionsDescription
         }
 
         capabilities.DocumentStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
+    }
+
+    /// <summary>
+    /// Mirror of <see cref="readDocumentStores"/> for EF Core. Walks every
+    /// <see cref="IDbContextUsageSource"/> registered in DI (each
+    /// <c>AddDbContextWith…</c> integration registers one; plain
+    /// <c>AddDbContext</c> registrations are picked up by the implicit
+    /// discovery hooked into <c>UseEntityFrameworkCoreTransactions</c>) and
+    /// asks each one for a <see cref="DbContextUsage"/> snapshot. Sources
+    /// that return null (transient configuration / DI failure) are silently
+    /// skipped — same permissive policy as the document-store path.
+    /// </summary>
+    private static async Task readDbContexts(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IDbContextUsageSource>();
+        var seen = new HashSet<Uri>();
+        var usageList = new List<DbContextUsage>();
+        foreach (var source in sources)
+        {
+            // Dedupe by Subject URI — multiple registrations of the same
+            // DbContext type (e.g. integration test harness re-registering)
+            // shouldn't double-count.
+            if (!seen.Add(source.Subject)) continue;
+
+            var usage = await source.TryCreateUsage(token);
+            if (usage != null)
+            {
+                usageList.Add(usage);
+            }
+        }
+
+        capabilities.DbContexts.AddRange(usageList.OrderBy(x => x.SubjectUri.ToString()));
     }
 
     private static async Task readMessageStores(IWolverineRuntime runtime, ServiceCapabilities capabilities)
