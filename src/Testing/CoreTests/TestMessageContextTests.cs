@@ -497,7 +497,7 @@ public class TestMessageContextTests
         envelope.Headers["stream-test"].ShouldBe("value");
     }
 
-    public static async Task set_up_invoke_expectations()
+    private static async Task set_up_invoke_expectations()
     {
         #region sample_using_invoke_with_expected_response_with_test_message_context
         var spy = new TestMessageContext();

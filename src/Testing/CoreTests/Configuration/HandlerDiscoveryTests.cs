@@ -31,7 +31,7 @@ public class HandlerDiscoveryTests
         public void Handle(Message message){}
     }
 
-    public static async Task completely_replacing_the_built_in_discovery()
+    private static async Task completely_replacing_the_built_in_discovery()
     {
         #region sample_replacing_handler_discovery_rules
         using var host = await Host.CreateDefaultBuilder()

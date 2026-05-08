@@ -17,32 +17,6 @@ public class GettingStarted
         _output = output;
     }
 
-    public async Task rebuild_projection(
-        IDocumentStore store,
-        CancellationToken cancellation)
-    {
-        using var daemon = await store
-            .BuildProjectionDaemonAsync();
-
-        await daemon
-            .RebuildProjectionAsync<AppointmentDurationProjection>(
-                cancellation);
-    }
-
-    public async Task time_travel(
-        IQuerySession session,
-        Guid shiftId,
-        DateTimeOffset atTime)
-    {
-        // Fetch all the events for the stream, and
-        // apply them to a ProviderShift aggregate
-        var shift = await session
-            .Events
-            .AggregateStreamAsync<ProviderShift>(
-                shiftId,
-                timestamp: atTime);
-    }
-
     [Fact]
     public async Task append_events()
     {

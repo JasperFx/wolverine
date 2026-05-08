@@ -12,7 +12,7 @@ using Xunit;
 namespace Wolverine.RabbitMQ.Tests;
 
 // CI marker: send_end_to_end_* tests fail in CI with PRECONDITION_FAILED
-// "inequivalent arg 'x-dead-letter-exchange' for queue 'messages1'" — the
+// "inequivalent arg 'x-dead-letter-exchange' for queue 'messages1'" - the
 // queue persists across test runs with one DLX config and a later test tries
 // to re-declare it without one. Skipping in CI via the Flaky filter; the real
 // fix is to stop sharing fixed queue names like 'messages1' across tests
@@ -140,7 +140,7 @@ public class sending_raw_messages
     }
 
 
-    public static async Task send_messages_with_raw_data()
+    private static async Task send_messages_with_raw_data()
     {
         #region sample_simple_rabbit_mq_setup_for_raw_messages
         var builder = Host.CreateApplicationBuilder();

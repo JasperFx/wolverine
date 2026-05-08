@@ -44,7 +44,7 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
         NpgsqlConnection.ClearAllPools();
     }
 
-    public async Task startHostAsync(Action<WolverineOptions> configure)
+    private async Task startHostAsync(Action<WolverineOptions> configure)
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

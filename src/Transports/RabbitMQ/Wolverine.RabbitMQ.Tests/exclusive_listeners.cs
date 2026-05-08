@@ -29,7 +29,7 @@ public class exclusive_listeners : IAsyncLifetime
         _output = output;
     }
 
-    public static async Task documentation_sample()
+    private static async Task documentation_sample()
     {
         #region sample_utilizing_listenwithstrictordering
         var host = await Host.CreateDefaultBuilder().UseWolverine(opts =>

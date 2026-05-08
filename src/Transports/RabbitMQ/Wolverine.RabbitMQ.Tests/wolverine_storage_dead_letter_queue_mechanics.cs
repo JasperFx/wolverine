@@ -28,7 +28,7 @@ public class wolverine_storage_dead_letter_queue_mechanics : IAsyncLifetime
 
     public Task InitializeAsync() => Task.CompletedTask;
 
-    public async Task afterBootstrapping()
+    private async Task afterBootstrapping()
     {
         await CreateHost(QueueName, useDurableInbox: false);
     }
