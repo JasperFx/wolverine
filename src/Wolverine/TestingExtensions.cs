@@ -183,13 +183,13 @@ public static class TestingExtensions
     /// <param name="configure"></param>
     /// <param name="timeout"></param>
     /// <returns></returns>
-    public static Task<bool> WaitUntilAssignmentsChangeTo(this IHost expectedLeader,
+    public static ValueTask<bool> WaitUntilAssignmentsChangeTo(this IHost expectedLeader,
         Action<AssignmentWaiter> configure, TimeSpan timeout)
     {
         var waiter = new AssignmentWaiter(expectedLeader);
         configure(waiter);
 
-        return waiter.Start(timeout);
+        return waiter.StartAsync(timeout);
     }
 
     /// <summary>
@@ -209,10 +209,10 @@ public static class TestingExtensions
     /// <param name="host"></param>
     /// <param name="timeout"></param>
     /// <returns></returns>
-    public static Task<bool> WaitUntilAssumesLeadershipAsync(this IHost host, TimeSpan timeout)
+    public static ValueTask<bool> WaitUntilAssumesLeadershipAsync(this IHost host, TimeSpan timeout)
     {
         var waiter = new LeadershipWaiter(host);
-        return waiter.Start(timeout);
+        return waiter.StartAsync(timeout);
     }
 
     internal class LeadershipWaiter
@@ -224,36 +224,29 @@ public static class TestingExtensions
             _runtime = host.GetRuntime();
         }
 
-        public Task<bool> Start(TimeSpan timeout)
+        public async ValueTask<bool> StartAsync(TimeSpan timeout)
         {
-            if (hasReached()) return Task.FromResult(true);
+            if (HasReached()) return true;
             
-            var timeout1 = new CancellationTokenSource(timeout);
-            timeout1.CancelAfter(timeout);
-            return Task.Factory.StartNew(async () =>
+            using var timeoutCts = new CancellationTokenSource(timeout);
+            try
             {
-                try
+                while (!timeoutCts.IsCancellationRequested)
                 {
-                    while (!timeout1.IsCancellationRequested)
-                    {
-                        if (hasReached()) return true;
-                        await Task.Delay(25.Milliseconds(), timeout1.Token);
-                    }
-
-                    if (hasReached()) return true;
-
-                    throw new TimeoutException("Did not assume the leadership in the time allowed");
+                    if (HasReached()) return true;
+                    await Task.Delay(25.Milliseconds(), timeoutCts.Token);
                 }
-                catch (TaskCanceledException)
-                {
-                    if (hasReached()) return true;
+            }
+            catch (TaskCanceledException)
+            {
+            }
 
-                    throw new TimeoutException("Did not assume the leadership in the time allowed");
-                }
-            }, timeout1.Token).Unwrap();
+            if (HasReached()) return true;
+
+            throw new TimeoutException("Did not assume the leadership in the time allowed");
         }
 
-        private bool hasReached()
+        private bool HasReached()
         {
             return _runtime.IsLeader();
         }
@@ -283,40 +276,31 @@ public static class TestingExtensions
             _runtimes[id] = runtime.Agents;
         }
 
-        public Task<bool> Start(TimeSpan timeout)
+        public async ValueTask<bool> StartAsync(TimeSpan timeout)
         {
-            if (HasReached()) return Task.FromResult(true);
+            if (HasReached()) return true;
 
-            var timeout1 = new CancellationTokenSource(timeout);
-            timeout1.CancelAfter(timeout);
-            return Task.Factory.StartNew(async () =>
+            using var timeoutCts = new CancellationTokenSource(timeout);
+            try
             {
-                try
-                {
-                    while (!timeout1.IsCancellationRequested)
-                    {
-                        if (HasReached()) return true;
-                        await Task.Delay(1.Seconds(), timeout1.Token);
-                    }
-
-                    if (HasReached()) return true;
-
-                    var builder = await writePersistedActualsAsync();
-
-                    throw new TimeoutException(builder.ToString());
-                }
-                catch (TaskCanceledException)
+                while (!timeoutCts.IsCancellationRequested)
                 {
                     if (HasReached()) return true;
-
-                    var builder = await writePersistedActualsAsync();
-
-                    throw new TimeoutException(builder.ToString());
+                    await Task.Delay(1.Seconds(), timeoutCts.Token);
                 }
-            }, timeout1.Token).Unwrap();
+            }
+            catch (TaskCanceledException)
+            {
+            }
+
+            if (HasReached()) return true;
+
+            var builder = await WritePersistedActualsAsync();
+
+            throw new TimeoutException(builder.ToString());
         }
 
-        private async Task<StringBuilder> writePersistedActualsAsync()
+        private async Task<StringBuilder> WritePersistedActualsAsync()
         {
             var nodes = await _leaderRuntime.Storage.Nodes.LoadAllNodesAsync(CancellationToken.None);
 
