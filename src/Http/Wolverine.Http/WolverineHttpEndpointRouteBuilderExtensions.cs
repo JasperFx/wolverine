@@ -12,9 +12,11 @@ using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
+using JasperFx.Events;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
+using Wolverine.Http.Diagnostics;
 using Wolverine.Http.Transport;
 using Wolverine.Http.Validation;
 using Wolverine.Http.Validation.Internals;
@@ -169,6 +171,14 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
 
         services.AddSingleton<ICapabilityDescriptor, HttpCapabilityDescriptor>();
+
+        // Issue #84 — surface the Wolverine HTTP graph as an
+        // IHttpGraphUsageSource so ServiceCapabilities.HttpGraphs picks
+        // it up at the same point as event-stores / document-stores /
+        // db-contexts. The corresponding HttpCapabilityDescriptor stays
+        // registered for back-compat with monitoring agents that haven't
+        // shipped the richer reader yet.
+        services.AddSingleton<IHttpGraphUsageSource, HttpGraphUsageSource>();
 
         // Registered unconditionally — harmless when no versioned endpoint uses it.
         services.AddSingleton<ApiVersionHeaderWriter>(sp =>

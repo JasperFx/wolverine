@@ -90,6 +90,24 @@ public class ServiceCapabilities : OptionsDescription
 
     public List<MessageStore> MessageStores { get; set; } = [];
 
+    /// <summary>
+    /// Diagnostic snapshots of every Wolverine.HTTP graph in this
+    /// process — populated by walking <see cref="IHttpGraphUsageSource"/>
+    /// services through DI. Mirrors <see cref="DocumentStores"/> on the
+    /// HTTP side (#84). Empty when no Wolverine.HTTP graph is loaded.
+    /// </summary>
+    public List<HttpGraphUsage> HttpGraphs { get; set; } = [];
+
+    /// <summary>
+    /// Diagnostic snapshots of non-Wolverine ASP.NET Core endpoints
+    /// (Minimal API, MVC, Razor Pages, SignalR, …) populated by
+    /// <c>Wolverine.CritterWatch.Http</c> when the host opted into it
+    /// via <c>services.AddCritterWatchHttp()</c>. Empty when the
+    /// integration package isn't loaded — pure-Wolverine workers and
+    /// console hosts incur no ASP.NET Core dependency.
+    /// </summary>
+    public List<AspNetEndpointDescriptor> AspNetEndpoints { get; set; } = [];
+
     public List<EndpointDescriptor> MessagingEndpoints { get; set; } = [];
 
     public DatabaseCardinality MessageStoreCardinality { get; set; } = DatabaseCardinality.None;
@@ -127,6 +145,10 @@ public class ServiceCapabilities : OptionsDescription
 
         await readDbContexts(runtime, token, capabilities);
 
+        await readHttpGraphs(runtime, token, capabilities);
+
+        readAspNetEndpoints(runtime, capabilities);
+
         readMessageTypes(runtime, capabilities);
 
         readEndpoints(runtime, capabilities);
@@ -136,6 +158,52 @@ public class ServiceCapabilities : OptionsDescription
         readAdditionalCapabilities(runtime, capabilities);
 
         return capabilities;
+    }
+
+    /// <summary>
+    /// Mirror of <see cref="readDocumentStores"/> for Wolverine HTTP
+    /// graphs. Walks every <see cref="IHttpGraphUsageSource"/>
+    /// registered in DI (Wolverine.Http auto-registers a single source
+    /// when <c>MapWolverineEndpoints()</c> is called) and asks each one
+    /// for a snapshot. Sources that return null (transient init) are
+    /// silently skipped.
+    /// </summary>
+    private static async Task readHttpGraphs(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IHttpGraphUsageSource>();
+        var seen = new HashSet<Uri>();
+        var list = new List<HttpGraphUsage>();
+        foreach (var source in sources)
+        {
+            if (!seen.Add(source.Subject)) continue;
+
+            var usage = await source.TryCreateUsage(runtime.Services, token);
+            if (usage != null)
+            {
+                list.Add(usage);
+            }
+        }
+
+        capabilities.HttpGraphs.AddRange(list.OrderBy(x => x.SubjectUri.ToString()));
+    }
+
+    /// <summary>
+    /// Walk every <see cref="IAspNetEndpointDescriptorSource"/> in DI —
+    /// implemented in <c>Wolverine.CritterWatch.Http</c> when the host
+    /// opted into it. Pure-Wolverine workers won't have any registered;
+    /// the collection stays empty.
+    /// </summary>
+    private static void readAspNetEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IAspNetEndpointDescriptorSource>();
+        var list = new List<AspNetEndpointDescriptor>();
+        foreach (var source in sources)
+        {
+            list.AddRange(source.Endpoints);
+        }
+
+        capabilities.AspNetEndpoints.AddRange(list.OrderBy(x => x.Route + "::" + string.Join(",", x.HttpMethods)));
     }
 
     private static void readEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
