@@ -323,27 +323,27 @@ public static class TestingExtensions
             var builder = new StringBuilder();
             var writer = new StringWriter(builder);
 
-            writer.WriteLine("According to the database...");
+            await writer.WriteLineAsync("According to the database...");
 
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
-                foreach (var uri in node.ActiveAgents.OrderBy(x => x.ToString()))
+                await writer.WriteLineAsync($"Node {node.AssignedNodeNumber} is running:");
+                foreach (var uri in node.ActiveAgents.Select(x => x.ToString()).OrderBy(x => x))
                 {
-                    writer.WriteLine(uri);
+                    await writer.WriteLineAsync(uri);
                 }
             }
 
-            writer.WriteLine();
-            writer.WriteLine("According to the runtimes");
+            await writer.WriteLineAsync();
+            await writer.WriteLineAsync("According to the runtimes");
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
-                writer.WriteLine($"Node {node.AssignedNodeNumber} is running:");
+                await writer.WriteLineAsync($"Node {node.AssignedNodeNumber} is running:");
                 var runtime = _runtimes[node.NodeId];
 
-                foreach (var uri in runtime.AllRunningAgentUris().OrderBy(x => x.ToString()))
+                foreach (var uri in runtime.AllRunningAgentUris().Select(x => x.ToString()).OrderBy(x => x))
                 {
-                    writer.WriteLine(uri);
+                    await writer.WriteLineAsync(uri);
                 }
             }
 
