@@ -244,3 +244,5 @@ JasperSamples
 
 # Planning artifacts (not for PR)
 .plans/
+
+.nuke/build.schema.json
