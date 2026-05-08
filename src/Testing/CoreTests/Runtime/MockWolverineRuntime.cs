@@ -95,9 +95,11 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public IHandlerPipeline Pipeline { get; } = Substitute.For<IHandlerPipeline>();
     public WolverineTracker Tracker { get; } = new(NullLogger.Instance);
 
+    public Dictionary<Type, IMessageRouter> Routers { get; } = new();
+
     public IMessageRouter RoutingFor(Type messageType)
     {
-        return Substitute.For<IMessageRouter>();
+        return Routers.TryGetValue(messageType, out var router) ? router : Substitute.For<IMessageRouter>();
     }
 
     public T? TryFindExtension<T>() where T : class
