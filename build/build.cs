@@ -321,6 +321,7 @@ partial class Build : NukeBuild
             var nugetProjects = new[]
             {
                 Solution.Wolverine,
+                Solution.Wolverine_HealthChecks,
                 Solution.Transports.RabbitMQ.Wolverine_RabbitMQ,
                 Solution.Transports.Azure.Wolverine_AzureServiceBus,
                 Solution.Transports.AWS.Wolverine_AmazonSqs,
