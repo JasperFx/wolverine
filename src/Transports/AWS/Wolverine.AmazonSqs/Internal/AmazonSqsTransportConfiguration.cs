@@ -106,6 +106,48 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     }
 
     /// <summary>
+    /// Set a transport-wide default name for the dead-letter queue used by every SQS listener
+    /// that hasn't been individually configured with
+    /// <c>AmazonSqsListenerConfiguration.ConfigureDeadLetterQueue(...)</c> or
+    /// <c>DisableDeadLetterQueueing()</c>. Useful with multi-environment AWS accounts where
+    /// the default <c>"wolverine-dead-letter-queue"</c> name would collide across environments,
+    /// or with conventional routing / auto-provisioning where touching every listener
+    /// individually is impractical.
+    ///
+    /// Resolution order (per listener):
+    /// <list type="number">
+    ///   <item>Per-listener <c>ConfigureDeadLetterQueue("name")</c> wins.</item>
+    ///   <item>Per-listener <c>DisableDeadLetterQueueing()</c> wins.</item>
+    ///   <item>Otherwise, this transport-wide default is used.</item>
+    /// </list>
+    ///
+    /// <c>DisableAllNativeDeadLetterQueues()</c> disables the entire SQS DLQ surface regardless
+    /// of what's configured here. The supplied name is sanitized via
+    /// <see cref="AmazonSqsTransport.SanitizeSqsName"/> so periods and other illegal SQS
+    /// characters are normalised consistently with per-listener configuration.
+    /// </summary>
+    /// <param name="deadLetterQueueName">
+    /// Default DLQ name to apply across the transport. Must be non-null and non-empty;
+    /// pass to <c>DisableAllNativeDeadLetterQueues()</c> instead if you want to turn the
+    /// surface off entirely.
+    /// </param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration DefaultDeadLetterQueueName(string deadLetterQueueName)
+    {
+        if (string.IsNullOrWhiteSpace(deadLetterQueueName))
+        {
+            throw new ArgumentException(
+                "Dead-letter queue name must be a non-empty value. " +
+                $"Call {nameof(DisableAllNativeDeadLetterQueues)}() to disable the SQS DLQ surface globally.",
+                nameof(deadLetterQueueName));
+        }
+
+        Transport.DefaultDeadLetterQueueName =
+            AmazonSqsTransport.SanitizeSqsName(deadLetterQueueName);
+        return this;
+    }
+
+    /// <summary>
     /// Enable Wolverine system queues for request/reply support.
     /// Creates a per-node response queue that is automatically cleaned up.
     /// </summary>

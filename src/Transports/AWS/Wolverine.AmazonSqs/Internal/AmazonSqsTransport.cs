@@ -28,6 +28,7 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     {
         Queues = new LightweightCache<string, AmazonSqsQueue>(name => new AmazonSqsQueue(name, this));
         IdentifierDelimiter = "-";
+        DefaultDeadLetterQueueName = DeadLetterQueueName;
     }
 
     public AmazonSqsTransport() : this("sqs")
@@ -57,6 +58,22 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     public bool UseLocalStackInDevelopment { get; set; }
     public bool DisableDeadLetterQueues { get; set; }
+
+    /// <summary>
+    /// Transport-wide default dead-letter-queue name. Every <see cref="AmazonSqsQueue"/>
+    /// that hasn't had an explicit per-listener override applied
+    /// (via <c>ConfigureDeadLetterQueue</c> or <c>DisableDeadLetterQueueing</c>) reads
+    /// its <see cref="AmazonSqsQueue.DeadLetterQueueName"/> through this property.
+    /// Defaults to <see cref="DeadLetterQueueName"/> (<c>"wolverine-dead-letter-queue"</c>),
+    /// matching the historical behaviour for hosts that don't opt in.
+    ///
+    /// Set via <c>AmazonSqsTransportConfiguration.DefaultDeadLetterQueueName(string)</c>
+    /// at host bootstrap; also honoured by auto-provision (the default DLQ is provisioned
+    /// once under whatever name resolves at that point). Per-listener overrides always
+    /// win over this default; <c>DisableAllNativeDeadLetterQueues()</c> disables the
+    /// whole DLQ surface regardless of what's configured here.
+    /// </summary>
+    public string? DefaultDeadLetterQueueName { get; set; }
 
     /// <summary>
     /// Is this transport connection allowed to build and use response and control queues
