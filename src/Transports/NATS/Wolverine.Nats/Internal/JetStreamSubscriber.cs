@@ -57,6 +57,16 @@ internal class JetStreamSubscriber : INatsSubscriber
             AckWait = TimeSpan.FromSeconds(30)
         };
 
+        // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
+        // Leaving the property unset on the ConsumerConfig instance falls through to
+        // the NATS server default of DeliverPolicy.All — which replays every existing
+        // message in the stream when an auto-provisioned consumer first connects, so
+        // hosts that want "only new messages from now on" need to opt in here.
+        if (_endpoint.EffectiveDeliverPolicy is { } deliverPolicy)
+        {
+            config.DeliverPolicy = deliverPolicy;
+        }
+
         if (string.IsNullOrEmpty(_endpoint.ConsumerName))
         {
             config.FilterSubject = _subscriptionPattern;

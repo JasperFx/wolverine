@@ -47,6 +47,30 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public string? DeadLetterSubject { get; set; }
     public int MaxDeliveryAttempts { get; set; } = 5;
 
+    /// <summary>
+    /// Per-endpoint override for the JetStream consumer's <c>DeliverPolicy</c>.
+    /// When non-null this wins over
+    /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>; when null the
+    /// transport-wide default applies, and when both are null Wolverine leaves
+    /// <c>DeliverPolicy</c> unset on the auto-provisioned <c>ConsumerConfig</c>
+    /// — falling through to the NATS server default of
+    /// <see cref="ConsumerConfigDeliverPolicy.All"/>. See
+    /// <see cref="EffectiveDeliverPolicy"/> for the resolved value.
+    /// </summary>
+    public ConsumerConfigDeliverPolicy? DeliverPolicy { get; set; }
+
+    /// <summary>
+    /// Resolved <c>DeliverPolicy</c> for this endpoint: per-endpoint
+    /// <see cref="DeliverPolicy"/> wins over the transport-wide
+    /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>, with
+    /// <c>null</c> meaning "leave the consumer config alone and let the NATS
+    /// server default apply". Computed at access time so override mutations
+    /// performed during host bootstrap are picked up regardless of ordering
+    /// between transport / listener configuration calls.
+    /// </summary>
+    public ConsumerConfigDeliverPolicy? EffectiveDeliverPolicy =>
+        DeliverPolicy ?? _transport.Configuration.JetStreamDefaults.DeliverPolicy;
+
     protected override bool supportsMode(EndpointMode mode)
     {
         return mode switch
@@ -104,6 +128,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                     DeadLetterQueueEnabled = DeadLetterQueueEnabled,
                     DeadLetterSubject = DeadLetterSubject,
                     MaxDeliveryAttempts = MaxDeliveryAttempts,
+                    DeliverPolicy = DeliverPolicy,
                     MessageType = MessageType,
                     CustomHeaders = CustomHeaders,
                     NatsSerializer = NatsSerializer

@@ -176,6 +176,41 @@ opts.UseNats("nats://localhost:4222")
     });
 ```
 
+### Consumer Deliver Policy
+
+When Wolverine auto-provisions a JetStream consumer for a listener it leaves the consumer config's `DeliverPolicy` unset, which falls through to NATS's own default of `DeliverPolicy.All` — every message currently in the stream is replayed when the consumer first connects. For new listeners attached to a long-running stream that's usually not what you want.
+
+Set a transport-wide default through `JetStreamDefaults.DeliverPolicy` so every auto-provisioned consumer under this transport starts at the same position:
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .UseJetStream(js =>
+    {
+        js.DeliverPolicy = ConsumerConfigDeliverPolicy.New; // only messages
+                                                            // from now on
+    });
+```
+
+Override per-listener with `DeliverFrom(...)` when a single endpoint needs a different position:
+
+```csharp
+opts.ListenToNatsSubject("orders.received")
+    .UseJetStream("ORDERS")
+    .DeliverFrom(ConsumerConfigDeliverPolicy.New);
+```
+
+The per-listener override always wins over the transport-wide default. When neither is set Wolverine writes nothing to the consumer config and the NATS server default (`All`) applies.
+
+The override only applies to consumers Wolverine itself auto-provisions. If you reference a pre-created consumer by name with `UseJetStream(streamName, consumerName)`, Wolverine reuses that consumer's existing configuration regardless of `DeliverFrom(...)` — pre-creating the consumer with the desired policy via the NATS CLI or `JetStream` API is the right tool there.
+
+| `ConsumerConfigDeliverPolicy` | Effect |
+|---|---|
+| `All` | Replay every message currently in the stream (NATS-server default). |
+| `New` | Only deliver messages that arrive **after** the consumer is created. |
+| `Last` | Deliver only the latest message in the stream. |
+| `LastPerSubject` | Deliver the latest message per matching subject filter. |
+| `ByStartSequence` / `ByStartTime` | Start from a specific sequence number or timestamp. Requires pre-creating the consumer outside Wolverine — `OptStartSeq` / `OptStartTime` have no listener-configuration surface. |
+
 ### Defining Streams
 
 #### Work Queue Stream (Retention by Interest)
