@@ -1,4 +1,4 @@
-﻿using JasperFx.Core.Reflection;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
 using Wolverine.Runtime.Handlers;
@@ -59,22 +59,22 @@ public class SagaTestHarness<T> : IDisposable
         return _host.SendMessageAndWaitAsync(message, new DeliveryOptions { SagaId = sagaId.ToString() }, 10000);
     }
 
-    protected Task<T> LoadState(Guid id)
+    protected Task<T?> LoadState(Guid id)
     {
         return SagaHost.LoadState<T>(id);
     }
 
-    protected Task<T> LoadState(string id)
+    protected Task<T?> LoadState(string id)
     {
         return SagaHost.LoadState<T>(id);
     }
 
-    protected Task<T> LoadState(int id)
+    protected Task<T?> LoadState(int id)
     {
         return SagaHost.LoadState<T>(id);
     }
 
-    protected Task<T> LoadState(long id)
+    protected Task<T?> LoadState(long id)
     {
         return SagaHost.LoadState<T>(id);
     }
