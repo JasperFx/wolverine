@@ -22,7 +22,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// <see cref="IServiceCollection"/>; that's the same constraint Wolverine's
 /// other discovery hooks operate under.
 /// </remarks>
-internal static class UntrackedDbContextDiscovery
+public static class UntrackedDbContextDiscovery
 {
     public static void RegisterImplicitUsageSources(IServiceCollection services)
     {

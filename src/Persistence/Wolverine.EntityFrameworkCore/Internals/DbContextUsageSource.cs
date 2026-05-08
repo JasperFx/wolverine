@@ -29,7 +29,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// schema metadata via <see cref="DatabaseDescriptor"/>. Multi-tenant
 /// contexts use the <see cref="TenantedDbContextUsageSource{T}"/> variant.
 /// </remarks>
-internal sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : DbContext
+public sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : DbContext
 {
     private readonly IServiceProvider _services;
 
@@ -40,25 +40,26 @@ internal sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : 
 
     public Uri Subject { get; } = new($"efcore://{typeof(T).Name}");
 
-    public async Task<DbContextUsage?> TryCreateUsage(CancellationToken token)
+    public Task<DbContextUsage?> TryCreateUsage(CancellationToken token)
     {
         try
         {
             using var scope = _services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<T>();
 
-            return DbContextUsageFactory.Build(
+            var usage = DbContextUsageFactory.Build(
                 Subject,
                 dbContext,
                 tenancyStyle: "Single",
                 _services,
                 tenantDatabases: null);
+            return Task.FromResult<DbContextUsage?>(usage);
         }
         catch
         {
             // Snapshot is best-effort — a transient configuration / DI failure
             // shouldn't poison the entire ServiceCapabilities read.
-            return null;
+            return Task.FromResult<DbContextUsage?>(null);
         }
     }
 }
@@ -77,7 +78,7 @@ internal sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : 
 /// (multi-tenancy operates at the connection level, not the model level), so
 /// per-entity descriptors and saga discovery only run once.
 /// </remarks>
-internal sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource where T : DbContext
+public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource where T : DbContext
 {
     private readonly IServiceProvider _services;
 
@@ -416,22 +417,23 @@ internal static class DatabaseDescriptorFactory
         // EF Core's IRelationalConnection exposes DbConnection on relational
         // providers. The connection string is parsed by the underlying
         // ADO.NET provider for server/database extraction; we never store
-        // the raw connection string.
-        var relational = dbContext.GetService<IRelationalConnection>();
-        if (relational?.DbConnection != null)
+        // the raw connection string. Non-relational providers (InMemory)
+        // don't expose IRelationalConnection — for those we just leave
+        // server / database blank.
+        try
         {
-            try
+            var relational = dbContext.GetService<IRelationalConnection>();
+            if (relational?.DbConnection != null)
             {
                 var conn = relational.DbConnection;
                 serverName = conn.DataSource ?? "";
                 databaseName = conn.Database ?? "";
             }
-            catch
-            {
-                // Some providers throw when DataSource/Database is read
-                // before the connection is opened — fall through with
-                // empties.
-            }
+        }
+        catch
+        {
+            // InMemory / non-relational providers throw when GetService<IRelationalConnection>
+            // is called. Fall through with empty server/database.
         }
 
         return new DatabaseDescriptor(dbContext)
