@@ -80,8 +80,6 @@ public class PcRevisionedSaga : Wolverine.Saga
 
     public Guid Id { get; set; }
 
-    public int Version { get; set; }
-
     public bool One { get; set; }
     public bool Two { get; set; }
     public bool Three { get; set; }
