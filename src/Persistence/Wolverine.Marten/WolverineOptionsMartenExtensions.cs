@@ -15,9 +15,11 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Marten.Distribution;
+using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.MultiTenancy;
@@ -139,6 +141,15 @@ public static class WolverineOptionsMartenExtensions
         expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
+
+        // CritterWatch / saga-explorer diagnostic surface — Marten owns
+        // every saga whose state class is a Marten document, so register
+        // a Marten-backed ISagaStoreDiagnostics that the runtime
+        // aggregator fans out to.
+        expression.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
+            new MartenSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s.GetRequiredService<IDocumentStore>()));
 
         return expression;
     }

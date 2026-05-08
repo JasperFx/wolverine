@@ -5,6 +5,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Metrics;
@@ -39,6 +40,17 @@ public interface IWolverineRuntime
     
     IWolverineObserver Observer { get; set; }
     MessageStoreCollection Stores { get; }
+
+    /// <summary>
+    /// Read-only diagnostic surface over every saga storage registered
+    /// with this Wolverine application. Wraps Marten, EF Core, RavenDB,
+    /// or any other registered <see cref="ISagaStoreDiagnostics"/>
+    /// implementation behind a single fan-out aggregator so callers
+    /// (CritterWatch and other monitoring tools) can list saga types,
+    /// fetch a saga instance by id, or peek at recent instances without
+    /// caring which store actually holds the data.
+    /// </summary>
+    ISagaStoreDiagnostics SagaStorage { get; }
 
     /// <summary>
     /// Try to find the main message store in a completely initialized state and safely cast to the type "T"

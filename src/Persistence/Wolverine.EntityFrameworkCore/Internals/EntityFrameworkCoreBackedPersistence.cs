@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -22,6 +24,15 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
         // (IEFCoreBatchableFrame) are grouped into a single BatchedQuery round-trip.
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+
+        // CritterWatch / saga-explorer diagnostic surface — EF Core
+        // owns every saga whose state is mapped on a registered DbContext.
+        // The runtime aggregator fans out across all registered
+        // ISagaStoreDiagnostics so this lives next to the Marten one.
+        options.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
+            new EFCoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s));
     }
 }
 
@@ -41,5 +52,14 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
 
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
+
+        // CritterWatch / saga-explorer diagnostic surface — EF Core
+        // owns every saga whose state is mapped on a registered DbContext.
+        // The runtime aggregator fans out across all registered
+        // ISagaStoreDiagnostics so this lives next to the Marten one.
+        options.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
+            new EFCoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s));
     }
 }

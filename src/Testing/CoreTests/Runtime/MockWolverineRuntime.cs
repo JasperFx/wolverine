@@ -9,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
@@ -114,6 +115,8 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
 
 
     public MessageStoreCollection Stores => new MessageStoreCollection(this, [], []);
+
+    public ISagaStoreDiagnostics SagaStorage { get; } = Substitute.For<ISagaStoreDiagnostics>();
 
     public Task<T?> TryFindMainMessageStore<T>() where T : class
     {

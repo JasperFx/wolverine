@@ -24,6 +24,17 @@ public static class WolverineRavenDbExtensions
         options.CodeGeneration.Sources.Add(new AsyncDocumentSessionSource());
         options.Services.AddHostedService<DeadLetterQueueReplayer>();
         options.CodeGeneration.ReferenceAssembly(typeof(WolverineRavenDbExtensions).Assembly);
+
+        // CritterWatch / saga-explorer diagnostic surface — RavenDb owns
+        // every saga whose state is stored in the registered IDocumentStore.
+        // The runtime aggregator fans out across all registered
+        // ISagaStoreDiagnostics so this lives next to the Marten / EF Core
+        // ones for hosts that mix saga storages.
+        options.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
+            new RavenDbSagaStoreDiagnostics(
+                s.GetRequiredService<Wolverine.Runtime.IWolverineRuntime>(),
+                s.GetRequiredService<IDocumentStore>()));
+
         return options;
     }
 

@@ -36,6 +36,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Polecat")]
 [assembly: InternalsVisibleTo("PolecatTests")]
 [assembly: InternalsVisibleTo("Wolverine.EntityFrameworkCore")]
+[assembly: InternalsVisibleTo("Wolverine.RavenDb")]
 [assembly: InternalsVisibleTo("Wolverine.Pulsar")]
 [assembly: InternalsVisibleTo("Wolverine.Pulsar.Tests")]
 [assembly: InternalsVisibleTo("MassTransitInteropTests")]

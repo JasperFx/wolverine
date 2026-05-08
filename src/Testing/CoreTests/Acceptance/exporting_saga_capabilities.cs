@@ -8,11 +8,14 @@ namespace CoreTests.Acceptance;
 
 /// <summary>
 /// Validates the saga-shape surface added to <see cref="ServiceCapabilities"/>
-/// for downstream tools (CritterWatch). Each role classification path
-/// (Start / StartOrHandle / Orchestrate / NotFound) plus the cascading
-/// PublishedTypes wiring needs end-to-end coverage so a regression on the
-/// SagaChain method-name lookup or HandlerChain.PublishedTypes() shows up
-/// here, not in a downstream UI bug report.
+/// for downstream tools (CritterWatch). The new
+/// <c>SagaTypeDescriptor</c> splits messages into starting vs continuing
+/// — Start/StartOrHandle land in StartingMessages, Orchestrate/NotFound in
+/// ContinuingMessages, and StartOrHandle additionally lands in continuing
+/// because at runtime it can advance an existing saga. Each test below
+/// pins one of those classification paths so a regression on the
+/// SagaChain method-name lookup shows up here, not in a downstream UI bug
+/// report.
 /// </summary>
 public class exporting_saga_capabilities : IAsyncLifetime
 {
@@ -41,69 +44,59 @@ public class exporting_saga_capabilities : IAsyncLifetime
     [Fact]
     public void emits_one_descriptor_per_saga_state_type()
     {
-        _capabilities.Sagas.ShouldNotBeEmpty();
-        _capabilities.Sagas
-            .Select(s => s.StateType.FullName)
+        _capabilities.SagaTypes.ShouldNotBeEmpty();
+        _capabilities.SagaTypes
+            .Select(s => s.SagaType.FullName)
             .ShouldContain(typeof(DemoSaga).FullName!);
     }
 
     [Fact]
-    public void captures_saga_id_type_at_saga_level()
+    public void start_handler_lands_in_starting_messages()
     {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        saga.SagaIdType.ShouldBe(typeof(Guid).FullName!);
+        var saga = _capabilities.SagaTypes.Single(s => s.SagaType.FullName == typeof(DemoSaga).FullName!);
+        saga.StartingMessages
+            .Select(m => m.FullName)
+            .ShouldContain(typeof(BeginDemoSaga).FullName!);
     }
 
     [Fact]
-    public void captures_saga_id_member_per_message()
+    public void orchestrate_handler_lands_in_continuing_messages()
     {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        // Wolverine pulls the saga id from each message's `{SagaName}Id`
-        // property by convention. The plain command messages all expose
-        // `DemoSagaId` so the descriptor surfaces that name. TimeoutMessage
-        // subclasses (DemoSagaReminder) don't carry the id as a property —
-        // the runtime threads it through the envelope instead — so their
-        // SagaIdMember is null on the descriptor, which is the correct
-        // signal for downstream tools rendering timeout arrows.
-        var commandMessages = saga.Messages
-            .Where(m => m.MessageType.FullName != typeof(DemoSagaReminder).FullName!)
-            .ToList();
-        commandMessages.ShouldAllBe(m => m.SagaIdMember == nameof(BeginDemoSaga.DemoSagaId));
-
-        var reminderMessage = saga.Messages.Single(m => m.MessageType.FullName == typeof(DemoSagaReminder).FullName!);
-        reminderMessage.SagaIdMember.ShouldBeNull();
+        var saga = _capabilities.SagaTypes.Single(s => s.SagaType.FullName == typeof(DemoSaga).FullName!);
+        saga.ContinuingMessages
+            .Select(m => m.FullName)
+            .ShouldContain(typeof(AdvanceDemoSaga).FullName!);
     }
 
     [Fact]
-    public void classifies_start_handler()
+    public void start_or_handle_lands_in_both_buckets()
     {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        var role = saga.Messages.Single(m => m.MessageType.FullName == typeof(BeginDemoSaga).FullName!);
-        role.Role.ShouldBe(SagaRole.Start);
+        // StartOrHandle can do either at runtime so the descriptor
+        // surfaces it in both starting and continuing — the UI shouldn't
+        // have to special-case the role.
+        var saga = _capabilities.SagaTypes.Single(s => s.SagaType.FullName == typeof(DemoSaga).FullName!);
+        var ensureFullName = typeof(EnsureDemoSaga).FullName!;
+        saga.StartingMessages.Select(m => m.FullName).ShouldContain(ensureFullName);
+        saga.ContinuingMessages.Select(m => m.FullName).ShouldContain(ensureFullName);
     }
 
     [Fact]
-    public void classifies_orchestrate_handler()
+    public void not_found_only_handler_lands_in_continuing_messages()
     {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        var role = saga.Messages.Single(m => m.MessageType.FullName == typeof(AdvanceDemoSaga).FullName!);
-        role.Role.ShouldBe(SagaRole.Orchestrate);
+        var saga = _capabilities.SagaTypes.Single(s => s.SagaType.FullName == typeof(NotFoundOnlySaga).FullName!);
+        saga.ContinuingMessages
+            .Select(m => m.FullName)
+            .ShouldContain(typeof(MissingSagaQuery).FullName!);
     }
 
     [Fact]
-    public void classifies_start_or_handle()
+    public void storage_provider_tag_is_in_memory_when_no_storage_registered()
     {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        var role = saga.Messages.Single(m => m.MessageType.FullName == typeof(EnsureDemoSaga).FullName!);
-        role.Role.ShouldBe(SagaRole.StartOrHandle);
-    }
-
-    [Fact]
-    public void classifies_not_found_only_handler()
-    {
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(NotFoundOnlySaga).FullName!);
-        var role = saga.Messages.Single(m => m.MessageType.FullName == typeof(MissingSagaQuery).FullName!);
-        role.Role.ShouldBe(SagaRole.NotFound);
+        // No Marten/EF Core/RavenDB extension is configured for these
+        // fixtures, so every saga should land on the InMemory provider —
+        // the same one the saga handler pipeline picks at runtime.
+        var saga = _capabilities.SagaTypes.Single(s => s.SagaType.FullName == typeof(DemoSaga).FullName!);
+        saga.StorageProvider.ShouldBe("InMemory");
     }
 
     [Fact]
@@ -118,18 +111,6 @@ public class exporting_saga_capabilities : IAsyncLifetime
         // Plain commands stay false so the flag is meaningfully discriminating.
         var advance = _capabilities.Messages.Single(m => m.Type.FullName == typeof(AdvanceDemoSaga).FullName!);
         advance.IsTimeoutMessage.ShouldBeFalse();
-    }
-
-    [Fact]
-    public void surfaces_cascading_published_types()
-    {
-        // Begin* cascades a DemoSagaStarted event from its return tuple.
-        var saga = _capabilities.Sagas.Single(s => s.StateType.FullName == typeof(DemoSaga).FullName!);
-        var startRole = saga.Messages.Single(m => m.MessageType.FullName == typeof(BeginDemoSaga).FullName!);
-
-        startRole.PublishedTypes
-            .Select(t => t.FullName)
-            .ShouldContain(typeof(DemoSagaStarted).FullName!);
     }
 }
 
@@ -182,7 +163,7 @@ public class NotFoundOnlySaga : Saga
     public Guid Id { get; set; }
 
     // Deliberately no Start/Orchestrate — this saga only defines a NotFound
-    // compensating path so the test can assert the NotFound classification
+    // compensating path so the test can assert that NotFound classification
     // works in isolation. NotFound is static per the Wolverine pattern.
     public static void NotFound(MissingSagaQuery query)
     {

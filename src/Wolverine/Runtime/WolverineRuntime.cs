@@ -12,6 +12,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Metrics;
@@ -37,6 +38,7 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
     private readonly Lazy<MessageStoreCollection> _stores;
     private readonly Lazy<MetricsAccumulator> _accumulator;
+    private readonly Lazy<ISagaStoreDiagnostics> _sagaStorage;
 
     public WolverineRuntime(WolverineOptions options,
         IServiceContainer container,
@@ -62,6 +64,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
         _stores =
             new Lazy<MessageStoreCollection>(() => container.Services.GetRequiredService<MessageStoreCollection>());
+
+        // Aggregate every registered ISagaStoreDiagnostics behind one
+        // fan-out facade so callers (CritterWatch, /describe ...) see a
+        // single saga catalog regardless of how many backing stores are
+        // wired into this host.
+        _sagaStorage = new Lazy<ISagaStoreDiagnostics>(() =>
+            new AggregateSagaStoreDiagnostics(
+                container.Services.GetServices<ISagaStoreDiagnostics>()));
 
         LoggerFactory = loggers;
         Logger = loggers.CreateLogger<WolverineRuntime>();
@@ -241,6 +251,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     }
 
     public MessageStoreCollection Stores => _stores.Value;
+
+    public ISagaStoreDiagnostics SagaStorage => _sagaStorage.Value;
 
     public async Task<T?> TryFindMainMessageStore<T>() where T : class
     {
