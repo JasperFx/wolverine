@@ -580,8 +580,10 @@ public class GlobalPartitionedInterceptorTests
         await interceptor.ReceivedAsync(_listener, envelope);
 
         var outgoing = _routedEnvelopes.ShouldHaveSingleItem();
-        outgoing.Headers.ShouldNotContainKey("Opta-X-Metrics-Id");
-        outgoing.Headers.ShouldNotContainKey("Opta-X-Causation-Id");
+        // Cast disambiguates between Shouldly's IDictionary / IReadOnlyDictionary
+        // ShouldNotContainKey overloads (Envelope.Headers is a concrete Dictionary).
+        ((IDictionary<string, string?>)outgoing.Headers).ShouldNotContainKey("Opta-X-Metrics-Id");
+        ((IDictionary<string, string?>)outgoing.Headers).ShouldNotContainKey("Opta-X-Causation-Id");
     }
 
     [Fact]
@@ -606,7 +608,7 @@ public class GlobalPartitionedInterceptorTests
 
         var outgoing = _routedEnvelopes.ShouldHaveSingleItem();
         outgoing.Headers["Opta-X-Metrics-Id"].ShouldBe("metrics-abc");
-        outgoing.Headers.ShouldNotContainKey("Opta-X-Causation-Id");
+        ((IDictionary<string, string?>)outgoing.Headers).ShouldNotContainKey("Opta-X-Causation-Id");
     }
 
     [Fact]
