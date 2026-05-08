@@ -19,7 +19,7 @@ namespace Wolverine.Http.Diagnostics;
 /// a richer flattener at the consumer side
 /// (<c>Wolverine.CritterWatch.Http</c>).
 /// </remarks>
-internal static class SchemaFlattener
+public static class SchemaFlattener
 {
     public static OpenApiSchemaDescriptor For(Type? type)
     {

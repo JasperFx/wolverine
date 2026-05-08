@@ -22,7 +22,7 @@ namespace Wolverine.Http.Diagnostics;
 /// <c>Wolverine.CritterWatch.Http</c> and replaces these schemas at
 /// the consumer side when both are loaded.
 /// </remarks>
-internal static class OpenApiDescriptorBuilder
+public static class OpenApiDescriptorBuilder
 {
     /// <summary>Maximum schema-tree depth before we emit a <c>$ref</c> chip (Q12).</summary>
     public const int MaxInlineSchemaDepth = 3;
