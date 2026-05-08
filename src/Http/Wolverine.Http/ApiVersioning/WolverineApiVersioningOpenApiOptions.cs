@@ -13,7 +13,7 @@ public sealed class WolverineApiVersioningOpenApiOptions
     /// document name. The same string is also used as the
     /// <c>IEndpointGroupNameMetadata.EndpointGroupName</c> attached to each chain by
     /// <see cref="ApiVersioningPolicy"/>. Defaults to <c>v{major}</c> for major.minor versions
-    /// (e.g. <c>v1</c>, <c>v2</c>); falls back to <see cref="ApiVersion.ToString"/> for
+    /// (e.g. <c>v1</c>, <c>v2</c>); falls back to <see cref="ApiVersion.ToString()"/> for
     /// date-based versions.
     /// </summary>
     /// <remarks>

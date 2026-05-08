@@ -73,8 +73,8 @@ public static class PolecatOps
 {
     /// <summary>
     /// Begin a fluent declaration of a data requirement against a Polecat document. Pair with
-    /// <see cref="CheckDocument{TDoc}.MustExist{TId}"/> or
-    /// <see cref="CheckDocument{TDoc}.MustNotExist{TId}"/> to return an
+    /// <see cref="CheckDocument{TDoc}.MustExist{TId}(TId)"/> or
+    /// <see cref="CheckDocument{TDoc}.MustNotExist{TId}(TId)"/> to return an
     /// <see cref="Wolverine.Polecat.Requirements.IPolecatDataRequirement"/> from a "Before" /
     /// "Validate" method on a handler. Multiple data requirements stacked on the same chain
     /// are batched into a single Polecat round-trip.
@@ -603,7 +603,7 @@ public abstract class DocumentsOp : IDocumentsOp
 /// <summary>
 /// Fluent builder for declaring an <see cref="Wolverine.Polecat.Requirements.IPolecatDataRequirement"/>
 /// against a Polecat document. Returned from <see cref="PolecatOps.Document{TDoc}"/>; pair with
-/// <see cref="MustExist{TId}"/> or <see cref="MustNotExist{TId}"/> to express the desired check.
+/// <see cref="MustExist{TId}(TId)"/> or <see cref="MustNotExist{TId}(TId)"/> to express the desired check.
 /// </summary>
 public class CheckDocument<TDoc> where TDoc : class
 {
