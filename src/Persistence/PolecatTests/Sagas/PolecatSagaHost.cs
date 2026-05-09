@@ -11,7 +11,7 @@ namespace PolecatTests.Sagas;
 
 public class PolecatSagaHost : ISagaHost
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public IHost BuildHost<TSaga>()
     {

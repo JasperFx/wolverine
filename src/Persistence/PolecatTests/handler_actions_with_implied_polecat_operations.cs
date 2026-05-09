@@ -11,8 +11,8 @@ namespace PolecatTests;
 
 public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {
@@ -280,7 +280,7 @@ public static class AppendManyPcNamedDocumentsHandler
 
 public class PcNamedDocument
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public int Number { get; set; }
 }
 
@@ -298,5 +298,5 @@ public class PcGuidIdDocument
 }
 public class PcStringIdDocument
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
 }

@@ -15,7 +15,7 @@ namespace PolecatTests.Sagas;
 
 public class using_revisioned_sagas : IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {

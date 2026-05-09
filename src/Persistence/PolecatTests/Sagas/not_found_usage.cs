@@ -14,7 +14,7 @@ namespace PolecatTests.Sagas;
 
 public class not_found_usage : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -95,7 +95,7 @@ public record InvitationExpired(string Id);
 
 public class InvitationIssued
 {
-    [SagaIdentity] public string Id { get; set; }
+    [SagaIdentity] public required string Id { get; init; }
 }
 
 public record InvitationTimeout(string Id) : TimeoutMessage(10.Seconds());

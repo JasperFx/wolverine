@@ -24,8 +24,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
 {
     private static readonly Type _versioningBaseType = typeof(AggregateVersioning<>);
 
-    public Type AggregateType { get; init; }
-    public Variable AggregateId { get; init; }
+    public required Type AggregateType { get; init; }
+    public required Variable AggregateId { get; init; }
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }

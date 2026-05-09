@@ -15,8 +15,8 @@ namespace PolecatTests;
 
 public class handler_actions_with_returned_StartStream : IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {

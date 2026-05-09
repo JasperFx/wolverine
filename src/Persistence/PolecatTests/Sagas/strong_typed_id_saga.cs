@@ -17,9 +17,9 @@ public readonly partial struct PcOrderSagaId;
 
 public class PcOrderSagaWorkflow : Wolverine.Saga
 {
-    public PcOrderSagaId Id { get; set; }
+    public required PcOrderSagaId Id { get; init; }
 
-    public string CustomerName { get; set; }
+    public required string CustomerName { get; init; }
     public bool ItemsPicked { get; set; }
     public bool PaymentProcessed { get; set; }
     public bool Shipped { get; set; }
@@ -78,7 +78,7 @@ public class CompletePcOrderStep
 
 public class strong_typed_id_saga : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

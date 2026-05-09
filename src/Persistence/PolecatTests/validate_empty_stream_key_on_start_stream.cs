@@ -11,8 +11,8 @@ namespace PolecatTests;
 
 public class validate_empty_stream_key_on_start_stream : IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {

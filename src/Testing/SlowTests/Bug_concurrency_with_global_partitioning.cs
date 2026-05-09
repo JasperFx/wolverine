@@ -311,29 +311,29 @@ public class ExceptionTracker : ILoggerProvider
 
 public class SoccerEventTypeOne
 {
-    public string Id { get; set; }
-    public string PersonId { get; set; }
-    public string Name { get; set; }
-    public int Age { get; set; }
+    public required string Id { get; init; }
+    public required string PersonId { get; init; }
+    public required string Name { get; init; }
+    public required int Age { get; init; }
 }
 
 public class SoccerEventTypeTwo
 {
-    public string Id { get; set; }
-    public string PersonId { get; set; }
-    public string Occupation { get; set; }
+    public required string Id { get; init; }
+    public required string PersonId { get; init; }
+    public required string Occupation { get; init; }
 }
 
-public class SoccerInternalEventTypeOne
+public record SoccerInternalEventTypeOne
 {
-    public string Id { get; set; }
-    public string PersonId { get; set; }
-    public DateTime Date { get; set; }
+    public required string Id { get; init; }
+    public required string PersonId { get; init; }
+    public required DateTime Date { get; init; }
 }
 
 public class SoccerExternalEventTypeOne
 {
-    public string Id { get; set; }
+    public required string Id { get; init; }
 }
 
 #endregion
@@ -341,7 +341,7 @@ public class SoccerExternalEventTypeOne
 #region Aggregate
 public class SoccerAggregate
 {
-    public string Id { get; set; }
+    public string Id { get; set; } = string.Empty;
     public Dictionary<string, string> NamesById { get; set; } = [];
     public Dictionary<string, string> OccupationsByName { get; set; } = [];
 
