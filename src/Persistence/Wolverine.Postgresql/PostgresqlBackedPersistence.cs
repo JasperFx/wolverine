@@ -223,6 +223,16 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         }
 
         options.Services.AddSingleton<Migrator, PostgresqlMigrator>();
+
+        // CritterWatch / saga-explorer diagnostic surface — every saga
+        // persisted via Wolverine's lightweight (Postgres-backed)
+        // saga storage is owned by this provider. Registered singleton
+        // here so the runtime aggregator picks it up alongside any
+        // Marten / EF Core / RavenDB diagnostics in mixed-storage hosts.
+        options.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.RDBMS.Sagas.DatabaseSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
     }
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)

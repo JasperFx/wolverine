@@ -82,6 +82,16 @@ public static class WolverineOptionsPolecatExtensions
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
 
+        // CritterWatch / saga-explorer diagnostic surface — Polecat
+        // builds a SqlServerMessageStore underneath, so the lightweight
+        // SQL Server saga storage owns every Polecat-driven saga. The
+        // runtime aggregator picks this up alongside any other saga
+        // storages (Marten / EF Core / RavenDB) for mixed-storage hosts.
+        expression.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new DatabaseSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
+
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();

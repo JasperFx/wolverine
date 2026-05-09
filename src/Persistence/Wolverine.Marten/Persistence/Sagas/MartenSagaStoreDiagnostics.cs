@@ -56,9 +56,13 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
         // session.LoadAsync<TSaga>(id, ct) — dispatched via reflection
         // because the saga type isn't known at compile time and Marten
         // overloads LoadAsync per supported id type (Guid/int/long/string).
-        var loadAsync = typeof(IDocumentSession)
+        // LoadAsync is declared on IQuerySession (the base of
+        // IDocumentSession) and reflection on the derived interface
+        // doesn't surface inherited methods, so look it up on the
+        // declaring interface.
+        var loadAsync = typeof(IQuerySession)
             .GetMethods()
-            .FirstOrDefault(m => m.Name == nameof(IDocumentSession.LoadAsync)
+            .FirstOrDefault(m => m.Name == nameof(IQuerySession.LoadAsync)
                                  && m.IsGenericMethodDefinition
                                  && m.GetParameters().Length == 2
                                  && m.GetParameters()[0].ParameterType == coercedId.GetType()

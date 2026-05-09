@@ -181,7 +181,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();
-        
+
         if (_transportConfigurations.Any())
         {
             // var transport = options.Transports.GetOrCreate<SqlServerTransport>();
@@ -192,6 +192,16 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
             //     transportConfiguration(expression);
             // }
         }
+
+        // CritterWatch / saga-explorer diagnostic surface — every saga
+        // persisted via Wolverine's lightweight (SQL Server-backed) saga
+        // storage is owned by this provider. The runtime aggregator
+        // picks this up alongside any Marten / EF Core / RavenDB
+        // diagnostics in mixed-storage hosts.
+        options.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.RDBMS.Sagas.DatabaseSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
     }
     
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)

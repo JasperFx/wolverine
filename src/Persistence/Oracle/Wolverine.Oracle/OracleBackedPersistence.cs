@@ -142,6 +142,16 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();
 
         options.Services.AddSingleton<Migrator, OracleMigrator>();
+
+        // CritterWatch / saga-explorer diagnostic surface — every saga
+        // persisted via Wolverine's lightweight (Oracle-backed) saga
+        // storage is owned by this provider. The runtime aggregator
+        // picks this up alongside any Marten / EF Core / RavenDB
+        // diagnostics in mixed-storage hosts.
+        options.Services.AddSingleton<Wolverine.Persistence.Sagas.ISagaStoreDiagnostics>(s =>
+            new Wolverine.RDBMS.Sagas.DatabaseSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
     }
 
     public IMessageStore BuildMessageStore(IWolverineRuntime runtime)
