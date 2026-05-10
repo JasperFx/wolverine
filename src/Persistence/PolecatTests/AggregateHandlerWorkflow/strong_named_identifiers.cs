@@ -14,8 +14,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class strong_named_identifiers : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {

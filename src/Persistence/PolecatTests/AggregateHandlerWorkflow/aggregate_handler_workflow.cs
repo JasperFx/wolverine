@@ -19,8 +19,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class aggregate_handler_workflow : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -335,8 +335,8 @@ public static class PcOutgoing1Handler
 
 public record PcOutgoing1
 {
-    public PcEvent3 Event { get; set; }
-    public PcAggregate Aggregate { get; set; }
+    public required PcEvent3 Event { get; init; }
+    public required PcAggregate Aggregate { get; init; }
 }
 
 public record LetterMessage1;

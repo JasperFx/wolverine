@@ -71,7 +71,7 @@ public record Drawdown(int Quantity);
 public class Inventory
 {
     public Guid Id { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
     public int Quantity { get; set; }
     public double UnitPrice { get; set; }
 

@@ -35,7 +35,7 @@ internal class DocumentOperationsSource : IVariableSource
 
 internal class DocumentOperationsFrame : SyncFrame
 {
-    private Variable _session;
+    private Variable _session = null!;
 
     public DocumentOperationsFrame()
     {

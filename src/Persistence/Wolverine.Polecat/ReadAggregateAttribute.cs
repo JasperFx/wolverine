@@ -108,8 +108,8 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
 internal class FetchLatestAggregateFrame : AsyncFrame
 {
     private readonly Variable _identity;
-    private Variable _session;
-    private Variable _token;
+    private Variable _session = null!;
+    private Variable _token = null!;
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
     {

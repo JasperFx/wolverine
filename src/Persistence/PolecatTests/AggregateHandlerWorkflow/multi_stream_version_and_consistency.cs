@@ -18,8 +18,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class multi_stream_version_and_consistency : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid fromAccountId;
     private Guid toAccountId;
 

@@ -33,7 +33,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
 
     private OnMissing? _onMissing;
     public bool Required { get; set; } = true;
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {

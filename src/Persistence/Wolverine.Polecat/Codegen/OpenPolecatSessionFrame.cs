@@ -14,7 +14,7 @@ internal class OpenPolecatSessionFrame : AsyncFrame
     private Variable? _context;
     private Variable? _factory;
     private Variable? _polecatFactory;
-    private Variable _tenantId;
+    private Variable _tenantId = null!;
     private bool _justCast;
 
     public OpenPolecatSessionFrame(Type sessionType)
