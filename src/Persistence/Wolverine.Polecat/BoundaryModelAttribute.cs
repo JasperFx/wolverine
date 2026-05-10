@@ -28,7 +28,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
     private OnMissing? _onMissing;
 
     public bool Required { get; set; }
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {

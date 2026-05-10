@@ -72,7 +72,7 @@ internal class EventOperationsSource : IVariableSource
 
 internal class EventOperationsFrame : SyncFrame
 {
-    private Variable _session;
+    private Variable _session = null!;
 
     public EventOperationsFrame()
     {

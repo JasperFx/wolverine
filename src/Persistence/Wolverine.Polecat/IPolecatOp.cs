@@ -44,7 +44,7 @@ internal class PolecatOpPolicy : IChainPolicy
 internal class ForEachPolecatOpFrame : SyncFrame
 {
     private readonly Variable _collection;
-    private Variable _session;
+    private Variable _session = null!;
 
     public ForEachPolecatOpFrame(Variable collection)
     {
