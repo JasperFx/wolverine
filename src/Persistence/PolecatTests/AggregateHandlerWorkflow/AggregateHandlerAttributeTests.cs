@@ -62,10 +62,10 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_aggregate_id_from_command_type_in_aggregate_handler_attribute()
     {
-        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(CreatePcInvoice)), new HandlerGraph());
+        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(CreatePcInvoice)!), new HandlerGraph());
         new AggregateHandlerAttribute { AggregateType = typeof(PcInvoice) }.TryInferMessageIdentity(chain, out var property)
             .ShouldBe(true);
-        property.Name.ShouldBe(nameof(CreatePcInvoice.Id));
+        property!.Name.ShouldBe(nameof(CreatePcInvoice.Id));
     }
 
     [Fact]

@@ -105,7 +105,7 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
-        var method = typeof(PolecatStorageActionApplier).GetMethod("ApplyAction")
+        var method = typeof(PolecatStorageActionApplier).GetMethod("ApplyAction")!
             .MakeGenericMethod(entityType);
 
         var call = new MethodCall(typeof(PolecatStorageActionApplier), method);

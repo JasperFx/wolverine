@@ -288,13 +288,13 @@ public class LetterAggregateHandler
 
     public void Handle(IncrementC command, IEventStream<LetterAggregate> stream)
     {
-        command.LetterAggregateId.ShouldBe(stream.Aggregate.Id);
+        command.LetterAggregateId.ShouldBe(stream.Aggregate!.Id);
         stream.AppendOne(new CEvent());
     }
 
     public Task Handle(IncrementD command, IEventStream<LetterAggregate> stream)
     {
-        command.LetterAggregateId.ShouldBe(stream.Aggregate.Id);
+        command.LetterAggregateId.ShouldBe(stream.Aggregate!.Id);
         stream.AppendOne(new DEvent());
         return Task.CompletedTask;
     }

@@ -1,4 +1,3 @@
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -7,16 +6,18 @@ using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using Microsoft.Extensions.DependencyInjection;
 using Polecat;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
-using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Partitioning;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Wolverine.Polecat;
 
@@ -86,25 +87,25 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         handling.Apply(chain, container);
     }
 
-    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
+    public bool TryInferMessageIdentity(IChain chain, [NotNullWhen(true)] out PropertyInfo? property)
     {
         var inputType = chain.InputType();
-        property = default!;
+        property = null;
 
         if (inputType.Closes(typeof(IEvent<>)))
         {
             if (AggregateHandling.TryLoad(chain, out var handling))
             {
                 property = handling.AggregateId.VariableType == typeof(string)
-                    ? inputType.GetProperty(nameof(IEvent.StreamKey))
-                    : inputType.GetProperty(nameof(IEvent.StreamId));
+                    ? inputType!.GetProperty(nameof(IEvent.StreamKey))
+                    : inputType!.GetProperty(nameof(IEvent.StreamId));
             }
 
             return property != null;
         }
 
         var aggregateType = AggregateType ?? AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType);
+        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType!);
         property = idMember as PropertyInfo;
         return property != null;
     }

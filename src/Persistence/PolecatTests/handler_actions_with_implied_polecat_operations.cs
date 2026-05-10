@@ -75,7 +75,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
 
         await using var session = _store.LightweightSession();
         var doc = await session.LoadAsync<PcNamedDocument>("Max");
-        doc.Number.ShouldBe(10);
+        doc!.Number.ShouldBe(10);
     }
 
     [Fact]
@@ -189,9 +189,9 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
 
         await using var session = _store.LightweightSession();
 
-        (await session.LoadAsync<PcNamedDocument>("red")).Number.ShouldBe(1);
-        (await session.LoadAsync<PcNamedDocument>("blue")).Number.ShouldBe(2);
-        (await session.LoadAsync<PcNamedDocument>("green")).Number.ShouldBe(3);
+        (await session.LoadAsync<PcNamedDocument>("red"))!.Number.ShouldBe(1);
+        (await session.LoadAsync<PcNamedDocument>("blue"))!.Number.ShouldBe(2);
+        (await session.LoadAsync<PcNamedDocument>("green"))!.Number.ShouldBe(3);
     }
 }
 

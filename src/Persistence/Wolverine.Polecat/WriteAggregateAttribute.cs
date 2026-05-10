@@ -1,15 +1,16 @@
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
+using JasperFx.Events.Aggregation;
 using Microsoft.Extensions.DependencyInjection;
 using Polecat;
 using Polecat.Events;
-using JasperFx.Events;
-using JasperFx.Events.Aggregation;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Persistence;
@@ -177,12 +178,12 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
         return identifiedByInterface?.GetGenericArguments()[0];
     }
 
-    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
+    public bool TryInferMessageIdentity(IChain chain, [NotNullWhen(true)] out PropertyInfo? property)
     {
         var inputType = chain.InputType();
         if (inputType == null)
         {
-            property = default;
+            property = null;
             return false;
         }
 

@@ -30,7 +30,7 @@ public class non_transactional_attribute_opt_out
 
         var runtime = host.GetRuntime();
 
-        runtime.Handlers.ChainFor<PcNonTransactionalCommand>()
+        runtime.Handlers.ChainFor<PcNonTransactionalCommand>()!
             .IsTransactional.ShouldBeFalse();
     }
 

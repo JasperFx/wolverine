@@ -182,7 +182,7 @@ public static class TransferFundsHandler
         [WriteAggregate] IEventStream<BankAccount> fromAccount,
         [WriteAggregate(nameof(TransferFunds.ToAccountId))] IEventStream<BankAccount> toAccount)
     {
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -201,7 +201,7 @@ public static class TransferFundsWithDualVersionHandler
             VersionSource = nameof(TransferFundsWithDualVersion.ToVersion))]
         IEventStream<BankAccount> toAccount)
     {
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -224,7 +224,7 @@ public static class TransferWithConsistencyCheckHandler
         sneakySession.Events.Append(command.FromAccountId, new FundsDeposited(1));
         await sneakySession.SaveChangesAsync();
 
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
@@ -242,7 +242,7 @@ public static class TransferWithConsistencyCheckNoConcurrentModificationHandler
         [WriteAggregate(nameof(TransferWithConsistencyCheckNoConcurrentModification.ToAccountId))]
         IEventStream<BankAccount> toAccount)
     {
-        if (fromAccount.Aggregate.Balance >= command.Amount)
+        if (fromAccount.Aggregate!.Balance >= command.Amount)
         {
             fromAccount.AppendOne(new FundsWithdrawn(command.Amount));
             toAccount.AppendOne(new FundsDeposited(command.Amount));
