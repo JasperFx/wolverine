@@ -14,7 +14,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
     {
     }
 
-    // Versioned chain returning Results.NotFound() — IResult exit path.
+    // Versioned chain returning Results.NotFound() - IResult exit path.
     [Fact]
     public async Task headers_emit_on_iresult_not_found()
     {
@@ -28,10 +28,10 @@ public class api_versioning_error_path_header_tests : IntegrationContext
         // Deprecate("1.0") and Sunset("3.0"), sorted ascending.
         result.Context.Response.Headers["api-supported-versions"].ToString().ShouldBe(ExpectedSupportedVersions);
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
-        result.Context.Response.Headers["Link"].FirstOrDefault().ShouldContain("rel=\"deprecation\"");
+        result.Context.Response.Headers["Link"].First()!.ShouldContain("rel=\"deprecation\"");
     }
 
-    // Versioned chain hitting fluent validation failure — ProblemDetails exit path; codegen short-circuits with return.
+    // Versioned chain hitting fluent validation failure - ProblemDetails exit path; codegen short-circuits with return.
     [Fact]
     public async Task headers_emit_on_validation_problem_details()
     {
@@ -45,7 +45,7 @@ public class api_versioning_error_path_header_tests : IntegrationContext
         result.Context.Response.Headers["Deprecation"].FirstOrDefault().ShouldNotBeNullOrEmpty();
     }
 
-    // Versioned chain whose Before() middleware short-circuits with 401 — middleware-IResult exit path.
+    // Versioned chain whose Before() middleware short-circuits with 401 - middleware-IResult exit path.
     [Fact]
     public async Task headers_emit_on_middleware_short_circuit_unauthorized()
     {

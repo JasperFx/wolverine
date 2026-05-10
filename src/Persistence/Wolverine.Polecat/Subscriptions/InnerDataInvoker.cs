@@ -4,7 +4,7 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Polecat.Subscriptions;
 
-internal class InnerDataInvoker<T> : IMessageInvoker
+internal class InnerDataInvoker<T> : IMessageInvoker where T : notnull
 {
     private readonly IMessageInvoker _inner;
 

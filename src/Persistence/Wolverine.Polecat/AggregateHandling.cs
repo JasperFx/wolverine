@@ -17,6 +17,7 @@ using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Wolverine.Polecat;
 
@@ -90,7 +91,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
     }
 
-    public static bool TryLoad(IChain chain, out AggregateHandling handling)
+    public static bool TryLoad(IChain chain, [NotNullWhen(true)] out AggregateHandling? handling)
     {
         if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
@@ -105,7 +106,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         return false;
     }
 
-    public static bool TryLoad<T>(IChain chain, out AggregateHandling handling)
+    public static bool TryLoad<T>(IChain chain, [NotNullWhen(true)] out AggregateHandling? handling)
     {
         if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
@@ -259,8 +260,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
-        Variable aggregateVariable = new MemberAccessVariable(eventStream,
-            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate)));
+        var member = typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate));
+        Variable aggregateVariable = new MemberAccessVariable(eventStream, member!);
 
         if (Requirement.Required)
         {
@@ -282,7 +283,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
         else if (Parameter != null)
         {
-            firstCall.TrySetArgument(Parameter.Name, aggregateVariable);
+            firstCall.TrySetArgument(Parameter.Name!, aggregateVariable);
         }
         else
         {
@@ -291,14 +292,14 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         if (Parameter != null)
         {
-            StoreDeferredMiddlewareVariable(chain, Parameter.Name, aggregateVariable);
+            StoreDeferredMiddlewareVariable(chain, Parameter.Name!, aggregateVariable);
         }
 
         foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
         {
             if (Parameter != null)
             {
-                if (!methodCall.TrySetArgument(Parameter.Name, aggregateVariable))
+                if (!methodCall.TrySetArgument(Parameter.Name!, aggregateVariable))
                 {
                     methodCall.TrySetArgument(aggregateVariable);
                 }
@@ -337,7 +338,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             $"Unable to determine a Polecat aggregate type for {chain}. You may need to explicitly specify the aggregate type in a {nameof(AggregateHandlerAttribute)} attribute");
     }
 
-    internal static MemberInfo DetermineVersionMember(Type aggregateType)
+    internal static MemberInfo? DetermineVersionMember(Type aggregateType)
     {
         var versioning =
             _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
