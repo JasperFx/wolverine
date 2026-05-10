@@ -60,7 +60,7 @@ public class polecat_command_workflow_middleware : IDisposable
         theStreamId = action.Id;
     }
 
-    internal async Task<LetterAggregate> LoadAggregate()
+    internal async Task<LetterAggregate?> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
         return await session.LoadAsync<LetterAggregate>(theStreamId);
@@ -232,7 +232,7 @@ public static class SpecialLetterHandler
 public class LetterAggregateHandler
 {
     // No event returned
-    public AEvent Handle(IncrementNone command, LetterAggregate aggregate)
+    public AEvent? Handle(IncrementNone command, LetterAggregate aggregate)
     {
         return null;
     }

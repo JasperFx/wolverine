@@ -50,7 +50,7 @@ public record PcLookup(Guid Id);
 
 public class PcLookupHandler
 {
-    public static async Task<PcBug215Data> Handle(PcLookup lookup, IDocumentSession session,
+    public static async Task<PcBug215Data?> Handle(PcLookup lookup, IDocumentSession session,
         CancellationToken cancellationToken)
     {
         var data = new PcBug215Data();

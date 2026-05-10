@@ -59,7 +59,7 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
         await session.SaveChangesAsync();
     }
 
-    private async Task<BankAccount> LoadAccount(Guid id)
+    private async Task<BankAccount?> LoadAccount(Guid id)
     {
         await using var session = theStore.LightweightSession();
         return await session.LoadAsync<BankAccount>(id);
@@ -75,8 +75,8 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
 
         var from = await LoadAccount(fromAccountId);
         var to = await LoadAccount(toAccountId);
-        from.Balance.ShouldBe(900);
-        to.Balance.ShouldBe(600);
+        from!.Balance.ShouldBe(900);
+        to!.Balance.ShouldBe(600);
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
 
         var from = await LoadAccount(fromAccountId);
         var to = await LoadAccount(toAccountId);
-        from.Balance.ShouldBe(900);
-        to.Balance.ShouldBe(600);
+        from!.Balance.ShouldBe(900);
+        to!.Balance.ShouldBe(600);
     }
 
     [Fact]
@@ -135,8 +135,8 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
 
         var from = await LoadAccount(fromAccountId);
         var to = await LoadAccount(toAccountId);
-        from.Balance.ShouldBe(0);
-        to.Balance.ShouldBe(500);
+        from!.Balance.ShouldBe(0);
+        to!.Balance.ShouldBe(500);
     }
 }
 

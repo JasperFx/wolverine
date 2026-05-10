@@ -59,7 +59,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         theStreamId = action.Id;
     }
 
-    internal async Task<LetterAggregate> LoadAggregate()
+    internal async Task<LetterAggregate?> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
         return await session.LoadAsync<LetterAggregate>(theStreamId);
