@@ -1,4 +1,4 @@
-﻿using IntegrationTests;
+using IntegrationTests;
 using JasperFx;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,7 +37,7 @@ public class EfCoreSagaHost : ISagaHost
         return _host;
     }
 
-    public async Task<T> LoadState<T>(Guid id) where T : Saga
+    public async Task<T?> LoadState<T>(Guid id) where T : Saga
     {
         using var scope = _host.Services.CreateScope();
         
@@ -45,7 +45,7 @@ public class EfCoreSagaHost : ISagaHost
         return (await session.FindAsync<T>(id))!;
     }
 
-    public async Task<T> LoadState<T>(int id) where T : Saga
+    public async Task<T?> LoadState<T>(int id) where T : Saga
     {
         using var scope = _host.Services.CreateScope();
         
@@ -53,7 +53,7 @@ public class EfCoreSagaHost : ISagaHost
         return (await session.FindAsync<T>(id))!;
     }
 
-    public async Task<T> LoadState<T>(long id) where T : Saga
+    public async Task<T?> LoadState<T>(long id) where T : Saga
     {
         using var scope = _host.Services.CreateScope();
         
@@ -61,7 +61,7 @@ public class EfCoreSagaHost : ISagaHost
         return (await session.FindAsync<T>(id))!;
     }
 
-    public async Task<T> LoadState<T>(string id) where T : Saga
+    public async Task<T?> LoadState<T>(string id) where T : Saga
     {
         using var scope = _host.Services.CreateScope();
         

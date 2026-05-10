@@ -16,7 +16,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
-        AggregateHandling.DetermineVersionMember(typeof(PcInvoice))
+        AggregateHandling.DetermineVersionMember(typeof(PcInvoice))!
             .Name.ShouldBe(nameof(PcInvoice.Version));
     }
 
