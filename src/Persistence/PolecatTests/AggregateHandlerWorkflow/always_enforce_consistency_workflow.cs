@@ -59,10 +59,12 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         theStreamId = action.Id;
     }
 
-    private async Task<ConsistencyAggregate?> LoadAggregate()
+    private async Task<ConsistencyAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<ConsistencyAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<ConsistencyAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     [Fact]
@@ -72,7 +74,7 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new ConsistentIncrementA(theStreamId));
 
         var aggregate = await LoadAggregate();
-        aggregate!.ACount.ShouldBe(1);
+        aggregate.ACount.ShouldBe(1);
     }
 
     [Fact]
@@ -83,7 +85,7 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new ConsistentDoNothing(theStreamId));
 
         var aggregate = await LoadAggregate();
-        aggregate!.ACount.ShouldBe(0);
+        aggregate.ACount.ShouldBe(0);
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new ConsistentHandlerIncrementA(theStreamId));
 
         var aggregate = await LoadAggregate();
-        aggregate!.ACount.ShouldBe(1);
+        aggregate.ACount.ShouldBe(1);
     }
 
     [Fact]
@@ -114,7 +116,7 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new ConsistentHandlerDoNothing(theStreamId));
 
         var aggregate = await LoadAggregate();
-        aggregate!.ACount.ShouldBe(0);
+        aggregate.ACount.ShouldBe(0);
     }
 
     [Fact]
@@ -134,7 +136,7 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new ConsistentParamIncrementA(theStreamId));
 
         var aggregate = await LoadAggregate();
-        aggregate!.ACount.ShouldBe(1);
+        aggregate.ACount.ShouldBe(1);
     }
 
     [Fact]

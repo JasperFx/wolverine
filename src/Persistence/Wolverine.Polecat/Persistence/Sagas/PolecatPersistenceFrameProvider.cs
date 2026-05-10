@@ -148,7 +148,7 @@ public static class PolecatStorageActionApplier
 
 internal class DocumentSessionSaveChanges : MethodCall
 {
-    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default)))
+    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default))!)
     {
         CommentText = "Save all pending changes to this Polecat session";
     }

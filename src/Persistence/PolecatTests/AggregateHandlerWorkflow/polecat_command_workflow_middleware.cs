@@ -60,10 +60,12 @@ public class polecat_command_workflow_middleware : IDisposable
         theStreamId = action.Id;
     }
 
-    internal async Task<LetterAggregate?> LoadAggregate()
+    internal async Task<LetterAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<LetterAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<LetterAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     internal async Task OnAggregate(Action<LetterAggregate> assertions)

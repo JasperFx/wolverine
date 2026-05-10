@@ -56,7 +56,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        frame.Aggregate.OverrideName(parameter.Name);
+        frame.Aggregate.OverrideName(parameter.Name!);
 
         Variable returnVariable;
         if (Required)
@@ -72,7 +72,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
             returnVariable = frame.Aggregate;
         }
 
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
     }

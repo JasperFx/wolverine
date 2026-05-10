@@ -59,10 +59,12 @@ public class version_source_override : IAsyncLifetime
         theStreamId = action.Id;
     }
 
-    private async Task<VersionSourceAggregate?> LoadAggregate()
+    private async Task<VersionSourceAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<VersionSourceAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<VersionSourceAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     [Fact]
@@ -74,7 +76,7 @@ public class version_source_override : IAsyncLifetime
             new IncrementWithCustomVersion(theStreamId, ExpectedVersion: 1));
 
         var aggregate = await LoadAggregate();
-        aggregate!.Count.ShouldBe(1);
+        aggregate.Count.ShouldBe(1);
     }
 
     [Fact]
@@ -96,7 +98,7 @@ public class version_source_override : IAsyncLifetime
             new IncrementWithParamVersionSource(theStreamId, MyVersion: 1));
 
         var aggregate = await LoadAggregate();
-        aggregate!.Count.ShouldBe(1);
+        aggregate.Count.ShouldBe(1);
     }
 
     [Fact]
