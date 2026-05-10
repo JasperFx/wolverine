@@ -14,6 +14,7 @@ using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Util;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Wolverine.Polecat;
 
@@ -122,7 +123,7 @@ internal class PolecatOverrides : IConfigurePolecat
 
 internal class EventWrapperForwarder : IHandledTypeRule
 {
-    public bool TryFindHandledType(Type concreteType, out Type handlerType)
+    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
     {
         handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>));
         return handlerType != null;

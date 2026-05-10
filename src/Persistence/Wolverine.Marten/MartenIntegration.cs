@@ -10,13 +10,14 @@ using Marten.Schema;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using System.Diagnostics.CodeAnalysis;
 using Weasel.Core;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten.Codegen;
-using Wolverine.Middleware;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Marten.Publishing;
 using Wolverine.Marten.Requirements;
+using Wolverine.Middleware;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql.Transport;
 using Wolverine.RDBMS;
@@ -183,7 +184,7 @@ internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T
 
 internal class EventWrapperForwarder : IHandledTypeRule
 {
-    public bool TryFindHandledType(Type concreteType, out Type handlerType)
+    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
     {
         handlerType = concreteType.FindInterfaceThatCloses(typeof(IEvent<>))!;
         return handlerType != null;
