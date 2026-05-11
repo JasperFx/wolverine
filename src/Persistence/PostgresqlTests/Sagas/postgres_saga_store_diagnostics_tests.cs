@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
@@ -46,12 +47,15 @@ public class postgres_saga_store_diagnostics_tests : IAsyncLifetime
     public async Task registered_saga_types_includes_database_owned_saga()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        var diag = registered.SingleOrDefault(d => d.SagaType.FullName == typeof(PgDiagSaga).FullName);
+        var diag = registered.SingleOrDefault(d => d.StateType.FullName == typeof(PgDiagSaga).FullName);
         diag.ShouldNotBeNull();
         diag.StorageProvider.ShouldBe("Database");
-        diag.StartingMessages.Select(m => m.FullName).ShouldContain(typeof(StartPgDiagSaga).FullName!);
+        diag.Messages
+            .Where(m => m.Role == SagaRole.Start || m.Role == SagaRole.StartOrHandle)
+            .Select(m => m.MessageType.FullName)
+            .ShouldContain(typeof(StartPgDiagSaga).FullName!);
     }
 
     [Fact]

@@ -234,132 +234,37 @@ public class ServiceCapabilities : OptionsDescription
     }
 
     /// <summary>
-    /// Walk every <see cref="SagaChain"/> on the handler graph (including
-    /// per-endpoint variants in MultipleHandlerBehavior.Separated mode) and
-    /// emit one <see cref="SagaDescriptor"/> per concrete saga state type.
-    /// Each handler call inside the chain contributes a
-    /// <see cref="SagaMessageRole"/> classified by the same method-name
-    /// matching that <see cref="SagaChain.DetermineFrames"/> uses for
-    /// code-gen, so what the descriptor reports is exactly what Wolverine
-    /// will execute at runtime. The <c>StorageProvider</c> tag is
-    /// resolved by asking each registered
-    /// <see cref="IPersistenceFrameProvider"/> whether it can persist the
-    /// saga state type — same lookup the saga handler pipeline uses.
+    /// Walk every <see cref="SagaChain"/> on the handler graph (via
+    /// <see cref="SagaDescriptorBuilder"/>) and emit one
+    /// <see cref="SagaDescriptor"/> per concrete saga state type. The
+    /// per-message role classification + saga-id binding + cascading
+    /// PublishedTypes come from the shared builder so the host-wide
+    /// snapshot agrees byte-for-byte with each per-storage
+    /// <see cref="ISagaStoreDiagnostics"/> view. The
+    /// <c>StorageProvider</c> tag is resolved by asking each registered
+    /// <see cref="IPersistenceFrameProvider"/> whether it can persist
+    /// the saga state type — same lookup the saga handler pipeline uses.
     /// </summary>
     private static void readSagas(IWolverineRuntime runtime, ServiceCapabilities capabilities)
     {
-        var sagaChains = collectSagaChains(runtime.Options.HandlerGraph).ToArray();
-        if (sagaChains.Length == 0) return;
+        var sagaTypes = SagaDescriptorBuilder.CollectSagaChains(runtime.Options.HandlerGraph)
+            .Where(c => c.Handlers.Any(h => h.HandlerType.CanBeCastTo<Saga>()))
+            .Select(c => c.SagaType)
+            .Distinct()
+            .OrderBy(t => t.FullNameInCode())
+            .ToArray();
+        if (sagaTypes.Length == 0) return;
 
         var providers = runtime.Options.CodeGeneration.PersistenceProviders();
         var container = runtime.Options.HandlerGraph.Container;
 
-        // (sagaStateType, messageType) is unique within a saga — a single
-        // chain handles one message type, classified by its handler method
-        // name. We group by saga state type to produce one descriptor per
-        // saga, and within each group preserve the (chain → role) mapping.
-        var groups = sagaChains
-            .Where(c => c.Handlers.Any(h => h.HandlerType.CanBeCastTo<Saga>()))
-            .GroupBy(c => c.SagaType);
-
-        foreach (var group in groups.OrderBy(g => g.Key.FullNameInCode()))
+        foreach (var sagaType in sagaTypes)
         {
-            var stateType = group.Key;
-            var descriptor = new SagaDescriptor(TypeDescriptor.For(stateType))
-            {
-                StorageProvider = resolveStorageProvider(stateType, providers, container)
-            };
-
-            // SagaIdType is consistent across every chain for a single saga
-            // (Wolverine would error at runtime if it weren't), so pull it
-            // from whichever chain first resolved a SagaIdMember. The id
-            // member NAME varies per message, hence is captured per-role.
-            var typeSource = group.FirstOrDefault(c => c.SagaIdMember != null);
-            if (typeSource is not null)
-            {
-                descriptor.SagaIdType = sagaIdMemberType(typeSource.SagaIdMember!)?.FullName;
-            }
-
-            foreach (var chain in group.OrderBy(c => c.MessageType.FullNameInCode()))
-            {
-                var role = classifySagaChainRole(chain);
-                if (role is null) continue;
-
-                var published = chain.PublishedTypes()
-                    .Distinct()
-                    .Select(TypeDescriptor.For)
-                    .ToArray();
-
-                descriptor.Messages.Add(new SagaMessageRole(
-                    TypeDescriptor.For(chain.MessageType),
-                    role.Value,
-                    chain.SagaIdMember?.Name,
-                    published));
-            }
-
-            capabilities.Sagas.Add(descriptor);
+            var storageProvider = resolveStorageProvider(sagaType, providers, container);
+            capabilities.Sagas.Add(
+                SagaDescriptorBuilder.Build(runtime.Options.HandlerGraph, sagaType, storageProvider));
         }
     }
-
-    /// <summary>
-    /// Classify a single SagaChain into the role that best summarises the
-    /// chain's handler method names. A chain may contain multiple methods
-    /// for the same message (e.g. both <c>StartOrHandle</c> and a separate
-    /// <c>NotFound</c>) — in that case <c>StartOrHandle</c> wins because
-    /// it's the strictly-more-capable role. Returns null when the chain
-    /// has no recognisable saga-handler methods (shouldn't happen in
-    /// practice, but defensive).
-    /// </summary>
-    private static SagaRole? classifySagaChainRole(SagaChain chain)
-    {
-        var methodNames = chain.Handlers
-            .Where(h => h.HandlerType.CanBeCastTo<Saga>())
-            .Select(h => h.Method.Name)
-            .Select(n => n.EndsWith("Async") ? n[..^"Async".Length] : n)
-            .ToHashSet();
-
-        if (methodNames.Contains(SagaChain.StartOrHandle) || methodNames.Contains(SagaChain.StartsOrHandles))
-            return SagaRole.StartOrHandle;
-
-        if (methodNames.Contains(SagaChain.Start) || methodNames.Contains(SagaChain.Starts))
-            return SagaRole.Start;
-
-        if (methodNames.Contains(SagaChain.Orchestrate) || methodNames.Contains(SagaChain.Orchestrates)
-            || methodNames.Contains("Handle") || methodNames.Contains("Handles")
-            || methodNames.Contains("Consume") || methodNames.Contains("Consumes"))
-            return SagaRole.Orchestrate;
-
-        if (methodNames.Contains(SagaChain.NotFound))
-            return SagaRole.NotFound;
-
-        return null;
-    }
-
-    /// <summary>
-    /// Recursively yield every SagaChain reachable through the handler
-    /// graph, including per-endpoint variants created by
-    /// MultipleHandlerBehavior.Separated. Top-level chains may have moved
-    /// their handlers into ByEndpoint sub-chains, leaving the outer chain
-    /// "routing only" — we still want the inner chains' roles.
-    /// </summary>
-    private static IEnumerable<SagaChain> collectSagaChains(HandlerGraph graph)
-    {
-        foreach (var chain in graph.Chains.OfType<SagaChain>())
-        {
-            yield return chain;
-            foreach (var inner in chain.ByEndpoint.OfType<SagaChain>())
-            {
-                yield return inner;
-            }
-        }
-    }
-
-    private static Type? sagaIdMemberType(MemberInfo member) => member switch
-    {
-        PropertyInfo p => p.PropertyType,
-        FieldInfo f => f.FieldType,
-        _ => null
-    };
 
     /// <summary>
     /// Tag a saga state type with the persistence-provider name that

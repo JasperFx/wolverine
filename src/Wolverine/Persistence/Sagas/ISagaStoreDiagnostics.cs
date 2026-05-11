@@ -1,4 +1,5 @@
 using JasperFx.Descriptors;
+using Wolverine.Configuration.Capabilities;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -21,13 +22,13 @@ namespace Wolverine.Persistence.Sagas;
 public interface ISagaStoreDiagnostics
 {
     /// <summary>
-    /// Every saga type this storage knows about, with the messages that
-    /// start vs continue each saga and the storage-provider tag (e.g.
-    /// <c>Marten</c>, <c>EntityFrameworkCore</c>) used by monitoring tools
-    /// to group sagas by their backing store.
+    /// Every saga type this storage knows about, with full per-message
+    /// role classification + cascading PublishedTypes + a storage-provider
+    /// tag (e.g. <c>Marten</c>, <c>EntityFrameworkCore</c>) used by
+    /// monitoring tools to group sagas by their backing store.
     /// </summary>
     /// <param name="ct">Token to cancel the diagnostic call.</param>
-    Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct);
+    Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct);
 
     /// <summary>
     /// Load a single saga instance by its type name and identity. Returns
@@ -36,7 +37,7 @@ public interface ISagaStoreDiagnostics
     /// </summary>
     /// <param name="sagaTypeName">
     /// The saga type's full name in code (matches
-    /// <see cref="SagaTypeDescriptor.SagaType"/>'s <c>Name</c>).
+    /// <see cref="SagaDescriptor.StateType"/>'s <c>Name</c>).
     /// </param>
     /// <param name="identity">
     /// The saga identity. Wolverine boxes whatever the saga's id member

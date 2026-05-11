@@ -46,6 +46,19 @@ public class SagaDescriptor
     /// plays. Use to render the saga sequence diagram in CritterWatch.
     /// </summary>
     public List<SagaMessageRole> Messages { get; set; } = new();
+
+    /// <summary>
+    /// Tag identifying which persistence provider owns this saga at
+    /// runtime (e.g. <c>"Marten"</c>, <c>"EntityFrameworkCore"</c>,
+    /// <c>"RavenDb"</c>, <c>"InMemory"</c>). Resolved by walking the
+    /// registered <see cref="Wolverine.Persistence.IPersistenceFrameProvider"/>
+    /// chain — same precedence the saga handler pipeline uses at
+    /// code-gen time, so monitoring tools can group sagas by backing
+    /// store. Null when the merged-from-storage path (per-storage
+    /// <c>ISagaStoreDiagnostics</c>) leaves it unset; callers should
+    /// treat null as "unknown" rather than failing.
+    /// </summary>
+    public string? StorageProvider { get; set; }
 }
 
 /// <summary>

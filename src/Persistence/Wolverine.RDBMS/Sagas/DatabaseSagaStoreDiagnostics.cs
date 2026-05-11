@@ -1,8 +1,8 @@
 using System.Data.Common;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
-using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -41,7 +41,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         _database = database;
     }
 
-    public Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
+    public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
         var distinct = sagaIndex().Values
             .GroupBy(d => d.SagaType)
@@ -49,7 +49,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             .ToArray();
 
         var descriptors = distinct.Select(buildDescriptor).ToArray();
-        return Task.FromResult<IReadOnlyList<SagaTypeDescriptor>>(descriptors);
+        return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
     }
 
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
@@ -166,14 +166,9 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         return $"select {idCol}, {bodyCol} from {table} limit {count}";
     }
 
-    private SagaTypeDescriptor buildDescriptor(SagaTableDefinition definition)
+    private SagaDescriptor buildDescriptor(SagaTableDefinition definition)
     {
-        var (starting, continuing) = SagaMessageBuckets.For(definition.SagaType, _runtime.Options.HandlerGraph);
-        return new SagaTypeDescriptor(
-            TypeDescriptor.For(definition.SagaType),
-            starting,
-            continuing,
-            "Database");
+        return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, definition.SagaType, "Database");
     }
 
     private static SagaInstanceState buildInstance(SagaTableDefinition definition, object identity, string body)

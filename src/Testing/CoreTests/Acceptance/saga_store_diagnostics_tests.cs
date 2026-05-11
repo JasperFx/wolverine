@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -29,10 +30,10 @@ public class saga_store_diagnostics_tests
         // Marten alongside EF Core.
         var martenStub = new StubSagaStoreDiagnostics(
             "Marten",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga)), [], [], "Marten"));
+            new SagaDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga))) { StorageProvider = "Marten" });
         var efStub = new StubSagaStoreDiagnostics(
             "EFCore",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(EFOwnedSaga)), [], [], "EFCore"));
+            new SagaDescriptor(TypeDescriptor.For(typeof(EFOwnedSaga))) { StorageProvider = "EFCore" });
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -43,9 +44,9 @@ public class saga_store_diagnostics_tests
             .StartAsync();
 
         var diagnostics = host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        registered.Select(d => d.SagaType.FullName)
+        registered.Select(d => d.StateType.FullName)
             .ShouldBe(new[] { typeof(MartenOwnedSaga).FullName!, typeof(EFOwnedSaga).FullName! }, ignoreOrder: true);
     }
 
@@ -57,7 +58,7 @@ public class saga_store_diagnostics_tests
         // right storage rather than fanning out to both.
         var martenStub = new StubSagaStoreDiagnostics(
             "Marten",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga)), [], [], "Marten"))
+            new SagaDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga))) { StorageProvider = "Marten" })
         {
             ReadResults =
             {
@@ -71,7 +72,7 @@ public class saga_store_diagnostics_tests
         };
         var efStub = new StubSagaStoreDiagnostics(
             "EFCore",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(EFOwnedSaga)), [], [], "EFCore"))
+            new SagaDescriptor(TypeDescriptor.For(typeof(EFOwnedSaga))) { StorageProvider = "EFCore" })
         {
             ReadResults =
             {
@@ -119,7 +120,7 @@ public class saga_store_diagnostics_tests
     {
         var stub = new StubSagaStoreDiagnostics(
             "Marten",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga)), [], [], "Marten"));
+            new SagaDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga))) { StorageProvider = "Marten" });
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton<ISagaStoreDiagnostics>(stub))
@@ -144,7 +145,7 @@ public class saga_store_diagnostics_tests
     {
         var stub = new StubSagaStoreDiagnostics(
             "Marten",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga)), [], [], "Marten"));
+            new SagaDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga))) { StorageProvider = "Marten" });
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton<ISagaStoreDiagnostics>(stub))
@@ -162,7 +163,7 @@ public class saga_store_diagnostics_tests
     {
         var stub = new StubSagaStoreDiagnostics(
             "Marten",
-            new SagaTypeDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga)), [], [], "Marten"))
+            new SagaDescriptor(TypeDescriptor.For(typeof(MartenOwnedSaga))) { StorageProvider = "Marten" })
         {
             ReadResults =
             {
@@ -210,7 +211,7 @@ public class saga_store_diagnostics_tests
         var diagnostics = host.GetRuntime().SagaStorage;
         diagnostics.ShouldNotBeNull();
 
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
         registered.ShouldBeEmpty();
 
         var read = await diagnostics.ReadSagaAsync("Anything", Guid.NewGuid(), CancellationToken.None);
@@ -270,9 +271,9 @@ public record StartEFSaga(int Id);
 
 internal sealed class StubSagaStoreDiagnostics : ISagaStoreDiagnostics
 {
-    private readonly SagaTypeDescriptor[] _descriptors;
+    private readonly SagaDescriptor[] _descriptors;
 
-    public StubSagaStoreDiagnostics(string label, params SagaTypeDescriptor[] descriptors)
+    public StubSagaStoreDiagnostics(string label, params SagaDescriptor[] descriptors)
     {
         Label = label;
         _descriptors = descriptors;
@@ -284,8 +285,8 @@ internal sealed class StubSagaStoreDiagnostics : ISagaStoreDiagnostics
     public Dictionary<string, SagaInstanceState> ReadResults { get; } = new();
     public Dictionary<string, IReadOnlyList<SagaInstanceState>> ListResults { get; } = new();
 
-    public Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
-        => Task.FromResult<IReadOnlyList<SagaTypeDescriptor>>(_descriptors);
+    public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
+        => Task.FromResult<IReadOnlyList<SagaDescriptor>>(_descriptors);
 
     public Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
     {

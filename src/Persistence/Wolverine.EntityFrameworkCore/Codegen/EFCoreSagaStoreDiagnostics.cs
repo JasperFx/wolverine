@@ -1,9 +1,9 @@
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
-using JasperFx.Descriptors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -39,7 +39,7 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
         _services = services;
     }
 
-    public Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
+    public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
         var distinct = sagaIndex().Values
             .GroupBy(v => v.sagaType)
@@ -47,7 +47,7 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
             .ToArray();
 
         var descriptors = distinct.Select(buildDescriptor).ToArray();
-        return Task.FromResult<IReadOnlyList<SagaTypeDescriptor>>(descriptors);
+        return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
     }
 
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
@@ -127,14 +127,9 @@ internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
         return list;
     }
 
-    private SagaTypeDescriptor buildDescriptor(Type sagaType)
+    private SagaDescriptor buildDescriptor(Type sagaType)
     {
-        var (starting, continuing) = SagaMessageBuckets.For(sagaType, _runtime.Options.HandlerGraph);
-        return new SagaTypeDescriptor(
-            TypeDescriptor.For(sagaType),
-            starting,
-            continuing,
-            "EFCore");
+        return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "EntityFrameworkCore");
     }
 
     private static SagaInstanceState buildInstance(Type sagaType, object identity, object saga)

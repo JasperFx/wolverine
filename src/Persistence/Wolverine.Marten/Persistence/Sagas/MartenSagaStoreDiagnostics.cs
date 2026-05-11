@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
-using JasperFx.Descriptors;
 using Marten;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -37,11 +37,11 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
         _store = store;
     }
 
-    public Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
+    public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
         var distinctTypes = sagaIndex().Values.Distinct().ToArray();
         var descriptors = distinctTypes.Select(buildDescriptor).ToArray();
-        return Task.FromResult<IReadOnlyList<SagaTypeDescriptor>>(descriptors);
+        return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
     }
 
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
@@ -108,19 +108,12 @@ internal sealed class MartenSagaStoreDiagnostics : ISagaStoreDiagnostics
         return list;
     }
 
-    private SagaTypeDescriptor buildDescriptor(Type sagaType)
+    private SagaDescriptor buildDescriptor(Type sagaType)
     {
-        // Re-walk the handler graph for this saga's chains so the
-        // Starting/Continuing message split matches what
-        // ServiceCapabilities.SagaTypes computes. Same source of truth,
-        // no risk of drift between the per-storage view and the
-        // host-wide capabilities snapshot.
-        var (starting, continuing) = SagaMessageBuckets.For(sagaType, _runtime.Options.HandlerGraph);
-        return new SagaTypeDescriptor(
-            TypeDescriptor.For(sagaType),
-            starting,
-            continuing,
-            "Marten");
+        // Delegate to the shared builder so the per-storage view and the
+        // host-wide ServiceCapabilities snapshot agree byte-for-byte on
+        // role classification, saga-id binding, and PublishedTypes.
+        return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "Marten");
     }
 
     private static SagaInstanceState buildInstance(Type sagaType, object identity, object saga)

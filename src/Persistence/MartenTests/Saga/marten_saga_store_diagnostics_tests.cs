@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Marten;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Tracking;
@@ -57,12 +58,15 @@ public class marten_saga_store_diagnostics_tests : PostgresqlContext, IAsyncLife
     public async Task registered_saga_types_includes_marten_owned_saga()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        var diag = registered.SingleOrDefault(d => d.SagaType.FullName == typeof(DiagSaga).FullName);
+        var diag = registered.SingleOrDefault(d => d.StateType.FullName == typeof(DiagSaga).FullName);
         diag.ShouldNotBeNull();
         diag.StorageProvider.ShouldBe("Marten");
-        diag.StartingMessages.Select(m => m.FullName).ShouldContain(typeof(StartDiagSaga).FullName!);
+        diag.Messages
+            .Where(m => m.Role == SagaRole.Start || m.Role == SagaRole.StartOrHandle)
+            .Select(m => m.MessageType.FullName)
+            .ShouldContain(typeof(StartDiagSaga).FullName!);
     }
 
     [Fact]

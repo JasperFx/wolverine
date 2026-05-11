@@ -50,9 +50,9 @@ public class sqlite_saga_store_diagnostics_tests : SqliteContext, IAsyncLifetime
     public async Task registered_saga_types_includes_database_owned_saga()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        var diag = registered.SingleOrDefault(d => d.SagaType.FullName == typeof(SqliteDiagSaga).FullName);
+        var diag = registered.SingleOrDefault(d => d.StateType.FullName == typeof(SqliteDiagSaga).FullName);
         diag.ShouldNotBeNull();
         diag.StorageProvider.ShouldBe("Database");
     }

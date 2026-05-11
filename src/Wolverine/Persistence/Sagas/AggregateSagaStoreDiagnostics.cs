@@ -1,4 +1,4 @@
-using JasperFx.Descriptors;
+using Wolverine.Configuration.Capabilities;
 
 namespace Wolverine.Persistence.Sagas;
 
@@ -9,7 +9,7 @@ namespace Wolverine.Persistence.Sagas;
 /// Routes <see cref="ReadSagaAsync"/> and
 /// <see cref="ListSagaInstancesAsync"/> to whichever child storage owns
 /// the requested saga type, and concatenates
-/// <see cref="GetRegisteredSagaTypesAsync"/> across all children so the
+/// <see cref="GetRegisteredSagasAsync"/> across all children so the
 /// caller sees one unified saga catalog. When no child owns the
 /// requested type, read returns <c>null</c> and list returns empty —
 /// the same contract a single child uses for unknown types.
@@ -17,7 +17,7 @@ namespace Wolverine.Persistence.Sagas;
 /// <remarks>
 /// The (saga-type-name → child) routing table is built lazily on first
 /// access by walking each child's
-/// <see cref="ISagaStoreDiagnostics.GetRegisteredSagaTypesAsync"/>, then
+/// <see cref="ISagaStoreDiagnostics.GetRegisteredSagasAsync"/>, then
 /// cached for the lifetime of this aggregator. If two children claim
 /// the same saga-type name (a misconfiguration), the first registered
 /// wins — Wolverine's saga handler routing is single-storage-per-type
@@ -35,14 +35,14 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics
         _children = children.Where(c => c is not AggregateSagaStoreDiagnostics).ToArray();
     }
 
-    public async Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
-        if (_children.Count == 0) return Array.Empty<SagaTypeDescriptor>();
+        if (_children.Count == 0) return Array.Empty<SagaDescriptor>();
 
-        var all = new List<SagaTypeDescriptor>();
+        var all = new List<SagaDescriptor>();
         foreach (var child in _children)
         {
-            var descriptors = await child.GetRegisteredSagaTypesAsync(ct).ConfigureAwait(false);
+            var descriptors = await child.GetRegisteredSagasAsync(ct).ConfigureAwait(false);
             all.AddRange(descriptors);
         }
 
@@ -79,11 +79,11 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics
             var map = new Dictionary<string, ISagaStoreDiagnostics>(StringComparer.Ordinal);
             foreach (var child in _children)
             {
-                var descriptors = await child.GetRegisteredSagaTypesAsync(ct).ConfigureAwait(false);
+                var descriptors = await child.GetRegisteredSagasAsync(ct).ConfigureAwait(false);
                 foreach (var descriptor in descriptors)
                 {
-                    map.TryAdd(descriptor.SagaType.FullName, child);
-                    map.TryAdd(descriptor.SagaType.Name, child);
+                    map.TryAdd(descriptor.StateType.FullName, child);
+                    map.TryAdd(descriptor.StateType.Name, child);
                 }
             }
 
