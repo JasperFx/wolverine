@@ -47,6 +47,7 @@ internal class DurabilityAgent : IAgent
 
         _health = new DurabilityHealthSignals(_settings);
 
+#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
         _runningBlock = new Block<IAgentCommand>(async batch =>
         {
             if (runtime.Cancellation.IsCancellationRequested)
@@ -65,6 +66,7 @@ internal class DurabilityAgent : IAgent
                 _logger.LogError(e, "Error trying to run durability agent commands");
             }
         });
+#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
     }
 
     public bool AutoStartScheduledJobPolling { get; set; } = false;
@@ -82,6 +84,7 @@ internal class DurabilityAgent : IAgent
 
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
+#pragma warning disable VSTHRD101 // Avoid unsupported async delegates
         _recoveryTimer = new Timer(async _ =>
         {
             IReadOnlyList<int>? activeNodeNumbers = null;
@@ -103,6 +106,7 @@ internal class DurabilityAgent : IAgent
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
         }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+#pragma warning restore VSTHRD101 // Avoid unsupported async delegates
 
         if (_settings.DeadLetterQueueExpirationEnabled)
         {
@@ -152,14 +156,14 @@ internal class DurabilityAgent : IAgent
     public Uri Uri { get; internal set; }
 
     /// <summary>
-    /// Human-readable description for monitoring tools — see
+    /// Human-readable description for monitoring tools - see
     /// <see cref="IAgent.Description"/>. This agent recovers
     /// persisted inbox / outbox messages from the relational
     /// message store, runs scheduled jobs, and emits persistence
     /// metrics. The URI carries the store identity so operators
     /// can disambiguate when a service has multiple stores.
     /// </summary>
-    public string Description => $"Wolverine durability agent for {Uri} — recovers persisted inbox/outbox messages, runs scheduled jobs, and emits persistence metrics.";
+    public string Description => $"Wolverine durability agent for {Uri} - recovers persisted inbox/outbox messages, runs scheduled jobs, and emits persistence metrics.";
 
     public static Uri SimplifyUri(Uri uri)
     {
@@ -249,7 +253,7 @@ internal class DurabilityAgent : IAgent
     {
         _lastHealthCheck = DateTime.UtcNow;
 
-        // Skip the count fetch when the agent isn't running — the status check below will
+        // Skip the count fetch when the agent isn't running - the status check below will
         // short-circuit anyway, and a stopped agent shouldn't spin up a fresh DB query just
         // to be told the same thing.
         PersistedCounts? counts = null;

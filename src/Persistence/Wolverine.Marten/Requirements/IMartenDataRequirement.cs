@@ -54,7 +54,9 @@ public class DocumentExists<TDoc, TId> : IMartenDataRequirement
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (!exists)
         {
             logger.LogWarning("Marten data requirement failure: {Message}", _missingMessage);
@@ -109,7 +111,9 @@ public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (exists)
         {
             logger.LogWarning("Marten data requirement failure: {Message}", _existsMessage);

@@ -91,7 +91,9 @@ internal class DatabaseControlListener : IListener
 #endif
         if (_receivingLoop != null)
         {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
             await _receivingLoop;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
             _receivingLoop.Dispose();
         }
     }

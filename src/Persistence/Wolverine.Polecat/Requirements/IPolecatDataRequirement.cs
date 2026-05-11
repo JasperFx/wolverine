@@ -65,7 +65,9 @@ public class DocumentExists<TDoc, TId> : IPolecatDataRequirement where TDoc : cl
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (!exists)
         {
             logger.LogWarning("Polecat data requirement failure: {Message}", _missingMessage);
@@ -142,7 +144,9 @@ public class DocumentDoesNotExist<TDoc, TId> : IPolecatDataRequirement where TDo
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (exists)
         {
             logger.LogWarning("Polecat data requirement failure: {Message}", _existsMessage);
