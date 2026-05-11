@@ -27,27 +27,26 @@ internal class ProjectionCoordinator : IProjectionCoordinator
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting Polecat projection coordinator");
-        var daemon = DaemonForMainDatabase();
+        var daemon = await DaemonForMainDatabaseAsync();
         await daemon.StartAllAsync().ConfigureAwait(false);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Polecat projection coordinator");
-        var daemon = DaemonForMainDatabase();
+        var daemon = await DaemonForMainDatabaseAsync();
         await daemon.StopAllAsync().ConfigureAwait(false);
     }
 
     private IProjectionDaemon? _daemon;
 
-    public IProjectionDaemon DaemonForMainDatabase()
+    public async ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
     {
         if (_daemon != null) return _daemon;
 
         var documentStore = _store.As<DocumentStore>();
-        // BuildProjectionDaemonAsync is async in Polecat, but we need sync access here.
-        // Use GetAwaiter().GetResult() since this is a lazy initialization that only runs once.
-        _daemon = documentStore.BuildProjectionDaemonAsync(logger: _logger).AsTask().GetAwaiter().GetResult();
+
+        _daemon = await documentStore.BuildProjectionDaemonAsync(logger: _logger);
         return _daemon;
     }
 
@@ -60,9 +59,8 @@ internal class ProjectionCoordinator : IProjectionCoordinator
     public async ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync()
     {
         // For single-database, return just the main daemon
-        var daemon = DaemonForMainDatabase();
-        IReadOnlyList<IProjectionDaemon> list = new[] { daemon };
-        return list;
+        var daemon = await DaemonForMainDatabaseAsync();
+        return [daemon];
     }
 
     public Task PauseAsync()

@@ -36,9 +36,9 @@ internal class WolverineProjectionCoordinator : IProjectionCoordinator
         return _storeAgents.StopAllAsync(cancellationToken);
     }
 
-    public IProjectionDaemon DaemonForMainDatabase()
+    public ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
     {
-        return _storeAgents.DaemonForMainDatabase();
+        return _storeAgents.DaemonForMainDatabaseAsync();
     }
 
     public ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier)
