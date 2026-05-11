@@ -230,7 +230,7 @@ public static class PcCommandHandler
     {
         var doc = await session.LoadAsync<PcNamedDocument>(command.Name);
 
-        return PolecatOps.Delete(doc);
+        return PolecatOps.Delete(doc!);
     }
 
     public static IPolecatOp Handle(DeletePcDocumentByIntId command)

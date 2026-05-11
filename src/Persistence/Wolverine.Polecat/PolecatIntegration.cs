@@ -105,7 +105,7 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         set => _messageStorageSchemaName = value?.ToLowerInvariant();
     }
 
-    public EventForwardingTransform<T> SubscribeToEvent<T>()
+    public EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull
     {
         return new EventForwardingTransform<T>(EventRouter);
     }
@@ -178,7 +178,7 @@ internal class PolecatEventRouter : IMessageRouteSource
     public List<IMessageTransformation> Transformers { get; } = [];
 }
 
-internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T>
+internal class EventUnwrappingMessageRoute<T> : TransformedMessageRoute<IEvent<T>, T> where T : notnull
 {
     public EventUnwrappingMessageRoute(IMessageRoute inner) : base(e => e.Data, inner)
     {
@@ -197,10 +197,10 @@ public interface IEventForwarding
     /// published to Wolverine with its normal routing rules
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    EventForwardingTransform<T> SubscribeToEvent<T>();
+    EventForwardingTransform<T> SubscribeToEvent<T>() where T : notnull;
 }
 
-public class EventForwardingTransform<TSource>
+public class EventForwardingTransform<TSource> where TSource : notnull
 {
     private readonly PolecatEventRouter _eventRouter;
 

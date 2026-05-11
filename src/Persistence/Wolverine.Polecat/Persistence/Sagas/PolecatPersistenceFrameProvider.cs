@@ -124,14 +124,14 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
 public static class PolecatStorageActionApplier
 {
-    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action)
+    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action) where T : notnull
     {
         if (action.Entity == null) return;
 
         switch (action.Action)
         {
             case StorageAction.Delete:
-                session.Delete(action.Entity!);
+                session.Delete(action.Entity);
                 break;
             case StorageAction.Insert:
                 session.Insert(action.Entity);
