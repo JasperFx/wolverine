@@ -26,7 +26,7 @@ public partial class HttpChain
     /// </summary>
     public List<Variable> ChainVariables { get; } = new();
     
-    internal string? SourceCode => _generatedType?.SourceCode;
+    public string? SourceCode => _generatedType?.SourceCode;
 
     private readonly object _locker = new();
 

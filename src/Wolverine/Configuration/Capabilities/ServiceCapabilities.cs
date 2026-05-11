@@ -68,6 +68,16 @@ public class ServiceCapabilities : OptionsDescription
     /// </summary>
     public List<DocumentStoreUsage> DocumentStores { get; set; } = [];
 
+    /// <summary>
+    /// Diagnostic snapshots of every EF Core <c>DbContext</c> registered in
+    /// the service container, populated by walking
+    /// <see cref="IDbContextUsageSource"/> services through DI. Mirrors
+    /// <see cref="DocumentStores"/> on the EF Core side so CritterWatch's
+    /// Storage tab can render the third subsection alongside Event Stores
+    /// and Document Stores. (#102)
+    /// </summary>
+    public List<DbContextUsage> DbContexts { get; set; } = [];
+
     public List<MessageDescriptor> Messages { get; set; } = [];
 
     /// <summary>
@@ -87,6 +97,24 @@ public class ServiceCapabilities : OptionsDescription
     public List<SagaTypeDescriptor> SagaTypes { get; set; } = [];
 
     public List<MessageStore> MessageStores { get; set; } = [];
+
+    /// <summary>
+    /// Diagnostic snapshots of every Wolverine.HTTP graph in this
+    /// process — populated by walking <see cref="IHttpGraphUsageSource"/>
+    /// services through DI. Mirrors <see cref="DocumentStores"/> on the
+    /// HTTP side (#84). Empty when no Wolverine.HTTP graph is loaded.
+    /// </summary>
+    public List<HttpGraphUsage> HttpGraphs { get; set; } = [];
+
+    /// <summary>
+    /// Diagnostic snapshots of non-Wolverine ASP.NET Core endpoints
+    /// (Minimal API, MVC, Razor Pages, SignalR, …) populated by
+    /// <c>Wolverine.CritterWatch.Http</c> when the host opted into it
+    /// via <c>services.AddCritterWatchHttp()</c>. Empty when the
+    /// integration package isn't loaded — pure-Wolverine workers and
+    /// console hosts incur no ASP.NET Core dependency.
+    /// </summary>
+    public List<AspNetEndpointDescriptor> AspNetEndpoints { get; set; } = [];
 
     public List<EndpointDescriptor> MessagingEndpoints { get; set; } = [];
 
@@ -123,6 +151,12 @@ public class ServiceCapabilities : OptionsDescription
 
         await readDocumentStores(runtime, token, capabilities);
 
+        await readDbContexts(runtime, token, capabilities);
+
+        await readHttpGraphs(runtime, token, capabilities);
+
+        readAspNetEndpoints(runtime, capabilities);
+
         readMessageTypes(runtime, capabilities);
 
         readEndpoints(runtime, capabilities);
@@ -132,6 +166,52 @@ public class ServiceCapabilities : OptionsDescription
         readAdditionalCapabilities(runtime, capabilities);
 
         return capabilities;
+    }
+
+    /// <summary>
+    /// Mirror of <see cref="readDocumentStores"/> for Wolverine HTTP
+    /// graphs. Walks every <see cref="IHttpGraphUsageSource"/>
+    /// registered in DI (Wolverine.Http auto-registers a single source
+    /// when <c>MapWolverineEndpoints()</c> is called) and asks each one
+    /// for a snapshot. Sources that return null (transient init) are
+    /// silently skipped.
+    /// </summary>
+    private static async Task readHttpGraphs(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IHttpGraphUsageSource>();
+        var seen = new HashSet<Uri>();
+        var list = new List<HttpGraphUsage>();
+        foreach (var source in sources)
+        {
+            if (!seen.Add(source.Subject)) continue;
+
+            var usage = await source.TryCreateUsage(runtime.Services, token);
+            if (usage != null)
+            {
+                list.Add(usage);
+            }
+        }
+
+        capabilities.HttpGraphs.AddRange(list.OrderBy(x => x.SubjectUri.ToString()));
+    }
+
+    /// <summary>
+    /// Walk every <see cref="IAspNetEndpointDescriptorSource"/> in DI —
+    /// implemented in <c>Wolverine.CritterWatch.Http</c> when the host
+    /// opted into it. Pure-Wolverine workers won't have any registered;
+    /// the collection stays empty.
+    /// </summary>
+    private static void readAspNetEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IAspNetEndpointDescriptorSource>();
+        var list = new List<AspNetEndpointDescriptor>();
+        foreach (var source in sources)
+        {
+            list.AddRange(source.Endpoints);
+        }
+
+        capabilities.AspNetEndpoints.AddRange(list.OrderBy(x => x.Route + "::" + string.Join(",", x.HttpMethods)));
     }
 
     private static void readEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
@@ -291,6 +371,39 @@ public class ServiceCapabilities : OptionsDescription
         }
 
         capabilities.DocumentStores.AddRange(storeList.OrderBy(x => x.SubjectUri.ToString()));
+    }
+
+    /// <summary>
+    /// Mirror of <see cref="readDocumentStores"/> for EF Core. Walks every
+    /// <see cref="IDbContextUsageSource"/> registered in DI (each
+    /// <c>AddDbContextWith…</c> integration registers one; plain
+    /// <c>AddDbContext</c> registrations are picked up by the implicit
+    /// discovery hooked into <c>UseEntityFrameworkCoreTransactions</c>) and
+    /// asks each one for a <see cref="DbContextUsage"/> snapshot. Sources
+    /// that return null (transient configuration / DI failure) are silently
+    /// skipped — same permissive policy as the document-store path.
+    /// </summary>
+    private static async Task readDbContexts(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IDbContextUsageSource>();
+        var seen = new HashSet<Uri>();
+        var usageList = new List<DbContextUsage>();
+        foreach (var source in sources)
+        {
+            // Dedupe by Subject URI — multiple registrations of the same
+            // DbContext type (e.g. integration test harness re-registering)
+            // shouldn't double-count.
+            if (!seen.Add(source.Subject)) continue;
+
+            var usage = await source.TryCreateUsage(token);
+            if (usage != null)
+            {
+                usageList.Add(usage);
+            }
+        }
+
+        capabilities.DbContexts.AddRange(usageList.OrderBy(x => x.SubjectUri.ToString()));
     }
 
     private static async Task readMessageStores(IWolverineRuntime runtime, ServiceCapabilities capabilities)
