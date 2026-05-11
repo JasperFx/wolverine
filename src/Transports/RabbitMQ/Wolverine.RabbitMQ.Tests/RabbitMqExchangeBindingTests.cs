@@ -159,6 +159,29 @@ public class RabbitMqExchangeBindingTests
             var exchange = theTransport.Exchanges["dest"];
             Should.Throw<ArgumentNullException>(() => exchange.BindExchange(null!));
         }
+
+        [Fact]
+        public void bind_exchange_declare_passive_is_false_by_default()
+        {
+            new RabbitMqTransportExpression(theTransport, new WolverineOptions())
+                .DeclareExchange("destination");
+
+            var destExchange = theTransport.Exchanges["destination"];
+            destExchange.DeclarePassive.ShouldBe(false);
+        }
+
+        [Fact]
+        public void bind_exchange_declare_passive_is_settable()
+        {
+            new RabbitMqTransportExpression(theTransport, new WolverineOptions())
+                .DeclareExchange("destination", exchange =>
+                {
+                    exchange.DeclarePassive = true;
+                });
+
+            var destExchange = theTransport.Exchanges["destination"];
+            destExchange.DeclarePassive.ShouldBe(true);
+        }
     }
 
     public class exchange_declare_with_exchange_bindings
