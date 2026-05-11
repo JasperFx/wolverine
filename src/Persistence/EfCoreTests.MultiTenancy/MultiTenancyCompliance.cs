@@ -104,8 +104,10 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         SqlConnection.ClearAllPools();
     }
 
+#pragma warning disable xUnit1013 // Public method should be marked as test
     public abstract void Configure(WolverineOptions options);
-    
+#pragma warning restore xUnit1013 // Public method should be marked as test
+
     [Fact]
     public async Task db_context_is_wolverine_enabled()
     {
