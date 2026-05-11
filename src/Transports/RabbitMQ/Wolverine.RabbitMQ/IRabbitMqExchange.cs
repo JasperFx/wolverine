@@ -21,5 +21,10 @@ public interface IRabbitMqExchange
     /// </summary>
     bool AutoDelete { get; set; }
 
+    /// <summary>
+    ///     If true, this exchange is expected to already exist in RabbitMq and will not be created if it doesn't exist. Default is false
+    /// </summary>
+    bool DeclarePassive { get; set; }
+
     IDictionary<string, object?> Arguments { get; }
 }
