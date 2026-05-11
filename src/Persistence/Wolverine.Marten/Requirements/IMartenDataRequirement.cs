@@ -19,7 +19,9 @@ public interface IMartenDataRequirement
 /// </summary>
 /// <typeparam name="TDoc"></typeparam>
 /// <typeparam name="TId"></typeparam>
-public class DocumentExists<TDoc, TId> : IMartenDataRequirement where TDoc : class
+public class DocumentExists<TDoc, TId> : IMartenDataRequirement
+    where TDoc : class
+    where TId: notnull
 {
     private readonly TId _identity;
     private readonly string _missingMessage;
@@ -72,7 +74,9 @@ public class DocumentExists<TDoc, TId> : IMartenDataRequirement where TDoc : cla
 /// </summary>
 /// <typeparam name="TDoc"></typeparam>
 /// <typeparam name="TId"></typeparam>
-public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement where TDoc : class
+public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement
+    where TDoc : class
+    where TId : notnull
 {
     private readonly TId _identity;
     private readonly string _existsMessage;

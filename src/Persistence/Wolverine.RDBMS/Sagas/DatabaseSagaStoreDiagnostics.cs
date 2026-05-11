@@ -73,7 +73,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             if (!await reader.ReadAsync(ct).ConfigureAwait(false)) return null;
 
             var body = readBody(reader, 0);
-            return buildInstance(definition, identity, body);
+            return buildInstance(definition, identity!, body);
         }
         finally
         {
