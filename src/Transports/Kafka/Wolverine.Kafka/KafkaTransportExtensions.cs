@@ -270,7 +270,7 @@ public static class KafkaTransportExtensions
             return new Message<string, byte[]>
             {
                 Key = tombstone.Key,
-                Value = null,
+                Value = null!,
                 Headers = new Headers()
             };
         }

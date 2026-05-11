@@ -23,7 +23,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_aggregate_by_second_parameter()
     {
-        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(ApprovePcInvoice), default),
+        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(ApprovePcInvoice)!, default!),
             new HandlerGraph());
         AggregateHandling.DetermineAggregateType(chain)
             .ShouldBe(typeof(PcInvoice));
@@ -32,7 +32,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_aggregate_type_is_indeterminate()
     {
-        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(ApprovePcInvoice)), new HandlerGraph());
+        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(ApprovePcInvoice)!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             AggregateHandling.DetermineAggregateType(chain);
@@ -42,7 +42,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_return_is_void_and_does_not_take_in_stream()
     {
-        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(PcInvalid1), default), new HandlerGraph());
+        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(PcInvalid1)!, default!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
@@ -52,7 +52,7 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void throw_if_return_is_Task_and_does_not_take_in_stream()
     {
-        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(PcInvalid2), default), new HandlerGraph());
+        var chain = HandlerChain.For<PcInvoiceHandler>(x => x.Handle(default(PcInvalid2)!, default!), new HandlerGraph());
         Should.Throw<InvalidOperationException>(() =>
         {
             new AggregateHandlerAttribute().Modify(chain, new GenerationRules(), ServiceContainer.Empty());
