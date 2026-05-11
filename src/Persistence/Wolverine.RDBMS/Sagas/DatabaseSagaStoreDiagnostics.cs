@@ -13,16 +13,16 @@ namespace Wolverine.RDBMS.Sagas;
 /// Surfaces saga state stored in Wolverine's per-saga-type tables
 /// (one row per saga, identified by <c>id</c> with a JSON <c>body</c>
 /// column) for monitoring tools. Works against any
-/// <see cref="IMessageDatabase"/>-backed store — Postgres, SQL Server,
-/// MySQL, SQLite, Oracle — by detecting the dialect from the
+/// <see cref="IMessageDatabase"/>-backed store - Postgres, SQL Server,
+/// MySQL, SQLite, Oracle - by detecting the dialect from the
 /// <see cref="DbConnection"/> at query time and rendering the
 /// appropriate top-N clause.
 /// </summary>
 /// <remarks>
 /// The set of saga types this diagnostic owns comes from
-/// <see cref="SagaTableDefinition"/> registrations in DI — same
+/// <see cref="SagaTableDefinition"/> registrations in DI - same
 /// source the message-database boot path uses to materialise the
-/// saga tables — so the diagnostic and the runtime always agree on
+/// saga tables - so the diagnostic and the runtime always agree on
 /// which sagas live where. Wolverine's runtime aggregator fans out
 /// across this provider plus any registered Marten / EF Core /
 /// RavenDB diagnostics so callers see one unified saga catalog
@@ -101,7 +101,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
             {
-                var id = reader.IsDBNull(0) ? string.Empty : reader.GetValue(0)!;
+                var id = await reader.IsDBNullAsync(0) ? string.Empty : reader.GetValue(0)!;
                 var body = readBody(reader, 1);
                 list.Add(buildInstance(definition, id, body));
             }
@@ -115,7 +115,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
 
     /// <summary>
     /// Body columns are <c>jsonb</c> on Postgres, <c>varbinary(max)</c>
-    /// on SQL Server, and <c>TEXT</c> on SQLite / MySQL — read as
+    /// on SQL Server, and <c>TEXT</c> on SQLite / MySQL - read as
     /// either string or byte[] and normalise to UTF-8 string for
     /// <c>JsonDocument.Parse</c>.
     /// </summary>
@@ -162,7 +162,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         {
             return $"select {idCol}, {bodyCol} from {table} fetch first {count} rows only";
         }
-        // Postgres (Npgsql), MySQL (MySqlConnector), SQLite — all LIMIT
+        // Postgres (Npgsql), MySQL (MySqlConnector), SQLite - all LIMIT
         return $"select {idCol}, {bodyCol} from {table} limit {count}";
     }
 
@@ -198,7 +198,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         }
         catch (JsonException)
         {
-            // Body wasn't valid JSON — surface a string-wrapped value
+            // Body wasn't valid JSON - surface a string-wrapped value
             // so the diagnostic doesn't tear down on a single broken
             // row.
             state = JsonSerializer.SerializeToElement(body);
@@ -222,10 +222,10 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             var index = new Dictionary<string, SagaTableDefinition>(StringComparer.Ordinal);
 
             // Two sources of truth:
-            //   1. Explicit SagaTableDefinition registrations in DI —
+            //   1. Explicit SagaTableDefinition registrations in DI -
             //      added by app code that wants a specific table name.
             //   2. Saga state types in the handler graph that the
-            //      lightweight saga persistence frame provider claims —
+            //      lightweight saga persistence frame provider claims -
             //      these are auto-generated SagaTableDefinitions that
             //      mirror what MessageDatabase.SagaSchemaFor builds at
             //      runtime, so the diagnostic can find sagas the user
@@ -255,7 +255,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
                     // Marten / EF Core / RavenDB register first (via
                     // InsertFirstPersistenceStrategy), then the
                     // lightweight RDBMS provider. The first provider
-                    // whose CanPersist returns true wins at runtime —
+                    // whose CanPersist returns true wins at runtime -
                     // so we only own a saga here if the lightweight
                     // provider is that first winner. Without this
                     // check, a host wiring Marten or EF Core alongside
@@ -275,7 +275,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
                         catch
                         {
                             // CanPersist may probe DI for a session/
-                            // context — if resolution throws, treat
+                            // context - if resolution throws, treat
                             // the provider as not-applicable.
                         }
                     }
@@ -288,7 +288,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
                     }
                     catch
                     {
-                        // Saga has no resolvable id member — skip
+                        // Saga has no resolvable id member - skip
                         // rather than tearing down the whole
                         // diagnostic surface.
                         continue;
