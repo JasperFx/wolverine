@@ -2,6 +2,16 @@
 
 Also see the full [quickstart code](https://github.com/JasperFx/wolverine/tree/main/src/Samples/Quickstart) on GitHub.
 
+::: tip Wolverine plays best with transparent IoC registrations
+Wolverine generates handler adapter code at startup by reading your IoC registrations. Stick to concrete-type
+registrations (`AddSingleton<UserRepository>()`, `AddScoped<TInterface, TImpl>()`) and constructor injection
+into your handlers and you'll never need to think about Wolverine's code generation — it just works.
+If you have a service registered with an opaque lambda factory (`AddScoped<T>(sp => ...)`) that handlers
+need to consume, see [Code Generation → Service Location](/guide/codegen.html#wolverine-code-generation-and-ioc)
+for the opt-in mechanism. As of 6.0, opaque registrations that handlers need will surface as a clear
+startup error rather than a silent fallback.
+:::
+
 For a first application, build a very simple issue tracking system for
 our own usage. If you're reading this web page, it's a pretty safe bet you spend quite a bit of time
 working with an issue tracking system. :)

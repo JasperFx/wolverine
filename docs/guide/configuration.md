@@ -7,6 +7,15 @@ Wolverine 3.0 *is* tested with both the built in `ServiceProvider` and Lamar. It
 IoC containers now as long as they conform to the .NET conforming container, but this isn't tested by the Wolverine team.
 :::
 
+::: warning Wolverine 6.0: IoC registrations need to be transparent to codegen
+Wolverine generates message-handler and HTTP-endpoint adapter code at startup. By default in 6.0,
+that codegen refuses to fall back to a runtime service locator — if you register a service with an
+opaque pattern (e.g. `AddScoped<TInterface>(sp => new TImpl(...))`), Wolverine will throw
+`InvalidServiceLocationException` at host startup. **Prefer concrete-type registrations
+(`AddScoped<TInterface, TImpl>()`)** for anything Wolverine needs to inject. See
+[Working with Code Generation](/guide/codegen.html) for the full story and the opt-in escape hatch.
+:::
+
 Wolverine is configured with the `IHostBuilder.UseWolverine()` or `HostApplicationBuilder` extension methods, with the actual configuration
 living on a single `WolverineOptions` object. The `WolverineOptions` is the configuration model for your Wolverine application,
 and as such it can be used to configure directives about:

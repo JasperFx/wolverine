@@ -1,16 +1,29 @@
 # Migration Guide
 
-## Coming in 6.0: ServiceLocationPolicy.NotAllowed becomes the default
+## Wolverine 6.0: `ServiceLocationPolicy.NotAllowed` is the default
 
-In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` will default to `NotAllowed` instead of `AllowedButWarn`. Apps that currently rely on Wolverine's code generation falling back to service location at runtime will throw `InvalidServiceLocationException` on startup after upgrading.
+In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` defaults to `NotAllowed` (was `AllowedButWarn` in 5.x). Apps that previously relied on Wolverine's code generation falling back to service location at runtime now throw `InvalidServiceLocationException` on startup.
 
-To prepare while still on 5.x:
+**Preferred upgrade path** — change IoC registrations to forms Wolverine can see through:
+
+- `AddScoped<TInterface, TImpl>()` instead of `AddScoped<TInterface>(sp => new TImpl(...))`
+- Constructor injection into your handlers (Wolverine inlines that into generated code)
+
+**Escape hatch** — opt specific types into the allow-list:
+
+```csharp
+opts.CodeGeneration.AlwaysUseServiceLocationFor<IMyOpaqueService>();
+```
+
+Use this for services with genuinely opaque lambda factory registrations (Refit proxies, EF Core `DbContext` types with runtime configuration, etc.). The rest of the codegen stays inlined; only the listed types route through the service locator.
+
+**To prepare while still on 5.x:**
 
 1. Run your app with `Warning`-level (or lower) logging on the `Wolverine` category. Look for log messages starting with `Utilizing service location for ...`.
-2. For each one, either register the service in DI in a way that the codegen can resolve through constructor injection, or — if it genuinely must be service-located — opt in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
-3. Once the warnings are gone, you can set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` to assert the absence going forward.
+2. For each one, either restructure the registration (preferred) or opt the type in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
+3. Once the warnings are gone, set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` on 5.x to assert the absence going forward — on 6.0 this is the default, no explicit assignment needed.
 
-See [Code Generation](/guide/codegen.html) for details.
+See [Code Generation](/guide/codegen.html) for the full IoC + service-location story, including the LOUD callout at the top of that page.
 
 ## Key Changes in 5.0
 
