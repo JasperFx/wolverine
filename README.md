@@ -32,6 +32,16 @@ docker compose up -d
 There's a separate README in the Azure Service Bus tests as those require an actual cloud set up (sorry, but blame
 Microsoft for not having a local Docker based emulator ala Localstack).
 
+## Branches
+
+This repository follows a major-line branching strategy:
+
+- **`main`** — Active development for Wolverine 6.0. Expect breaking changes and dependency bumps to in-development JasperFx 2.0-alpha packages. Day-to-day work, new features, and the cold-start / runtime-perf pass all land here.
+- **`5.0`** — Maintenance branch for the Wolverine 5.x line. Receives bug fixes only — no new features and no breaking changes. Patch releases off the 5.x line ship from this branch until 6.0 is generally available.
+- **`archive/cloudevents-attempt-2025`** — Preserved, abandoned. An incomplete CloudEvents-for-SQS-and-SNS feature branch from August 2025 that never merged. Kept for historical reference only.
+
+Older release-specific branches (e.g., `4.0`, `release/5.30`, `5.36`) exist for in-flight or completed work on prior versions and are not active development surfaces. New contributions should target `main`. Backport candidates for the 5.x line can be opened against `5.0` after the corresponding PR has merged to `main`.
+
 ## Contributor's Guide
 
 For contributors, there's a light naming style Jeremy refuses to let go of that he's used for *gulp* 20+ years:
