@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.CodeGeneration;
 using Marten;
 using Marten.Events;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

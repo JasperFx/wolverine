@@ -1,4 +1,5 @@
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Shouldly;
 using TeleHealth.Common;

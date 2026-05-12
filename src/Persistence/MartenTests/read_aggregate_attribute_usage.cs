@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using MartenTests.AggregateHandlerWorkflow;
 using Microsoft.Extensions.DependencyInjection;

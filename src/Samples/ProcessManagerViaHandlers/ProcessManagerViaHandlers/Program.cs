@@ -1,5 +1,6 @@
 using JasperFx;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using ProcessManagerViaHandlers.OrderFulfillment;
 using Wolverine;

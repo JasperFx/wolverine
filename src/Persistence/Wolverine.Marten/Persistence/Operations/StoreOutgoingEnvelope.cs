@@ -2,13 +2,14 @@
 using Marten.Internal;
 using Marten.Internal.Operations;
 using Marten.Services;
+using Weasel.Core;
 using Weasel.Postgresql;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Marten.Persistence.Operations;
 
-internal class StoreOutgoingEnvelope : IStorageOperation, NoDataReturnedCall
+internal class StoreOutgoingEnvelope : global::Marten.Internal.Operations.IStorageOperation, NoDataReturnedCall
 {
     private readonly string _outgoingTable;
     private readonly int _ownerId;
