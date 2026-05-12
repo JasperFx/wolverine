@@ -38,7 +38,7 @@ public class aggregate_handler_workflow_with_ievent
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
-                        m.Projections.Snapshot<LetterAggregate>(SnapshotLifecycle.Inline);
+                        m.Projections.Snapshot<LetterAggregate>(Marten.Events.Projections.SnapshotLifecycle.Inline);
 
                         m.DisableNpgsqlLogging = true;
                     })
