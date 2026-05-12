@@ -5,7 +5,7 @@
 ## Tech Stack
 
 - **Language**: C# 12+
-- **Frameworks**: .NET 8.0, 9.0, 10.0
+- **Frameworks**: .NET 9.0, 10.0 (net8.0 dropped in 6.0; 5.x maintained on the `5.0` branch)
 - **Build**: MSBuild + Nuke (scripted automation)
 - **Core Dependencies**: JasperFx (runtime compilation), Microsoft.Extensions.*, System.Threading.Tasks.Dataflow
 - **Docs**: Vitepress (in `/docs`)
@@ -61,9 +61,9 @@ dotnet test src/Testing/CoreTests/
 npm install && npm run docs
 ```
 
-**Solutions**:
-- `wolverine.sln` - Full solution
-- `wolverine_slim.sln` - Lightweight variant
+**Solutions** (new `.slnx` XML format):
+- `wolverine.slnx` - Full solution
+- `wolverine_slim.slnx` - Lightweight variant
 
 ## Key Entry Points
 
@@ -82,6 +82,26 @@ npm install && npm run docs
 Valid handler method names: `Handle`, `HandleAsync`, `Consume`, `ConsumeAsync` (`HandlerDiscovery.cs:17-22`)
 
 Handlers are discovered by scanning assemblies. Use attributes like `[WolverineHandler]`, `[WolverineMessage]`, `[WolverineIgnore]` to control discovery.
+
+## Performance conventions
+
+### Use `ImHashMap` for hot-path dictionary lookups
+
+For any dictionary lookup where performance matters — per-message work, per-Envelope work, per-handler dispatch — use `ImHashMap<TKey, TValue>` from `JasperFx.Core`. **Do not replace `ImHashMap` with `FrozenDictionary`** even when the data is post-bootstrap-immutable.
+
+`ImHashMap` is a copy-on-write hash trie:
+- Lookups are lock-free and don't allocate.
+- Writes return a new map; callers swap via `Interlocked.CompareExchange` or a plain field assignment.
+- The trie structure is friendlier to the JIT for our hot paths than `FrozenDictionary`'s hash-bucket layout in practice.
+
+If a hot path is paying for **mutation** (not lookup), the right fix is **pre-population at bootstrap** — typically inside the relevant `chain.Compile()` or `WolverineRuntime.HostService.StartAsync()` path — so steady-state runtime sees pure reads. Keep the `ImHashMap` field type.
+
+Examples in the codebase:
+- `WolverineMessageNaming._typeNames` (`src/Wolverine/Util/WolverineMessageNaming.cs:128`) — pre-populated via `PrepopulateCache(IEnumerable<Type>)` at startup.
+- `HandlerGraph._chains` / `_handlers` (`src/Wolverine/Runtime/Handlers/HandlerGraph.cs:40,42`) — built once in `Compile()`.
+- `Endpoint._serializers` (`src/Wolverine/Configuration/Endpoint.cs:565-581`) — currently does a hot-path `AddOrUpdate` on first miss; the right fix is to pre-populate during `Endpoint.Compile()`, not to swap the data structure.
+
+`FrozenDictionary` may still be appropriate for **non-hot-path** snapshots, e.g. metadata exposed to user code that doesn't participate in dispatch. Default to `ImHashMap` unless you have a specific reason otherwise.
 
 ## Test conventions
 
@@ -131,4 +151,6 @@ When working on specific areas, consult these files:
 
 ## Version
 
-Current: **5.37.0** (see `Directory.Build.props`)
+- **5.39.0** — last shipped on the 5.x line (see `Directory.Build.props`).
+- **6.0** — `main` branch ongoing development (JasperFx 2.0-alpha line, net9.0/net10.0).
+- **5.x maintenance** — bug fixes only, off the `5.0` branch.
