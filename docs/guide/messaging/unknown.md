@@ -62,7 +62,7 @@ public interface IMissingHandler
     ValueTask HandleAsync(IEnvelopeLifecycle context, IWolverineRuntime root);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IMissingHandler.cs#L4-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imissinghandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/IMissingHandler.cs#L7-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imissinghandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's a made up sample that theoretically posts a message to a Slack room by sending a Wolverine message in response:

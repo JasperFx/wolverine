@@ -160,7 +160,7 @@ Now, moving up to the API layer, we can add a new HTTP endpoint to delegate to W
 ```cs
 app.MapPost("/items/create", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L53-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L51-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_usewolverineasmediatorcontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There isn't much to this code -- and that's the entire point! When Wolverine registers itself into
@@ -251,7 +251,7 @@ example code simpler):
 ```cs
 app.MapPost("/items/create2", (CreateItemCommand cmd, IMessageBus bus) => bus.InvokeAsync<ItemCreated>(cmd));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L58-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/InMemoryMediator/Program.cs#L56-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_inmemorymediator_withresponsecontroller' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using the `IMessageBus.Invoke<T>(message)` overload, the returned `ItemCreated` response

@@ -113,7 +113,7 @@ public static void Handle(DoSomething msg)
     
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L109-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L108-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_explicit_idempotency_on_single_handler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or you can use an overload of the auto apply transactions policy:
@@ -128,7 +128,7 @@ using var host = await Host.CreateDefaultBuilder()
     })
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L41-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_idempotency_check_level' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/configuring_idempotency_style.cs#L40-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_default_idempotency_check_level' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip

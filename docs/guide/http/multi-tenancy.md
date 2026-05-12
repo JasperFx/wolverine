@@ -166,7 +166,7 @@ app.MapWolverineEndpoints(opts =>
     opts.WarmUpRoutes = RouteWarmup.Eager;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L72-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/MultiTenantedTodoService/MultiTenantedTodoService/Program.cs#L68-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_tenant_id_detection_for_todo_service' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code sample above, I'm choosing to make the "tenant" a mandatory route argument

@@ -258,6 +258,18 @@ public interface IAgent : IHostedService, IHealthCheck
     AgentStatus Status { get; }
 
     /// <summary>
+    ///     Human-readable description of what this agent does on a given
+    ///     node. Surfaced in monitoring tools (e.g. CritterWatch) so
+    ///     operators don't have to recognise an agent purely by its URI
+    ///     scheme. The default implementation returns a generic
+    ///     "{scheme} agent: {Uri}" string; override in concrete agent
+    ///     types to provide more specific text. Kept as a default
+    ///     interface member so existing <see cref="IAgent"/>
+    ///     implementations stay source-compatible.
+    /// </summary>
+    string Description => $"{Uri.Scheme} agent: {Uri}";
+
+    /// <summary>
     ///     Default health check implementation based on agent status.
     ///     Override in implementations for more specific health reporting.
     /// </summary>
@@ -271,7 +283,7 @@ public interface IAgent : IHostedService, IHealthCheck
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L9-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_iagent-1'></a>
 ```cs
 /// <summary>
@@ -289,6 +301,18 @@ public interface IAgent : IHostedService, IHealthCheck
     ///     Current status of this agent
     /// </summary>
     AgentStatus Status { get; }
+
+    /// <summary>
+    ///     Human-readable description of what this agent does on a given
+    ///     node. Surfaced in monitoring tools (e.g. CritterWatch) so
+    ///     operators don't have to recognise an agent purely by its URI
+    ///     scheme. The default implementation returns a generic
+    ///     "{scheme} agent: {Uri}" string; override in concrete agent
+    ///     types to provide more specific text. Kept as a default
+    ///     interface member so existing <see cref="IAgent"/>
+    ///     implementations stay source-compatible.
+    /// </summary>
+    string Description => $"{Uri.Scheme} agent: {Uri}";
 
     /// <summary>
     ///     Default health check implementation based on agent status.
@@ -315,6 +339,12 @@ public class CompositeAgent : IAgent
         _agents = agents.ToList();
     }
 
+    /// <summary>
+    /// The agents that this composite delegates to. Exposed read-only so diagnostics
+    /// and tests can inspect the underlying agents without reflection.
+    /// </summary>
+    public IReadOnlyList<IAgent> InnerAgents => _agents;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         foreach (var agent in _agents)
@@ -338,7 +368,7 @@ public class CompositeAgent : IAgent
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Agents/IAgent.cs#L8-L94' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_iagent-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With related groups of agents built and assigned by IoC-registered implementations of this interface:

@@ -20,7 +20,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = 429;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L76-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limiting_configuration' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L90-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rate_limiting_configuration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the rate limiting middleware to the request pipeline. This must be placed **before** `MapWolverineEndpoints()`:
@@ -30,7 +30,7 @@ Then add the rate limiting middleware to the request pipeline. This must be plac
 ```cs
 app.UseRateLimiter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L217-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_rate_limiter_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L268-L270' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_rate_limiter_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Per-Endpoint Rate Limiting

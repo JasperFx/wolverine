@@ -125,8 +125,7 @@ builder.Services.AddMarten(opts =>
     // Adding the Wolverine integration for Marten.
     .IntegrateWithWolverine();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 // Do all necessary database setup on startup
 builder.Services.AddResourceSetupOnStartup();
@@ -140,18 +139,13 @@ var app = builder.Build();
 app.MapPost("/start", (StartOrder start, IMessageBus bus) => bus.InvokeAsync(start));
 app.MapPost("/complete", (CompleteOrder complete, IMessageBus bus) => bus.InvokeAsync(complete));
 app.MapGet("/all", (IQuerySession session) => session.Query<Order>().ToListAsync());
-app.MapGet("/", (HttpResponse response) =>
-{
-    response.Headers.Add("Location", "/swagger");
-    response.StatusCode = 301;
-}).ExcludeFromDescription();
+app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
-app.UseSwagger();
-app.UseSwaggerUI();
+app.MapOpenApi();
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L52' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderSagaSample/Program.cs#L1-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_order_saga_sample' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The call to `IServiceCollection.AddMarten().IntegrateWithWolverine()` adds the Marten backed saga persistence to your application. No other configuration
