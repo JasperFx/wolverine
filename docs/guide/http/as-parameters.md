@@ -67,7 +67,7 @@ public class AsParametersQuery{
     public int? NullableHeader { get; set; }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L128-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameters_binding' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L132-L178' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameters_binding' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And the corresponding test case for utilizing this:
@@ -152,7 +152,7 @@ public static class AsParametersEndpoints2{
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L176-L210' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L180-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, you can use C# records or really just any constructor function as well
@@ -173,7 +173,7 @@ public static class AsParameterRecordEndpoint
     public static AsParameterRecord Post([AsParameters] AsParameterRecord input) => input;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L212-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L216-L229' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_as_parameter_record' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -208,5 +208,5 @@ public class ValidatedQuery
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L228-L254' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L232-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->

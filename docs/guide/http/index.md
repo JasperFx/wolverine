@@ -260,7 +260,7 @@ app.MapWolverineEndpoints(opts =>
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/CodeGeneration/service_location_assertions.cs#L396-L431' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_httpcontext_request_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/CodeGeneration/service_location_assertions.cs#L401-L436' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_httpcontext_request_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Notice the call to `SourceServiceFromHttpContext<T>()`. That directs Wolverine.HTTP to always pull the service

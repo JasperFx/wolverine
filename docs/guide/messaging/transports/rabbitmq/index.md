@@ -120,6 +120,28 @@ which selects a node and transparently fails over to another if the
 chosen node becomes unreachable.
 
 <!-- snippet: sample_rabbit_mq_cluster_nodes -->
+<a id='snippet-sample_rabbit_mq_cluster_nodes'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Configure the shared connection settings (credentials, TLS, etc.)
+        // first via UseRabbitMq, then declare each cluster node. The
+        // RabbitMQ.NET client picks one node and handles failover
+        // between them on connection loss.
+        opts.UseRabbitMq(f =>
+            {
+                f.UserName = "guest";
+                f.Password = "guest";
+                f.Ssl.Enabled = true;
+                f.Ssl.ServerName = "rabbit-cluster";
+            })
+            .AddClusterNode("rabbit-1.local")
+            .AddClusterNode("rabbit-2.local")
+            .AddClusterNode("rabbit-3.local");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L151-L170' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbit_mq_cluster_nodes' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `AddClusterNode(host, port)` copies the TLS settings configured on the
@@ -344,7 +366,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L694-L720' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L718-L744' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This creates RabbitMQ queues named `sequenced1` through `sequenced5` with companion local queues `global-sequenced1` through `global-sequenced5`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.

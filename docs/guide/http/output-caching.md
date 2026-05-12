@@ -36,7 +36,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = 429;
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L70-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_output_cache_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L84-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_output_cache_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the output caching middleware to your pipeline. It should be placed **after** routing and authorization, but **before** `MapWolverineEndpoints()`:
@@ -48,7 +48,7 @@ app.UseOutputCache();
 
 app.UseRateLimiter();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L214-L221' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L265-L272' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_output_cache_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Per-Endpoint Usage

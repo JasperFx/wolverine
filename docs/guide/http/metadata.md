@@ -100,11 +100,21 @@ And that would be registered with Swashbuckle inside of your `Program.Main()` me
 ```cs
 builder.Services.AddSwaggerGen(x =>
 {
+    x.SwaggerDoc("default", new OpenApiInfo { Title = "Wolverine Web API", Version = "default" });
+    x.SwaggerDoc("v1", new OpenApiInfo { Title = "Wolverine Web API v1", Version = "v1" });
+    x.SwaggerDoc("v2", new OpenApiInfo { Title = "Wolverine Web API v2", Version = "v2" });
+    x.SwaggerDoc("v3", new OpenApiInfo { Title = "Wolverine Web API v3", Version = "v3" });
+    // v4 has no options.Deprecate("4.0") — used by integration tests to prove the
+    // attribute-driven [ApiVersion("4.0", Deprecated = true)] is honoured on its own.
+    x.SwaggerDoc("v4", new OpenApiInfo { Title = "Wolverine Web API v4", Version = "v4" });
     x.OperationFilter<WolverineOperationFilter>();
+    x.OperationFilter<WolverineApiVersioningSwaggerOperationFilter>();
+    x.DocInclusionPredicate((docName, api) =>
+        docName == "default" || api.GroupName == docName);
     x.ResolveConflictingActions(apiDescriptions => apiDescriptions.First());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L56-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L60-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_custom_swashbuckle_filter' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Operation Id

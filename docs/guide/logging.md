@@ -496,6 +496,47 @@ public const string EnvelopeDiscarded = "wolverine.envelope.discarded";
 public const string MovedToErrorQueue = "wolverine.error.queued";
 
 /// <summary>
+/// ActivityEvent marking that a Fault&lt;T&gt; was successfully auto-published
+/// for an envelope being moved to the error queue or discarded.
+/// </summary>
+public const string FaultPublished = "wolverine.fault.published";
+
+/// <summary>
+/// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; failed —
+/// the underlying error is logged and metered, never thrown.
+/// </summary>
+public const string FaultPublishFailed = "wolverine.fault.publish.failed";
+
+/// <summary>
+/// ActivityEvent marking that auto-publishing a Fault&lt;T&gt; was skipped because
+/// no routes are configured for the fault message type. Operator must wire either
+/// a remote subscriber (PublishMessage&lt;Fault&lt;T&gt;&gt;().To(...)) or a local handler.
+/// </summary>
+public const string FaultNoRoute = "wolverine.fault.no_route";
+
+/// <summary>
+/// ActivityEvent marking that auto-publishing was suppressed because the message being
+/// processed is itself a Fault&lt;T&gt; — Wolverine never publishes Fault&lt;Fault&lt;T&gt;&gt;.
+/// Almost always indicates a misconfigured recursive handler.
+/// </summary>
+public const string FaultRecursionSuppressed = "wolverine.fault.recursion_suppressed";
+
+/// <summary>
+/// ActivityEvent marking that a send-side dead-letter movement bypassed
+/// auto-Fault publishing (the fault subsystem is receive-side only). Emitted
+/// only when fault publishing is globally enabled — operators using per-type
+/// PublishFault opt-in only will not see this event.
+/// </summary>
+public const string FaultBypassedSendSide = "wolverine.fault.bypassed.send_side";
+
+/// <summary>
+/// ActivityEvent marking that an unknown-message-type DLQ movement bypassed
+/// auto-Fault publishing (no T to construct Fault&lt;T&gt; for). Emitted only
+/// when fault publishing is globally enabled.
+/// </summary>
+public const string FaultBypassedUnknownType = "wolverine.fault.bypassed.unknown_type";
+
+/// <summary>
 /// ActivityEvent marking when an incoming envelope does not have a known message
 /// handler and is being shunted to registered "NoHandler" actions
 /// </summary>
@@ -583,6 +624,17 @@ public const string TooManySenderFailures = "TooManySenderFailures";
 public const string SagaId = "wolverine.saga.id";
 
 /// <summary>
+/// Activity tag set when an envelope being processed carries a
+/// <see cref="Envelope.ScheduledTime"/> — i.e. it was previously
+/// scheduled for delayed delivery (saga timeout, deferred command,
+/// retry-with-delay, …) rather than dispatched immediately. Useful
+/// for trace queries that want to distinguish "first-time delivery"
+/// from "scheduled re-entry" in saga workflows where timeout
+/// messages re-enter the saga after a wait.
+/// </summary>
+public const string MessageScheduled = "wolverine.message.scheduled";
+
+/// <summary>
 /// Activity tag for the saga type full name when processing a saga message
 /// </summary>
 public const string SagaType = "wolverine.saga.type";
@@ -596,8 +648,72 @@ public const string StreamId = "wolverine.stream.id";
 /// Activity tag for the aggregate type full name when processing an aggregate handler workflow
 /// </summary>
 public const string StreamType = "wolverine.stream.type";
+
+/// <summary>
+/// Span name emitted when a streaming handler is executing via StreamAsync
+/// </summary>
+public const string StreamingExecution = "wolverine.streaming";
+
+/// <summary>
+/// ActivityEvent emitted when the handler phase of a streaming invocation completes
+/// and iteration of the returned sequence is about to begin
+/// </summary>
+public const string StreamingStarted = "wolverine.stream.handler.started";
+
+/// <summary>
+/// ActivityEvent emitted when a streaming handler sequence is fully consumed or cancelled
+/// </summary>
+public const string StreamingCompleted = "wolverine.stream.handler.completed";
+
+/// <summary>
+/// ActivityEvent emitted by the codegen wrapper around the user handler MethodCall
+/// immediately before the handler body runs. Opt-in via
+/// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+/// </summary>
+public const string HandlerStarted = "wolverine.handler.started";
+
+/// <summary>
+/// ActivityEvent emitted by the codegen wrapper around the user handler MethodCall
+/// immediately after the handler body returns successfully. Opt-in via
+/// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+/// </summary>
+public const string HandlerFinished = "wolverine.handler.finished";
+
+/// <summary>
+/// ActivityEvent emitted by the codegen wrapper around the FlushOutgoingMessages
+/// MethodCall immediately before the call. Opt-in via
+/// <c>WolverineOptions.Tracking.OutboxDiagnosticsEnabled</c>.
+/// </summary>
+public const string OutboxFlushing = "wolverine.outbox.flushing";
+
+/// <summary>
+/// ActivityEvent emitted by the codegen wrapper around the FlushOutgoingMessages
+/// MethodCall immediately after the call returns. Opt-in via
+/// <c>WolverineOptions.Tracking.OutboxDiagnosticsEnabled</c>.
+/// </summary>
+public const string OutboxPublished = "wolverine.outbox.published";
+
+/// <summary>
+/// Activity tag (milliseconds): elapsed time from producer <see cref="Envelope.SentAt"/>
+/// to consumer activity start. Opt-in via
+/// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+/// </summary>
+public const string EnvelopeTransportLagMs = "wolverine.envelope.transport_lag_ms";
+
+/// <summary>
+/// Activity tag (milliseconds): elapsed time from worker-queue handoff
+/// (<see cref="Envelope.ReceivedAt"/>) to handler activity start. Opt-in via
+/// <c>WolverineOptions.Tracking.HandlerExecutionDiagnosticsEnabled</c>.
+/// </summary>
+public const string EnvelopeReceiveDwellMs = "wolverine.envelope.receive_dwell_ms";
+
+/// <summary>
+/// Span name emitted around inbound envelope deserialization. Opt-in via
+/// <c>WolverineOptions.Tracking.DeserializationSpanEnabled</c>.
+/// </summary>
+public const string Deserialize = "wolverine.deserialize";
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L141' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/WolverineTracing.cs#L28-L257' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_open_telemetry_tracing_spans_and_activities' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Opt-in Handler Execution Diagnostics <Badge type="tip" text="5.38" />

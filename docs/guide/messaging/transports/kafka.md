@@ -281,7 +281,7 @@ public static ValueTask publish_by_partition_key(IMessageBus bus)
     return bus.PublishAsync(new Message1(), new DeliveryOptions { PartitionKey = "one" });
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L14-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/when_publishing_and_receiving_by_partition_key.cs#L15-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_publish_to_kafka_by_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />

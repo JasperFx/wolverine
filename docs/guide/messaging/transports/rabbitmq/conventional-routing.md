@@ -20,7 +20,7 @@ using var host = await Host.CreateDefaultBuilder()
             .UseConventionalRouting();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L344-L353' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L368-L377' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With the defaults from above, for each message that the application can handle
@@ -73,7 +73,7 @@ using var host = await Host.CreateDefaultBuilder()
             });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L358-L391' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L382-L415' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_activating_rabbit_mq_conventional_routing_customized' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Adjusting Routing Conventions
@@ -122,7 +122,7 @@ var receiver = WolverineHost.For(opts =>
         });
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L575-L613' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L599-L637' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conventional_routing_exchange_conventions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Handler Type Naming <Badge type="tip" text="5.25" />

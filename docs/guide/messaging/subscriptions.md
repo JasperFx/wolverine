@@ -314,9 +314,28 @@ public interface IMessageRoutingConvention
     /// <param name="runtime"></param>
     /// <returns></returns>
     IEnumerable<Endpoint> DiscoverSenders(Type messageType, IWolverineRuntime runtime);
+
+    /// <summary>
+    /// Eagerly register subscription metadata and apply sender configuration
+    /// for the given handled message types, BEFORE any
+    /// <c>BrokerTransport.InitializeAsync</c> compiles the endpoints. This
+    /// gives endpoint policies like <c>UseDurableOutboxOnAllSendingEndpoints</c>
+    /// a chance to see <c>Subscriptions.Any() == true</c> on conventionally-
+    /// routed sender endpoints when their first <c>Compile()</c> runs. Unlike
+    /// <see cref="DiscoverSenders"/>, this MUST NOT build the sending agent
+    /// — the broker is not yet connected at this phase of host startup.
+    ///
+    /// Default no-op so custom <see cref="IMessageRoutingConvention"/>
+    /// implementations are unaffected. The built-in
+    /// <c>MessageRoutingConvention&lt;,,,&gt;</c> base class overrides this.
+    /// See https://github.com/JasperFx/wolverine/issues/2588.
+    /// </summary>
+    void PreregisterSenders(IReadOnlyList<Type> handledMessageTypes, IWolverineRuntime runtime)
+    {
+    }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As a concrete example, the Wolverine team received [this request](https://github.com/JasperFx/wolverine/issues/1130) to conventionally route messages based on 
