@@ -508,6 +508,21 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             WireTap = ResolveWireTap(runtime);
         }
 
+        // Pre-populate the endpoint-local serializer cache with every globally-
+        // registered serializer (keyed by content-type). This eliminates the
+        // first-miss hot-path mutation in TryFindSerializer (formerly an
+        // ImHashMap.AddOrUpdate on every previously-unseen content-type), making
+        // steady-state lookups pure reads. Endpoint-level overrides registered
+        // via RegisterSerializer prior to Compile() are preserved — they take
+        // precedence because TryAdd skips entries already in the map.
+        foreach (var pair in runtime.Options.ToSerializerDictionary())
+        {
+            if (!_serializers.Contains(pair.Key))
+            {
+                _serializers = _serializers.AddOrUpdate(pair.Key, pair.Value);
+            }
+        }
+
         _hasCompiled = true;
     }
 
@@ -574,10 +589,14 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return serializer;
         }
 
-        serializer = Runtime?.Options.TryFindSerializer(contentType);
-        _serializers = _serializers!.AddOrUpdate(contentType, serializer)!;
-
-        return serializer;
+        // Compile() pre-seeds _serializers with every globally-registered content-
+        // type, so reaching this fallback means the message arrived with a content-
+        // type that wasn't registered at bootstrap. Read from the global registry
+        // without mutating the endpoint cache — under sustained traffic with an
+        // unregistered content-type that would otherwise be a hot-path write on
+        // every call, but in practice this branch fires rarely (and the global
+        // lookup is itself O(1) against a small dictionary).
+        return Runtime?.Options.TryFindSerializer(contentType);
     }
 
     /// <summary>
