@@ -65,6 +65,78 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PostgresqlTests/compliance_using_table_partitioning.cs#L26-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_inbox_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connection Stability for Leader Election
+
+::: tip
+The single most impactful change you can make for cluster stability in cloud or Kubernetes environments is appending `Keepalive=30;Tcp Keepalive=true` to your Wolverine PostgreSQL connection string. Everything else in this section is context for *why*.
+:::
+
+Wolverine's [leader election](leadership-and-troubleshooting) holds a **session-level PostgreSQL advisory lock**. That lock identifies the cluster leader; only the node holding it dispatches `AssignAgent` commands, runs the durability agent, and so on. Session-level advisory locks live and die with the Postgres backend session — the moment the leader's session is terminated server-side (TCP RST, idle-connection cull, `pg_terminate_backend`, managed-PG failover, Azure Flexible Server maintenance, k8s service-mesh idle timeout, NAT/conntrack eviction, ELB idle close, etc.) the lock is released and another node can legitimately acquire it.
+
+Wolverine pings the lock-holding connection every `Durability.HealthCheckPollingTime` (default 10 seconds) with `SELECT 1` to detect server-side session loss. When the ping fails the current leader emits:
+
+```
+Lost advisory-lock connection for database <name>; clearing held lock ids <ids>
+Node <NodeNumber> stepping down from leadership: the leadership advisory lock was released server-side
+```
+
+A new election runs on the next tick. If the new leader's `EvaluateAssignmentsAsync` cycle observes both the freshly-elected leader and the ex-leader as still claiming the `wolverine://leader/` agent in the assignment grid (transient window between step-down and the ex-leader's row being cleared), the split-brain healer fires:
+
+```
+Detected duplicate agent wolverine://leader/ reported running on Node X and Node Y
+— sending StopRemoteAgent to the older copy to heal split-brain residue.
+```
+
+**Seeing these log lines occasionally is normal.** Seeing them every minute means the connection between your app pods and PostgreSQL is being dropped at sub-`HealthCheckPollingTime` intervals — Wolverine is detecting and recovering from those drops correctly, but the steady state is wrong.
+
+### Configure TCP keepalives on the Wolverine connection string
+
+Linux's default `tcp_keepalive_time = 7200s` (two hours) is longer than any cloud network path will tolerate. Tell Npgsql to set its own keepalive interval:
+
+```csharp
+var connectionString = "Host=...;Database=...;Username=...;Password=...;"
+                     + "Keepalive=30;Tcp Keepalive=true";
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithPostgresql(connectionString);
+});
+```
+
+30 seconds is a good default — short enough to survive every common cloud idle timeout (Azure Flexible Server's 30-min default, AWS NAT Gateway's 350s, k8s service mesh's typical 60–90s) without flooding the network. If you can pair it with server-side `tcp_keepalives_idle = 30` in `postgresql.conf`, even better, but the client-side setting is sufficient on its own.
+
+### Avoid PgBouncer / RDS Proxy in transaction-pooling mode
+
+Session-level advisory locks **require session identity**. Transaction-pooling poolers (PgBouncer's `pool_mode = transaction`, RDS Proxy's transaction mode, etc.) multiplex multiple application connections onto a smaller pool of backend sessions on a per-transaction basis, so the backend session that took the lock isn't the same one that later checks it. This *will* break leader election — usually quietly, with split-brain symptoms.
+
+If you need pooling between Wolverine and PostgreSQL, use **session pooling** (`pool_mode = session`). Or — preferred for Wolverine specifically — bypass the pooler entirely and connect directly to the database. The connection count Wolverine itself uses for advisory locks and durability operations is modest; pooling rarely pays off for the Wolverine ↔ PG hop in particular.
+
+### Match managed-PG idle eviction to `HealthCheckPollingTime`
+
+If you can configure your managed-PG service's idle-connection eviction (`idle_in_transaction_session_timeout`, vendor-specific connection-idle parameters), make sure the eviction window is **longer** than `Durability.HealthCheckPollingTime`. The 10-second default ping easily survives any reasonable idle timeout, but in environments with very aggressive eviction (some Azure Flex / RDS proxy configurations evict at 15–30s) you may need:
+
+```csharp
+opts.Durability.HealthCheckPollingTime = 5.Seconds();
+```
+
+The trade-off is more `SELECT 1` round-trips per node per minute, which is negligible.
+
+### Kubernetes service mesh and NetworkPolicy
+
+Istio, Linkerd, and other sidecars commonly default to a 60–90 second TCP idle timeout on outbound connections. Bump the idle timeout for the Wolverine ↔ PG hop above the longest legitimate gap between Wolverine database operations. With the keepalive recommendations above the gap is at most ~10 seconds, so any value over a couple of minutes is fine. If you've recently migrated from VMs to k8s and are now seeing leadership churn (very common report), the service mesh idle timeout is almost always the culprit.
+
+### Defensive retry for transient pool poisoning
+
+Heavy connection churn from rapid leadership cycling can occasionally leave the Npgsql pool with a half-disposed connector that surfaces later as `System.ObjectDisposedException: 'System.Threading.ManualResetEventSlim'` from inside `NpgsqlConnector.ResetCancellation`. This is downstream of the connection-stability issue, not a separate bug, and goes away once you've stabilised the leadership churn. Until then, broaden your `OnException` policy to catch it so the durability agent doesn't spam:
+
+```csharp
+opts.Policies.OnException<NpgsqlException>(ex => ex.IsTransient)
+    .Or<ObjectDisposedException>()           // defensive: stale pool entries during connection churn
+    .RetryOnce()
+    .Then.RetryWithCooldown(1.Seconds(), 3.Seconds())
+    .AndPauseProcessing(10.Seconds());
+```
+
 ## PostgreSQL Messaging Transport <Badge type="tip" text="2.5" />
 
 ::: info
