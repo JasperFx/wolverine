@@ -291,12 +291,16 @@ public sealed partial class WolverineOptions
 
     /// <summary>
     /// What is the policy within this application for whether or not it is valid to allow Service Location within
-    /// the generated code for message handlers or HTTP endpoints. Default is AllowedByWarn. Just keep in mind that
-    /// Wolverine really does not want you to use service location if you don't have to!
+    /// the generated code for message handlers or HTTP endpoints. Default is <see cref="ServiceLocationPolicy.NotAllowed"/>
+    /// as of Wolverine 6.0 (was <see cref="ServiceLocationPolicy.AllowedButWarn"/> in 5.x). Wolverine really does
+    /// not want you to use service location if you don't have to — register services so the codegen can inline-
+    /// construct them via constructor injection, and opt specific types in with
+    /// <see cref="JasperFx.CodeGeneration.GenerationRules.AlwaysUseServiceLocationFor{T}()"/> only when the
+    /// underlying registration (opaque lambda factory, etc.) genuinely requires it.
     ///
-    /// Please see https://wolverinefx.net/guide/codegen.html for more information
+    /// Please see https://wolverinefx.net/guide/codegen.html for more information.
     /// </summary>
-    public ServiceLocationPolicy ServiceLocationPolicy { get; set; } = ServiceLocationPolicy.AllowedButWarn;
+    public ServiceLocationPolicy ServiceLocationPolicy { get; set; } = ServiceLocationPolicy.NotAllowed;
 
     public Uri SubjectUri => new Uri("wolverine://" + ServiceName.Sanitize());
 
