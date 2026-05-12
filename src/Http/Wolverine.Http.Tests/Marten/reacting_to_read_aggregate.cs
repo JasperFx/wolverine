@@ -1,6 +1,7 @@
 using Alba;
 using IntegrationTests;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc;

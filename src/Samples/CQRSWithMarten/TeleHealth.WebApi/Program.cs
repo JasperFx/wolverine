@@ -75,7 +75,7 @@ builder.Services.AddMarten(opts =>
 
         opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
         opts.Projections
-            .Snapshot<ProviderShift>(Marten.Events.Projections.SnapshotLifecycle.Async);
+            .Snapshot<ProviderShift>(JasperFx.Events.Projections.SnapshotLifecycle.Async);
     })
 
     // This adds a hosted service to run

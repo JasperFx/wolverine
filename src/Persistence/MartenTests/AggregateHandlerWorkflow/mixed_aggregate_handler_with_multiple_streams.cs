@@ -1,6 +1,7 @@
 using IntegrationTests;
 using Marten;
 using Marten.Events;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Microsoft.Extensions.Hosting;
 using Shouldly;

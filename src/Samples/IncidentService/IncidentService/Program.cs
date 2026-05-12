@@ -1,5 +1,6 @@
 using IncidentService;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using JasperFx;
 using JasperFx.Events.Daemon;

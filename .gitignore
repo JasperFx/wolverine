@@ -246,3 +246,4 @@ JasperSamples
 .plans/
 
 .nuke/build.schema.json
+.claude/scheduled_tasks.lock

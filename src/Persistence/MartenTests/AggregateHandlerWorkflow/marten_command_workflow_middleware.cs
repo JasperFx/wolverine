@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Resources;
 using Marten;
 using Marten.Events;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Marten.Internal.Sessions;
 using Microsoft.Extensions.DependencyInjection;

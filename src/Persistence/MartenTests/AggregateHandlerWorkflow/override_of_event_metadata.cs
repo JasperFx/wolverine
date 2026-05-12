@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx.Events;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Microsoft.Extensions.Hosting;
 using Shouldly;

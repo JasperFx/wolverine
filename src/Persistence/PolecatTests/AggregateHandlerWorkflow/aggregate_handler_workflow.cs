@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using JasperFx.Events.Projections;
 using IntegrationTests;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
