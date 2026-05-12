@@ -89,4 +89,4 @@ and highly performant server side development in .NET.
 
 
 
-<!-- ci-stabilization tracer (no-op) -->
+<!-- ci-stabilization tracer (no-op) — post-#2584 sweep 2026-05-12 -->
