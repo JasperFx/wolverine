@@ -1,16 +1,75 @@
 # Migration Guide
 
-## Coming in 6.0: ServiceLocationPolicy.NotAllowed becomes the default
+## Key Changes in 6.0
 
-In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` will default to `NotAllowed` instead of `AllowedButWarn`. Apps that currently rely on Wolverine's code generation falling back to service location at runtime will throw `InvalidServiceLocationException` on startup after upgrading.
+::: warning
+6.0 is currently in active development on the `main` branch. Items below describe the
+state of `main` as the 6.0 work proceeds — the released 6.0 may add to or refine this
+list. Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0).
+:::
+
+### `.NET 8.0` support dropped (BREAKING)
+
+Wolverine 6.0 requires **.NET 9.0 or .NET 10.0**. The JasperFx 2.0-alpha line that the rest of 6.0 builds on no longer targets net8.0, so neither does Wolverine.
+
+If you're on .NET 8 LTS and aren't ready to move:
+
+- Pin to the latest Wolverine 5.x release.
+- Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0) — open issues / PRs that target that branch the same way you do for `main`.
+
+### Critter-stack 2.0-alpha dependency line
+
+The whole critter-stack moved to a coordinated 2.0-alpha set of packages built on JasperFx 2.0. Wolverine 6.0 pins:
+
+| Package | 5.x line | 6.0 |
+|---|---|---|
+| JasperFx | 1.31.x | 2.0.0-alpha.8 |
+| JasperFx.Events | 1.36.x | 2.0.0-alpha.3 |
+| JasperFx.RuntimeCompiler | 4.5.x | 2.0.0-alpha.2 |
+| JasperFx.SourceGeneration | 1.1.x | 2.0.0-alpha.2 |
+| Marten | 8.35.x | 9.0.0-alpha.1 |
+| Marten.AspNetCore | 8.35.x | 9.0.0-alpha.1 |
+| Polecat | 2.1.x | 4.0.0-alpha.1 |
+
+If you reference any of these directly from your own project, bump in lockstep with Wolverine.
+
+### `SnapshotLifecycle` moved to `JasperFx.Events.Projections`
+
+`Marten.Events.Projections.SnapshotLifecycle` no longer exists in Marten 9. The same type now lives at `JasperFx.Events.Projections.SnapshotLifecycle` and is consumed by both Marten and Polecat.
+
+If you import `using Marten.Events.Projections;` and reference `SnapshotLifecycle.Inline` / `SnapshotLifecycle.Async`, add `using JasperFx.Events.Projections;` alongside it. Marten's `Snapshot<T>(...)` overload still accepts the type from this new namespace.
+
+### `OperationRole` moved to `Weasel.Core`
+
+If you write custom `IStorageOperation` implementations (rare but supported), `OperationRole` now lives in `Weasel.Core` instead of `Marten.Internal.Operations`. Add `using Weasel.Core;`.
+
+### `ServiceLocationPolicy.NotAllowed` is the default
+
+In Wolverine 6.0, `WolverineOptions.CodeGeneration.ServiceLocationPolicy` defaults to `NotAllowed` (was `AllowedButWarn`). Apps that currently rely on Wolverine's code generation falling back to service location at runtime will throw `InvalidServiceLocationException` on startup after upgrading.
 
 To prepare while still on 5.x:
 
 1. Run your app with `Warning`-level (or lower) logging on the `Wolverine` category. Look for log messages starting with `Utilizing service location for ...`.
 2. For each one, either register the service in DI in a way that the codegen can resolve through constructor injection, or — if it genuinely must be service-located — opt in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
-3. Once the warnings are gone, you can set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` to assert the absence going forward.
+3. Once the warnings are gone, you can set `opts.CodeGeneration.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` to assert the absence going forward — on 6.0 this is the default, and you no longer need the explicit assignment.
 
 See [Code Generation](/guide/codegen.html) for details.
+
+### Performance: per-endpoint serializer cache pre-population
+
+The `Endpoint._serializers` cache that used to fill on first-miss at runtime is now pre-populated during `Endpoint.Compile()` with every globally-registered serializer. Effect for users: zero behavioral change; the hot-path serializer lookup is now a pure read.
+
+Side note for users who register an `IMessageSerializer` *after* host startup: the post-Compile registration is still picked up via fallback to the global serializer registry on miss, but it's no longer cached on the endpoint. Either register the serializer before `StartAsync()` (the documented path) or use the endpoint-level `RegisterSerializer(...)` API on the specific endpoint that should see it.
+
+### Performance conventions for contributors
+
+Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` — this is now codified in [the contributors' CLAUDE.md](https://github.com/JasperFx/wolverine/blob/main/CLAUDE.md#performance-conventions). If you're contributing a perf PR and feel the urge to swap `ImHashMap` for `FrozenDictionary`, read that section first. The right fix for hot-path mutation is bootstrap-time pre-population in the relevant `Compile()` path, not a data-structure swap.
+
+### Stale `DefaultSerializer` XmlDoc fixed
+
+A long-standing XmlDoc on `WolverineOptions.DefaultSerializer` claimed Newtonsoft.Json as the default. System.Text.Json has actually been the default since Wolverine **5.0** (`UseSystemTextJsonForSerialization()` is wired in the default constructor). The XmlDoc was finally corrected in 6.0; no behavior change.
+
+If you want the Newtonsoft default back for compatibility with messages serialized by an older system, call `opts.UseNewtonsoftForSerialization()` explicitly.
 
 ## Key Changes in 5.0
 
