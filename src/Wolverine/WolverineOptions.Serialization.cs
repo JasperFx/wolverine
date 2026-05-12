@@ -13,7 +13,10 @@ public sealed partial class WolverineOptions
     private IMessageSerializer? _defaultSerializer;
 
     /// <summary>
-    ///     Override or get the default message serializer for the application. The default is based around Newtonsoft.Json
+    ///     Override or get the default message serializer for the application. The default is
+    ///     <see cref="SystemTextJsonSerializer"/> (wired in the <see cref="WolverineOptions"/>
+    ///     constructor via <see cref="UseSystemTextJsonForSerialization"/>). To restore the
+    ///     5.x-and-earlier default, call <see cref="UseNewtonsoftForSerialization"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException"></exception>
     public IMessageSerializer DefaultSerializer
