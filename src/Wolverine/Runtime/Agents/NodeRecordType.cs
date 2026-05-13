@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -60,11 +61,24 @@ public class NodeRecord : ISerializable
 
     public byte[] Write()
     {
-        return JsonSerializer.SerializeToUtf8Bytes(this);
+        return JsonSerializer.SerializeToUtf8Bytes(this, NodeRecordJsonContext.Default.NodeRecord);
     }
 
     public static object Read(byte[] bytes)
     {
-        return JsonSerializer.Deserialize<NodeRecord>(bytes)!;
+        return JsonSerializer.Deserialize(bytes, NodeRecordJsonContext.Default.NodeRecord)!;
     }
+}
+
+/// <summary>
+/// Source-generated JSON context for <see cref="NodeRecord"/>. Lets <c>Write</c> /
+/// <c>Read</c> use the AOT-friendly <c>JsonTypeInfo</c> overloads instead of the
+/// reflection-based <c>JsonSerializer</c> defaults — clearing IL2026/IL3050 in
+/// trim/AOT builds without leaf-site suppression. NodeRecord ships only the
+/// statically-known properties on the type above; if new properties are added
+/// in the future, the source generator picks them up automatically.
+/// </summary>
+[JsonSerializable(typeof(NodeRecord))]
+internal partial class NodeRecordJsonContext : JsonSerializerContext
+{
 }
