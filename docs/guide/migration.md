@@ -154,8 +154,6 @@ Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` — th
 
 A long-standing XmlDoc on `WolverineOptions.DefaultSerializer` claimed Newtonsoft.Json as the default. System.Text.Json has actually been the default since Wolverine **5.0** (`UseSystemTextJsonForSerialization()` is wired in the default constructor). The XmlDoc was finally corrected in 6.0; no behavior change.
 
-If you want the Newtonsoft default back for compatibility with messages serialized by an older system, call `opts.UseNewtonsoftForSerialization()` explicitly.
-
 ## Key Changes in 5.0
 
 5.0 had very few breaking changes in the public API, but some in "publinternals" types most users would never touch. The

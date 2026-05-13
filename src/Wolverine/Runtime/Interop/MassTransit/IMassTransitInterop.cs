@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Newtonsoft.Json;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
@@ -11,9 +10,7 @@ public interface IMassTransitInterop
     /// <param name="configuration"></param>
     void UseSystemTextJsonForSerialization(Action<JsonSerializerOptions>? configuration = null);
 
-    /// <summary>
-    ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    void UseNewtonsoftForSerialization(Action<JsonSerializerSettings>? configuration = null);
+    // Newtonsoft.Json variant moved to WolverineFx.Newtonsoft as the
+    // UseNewtonsoftForSerialization(this IMassTransitInterop, ...)
+    // extension method. Install WolverineFx.Newtonsoft to opt in.
 }

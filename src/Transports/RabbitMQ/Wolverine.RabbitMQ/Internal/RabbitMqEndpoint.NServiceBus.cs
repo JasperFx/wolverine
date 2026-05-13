@@ -1,7 +1,7 @@
 using System.Text;
 using Newtonsoft.Json;
 using RabbitMQ.Client;
-using Wolverine.Runtime.Serialization;
+using Wolverine.Newtonsoft;
 
 namespace Wolverine.RabbitMQ.Internal;
 

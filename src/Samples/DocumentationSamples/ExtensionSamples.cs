@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Wolverine;
+using Wolverine.Newtonsoft;
 
 namespace DocumentationSamples;
 

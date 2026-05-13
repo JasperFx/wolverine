@@ -8,6 +8,7 @@ using Wolverine;
 using Wolverine.ComplianceTests.ErrorHandling;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Tracking;

@@ -344,6 +344,7 @@ partial class Build : NukeBuild
                 Solution.Extensions.Wolverine_FluentValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
+                Solution.Extensions.Wolverine_Newtonsoft,
                 Solution.Extensions.Wolverine_Protobuf,
                 Solution.Http.Wolverine_Http,
                 Solution.Http.Wolverine_Http_FluentValidation,
