@@ -485,6 +485,28 @@ partial class Build
             RunSingleProjectOneClassAtATime(tests);
         });
 
+    // ─── AOT Smoke ──────────────────────────────────────────────────────
+    //
+    // Builds the Wolverine.AotSmoke project, which sets IsAotCompatible=true +
+    // TrimMode=full + WarningsAsErrors for IL2026/IL2046/IL2055/IL2065/IL2067/
+    // IL2070/IL2072/IL2075/IL2090/IL2091/IL2111/IL3050/IL3051. If any change
+    // adds a [RequiresDynamicCode] / [RequiresUnreferencedCode] dependency to a
+    // Wolverine API that the smoke exercises (Envelope, WolverineOptions,
+    // DeliveryOptions, the scheduling helpers, etc.), the build fails with the
+    // specific warning code and call chain pinpointing the regression.
+    //
+    // Also runs the smoke binary end-to-end as a sanity check that the
+    // exercised surfaces don't just compile but actually work.
+    Target CIAotSmoke => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var smoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke" / "Wolverine.AotSmoke.csproj";
+
+            DotNet($"build {smoke} --configuration {Configuration} --framework net9.0");
+            DotNet($"run --project {smoke} --no-build --configuration {Configuration} --framework net9.0");
+        });
+
     Target CIAzureServiceBus => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
