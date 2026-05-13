@@ -178,6 +178,20 @@ public static class WolverineEntityCoreExtensions
     }
 
     /// <summary>
+    /// Marker registration used by <see cref="registerEFCoreSagaStoreDiagnostics"/>
+    /// to detect whether this extension has already added its
+    /// <see cref="ISagaStoreDiagnostics"/> contribution. We can't use
+    /// <c>TryAddSingleton&lt;ISagaStoreDiagnostics&gt;</c> for that gate because
+    /// the runtime aggregator (<c>AggregateSagaStoreDiagnostics</c>) is a
+    /// fan-out: SqlServer / Postgres / Marten / EF Core / RavenDB each
+    /// register their own <c>ISagaStoreDiagnostics</c> additively, and
+    /// <c>TryAdd</c> would silently drop the EF Core one whenever a
+    /// lightweight RDBMS provider was wired up first. See #2735 and the
+    /// fan-out comment on <c>AggregateSagaStoreDiagnostics</c>.
+    /// </summary>
+    private sealed class EFCoreSagaStoreDiagnosticsRegistered;
+
+    /// <summary>
     /// Registers the EF Core <see cref="ISagaStoreDiagnostics"/> for the
     /// CritterWatch / saga-explorer fan-out (the runtime aggregator iterates
     /// over every <see cref="ISagaStoreDiagnostics"/> registered in DI).
@@ -195,13 +209,24 @@ public static class WolverineEntityCoreExtensions
     /// extensions that are themselves registered in the IoC container" message.
     /// Closes wolverine#2735.
     ///
-    /// Idempotent via <see cref="ServiceCollectionDescriptorExtensions.TryAddSingleton"/>,
-    /// so every entry point can call this without producing duplicate
-    /// EF Core diagnostics in the fan-out.
+    /// Idempotent via the <see cref="EFCoreSagaStoreDiagnosticsRegistered"/>
+    /// marker — every entry point can call this safely, and only the first
+    /// call adds the fan-out registration. Note that we deliberately use
+    /// <c>AddSingleton</c> (not <c>TryAddSingleton</c>) on the
+    /// <see cref="ISagaStoreDiagnostics"/> registration itself: lightweight
+    /// RDBMS providers (SqlServer / Postgres) and document providers
+    /// (Marten / RavenDB) register their own <see cref="ISagaStoreDiagnostics"/>
+    /// additively, and the runtime aggregator fans out across all of them.
     /// </summary>
     private static void registerEFCoreSagaStoreDiagnostics(IServiceCollection services)
     {
-        services.TryAddSingleton<ISagaStoreDiagnostics>(s =>
+        if (services.Any(d => d.ServiceType == typeof(EFCoreSagaStoreDiagnosticsRegistered)))
+        {
+            return;
+        }
+
+        services.AddSingleton<EFCoreSagaStoreDiagnosticsRegistered>();
+        services.AddSingleton<ISagaStoreDiagnostics>(s =>
             new EFCoreSagaStoreDiagnostics(
                 s.GetRequiredService<IWolverineRuntime>(),
                 s));
