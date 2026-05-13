@@ -88,6 +88,14 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         var provider = container.GetInstance<ObjectPoolProvider>();
         ExecutionPool = provider.Create(this);
 
+        // Separate pool for Envelope. See wolverine#2726 — pools envelopes
+        // allocated by the internal receive pipeline (the three Executor.cs
+        // InvokeAsync request/reply sites). Gated on ActiveSession == null
+        // at acquire time so tracking sessions, observer tests, and the
+        // ITrackedSession.Events capture-after-handler scenario all see
+        // fresh allocations and zero behavior change.
+        EnvelopePool = provider.Create(new EnvelopePoolPolicy());
+
         Pipeline = new HandlerPipeline(this, this);
 
         _container = container;
@@ -149,6 +157,17 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     public IServiceProvider Services => _container.Services;
 
     public ObjectPool<MessageContext> ExecutionPool { get; }
+
+    /// <summary>
+    /// Pool of <see cref="Envelope"/> instances for the internal receive pipeline.
+    /// Acquire / release via <see cref="AcquireInternalEnvelope"/> and
+    /// <see cref="ReleaseInternalEnvelope"/> — those helpers gate on
+    /// <see cref="ActiveSession"/> so envelopes participating in a tracking
+    /// session always allocate fresh (preventing the
+    /// <see cref="EnvelopeRecord"/> capture-after-recycle hazard).
+    /// See wolverine#2726.
+    /// </summary>
+    internal ObjectPool<Envelope> EnvelopePool { get; }
 
     public HandlerGraph Handlers { get; }
 
