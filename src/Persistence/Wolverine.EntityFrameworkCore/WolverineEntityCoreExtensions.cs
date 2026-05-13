@@ -62,7 +62,8 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
         
@@ -116,7 +117,8 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
         
@@ -159,7 +161,8 @@ public static class WolverineEntityCoreExtensions
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
@@ -167,11 +170,66 @@ public static class WolverineEntityCoreExtensions
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
-        
+
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Marker registration used by <see cref="registerEFCoreSagaStoreDiagnostics"/>
+    /// to detect whether this extension has already added its
+    /// <see cref="ISagaStoreDiagnostics"/> contribution. We can't use
+    /// <c>TryAddSingleton&lt;ISagaStoreDiagnostics&gt;</c> for that gate because
+    /// the runtime aggregator (<c>AggregateSagaStoreDiagnostics</c>) is a
+    /// fan-out: SqlServer / Postgres / Marten / EF Core / RavenDB each
+    /// register their own <c>ISagaStoreDiagnostics</c> additively, and
+    /// <c>TryAdd</c> would silently drop the EF Core one whenever a
+    /// lightweight RDBMS provider was wired up first. See #2735 and the
+    /// fan-out comment on <c>AggregateSagaStoreDiagnostics</c>.
+    /// </summary>
+    private sealed class EFCoreSagaStoreDiagnosticsRegistered;
+
+    /// <summary>
+    /// Registers the EF Core <see cref="ISagaStoreDiagnostics"/> for the
+    /// CritterWatch / saga-explorer fan-out (the runtime aggregator iterates
+    /// over every <see cref="ISagaStoreDiagnostics"/> registered in DI).
+    ///
+    /// **Why it lives here and not in <see cref="EntityFrameworkCoreBackedPersistence"/>.Configure**:
+    /// the EF Core extension is registered into DI as <c>IWolverineExtension</c>
+    /// at every entry point that wires a <see cref="DbContext"/> for Wolverine
+    /// (see <see cref="AddDbContextWithWolverineManagedMultiTenancy{T}"/> et al).
+    /// That means the extension's <c>Configure</c> runs at host-build time
+    /// from inside the <c>AddSingleton</c> lambda in <c>HostBuilderExtensions</c> —
+    /// at which point <see cref="IServiceCollection"/> is already read-only and
+    /// any <c>options.Services.Add*</c> call throws <c>InvalidOperationException</c>.
+    /// Wolverine's 3.0+ policy then re-throws that as the explicit
+    /// "no longer supported to alter IoC service registrations through Wolverine
+    /// extensions that are themselves registered in the IoC container" message.
+    /// Closes wolverine#2735.
+    ///
+    /// Idempotent via the <see cref="EFCoreSagaStoreDiagnosticsRegistered"/>
+    /// marker — every entry point can call this safely, and only the first
+    /// call adds the fan-out registration. Note that we deliberately use
+    /// <c>AddSingleton</c> (not <c>TryAddSingleton</c>) on the
+    /// <see cref="ISagaStoreDiagnostics"/> registration itself: lightweight
+    /// RDBMS providers (SqlServer / Postgres) and document providers
+    /// (Marten / RavenDB) register their own <see cref="ISagaStoreDiagnostics"/>
+    /// additively, and the runtime aggregator fans out across all of them.
+    /// </summary>
+    private static void registerEFCoreSagaStoreDiagnostics(IServiceCollection services)
+    {
+        if (services.Any(d => d.ServiceType == typeof(EFCoreSagaStoreDiagnosticsRegistered)))
+        {
+            return;
+        }
+
+        services.AddSingleton<EFCoreSagaStoreDiagnosticsRegistered>();
+        services.AddSingleton<ISagaStoreDiagnostics>(s =>
+            new EFCoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s));
     }
 
     /// <summary>
@@ -198,6 +256,7 @@ public static class WolverineEntityCoreExtensions
         try
         {
             options.Services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+            registerEFCoreSagaStoreDiagnostics(options.Services);
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
             options.Services.AddScoped<OutgoingDomainEvents>();
@@ -220,11 +279,45 @@ public static class WolverineEntityCoreExtensions
 
         options.Include<EntityFrameworkCoreBackedPersistence>();
 
+        // Auto-allow every registered DbContext type for service location.
+        // EF Core's AddDbContext<T>(builder) is fundamentally an opaque lambda
+        // factory from Wolverine codegen's point of view — there's no way for
+        // codegen to inline-construct the DbContext via constructor injection
+        // because the configuration is lambda-encapsulated. Without this
+        // auto-allow, every handler that takes a DbContext as a parameter
+        // would fail under Wolverine 6.0's ServiceLocationPolicy.NotAllowed
+        // default, forcing every EF-Core-using application to manually call
+        // opts.CodeGeneration.AlwaysUseServiceLocationFor<MyDbContext>() for
+        // each context. That's tedious boilerplate that adds no information
+        // (the user already opted into EF Core via this very call); auto-
+        // allowing keeps the migration friction limited to genuinely opaque
+        // non-DbContext registrations.
+        autoAllowRegisteredDbContexts(options);
+
         var providers = options.CodeGeneration.PersistenceProviders();
         var efProvider = providers.OfType<EFCorePersistenceFrameProvider>().FirstOrDefault();
         if (efProvider != null)
         {
             efProvider.DefaultMode = mode;
+        }
+    }
+
+    /// <summary>
+    /// Walks <see cref="WolverineOptions.Services"/> for every registration
+    /// whose <see cref="ServiceDescriptor.ServiceType"/> is a concrete subclass
+    /// of <see cref="DbContext"/> and adds it to the codegen allow-list via
+    /// <see cref="JasperFx.CodeGeneration.GenerationRules.AlwaysUseServiceLocationFor(Type)"/>.
+    /// See the call site comment in <see cref="UseEntityFrameworkCoreTransactions(WolverineOptions, TransactionMiddlewareMode)"/>
+    /// for the rationale. Idempotent — safe to call multiple times.
+    /// </summary>
+    private static void autoAllowRegisteredDbContexts(WolverineOptions options)
+    {
+        foreach (var descriptor in options.Services)
+        {
+            if (descriptor.ServiceType.IsSubclassOf(typeof(DbContext)))
+            {
+                options.CodeGeneration.AlwaysUseServiceLocationFor(descriptor.ServiceType);
+            }
         }
     }
 
