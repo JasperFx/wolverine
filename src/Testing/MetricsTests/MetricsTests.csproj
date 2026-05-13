@@ -10,6 +10,13 @@
     <ItemGroup>
         <PackageReference Include="coverlet.collector"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <!--
+          end_to_end_publishing_to_critter_watch.cs serializes the captured
+          metric with JsonConvert.SerializeObject for diagnostic dumps;
+          Newtonsoft.Json moved out of Wolverine core in 6.0 so this
+          project takes the direct dependency now.
+        -->
+        <PackageReference Include="Newtonsoft.Json" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio"/>

@@ -1,7 +1,7 @@
 ﻿using System.Buffers;
 using Newtonsoft.Json;
 
-namespace Wolverine.Runtime.Serialization;
+namespace Wolverine.Newtonsoft;
 
 internal class JsonArrayPool<T> : IArrayPool<T>
 {

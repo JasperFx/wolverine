@@ -10,6 +10,14 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+        <!--
+          UseNServiceBusInterop() pins the default serializer to NewtonsoftSerializer
+          because NServiceBus emits wire bytes that STJ chokes on. Newtonsoft moved
+          out of WolverineFx core in 6.0 (see #2742-ish migration note); the RabbitMQ
+          transport carries the explicit dependency on its behalf so users opting
+          into the NSB-interop path don't have to install the extra package by hand.
+        -->
+        <ProjectReference Include="..\..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj"/>
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="RabbitMQ.Client" />

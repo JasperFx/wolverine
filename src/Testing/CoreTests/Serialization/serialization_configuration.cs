@@ -2,6 +2,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Xunit;

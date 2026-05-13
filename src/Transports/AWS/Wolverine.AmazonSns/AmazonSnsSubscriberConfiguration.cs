@@ -3,6 +3,7 @@ using Amazon.SimpleNotificationService.Model;
 using Newtonsoft.Json;
 using Wolverine.AmazonSns.Internal;
 using Wolverine.Configuration;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
 

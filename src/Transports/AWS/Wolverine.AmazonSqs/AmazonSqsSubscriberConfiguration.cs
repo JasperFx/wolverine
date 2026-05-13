@@ -3,6 +3,7 @@ using Amazon.SQS.Model;
 using Newtonsoft.Json;
 using Wolverine.AmazonSqs.Internal;
 using Wolverine.Configuration;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Runtime.Serialization;
 

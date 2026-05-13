@@ -82,7 +82,27 @@ Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` — th
 
 A long-standing XmlDoc on `WolverineOptions.DefaultSerializer` claimed Newtonsoft.Json as the default. System.Text.Json has actually been the default since Wolverine **5.0** (`UseSystemTextJsonForSerialization()` is wired in the default constructor). The XmlDoc was finally corrected in 6.0; no behavior change.
 
-If you want the Newtonsoft default back for compatibility with messages serialized by an older system, call `opts.UseNewtonsoftForSerialization()` explicitly.
+### Newtonsoft.Json moved to `WolverineFx.Newtonsoft` package (BREAKING)
+
+The core `WolverineFx` NuGet package no longer depends on Newtonsoft.Json. All Newtonsoft integration moved to a separate `WolverineFx.Newtonsoft` package and is exposed as **extension methods** rather than instance methods on `WolverineOptions` / `IEndpointConfiguration` / `IMassTransitInterop`.
+
+If you call any of the following 5.x APIs:
+
+- `WolverineOptions.UseNewtonsoftForSerialization(...)`
+- `IEndpointConfiguration<T>.CustomNewtonsoftJsonSerialization(...)`
+- `IMassTransitInterop.UseNewtonsoftForSerialization(...)`
+- `new NewtonsoftSerializer(...)` directly
+
+you must:
+
+1. **Install the new package**: `dotnet add package WolverineFx.Newtonsoft`
+2. **Add `using Wolverine.Newtonsoft;`** to bring the extension methods (and the `NewtonsoftSerializer` type) into scope.
+
+The call surface itself is unchanged — `opts.UseNewtonsoftForSerialization(settings => …)` etc. work exactly as before, they're just extension methods now.
+
+Transports that pin a `NewtonsoftSerializer` internally for NServiceBus / MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS and SNS NServiceBus mappers, Azure Service Bus listeners) carry the `WolverineFx.Newtonsoft` dependency for you. You don't need to install it explicitly unless you call one of the Newtonsoft APIs from your own code.
+
+In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute — it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. If you serialize `Subscription` instances yourself with Newtonsoft and depend on the string-name wire format for the `Scope` enum, configure the Newtonsoft converter explicitly on your own settings.
 
 ## Key Changes in 5.0
 

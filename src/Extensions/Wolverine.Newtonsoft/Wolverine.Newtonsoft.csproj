@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Newtonsoft.Json (Json.NET) serialization support for Wolverine. Provides Wolverine 5.x-compatible Newtonsoft.Json wire-format opt-in via UseNewtonsoftForSerialization() and per-endpoint CustomNewtonsoftJsonSerialization() extension methods. As of Wolverine 6.0, the core WolverineFx package no longer depends on Newtonsoft.Json — install this package alongside it if you need Newtonsoft.Json instead of System.Text.Json.</Description>
+        <PackageId>WolverineFx.Newtonsoft</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Newtonsoft.Json" />
+    </ItemGroup>
+
+</Project>

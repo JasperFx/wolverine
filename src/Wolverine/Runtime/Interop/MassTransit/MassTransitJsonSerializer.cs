@@ -1,7 +1,6 @@
 using System.Text.Json;
 using ImTools;
 using JasperFx.Core;
-using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
@@ -39,18 +38,20 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
     }
 
     /// <summary>
-    ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
+    ///     Hook used by the WolverineFx.Newtonsoft package's
+    ///     <c>UseNewtonsoftForSerialization(IMassTransitInterop)</c> extension
+    ///     method to swap the inner JSON serializer for a Newtonsoft.Json one
+    ///     when wire-compatibility with MassTransit producers / consumers is
+    ///     required. Internal so the public surface only acknowledges the
+    ///     STJ default; Newtonsoft is opt-in via the separate NuGet package.
     /// </summary>
-    /// <param name="configuration"></param>
-    public void UseNewtonsoftForSerialization(Action<JsonSerializerSettings>? configuration = null)
+    /// <param name="serializer">
+    ///     The serializer to use for the inner JSON layer wrapped by the
+    ///     <c>application/vnd.masstransit+json</c> envelope.
+    /// </param>
+    internal void ApplyInnerSerializer(IMessageSerializer serializer)
     {
-        var settings = NewtonsoftSerializer.DefaultSettings();
-
-        configuration?.Invoke(settings);
-
-        var serializer = new NewtonsoftSerializer(settings);
-
-        _inner = serializer;
+        _inner = serializer ?? throw new ArgumentNullException(nameof(serializer));
     }
 
     public string ContentType => "application/vnd.masstransit+json";
