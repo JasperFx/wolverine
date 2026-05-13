@@ -438,4 +438,89 @@ public partial class Envelope
         Status = EnvelopeStatus.Incoming;
         ScheduledTime = null;
     }
+
+    /// <summary>
+    /// Zero every settable field so this envelope can be safely returned to
+    /// an <see cref="Microsoft.Extensions.ObjectPool.ObjectPool{T}"/>. Hand-
+    /// rolled rather than reflective so the JIT inlines it on the hot path;
+    /// the <c>Reset_zeroes_every_settable_property</c> guard test
+    /// (CoreTests) reflects over <see cref="Envelope"/>'s public surface
+    /// post-Reset to catch drift when new fields are added without being
+    /// zeroed here. See wolverine#2726.
+    ///
+    /// Reset is intentionally <b>not</b> equivalent to <c>new Envelope()</c>:
+    /// a freshly-constructed envelope assigns <see cref="Id"/> from
+    /// <see cref="IdGenerator"/> and <see cref="SentAt"/> from
+    /// <see cref="DateTimeOffset.UtcNow"/>. Reset zeroes both — the pool
+    /// consumer must re-stamp Id / SentAt before use. That's a deliberate
+    /// shape: the pool only returns "blank slates"; framing values are the
+    /// consumer's responsibility.
+    /// </summary>
+    internal void Reset()
+    {
+        // Private backing fields (Envelope.cs)
+        _data = null;
+        _deliverBy = null;
+        _deliverWithin = null;
+        _message = null;
+        _scheduleDelay = null;
+        _scheduledTime = null;
+        _headers = null;
+
+        // Private backing fields (Envelope.Internals.cs)
+        _enqueued = false;
+        _metricHeaders = null;
+        _startTimestamp = 0L;
+        _elapsedMs = 0L;
+
+        // Public settable properties — wire-protocol surface (Envelope.cs)
+        AckRequested = false;
+        Attempts = 0;
+        SendAttempts = 0;
+        SentAt = default;
+        ReceivedAt = null;
+        Source = null;
+        MessageType = null;
+        ReplyUri = null;
+        ContentType = null;
+        CorrelationId = null;
+        SagaId = null;
+        ConversationId = Guid.Empty;
+        Destination = null;
+        ParentId = null;
+        TenantId = null;
+        UserName = null;
+        AcceptedContentTypes = DefaultAcceptedContentTypes;
+        Id = Guid.Empty;
+        ReplyRequested = null;
+        TopicName = null;
+        EndpointName = null;
+        WasPersistedInOutbox = false;
+        GroupId = null;
+        DeduplicationId = null;
+        PartitionKey = null;
+        RoutingInformation = null;
+        Offset = 0L;
+        PartitionId = null;
+        KeepUntil = null;
+
+        // Public / internal settable properties — runtime-only (Envelope.Internals.cs)
+        WasPersistedInInbox = false;
+        Serializer = null;
+        ResponseType = null;
+        Response = null;
+        DoNotCascadeResponse = false;
+        AlwaysPublishResponse = false;
+        Status = default;
+        OwnerId = 0;
+        InBatch = false;
+        Sender = null;
+        Listener = null;
+        IsResponse = false;
+        Failure = null;
+        Batch = null;
+        HasBeenAcked = false;
+        WireTap = null;
+        Store = null;
+    }
 }
