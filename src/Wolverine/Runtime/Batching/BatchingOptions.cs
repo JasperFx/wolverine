@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime.Handlers;
@@ -5,17 +6,34 @@ using Wolverine.Runtime.WorkerQueues;
 
 namespace Wolverine.Runtime.Batching;
 
-public class BatchingOptions(Type elementType) : IAsyncDisposable
+public class BatchingOptions : IAsyncDisposable
 {
     private IMessageHandler _handler = null!;
-    
+
+    // CloseAndBuildAs over DefaultMessageBatcher<elementType> and
+    // ProcessorBuilder<ElementType> closes a generic over the user-supplied
+    // batch element message type. Same reflective shape as chunks D/I/J/K.
+    // AOT-clean apps in TypeLoadMode.Static keep the element types statically
+    // rooted via handler registration and pre-built batchers; opts.BatchMessagesOf
+    // call sites have the closed-generic instantiations baked into the
+    // source-generated code. Apps that need batching on Native AOT supply their
+    // own IMessageBatcher (see BatchingOptions.Batcher setter) — see AOT guide.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "DefaultMessageBatcher/ProcessorBuilder closed over runtime element type; AOT consumers register batchers explicitly. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "DefaultMessageBatcher/ProcessorBuilder closed over runtime element type; AOT consumers register batchers explicitly. See AOT guide.")]
+    public BatchingOptions(Type elementType)
+    {
+        ElementType = elementType;
+        Batcher = typeof(DefaultMessageBatcher<>).CloseAndBuildAs<IMessageBatcher>(elementType);
+    }
+
     /// <summary>
     /// The message type to be batched up
     /// </summary>
-    public Type ElementType { get; } = elementType;
+    public Type ElementType { get; }
 
-    public IMessageBatcher Batcher { get; set; } =
-        typeof(DefaultMessageBatcher<>).CloseAndBuildAs<IMessageBatcher>(elementType);
+    public IMessageBatcher Batcher { get; set; }
 
     /// <summary>
     /// The maximum size of the message batch. Default is 100.
@@ -35,10 +53,14 @@ public class BatchingOptions(Type elementType) : IAsyncDisposable
     /// </summary>
     public string? LocalExecutionQueueName { get; set; }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "ProcessorBuilder<> closed over runtime ElementType; AOT consumers register batchers explicitly. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "ProcessorBuilder<> closed over runtime ElementType; AOT consumers register batchers explicitly. See AOT guide.")]
     internal IMessageHandler BuildHandler(WolverineRuntime runtime)
     {
         if (_handler != null) return _handler;
-        
+
         var builder = typeof(ProcessorBuilder<>).CloseAndBuildAs<IProcessorBuilder>(ElementType);
         _handler = builder.Build(runtime, Batcher, this);
 
