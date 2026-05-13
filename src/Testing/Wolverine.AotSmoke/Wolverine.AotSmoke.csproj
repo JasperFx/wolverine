@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test (wolverine#2715, mirrors JasperFx.AotSmoke).
+
+        Builds in CI and verifies that an app consuming Wolverine through the
+        AOT-clean surfaces only — pure-data types, options builders, the
+        Envelope value-shape — compiles with no IL2026 / IL2046 / IL2055 /
+        IL2065 / IL2067 / IL2070 / IL2072 / IL2075 / IL2090 / IL2091 / IL2111 /
+        IL3050 / IL3051 warnings.
+
+        Surfaces NOT exercised here, on purpose — they carry / will carry
+        [RequiresDynamicCode] annotations by design:
+          - Runtime codegen entry points (HandlerGraph.Compile, AssemblyGenerator
+            usage, the boot-time dispatch construction). AOT-clean usage is the
+            pre-generated `codegen write` step + `TypeLoadMode = Static`
+            path, which has its own smoke project (TBD as a follow-up).
+          - Reflective handler / saga / transport discovery (HandlerDiscovery
+            assembly scanning). The AOT-clean path is the source-generated
+            handler manifest (TBD).
+          - Generic factory construction (MakeGenericType / Activator.CreateInstance
+            of generic types). These are annotated where they live.
+
+        If a previously-AOT-clean Wolverine API gains a
+        [RequiresUnreferencedCode] / [RequiresDynamicCode] annotation that the
+        smoke surface depends on, the build of this project fails in CI rather
+        than downstream consumers'. New IL warnings introduced by edits to
+        this project (e.g. someone calls into a reflective surface from
+        Program.cs) are equally caught.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
+        <TrimMode>full</TrimMode>
+        <WarningsAsErrors>IL2026;IL2046;IL2055;IL2065;IL2067;IL2070;IL2072;IL2075;IL2090;IL2091;IL2111;IL3050;IL3051</WarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>
