@@ -36,8 +36,8 @@ Microsoft for not having a local Docker based emulator ala Localstack).
 
 This repository follows a major-line branching strategy:
 
-- **`main`** — Active development for Wolverine 6.0. Expect breaking changes and dependency bumps to in-development JasperFx 2.0-alpha packages. Day-to-day work, new features, and the cold-start / runtime-perf pass all land here.
-- **`5.0`** — Maintenance branch for the Wolverine 5.x line. Receives bug fixes only — no new features and no breaking changes. Patch releases off the 5.x line ship from this branch until 6.0 is generally available.
+- **`main`** — Active development for Wolverine 6.0, currently published as `WolverineFx 6.0.0-alpha.*` pre-release packages. Expect breaking changes and dependency bumps to in-development JasperFx 2.0-alpha packages. Day-to-day work, new features, the cold-start / runtime-perf pass and the [AOT pillar](https://github.com/JasperFx/wolverine/issues/2746) all land here. See [`CHANGELOG.md`](./CHANGELOG.md#600-alpha1) for the cumulative 6.0 inventory and the [migration guide](https://wolverinefx.net/guide/migration.html#key-changes-in-6-0) for the at-a-glance table of changed defaults / removed APIs / moved namespaces.
+- **`5.0`** — Maintenance branch for the Wolverine 5.x line, branched from the `V5.39.0` tag. Receives bug fixes only — no new features and no breaking changes. Patch releases (5.39.1, 5.39.2 …) off the 5.x line ship from this branch until 6.0 is generally available.
 - **`archive/cloudevents-attempt-2025`** — Preserved, abandoned. An incomplete CloudEvents-for-SQS-and-SNS feature branch from August 2025 that never merged. Kept for historical reference only.
 
 Older release-specific branches (e.g., `4.0`, `release/5.30`, `5.36`) exist for in-flight or completed work on prior versions and are not active development surfaces. New contributions should target `main`. Backport candidates for the 5.x line can be opened against `5.0` after the corresponding PR has merged to `main`.
