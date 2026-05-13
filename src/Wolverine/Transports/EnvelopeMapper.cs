@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -53,6 +54,39 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming;
     private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing;
 
+    /// <summary>
+    /// Returns this mapper's runtime type for the reflective lookups in
+    /// <see cref="compileIncoming"/> and <see cref="compileOutgoing"/>.
+    /// Annotated with <see cref="DynamicallyAccessedMemberTypes.NonPublicMethods"/>
+    /// so the trim analyzer knows the non-public read*/write* helpers
+    /// resolved by <c>GetMethod(nameof(...), NonPublic | Instance)</c> must
+    /// be preserved.
+    /// </summary>
+    /// <remarks>
+    /// All the names looked up are <c>nameof()</c> literals against concrete
+    /// methods declared on this class, so the only thing the trimmer can
+    /// reasonably remove is the methods themselves — annotating the return
+    /// type tells it not to.
+    /// </remarks>
+    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicMethods)]
+    [UnconditionalSuppressMessage("Trimming", "IL2073",
+        Justification = "GetType() returns the concrete EnvelopeMapper subclass at runtime; " +
+                        "the read*/write* methods looked up reflectively are non-public instance " +
+                        "members declared on this class hierarchy and reached via nameof() literals " +
+                        "from compileIncoming/compileOutgoing, both of which are RequiresUnreferencedCode-annotated. " +
+                        "The trimmer is told to preserve those methods via the return-DAM annotation; " +
+                        "this suppression bridges the GetType-returns-unannotated-Type gap.")]
+    private Type getMapperTypeForReflection() => GetType();
+
+    [RequiresUnreferencedCode(
+        "EnvelopeMapper compiles per-property header read/write expressions via FastExpressionCompiler. " +
+        "Trimming may remove the GetType().GetMethod-resolved read*/write* helpers used by the compiled " +
+        "expressions, breaking incoming/outgoing header mapping. Static-mode apps that pre-generate transport " +
+        "code via JasperFx codegen avoid this path. See the Wolverine AOT publishing guide.")]
+    [RequiresDynamicCode(
+        "EnvelopeMapper uses FastExpressionCompiler to JIT-compile the per-property header reader/writer " +
+        "delegates. Native AOT cannot execute Expression.Compile at runtime. Static-mode apps that pre-generate " +
+        "transport code avoid this path. See the Wolverine AOT publishing guide.")]
     public EnvelopeMapper(Endpoint endpoint)
     {
         _endpoint = endpoint;
@@ -168,26 +202,29 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         _envelopeToHeader[prop] = headerKey;
     }
 
+    [RequiresUnreferencedCode("Compiles per-property expression-tree readers. See EnvelopeMapper constructor doc.")]
+    [RequiresDynamicCode("FastExpressionCompiler.CompileFast() emits IL at runtime. See EnvelopeMapper constructor doc.")]
     private Action<Envelope, TIncoming> compileIncoming()
     {
         var incoming = Expression.Parameter(typeof(TIncoming), "incoming");
         var envelope = Expression.Parameter(typeof(Envelope), "env");
         var protocol = Expression.Constant(this);
 
-        var getUri = GetType().GetMethod(nameof(readUri), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getInt = GetType().GetMethod(nameof(readInt), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getString = GetType().GetMethod(nameof(readString), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getGuid = GetType().GetMethod(nameof(readGuid), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getBoolean = GetType().GetMethod(nameof(readBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
+        var mapperType = getMapperTypeForReflection();
+        var getUri = mapperType.GetMethod(nameof(readUri), BindingFlags.NonPublic | BindingFlags.Instance);
+        var getInt = mapperType.GetMethod(nameof(readInt), BindingFlags.NonPublic | BindingFlags.Instance);
+        var getString = mapperType.GetMethod(nameof(readString), BindingFlags.NonPublic | BindingFlags.Instance);
+        var getGuid = mapperType.GetMethod(nameof(readGuid), BindingFlags.NonPublic | BindingFlags.Instance);
+        var getBoolean = mapperType.GetMethod(nameof(readBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
         var getNullableDateTimeOffset =
-            GetType().GetMethod(nameof(readNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(readNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var getDateTimeOffset =
-            GetType().GetMethod(nameof(readDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(readDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var getStringArray =
-            GetType().GetMethod(nameof(readStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(readStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
 
         var writeHeaders = Expression.Call(protocol,
-            GetType().GetMethod(nameof(writeIncomingHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
+            mapperType.GetMethod(nameof(writeIncomingHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
             incoming, envelope);
 
         var list = new List<Expression>
@@ -256,26 +293,29 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         return lambda.CompileFast();
     }
 
+    [RequiresUnreferencedCode("Compiles per-property expression-tree writers. See EnvelopeMapper constructor doc.")]
+    [RequiresDynamicCode("FastExpressionCompiler.CompileFast() emits IL at runtime. See EnvelopeMapper constructor doc.")]
     private Action<Envelope, TOutgoing> compileOutgoing()
     {
         var outgoing = Expression.Parameter(typeof(TOutgoing), "outgoing");
         var envelope = Expression.Parameter(typeof(Envelope), "env");
         var protocol = Expression.Constant(this);
 
-        var setUri = GetType().GetMethod(nameof(writeUri), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setInt = GetType().GetMethod(nameof(writeInt), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setString = GetType().GetMethod(nameof(writeString), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setGuid = GetType().GetMethod(nameof(writeGuid), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setBoolean = GetType().GetMethod(nameof(writeBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
+        var mapperType = getMapperTypeForReflection();
+        var setUri = mapperType.GetMethod(nameof(writeUri), BindingFlags.NonPublic | BindingFlags.Instance);
+        var setInt = mapperType.GetMethod(nameof(writeInt), BindingFlags.NonPublic | BindingFlags.Instance);
+        var setString = mapperType.GetMethod(nameof(writeString), BindingFlags.NonPublic | BindingFlags.Instance);
+        var setGuid = mapperType.GetMethod(nameof(writeGuid), BindingFlags.NonPublic | BindingFlags.Instance);
+        var setBoolean = mapperType.GetMethod(nameof(writeBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
         var setNullableDateTimeOffset =
-            GetType().GetMethod(nameof(writeNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(writeNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var setDateTimeOffset =
-            GetType().GetMethod(nameof(writeDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(writeDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
         var setStringArray =
-            GetType().GetMethod(nameof(writeStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
+            mapperType.GetMethod(nameof(writeStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
 
         var writeHeaders = Expression.Call(protocol,
-            GetType().GetMethod(nameof(writeOutgoingOtherHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
+            mapperType.GetMethod(nameof(writeOutgoingOtherHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
             outgoing, envelope);
 
         var list = new List<Expression>
