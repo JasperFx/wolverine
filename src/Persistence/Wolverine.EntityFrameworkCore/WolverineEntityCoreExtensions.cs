@@ -62,7 +62,8 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
         
@@ -116,7 +117,8 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
         
@@ -159,7 +161,8 @@ public static class WolverineEntityCoreExtensions
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+        registerEFCoreSagaStoreDiagnostics(services);
+
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
@@ -167,11 +170,41 @@ public static class WolverineEntityCoreExtensions
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
-        
+
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Registers the EF Core <see cref="ISagaStoreDiagnostics"/> for the
+    /// CritterWatch / saga-explorer fan-out (the runtime aggregator iterates
+    /// over every <see cref="ISagaStoreDiagnostics"/> registered in DI).
+    ///
+    /// **Why it lives here and not in <see cref="EntityFrameworkCoreBackedPersistence"/>.Configure**:
+    /// the EF Core extension is registered into DI as <c>IWolverineExtension</c>
+    /// at every entry point that wires a <see cref="DbContext"/> for Wolverine
+    /// (see <see cref="AddDbContextWithWolverineManagedMultiTenancy{T}"/> et al).
+    /// That means the extension's <c>Configure</c> runs at host-build time
+    /// from inside the <c>AddSingleton</c> lambda in <c>HostBuilderExtensions</c> —
+    /// at which point <see cref="IServiceCollection"/> is already read-only and
+    /// any <c>options.Services.Add*</c> call throws <c>InvalidOperationException</c>.
+    /// Wolverine's 3.0+ policy then re-throws that as the explicit
+    /// "no longer supported to alter IoC service registrations through Wolverine
+    /// extensions that are themselves registered in the IoC container" message.
+    /// Closes wolverine#2735.
+    ///
+    /// Idempotent via <see cref="ServiceCollectionDescriptorExtensions.TryAddSingleton"/>,
+    /// so every entry point can call this without producing duplicate
+    /// EF Core diagnostics in the fan-out.
+    /// </summary>
+    private static void registerEFCoreSagaStoreDiagnostics(IServiceCollection services)
+    {
+        services.TryAddSingleton<ISagaStoreDiagnostics>(s =>
+            new EFCoreSagaStoreDiagnostics(
+                s.GetRequiredService<IWolverineRuntime>(),
+                s));
     }
 
     /// <summary>
@@ -198,6 +231,7 @@ public static class WolverineEntityCoreExtensions
         try
         {
             options.Services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+            registerEFCoreSagaStoreDiagnostics(options.Services);
             options.Services.AddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
             options.Services.AddScoped<IDbContextOutbox, DbContextOutbox>();
             options.Services.AddScoped<OutgoingDomainEvents>();

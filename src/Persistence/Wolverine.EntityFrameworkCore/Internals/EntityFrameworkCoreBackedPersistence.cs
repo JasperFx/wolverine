@@ -25,14 +25,12 @@ internal class EntityFrameworkCoreBackedPersistence : IWolverineExtension
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
 
-        // CritterWatch / saga-explorer diagnostic surface — EF Core
-        // owns every saga whose state is mapped on a registered DbContext.
-        // The runtime aggregator fans out across all registered
-        // ISagaStoreDiagnostics so this lives next to the Marten one.
-        options.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
-            new EFCoreSagaStoreDiagnostics(
-                s.GetRequiredService<IWolverineRuntime>(),
-                s));
+        // The CritterWatch / saga-explorer ISagaStoreDiagnostics fan-out registration
+        // lives in WolverineEntityCoreExtensions.registerEFCoreSagaStoreDiagnostics
+        // (called from every entry point that registers this extension). Registering
+        // it here would tear at the IServiceCollection after host-build because this
+        // extension is itself registered into DI, which trips Wolverine's 3.0+ "no
+        // IoC mods from container-registered extensions" policy. Closes wolverine#2735.
     }
 }
 
@@ -53,13 +51,11 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
 
-        // CritterWatch / saga-explorer diagnostic surface — EF Core
-        // owns every saga whose state is mapped on a registered DbContext.
-        // The runtime aggregator fans out across all registered
-        // ISagaStoreDiagnostics so this lives next to the Marten one.
-        options.Services.AddSingleton<ISagaStoreDiagnostics>(s =>
-            new EFCoreSagaStoreDiagnostics(
-                s.GetRequiredService<IWolverineRuntime>(),
-                s));
+        // The CritterWatch / saga-explorer ISagaStoreDiagnostics fan-out registration
+        // lives in WolverineEntityCoreExtensions.registerEFCoreSagaStoreDiagnostics
+        // (called from every entry point that registers this extension). Registering
+        // it here would tear at the IServiceCollection after host-build because this
+        // extension is itself registered into DI, which trips Wolverine's 3.0+ "no
+        // IoC mods from container-registered extensions" policy. Closes wolverine#2735.
     }
 }
