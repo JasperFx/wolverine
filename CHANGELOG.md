@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+## 6.0.0-alpha.1
+
+First explicitly-versioned 6.0 alpha. Cumulative work since 5.39.0 on the `main`
+branch. **See the [migration guide](https://wolverinefx.net/guide/migration.html#key-changes-in-6-0)
+for the full breaking-change inventory and the at-a-glance table.**
+
+### WolverineFx (core)
+
+- **Dropped `net8.0` support.** Target frameworks are now `net9.0;net10.0`. The
+  JasperFx 2.0-alpha line that 6.0 builds on no longer targets net8.0. (BREAKING)
+- **Bumped the critter-stack dependency line** to `JasperFx 2.0.0-alpha.*`,
+  `JasperFx.Events 2.0.0-alpha.*`, `Marten 9.0.0-alpha.*`, `Polecat 4.0.0-alpha.*`.
+  (BREAKING)
+- **`WolverineOptions.ServiceLocationPolicy` default flipped** from
+  `AllowedButWarn` to `NotAllowed` (#2584). Apps that previously relied on
+  Wolverine's code generation falling back to service location at runtime now
+  throw `InvalidServiceLocationException` on startup. Restructure registrations
+  or allow-list per type via `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
+  Soft-landing: `opts.RestoreV5Defaults()` flips this back. (BREAKING)
+- **Pooled `Envelope` instances at the two `Executor.InvokeAsync` sites** for the
+  internal receive pipeline (#2741 closing part of #2726). Allocation reduction
+  on the hot path; no public API change. Gated on `ActiveSession == null` so
+  tracking sessions, observer tests, and the `ITrackedSession.Events` capture-
+  after-handler scenario all keep fresh allocations.
+- **New `WolverineOptions.RestoreV5Defaults()`** one-line migration affordance.
+  Restores every changed runtime default back to its 5.x value (today that means
+  `ServiceLocationPolicy`; more lines get appended as additional defaults flip
+  in 6.x patch releases).
+- **Stale `DefaultSerializer` XmlDoc fixed.** The doc-comment had claimed
+  Newtonsoft.Json was the default; STJ has actually been the default since
+  Wolverine 5.0.
+- **Performance: per-endpoint serializer cache pre-population** during
+  `Endpoint.Compile()`. Hot-path serializer lookup is now a pure read.
+- **`Subscription.Scope` JSON converter** swapped from Newtonsoft's
+  `[StringEnumConverter]` to STJ's `[JsonStringEnumConverter]`. Wire format
+  unchanged (still string-named scopes).
+
+### WolverineFx.Newtonsoft (new package)
+
+- **Extracted all Newtonsoft.Json integration** out of core `WolverineFx` into a
+  new separate `WolverineFx.Newtonsoft` package (#2743). Core `WolverineFx`
+  no longer depends on `Newtonsoft.Json`. The 5.x APIs (`UseNewtonsoftForSerialization`,
+  `CustomNewtonsoftJsonSerialization`, `IMassTransitInterop.UseNewtonsoftForSerialization`,
+  the `NewtonsoftSerializer` type) are now **extension methods** in the new
+  package — same call shape, just need `dotnet add package WolverineFx.Newtonsoft`
+  + `using Wolverine.Newtonsoft;`. (BREAKING)
+- Transports that pin a `NewtonsoftSerializer` internally for NServiceBus /
+  MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS
+  and SNS NServiceBus mappers, Azure Service Bus listeners) carry the
+  `WolverineFx.Newtonsoft` dependency on consumers' behalf.
+
+### Namespace moves (BREAKING)
+
+- `SnapshotLifecycle` moved from `Marten.Events.Projections` to
+  `JasperFx.Events.Projections`.
+- `OperationRole` moved from `Marten.Internal.Operations` to `Weasel.Core`.
+
+### Foundation
+
+- **AOT pillar foundation landed** (#2747 toward #2715 / #2746). New
+  `Wolverine.AotSmoke` regression-guard project + `.github/workflows/aot.yml`
+  workflow. Verifies the AOT-clean *subset* of Wolverine's surface (Envelope
+  value-shape, DeliveryOptions, WolverineOptions configuration, scheduling
+  helpers). The full per-file annotation pass and the eventual flip of
+  `IsAotCompatible=true` on `Wolverine.csproj` is tracked in #2746.
+
 ## 5.37.2
 
 ### WolverineFx (core)

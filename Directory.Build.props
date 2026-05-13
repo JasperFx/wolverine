@@ -11,7 +11,19 @@
         <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618;VSTHRD200</NoWarn>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <Version>5.39.0</Version>
+        <!--
+          Wolverine 6.0 alpha line. Bumped from 5.39.0 (the last 5.x release
+          left on the main branch's Directory.Build.props) to flag every
+          package built from main as a 6.0 pre-release. This is the first
+          explicitly-versioned 6.0 alpha after the cumulative work merged
+          this release cycle (envelope pool #2741, Newtonsoft extraction
+          #2743, migration polish #2744, AOT pillar foundation #2747 et al).
+
+          Bump the alpha number with each NuGet publish off main. The 5.x
+          maintenance line ships from the `5.0` branch and continues to use
+          its own Directory.Build.props.
+        -->
+        <Version>6.0.0-alpha.1</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
