@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -25,6 +26,17 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     private readonly MessagePartitioningRules _partitioning;
     private readonly Endpoint _endpoint;
 
+    // CloseAndBuildAs<IMessageSerializer> on typeof(IntrinsicSerializer<>) closes
+    // over the runtime-resolved message type when the type implements
+    // ISerializable. Same reflective shape as the IntrinsicSerializer.Write path
+    // suppressed in chunk D (#2756) — apps in TypeLoadMode.Static pre-discover
+    // their ISerializable message types into a registered IMessageSerializer
+    // cache at bootstrap, so this constructor's miss path never fires at steady
+    // state. The AOT publishing guide documents the migration story.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-register ISerializable serializers. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-register ISerializable serializers. See AOT guide.")]
     public MessageRoute(Type messageType, Endpoint endpoint, IWolverineRuntime runtime)
     {
         IsLocal = endpoint is LocalQueue;
