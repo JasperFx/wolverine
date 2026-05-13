@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -15,6 +16,20 @@ public class IntrinsicSerializer : IMessageSerializer
     private IntrinsicSerializer(){}
 
     public string ContentType => MimeType;
+
+    // IntrinsicSerializer<T> closes over the message type via reflection so
+    // user message types that implement ISerializable can be serialized without
+    // an additional registration. The CloseAndBuildAs<T> escape valve is
+    // dynamic-code-by-design; suppressing at the leaf rather than annotating
+    // IMessageSerializer keeps the cascade contained. AOT-clean apps avoid
+    // this path: their message types implement ISerializable AND get
+    // pre-discovered into _inner before any message is processed (the AOT
+    // pillar's source-generated registration story will land that
+    // pre-discovery — see #2746 / the AOT publishing guide).
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed generic resolved from runtime message type; AOT consumers pre-discover into _inner. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed generic resolved from runtime message type; AOT consumers pre-discover into _inner. See AOT guide.")]
     public byte[] Write(Envelope envelope)
     {
         var messageType = envelope.Message!.GetType();
@@ -28,6 +43,10 @@ public class IntrinsicSerializer : IMessageSerializer
         return serializer.Write(envelope);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed generic resolved from messageType; AOT consumers pre-discover into _inner. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed generic resolved from messageType; AOT consumers pre-discover into _inner. See AOT guide.")]
     public object ReadFromData(Type messageType, Envelope envelope)
     {
         if (_inner.TryFind(messageType, out var serializer))
