@@ -1,6 +1,5 @@
 using System.Text.Json;
 using JasperFx.Core;
-using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine;
@@ -16,7 +15,11 @@ public sealed partial class WolverineOptions
     ///     Override or get the default message serializer for the application. The default is
     ///     <see cref="SystemTextJsonSerializer"/> (wired in the <see cref="WolverineOptions"/>
     ///     constructor via <see cref="UseSystemTextJsonForSerialization"/>). To restore the
-    ///     5.x-and-earlier default, call <see cref="UseNewtonsoftForSerialization"/>.
+    ///     5.x-and-earlier Newtonsoft.Json default, install the
+    ///     <c>WolverineFx.Newtonsoft</c> package and call its
+    ///     <c>UseNewtonsoftForSerialization()</c> extension method. As of Wolverine 6.0
+    ///     the Newtonsoft surface lives in a separate NuGet package; see the
+    ///     migration guide.
     /// </summary>
     /// <exception cref="InvalidOperationException"></exception>
     public IMessageSerializer DefaultSerializer
@@ -52,30 +55,6 @@ public sealed partial class WolverineOptions
         }
 
         return DefaultSerializer;
-    }
-
-    /// <summary>
-    ///     Use Newtonsoft.Json as the default JSON serialization with optional configuration
-    /// </summary>
-    /// <param name="configuration"></param>
-    public void UseNewtonsoftForSerialization(Action<JsonSerializerSettings>? configuration = null)
-    {
-        var settings = NewtonsoftSerializer.DefaultSettings();
-
-        configuration?.Invoke(settings);
-
-        var serializer = new NewtonsoftSerializer(settings);
-
-        if (_defaultSerializer?.ContentType == "application/json")
-        {
-            _defaultSerializer = serializer;
-        }
-        else
-        {
-            _defaultSerializer ??= serializer;
-        }
-
-        _serializers[serializer.ContentType] = serializer;
     }
 
     /// <summary>

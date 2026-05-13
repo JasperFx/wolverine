@@ -1,5 +1,4 @@
 ﻿using System.Threading.Tasks.Dataflow;
-using Newtonsoft.Json;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
@@ -15,13 +14,6 @@ public interface IEndpointConfiguration<T>
     /// <param name="name"></param>
     /// <returns></returns>
     T Named(string name);
-
-    /// <summary>
-    ///     Use custom Newtonsoft.Json settings for this listener endpoint
-    /// </summary>
-    /// <param name="customSettings"></param>
-    /// <returns></returns>
-    T CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings);
 
     /// <summary>
     ///     Override the default serializer for this endpoint

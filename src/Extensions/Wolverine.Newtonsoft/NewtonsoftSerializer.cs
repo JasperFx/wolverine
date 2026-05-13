@@ -2,8 +2,9 @@ using System.Buffers;
 using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Wolverine.Runtime.Serialization;
 
-namespace Wolverine.Runtime.Serialization;
+namespace Wolverine.Newtonsoft;
 
 public class NewtonsoftSerializer : IMessageSerializer
 {

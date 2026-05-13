@@ -1,6 +1,5 @@
 using System.Text.Json;
 using JasperFx.Core.Reflection;
-using Newtonsoft.Json;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
@@ -150,17 +149,6 @@ public class SubscriberConfiguration<T, TEndpoint> : DelayedEndpointConfiguratio
         return this.As<T>();
     }
 
-    public T CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
-    {
-        add(e =>
-        {
-            var serializer = new NewtonsoftSerializer(customSettings);
-            e.RegisterSerializer(serializer);
-            e.DefaultSerializer = serializer;
-        });
-
-        return this.As<T>();
-    }
 
     /// <summary>
     /// For endpoints that send or receive messages in batches, this governs the maximum

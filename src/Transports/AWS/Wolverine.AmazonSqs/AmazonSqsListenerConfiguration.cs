@@ -11,6 +11,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Interop.MassTransit;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 using JsonSerializer = System.Text.Json.JsonSerializer;

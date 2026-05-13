@@ -1,8 +1,7 @@
 using System.Reflection;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using Wolverine.Runtime.Agents;
 using Wolverine.Util;
 
@@ -25,7 +24,7 @@ public class Subscription
     /// <summary>
     ///     How does this rule apply? For all messages? By Namespace? By Assembly?
     /// </summary>
-    [JsonConverter(typeof(StringEnumConverter))]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public RoutingScope Scope { get; init; } = RoutingScope.All;
 
 

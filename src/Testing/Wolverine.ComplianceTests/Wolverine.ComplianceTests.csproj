@@ -8,6 +8,14 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
         <ProjectReference Include="..\..\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
+        <!--
+          TransportCompliance.cs exercises options.UseNewtonsoftForSerialization()
+          against every transport. Newtonsoft moved to its own package in 6.0;
+          the compliance harness carries the explicit dependency so transport
+          authors who run the compliance suite don't have to install the extra
+          package by hand.
+        -->
+        <ProjectReference Include="..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="Shouldly" />

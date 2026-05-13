@@ -32,6 +32,7 @@
     <Project Path="src/Extensions/Wolverine.MemoryPack/Wolverine.MemoryPack.csproj" />
     <Project Path="src/Extensions/Wolverine.MessagePack.Tests/Wolverine.MessagePack.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.MessagePack/Wolverine.MessagePack.csproj" />
+    <Project Path="src/Extensions/Wolverine.Newtonsoft/Wolverine.Newtonsoft.csproj" />
     <Project Path="src/Extensions/Wolverine.Protobuf.Tests/Wolverine.Protobuf.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.Protobuf/Wolverine.Protobuf.csproj" />
   </Folder>
