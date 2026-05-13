@@ -51,6 +51,18 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
 
+        // Auto-allow this DbContext type for service location. EF Core's
+        // multi-tenancy registration paths register the DbContext via opaque
+        // factories (TenantedDbContextBuilderByConnectionString / ByDbDataSource),
+        // which Wolverine codegen can't see through. Without this, every handler
+        // that takes the DbContext as a parameter would fail under Wolverine 6.0's
+        // ServiceLocationPolicy.NotAllowed default. Touches options.CodeGeneration
+        // (in-memory), not options.Services — safe to do from Configure even when
+        // this extension is run from the post-host-build resolution path. See
+        // sibling auto-allow in WolverineEntityCoreExtensions.UseEntityFrameworkCoreTransactions
+        // for the non-multi-tenancy path.
+        options.CodeGeneration.AlwaysUseServiceLocationFor<T>();
+
         // The CritterWatch / saga-explorer ISagaStoreDiagnostics fan-out registration
         // lives in WolverineEntityCoreExtensions.registerEFCoreSagaStoreDiagnostics
         // (called from every entry point that registers this extension). Registering

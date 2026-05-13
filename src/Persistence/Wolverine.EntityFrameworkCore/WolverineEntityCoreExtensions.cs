@@ -254,11 +254,45 @@ public static class WolverineEntityCoreExtensions
 
         options.Include<EntityFrameworkCoreBackedPersistence>();
 
+        // Auto-allow every registered DbContext type for service location.
+        // EF Core's AddDbContext<T>(builder) is fundamentally an opaque lambda
+        // factory from Wolverine codegen's point of view — there's no way for
+        // codegen to inline-construct the DbContext via constructor injection
+        // because the configuration is lambda-encapsulated. Without this
+        // auto-allow, every handler that takes a DbContext as a parameter
+        // would fail under Wolverine 6.0's ServiceLocationPolicy.NotAllowed
+        // default, forcing every EF-Core-using application to manually call
+        // opts.CodeGeneration.AlwaysUseServiceLocationFor<MyDbContext>() for
+        // each context. That's tedious boilerplate that adds no information
+        // (the user already opted into EF Core via this very call); auto-
+        // allowing keeps the migration friction limited to genuinely opaque
+        // non-DbContext registrations.
+        autoAllowRegisteredDbContexts(options);
+
         var providers = options.CodeGeneration.PersistenceProviders();
         var efProvider = providers.OfType<EFCorePersistenceFrameProvider>().FirstOrDefault();
         if (efProvider != null)
         {
             efProvider.DefaultMode = mode;
+        }
+    }
+
+    /// <summary>
+    /// Walks <see cref="WolverineOptions.Services"/> for every registration
+    /// whose <see cref="ServiceDescriptor.ServiceType"/> is a concrete subclass
+    /// of <see cref="DbContext"/> and adds it to the codegen allow-list via
+    /// <see cref="JasperFx.CodeGeneration.GenerationRules.AlwaysUseServiceLocationFor(Type)"/>.
+    /// See the call site comment in <see cref="UseEntityFrameworkCoreTransactions(WolverineOptions, TransactionMiddlewareMode)"/>
+    /// for the rationale. Idempotent — safe to call multiple times.
+    /// </summary>
+    private static void autoAllowRegisteredDbContexts(WolverineOptions options)
+    {
+        foreach (var descriptor in options.Services)
+        {
+            if (descriptor.ServiceType.IsSubclassOf(typeof(DbContext)))
+            {
+                options.CodeGeneration.AlwaysUseServiceLocationFor(descriptor.ServiceType);
+            }
         }
     }
 
