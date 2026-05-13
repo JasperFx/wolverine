@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using ImTools;
 using JasperFx.Core;
@@ -107,6 +108,15 @@ internal class InteropAssemblyInterfaces : IMessageTypeNaming
 {
     internal List<Assembly> Assemblies { get; } = [];
 
+    // Suppression rather than annotating the IMessageTypeNaming interface +
+    // 6 implementations: the messageType comes from runtime-resolved message
+    // types that are already kept by virtue of being instantiated. Trimming
+    // could in theory remove an interface from messageType's interface list,
+    // but the impl is opt-in interop naming — Apps that need it register the
+    // assemblies explicitly via opts.AddInteropAssembly(...), which keeps
+    // those assemblies' types in the trim graph.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "InteropAssemblyInterfaces is opt-in interop naming; consumers register assemblies explicitly which preserves the relevant interfaces in the trim graph.")]
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
         var @interface = messageType.GetInterfaces()

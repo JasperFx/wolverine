@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -8,7 +9,7 @@ using Wolverine.Util;
 
 namespace Wolverine.Transports;
 
-public abstract class MessageRoutingConvention<TTransport, TListener, TSubscriber, TSelf> : IMessageRoutingConvention
+public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TTransport, TListener, TSubscriber, TSelf> : IMessageRoutingConvention
     where TTransport : IBrokerTransport, new()
     where TSelf : MessageRoutingConvention<TTransport, TListener, TSubscriber, TSelf>
     where TSubscriber : IDelayedEndpointConfiguration
