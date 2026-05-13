@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SharedPersistenceModels.Items;
 using Shouldly;
@@ -14,8 +15,7 @@ namespace EfCoreTests.MultiTenancy;
 /// <summary>
 /// Regression guard for wolverine#2739.
 ///
-/// On Wolverine **5.39.0** (the NuGet release tagged from V5.39.0 = commit
-/// 82ee0bb0a on the now-6.0-development trajectory), an app that called
+/// On Wolverine <b>5.39.0</b>, an app that called
 /// <c>AddDbContextWithWolverineManagedMultiTenancy&lt;T&gt;(...)</c> threw on
 /// <c>app.Run()</c>:
 ///
@@ -25,31 +25,26 @@ namespace EfCoreTests.MultiTenancy;
 ///     registrations through Wolverine extensions that are themselves
 ///     registered in the IoC container
 ///   at Wolverine.WolverineOptions.ApplyExtensions(IWolverineExtension[] extensions)
-///   at Wolverine.HostBuilderExtensions.&lt;&gt;c__DisplayClass3_0.&lt;AddWolverine&gt;b__2(IServiceProvider s)
+///   at Wolverine.HostBuilderExtensions...
 /// </code>
 ///
-/// The bug was introduced by commit <c>28b06d600</c> (the
-/// <c>ISagaStoreDiagnostics</c> work for #2713), which made
-/// <c>EntityFrameworkCoreBackedPersistence&lt;T&gt;.Configure</c> call
-/// <c>options.Services.AddSingleton&lt;ISagaStoreDiagnostics&gt;(...)</c> at
-/// host-build time — past the point where <c>IServiceCollection</c> is
-/// still mutable. That commit is on the <c>main</c> trajectory (where it
-/// was subsequently fixed in PR #2738), <b>not</b> on this <c>5.0</c>
-/// maintenance branch.
+/// The bug was introduced when <c>EntityFrameworkCoreBackedPersistence&lt;T&gt;.Configure</c>
+/// added an <c>options.Services.AddSingleton&lt;ISagaStoreDiagnostics&gt;(...)</c>
+/// call at host-build time — past the point where <c>IServiceCollection</c>
+/// is still mutable. The fix (committed alongside this test on the 5.0
+/// branch) moves that registration to the four <c>IServiceCollection</c>
+/// extension entry-points in <c>WolverineEntityCoreExtensions</c>, where
+/// Services is still mutable, gated by a private marker type so multiple
+/// entry-point calls produce a single registration without ever using
+/// <c>TryAddSingleton</c> on the additive <c>ISagaStoreDiagnostics</c>
+/// fan-out slot.
 ///
-/// This test therefore <b>passes on 5.0</b> as written — the buggy code
-/// path doesn't exist here. Its purpose is to lock in the regression-guard
-/// so the bug never re-enters this branch, and to provide a cherry-pickable
-/// commit when the test gets backported to <c>main</c> (where the fix
-/// from #2738 already keeps it green).
-///
-/// The test deliberately uses <c>AutoCreate.None</c> and never opens a
-/// tenant database — the bug fires during the host's <i>first singleton
-/// resolution</i> (StartAsync's <c>IWolverineRuntime</c> activation), well
-/// before any database I/O. The single master <c>PersistMessagesWithSqlServer</c>
-/// call needs a reachable SQL Server because the master message-store schema
-/// gets provisioned, but the test runs without configuring per-tenant
-/// databases.
+/// The test runs the host-build path with <c>AutoCreate.None</c> so no
+/// per-tenant schema is provisioned — the bug fires during the first
+/// singleton resolution at <c>StartAsync</c>, well before any database
+/// I/O. The single master <c>PersistMessagesWithSqlServer</c> call needs
+/// a reachable SQL Server because the master message-store schema gets
+/// provisioned at startup, but no actual tenant database is required.
 /// </summary>
 [Collection("multi-tenancy")]
 public class Bug_2739_host_build_with_managed_multi_tenancy
@@ -57,37 +52,56 @@ public class Bug_2739_host_build_with_managed_multi_tenancy
     [Fact]
     public async Task host_build_does_not_throw_with_AddDbContextWithWolverineManagedMultiTenancy()
     {
-        // Mirrors the user's reported scenario: master message-store + one
-        // call to AddDbContextWithWolverineManagedMultiTenancy. AutoCreate.None
-        // means we don't provision per-tenant schema during host build, so
-        // the test exercises the configuration / DI surface only.
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Durability.Mode = DurabilityMode.Solo;
+        // Use HostApplicationBuilder (.NET 8+) rather than the older
+        // Host.CreateDefaultBuilder() pattern. WebApplicationBuilder and
+        // HostApplicationBuilder both make the underlying IServiceCollection
+        // read-only after Build, which is the condition the bug fires
+        // under — Host.CreateDefaultBuilder() does NOT freeze the
+        // collection, and won't reproduce the issue.
+        //
+        // The user's report (#2739) was on an ASP.NET Core app built
+        // with WebApplication.CreateBuilder; HostApplicationBuilder
+        // gives the same freeze semantics without pulling in
+        // Microsoft.AspNetCore.App as a FrameworkReference here.
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.PersistMessagesWithSqlServer(
-                        Servers.SqlServerConnectionString,
-                        "bug2739_master")
-                    .RegisterStaticTenants(tenants =>
-                    {
-                        // A single static tenant is enough — the bug fires
-                        // during the EFCore extension's Configure call,
-                        // before any tenant routing happens.
-                        tenants.Register("alpha", Servers.SqlServerConnectionString);
-                    });
+            opts.PersistMessagesWithSqlServer(
+                    Servers.SqlServerConnectionString,
+                    "bug2739_master")
+                .RegisterStaticTenants(tenants =>
+                {
+                    // A single static tenant is enough — the bug fires
+                    // during the EFCore extension's Configure call,
+                    // before any tenant routing happens.
+                    tenants.Register("alpha", Servers.SqlServerConnectionString);
+                });
 
-                opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>(
-                    (builder, connectionString, _) =>
-                    {
-                        builder.UseSqlServer(connectionString.Value);
-                    },
-                    AutoCreate.None);
-            })
-            .StartAsync();
+            opts.Services.AddDbContextWithWolverineManagedMultiTenancy<ItemsDbContext>(
+                (builder, connectionString, _) =>
+                {
+                    builder.UseSqlServer(connectionString.Value);
+                },
+                AutoCreate.None);
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        // Force WolverineOptions singleton resolution. The bug from #2739
+        // fires inside the WolverineOptions factory lambda in
+        // HostBuilderExtensions.AddWolverine — specifically the
+        // `options.ApplyExtensions(extensions.ToArray())` line, which
+        // calls EntityFrameworkCoreBackedPersistence<T>.Configure, which
+        // (on V5.39.0) tries options.Services.AddSingleton<ISagaStoreDiagnostics>
+        // against the already-frozen IServiceCollection.
+        var options = host.Services.GetRequiredService<WolverineOptions>();
+        options.ShouldNotBeNull();
 
         // Reaching here without an InvalidOperationException is the
-        // assertion — the bug from #2739 fired during StartAsync.
+        // assertion — the bug from #2739 fired during this resolution.
         host.ShouldNotBeNull();
     }
 }
