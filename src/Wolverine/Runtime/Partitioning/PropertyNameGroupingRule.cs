@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx.Core.Reflection;
 
@@ -38,6 +39,21 @@ internal class PropertyNameGroupingRule : IGroupingRule
         return false;
     }
 
+    // GetProperty(propertyName) (IL2070) requires PublicProperties on messageType;
+    // CloseAndBuildAs over typeof(Grouper<,>) closes the partitioner generic over
+    // (messageType, property.PropertyType) and trips IL2026 + IL3050. Both are
+    // best-effort opt-in partitioning. AOT-clean apps using property-name
+    // grouping must keep the targeted property (via [DynamicallyAccessedMembers]
+    // on the message type or a DynamicDependency) and the Grouper<,> closure
+    // (via TrimmerRootDescriptor). The PropertyNameGroupingRule is registered
+    // explicitly by the user (opts.MessagePartitioning.GroupBy(...)), not
+    // discovered reflectively, so the cascade stops here.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Property-name grouping is opt-in; consumers preserve the target property via DAM or trim descriptor. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     private IGrouper? TryBuildGrouper(Type messageType)
     {
         foreach (var propertyName in _propertyNames)

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx.Core;
@@ -220,6 +221,14 @@ internal class ExplicitGrouping : IGroupingRule
         return false;
     }
 
+    // CloseAndBuildAs closes Grouper<,> over (messageType, property.PropertyType).
+    // Same reflective pattern as PropertyNameGroupingRule.TryBuildGrouper; both
+    // sit on the user-opt-in MessagePartitioningRules surface. AOT-clean apps
+    // using partitioning preserve Grouper<,> closures via TrimmerRootDescriptor.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed Grouper<,> resolved from runtime types; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     public void AddMessageType(Type messageType, PropertyInfo property)
     {
         _groupers = _groupers.AddOrUpdate(messageType,
