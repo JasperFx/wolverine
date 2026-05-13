@@ -139,6 +139,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Test Automation Support', link: '/guide/testing'},
                         {text: 'Command Line Integration', link: '/guide/command-line'},
                         {text: 'Code Generation', link: '/guide/codegen'},
+                        {text: 'AOT Publishing', link: '/guide/aot'},
                         {text: 'Extensions', link: '/guide/extensions'},
                         {text: 'Sample Projects', link: '/guide/samples'}
                     ]

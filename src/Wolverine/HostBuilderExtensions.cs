@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -112,7 +113,17 @@ public static class HostBuilderExtensions
         // that pre-generate code with TypeLoadMode.Static will then be able to ship
         // without Roslyn at all (smaller binaries, faster cold start, AOT-readiness).
         // See issue #1577 for the full cold-start optimization roadmap.
-        services.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
+        //
+        // The IL2026 warning on the AssemblyGenerator() constructor is intentional and
+        // suppressed here: AssemblyGenerator emits and loads runtime-generated types,
+        // which is fundamentally incompatible with trimming. The whole point of the
+        // v6 Static-mode story is to let AOT-compatible apps avoid this registration
+        // entirely via UseRuntimeCompilation() opt-in. See AOT pillar #2715 / #2746.
+        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+            Justification = "Wolverine's runtime-codegen default; Static-mode AOT apps avoid this registration. See #2715/#2746.")]
+        static IServiceCollection RegisterAssemblyGenerator(IServiceCollection s)
+            => s.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
+        RegisterAssemblyGenerator(services);
 
         services.AddSingleton(typeof(AncillaryMessageStoreApplication<>));
         
@@ -387,7 +398,7 @@ public static class HostBuilderExtensions
     /// <param name="services"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddWolverineExtension<T>(this IServiceCollection services) where T : class, IWolverineExtension
+    public static IServiceCollection AddWolverineExtension<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(this IServiceCollection services) where T : class, IWolverineExtension
     {
         return services.AddSingleton<IWolverineExtension, T>();
     }
@@ -398,7 +409,7 @@ public static class HostBuilderExtensions
     /// <param name="services"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddAsyncWolverineExtension<T>(this IServiceCollection services) where T : class, IAsyncWolverineExtension
+    public static IServiceCollection AddAsyncWolverineExtension<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(this IServiceCollection services) where T : class, IAsyncWolverineExtension
     {
         return services.AddSingleton<IAsyncWolverineExtension, T>();
     }
@@ -419,7 +430,7 @@ public static class HostBuilderExtensions
     /// <param name="services"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddSingularAgent<T>(this IServiceCollection services) where T : SingularAgent
+    public static IServiceCollection AddSingularAgent<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(this IServiceCollection services) where T : SingularAgent
     {
         services.AddSingleton<IAgentFamily, T>();
         return services;
