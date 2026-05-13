@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
@@ -47,28 +47,13 @@ internal class BusHostInfo
     public string? MassTransitVersion { get; set; }
     public string? OperatingSystemVersion { get; set; }
 
-    private static string GetAssemblyFileVersion(Assembly assembly)
-    {
-        var attribute = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>();
-        if (attribute != null)
-        {
-            return attribute.Version;
-        }
-
-        return FileVersionInfo.GetVersionInfo(assembly.Location).FileVersion ?? "Unknown";
-    }
-
-    private static string GetAssemblyInformationalVersion(Assembly assembly)
-    {
-        var attribute = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-        if (attribute != null)
-        {
-            return attribute.InformationalVersion;
-        }
-
-        return GetAssemblyFileVersion(assembly);
-    }
-
+    // GetEntryAssembly()?.Location returns an empty string for single-file deployments
+    // (IL3000). The IsNullOrWhiteSpace check below already handles that gracefully —
+    // we fall back to the caller-supplied defaultProcessName (e.g. "dotnet" or "UWP").
+    // The MassTransit interop layer is a best-effort host descriptor, so the empty-
+    // string return is treated as "unknown app name" rather than an error condition.
+    [UnconditionalSuppressMessage("SingleFile", "IL3000",
+        Justification = "Empty-string return from Assembly.Location in single-file scenarios is handled by the IsNullOrWhiteSpace fallback below.")]
     private static string GetUsefulProcessName(string defaultProcessName)
     {
         var entryAssemblyLocation = System.Reflection.Assembly.GetEntryAssembly()?.Location;
