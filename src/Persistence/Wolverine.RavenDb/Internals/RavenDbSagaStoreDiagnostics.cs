@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
@@ -46,6 +47,18 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
     }
 
+    // session.LoadAsync<TSaga>(string id, ct) is invoked reflectively because
+    // sagaType is only known at runtime. The Task<TSaga> return value is
+    // unwrapped via Result-property reflection. AOT-clean apps that need
+    // saga diagnostics on RavenDb preserve their saga state types via
+    // TrimmerRootDescriptor (or use the Wolverine codegen-static path which
+    // bakes the typed LoadAsync invocation into source-generated code).
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "Generic IAsyncDocumentSession.LoadAsync<TSaga> invoked reflectively; saga types statically rooted via handler discovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Generic IAsyncDocumentSession.LoadAsync<TSaga> invoked reflectively; saga types statically rooted via handler discovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "task.GetType().GetProperty(\"Result\") on a Task<TSaga>; the closed Task<TSaga> type has Result by construction. See AOT guide.")]
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
     {
         if (!sagaIndex().TryGetValue(sagaTypeName, out var sagaType)) return null;
@@ -108,6 +121,14 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "RavenDb");
     }
 
+    // JsonSerializer.SerializeToElement(saga, sagaType) over a runtime-resolved
+    // saga type. AOT-clean apps that need saga diagnostics on RavenDb supply
+    // a JsonSerializerContext covering their saga types (or preserve via
+    // TrimmerRootDescriptor). Same chunk D (default JSON serializer) pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Reflection-based STJ over runtime saga type; AOT consumers supply a JsonSerializerContext for their saga types. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Reflection-based STJ over runtime saga type; AOT consumers supply a JsonSerializerContext for their saga types. See AOT guide.")]
     private static SagaInstanceState buildInstance(Type sagaType, object identity, object saga)
     {
         var stateJson = JsonSerializer.SerializeToElement(saga, sagaType);
@@ -120,6 +141,12 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
             null);
     }
 
+    // GetProperty("Id") / GetField("Id") on a runtime-resolved saga type when
+    // RavenDB's session.Advanced.GetDocumentId fails. Same chunk Q
+    // (InMemorySagaPersistor) / chunk P (SagaChain.DetermineSagaIdMember)
+    // pattern: saga types are statically rooted via handler discovery.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "GetProperty/GetField(\"Id\") on runtime saga type; saga types statically rooted via handler discovery. See AOT guide.")]
     private static object? extractIdentity(object saga, Type sagaType)
     {
         var idMember = (MemberInfo?)sagaType.GetProperty("Id") ?? sagaType.GetField("Id");

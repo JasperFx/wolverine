@@ -8,6 +8,16 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Reflective surface limited to:
+          - RavenDbPersistenceFrameProvider.DetermineStorageActionFrame
+            (codegen-time MakeGenericMethod over saga entity type)
+          - RavenDbSagaStoreDiagnostics (LoadAsync<TSaga> reflective invoke +
+            SerializeToElement(saga, sagaType) + Id member walk)
+          All leaf-suppressed; consumers preserve saga state types via
+          TrimmerRootDescriptor or supply a JsonSerializerContext.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

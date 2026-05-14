@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Expressions;
@@ -105,6 +106,12 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         return new DeleteDocumentFrame(variable);
     }
 
+    // MakeGenericMethod over a runtime-resolved entity type at codegen time.
+    // Same chunk P (saga frame providers) pattern: AOT-clean apps run pre-
+    // generated frames in TypeLoadMode.Static; this Dynamic-mode codegen
+    // helper is bypassed.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "RavenDbStorageActionApplier.ApplyAction<T> closed over runtime entityType during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
         var method = typeof(RavenDbStorageActionApplier).GetMethod("ApplyAction")!
