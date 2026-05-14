@@ -65,9 +65,11 @@ internal class FromFormAttributeUsage : IParameterStrategy
         return false;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "type originates from [FromForm] attribute usage on a Wolverine.Http endpoint parameter (already RUC-suppressed in TryMatch above). The IsEnumerable call inspects the type's generic-interface graph; the user's parameter type is statically rooted via endpoint discovery.")]
     private bool IsClassOrNullableClassNotCollection(Type type){
         return (
-                type.IsClass || 
+                type.IsClass ||
                 type.IsNullable() && type.GetInnerTypeFromNullable().IsClass
                 ) && !type.IsEnumerable();
     }

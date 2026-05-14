@@ -58,8 +58,12 @@ public static class WolverineFluentValidationExtensions
     // wire validators by hand, which is fully trim-clean. See AOT guide.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "FluentValidation AssemblyScanner discovery path is non-AOT by design; AOT consumers use RegistrationBehavior.ExplicitRegistration. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "ConnectImplementationsToTypesClosing closure receives an unannotated Type; HasConstructorsWithArguments inspects the validator's public constructors. The validator types are statically referenced by user code (the IValidator<T> implementations) and preserved by the assembly scan's discovery. Non-AOT path; AOT consumers use RegistrationBehavior.ExplicitRegistration.")]
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "AssemblyScanResult.ValidatorType is not DAM-annotated by FluentValidation; the scan path is non-AOT by design. AOT consumers use RegistrationBehavior.ExplicitRegistration. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "JasperFx ServiceCollectionExtensions.Scan closes open-generic IValidator<T> registrations via MakeGenericType at startup. The validator assemblies are statically known to the application; AOT consumers use RegistrationBehavior.ExplicitRegistration.")]
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
         RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators,
         bool includeInternalTypes = false)

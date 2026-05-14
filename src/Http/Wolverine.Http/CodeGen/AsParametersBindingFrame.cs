@@ -43,6 +43,8 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
     }
 
     // TODO -- move this to an extension method in JasperFx. Could be useful in other places
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "type originates from [AsParameters] attribute usage on a Wolverine.Http endpoint parameter (already RUC-suppressed in TryMatch above). The IsEnumerable call inspects the type's generic-interface graph; the user's parameter type is statically rooted via endpoint discovery.")]
     private bool IsClassOrNullableClassNotCollection(Type type)
     {
         return (

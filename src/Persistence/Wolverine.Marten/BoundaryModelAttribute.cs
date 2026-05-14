@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -39,6 +40,10 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         set => _onMissing = value;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2065",
+        Justification = "MakeGenericType closes IEventBoundary<TAggregate>; GetProperty(nameof(IEventBoundary.Aggregate)) is statically referenced via nameof and the closed-generic IEventBoundary<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventBoundary<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
     {
@@ -51,7 +56,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var isBoundaryParameter = false;
-        if (aggregateType.Closes(typeof(IEventBoundary<>)))
+        if (aggregateType.Closes(typeof(global::Marten.Events.Dcb.IEventBoundary<>)))
         {
             aggregateType = aggregateType.GetGenericArguments()[0];
             isBoundaryParameter = true;
@@ -90,9 +95,9 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         DetermineEventCaptureHandling(chain, aggregateType);
 
         // Extract the aggregate from the boundary
-        var boundaryInterfaceType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
+        var boundaryInterfaceType = typeof(global::Marten.Events.Dcb.IEventBoundary<>).MakeGenericType(aggregateType);
         Variable aggregateVariable = new MemberAccessVariable(boundary,
-            boundaryInterfaceType.GetProperty(nameof(IEventBoundary<string>.Aggregate))!);
+            boundaryInterfaceType.GetProperty(nameof(global::Marten.Events.Dcb.IEventBoundary<string>.Aggregate))!);
 
         if (Required)
         {
@@ -166,7 +171,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
 
         // If there's no IEventBoundary<T> parameter, assume return values are events
         if (!firstCall.Method.GetParameters()
-                .Any(x => x.ParameterType.Closes(typeof(IEventBoundary<>))))
+                .Any(x => x.ParameterType.Closes(typeof(global::Marten.Events.Dcb.IEventBoundary<>))))
         {
             chain.ReturnVariableActionSource = new BoundaryEventCaptureActionSource(aggregateType);
         }

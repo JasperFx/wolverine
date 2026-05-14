@@ -1,9 +1,11 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
-using JasperFx.Events;
 using Marten;
 using Marten.Events;
+// JasperFx.Events deliberately excluded — IEventStoreOperations is ambiguous
+// between Marten.Events (derived, what this Wolverine.Marten adapter targets)
+// and JasperFx.Events (lifted base). Pick the Marten side.
 
 namespace Wolverine.Marten.Codegen;
 

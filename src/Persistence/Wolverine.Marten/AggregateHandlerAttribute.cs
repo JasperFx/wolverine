@@ -172,7 +172,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _stream = chain.FindVariable(typeof(IEventStream<T>));
+        _stream = chain.FindVariable(typeof(global::Marten.Events.IEventStream<T>));
         yield return _stream;
     }
 
@@ -182,7 +182,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
         writer.WriteComment(Description);
         writer.Write(
-            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
+            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(global::Marten.Events.IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -219,11 +219,15 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
             yield break;
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2062",
+            Justification = "streamType = MakeGenericType(IEventStream<>, _aggregateType) at codegen time; AppendOne is statically referenced via nameof and the closed-generic IEventStream<TAggregate>.AppendOne method is preserved by the aggregate-type registration. AOT consumers pre-generate via TypeLoadMode.Static.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static so the reflective close never fires.")]
         public IEnumerable<Frame> Frames()
         {
-            var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
+            var streamType = typeof(global::Marten.Events.IEventStream<>).MakeGenericType(_aggregateType);
 
-            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
+            yield return new MethodCall(streamType, nameof(global::Marten.Events.IEventStream<string>.AppendOne))
             {
                 Arguments =
                 {

@@ -31,8 +31,8 @@
     <PackageVersion Include="Grpc.StatusProto" Version="2.76.0" />
     <PackageVersion Include="Grpc.Tools" Version="2.76.0" />
     <PackageVersion Include="HtmlTags" Version="9.0.0" />
-    <PackageVersion Include="JasperFx" Version="2.0.0-alpha.12" />
-    <PackageVersion Include="JasperFx.Events" Version="2.0.0-alpha.7" />
+    <PackageVersion Include="JasperFx" Version="2.0.0-alpha.13" />
+    <PackageVersion Include="JasperFx.Events" Version="2.0.0-alpha.8" />
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="2.0.0-alpha.2" />
     <PackageVersion Include="JasperFx.SourceGeneration" Version="2.0.0-alpha.2" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="15.0.1" />

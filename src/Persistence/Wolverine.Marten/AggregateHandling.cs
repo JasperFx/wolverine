@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx;
@@ -64,7 +65,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
-        if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)))
         {
             return eventStream;
         }
@@ -179,7 +180,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
         {
             var parameters = chain.HandlerCalls().First().Method.GetParameters();
-            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
+            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)));
             if (stream == null)
             {
                 throw new InvalidOperationException(
@@ -266,17 +267,21 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
         // then assume that the default behavior of each return value is to be an event
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
+        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>))))
         {
             chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
         }
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2065",
+        Justification = "MakeGenericType closes IEventStream<TAggregate>; GetProperty(nameof(IEventStream.Aggregate)) is statically referenced via nameof and the closed-generic IEventStream<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
-            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate))!);
+            typeof(global::Marten.Events.IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(global::Marten.Events.IEventStream<string>.Aggregate))!);
         
 
         if (Requirement.Required)
@@ -295,7 +300,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             // If the handle method is on the aggregate itself
             firstCall.Target = aggregateVariable;
         }
-        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)))
         {
             // When the handler parameter is IEventStream<T>, set the stream directly by name
             var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
@@ -340,7 +345,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     {
         var firstCall = chain.HandlerCalls().First();
         var parameters = firstCall.Method.GetParameters();
-        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
+        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)));
         if (stream != null)
         {
             return stream.ParameterType.GetGenericArguments().Single();

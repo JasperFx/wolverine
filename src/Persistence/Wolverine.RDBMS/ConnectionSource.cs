@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -38,6 +39,8 @@ public static class ConnectionSource<T> where T : DbConnection
 
 public class ConnectionFrame<T> : MethodCall where T : DbConnection
 {
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "MethodCall reflects ConnectionSource<T>.GetMethod(nameof(Create)) at codegen time. The Create method is statically referenced via nameof and the closed-generic ConnectionSource<T> is rooted at codegen time per the AOT guide.")]
     public ConnectionFrame() : base(typeof(ConnectionSource<T>), nameof(ConnectionSource<DbConnection>.Create))
     {
     }
