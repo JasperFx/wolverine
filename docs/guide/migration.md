@@ -24,6 +24,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `OperationRole` namespace | `Marten.Internal.Operations` | `Weasel.Core` *(BREAKING)* | Add `using Weasel.Core;` |
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
+| `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip
@@ -139,6 +140,34 @@ The call surface itself is unchanged — `opts.UseNewtonsoftForSerialization(set
 Transports that pin a `NewtonsoftSerializer` internally for NServiceBus / MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS and SNS NServiceBus mappers, Azure Service Bus listeners) carry the `WolverineFx.Newtonsoft` dependency for you. You don't need to install it explicitly unless you call one of the Newtonsoft APIs from your own code.
 
 In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute — it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. Wire format is unchanged (still string-named scopes). If you serialize `Subscription` instances yourself with Newtonsoft and rely on the string-named scope shape, configure `StringEnumConverter` on your own settings explicitly.
+
+### `IForwardsTo<T>` discovery is now explicit (BREAKING)
+
+Wolverine 5.x scanned the application assembly at handler-graph compile time for every concrete type that implemented `IForwardsTo<T>` and wired the source-type → target-type forwarding automatically. That scan walks `Assembly.ExportedTypes` and is **not trim/AOT-clean** — so 6.0 removes it from the default startup path as part of the [AOT pillar](https://github.com/JasperFx/wolverine/issues/2746). Any application that relied on the implicit scan needs to opt in to one of two paths:
+
+**Preferred upgrade path** — register each `IForwardsTo<T>` pair explicitly in your `UseWolverine` lambda:
+
+```csharp
+opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
+```
+
+There's also a single-type-argument overload that derives the target type from the `IForwardsTo<>` closure (handy for attribute-driven helpers):
+
+```csharp
+opts.RegisterMessageForwarder<PersonBorn>(); // resolves to <PersonBorn, PersonBornV2>
+```
+
+Both forms feed `WolverineOptions.ExplicitMessageForwarders`, which is drained inside `HandlerGraph.Compile` — exactly where `Forwarders.FindForwards(Assembly)` used to run. The on-the-wire dispatch behavior (the older message type's `Transform()` builds the newer message, the newer message's handler runs) is unchanged.
+
+**Escape hatch — opt back into the legacy scan:**
+
+```csharp
+opts.UseAutomaticForwarderDiscovery();
+```
+
+This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It is provided as a backward-compatibility escape valve for the 6.0 release cycle and is **slated for removal in 7.0** — migrate to `RegisterMessageForwarder<TFrom, TTo>()` before then.
+
+If you don't use `IForwardsTo<T>` at all, no change is needed.
 
 ### Performance: per-endpoint serializer cache pre-population
 

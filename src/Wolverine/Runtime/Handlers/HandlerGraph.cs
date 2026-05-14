@@ -322,16 +322,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return handler;
     }
 
-    // Compile is the bootstrap-time handler-graph build. The IL2026 here comes
-    // from the call to Forwarders.FindForwards (which carries
-    // [RequiresUnreferencedCode]) plus registerMessageTypes' MakeGenericType
-    // /GetInterfaces walks. Pre-population of _messageTypes / _handlers caches
-    // would close most of these — tracked in #2769 (CloseAndBuildAs elimination)
-    // and the IForwardsTo follow-up #2757. Until those land, suppress at the
-    // Compile boundary: a single annotation here keeps WolverineRuntime
-    // .StartAsync (the public bootstrap entry point) free of the cascade.
+    // Compile is the bootstrap-time handler-graph build. The remaining IL2026
+    // here comes from registerMessageTypes' MakeGenericType / GetInterfaces walks
+    // (pre-population work tracked in #2769) and from the opt-in
+    // Forwarders.FindForwards path that runs only when
+    // options.AutomaticForwarderDiscoveryEnabled is true (the 6.0 explicit
+    // RegisterMessageForwarder API replaced the unconditional scan — see #2757).
+    // Suppress at the Compile boundary: a single annotation here keeps
+    // WolverineRuntime.StartAsync (the public bootstrap entry point) free of
+    // the cascade.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "Bootstrap-time handler-graph build; Forwarders.FindForwards assembly scan + per-message-type cache population. Pre-population work tracked in #2769 / #2757. See AOT guide.")]
+        Justification = "Bootstrap-time handler-graph build; per-message-type cache population (#2769) plus opt-in Forwarders.FindForwards assembly scan (#2757). See AOT guide.")]
     internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
@@ -383,8 +384,24 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Container = container;
 
+        // 6.0 forwarder registration: drain the explicit
+        // WolverineOptions.RegisterMessageForwarder<TFrom, TTo>() registrations
+        // first (AOT-clean — no reflective assembly walk), then optionally
+        // run the legacy Forwarders.FindForwards(ApplicationAssembly) scan
+        // when the user opted in via UseAutomaticForwarderDiscovery(). The
+        // pre-6.0 unconditional scan is gone — see #2757 and
+        // docs/guide/migration.md.
         var forwarders = new Forwarders();
-        forwarders.FindForwards(options.ApplicationAssembly!);
+        foreach (var pair in options.ExplicitMessageForwarders)
+        {
+            forwarders.Relationships[pair.Key] = pair.Value;
+        }
+
+        if (options.AutomaticForwarderDiscoveryEnabled && options.ApplicationAssembly is not null)
+        {
+            forwarders.FindForwards(options.ApplicationAssembly);
+        }
+
         AddForwarders(forwarders);
 
         foreach (var configuration in _configurations) configuration();
