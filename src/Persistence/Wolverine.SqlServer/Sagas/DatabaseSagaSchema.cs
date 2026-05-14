@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JasperFx;
 using JasperFx.Core.Reflection;
@@ -11,6 +12,15 @@ using Wolverine.RDBMS.Sagas;
 
 namespace Wolverine.SqlServer.Sagas;
 
+// AOT note (#2746): Reflection-based STJ over runtime saga state type TSaga.
+// Same chunk D / chunk AE (Postgresql) pattern: AOT consumers using lightweight
+// SQL Server saga storage supply a JsonSerializerContext for their saga state
+// types or preserve via TrimmerRootDescriptor. TSaga is statically rooted via
+// the saga registration (SagaTableDefinition).
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "Reflection-based STJ over runtime saga state type; AOT consumers supply a JsonSerializerContext. See AOT guide.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "Reflection-based STJ over runtime saga state type; AOT consumers supply a JsonSerializerContext. See AOT guide.")]
 public class DatabaseSagaSchema<TId, TSaga> : IDatabaseSagaSchema<TId, TSaga> where TSaga : Saga
 {
     private readonly DatabaseSettings _settings;
