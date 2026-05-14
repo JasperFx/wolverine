@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Azure.Messaging.ServiceBus;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
@@ -7,6 +8,18 @@ namespace Wolverine.AzureServiceBus.Internal;
 
 public class AzureServiceBusEnvelopeMapper : EnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage>, IAzureServiceBusEnvelopeMapper
 {
+    // Inherits EnvelopeMapper<,>'s reflection-based property mapping (chunk B
+    // #2753 annotated the base ctor as [RequiresDynamicCode] +
+    // [RequiresUnreferencedCode]). Same chunk X (RabbitMqEnvelopeMapper)
+    // pattern: leaf-suppress so the cascade doesn't propagate through
+    // Endpoint.buildMapper. AOT-clean apps either supply their own
+    // IAzureServiceBusEnvelopeMapper or preserve the closed
+    // EnvelopeMapper<ServiceBusReceivedMessage, ServiceBusMessage> via
+    // TrimmerRootDescriptor. See AOT guide.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Inherits EnvelopeMapper<,> reflective property mapping; AOT consumers supply their own mapper or preserve the closed type. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Inherits EnvelopeMapper<,> reflective property mapping; AOT consumers supply their own mapper or preserve the closed type. See AOT guide.")]
     public AzureServiceBusEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
         MapProperty(x => x.ContentType!, (e, m) => e.ContentType = m.ContentType,

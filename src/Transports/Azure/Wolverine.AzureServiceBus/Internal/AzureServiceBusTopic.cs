@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
@@ -134,6 +135,8 @@ public class AzureServiceBusTopic : AzureServiceBusEndpoint, IMassTransitInterop
 
     public override bool IsPartitioned { get => Options.EnablePartitioning; }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2057",
+        Justification = "Type.GetType(typeName) on NServiceBus wire type names; AOT consumers preserve NSB message types via TrimmerRootDescriptor. See AOT guide.")]
     internal void UseNServiceBusInterop()
     {
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
