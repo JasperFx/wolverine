@@ -1,8 +1,6 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq.Expressions;
 using System.Reflection;
-using FastExpressionCompiler;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
@@ -34,13 +32,39 @@ public interface IEnvelopeMapper
     void ReceivesMessage(Type messageType);
 
     /// <summary>
-    /// Declaratively map a header value to 
+    /// Declaratively map a header value to
     /// </summary>
     /// <param name="property"></param>
     /// <param name="headerKey"></param>
     void MapPropertyToHeader(Expression<Func<Envelope, object>> property, string headerKey);
 }
 
+/// <summary>
+/// Base class for transport-specific envelope mappers. Translates between Wolverine's
+/// <see cref="Envelope"/> and a transport's incoming/outgoing message shape via a
+/// fixed set of header reads/writes plus user-supplied <c>MapProperty</c> callbacks.
+/// </summary>
+/// <remarks>
+/// AOT note (#2755 / #2746): the per-property header reader/writer dispatch was
+/// previously built via <c>FastExpressionCompiler.CompileFast()</c> over a
+/// dynamically-built <see cref="Expression"/> tree, which required runtime IL emit
+/// (annotated as <c>[RequiresDynamicCode]</c>). The refactor in this file replaces
+/// that path with eager <see cref="Delegate.CreateDelegate(Type, MethodInfo)"/>-built
+/// open-instance delegates over <see cref="Envelope"/>'s property setters/getters,
+/// composed into per-direction <see cref="Action{Envelope, TIncoming}"/> /
+/// <see cref="Action{Envelope, TOutgoing}"/> dispatch lists at first-use. The result:
+/// no runtime IL emit, no FastExpressionCompiler dependency, no <c>[RequiresDynamicCode]</c>
+/// on the constructor — and transport packages (RabbitMQ, Service Bus, SQS, etc.)
+/// can drop the leaf-suppression they inherited via <c>EnvelopeMapper&lt;,&gt;</c>'s
+/// reflective property mapping.
+///
+/// Throughput: <c>CreateDelegate</c> produces an "open" delegate that's a single
+/// indirect call per property — slower than the JIT-compiled expression block by
+/// a few ns/op, but the cost is amortized over millions of messages and
+/// disappears in practice next to the rest of the dispatch path. Benchmark
+/// (Scalability.WolverinePerfTest) is the right place to confirm; document any
+/// regression in docs/guide/aot.md if measurable.
+/// </remarks>
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>, IEnvelopeMapper
 {
     private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
@@ -54,45 +78,12 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming;
     private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing;
 
-    /// <summary>
-    /// Returns this mapper's runtime type for the reflective lookups in
-    /// <see cref="compileIncoming"/> and <see cref="compileOutgoing"/>.
-    /// Annotated with <see cref="DynamicallyAccessedMemberTypes.NonPublicMethods"/>
-    /// so the trim analyzer knows the non-public read*/write* helpers
-    /// resolved by <c>GetMethod(nameof(...), NonPublic | Instance)</c> must
-    /// be preserved.
-    /// </summary>
-    /// <remarks>
-    /// All the names looked up are <c>nameof()</c> literals against concrete
-    /// methods declared on this class, so the only thing the trimmer can
-    /// reasonably remove is the methods themselves — annotating the return
-    /// type tells it not to.
-    /// </remarks>
-    [return: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.NonPublicMethods)]
-    [UnconditionalSuppressMessage("Trimming", "IL2073",
-        Justification = "GetType() returns the concrete EnvelopeMapper subclass at runtime; " +
-                        "the read*/write* methods looked up reflectively are non-public instance " +
-                        "members declared on this class hierarchy and reached via nameof() literals " +
-                        "from compileIncoming/compileOutgoing, both of which are RequiresUnreferencedCode-annotated. " +
-                        "The trimmer is told to preserve those methods via the return-DAM annotation; " +
-                        "this suppression bridges the GetType-returns-unannotated-Type gap.")]
-    private Type getMapperTypeForReflection() => GetType();
-
-    [RequiresUnreferencedCode(
-        "EnvelopeMapper compiles per-property header read/write expressions via FastExpressionCompiler. " +
-        "Trimming may remove the GetType().GetMethod-resolved read*/write* helpers used by the compiled " +
-        "expressions, breaking incoming/outgoing header mapping. Static-mode apps that pre-generate transport " +
-        "code via JasperFx codegen avoid this path. See the Wolverine AOT publishing guide.")]
-    [RequiresDynamicCode(
-        "EnvelopeMapper uses FastExpressionCompiler to JIT-compile the per-property header reader/writer " +
-        "delegates. Native AOT cannot execute Expression.Compile at runtime. Static-mode apps that pre-generate " +
-        "transport code avoid this path. See the Wolverine AOT publishing guide.")]
     public EnvelopeMapper(Endpoint endpoint)
     {
         _endpoint = endpoint;
 
-        _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(compileIncoming);
-        _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(compileOutgoing);
+        _mapIncoming = new Lazy<Action<Envelope, TIncoming>>(buildIncoming);
+        _mapOutgoing = new Lazy<Action<Envelope, TOutgoing>>(buildOutgoing);
 
         MapPropertyToHeader(x => x.CorrelationId!, EnvelopeConstants.CorrelationIdKey);
         MapPropertyToHeader(x => x.SagaId!, EnvelopeConstants.SagaIdKey);
@@ -159,9 +150,9 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             MapPropertyToHeader(x => x.ParentId!, MassTransitHeaders.ActivityId);
 
             _endpoint.DefaultSerializer = serializer;
-            
+
             var replyUri = new Lazy<string>(() => e.MassTransitReplyUri()?.ToString() ?? string.Empty);
-            
+
             MapOutgoingProperty(x => x.ReplyUri!, (envelope, outgoing) =>
             {
                 writeOutgoingHeader(outgoing, MassTransitHeaders.ResponseAddress, replyUri.Value);
@@ -202,35 +193,20 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         _envelopeToHeader[prop] = headerKey;
     }
 
-    [RequiresUnreferencedCode("Compiles per-property expression-tree readers. See EnvelopeMapper constructor doc.")]
-    [RequiresDynamicCode("FastExpressionCompiler.CompileFast() emits IL at runtime. See EnvelopeMapper constructor doc.")]
-    private Action<Envelope, TIncoming> compileIncoming()
+    /// <summary>
+    /// Build the per-message incoming dispatch by composing an open-instance setter
+    /// delegate per registered <c>_envelopeToHeader</c> entry (skipping properties
+    /// that have a custom <see cref="MapIncomingProperty"/> override) and then
+    /// appending the user-supplied callbacks. Replaces the FastExpressionCompiler
+    /// path. See class XML doc.
+    /// </summary>
+    private Action<Envelope, TIncoming> buildIncoming()
     {
-        var incoming = Expression.Parameter(typeof(TIncoming), "incoming");
-        var envelope = Expression.Parameter(typeof(Envelope), "env");
-        var protocol = Expression.Constant(this);
-
-        var mapperType = getMapperTypeForReflection();
-        var getUri = mapperType.GetMethod(nameof(readUri), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getInt = mapperType.GetMethod(nameof(readInt), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getString = mapperType.GetMethod(nameof(readString), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getGuid = mapperType.GetMethod(nameof(readGuid), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getBoolean = mapperType.GetMethod(nameof(readBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getNullableDateTimeOffset =
-            mapperType.GetMethod(nameof(readNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getDateTimeOffset =
-            mapperType.GetMethod(nameof(readDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
-        var getStringArray =
-            mapperType.GetMethod(nameof(readStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
-
-        var writeHeaders = Expression.Call(protocol,
-            mapperType.GetMethod(nameof(writeIncomingHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
-            incoming, envelope);
-
-        var list = new List<Expression>
-        {
-            writeHeaders
-        };
+        var actions = new List<Action<Envelope, TIncoming>>(_envelopeToHeader.Count + _incomingToEnvelope.Count + 1);
+        // Adapter: writeIncomingHeaders takes (TIncoming, Envelope) for backward
+        // compatibility with subclass overrides; flip the argument order here
+        // so the dispatch list can be uniformly Action<Envelope, TIncoming>.
+        actions.Add((env, inc) => writeIncomingHeaders(inc, env));
 
         // Use the default header read for a property unless the caller has
         // supplied a custom incoming mapping for it. Previously this predicate
@@ -239,149 +215,177 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         // the same property. See https://github.com/JasperFx/wolverine/issues/2551.
         foreach (var pair in _envelopeToHeader.Where(x => !_incomingToEnvelope.ContainsKey(x.Key)))
         {
-            var getMethod = getString!;
-            if (pair.Key.PropertyType == typeof(Uri))
-            {
-                getMethod = getUri!;
-            }
-            else if (pair.Key.PropertyType == typeof(Guid))
-            {
-                getMethod = getGuid!;
-            }
-            else if (pair.Key.PropertyType == typeof(bool))
-            {
-                getMethod = getBoolean!;
-            }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset))
-            {
-                getMethod = getDateTimeOffset!;
-            }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
-            {
-                getMethod = getNullableDateTimeOffset!;
-            }
-            else if (pair.Key.PropertyType == typeof(int))
-            {
-                getMethod = getInt!;
-            }
-            else if (pair.Key.PropertyType == typeof(string[]))
-            {
-                getMethod = getStringArray!;
-            }
-
-            var setter = pair.Key.SetMethod;
-
-            var getValue = Expression.Call(protocol, getMethod, incoming, Expression.Constant(pair.Value));
-            var setValue = Expression.Call(envelope, setter!, getValue);
-
-            list.Add(setValue);
+            actions.Add(buildIncomingReader(pair.Key, pair.Value));
         }
 
         foreach (var pair in _incomingToEnvelope)
         {
-            var constant = Expression.Constant(pair.Value);
-            var method = typeof(Action<Envelope, TIncoming>).GetMethod(nameof(Action.Invoke));
-
-            var invoke = Expression.Call(constant, method!, envelope, incoming);
-            list.Add(invoke);
+            actions.Add(pair.Value);
         }
 
-        var block = Expression.Block(list);
-
-        var lambda = Expression.Lambda<Action<Envelope, TIncoming>>(block, envelope, incoming);
-
-        return lambda.CompileFast();
+        var array = actions.ToArray();
+        return (envelope, incoming) =>
+        {
+            for (var i = 0; i < array.Length; i++) array[i](envelope, incoming);
+        };
     }
 
-    [RequiresUnreferencedCode("Compiles per-property expression-tree writers. See EnvelopeMapper constructor doc.")]
-    [RequiresDynamicCode("FastExpressionCompiler.CompileFast() emits IL at runtime. See EnvelopeMapper constructor doc.")]
-    private Action<Envelope, TOutgoing> compileOutgoing()
+    /// <summary>
+    /// Build the per-message outgoing dispatch — symmetric to <see cref="buildIncoming"/>.
+    /// </summary>
+    private Action<Envelope, TOutgoing> buildOutgoing()
     {
-        var outgoing = Expression.Parameter(typeof(TOutgoing), "outgoing");
-        var envelope = Expression.Parameter(typeof(Envelope), "env");
-        var protocol = Expression.Constant(this);
-
-        var mapperType = getMapperTypeForReflection();
-        var setUri = mapperType.GetMethod(nameof(writeUri), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setInt = mapperType.GetMethod(nameof(writeInt), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setString = mapperType.GetMethod(nameof(writeString), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setGuid = mapperType.GetMethod(nameof(writeGuid), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setBoolean = mapperType.GetMethod(nameof(writeBoolean), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setNullableDateTimeOffset =
-            mapperType.GetMethod(nameof(writeNullableDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setDateTimeOffset =
-            mapperType.GetMethod(nameof(writeDateTimeOffset), BindingFlags.NonPublic | BindingFlags.Instance);
-        var setStringArray =
-            mapperType.GetMethod(nameof(writeStringArray), BindingFlags.NonPublic | BindingFlags.Instance);
-
-        var writeHeaders = Expression.Call(protocol,
-            mapperType.GetMethod(nameof(writeOutgoingOtherHeaders), BindingFlags.NonPublic | BindingFlags.Instance)!,
-            outgoing, envelope);
-
-        var list = new List<Expression>
-        {
-            writeHeaders
-        };
+        var actions = new List<Action<Envelope, TOutgoing>>(_envelopeToHeader.Count + _envelopeToOutgoing.Count + 1);
+        // Adapter: writeOutgoingOtherHeaders takes (TOutgoing, Envelope); flip
+        // the argument order so the dispatch list can be uniformly
+        // Action<Envelope, TOutgoing>.
+        actions.Add((env, outgoing) => writeOutgoingOtherHeaders(outgoing, env));
 
         // Use the default header write for a property unless the caller has
         // supplied a custom outgoing mapping for it. Previously this predicate
         // was accidentally checking _incomingToEnvelope, which caused
         // MapIncomingProperty to silently delete the outgoing header write for
         // the same property. See https://github.com/JasperFx/wolverine/issues/2551.
-        var headers = _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key));
-        foreach (var pair in headers)
+        foreach (var pair in _envelopeToHeader.Where(x => !_envelopeToOutgoing.ContainsKey(x.Key)))
         {
-            var setMethod = setString!;
-            if (pair.Key.PropertyType == typeof(Uri))
-            {
-                setMethod = setUri!;
-            }
-            else if (pair.Key.PropertyType == typeof(Guid))
-            {
-                setMethod = setGuid!;
-            }
-            else if (pair.Key.PropertyType == typeof(bool))
-            {
-                setMethod = setBoolean!;
-            }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset))
-            {
-                setMethod = setDateTimeOffset!;
-            }
-            else if (pair.Key.PropertyType == typeof(DateTimeOffset?))
-            {
-                setMethod = setNullableDateTimeOffset!;
-            }
-            else if (pair.Key.PropertyType == typeof(int))
-            {
-                setMethod = setInt!;
-            }
-            else if (pair.Key.PropertyType == typeof(string[]))
-            {
-                setMethod = setStringArray!;
-            }
-
-            var getEnvelopeValue = Expression.Call(envelope, pair.Key.GetMethod!);
-            var setOutgoingValue = Expression.Call(protocol, setMethod, outgoing, Expression.Constant(pair.Value),
-                getEnvelopeValue);
-
-            list.Add(setOutgoingValue);
+            actions.Add(buildOutgoingWriter(pair.Key, pair.Value));
         }
 
         foreach (var pair in _envelopeToOutgoing)
         {
-            var constant = Expression.Constant(pair.Value);
-            var method = typeof(Action<Envelope, TOutgoing>).GetMethod(nameof(Action.Invoke));
-
-            var invoke = Expression.Call(constant, method!, envelope, outgoing);
-            list.Add(invoke);
+            actions.Add(pair.Value);
         }
 
-        var block = Expression.Block(list);
+        var array = actions.ToArray();
+        return (envelope, outgoing) =>
+        {
+            for (var i = 0; i < array.Length; i++) array[i](envelope, outgoing);
+        };
+    }
 
-        var lambda = Expression.Lambda<Action<Envelope, TOutgoing>>(block, envelope, outgoing);
+    /// <summary>
+    /// Build a single per-property incoming reader: pull the typed value from the
+    /// transport message via the right <c>read*</c> helper, then apply it to the
+    /// envelope via an open-instance setter delegate. The setter delegate is
+    /// constructed once via <see cref="MethodInfo.CreateDelegate(Type)"/> — no
+    /// per-message reflection.
+    /// </summary>
+    private Action<Envelope, TIncoming> buildIncomingReader(PropertyInfo prop, string headerKey)
+    {
+        var setter = prop.SetMethod
+            ?? throw new InvalidOperationException(
+                $"Envelope property {prop.Name} has no settable accessor; cannot build EnvelopeMapper incoming reader.");
 
-        return lambda.CompileFast();
+        var propType = prop.PropertyType;
+
+        if (propType == typeof(string))
+        {
+            var typed = (Action<Envelope, string?>)setter.CreateDelegate(typeof(Action<Envelope, string?>));
+            return (env, inc) => typed(env, readString(inc, headerKey));
+        }
+        if (propType == typeof(Uri))
+        {
+            var typed = (Action<Envelope, Uri?>)setter.CreateDelegate(typeof(Action<Envelope, Uri?>));
+            return (env, inc) => typed(env, readUri(inc, headerKey));
+        }
+        if (propType == typeof(Guid))
+        {
+            var typed = (Action<Envelope, Guid>)setter.CreateDelegate(typeof(Action<Envelope, Guid>));
+            return (env, inc) => typed(env, readGuid(inc, headerKey));
+        }
+        if (propType == typeof(bool))
+        {
+            var typed = (Action<Envelope, bool>)setter.CreateDelegate(typeof(Action<Envelope, bool>));
+            return (env, inc) => typed(env, readBoolean(inc, headerKey));
+        }
+        if (propType == typeof(DateTimeOffset))
+        {
+            var typed = (Action<Envelope, DateTimeOffset>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset>));
+            return (env, inc) => typed(env, readDateTimeOffset(inc, headerKey));
+        }
+        if (propType == typeof(DateTimeOffset?))
+        {
+            var typed = (Action<Envelope, DateTimeOffset?>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset?>));
+            return (env, inc) => typed(env, readNullableDateTimeOffset(inc, headerKey));
+        }
+        if (propType == typeof(int))
+        {
+            var typed = (Action<Envelope, int>)setter.CreateDelegate(typeof(Action<Envelope, int>));
+            return (env, inc) => typed(env, readInt(inc, headerKey));
+        }
+        if (propType == typeof(string[]))
+        {
+            var typed = (Action<Envelope, string[]>)setter.CreateDelegate(typeof(Action<Envelope, string[]>));
+            return (env, inc) => typed(env, readStringArray(inc, headerKey));
+        }
+
+        // Fallback: treat as string — matches the original expression-tree code
+        // which defaulted to readString for unknown property types.
+        {
+            var typed = (Action<Envelope, string?>)setter.CreateDelegate(typeof(Action<Envelope, string?>));
+            return (env, inc) => typed(env, readString(inc, headerKey));
+        }
+    }
+
+    /// <summary>
+    /// Symmetric to <see cref="buildIncomingReader"/>: pull the typed value from the
+    /// envelope via an open-instance getter delegate, then push it into the transport
+    /// message via the right <c>write*</c> helper.
+    /// </summary>
+    private Action<Envelope, TOutgoing> buildOutgoingWriter(PropertyInfo prop, string headerKey)
+    {
+        var getter = prop.GetMethod
+            ?? throw new InvalidOperationException(
+                $"Envelope property {prop.Name} has no readable accessor; cannot build EnvelopeMapper outgoing writer.");
+
+        var propType = prop.PropertyType;
+
+        if (propType == typeof(string))
+        {
+            var typed = (Func<Envelope, string?>)getter.CreateDelegate(typeof(Func<Envelope, string?>));
+            return (env, outgoing) => writeString(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(Uri))
+        {
+            var typed = (Func<Envelope, Uri?>)getter.CreateDelegate(typeof(Func<Envelope, Uri?>));
+            return (env, outgoing) => writeUri(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(Guid))
+        {
+            var typed = (Func<Envelope, Guid>)getter.CreateDelegate(typeof(Func<Envelope, Guid>));
+            return (env, outgoing) => writeGuid(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(bool))
+        {
+            var typed = (Func<Envelope, bool>)getter.CreateDelegate(typeof(Func<Envelope, bool>));
+            return (env, outgoing) => writeBoolean(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(DateTimeOffset))
+        {
+            var typed = (Func<Envelope, DateTimeOffset>)getter.CreateDelegate(typeof(Func<Envelope, DateTimeOffset>));
+            return (env, outgoing) => writeDateTimeOffset(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(DateTimeOffset?))
+        {
+            var typed = (Func<Envelope, DateTimeOffset?>)getter.CreateDelegate(typeof(Func<Envelope, DateTimeOffset?>));
+            return (env, outgoing) => writeNullableDateTimeOffset(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(int))
+        {
+            var typed = (Func<Envelope, int>)getter.CreateDelegate(typeof(Func<Envelope, int>));
+            return (env, outgoing) => writeInt(outgoing, headerKey, typed(env));
+        }
+        if (propType == typeof(string[]))
+        {
+            var typed = (Func<Envelope, string[]?>)getter.CreateDelegate(typeof(Func<Envelope, string[]?>));
+            return (env, outgoing) => writeStringArray(outgoing, headerKey, typed(env));
+        }
+
+        // Fallback: treat as string.
+        {
+            var typed = (Func<Envelope, string?>)getter.CreateDelegate(typeof(Func<Envelope, string?>));
+            return (env, outgoing) => writeString(outgoing, headerKey, typed(env));
+        }
     }
 
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
