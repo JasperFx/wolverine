@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -70,6 +71,17 @@ public class FromQuerySpecificationAttribute : WolverineParameterAttribute
     /// </summary>
     public Type SpecificationType { get; }
 
+    // Modify is called at codegen time to construct the spec instance via
+    // GetProperties + ChoosePublicConstructor (GetConstructors below). Spec
+    // types are user-supplied via [FromQuerySpecification(typeof(MySpec))]
+    // and statically rooted by the attribute argument; the AOT-clean Static
+    // codegen path bakes the constructor/property resolution into pre-
+    // generated code, so this reflective walk only fires under Dynamic
+    // codegen (intentionally not AOT-clean per docs/guide/aot.md).
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Spec type from runtime-resolved SpecificationType; statically rooted via [FromQuerySpecification(typeof(...))]. Dynamic codegen path. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Spec type from runtime-resolved SpecificationType; statically rooted via [FromQuerySpecification(typeof(...))]. Dynamic codegen path. See AOT guide.")]
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
     {
@@ -127,6 +139,8 @@ public class FromQuerySpecificationAttribute : WolverineParameterAttribute
             "Did you forget to call IntegrateWithWolverine() (Marten) or UseEntityFrameworkCoreTransactions() (EF Core)?");
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Spec type from runtime-resolved SpecificationType; statically rooted via [FromQuerySpecification(typeof(...))]. Dynamic codegen path. See AOT guide.")]
     private static ConstructorInfo ChoosePublicConstructor(Type type)
     {
         var ctors = type.GetConstructors(BindingFlags.Public | BindingFlags.Instance);

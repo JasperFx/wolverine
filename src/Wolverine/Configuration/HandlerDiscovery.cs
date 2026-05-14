@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.Core.Reflection;
 using JasperFx.Core;
@@ -205,6 +206,14 @@ public sealed partial class HandlerDiscovery
         return this;
     }
 
+    // GetMethods on a runtime-resolved handler type from assembly scanning.
+    // Same chunk D / chunk G pattern: handler types come from
+    // Assembly.ExportedTypes walking, which is fundamentally not AOT-clean
+    // (the trimmer can't follow assembly scans). AOT-clean apps use
+    // TypeLoadMode.Static where the handler graph is pre-discovered into
+    // source-generated registration; this method is bypassed entirely.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Handler-type method walk from assembly scanning; AOT-clean apps run TypeLoadMode.Static with pre-generated handler registration. See AOT guide.")]
     private IEnumerable<(Type, MethodInfo)> actionsFromType(Type type)
     {
         return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static)

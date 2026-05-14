@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 
@@ -5,6 +6,12 @@ namespace Wolverine.Configuration;
 
 public sealed partial class HandlerDiscovery
 {
+    // GetMethods on a runtime-resolved candidate type used for diagnostic
+    // output (`dotnet run -- describe`). Same handler-discovery-as-assembly-
+    // scan story as actionsFromType (chunk Q sibling). Diagnostic-only path —
+    // not on dispatch hot path.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Diagnostic GetMethods walk over candidate handler type; AOT-clean apps use TypeLoadMode.Static. See AOT guide.")]
     internal string DescribeHandlerMatch(WolverineOptions options, Type candidateType)
     {
         if (candidateType.IsOpenGeneric())

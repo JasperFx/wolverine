@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -66,6 +67,16 @@ internal static class ExtensionLoader
         return _extensions;
     }
 
+    // Activator.CreateInstance(x!) on a Type-typed lambda parameter loses the
+    // [DAM(PublicConstructors)] annotation that's present on the source field
+    // (WolverineModuleAttribute.WolverineExtensionType — annotated in chunk G
+    // #2760). The IL flow analyzer can't track DAM through a Select projection.
+    // Suppression here is honest: the constructor preservation requirement IS
+    // met at the source, IL just can't see it. AOT-clean apps register
+    // extensions explicitly via WolverineOptions.AddExtension<T> and avoid
+    // assembly scanning entirely (see AOT publishing guide).
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "Constructor preservation requirement is met at the source (WolverineExtensionType is [DAM(PublicConstructors)]); IL flow analyzer can't see through Select projection. AOT consumers register explicitly via WolverineOptions.AddExtension<T>. See AOT guide.")]
     internal static void ApplyExtensions(WolverineOptions options)
     {
         var assemblies = FindExtensionAssemblies();
