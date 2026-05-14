@@ -1,4 +1,3 @@
-using System.Threading.Tasks.Dataflow;
 using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -46,7 +45,7 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
             ? sendWithCallbackHandlingAsync
             : sendWithExplicitHandlingAsync;
 
-        _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation, new ExecutionDataflowBlockOptions());
+        _sending = new RetryBlock<Envelope>(senderDelegate, logger, _settings.Cancellation);
     }
 
     public ISender Sender => _sender;
