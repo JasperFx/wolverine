@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -44,6 +45,16 @@ internal class SideEffectPolicy : IChainPolicy
         }
     }
 
+    // typeof(Applier<>).CloseAndBuildAs<IApplier>(effect.VariableType) closes the
+    // internal Applier<T : ISideEffectAware> shape over a runtime-resolved side-
+    // effect type so the generic static-virtual `BuildFrame` can be invoked.
+    // Same chunk D / I / J / K pattern: side effect types are user-supplied via
+    // handler return values and statically rooted by handler discovery; the
+    // closure fires only at codegen time, not on the per-message dispatch path.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Applier<TSideEffect> closed over runtime side-effect type at codegen time; user-supplied types are statically rooted via handler return-type discovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Applier<TSideEffect> closed over runtime side-effect type at codegen time; user-supplied types are statically rooted via handler return-type discovery. See AOT guide.")]
     private static void lookForSingularSideEffects(GenerationRules rules, IServiceContainer container, IChain chain)
     {
         var sideEffects = chain.ReturnVariablesOfType<ISideEffect>();
@@ -109,6 +120,12 @@ internal class SideEffectPolicy : IChainPolicy
         }, "Side Effect Policy");
     }
 
+    // GetMethod / GetInterfaces walk over a runtime-resolved ISideEffect
+    // implementation type. ISideEffect is opt-in: user types implement
+    // ISideEffect and are statically rooted via handler return-type discovery.
+    // Mirrors the IResponse.findMethod suppression in the same chunk R.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "ISideEffect is opt-in; user-supplied side-effect types are statically rooted via handler return-type discovery. See AOT guide.")]
     private static MethodInfo? findMethod(Type effectType)
     {
         return

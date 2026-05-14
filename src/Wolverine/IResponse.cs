@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -59,6 +60,12 @@ internal class ResponsePolicy : IHandlerPolicy
         }
     }
 
+    // GetMethod / GetInterfaces walk over a runtime-resolved IResponse
+    // implementation type. IResponse is opt-in: user types implement IResponse
+    // and are statically rooted via handler-return-type discovery. Same pattern
+    // as the saga / claim-check / partitioning suppressions in chunks K / P / Q.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "IResponse is opt-in; user-supplied response types are statically rooted via handler return-type discovery. See AOT guide.")]
     private MethodInfo findMethod(Type responseType)
     {
         return
