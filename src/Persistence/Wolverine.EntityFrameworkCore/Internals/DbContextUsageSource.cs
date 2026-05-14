@@ -25,7 +25,7 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// Resolves <typeparamref name="T"/> from a fresh request scope so the
 /// snapshot reads the same configuration the application would observe at
 /// runtime. Connection strings are intentionally NOT extracted from the
-/// underlying <see cref="DbContext"/> connection â€” only server / database /
+/// underlying <see cref="DbContext"/> connection — only server / database /
 /// schema metadata via <see cref="DatabaseDescriptor"/>. Multi-tenant
 /// contexts use the <see cref="TenantedDbContextUsageSource{T}"/> variant.
 /// </remarks>
@@ -57,7 +57,7 @@ public sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : Db
         }
         catch
         {
-            // Snapshot is best-effort â€” a transient configuration / DI failure
+            // Snapshot is best-effort — a transient configuration / DI failure
             // shouldn't poison the entire ServiceCapabilities read.
             return Task.FromResult<DbContextUsage?>(null);
         }
@@ -73,7 +73,7 @@ public sealed class DbContextUsageSource<T> : IDbContextUsageSource where T : Db
 /// </summary>
 /// <remarks>
 /// Connection strings are masked: the bridge reports server, database name,
-/// and tenant id only â€” never the raw connection string. The model on
+/// and tenant id only — never the raw connection string. The model on
 /// <c>BuildForMain</c> is identical to every per-tenant context's model
 /// (multi-tenancy operates at the connection level, not the model level), so
 /// per-entity descriptors and saga discovery only run once.
@@ -96,7 +96,7 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
             var builder = _services.GetRequiredService<IDbContextBuilder<T>>();
 
             // Tenancy-style discriminator from the registered IDbContextBuilder
-            // implementation type â€” keeps the badge in operator vocabulary.
+            // implementation type — keeps the badge in operator vocabulary.
             var tenancyStyle = builder.GetType().Name switch
             {
                 var n when n.StartsWith("TenantedDbContextBuilderByDbDataSource") => "DbDataSource",
@@ -108,7 +108,7 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
             // (representative of every tenant's context).
             var mainContext = (T)builder.BuildForMain();
 
-            // Per-tenant database descriptors â€” masked to server / database /
+            // Per-tenant database descriptors — masked to server / database /
             // schema only via DatabaseDescriptorFactory below.
             var tenantContexts = await builder.FindAllAsync();
             var tenantDatabases = tenantContexts
@@ -132,7 +132,7 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
                 }
                 else
                 {
-                    mainContext.Dispose();
+                    await mainContext.DisposeAsync();
                 }
             }
         }
@@ -144,7 +144,7 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
 }
 
 /// <summary>
-/// Shared snapshot-build logic â€” extracted so both the single-DB and
+/// Shared snapshot-build logic — extracted so both the single-DB and
 /// tenanted source paths produce identical descriptor shapes for everything
 /// that doesn't depend on the per-tenant fan-out.
 /// </summary>
@@ -166,7 +166,7 @@ internal static class DbContextUsageFactory
             WolverineEnabled = dbContext.IsWolverineEnabled(),
         };
 
-        // Database topology â€” server / database / schema / cardinality. For
+        // Database topology — server / database / schema / cardinality. For
         // multi-tenant contexts we already built the per-tenant list above;
         // for single-DB contexts we just describe the connection.
         if (tenantDatabases is { Count: > 0 })
@@ -192,7 +192,7 @@ internal static class DbContextUsageFactory
         }
 
         // Probe Wolverine integration shape from runtime services. These
-        // probes don't throw if Wolverine isn't fully wired â€” they return
+        // probes don't throw if Wolverine isn't fully wired — they return
         // sane defaults so untracked DbContexts get a meaningful snapshot.
         usage.TransactionMode = ProbeTransactionMode(services);
         usage.DomainEventsMode = ProbeDomainEventsMode(services, usage);
@@ -213,14 +213,14 @@ internal static class DbContextUsageFactory
             }
         }
 
-        // Flat OptionValues â€” change-tracker behaviour, sensitive-data flag.
+        // Flat OptionValues — change-tracker behaviour, sensitive-data flag.
         var changeTracker = dbContext.ChangeTracker;
         usage.AddValue(nameof(changeTracker.AutoDetectChangesEnabled), changeTracker.AutoDetectChangesEnabled);
         usage.AddValue(nameof(changeTracker.QueryTrackingBehavior), changeTracker.QueryTrackingBehavior.ToString());
         usage.AddValue(nameof(changeTracker.LazyLoadingEnabled), changeTracker.LazyLoadingEnabled);
 
         // Surface per-entity domain-event mappings for the PerEntityType mode
-        // â€” operators expanding the badge see exactly which entity publishes
+        // — operators expanding the badge see exactly which entity publishes
         // which event type, without having to crack open code.
         ApplyPerEntityScraperOptionValues(services, usage);
 
@@ -274,7 +274,7 @@ internal static class DbContextUsageFactory
 
         foreach (var fk in entityType.GetForeignKeys())
         {
-            // Skip self-referencing FKs â€” operator noise.
+            // Skip self-referencing FKs — operator noise.
             if (fk.PrincipalEntityType == entityType) continue;
 
             var targetTable = fk.PrincipalEntityType.GetTableName() ?? "";
@@ -401,7 +401,7 @@ internal static class DbContextUsageFactory
 /// <summary>
 /// Builds <see cref="DatabaseDescriptor"/> instances from a live
 /// <see cref="DbContext"/>'s connection metadata. Connection strings are
-/// never read directly â€” only the server, database name, and schema are
+/// never read directly — only the server, database name, and schema are
 /// surfaced so the snapshot is safe to ship to monitoring tools.
 /// </summary>
 internal static class DatabaseDescriptorFactory
@@ -418,7 +418,7 @@ internal static class DatabaseDescriptorFactory
         // providers. The connection string is parsed by the underlying
         // ADO.NET provider for server/database extraction; we never store
         // the raw connection string. Non-relational providers (InMemory)
-        // don't expose IRelationalConnection â€” for those we just leave
+        // don't expose IRelationalConnection — for those we just leave
         // server / database blank.
         try
         {
