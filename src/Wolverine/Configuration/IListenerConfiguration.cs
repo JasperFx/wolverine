@@ -1,5 +1,4 @@
-﻿using System.Threading.Tasks.Dataflow;
-using Wolverine.Runtime.Serialization;
+﻿using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Transports;
 
