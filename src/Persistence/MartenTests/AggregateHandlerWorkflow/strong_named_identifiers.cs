@@ -142,8 +142,8 @@ public static class StrongLetterHandler
 
     public static void Handle(
         IncrementBOnBoth command,
-        [WriteAggregate(nameof(IncrementBOnBoth.Id1))] IEventStream<StrongLetterAggregate> stream1,
-        [WriteAggregate(nameof(IncrementBOnBoth.Id2))] IEventStream<StrongLetterAggregate> stream2
+        [WriteAggregate(nameof(IncrementBOnBoth.Id1))] global::Marten.Events.IEventStream<StrongLetterAggregate> stream1,
+        [WriteAggregate(nameof(IncrementBOnBoth.Id2))] global::Marten.Events.IEventStream<StrongLetterAggregate> stream2
     )
     {
         stream1.AppendOne(new BEvent());

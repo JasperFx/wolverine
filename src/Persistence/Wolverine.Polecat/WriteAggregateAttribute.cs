@@ -55,7 +55,7 @@ public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequire
             aggregateType = aggregateType.GetInnerTypeFromNullable();
         }
 
-        if (aggregateType.Closes(typeof(global::Polecat.Events.IEventStream<>)))
+        if (aggregateType.Closes(typeof(IEventStream<>)))
         {
             aggregateType = aggregateType.GetGenericArguments()[0];
         }

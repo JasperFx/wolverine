@@ -380,7 +380,7 @@ public static class RaiseLetterHandler
         return (new Response { ACount = 5 }, events, messages);
     }
 
-    public static Response Handle(RaiseAAA command, IEventStream<LetterAggregate> stream)
+    public static Response Handle(RaiseAAA command, global::Marten.Events.IEventStream<LetterAggregate> stream)
     {
         stream.AppendOne(new AEvent());
         stream.AppendOne(new AEvent());

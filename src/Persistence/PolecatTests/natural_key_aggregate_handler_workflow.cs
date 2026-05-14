@@ -3,6 +3,7 @@ using JasperFx.Events.Projections;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Events.Aggregation;
+using JasperFx.Events;
 using Polecat.Events;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
