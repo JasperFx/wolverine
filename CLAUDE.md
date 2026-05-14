@@ -65,13 +65,22 @@ npm install && npm run docs
 - `wolverine.slnx` - Full solution
 - `wolverine_slim.slnx` - Lightweight variant
 
-> ⚠️ **Use `wolverine.slnx` (the full solution) when chasing compilation failures.**
+> ⚠️ **CI builds `wolverine.slnx` (the full solution)** — pinned in
+> `.nuke/parameters.json` (`"Solution": "wolverine.slnx"`) and consumed by
+> the `Compile` target in `build/Build.cs`.
+>
 > `wolverine_slim.slnx` omits several extension projects — most notably
 > `Wolverine.EntityFrameworkCore`, `Wolverine.Polecat`, `Wolverine.RavenDb`,
-> `Wolverine.Http.Newtonsoft`, and `Wolverine.FluentValidation`. A clean
-> slim build is **not sufficient evidence** that a tightening change to a
-> dependency (e.g. a new AOT/trim annotation in JasperFx) is clean across
-> Wolverine. Reproduce CI by building the full solution before pushing.
+> `Wolverine.Http.Newtonsoft`, `Wolverine.FluentValidation`,
+> `Wolverine.AzureServiceBus.Tests`, the `PolecatTests` / `MartenTests`
+> suites, and `WolverineWebApi`. A clean slim build is **not sufficient
+> evidence** that a tightening change to a dependency (e.g. a new AOT/trim
+> annotation in JasperFx, a type lift from Marten/Polecat into JasperFx.Events)
+> is clean across Wolverine. **Build `wolverine.slnx` before pushing**:
+>
+> ```bash
+> dotnet build wolverine.slnx -c Release
+> ```
 
 ## Key Entry Points
 
