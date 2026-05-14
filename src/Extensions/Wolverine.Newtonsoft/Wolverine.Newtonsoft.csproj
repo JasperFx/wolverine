@@ -8,6 +8,19 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Wolverine's NewtonsoftSerializer /
+          NewtonsoftEnvelopeSerializer wrappers themselves are AOT-clean —
+          they don't perform reflection over user types; that's done by
+          Newtonsoft.Json internally, and Newtonsoft already carries its own
+          [RequiresUnreferencedCode] disclaimers on its public Serialize /
+          Deserialize methods. The IL warnings only surface when user code
+          calls Newtonsoft against trim-unsafe types. Net result for this
+          package: zero leaf suppressions needed. AOT consumers should
+          prefer System.Text.Json (Wolverine's default since 5.0) and only
+          opt back into Newtonsoft if they need 5.x wire-format compat.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
@@ -17,5 +30,7 @@
     <ItemGroup>
         <PackageReference Include="Newtonsoft.Json" />
     </ItemGroup>
+
+    <Import Project="../../../Analysis.Build.props" />
 
 </Project>
