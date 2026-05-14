@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -36,6 +37,17 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return SagaChain.DetermineSagaIdMember(sagaType, sagaType)?.GetMemberType() ?? typeof(object);
     }
 
+    // The DetermineXxxFrame methods are codegen-time helpers that close
+    // InMemorySagaPersistor.{Load,Store,Delete}<T> over the runtime-resolved
+    // saga type to emit MethodCall frames. AOT-clean apps run pre-generated
+    // handler code in TypeLoadMode.Static where the closed instantiations are
+    // baked into the source-generated registration; the IPersistenceFrameProvider
+    // surface only fires under Dynamic codegen, which is intentionally not
+    // AOT-clean (see AOT publishing guide). Leaf suppression matches the
+    // chunk M (LoggerVariableSource) precedent for Dynamic-mode codegen
+    // helpers.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "InMemorySagaPersistor.Load<T> closed over runtime sagaType during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Load))!
@@ -52,6 +64,10 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return call;
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "InMemorySagaPersistor.Store<T> closed over runtime saga type during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2076",
+        Justification = "saga.VariableType is the user's saga type, statically rooted by handler discovery; PublicProperties requirement is satisfied via the generated frame's static type knowledge.")]
     public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Store))!
@@ -77,6 +93,8 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return DetermineInsertFrame(saga, container);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "InMemorySagaPersistor.Delete<T> closed over runtime saga type during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
         var method = typeof(InMemorySagaPersistor).GetMethod(nameof(InMemorySagaPersistor.Delete))!
@@ -106,6 +124,10 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return DetermineDeleteFrame(null!, variable, container);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "InMemorySagaPersistorStore<> closed over runtime entityType during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "InMemorySagaPersistorStore<> closed over runtime entityType during Dynamic codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
         var call = typeof(InMemorySagaPersistorStore<>).CloseAndBuildAs<MethodCall>(entityType);
@@ -116,7 +138,10 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
     public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 }
 
-internal class InMemorySagaPersistorStore<T> : MethodCall
+// T forwards the [DAM(PublicProperties)] requirement from the underlying
+// InMemorySagaPersistor.StoreAction<T> call so callers don't need to suppress
+// IL2091 at every InMemorySagaPersistorStore<entityType> closure site.
+internal class InMemorySagaPersistorStore<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T> : MethodCall
 {
     public InMemorySagaPersistorStore() : base(typeof(InMemorySagaPersistor), ReflectionHelper.GetMethod<InMemorySagaPersistor>(x => x.StoreAction(Storage.Nothing<T>()))!)
     {

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -194,6 +195,16 @@ public class SagaChain : HandlerChain
             sagaHandlerMethod != null ? [sagaHandlerMethod] : null);
     }
 
+    // GetFields() + GetProperties() walk over a runtime-resolved messageType.
+    // Saga handlers are an opt-in feature; the messageType is the user's command/
+    // event, statically rooted by handler discovery. Same chunk G / chunk K
+    // rationale: leaf suppression here keeps the IPersistenceFrameProvider /
+    // SagaChain surface free of [Requires*] cascade. AOT-clean apps preserve
+    // saga-message types via [DynamicallyAccessedMembers(PublicFields|PublicProperties)]
+    // on the message type or by registering them through the source-generated
+    // handler discovery path.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Saga handlers are opt-in; user-supplied saga-message types are statically rooted via handler discovery. See AOT guide.")]
     public static MemberInfo? DetermineSagaIdMember(Type messageType, Type sagaType, MethodInfo[]? sagaHandlerMethods)
     {
         var expectedSagaIdName = $"{sagaType.Name}Id";

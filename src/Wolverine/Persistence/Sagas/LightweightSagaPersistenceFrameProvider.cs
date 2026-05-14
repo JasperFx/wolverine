@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -9,11 +10,22 @@ namespace Wolverine.Persistence.Sagas;
 
 public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    // ApplyTransactionSupport closes EnrollAndFetchSagaStorageFrame<,> over
+    // (idType, sagaType) at codegen time; CanPersist closes ISagaStorage<,>
+    // over the same. AOT-clean apps in TypeLoadMode.Static run pre-generated
+    // frames where these closures are baked in by source-generated registration;
+    // the IPersistenceFrameProvider surface only fires under Dynamic codegen,
+    // which is intentionally not AOT-clean (see AOT publishing guide). Same
+    // chunk M / chunk P pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "EnrollAndFetchSagaStorageFrame<,> closed over runtime saga types during Dynamic codegen; AOT consumers run pre-generated frames. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "EnrollAndFetchSagaStorageFrame<,> closed over runtime saga types during Dynamic codegen; AOT consumers run pre-generated frames. See AOT guide.")]
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
     {
         // Idempotent here just in case
         if (chain.Middleware.OfType<ISagaStorageFrame>().Any()) return;
-        
+
         if (chain is SagaChain sagaChain)
         {
             var member = SagaChain.DetermineSagaIdMember(sagaChain.SagaType, sagaChain.SagaType);
@@ -22,12 +34,12 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
                 throw new InvalidOperationException(
                     $"Wolverine is unable to determine a public identity member for the Saga type {sagaChain.SagaType}");
             }
-            
+
             var idType = member.GetRawMemberType();
 
             var enrollFrame =
                 typeof(EnrollAndFetchSagaStorageFrame<,>).CloseAndBuildAs<Frame>(idType!, sagaChain.SagaType);
-            
+
             sagaChain.Middleware.Add(enrollFrame);
         }
     }
@@ -42,6 +54,8 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
         return chain is SagaChain || chain.ServiceDependencies(container, []).Any(x => x.Closes(typeof(ISagaStorage<,>)));
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "ISagaStorage<,> closed over runtime saga types during Dynamic codegen; AOT consumers register saga types explicitly. See AOT guide.")]
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         if (entityType.CanBeCastTo<Saga>())
@@ -52,7 +66,7 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
                 persistenceService = default!;
                 return false;
             }
-            
+
             persistenceService = typeof(ISagaStorage<,>).MakeGenericType(idType, entityType);
             return true;
         }

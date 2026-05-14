@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -23,11 +24,16 @@ public class LoadSagaOperation : AsyncFrame
 
     public Variable Saga { get; }
 
+    // ISagaStorage<,> closed over (sagaIdType, sagaType) at codegen time. Same
+    // Dynamic-mode rationale as the saga frame providers (chunk P) — AOT-clean
+    // apps run pre-generated frames in TypeLoadMode.Static.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "ISagaStorage<,> closed over runtime saga types during Dynamic codegen; AOT consumers register saga types explicitly. See AOT guide.")]
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _storage = chain.FindVariable(typeof(ISagaStorage<,>).MakeGenericType(_sagaId.VariableType, _sagaType));
         yield return _storage;
-        
+
         _cancellation = chain.FindVariable(typeof(CancellationToken));
         yield return _cancellation;
     }
