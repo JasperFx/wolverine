@@ -3,6 +3,15 @@
     <PropertyGroup>
         <PackageId>WolverineFx.AmazonSqs</PackageId>
         <Description>Amazon SQS transport for Wolverine applications</Description>
+        <!--
+          AOT-compatible (#2746). Three IL warning sites resolved:
+          - RawJsonSqsEnvelopeMapper.BuildMessageBody / ReadEnvelopeData:
+            leaf-suppressed (runtime-resolved user message types; AOT
+            consumers supply a JsonSerializerContext-backed mapper)
+          - SnsTopicEnvelopeMapper.ReadMessageBody: refactored to use
+            source-generated SnsMessageMetadataJsonContext (chunk N pattern)
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
