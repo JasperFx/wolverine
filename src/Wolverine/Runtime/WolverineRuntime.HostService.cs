@@ -148,6 +148,15 @@ public partial class WolverineRuntime
                     break;
             }
 
+            // Pre-populate the per-message-type router cache so the per-message
+            // RoutingFor() hot path never pays the first-occurrence
+            // CloseAndBuildAs over MessageRouter<T> / EmptyMessageRouter<T>.
+            // Must happen AFTER the messaging transports start (so external-
+            // transport route sources can resolve their endpoints), but
+            // before RuntimeIsFullyStarted observers run. AOT pillar follow-up
+            // #2769 (Option A).
+            PrepopulateRoutingCache(Handlers.AllMessageTypes());
+
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
 

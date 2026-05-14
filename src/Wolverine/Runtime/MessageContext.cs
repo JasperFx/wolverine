@@ -765,6 +765,43 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         return method;
     }
 
+    /// <summary>
+    /// Pre-populate the typed-enumerable cascader cache with the supplied message
+    /// types. Called from <see cref="Wolverine.Runtime.Handlers.HandlerGraph.Compile"/>
+    /// after handler-graph compilation so the per-message
+    /// <see cref="ResolveTypedAsyncEnumerableCascader"/> hot path never pays the
+    /// first-occurrence reflection cost (GetInterfaces walk + MakeGenericMethod).
+    /// Closes the AOT story for the cascading-async-enumerable resolution from
+    /// AOT pillar issue #2769 — at steady state the cache is pre-warmed and the
+    /// reflective miss path inside <see cref="ResolveTypedAsyncEnumerableCascader"/>
+    /// never fires.
+    /// </summary>
+    /// <remarks>
+    /// Tolerates duplicates; the underlying <c>ImHashMap.AddOrUpdate</c> is idempotent.
+    /// Tolerates a null source for defensive callers.
+    /// </remarks>
+    /// <param name="messageTypes">Message types to resolve and cache.</param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Pre-populating the typed-enumerable cache at handler-graph compile time; same suppression as ResolveTypedAsyncEnumerableCascader. See AOT guide / #2769.")]
+    internal static void PrepopulateCascadeCache(IEnumerable<Type>? messageTypes)
+    {
+        if (messageTypes == null) return;
+
+        foreach (var messageType in messageTypes)
+        {
+            if (messageType == null) continue;
+            if (_typedEnumerableCascadeMethods.TryFind(messageType, out _)) continue;
+
+            ResolveTypedAsyncEnumerableCascader(messageType);
+        }
+    }
+
     private static async Task CascadeTypedItemsAsync<T>(IAsyncEnumerable<T> source, MessageContext context)
     {
         await foreach (var item in source)

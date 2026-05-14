@@ -200,6 +200,42 @@ public partial class WolverineRuntime
         return routes;
     }
 
+    /// <summary>
+    /// Pre-populate the per-message-type router cache with the supplied message
+    /// types. Called from <see cref="WolverineRuntime.HostService.StartAsync"/>
+    /// after the handler graph has compiled and the route sources are wired up,
+    /// so the per-message <see cref="RoutingFor"/> hot path never pays the
+    /// first-occurrence reflection cost (CloseAndBuildAs over MessageRouter&lt;T&gt;
+    /// / EmptyMessageRouter&lt;T&gt;). Closes the AOT story for the per-message
+    /// router resolution from AOT pillar issue #2769.
+    /// </summary>
+    /// <remarks>
+    /// Tolerates duplicates and the typeof(object) sentinel; <see cref="RoutingFor"/>
+    /// itself filters those. <see cref="System.IsSystemMessageType"/>-flagged types
+    /// are still visited so framework-internal routers get cached too — the
+    /// cache lookup is the same dictionary either way.
+    /// </remarks>
+    /// <param name="messageTypes">Message types to resolve and cache.</param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Pre-populating the message-router cache at host startup; same suppression as RoutingFor. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Pre-populating the message-router cache at host startup; same suppression as RoutingFor. See AOT guide / #2769.")]
+    internal void PrepopulateRoutingCache(IEnumerable<Type>? messageTypes)
+    {
+        if (messageTypes == null) return;
+
+        foreach (var messageType in messageTypes)
+        {
+            if (messageType == null) continue;
+            if (messageType == typeof(object)) continue;
+            if (_messageTypeRouting.TryFind(messageType, out _)) continue;
+
+            // RoutingFor populates _messageTypeRouting as a side effect of the
+            // cache-miss path. Just drop the result.
+            _ = RoutingFor(messageType);
+        }
+    }
+
     internal ISendingAgent? DetermineLocalSendingAgent(Type messageType)
     {
         if (Options.LocalRouting.Assignments.TryGetValue(messageType, out var endpoint))

@@ -68,6 +68,40 @@ public class IntrinsicSerializer : IMessageSerializer
     {
         throw new NotSupportedException();
     }
+
+    /// <summary>
+    /// Pre-populate the per-message-type IntrinsicSerializer&lt;T&gt; cache with the
+    /// supplied message types that implement <see cref="ISerializable"/>. Called
+    /// from <see cref="Wolverine.Runtime.Handlers.HandlerGraph.Compile"/> after
+    /// handler-graph compilation so the per-message Write/ReadFromData hot path
+    /// never pays the first-occurrence CloseAndBuildAs over
+    /// IntrinsicSerializer&lt;T&gt;. Closes the AOT story for ISerializable
+    /// dispatch from AOT pillar issue #2769.
+    /// </summary>
+    /// <remarks>
+    /// Skips message types that don't implement ISerializable — those are served
+    /// by the default JSON serializer (or whatever the endpoint configures).
+    /// Tolerates duplicates and a null source.
+    /// </remarks>
+    /// <param name="messageTypes">Message types to resolve and cache.</param>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Pre-populating the IntrinsicSerializer<T> cache at handler-graph compile time; same suppression as Write/ReadFromData. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Pre-populating the IntrinsicSerializer<T> cache at handler-graph compile time; same suppression as Write/ReadFromData. See AOT guide / #2769.")]
+    internal void Prepopulate(IEnumerable<Type>? messageTypes)
+    {
+        if (messageTypes == null) return;
+
+        foreach (var messageType in messageTypes)
+        {
+            if (messageType == null) continue;
+            if (!messageType.CanBeCastTo(typeof(ISerializable))) continue;
+            if (_inner.TryFind(messageType, out _)) continue;
+
+            var serializer = typeof(IntrinsicSerializer<>).CloseAndBuildAs<IMessageSerializer>(messageType);
+            _inner = _inner.AddOrUpdate(messageType, serializer);
+        }
+    }
 }
 
 internal class IntrinsicSerializer<T> : IMessageSerializer where T : ISerializable
