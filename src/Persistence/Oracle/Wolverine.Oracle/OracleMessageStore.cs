@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;
 using JasperFx.Core;
@@ -53,6 +54,15 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     {
     }
 
+    // typeof(OracleSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(...) at L74
+    // closes the saga schema generic over (sagaType, idType) at startup. Same
+    // chunk D / I / J / K / AE / AF / AG / AH CloseAndBuildAs pattern: AOT-clean
+    // apps preserve saga state types via TrimmerRootDescriptor. Cross-link to
+    // #2769.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "OracleSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "OracleSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public OracleMessageStore(DatabaseSettings databaseSettings, DurabilitySettings durability,
         OracleDataSource dataSource, ILogger logger, IEnumerable<SagaTableDefinition> sagaTypes)
     {
