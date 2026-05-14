@@ -7,6 +7,15 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Single inherited-from-EnvelopeMapper<,>
+          reflective-property-mapping site in RabbitMqEnvelopeMapper ctor;
+          suppressed at the leaf to avoid cascading [Requires*] through
+          Endpoint.buildMapper (an abstract method overridden by every
+          transport-specific endpoint). All other reflective surface inherits
+          annotations from Wolverine.csproj (chunks A–U).
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
