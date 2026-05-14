@@ -135,7 +135,7 @@ public class batch_processing : IAsyncLifetime
     #endregion
 
 
-    public static async Task sample_registration_of_custom_message_batcher()
+    private static async Task sample_registration_of_custom_message_batcher()
     {
         #region sample_registering_a_custom_message_batcher
         using var host = await Host.CreateDefaultBuilder()

@@ -19,7 +19,9 @@ public interface IMartenDataRequirement
 /// </summary>
 /// <typeparam name="TDoc"></typeparam>
 /// <typeparam name="TId"></typeparam>
-public class DocumentExists<TDoc, TId> : IMartenDataRequirement where TDoc : class
+public class DocumentExists<TDoc, TId> : IMartenDataRequirement
+    where TDoc : class
+    where TId: notnull
 {
     private readonly TId _identity;
     private readonly string _missingMessage;
@@ -52,7 +54,9 @@ public class DocumentExists<TDoc, TId> : IMartenDataRequirement where TDoc : cla
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (!exists)
         {
             logger.LogWarning("Marten data requirement failure: {Message}", _missingMessage);
@@ -72,7 +76,9 @@ public class DocumentExists<TDoc, TId> : IMartenDataRequirement where TDoc : cla
 /// </summary>
 /// <typeparam name="TDoc"></typeparam>
 /// <typeparam name="TId"></typeparam>
-public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement where TDoc : class
+public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement
+    where TDoc : class
+    where TId : notnull
 {
     private readonly TId _identity;
     private readonly string _existsMessage;
@@ -105,7 +111,9 @@ public class DocumentDoesNotExist<TDoc, TId> : IMartenDataRequirement where TDoc
             throw new InvalidOperationException("This method was called before registering in a batch query");
         }
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         var exists = await _query;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
         if (exists)
         {
             logger.LogWarning("Marten data requirement failure: {Message}", _existsMessage);

@@ -18,8 +18,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class always_enforce_consistency_workflow : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -62,7 +62,9 @@ public class always_enforce_consistency_workflow : IAsyncLifetime
     private async Task<ConsistencyAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<ConsistencyAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<ConsistencyAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     [Fact]

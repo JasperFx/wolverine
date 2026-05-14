@@ -12,13 +12,12 @@ public class TripStarted : IDayEvent
 
 public class TripEnded : IDayEvent
 {
-    public string State { get; set; }
     public int Day { get; set; }
 }
 
 public class Arrival
 {
-    public string State { get; set; }
+    public required string State { get; init; }
 }
 
 public class TripAborted;
@@ -28,7 +27,7 @@ public class Trip
     public Guid Id { get; set; }
     public int EndedOn { get; set; }
     public double Traveled { get; set; }
-    public string State { get; set; }
+    public string State { get; set; } = string.Empty;
     public bool Active { get; set; }
     public int StartedOn { get; set; }
 }

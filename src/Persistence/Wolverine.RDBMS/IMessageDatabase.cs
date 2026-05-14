@@ -40,7 +40,9 @@ public static class MessageDatabaseExtensions
                 return true;
             }
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
             database = tenantedMessageStore.Source.FindAsync(context.TenantId!).GetAwaiter().GetResult() as IMessageDatabase;
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
             return database != null;
         }
 

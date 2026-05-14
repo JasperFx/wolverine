@@ -12,7 +12,7 @@ namespace PolecatTests.Sagas;
 
 public class multiple_sagas_for_same_message : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {

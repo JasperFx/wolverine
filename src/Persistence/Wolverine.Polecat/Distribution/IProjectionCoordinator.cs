@@ -9,7 +9,7 @@ namespace Wolverine.Polecat.Distribution;
 /// </summary>
 public interface IProjectionCoordinator : IHostedService
 {
-    IProjectionDaemon DaemonForMainDatabase();
+    ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync();
     ValueTask<IProjectionDaemon> DaemonForDatabase(string databaseIdentifier);
     ValueTask<IReadOnlyList<IProjectionDaemon>> AllDaemonsAsync();
     Task PauseAsync();

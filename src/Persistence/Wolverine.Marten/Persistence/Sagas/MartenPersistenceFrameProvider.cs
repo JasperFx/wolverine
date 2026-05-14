@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -57,7 +58,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         // marten.savechanges.start / marten.savechanges.finished ActivityEvents so
         // operators can profile slow transactional commits via OTel without paying
         // the cost when the flag is off (the ActivityEvent calls aren't generated
-        // at all in that case — same no-runtime-if/then design as GH-2694).
+        // at all in that case - same no-runtime-if/then design as GH-2694).
         var options = container.GetInstance<WolverineOptions>();
         if (options?.Tracking.OutboxDiagnosticsEnabled == true)
         {
@@ -147,8 +148,8 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
     public bool TryBuildFetchSpecificationFrame(
         Variable specVariable,
         IServiceContainer container,
-        out Frame? frame,
-        out Variable? result)
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
     {
         if (specVariable is null)
         {
@@ -164,7 +165,7 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
         var batchPlan = specType.FindInterfaceThatCloses(typeof(global::Marten.IBatchQueryPlan<>));
         var queryPlan = specType.FindInterfaceThatCloses(typeof(global::Marten.IQueryPlan<>));
 
-        // Namespace guard — only Marten's own interfaces match (user types in other
+        // Namespace guard - only Marten's own interfaces match (user types in other
         // namespaces that happen to be named the same won't match).
         var isMartenCompiled = compiled is not null
                                && compiled.Namespace == typeof(global::Marten.Linq.ICompiledQuery<,>).Namespace;

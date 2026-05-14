@@ -22,10 +22,10 @@ public class PcSodaHandler
 
 public class PcHappyMealOrder
 {
-    public string Drink { get; set; }
-    public string Toy { get; set; }
-    public string SideDish { get; set; }
-    public string MainDish { get; set; }
+    public string? Drink { get; set; }
+    public string? Toy { get; set; }
+    public string? SideDish { get; set; }
+    public string? MainDish { get; set; }
 }
 
 public class PcToyOnTray
@@ -43,7 +43,7 @@ public class PcHappyMealSaga3 : Wolverine.Saga
     private int _orderIdSequence;
 
     public int Id { get; set; }
-    public PcHappyMealOrder Order { get; set; }
+    public PcHappyMealOrder? Order { get; set; }
 
     public bool DrinkReady { get; set; }
     public bool ToyReady { get; set; }

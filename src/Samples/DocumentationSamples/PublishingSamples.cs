@@ -11,7 +11,7 @@ namespace DocumentationSamples;
 
 public class PublishingSamples
 {
-    public static async Task LocalQueuesApp()
+    private static async Task LocalQueuesApp()
     {
         #region sample_localqueuesapp
         using var host = await Host.CreateDefaultBuilder()
@@ -41,7 +41,7 @@ public class PublishingSamples
         #endregion
     }
 
-    public static async Task sending_to_endpoint_by_name()
+    private static async Task sending_to_endpoint_by_name()
     {
         #region sample_sending_to_endpoint_by_name
         using var host = await Host.CreateDefaultBuilder()
@@ -80,7 +80,7 @@ public class PublishingSamples
 
     #region sample_IServiceBus.Invoke
 
-    public Task Invoke(IMessageContext bus)
+    private Task Invoke(IMessageContext bus)
     {
         var @event = new InvoiceCreated
         {
@@ -107,7 +107,7 @@ public class PublishingSamples
     #endregion
 
     #region sample_invoke_with_response
-    public async Task InvokeWithResponse(IMessageContext bus)
+    private async Task InvokeWithResponse(IMessageContext bus)
     {
         var answer = await bus.InvokeAsync<Answer>(new Question());
     }
@@ -151,7 +151,7 @@ public class PublishingSamples
     #endregion
 
     #region sample_send_delayed_message
-    public async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
+    private async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
     {
         var message = new ValidateInvoiceIsNotLate
         {
@@ -169,7 +169,7 @@ public class PublishingSamples
     #endregion
 
     #region sample_schedule_job_locally
-    public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
+    private async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
     {
         var message = new ValidateInvoiceIsNotLate
         {
@@ -242,7 +242,7 @@ public class PublishingSamples
 
 
     #region sample_send_message_to_specific_destination
-    public async Task SendMessageToSpecificDestination(IMessageContext bus)
+    private async Task SendMessageToSpecificDestination(IMessageContext bus)
     {
         var @event = new InvoiceCreated
         {

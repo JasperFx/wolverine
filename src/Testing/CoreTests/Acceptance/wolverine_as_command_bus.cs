@@ -1,44 +1,20 @@
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.ErrorHandling;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRuntime>
+public class wolverine_as_command_bus : IntegrationContext
 {
-    public readonly IList<Exception> Exceptions = new List<Exception>();
     private readonly WorkTracker theTracker = new();
-
 
     public wolverine_as_command_bus(DefaultApp @default) : base(@default)
     {
-    }
-
-    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-        Func<TState, Exception?, string> formatter)
-    {
-        if (exception != null)
-        {
-            Exceptions.Add(exception);
-        }
-    }
-
-    public bool IsEnabled(LogLevel logLevel)
-    {
-        return true;
-    }
-
-    public IDisposable BeginScope<TState>(TState state) where TState : notnull
-    {
-        return Substitute.For<IDisposable>();
     }
 
     private void configure()
@@ -49,8 +25,6 @@ public class wolverine_as_command_bus : IntegrationContext, ILogger<WolverineRun
 
             opts.Publish(x => x.MessagesFromAssemblyContaining<Message1>()
                 .ToLocalQueue("cascading"));
-
-            opts.Services.AddSingleton<ILogger<WolverineRuntime>>(this);
 
             opts.Policies.OnException<DivideByZeroException>().Requeue();
 

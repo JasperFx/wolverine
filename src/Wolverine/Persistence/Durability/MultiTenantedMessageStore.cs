@@ -349,7 +349,9 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public void Initialize(IWolverineRuntime runtime)
     {
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         InitializeAsync(runtime).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
     }
 
     public bool HasDisposed { get; private set; }
@@ -360,8 +362,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
     public INodeAgentPersistence Nodes => this;
 
     // Multi-tenant store delegates dynamic-listener registration to the main
-    // store. Listener URIs aren't tenant-scoped — registering the same URI
-    // across tenants would create duplicate listeners — so the master is
+    // store. Listener URIs aren't tenant-scoped - registering the same URI
+    // across tenants would create duplicate listeners - so the master is
     // authoritative for the registry.
     public IListenerStore Listeners => Main.Listeners;
 

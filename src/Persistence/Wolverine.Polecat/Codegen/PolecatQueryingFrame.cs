@@ -62,8 +62,8 @@ internal class PolecatBatchingPolicy : IMethodPreCompilationPolicy
 
 internal class PolecatBatchFrame : AsyncFrame
 {
-    private Variable _session;
-    private Variable _cancellation;
+    private Variable _session = null!;
+    private Variable _cancellation = null!;
 
     private List<IBatchableFrame> _operations = new();
 

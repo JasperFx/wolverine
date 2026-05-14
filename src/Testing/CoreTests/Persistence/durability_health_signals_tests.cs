@@ -9,7 +9,7 @@ using Xunit;
 namespace CoreTests.Persistence;
 
 // Unit tests for the per-agent health-signal aggregator added in #2646.
-// The class is shared by the RDBMS, RavenDb, and CosmosDb durability agents — each
+// The class is shared by the RDBMS, RavenDb, and CosmosDb durability agents - each
 // owns one instance and feeds it RecordPollSuccess/RecordPollFailure from its
 // background loop. CheckHealthAsync calls Evaluate(...) with a fresh PersistedCounts
 // snapshot to fold in dead-letter-growth + stuck-poller signals on top of the
@@ -36,7 +36,7 @@ public class durability_health_signals_tests
         var result = signals.Evaluate(AgentStatus.Stopped, AgentUri, counts: null, DateTimeOffset.UtcNow);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("Stopped");
+        result.Description!.ShouldContain("Stopped");
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class durability_health_signals_tests
 
         var degraded = signals.Evaluate(AgentStatus.Running, AgentUri, counts: null, DateTimeOffset.UtcNow);
         degraded.Status.ShouldBe(HealthStatus.Degraded);
-        degraded.Description.ShouldContain("simulated DB timeout");
+        degraded.Description!.ShouldContain("simulated DB timeout");
 
         signals.RecordPollSuccess();
 
@@ -79,8 +79,8 @@ public class durability_health_signals_tests
         var result = signals.Evaluate(AgentStatus.Running, AgentUri, counts: null, DateTimeOffset.UtcNow);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("3 consecutive cycles");
-        result.Description.ShouldContain("third strike");
+        result.Description!.ShouldContain("3 consecutive cycles");
+        result.Description!.ShouldContain("third strike");
     }
 
     [Fact]
@@ -92,12 +92,12 @@ public class durability_health_signals_tests
         // Baseline: 0 dead letters
         signals.Evaluate(AgentStatus.Running, AgentUri, new PersistedCounts(), t0);
 
-        // 1 minute later: +200 dead letters → 200/min, above the 100/min threshold
+        // 1 minute later: +200 dead letters -> 200/min, above the 100/min threshold
         var grown = new PersistedCounts { DeadLetter = 200 };
         var result = signals.Evaluate(AgentStatus.Running, AgentUri, grown, t0.AddMinutes(1));
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("Dead-letter queue grew by 200");
+        result.Description!.ShouldContain("Dead-letter queue grew by 200");
     }
 
     [Fact]
@@ -130,8 +130,8 @@ public class durability_health_signals_tests
 
         var result = signals.Evaluate(AgentStatus.Running, AgentUri, stuck, t0.AddSeconds(30));
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("Recovery batch may be stuck");
-        result.Description.ShouldContain("75 pending");
+        result.Description!.ShouldContain("Recovery batch may be stuck");
+        result.Description!.ShouldContain("75 pending");
     }
 
     [Fact]
@@ -168,8 +168,8 @@ public class durability_health_signals_tests
         var result = signals.Evaluate(AgentStatus.Running, AgentUri, pending, t0.AddSeconds(30));
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("Scheduled-job poller may be stuck");
-        result.Description.ShouldContain("42 scheduled");
+        result.Description!.ShouldContain("Scheduled-job poller may be stuck");
+        result.Description!.ShouldContain("42 scheduled");
     }
 
     [Fact]
@@ -200,8 +200,8 @@ public class durability_health_signals_tests
             new PersistedCounts { Incoming = 50, DeadLetter = 100 }, t0.AddMinutes(2));
 
         result.Status.ShouldBe(HealthStatus.Degraded);
-        result.Description.ShouldContain("Last persistence poll failed");
-        result.Description.ShouldContain("Recovery batch may be stuck");
+        result.Description!.ShouldContain("Last persistence poll failed");
+        result.Description!.ShouldContain("Recovery batch may be stuck");
     }
 
     [Fact]

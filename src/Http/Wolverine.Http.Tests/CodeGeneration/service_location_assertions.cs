@@ -40,7 +40,7 @@ public class service_location_assertions
 
     public interface IServiceGatewayUsingRefit;
 
-    public static void configure_with_always_use_service_locator()
+    private static void configure_with_always_use_service_locator()
     {
         #region sample_always_use_service_location
         var builder = Host.CreateApplicationBuilder();

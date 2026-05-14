@@ -65,7 +65,8 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
         {
             if (receiverTask.IsCompletedSuccessfully)
             {
-                await receiverTask.Result.StopAsync();
+                var host = await receiverTask;
+                await host.StopAsync();
             }
         }
     }

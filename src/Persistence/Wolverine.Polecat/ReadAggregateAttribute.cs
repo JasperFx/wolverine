@@ -33,7 +33,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
     }
 
     public bool Required { get; set; } = true;
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -56,7 +56,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        frame.Aggregate.OverrideName(parameter.Name);
+        frame.Aggregate.OverrideName(parameter.Name!);
 
         Variable returnVariable;
         if (Required)
@@ -72,7 +72,7 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
             returnVariable = frame.Aggregate;
         }
 
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, returnVariable);
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
     }
@@ -108,8 +108,8 @@ public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirem
 internal class FetchLatestAggregateFrame : AsyncFrame
 {
     private readonly Variable _identity;
-    private Variable _session;
-    private Variable _token;
+    private Variable _session = null!;
+    private Variable _token = null!;
 
     public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
     {

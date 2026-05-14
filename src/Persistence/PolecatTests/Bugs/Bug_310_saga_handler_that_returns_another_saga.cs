@@ -13,7 +13,7 @@ namespace PolecatTests.Bugs;
 
 public class Bug_310_saga_handler_that_returns_another_saga : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -53,10 +53,10 @@ public class Bug_310_saga_handler_that_returns_another_saga : IAsyncLifetime
         await using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 
         var sagaA = await session.LoadAsync<PcSagaA>(id);
-        sagaA.One.ShouldBeTrue();
+        sagaA!.One.ShouldBeTrue();
 
         var sagaB = await session.LoadAsync<PcSagaB>(id);
-        sagaB.Two.ShouldBeTrue();
+        sagaB!.Two.ShouldBeTrue();
         sagaB.Three.ShouldBeTrue();
     }
 }

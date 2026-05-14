@@ -91,10 +91,10 @@ public class subscriptions_end_to_end
         await daemon.WaitForNonStaleData(60.Seconds());
 
         await using var query = store.QuerySession();
-        (await query.LoadAsync<PcEventTotals>("A")).Count.ShouldBe(6);
-        (await query.LoadAsync<PcEventTotals>("B")).Count.ShouldBe(7);
-        (await query.LoadAsync<PcEventTotals>("C")).Count.ShouldBe(5);
-        (await query.LoadAsync<PcEventTotals>("D")).Count.ShouldBe(6);
+        (await query.LoadAsync<PcEventTotals>("A"))!.Count.ShouldBe(6);
+        (await query.LoadAsync<PcEventTotals>("B"))!.Count.ShouldBe(7);
+        (await query.LoadAsync<PcEventTotals>("C"))!.Count.ShouldBe(5);
+        (await query.LoadAsync<PcEventTotals>("D"))!.Count.ShouldBe(6);
     }
 
     [Fact]
@@ -142,8 +142,8 @@ public class subscriptions_end_to_end
         await daemon.WaitForNonStaleData(60.Seconds());
 
         await using var query = store.QuerySession();
-        (await query.LoadAsync<PcEventTotals>("A")).Count.ShouldBe(6);
-        (await query.LoadAsync<PcEventTotals>("B")).Count.ShouldBe(7);
+        (await query.LoadAsync<PcEventTotals>("A"))!.Count.ShouldBe(6);
+        (await query.LoadAsync<PcEventTotals>("B"))!.Count.ShouldBe(7);
         (await query.LoadAsync<PcEventTotals>("C")).ShouldBeNull();
         (await query.LoadAsync<PcEventTotals>("D")).ShouldBeNull();
     }
@@ -233,7 +233,7 @@ public class subscriptions_end_to_end
         PcTotalsHandler.Handled.ShouldBe(['a', 'b', 'a', 'a', 'a', 'a', 'b', 'b']);
     }
 
-    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions — same failure in MartenSubscriptionTests")]
+    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions - same failure in MartenSubscriptionTests")]
     public async Task use_unfiltered_publishing_subscription()
     {
         const string schema = "pc_subscriptions_pub";
@@ -285,7 +285,7 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<IEvent<PcDEvent>>().Count().ShouldBe(6);
     }
 
-    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions — same failure in MartenSubscriptionTests")]
+    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions - same failure in MartenSubscriptionTests")]
     public async Task use_filtered_publishing_subscription()
     {
         const string schema = "pc_subscriptions_pub_filt";
@@ -556,7 +556,7 @@ public class PcTestBatchSubscription : BatchSubscription
 
 public class PcEventTotals
 {
-    public string Id { get; set; }
+    public required string Id { get; init; }
     public int Count { get; set; }
 }
 

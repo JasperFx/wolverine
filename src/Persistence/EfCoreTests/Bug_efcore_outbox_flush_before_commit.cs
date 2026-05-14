@@ -31,14 +31,14 @@ namespace EfCoreTests.Bugs;
 /// On the HTTP side the bug manifests because <c>HttpChain.ShouldFlushOutgoingMessages</c>
 /// returns true, which combines with <see cref="Wolverine.Configuration.IChain.RequiresOutbox"/>
 /// to add a <see cref="Wolverine.Persistence.FlushOutgoingMessages"/> postprocessor in
-/// <see cref="Wolverine.EntityFrameworkCore.Codegen.EFCorePersistenceFrameProvider.ApplyTransactionSupport"/>.
+/// <see cref="Wolverine.EntityFrameworkCore.Codegen.EFCorePersistenceFrameProvider.ApplyTransactionSupport(Wolverine.Configuration.IChain, IServiceContainer)"/>.
 /// In Eager mode that postprocessor runs BEFORE <c>EnrollDbContextInTransaction</c>'s
 /// wrapping <c>efCoreEnvelopeTransaction.CommitAsync(...)</c> and breaks outbox ordering
-/// — the outgoing message is sent through the transport sender before the EF Core
+/// - the outgoing message is sent through the transport sender before the EF Core
 /// transaction (which holds the wolverine_outgoing row) commits.
 ///
 /// On the message-handler side the bug doesn't currently manifest because
-/// <c>HandlerChain.ShouldFlushOutgoingMessages</c> returns false — the second condition
+/// <c>HandlerChain.ShouldFlushOutgoingMessages</c> returns false - the second condition
 /// short-circuits the postprocessor add. Tests in this class cover both transaction
 /// modes (Eager + Lightweight) on the handler side, both for codegen shape (the
 /// FlushOutgoingMessages postprocessor must NOT be added on handlers regardless of
@@ -80,7 +80,7 @@ public class Bug_efcore_outbox_flush_before_commit
                     // Promotes the local queue receiving OutboxBugItemCreated to a
                     // DurableLocalQueue. That makes envelope.Sender.IsDurable=true, which
                     // is the gate that causes Envelope.PersistAsync to write the
-                    // wolverine_outgoing row in the first place — without it the cleanup
+                    // wolverine_outgoing row in the first place - without it the cleanup
                     // assertions are vacuous.
                     opts.Policies.UseDurableLocalQueues();
                 }
@@ -105,7 +105,7 @@ public class Bug_efcore_outbox_flush_before_commit
             .As<MessageHandler>()!
             .Chain!;
 
-        // Direct postprocessor inspection — doesn't depend on dynamic vs. static
+        // Direct postprocessor inspection - doesn't depend on dynamic vs. static
         // codegen mode. In Eager mode EnrollDbContextInTransaction.CommitAsync is the
         // sole legitimate flush trigger; in Lightweight mode the message pipeline's
         // natural end-of-handler flush takes over after SaveChangesAsync commits.
@@ -136,7 +136,7 @@ public class Bug_efcore_outbox_flush_before_commit
     ///     <c>IMessageOutbox.DeleteOutgoingAsync</c>.
     ///
     /// Run for both transaction modes per <c>UseEntityFrameworkCoreTransactions</c>'s
-    /// supported settings — without explicit coverage of both, a fix targeted at one
+    /// supported settings - without explicit coverage of both, a fix targeted at one
     /// mode could silently regress the other.
     /// </summary>
     [Theory]
@@ -148,7 +148,7 @@ public class Bug_efcore_outbox_flush_before_commit
         using var host = await buildHostAsync(schema, mode, useDurableLocalQueues: true);
         var store = host.Services.GetRequiredService<IMessageStore>();
 
-        // Sanity check on the starting state — ResetState should have left the outgoing
+        // Sanity check on the starting state - ResetState should have left the outgoing
         // table empty, but be explicit so a misconfiguration doesn't make the post-test
         // assertion accidentally pass.
         var beforeCounts = await store.Admin.FetchCountsAsync();
@@ -165,7 +165,7 @@ public class Bug_efcore_outbox_flush_before_commit
 
         // The cleanup is performed via a separate Npgsql connection inside
         // DurableSendingAgent's RetryBlock, so a brief poll covers the case where the
-        // delete batch hasn't drained yet — without making the failure flake on a
+        // delete batch hasn't drained yet - without making the failure flake on a
         // one-off slow CI tick.
         var afterCounts = await pollOutgoingCountAsync(store, expected: 0);
         _output.WriteLine($"[{mode}] final wolverine_outgoing count: {afterCounts.Outgoing}");

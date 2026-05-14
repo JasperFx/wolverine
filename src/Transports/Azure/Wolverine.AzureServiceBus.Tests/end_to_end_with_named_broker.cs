@@ -21,7 +21,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
 
     public async Task DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
 
-    public static async Task bootstrap_with_named_brokers()
+    private static async Task bootstrap_with_named_brokers()
     {
         #region sample_using_named_azure_service_bus_broker
         var builder = Host.CreateApplicationBuilder();
@@ -49,52 +49,6 @@ public class end_to_end_with_named_broker : IAsyncLifetime
     public end_to_end_with_named_broker(ITestOutputHelper output)
     {
         _output = output;
-    }
-    
-    //[Fact]
-    public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers()
-    {
-        var queueName = Guid.NewGuid().ToString();
-        using var publisher = WolverineHost.For(opts =>
-        {
-            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision().AutoPurgeOnStartup();
-
-            opts.PublishAllMessages()
-                .ToAzureServiceBusQueueOnNamedBroker(theName, queueName)
-                .SendInline();
-
-            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
-
-
-        using var receiver = WolverineHost.For(opts =>
-        {
-            opts.AddNamedAzureServiceBusBroker(theName, Servers.AzureServiceBusConnectionString).SystemQueuesAreEnabled(false).AutoProvision();
-
-            opts.ListenToAzureServiceBusQueueOnNamedBroker(theName, queueName).ProcessInline().Named(queueName);
-            opts.Services.AddSingleton<ColorHistory>();
-
-            opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        });
-
-        await receiver.ResetResourceState();
-
-        for (int i = 0; i < 10; i++)
-        {
-            await publisher.SendAsync(new ColorChosen { Name = "blue" });
-        }
-
-        var cancellation = new CancellationTokenSource(30.Seconds());
-        var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<AzureServiceBusQueue>();
-
-        while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
-        {
-            await Task.Delay(250.Milliseconds(), cancellation.Token);
-        }
-
-        cancellation.Token.ThrowIfCancellationRequested();
-
-
     }
 
     [Fact]

@@ -69,7 +69,7 @@ internal class CreateDocumentSessionFrame : Frame
             writer.BlankLine();
             writer.WriteComment("This message handler is configured for Eager idempotency checks");
 
-            writer.Write($"await {_context.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.Usage});");
+            writer.Write($"await {_context!.Usage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation!.Usage});");
         }
 
         Next?.GenerateCode(method, writer);

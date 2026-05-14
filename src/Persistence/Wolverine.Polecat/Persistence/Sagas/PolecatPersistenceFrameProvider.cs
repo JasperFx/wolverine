@@ -105,7 +105,7 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineStorageActionFrame(Type entityType, Variable action, IServiceContainer container)
     {
-        var method = typeof(PolecatStorageActionApplier).GetMethod("ApplyAction")
+        var method = typeof(PolecatStorageActionApplier).GetMethod("ApplyAction")!
             .MakeGenericMethod(entityType);
 
         var call = new MethodCall(typeof(PolecatStorageActionApplier), method);
@@ -124,14 +124,14 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
 public static class PolecatStorageActionApplier
 {
-    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action)
+    public static void ApplyAction<T>(IDocumentSession session, IStorageAction<T> action) where T : notnull
     {
         if (action.Entity == null) return;
 
         switch (action.Action)
         {
             case StorageAction.Delete:
-                session.Delete(action.Entity!);
+                session.Delete(action.Entity);
                 break;
             case StorageAction.Insert:
                 session.Insert(action.Entity);
@@ -148,7 +148,7 @@ public static class PolecatStorageActionApplier
 
 internal class DocumentSessionSaveChanges : MethodCall
 {
-    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default)))
+    public DocumentSessionSaveChanges() : base(typeof(IDocumentSession), ReflectionHelper.GetMethod<IDocumentSession>(x => x.SaveChangesAsync(default))!)
     {
         CommentText = "Save all pending changes to this Polecat session";
     }

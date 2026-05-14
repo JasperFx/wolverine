@@ -11,7 +11,7 @@ using Wolverine.Transports;
 namespace Wolverine.Oracle.Transport;
 
 /// <summary>
-/// Oracle clone of <see cref="Wolverine.RDBMS.Transport.DatabaseControlListener"/> — polls the
+/// Oracle clone of <see cref="Wolverine.RDBMS.Transport.DatabaseControlListener"/> - polls the
 /// Oracle control queue directly (rather than going through DatabaseOperationBatch which uses
 /// <c>@param</c> placeholders and Guid-as-DbParameter values that Oracle rejects). Cleans up
 /// expired messages on each tick. See #2622.
@@ -94,7 +94,9 @@ internal class OracleControlListener : IListener
         {
             try
             {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
                 await _receivingLoop;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
             }
             catch (OperationCanceledException)
             {
@@ -140,7 +142,7 @@ internal class OracleControlListener : IListener
 
             // 3) Remove what we delivered. Failures land on the retry block via CompleteAsync,
             //    matching DatabaseControlTransport's batched-delete semantics, but doing it here
-            //    inline keeps the implementation simple — the volume is small.
+            //    inline keeps the implementation simple - the volume is small.
             await _transport.DeleteEnvelopesAsync(envelopes, token);
         }
         finally

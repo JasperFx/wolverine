@@ -18,7 +18,7 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
     private IHost _sender = null!;
     private IHost _receiver = null!;
 
-    public static async Task TestSample()
+    private static async Task TestSample()
     {
         #region sample_unknown_messages_go_to_dead_letter_queue
         var builder = Host.CreateApplicationBuilder();

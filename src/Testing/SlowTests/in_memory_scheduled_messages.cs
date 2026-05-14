@@ -1,4 +1,4 @@
-﻿using JasperFx.Core;
+using JasperFx.Core;
 using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
@@ -10,75 +10,15 @@ using Xunit;
 
 namespace SlowTests;
 
-public class in_memory_scheduled_messages : ILocalQueue
+public class in_memory_scheduled_messages
 {
-    private readonly Dictionary<Guid, TaskCompletionSource<Envelope>>
-        _callbacks = new();
-
-    private readonly IList<Envelope> sent = new List<Envelope>();
     private readonly InMemoryScheduledJobProcessor theScheduledJobs;
+    private readonly InMemoryQueue queue;
 
     public in_memory_scheduled_messages()
     {
-        theScheduledJobs = new InMemoryScheduledJobProcessor(this);
-        sent.Clear();
-        _callbacks.Clear();
-    }
-
-    public Uri Uri { get; } = null!;
-    public Uri ReplyUri { get; } = null!;
-    public Uri Destination { get; } = "local://delayed".ToUri();
-    public Uri Alias { get; } = null!;
-
-    public void Enqueue(Envelope envelope)
-    {
-        sent.Add(envelope);
-        if (_callbacks.ContainsKey(envelope.Id))
-        {
-            _callbacks[envelope.Id].SetResult(envelope);
-        }
-    }
-
-    public ValueTask EnqueueAsync(Envelope envelope)
-    {
-        sent.Add(envelope);
-        if (_callbacks.ContainsKey(envelope.Id))
-        {
-            _callbacks[envelope.Id].SetResult(envelope);
-        }
-
-        return new ValueTask();
-    }
-
-    public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask ReceivedAsync(IListener listener, Envelope envelope)
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask DrainAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
-    public IHandlerPipeline Pipeline => null!;
-
-    public int QueueCount => 0;
-
-    void IDisposable.Dispose()
-    {
-    }
-
-    private Task<Envelope> waitForReceipt(Envelope envelope)
-    {
-        var source = new TaskCompletionSource<Envelope>();
-        _callbacks.Add(envelope.Id, source);
-
-        return source.Task;
+        queue = new InMemoryQueue();
+        theScheduledJobs = new InMemoryScheduledJobProcessor(queue);
     }
 
     [Fact]
@@ -88,9 +28,9 @@ public class in_memory_scheduled_messages : ILocalQueue
         var env2 = ObjectMother.Envelope();
         var env3 = ObjectMother.Envelope();
 
-        var waiter1 = waitForReceipt(env1);
-        var waiter2 = waitForReceipt(env2);
-        var waiter3 = waitForReceipt(env3);
+        var waiter1 = queue.WaitForReceipt(env1);
+        var waiter2 = queue.WaitForReceipt(env2);
+        var waiter3 = queue.WaitForReceipt(env3);
 
         theScheduledJobs.Enqueue(DateTime.UtcNow.AddHours(1), env1);
         theScheduledJobs.Enqueue(DateTime.UtcNow.AddSeconds(5), env2);
@@ -119,10 +59,7 @@ public class in_memory_scheduled_messages : ILocalQueue
         theScheduledJobs.PlayAll();
 
         theScheduledJobs.Count().ShouldBe(0);
-        sent.Count.ShouldBe(3);
-        sent.ShouldContain(env1);
-        sent.ShouldContain(env2);
-        sent.ShouldContain(env3);
+        queue.Sent.ShouldBe([env1, env2, env3], ignoreOrder: true);
     }
 
     [Fact]
@@ -140,12 +77,11 @@ public class in_memory_scheduled_messages : ILocalQueue
 
         await theScheduledJobs.EmptyAllAsync();
 
-        theScheduledJobs.Count().ShouldBe(0);
-
+        queue.Sent.ShouldBeEmpty();
 
         await Task.Delay(2000.Milliseconds());
 
-        sent.Any().ShouldBeFalse();
+        queue.Sent.ShouldBeEmpty();
     }
 
     [Fact]
@@ -161,11 +97,71 @@ public class in_memory_scheduled_messages : ILocalQueue
 
         theScheduledJobs.Play(DateTime.UtcNow.AddMinutes(150));
 
-        sent.Count.ShouldBe(2);
-        sent.ShouldContain(env1);
-        sent.ShouldContain(env2);
-        sent.ShouldNotContain(env3);
+        queue.Sent.ShouldBe([env1, env2], ignoreOrder: true);
 
         theScheduledJobs.Count().ShouldBe(1);
+    }
+}
+
+internal class InMemoryQueue : ILocalQueue
+{
+    private readonly Dictionary<Guid, TaskCompletionSource<Envelope>> _callbacks = [];
+    public readonly IList<Envelope> Sent = [];
+
+    public Uri Uri { get; } = null!;
+    public Uri ReplyUri { get; } = null!;
+    public Uri Destination { get; } = "local://delayed".ToUri();
+    public Uri Alias { get; } = null!;
+
+    public void Enqueue(Envelope envelope)
+    {
+        Sent.Add(envelope);
+        if (_callbacks.TryGetValue(envelope.Id, out var value))
+        {
+            value.SetResult(envelope);
+        }
+    }
+
+    public ValueTask EnqueueAsync(Envelope envelope)
+    {
+        Sent.Add(envelope);
+        if (_callbacks.TryGetValue(envelope.Id, out var value))
+        {
+            value.SetResult(envelope);
+        }
+
+        return new ValueTask();
+    }
+
+    public ValueTask ReceivedAsync(IListener listener, Envelope[] messages)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask ReceivedAsync(IListener listener, Envelope envelope)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask DrainAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    public IHandlerPipeline Pipeline => null!;
+
+    public int QueueCount => 0;
+
+    public void Dispose()
+    {
+        GC.SuppressFinalize(this);
+    }
+
+    public Task<Envelope> WaitForReceipt(Envelope envelope)
+    {
+        var source = new TaskCompletionSource<Envelope>();
+        _callbacks.Add(envelope.Id, source);
+
+        return source.Task;
     }
 }

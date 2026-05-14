@@ -19,8 +19,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class aggregate_handler_workflow : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -62,7 +62,9 @@ public class aggregate_handler_workflow : IAsyncLifetime
     internal async Task<LetterAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<LetterAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<LetterAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     internal async Task OnAggregate(Action<LetterAggregate> assertions)
@@ -94,9 +96,9 @@ public class aggregate_handler_workflow : IAsyncLifetime
         var handler = theHost.GetRuntime().Handlers.HandlerFor<RaiseABC>();
         var chain = theHost.GetRuntime().Handlers.ChainFor<RaiseABC>();
 
-        chain.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
+        chain!.AuditedMembers.Single().MemberName.ShouldBe(nameof(RaiseABC.LetterAggregateId));
 
-        chain.SourceCode.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
+        chain.SourceCode!.ShouldContain("System.Diagnostics.Activity.Current?.SetTag(\"letter.aggregate.id\", raiseABC.LetterAggregateId);");
     }
 
     [Fact]
@@ -126,7 +128,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseABC(theStreamId));
-        response.ACount.ShouldBe(1);
+        response!.ACount.ShouldBe(1);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(1);
 
@@ -161,7 +163,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseAABCC(theStreamId));
-        response.ACount.ShouldBe(2);
+        response!.ACount.ShouldBe(2);
         response.BCount.ShouldBe(1);
         response.CCount.ShouldBe(2);
 
@@ -180,7 +182,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseBBCCC(theStreamId));
 
-        response.ACount.ShouldBe(5);
+        response!.ACount.ShouldBe(5);
 
         await OnAggregate(a =>
         {
@@ -199,7 +201,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await GivenAggregate();
 
         var (tracked, response) = await theHost.InvokeMessageAndWaitAsync<Response>(new RaiseAAA(theStreamId));
-        response.CCount.ShouldBe(11);
+        response!.CCount.ShouldBe(11);
 
         await OnAggregate(a =>
         {
@@ -270,7 +272,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
 
         tracked.Sent.AllMessages().ShouldBeEmpty();
 
-        updated.ACount.ShouldBe(3);
+        updated!.ACount.ShouldBe(3);
         updated.BCount.ShouldBe(4);
     }
 
@@ -292,10 +294,10 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await using (var session = theStore.LightweightSession())
         {
             var existing1 = await session.LoadAsync<LetterAggregate>(streamId);
-            existing1.BCount.ShouldBe(0);
+            existing1!.BCount.ShouldBe(0);
 
             var existing2 = await session.LoadAsync<LetterAggregate>(streamId2);
-            existing2.BCount.ShouldBe(1);
+            existing2!.BCount.ShouldBe(1);
         }
     }
 }
@@ -335,8 +337,8 @@ public static class PcOutgoing1Handler
 
 public record PcOutgoing1
 {
-    public PcEvent3 Event { get; set; }
-    public PcAggregate Aggregate { get; set; }
+    public required PcEvent3 Event { get; init; }
+    public required PcAggregate Aggregate { get; init; }
 }
 
 public record LetterMessage1;

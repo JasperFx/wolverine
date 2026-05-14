@@ -61,7 +61,9 @@ public class using_an_aggregate_that_handles_commands : IDisposable
     internal async Task<SelfLetteredAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<SelfLetteredAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<SelfLetteredAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     internal async Task OnAggregate(Action<SelfLetteredAggregate> assertions)

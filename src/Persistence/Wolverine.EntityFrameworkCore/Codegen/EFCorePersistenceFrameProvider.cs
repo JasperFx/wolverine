@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx;
@@ -13,7 +14,6 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
-using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -40,8 +40,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public bool TryBuildFetchSpecificationFrame(
         Variable specVariable,
         IServiceContainer container,
-        out Frame? frame,
-        out Variable? result)
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
     {
         if (specVariable is null)
         {
@@ -202,7 +202,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         // Eager mode wraps the rest of the chain in EnrollDbContextInTransaction's
         // try/catch and ends the try block with `efCoreEnvelopeTransaction.CommitAsync(...)`.
         // EfCoreEnvelopeTransaction.CommitAsync commits the EF Core transaction and THEN
-        // flushes outgoing messages — that's the only ordering that lets the post-send
+        // flushes outgoing messages - that's the only ordering that lets the post-send
         // outbox bookkeeping see the wolverine_outgoing row this chain just inserted.
         // Adding a standalone FlushOutgoingMessages postprocessor here would inject the
         // flush BEFORE the commit, and the post-send DELETE would no-op against the

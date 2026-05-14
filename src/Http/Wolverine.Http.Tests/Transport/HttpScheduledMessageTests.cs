@@ -81,7 +81,7 @@ public class TestWolverineHttpTransportClient : IWolverineHttpTransportClient
         {
             if (envelope.ScheduledTime.HasValue)
             {
-                Assert.Equal(envelope.TenantId, Tenant.Id);
+                envelope.TenantId.ShouldBe(Tenant.Id);
                 _tracker.RecordExecution(envelope.Id.ToString());
             }
         }

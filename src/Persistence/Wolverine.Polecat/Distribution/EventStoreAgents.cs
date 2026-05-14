@@ -188,7 +188,7 @@ internal class EventStoreAgents : IAsyncDisposable
         return list;
     }
 
-    public IProjectionDaemon DaemonForMainDatabase()
+    public ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
     {
         throw new NotSupportedException(
             "This method is not supported with the Wolverine managed projection/subscription distribution");

@@ -61,7 +61,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
             .ShouldNotBeNull();
     }
 
-    public static async Task Using_CommandsAreTransactional()
+    private static async Task Using_CommandsAreTransactional()
     {
         #region sample_using_commandsaretransactional
         using var host = await Host.CreateDefaultBuilder()

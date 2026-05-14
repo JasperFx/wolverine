@@ -14,7 +14,7 @@ namespace Wolverine.Runtime.Agents;
 /// The empty authority (<c>:///</c>) keeps the encoded payload entirely inside
 /// the path component, so a listener URI with embedded scheme delimiters
 /// can't collide with the agent URI's own scheme/host parsing. Decoding is
-/// the symmetric <see cref="Uri.UnescapeDataString"/> operation.
+/// the symmetric <see cref="Uri.UnescapeDataString(string)"/> operation.
 /// </summary>
 internal static class DynamicListenerUriEncoding
 {

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -12,6 +10,9 @@ using Marten;
 using Marten.Events;
 using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
@@ -109,7 +110,7 @@ public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement,
         handling.Apply(chain, container);
     }
 
-    public bool TryInferMessageIdentity(IChain chain, out PropertyInfo property)
+    public bool TryInferMessageIdentity(IChain chain, [NotNullWhen(true)] out PropertyInfo? property)
     {
         var inputType = chain.InputType();
         property = default!;

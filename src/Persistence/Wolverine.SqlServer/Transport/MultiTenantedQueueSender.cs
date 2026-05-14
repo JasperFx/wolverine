@@ -88,9 +88,8 @@ internal class MultiTenantedQueueSender : ISqlServerQueueSender, IAsyncDisposabl
         return sender;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
-        return new ValueTask();
+        await _cancellation.CancelAsync();
     }
 }

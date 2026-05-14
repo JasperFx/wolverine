@@ -15,7 +15,7 @@ namespace SlowTests;
 
 public class message_timeout_mechanics
 {
-    public static async Task set_default_timeout()
+    private static async Task set_default_timeout()
     {
         #region sample_set_default_timeout
         using var host = await Host.CreateDefaultBuilder()

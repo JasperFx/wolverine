@@ -23,7 +23,7 @@ namespace Wolverine.RavenDb.Internals;
 /// <see cref="ISagaStoreDiagnostics"/>, so this provider participates
 /// alongside Marten / EF Core / any other saga storage when a host
 /// wires more than one. RavenDB sagas use string identifiers
-/// regardless of the saga's id member type — see
+/// regardless of the saga's id member type - see
 /// <see cref="RavenDbPersistenceFrameProvider.DetermineSagaIdType"/>.
 /// </remarks>
 internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
@@ -54,7 +54,7 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         var id = identity?.ToString();
         if (id is null) return null;
 
-        // session.LoadAsync<TSaga>(string id, ct) — generic; reflection
+        // session.LoadAsync<TSaga>(string id, ct) - generic; reflection
         // because the saga type is only known at runtime.
         var loadAsync = typeof(IAsyncDocumentSession)
             .GetMethods()
@@ -70,7 +70,7 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         var saga = task.GetType().GetProperty("Result")!.GetValue(task);
         if (saga is null) return null;
 
-        return buildInstance(sagaType, identity, saga);
+        return buildInstance(sagaType, identity!, saga);
     }
 
     public async Task<IReadOnlyList<SagaInstanceState>> ListSagaInstancesAsync(string sagaTypeName, int count, CancellationToken ct)

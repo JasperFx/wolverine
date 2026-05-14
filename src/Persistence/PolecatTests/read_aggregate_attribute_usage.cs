@@ -15,8 +15,8 @@ namespace PolecatTests;
 
 public class read_aggregate_attribute_usage : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {

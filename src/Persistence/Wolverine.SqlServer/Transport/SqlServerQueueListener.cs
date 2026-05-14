@@ -115,20 +115,16 @@ select count(*) from #temp_move_{queue.Name}
 
     public ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
-        _task?.SafeDispose();
-        _scheduledTask?.SafeDispose();
-        return ValueTask.CompletedTask;
+        return StopAsync();
     }
 
     public Uri Address { get; }
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _task?.SafeDispose();
         _scheduledTask?.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public async Task StartAsync()

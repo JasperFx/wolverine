@@ -38,22 +38,22 @@ public class CosmosDbSagaHost : ISagaHost
             }).Start();
     }
 
-    public Task<T> LoadState<T>(Guid id) where T : Saga
+    public Task<T?> LoadState<T>(Guid id) where T : Saga
     {
         throw new NotSupportedException();
     }
 
-    public Task<T> LoadState<T>(int id) where T : Saga
+    public Task<T?> LoadState<T>(int id) where T : Saga
     {
         throw new NotSupportedException();
     }
 
-    public Task<T> LoadState<T>(long id) where T : Saga
+    public Task<T?> LoadState<T>(long id) where T : Saga
     {
         throw new NotSupportedException();
     }
 
-    public async Task<T> LoadState<T>(string id) where T : Saga
+    public async Task<T?> LoadState<T>(string id) where T : Saga
     {
         try
         {

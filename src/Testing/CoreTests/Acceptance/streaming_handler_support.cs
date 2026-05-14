@@ -1,7 +1,7 @@
-using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Shouldly;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -32,7 +32,7 @@ public record FaultingStreamRequest(int YieldBeforeThrow);
 public static class StreamingRequestHandler
 {
     public static async IAsyncEnumerable<StreamItem> Handle(StreamRequest request,
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         for (var i = 0; i < request.Count; i++)
         {
@@ -43,7 +43,7 @@ public static class StreamingRequestHandler
     }
 }
 
-// Returns a typed IAsyncEnumerable<T> (T != object) — should cascade each item
+// Returns a typed IAsyncEnumerable<T> (T != object) - should cascade each item
 // when called via InvokeAsync (not StreamAsync). This verifies the latent bug fix.
 public static class CascadeStreamingHandler
 {
@@ -173,7 +173,7 @@ public class streaming_handler_support
         await host.InvokeMessageAndWaitAsync(new CascadeRequest(3));
 
         tracker.Items.Count.ShouldBe(3);
-        // Sort before asserting — cascaded messages are dispatched concurrently so arrival order is non-deterministic.
+        // Sort before asserting - cascaded messages are dispatched concurrently so arrival order is non-deterministic.
         tracker.Items.Select(i => i.Value).OrderBy(v => v).ShouldBe([0, 1, 2]);
     }
 
@@ -182,7 +182,7 @@ public class streaming_handler_support
     {
         // Caller should observe the items yielded before the throw, then the exception when
         // the enumerator advances past them. This is the contract end-users will rely on when
-        // composing streaming handlers — partial results are not silently swallowed.
+        // composing streaming handlers - partial results are not silently swallowed.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
             .StartAsync();

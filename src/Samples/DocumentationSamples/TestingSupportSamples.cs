@@ -134,7 +134,7 @@ public class AccountHandlerTests
     #endregion
 
     #region sample_advanced_tracked_session_usage
-    public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
+    private static async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     {
         // The point here is just that you somehow have
         // an IHost for your application

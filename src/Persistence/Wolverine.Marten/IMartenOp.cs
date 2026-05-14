@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -441,12 +441,12 @@ public static class MartenOps
 
 public class CheckDocument<TDoc> where TDoc : class
 {
-    public IMartenDataRequirement MustExist<TId>(TId id)
+    public IMartenDataRequirement MustExist<TId>(TId id) where TId : notnull
     {
         return new DocumentExists<TDoc, TId>(id);
     }
     
-    public IMartenDataRequirement MustNotExist<TId>(TId id)
+    public IMartenDataRequirement MustNotExist<TId>(TId id) where TId: notnull
     {
         return new DocumentDoesNotExist<TDoc, TId>(id);
     }

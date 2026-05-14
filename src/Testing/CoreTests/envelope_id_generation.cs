@@ -61,7 +61,7 @@ public class envelope_id_generation : IDisposable
     }
 
     [Fact]
-    public void guid_v7_ids_are_unique_across_threads()
+    public async Task guid_v7_ids_are_unique_across_threads()
     {
         Envelope.IdGenerator = Guid.CreateVersion7;
 
@@ -80,7 +80,7 @@ public class envelope_id_generation : IDisposable
             }));
         }
 
-        Task.WaitAll(tasks.ToArray());
+        await Task.WhenAll(tasks);
 
         ids.Count.ShouldBe(10_000);
         ids.Distinct().Count().ShouldBe(10_000, "All IDs should be unique");

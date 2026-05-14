@@ -8,7 +8,7 @@ namespace MessageRoutingTests;
 
 public class using_additive_local_routing_and_external_conventions : MessageRoutingContext
 {
-    public static async Task configure_additive_routing()
+    private static async Task configure_additive_routing()
     {
         #region sample_additive_local_and_external_routing_conventions
         var builder = Host.CreateApplicationBuilder();

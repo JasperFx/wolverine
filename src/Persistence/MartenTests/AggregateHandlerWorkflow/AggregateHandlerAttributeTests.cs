@@ -67,7 +67,7 @@ public class AggregateHandlerAttributeTests
         var chain = HandlerChain.For<InvoiceHandler>(x => x.Handle(default(CreateInvoice)!), new HandlerGraph());
         new AggregateHandlerAttribute {AggregateType = typeof(Invoice) }.TryInferMessageIdentity(chain, out var property)
             .ShouldBe(true);
-        property.Name.ShouldBe(nameof(CreateInvoice.Id));
+        property!.Name.ShouldBe(nameof(CreateInvoice.Id));
     }
     
     [Fact]
@@ -222,8 +222,8 @@ public record ChangeCourseCapacity(CourseId CourseId, int NewCapacity);
 // Command for the IdentifiedBy<T> aggregate
 public record ChangeCourseCapacityForInterface(CourseId CourseId, int NewCapacity);
 
-// Command with multiple CourseId properties — should NOT match
+// Command with multiple CourseId properties - should NOT match
 public record TransferBetweenCourses(CourseId SourceCourseId, CourseId TargetCourseId);
 
-// Command with conventional "Id" name — should use conventional matching, not fallback
+// Command with conventional "Id" name - should use conventional matching, not fallback
 public record UpdateCourseWithConventionalId(CourseId Id, string Name);

@@ -175,7 +175,7 @@ partial class Build
     /// Walks up from the project directory to locate src/Testing/Wolverine.ComplianceTests/
     /// so inherited compliance tests can be discovered.
     /// </summary>
-    static string? FindComplianceTestsDir(string projectDir)
+    static string FindComplianceTestsDir(string projectDir)
     {
         var current = new DirectoryInfo(projectDir);
         while (current != null)

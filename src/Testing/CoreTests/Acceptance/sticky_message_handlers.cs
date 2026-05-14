@@ -167,7 +167,7 @@ public class when_building_a_handler_chain_for_sticky_handlers
             .EndpointName.ShouldBe("green");
     }
 
-    public static async Task explicit_listener()
+    private static async Task explicit_listener()
     {
         #region sample_named_listener_endpoint
         using var host = await Host.CreateDefaultBuilder()
@@ -181,7 +181,7 @@ public class when_building_a_handler_chain_for_sticky_handlers
         #endregion
     }
 
-    public static async Task explicit_listeners_by_fluent_interface()
+    private static async Task explicit_listeners_by_fluent_interface()
     {
         #region sample_sticky_handlers_by_endpoint_with_fluent_interface
         using var host = await Host.CreateDefaultBuilder()

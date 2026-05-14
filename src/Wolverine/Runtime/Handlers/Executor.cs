@@ -61,7 +61,7 @@ internal class Executor : IExecutor
     /// When <see langword="true"/>, the executor publishes the in-flight <see cref="MessageContext"/>
     /// through <see cref="MessageContext.Current"/> for the duration of each invocation, so
     /// service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/> see the same
-    /// instance the handler itself received. Set by <see cref="Executor.Build"/> only when the
+    /// instance the handler itself received. Set only when the
     /// chain's compiled code resolves at least one dependency via service location, so chains
     /// that don't service-locate pay zero <see cref="System.Threading.AsyncLocal{T}"/> overhead
     /// per message. See issue #2583.
@@ -428,7 +428,7 @@ internal class Executor : IExecutor
     }
 
     /// <summary>
-    /// Set by <see cref="Build"/> when the chain's compiled code is known to resolve a
+    /// Set when the chain's compiled code is known to resolve a
     /// dependency via service location. Toggles the per-invocation
     /// <see cref="MessageContext.Current"/> publish/restore so service-located
     /// <see cref="IMessageContext"/> / <see cref="IMessageBus"/> see the same instance the

@@ -8,7 +8,7 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public class channel_configuration
 {
-    public static async Task configure_sample()
+    private static async Task configure_sample()
     {
         #region sample_configuring_rabbit_mq_channel_creation
         var builder = Host.CreateApplicationBuilder();

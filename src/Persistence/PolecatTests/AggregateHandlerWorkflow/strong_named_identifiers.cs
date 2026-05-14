@@ -14,8 +14,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class strong_named_identifiers : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {
@@ -90,10 +90,10 @@ public class strong_named_identifiers : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new IncrementBOnBoth(new LetterId(stream1Id), new LetterId(stream2Id)));
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(2);
+        aggregate1!.BCount.ShouldBe(2);
 
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(3);
+        aggregate2!.BCount.ShouldBe(3);
     }
 
     [Fact]
@@ -112,12 +112,12 @@ public class strong_named_identifiers : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new AddFrom(new LetterId(stream1Id), new LetterId(stream2Id)));
 
         var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
-        aggregate1.BCount.ShouldBe(3);
+        aggregate1!.BCount.ShouldBe(3);
         aggregate1.ACount.ShouldBe(3);
         aggregate1.DCount.ShouldBe(1);
 
         var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
-        aggregate2.BCount.ShouldBe(2);
+        aggregate2!.BCount.ShouldBe(2);
     }
 }
 

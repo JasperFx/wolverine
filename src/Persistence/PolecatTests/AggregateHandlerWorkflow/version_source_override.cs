@@ -18,8 +18,8 @@ namespace PolecatTests.AggregateHandlerWorkflow;
 
 public class version_source_override : IAsyncLifetime
 {
-    private IHost theHost;
-    private IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
     public async Task InitializeAsync()
@@ -62,7 +62,9 @@ public class version_source_override : IAsyncLifetime
     private async Task<VersionSourceAggregate> LoadAggregate()
     {
         await using var session = theStore.LightweightSession();
-        return await session.LoadAsync<VersionSourceAggregate>(theStreamId);
+        var aggregate = await session.LoadAsync<VersionSourceAggregate>(theStreamId);
+        aggregate.ShouldNotBeNull();
+        return aggregate;
     }
 
     [Fact]

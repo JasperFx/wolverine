@@ -41,7 +41,7 @@ public interface IAgent : IHostedService, IHealthCheck
     /// </summary>
     Task<HealthCheckResult> IHealthCheck.CheckHealthAsync(
         HealthCheckContext context,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
         return Task.FromResult(Status == AgentStatus.Running
             ? HealthCheckResult.Healthy()

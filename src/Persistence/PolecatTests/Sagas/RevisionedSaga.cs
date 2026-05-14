@@ -15,7 +15,7 @@ namespace PolecatTests.Sagas;
 
 public class using_revisioned_sagas : IAsyncLifetime
 {
-    private IHost theHost;
+    private IHost theHost = null!;
 
     public async Task InitializeAsync()
     {
@@ -79,8 +79,6 @@ public class PcRevisionedSaga : Wolverine.Saga
         new PcRevisionedSaga { Id = command.Id };
 
     public Guid Id { get; set; }
-
-    public int Version { get; set; }
 
     public bool One { get; set; }
     public bool Two { get; set; }

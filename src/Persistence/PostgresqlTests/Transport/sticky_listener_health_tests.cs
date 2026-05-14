@@ -39,7 +39,7 @@ public class sticky_listener_health_tests_no_runtime
         var result = await agent.CheckHealthAsync(new HealthCheckContext(), CancellationToken.None);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
-        result.Description.ShouldContain("Stopped");
+        result.Description!.ShouldContain("Stopped");
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task ping_database_succeeds_against_real_postgres()
     {
-        // Smoke — the SELECT 1 ping that the sticky-listener agent uses for the
+        // Smoke - the SELECT 1 ping that the sticky-listener agent uses for the
         // per-tenant DB reachability signal must not throw against a healthy DB.
         await Should.NotThrowAsync(() => _endpoint.PingDatabaseAsync(CancellationToken.None));
     }

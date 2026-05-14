@@ -51,8 +51,6 @@
           moved to the WolverineFx.Newtonsoft package as extension methods.
           See docs/guide/migration.md.
         -->
-        <PackageReference Include="System.Diagnostics.DiagnosticSource" />
-        <PackageReference Include="System.Threading.Tasks.Dataflow" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="JasperFx" />

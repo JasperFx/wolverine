@@ -1,4 +1,3 @@
-using Alba;
 using Marten;
 using Shouldly;
 using Wolverine.Tracking;
@@ -17,13 +16,6 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
     {
         using var session = Host.DocumentStore().LightweightSession();
         return await session.LoadAsync<Todo2>(id);
-    }
-
-    public async Task Persist(Todo2 todo)
-    {
-        using var session = Host.DocumentStore().LightweightSession();
-        session.Store(todo);
-        await session.SaveChangesAsync();
     }
 
     [Fact]

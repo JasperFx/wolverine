@@ -1,4 +1,4 @@
-﻿using Shouldly;
+using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
 using Xunit;
@@ -60,7 +60,7 @@ public class StringIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<StringBasi
         await send(new CompleteOne(), stateId);
 
         var state = await LoadState(stateId);
-        state.OneCompleted.ShouldBeTrue();
+        state!.OneCompleted.ShouldBeTrue();
         state.TwoCompleted.ShouldBeTrue();
     }
 
@@ -111,7 +111,7 @@ public class StringIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<StringBasi
         await send(message);
 
         var state = await LoadState(stateId);
-        state.ThreeCompleted.ShouldBeTrue();
+        state!.ThreeCompleted.ShouldBeTrue();
     }
 
     [Fact]
@@ -138,7 +138,7 @@ public class StringIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<StringBasi
         await send(new CompleteFour(), stateId);
 
         var state = await LoadState(stateId);
-        state.FourCompleted.ShouldBeTrue();
+        state!.FourCompleted.ShouldBeTrue();
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class StringIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<StringBasi
         await send(message);
 
         var state = await LoadState(stateId);
-        state.ThreeCompleted.ShouldBeTrue();
+        state!.ThreeCompleted.ShouldBeTrue();
     }
 
     [Fact]

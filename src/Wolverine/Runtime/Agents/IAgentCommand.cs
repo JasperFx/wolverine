@@ -1,4 +1,5 @@
 using JasperFx.Core.Reflection;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -33,7 +34,7 @@ public class AgentCommands : List<IAgentCommand>, ISendMyself
 
 internal class AgentCommandHandledTypeRule : IHandledTypeRule
 {
-    public bool TryFindHandledType(Type concreteType, out Type handlerType)
+    public bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType)
     {
         if (concreteType.CanBeCastTo(typeof(IAgentCommand)))
         {
@@ -41,7 +42,7 @@ internal class AgentCommandHandledTypeRule : IHandledTypeRule
             return true;
         }
 
-        handlerType = default!;
+        handlerType = null;
         return false;
     }
 }

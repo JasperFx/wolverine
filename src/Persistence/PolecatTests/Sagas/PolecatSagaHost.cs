@@ -11,7 +11,7 @@ namespace PolecatTests.Sagas;
 
 public class PolecatSagaHost : ISagaHost
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public IHost BuildHost<TSaga>()
     {
@@ -31,22 +31,22 @@ public class PolecatSagaHost : ISagaHost
         return _host;
     }
 
-    public Task<T> LoadState<T>(Guid id) where T : Wolverine.Saga
+    public Task<T?> LoadState<T>(Guid id) where T : Wolverine.Saga
     {
         return _host.Services.GetRequiredService<IDocumentStore>().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(int id) where T : Wolverine.Saga
+    public Task<T?> LoadState<T>(int id) where T : Wolverine.Saga
     {
         return _host.Services.GetRequiredService<IDocumentStore>().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(long id) where T : Wolverine.Saga
+    public Task<T?> LoadState<T>(long id) where T : Wolverine.Saga
     {
         return _host.Services.GetRequiredService<IDocumentStore>().QuerySession().LoadAsync<T>(id);
     }
 
-    public Task<T> LoadState<T>(string id) where T : Wolverine.Saga
+    public Task<T?> LoadState<T>(string id) where T : Wolverine.Saga
     {
         return _host.Services.GetRequiredService<IDocumentStore>().QuerySession().LoadAsync<T>(id);
     }

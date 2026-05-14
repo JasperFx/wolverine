@@ -1,9 +1,10 @@
-using System.Collections;
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
+using System.Collections;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -24,7 +25,7 @@ namespace Wolverine;
 /// </summary>
 public interface IHandledTypeRule
 {
-    bool TryFindHandledType(Type concreteType, out Type handlerType);
+    bool TryFindHandledType(Type concreteType, [NotNullWhen(true)] out Type? handlerType);
 }
 
 public sealed partial class WolverineOptions : IPolicies

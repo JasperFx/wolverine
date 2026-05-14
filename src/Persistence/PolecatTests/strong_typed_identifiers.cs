@@ -12,7 +12,7 @@ namespace PolecatTests;
 
 public class strong_typed_identifiers : IAsyncLifetime
 {
-    private IHost _host;
+    private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -65,7 +65,7 @@ public readonly partial struct PcKnobId;
 public class PcKnob
 {
     public PcKnobId Id { get; set; }
-    public string Name { get; set; }
+    public required string Name { get; init; }
 }
 
 public record TwistPcKnob(PcKnobId Id);

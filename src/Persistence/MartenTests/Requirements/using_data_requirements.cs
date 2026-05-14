@@ -13,8 +13,8 @@ namespace MartenTests.Requirements;
 
 public class using_data_requirements : IAsyncLifetime
 {
-    private IHost _host;
-    private IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
     public async Task InitializeAsync()
     {
@@ -266,13 +266,13 @@ public record EnsureNoDuplicateThing(string ThingId);
 
 public class ThingCategory
 {
-    public string Id { get; set; }
+    public required string Id { get; init; }
 }
 
 public class Thing
 {
-    public string Id { get; set; }
-    public string CategoryId { get; set; }
+    public required string Id { get; init; }
+    public required string CategoryId { get; init; }
 }
 
 public static class CreateThingHandler

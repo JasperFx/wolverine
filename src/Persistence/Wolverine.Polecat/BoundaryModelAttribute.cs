@@ -28,7 +28,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
     private OnMissing? _onMissing;
 
     public bool Required { get; set; }
-    public string MissingMessage { get; set; }
+    public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
     {
@@ -101,14 +101,14 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         if (parameter.ParameterType == aggregateType || parameter.ParameterType.IsNullable() &&
             parameter.ParameterType.GetInnerTypeFromNullable() == aggregateType)
         {
-            firstCall.TrySetArgument(parameter.Name, aggregateVariable);
+            firstCall.TrySetArgument(parameter.Name!, aggregateVariable);
         }
 
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name, aggregateVariable);
+        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, aggregateVariable);
 
         foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
         {
-            if (!methodCall.TrySetArgument(parameter.Name, aggregateVariable))
+            if (!methodCall.TrySetArgument(parameter.Name!, aggregateVariable))
             {
                 methodCall.TrySetArgument(aggregateVariable);
             }

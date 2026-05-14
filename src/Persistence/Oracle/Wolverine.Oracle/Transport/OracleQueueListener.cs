@@ -67,24 +67,21 @@ internal class OracleQueueListener : IListener
         await _sender.SendAsync(envelope, _cancellation.Token);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _task.SafeDispose();
         _scheduledTask.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address { get; }
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         _task?.SafeDispose();
         _scheduledTask?.SafeDispose();
-
-        return ValueTask.CompletedTask;
     }
 
     private async Task lookForScheduledMessagesAsync()
