@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FluentValidation;
 using JasperFx;
 using JasperFx.Core.IoC;
@@ -48,6 +49,17 @@ public static class WolverineFluentValidationExtensions
     /// <param name="behavior"></param>
     /// <param name="includeInternalTypes">When true, also discovers validators with internal visibility</param>
     /// <returns></returns>
+    // The DiscoverAndRegisterValidators path runs FluentValidation's
+    // AssemblyScanner over options.ApplicationAssembly. AssemblyScanResult
+    // .ValidatorType is `Type` without DAM annotations, so the trimmer cannot
+    // verify that ServiceDescriptor's ctor requirement (PublicConstructors)
+    // is satisfied. The scan path is inherently not AOT-friendly — AOT
+    // consumers should use RegistrationBehavior.ExplicitRegistration and
+    // wire validators by hand, which is fully trim-clean. See AOT guide.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "FluentValidation AssemblyScanner discovery path is non-AOT by design; AOT consumers use RegistrationBehavior.ExplicitRegistration. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "AssemblyScanResult.ValidatorType is not DAM-annotated by FluentValidation; the scan path is non-AOT by design. AOT consumers use RegistrationBehavior.ExplicitRegistration. See AOT guide.")]
     public static WolverineOptions UseFluentValidation(this WolverineOptions options,
         RegistrationBehavior behavior = RegistrationBehavior.DiscoverAndRegisterValidators,
         bool includeInternalTypes = false)

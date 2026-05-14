@@ -8,6 +8,18 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Single reflective site:
+          FluentValidationPolicy.Apply uses MakeGenericType (IValidator<T>)
+          + MakeGenericMethod (ExecuteOne<T> / ExecuteMany<T>) to wire
+          the FluentValidation middleware at codegen time. Same chunk AK
+          (DataAnnotationsValidation) / chunk D / I / J / K codegen-time
+          pattern; AOT consumers pre-generate via TypeLoadMode.Static.
+          FluentValidation itself is AOT-friendly for hand-written
+          AbstractValidator<T> classes (no reflection on T's properties
+          beyond what the user's validation rules explicitly reference).
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
@@ -17,5 +29,7 @@
     <ItemGroup>
         <PackageReference Include="FluentValidation" />
     </ItemGroup>
+
+    <Import Project="../../../Analysis.Build.props" />
 
 </Project>
