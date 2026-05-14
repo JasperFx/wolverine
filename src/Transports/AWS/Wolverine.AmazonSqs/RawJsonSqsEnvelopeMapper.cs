@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Text.Json;
 using Amazon.SQS.Model;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -18,6 +19,15 @@ internal class RawJsonSqsEnvelopeMapper : ISqsEnvelopeMapper
 
     public override string ToString() => "Raw JSON";
 
+    // Reflection-based JsonSerializer.Serialize/Deserialize over a runtime-
+    // resolved user message type. Same chunk D / E pattern (default JSON
+    // serializer for IMessageSerializer): AOT-clean apps supply their own
+    // ISqsEnvelopeMapper backed by a JsonSerializerContext (or pre-register
+    // a JsonTypeInfo for the message type). See AOT guide.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Raw JSON SQS mapper uses reflection-based STJ over a runtime-resolved message type; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Raw JSON SQS mapper uses reflection-based STJ over a runtime-resolved message type; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
     public string BuildMessageBody(Envelope envelope)
     {
         return JsonSerializer.Serialize(
@@ -32,6 +42,10 @@ internal class RawJsonSqsEnvelopeMapper : ISqsEnvelopeMapper
             new MessageAttributeValue { StringValue = "1.0", DataType = "String" });
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Raw JSON SQS mapper uses reflection-based STJ over a runtime-resolved message type; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Raw JSON SQS mapper uses reflection-based STJ over a runtime-resolved message type; AOT consumers supply a JsonSerializerContext-backed mapper. See AOT guide.")]
     public void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes)
     {
         // assuming json serialized message

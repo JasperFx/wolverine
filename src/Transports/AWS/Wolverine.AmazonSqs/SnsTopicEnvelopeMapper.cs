@@ -1,5 +1,6 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Amazon.SQS.Model;
 using Wolverine.Transports;
 
@@ -35,7 +36,7 @@ internal class SnsTopicEnvelopeMapper : ISqsEnvelopeMapper
     {
         try
         {
-            var json = JsonSerializer.Deserialize<SnsMessageMetadata>(messageBody) 
+            var json = JsonSerializer.Deserialize(messageBody, SnsMessageMetadataJsonContext.Default.SnsMessageMetadata)
                        ?? throw new NullReferenceException();
             return json.Message;
         }
@@ -44,7 +45,7 @@ internal class SnsTopicEnvelopeMapper : ISqsEnvelopeMapper
             return messageBody;
         }
     }
-    
+
     internal class SnsMessageMetadata
     {
         public string Type { get; set; } = null!;
@@ -54,3 +55,11 @@ internal class SnsTopicEnvelopeMapper : ISqsEnvelopeMapper
         public string UnsubscribeURL { get; set; } = null!;
     }
 }
+
+/// <summary>
+/// Source-generated JSON context for <see cref="SnsTopicEnvelopeMapper.SnsMessageMetadata"/>
+/// — replaces the reflection-based JsonSerializer.Deserialize&lt;T&gt; overload so this
+/// internal SNS-envelope detection stays AOT-clean. Same chunk N (NodeRecord) precedent.
+/// </summary>
+[JsonSerializable(typeof(SnsTopicEnvelopeMapper.SnsMessageMetadata))]
+internal partial class SnsMessageMetadataJsonContext : JsonSerializerContext;
