@@ -20,7 +20,7 @@ internal class LoadBoundaryFrame : AsyncFrame
     {
         _aggregateType = aggregateType;
         _query = query;
-        _boundaryType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
+        _boundaryType = typeof(global::Polecat.Events.Dcb.IEventBoundary<>).MakeGenericType(aggregateType);
         Boundary = new Variable(_boundaryType, this);
     }
 

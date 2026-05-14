@@ -73,7 +73,7 @@ public class UpdatedAggregate<T> : IResponseAware
 
 internal class FetchLatestByGuid<T> : MethodCall where T : class, new()
 {
-    public FetchLatestByGuid(Variable id) : base(typeof(IEventOperations), ReflectionHelper.GetMethod<IEventOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None))!)
+    public FetchLatestByGuid(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>(Guid.Empty, CancellationToken.None))!)
     {
         var resolvedId = id;
         if (id.VariableType != typeof(Guid))
@@ -97,7 +97,7 @@ internal class FetchLatestByGuid<T> : MethodCall where T : class, new()
 
 internal class FetchLatestByString<T> : MethodCall where T : class, new()
 {
-    public FetchLatestByString(Variable id) : base(typeof(IEventOperations), ReflectionHelper.GetMethod<IEventOperations>(x => x.FetchLatest<T>("", CancellationToken.None))!)
+    public FetchLatestByString(Variable id) : base(typeof(global::Polecat.Events.IEventOperations), ReflectionHelper.GetMethod<global::Polecat.Events.IEventOperations>(x => x.FetchLatest<T>("", CancellationToken.None))!)
     {
         var resolvedId = id;
         if (id.VariableType != typeof(string))

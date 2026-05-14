@@ -63,7 +63,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
-        if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Polecat.Events.IEventStream<>)))
         {
             return eventStream;
         }
@@ -173,7 +173,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
         {
             var parameters = chain.HandlerCalls().First().Method.GetParameters();
-            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
+            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Polecat.Events.IEventStream<>)));
             if (stream == null)
             {
                 throw new InvalidOperationException(
@@ -251,7 +251,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             return;
         }
 
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
+        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(global::Polecat.Events.IEventStream<>))))
         {
             chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
         }
@@ -260,7 +260,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
-        var member = typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate));
+        var member = typeof(global::Polecat.Events.IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(global::Polecat.Events.IEventStream<string>.Aggregate));
         Variable aggregateVariable = new MemberAccessVariable(eventStream, member!);
 
         if (Requirement.Required)
@@ -276,7 +276,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         {
             firstCall.Target = aggregateVariable;
         }
-        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
+        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Polecat.Events.IEventStream<>)))
         {
             var index = Array.FindIndex(firstCall.Method.GetParameters(), x => x.Name == Parameter.Name);
             firstCall.Arguments[index] = eventStream;
@@ -317,7 +317,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     {
         var firstCall = chain.HandlerCalls().First();
         var parameters = firstCall.Method.GetParameters();
-        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
+        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Polecat.Events.IEventStream<>)));
         if (stream != null)
         {
             return stream.ParameterType.GetGenericArguments().Single();
@@ -382,7 +382,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _stream = chain.FindVariable(typeof(IEventStream<T>));
+        _stream = chain.FindVariable(typeof(global::Polecat.Events.IEventStream<T>));
         yield return _stream;
     }
 
@@ -392,7 +392,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
         writer.WriteComment(Description);
         writer.Write(
-            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
+            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(global::Polecat.Events.IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -431,9 +431,9 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
 
         public IEnumerable<Frame> Frames()
         {
-            var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
+            var streamType = typeof(global::Polecat.Events.IEventStream<>).MakeGenericType(_aggregateType);
 
-            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
+            yield return new MethodCall(streamType, nameof(global::Polecat.Events.IEventStream<string>.AppendOne))
             {
                 Arguments =
                 {

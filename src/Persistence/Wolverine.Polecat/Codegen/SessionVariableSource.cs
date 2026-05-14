@@ -61,7 +61,7 @@ internal class EventOperationsSource : IVariableSource
 {
     public bool Matches(Type type)
     {
-        return type == typeof(IEventOperations);
+        return type == typeof(global::Polecat.Events.IEventOperations);
     }
 
     public Variable Create(Type type)
@@ -76,7 +76,7 @@ internal class EventOperationsFrame : SyncFrame
 
     public EventOperationsFrame()
     {
-        Variable = new Variable(typeof(IEventOperations), this);
+        Variable = new Variable(typeof(global::Polecat.Events.IEventOperations), this);
     }
 
     public Variable Variable { get; }
@@ -89,7 +89,7 @@ internal class EventOperationsFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write($"{typeof(IEventOperations)} {Variable.Usage} = {_session.Usage}.{nameof(IDocumentSession.Events)};");
+        writer.Write($"{typeof(global::Polecat.Events.IEventOperations)} {Variable.Usage} = {_session.Usage}.{nameof(IDocumentSession.Events)};");
         Next?.GenerateCode(method, writer);
     }
 }

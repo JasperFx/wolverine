@@ -48,7 +48,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var isBoundaryParameter = false;
-        if (aggregateType.Closes(typeof(IEventBoundary<>)))
+        if (aggregateType.Closes(typeof(global::Polecat.Events.Dcb.IEventBoundary<>)))
         {
             aggregateType = aggregateType.GetGenericArguments()[0];
             isBoundaryParameter = true;
@@ -80,9 +80,9 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
 
         DetermineEventCaptureHandling(chain, aggregateType);
 
-        var boundaryInterfaceType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
+        var boundaryInterfaceType = typeof(global::Polecat.Events.Dcb.IEventBoundary<>).MakeGenericType(aggregateType);
         Variable aggregateVariable = new MemberAccessVariable(boundary,
-            boundaryInterfaceType.GetProperty(nameof(IEventBoundary<string>.Aggregate))!);
+            boundaryInterfaceType.GetProperty(nameof(global::Polecat.Events.Dcb.IEventBoundary<string>.Aggregate))!);
 
         if (Required)
         {
@@ -150,7 +150,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         if (!firstCall.Method.GetParameters()
-                .Any(x => x.ParameterType.Closes(typeof(IEventBoundary<>))))
+                .Any(x => x.ParameterType.Closes(typeof(global::Polecat.Events.Dcb.IEventBoundary<>))))
         {
             chain.ReturnVariableActionSource = new BoundaryEventCaptureActionSource(aggregateType);
         }
