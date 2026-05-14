@@ -1,4 +1,5 @@
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using StronglyTypedIds;
 using Wolverine.Http;

@@ -6,6 +6,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using Marten.Storage.Metadata;
 using Wolverine.Configuration;

@@ -12,7 +12,7 @@ namespace Wolverine.Marten.Distribution;
 // implements the Marten-side contract; qualify with `global::Marten...` to
 // break the namespace-vs-namespace ambiguity inside Wolverine.Marten.*.
 internal class WolverineProjectionCoordinator<T> : WolverineProjectionCoordinator,
-    global::Marten.Events.Daemon.Coordination.IProjectionCoordinator<T> where T : IDocumentStore
+    global::Marten.Events.Daemon.Coordination.IProjectionCoordinator<T> where T : class, IDocumentStore
 {
     public WolverineProjectionCoordinator(EventSubscriptionAgentFamily agents, T store) : base(agents, store)
     {

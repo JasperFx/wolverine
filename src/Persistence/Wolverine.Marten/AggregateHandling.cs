@@ -65,7 +65,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
 
-        if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)))
+        if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {
             return eventStream;
         }
@@ -180,7 +180,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         if (firstCall.Method.ReturnType == typeof(Task) || firstCall.Method.ReturnType == typeof(void))
         {
             var parameters = chain.HandlerCalls().First().Method.GetParameters();
-            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)));
+            var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
             if (stream == null)
             {
                 throw new InvalidOperationException(
@@ -267,7 +267,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
         // then assume that the default behavior of each return value is to be an event
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>))))
+        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
         {
             chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
         }
@@ -281,7 +281,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         Type aggregateType)
     {
         Variable aggregateVariable = new MemberAccessVariable(eventStream,
-            typeof(global::Marten.Events.IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(global::Marten.Events.IEventStream<string>.Aggregate))!);
+            typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate))!);
         
 
         if (Requirement.Required)
@@ -300,7 +300,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             // If the handle method is on the aggregate itself
             firstCall.Target = aggregateVariable;
         }
-        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)))
+        else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {
             // When the handler parameter is IEventStream<T>, set the stream directly by name
             var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
@@ -345,7 +345,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     {
         var firstCall = chain.HandlerCalls().First();
         var parameters = firstCall.Method.GetParameters();
-        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(global::Marten.Events.IEventStream<>)));
+        var stream = parameters.FirstOrDefault(x => x.ParameterType.Closes(typeof(IEventStream<>)));
         if (stream != null)
         {
             return stream.ParameterType.GetGenericArguments().Single();

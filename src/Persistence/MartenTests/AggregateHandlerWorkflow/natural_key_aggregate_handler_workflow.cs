@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.Events.Aggregation;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using JasperFx.Events.Projections;
 using Marten.Events.Projections;

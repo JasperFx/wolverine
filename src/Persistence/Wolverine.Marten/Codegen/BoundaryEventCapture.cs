@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Tags;
 using Marten.Events.Dcb;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
@@ -13,7 +14,7 @@ namespace Wolverine.Marten.Codegen;
 /// <summary>
 /// Registers a collection of events via IEventBoundary.AppendMany() for DCB workflows.
 /// </summary>
-internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : notnull
+internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : class
 {
     public RegisterBoundaryEventsFrame(Variable returnVariable) : base(typeof(IEventBoundary<T>),
         FindMethod(returnVariable.VariableType))
@@ -33,7 +34,7 @@ internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : notnull
 /// <summary>
 /// Handles async enumerable return values by appending each event via IEventBoundary.AppendOne().
 /// </summary>
-internal class ApplyBoundaryEventsFromAsyncEnumerableFrame<T> : AsyncFrame where T : notnull
+internal class ApplyBoundaryEventsFromAsyncEnumerableFrame<T> : AsyncFrame where T : class
 {
     private readonly Variable _returnValue;
     private Variable? _boundary;

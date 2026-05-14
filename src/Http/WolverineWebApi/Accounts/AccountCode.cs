@@ -37,9 +37,9 @@ public static class TransferMoneyHandler
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId))] global::Marten.Events.IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
         
-        [WriteAggregate(nameof(TransferMoney.ToId))] global::Marten.Events.IEventStream<Account> toAccount)
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
         if (fromAccount.Aggregate!.Amount >= command.Amount)
@@ -58,9 +58,9 @@ public static class TransferMoneyHandler2
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] global::Marten.Events.IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
         
-        [WriteAggregate(nameof(TransferMoney.ToId))] global::Marten.Events.IEventStream<Account> toAccount)
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
         if (fromAccount.Aggregate!.Amount >= command.Amount)
@@ -79,9 +79,9 @@ public static class TransferMoneyHandler3
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId))] global::Marten.Events.IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
         
-        [WriteAggregate(nameof(TransferMoney.ToId))] global::Marten.Events.IEventStream<Account> toAccount)
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
         if (fromAccount.Aggregate!.Amount >= command.Amount)
@@ -109,9 +109,9 @@ public static class TransferMoneyEndpointWithBefore
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] global::Marten.Events.IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
 
-        [WriteAggregate(nameof(TransferMoney.ToId))] global::Marten.Events.IEventStream<Account> toAccount)
+        [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         // Would already 404 if either referenced account does not exist
         if (fromAccount.Aggregate!.Amount >= command.Amount)
@@ -138,9 +138,9 @@ public static class TransferMoneyEndpointWithBeforeAggregate
     public static void Handle(
         TransferMoney command,
 
-        [Aggregate(nameof(TransferMoney.FromId))] global::Marten.Events.IEventStream<Account> fromAccount,
+        [Aggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
 
-        [Aggregate(nameof(TransferMoney.ToId))] global::Marten.Events.IEventStream<Account> toAccount)
+        [Aggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
         if (fromAccount.Aggregate!.Amount >= command.Amount)
         {
@@ -166,7 +166,7 @@ public static class TransferMoneyEndpointWithBeforeMixed
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId))] global::Marten.Events.IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId))] IEventStream<Account> fromAccount,
 
         [ReadAggregate(nameof(TransferMoney.ToId))] Account toAccount)
     {

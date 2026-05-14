@@ -56,7 +56,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         var isBoundaryParameter = false;
-        if (aggregateType.Closes(typeof(global::Marten.Events.Dcb.IEventBoundary<>)))
+        if (aggregateType.Closes(typeof(IEventBoundary<>)))
         {
             aggregateType = aggregateType.GetGenericArguments()[0];
             isBoundaryParameter = true;
@@ -95,9 +95,9 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         DetermineEventCaptureHandling(chain, aggregateType);
 
         // Extract the aggregate from the boundary
-        var boundaryInterfaceType = typeof(global::Marten.Events.Dcb.IEventBoundary<>).MakeGenericType(aggregateType);
+        var boundaryInterfaceType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
         Variable aggregateVariable = new MemberAccessVariable(boundary,
-            boundaryInterfaceType.GetProperty(nameof(global::Marten.Events.Dcb.IEventBoundary<string>.Aggregate))!);
+            boundaryInterfaceType.GetProperty(nameof(IEventBoundary<string>.Aggregate))!);
 
         if (Required)
         {
@@ -171,7 +171,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
 
         // If there's no IEventBoundary<T> parameter, assume return values are events
         if (!firstCall.Method.GetParameters()
-                .Any(x => x.ParameterType.Closes(typeof(global::Marten.Events.Dcb.IEventBoundary<>))))
+                .Any(x => x.ParameterType.Closes(typeof(IEventBoundary<>))))
         {
             chain.ReturnVariableActionSource = new BoundaryEventCaptureActionSource(aggregateType);
         }

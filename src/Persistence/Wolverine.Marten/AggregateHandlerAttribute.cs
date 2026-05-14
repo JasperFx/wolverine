@@ -172,7 +172,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _stream = chain.FindVariable(typeof(global::Marten.Events.IEventStream<T>));
+        _stream = chain.FindVariable(typeof(IEventStream<T>));
         yield return _stream;
     }
 
@@ -182,7 +182,7 @@ internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVaria
 
         writer.WriteComment(Description);
         writer.Write(
-            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(global::Marten.Events.IEventStream<string>.AppendOne)}({variableName});");
+            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
         Next?.GenerateCode(method, writer);
     }
 }
@@ -225,9 +225,9 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
             Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static so the reflective close never fires.")]
         public IEnumerable<Frame> Frames()
         {
-            var streamType = typeof(global::Marten.Events.IEventStream<>).MakeGenericType(_aggregateType);
+            var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
 
-            yield return new MethodCall(streamType, nameof(global::Marten.Events.IEventStream<string>.AppendOne))
+            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
             {
                 Arguments =
                 {

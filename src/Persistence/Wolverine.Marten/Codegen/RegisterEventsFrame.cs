@@ -2,11 +2,12 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Marten.Events;
 
 namespace Wolverine.Marten.Codegen;
 
-internal class RegisterEventsFrame<T> : MethodCall where T : notnull
+internal class RegisterEventsFrame<T> : MethodCall where T : class
 {
     public RegisterEventsFrame(Variable returnVariable) : base(typeof(IEventStream<T>),
         FindMethod(returnVariable.VariableType))

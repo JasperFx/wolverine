@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
+using JasperFx.Events;
 using Marten;
 using Marten.Metadata;
 using Microsoft.Extensions.DependencyInjection;
@@ -225,7 +226,7 @@ public record GpStreamEventCascaded(string Source);
 public class GpStreamAggregate : IRevisioned
 {
     public Guid Id { get; set; }
-    public int Version { get; set; }
+    public long Version { get; set; }
     public int ACount { get; set; }
     public int BCount { get; set; }
     public int CascadedCount { get; set; }

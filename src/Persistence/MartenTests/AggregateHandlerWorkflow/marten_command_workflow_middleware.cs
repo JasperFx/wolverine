@@ -3,6 +3,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using JasperFx.Events.Projections;
 using Marten.Events.Projections;
@@ -236,7 +237,7 @@ public static class SpecialLetterHandler
     // This can be done as a policy at the application level and not
     // on a handler by handler basis too
     [ScheduleRetry(typeof(ConcurrencyException), 1, 2, 5)]
-    [AggregateHandler(ConcurrencyStyle.Exclusive)]
+    [AggregateHandler(global::Wolverine.Marten.ConcurrencyStyle.Exclusive)]
     public static IEnumerable<object> Handle(IncrementAB command, LetterAggregate aggregate)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);

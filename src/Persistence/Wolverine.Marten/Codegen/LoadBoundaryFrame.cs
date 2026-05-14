@@ -20,12 +20,7 @@ internal class LoadBoundaryFrame : AsyncFrame
     {
         _aggregateType = aggregateType;
         _query = query;
-        // Qualify IEventBoundary<> explicitly: the JFx.Events alpha.8 lift made the
-        // bare name ambiguous between Marten.Events.Dcb and JasperFx.Events.Tags.
-        // Pick the Marten side here — the Marten DCB binding flows the Marten
-        // boundary type. Once marten#4403 ships, Marten.Events.Dcb.IEventBoundary
-        // is removed and the qualification can drop.
-        _boundaryType = typeof(global::Marten.Events.Dcb.IEventBoundary<>).MakeGenericType(aggregateType);
+        _boundaryType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
         Boundary = new Variable(_boundaryType, this);
     }
 

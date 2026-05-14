@@ -2,6 +2,7 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
 using Marten;
+using Marten.Newtonsoft;
 using Marten.Exceptions;
 using Marten.Schema;
 using Microsoft.Extensions.Hosting;

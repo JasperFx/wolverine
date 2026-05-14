@@ -257,7 +257,7 @@ public class SideEffects1 : IRevisioned
     public int B { get; set; }
     public int C { get; set; }
     public int D { get; set; }
-    public int Version { get; set; }
+    public long Version { get; set; }
 }
 
 // Wrap it in your own IHostedService
@@ -434,7 +434,7 @@ public class Order2
 
     // This is important, by Marten convention this would
     // be the
-    public int Version { get; set; }
+    public long Version { get; set; }
 
     public Order2(OrderCreated created)
     {
