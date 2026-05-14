@@ -235,6 +235,7 @@
     <Project Path="src/Testing/ConsoleApp/ConsoleApp.csproj" />
     <Project Path="src/Testing/CoreTests/CoreTests.csproj" />
     <Project Path="src/Testing/Wolverine.AotSmoke/Wolverine.AotSmoke.csproj" />
+    <Project Path="src/Testing/Wolverine.AotSmoke.Static/Wolverine.AotSmoke.Static.csproj" />
     <Project Path="src/Testing/MessageRoutingTests/MessageRoutingTests.csproj" />
     <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
     <Project Path="src/Testing/Module1/Module1.csproj" />

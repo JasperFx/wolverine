@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+
+        <!--
+        AOT smoke test #2 (wolverine#2746 sub-PR I, companion to
+        Wolverine.AotSmoke). Validates the AOT-clean runtime path:
+        pre-generate handler code via the codegen-write CLI,
+        commit the output under Internal/Generated/WolverineHandlers/,
+        boot under TypeLoadMode.Static + AssertAllPreGeneratedTypesExist
+        = true, dispatch a message, verify the static-loaded handler
+        fired. If a regression breaks the static-load contract, this
+        build/run fails in CI rather than downstream consumers'.
+
+        Two failure modes this smoke catches:
+
+        1. Pre-generated handler missing or stale.
+           AssertAllPreGeneratedTypesExist=true makes the host throw
+           at Compile time if the StaticTypeLoader cannot locate the
+           expected MessageHandler subclass in this assembly. This pins
+           down regressions in the codegen output format or the type-name
+           hashing scheme.
+
+        2. Runtime regenerates code under Static mode.
+           The host registers a sentinel IAssemblyGenerator that throws
+           on use. Any silent fallback to Roslyn compilation under
+           TypeLoadMode.Static fails the smoke immediately with a clear
+           "static-mode boot triggered runtime compilation" stack.
+
+        Refresh procedure when the codegen output format changes:
+        run the AotSmoke.Static project with the codegen-write CLI args,
+        then commit the regenerated files under Internal/Generated/.
+
+        IsAotCompatible=true is intentionally not set on this project.
+        The goal here is to validate the static-load contract end-to-end
+        (which currently still requires Wolverine surfaces that are not
+        AOT-clean to BOOT, even though the dispatch path is). The
+        sister Wolverine.AotSmoke project covers the IsAotCompatible=true
+        analyzer story for the value-shape surface.
+        -->
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>
