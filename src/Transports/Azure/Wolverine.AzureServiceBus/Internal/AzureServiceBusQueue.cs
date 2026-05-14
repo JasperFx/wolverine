@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
@@ -219,6 +220,13 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         return false;
     }
     
+    // NServiceBus interop: NSB writes the .NET assembly-qualified type name
+    // to the message header; we resolve it via Type.GetType(string). Type
+    // resolution from a runtime string is fundamentally not AOT-clean — the
+    // trimmer can't know which types may appear. AOT-clean apps using NSB
+    // interop preserve their NSB-side message types via TrimmerRootDescriptor.
+    [UnconditionalSuppressMessage("Trimming", "IL2057",
+        Justification = "Type.GetType(typeName) on NServiceBus wire type names; AOT consumers preserve NSB message types via TrimmerRootDescriptor. See AOT guide.")]
     internal void UseNServiceBusInterop()
     {
         // NServiceBus.EnclosedMessageTypes

@@ -3,6 +3,17 @@
     <PropertyGroup>
         <PackageId>WolverineFx.AzureServiceBus</PackageId>
         <Description>Azure Service Bus transport for Wolverine applications</Description>
+        <!--
+          AOT-compatible (#2746). Reflective surface resolved:
+          - AzureServiceBusEnvelopeMapper ctor inherits EnvelopeMapper<,>
+            reflective property mapping (chunk X RabbitMQ pattern)
+          - AzureServiceBusQueue/Subscription/Topic.UseNServiceBusInterop:
+            Type.GetType(typeName) for NSB wire type names; AOT consumers
+            preserve NSB message types via TrimmerRootDescriptor
+          - Emulator/Code.cs: auto-generated QuickType output suppressed
+            namespace-wide via Emulator/GlobalSuppressions.cs
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
