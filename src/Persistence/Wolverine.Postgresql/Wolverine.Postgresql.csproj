@@ -8,6 +8,16 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Two reflective sites suppressed:
+          - PostgresqlMessageStore ctor: typeof(DatabaseSagaSchema<,>)
+            .CloseAndBuildAs over runtime saga / id types at startup
+          - DatabaseSagaSchema<T,TId>: reflection-based STJ over runtime
+            saga state type T (chunk D / chunk Z pattern)
+          AOT consumers preserve saga state types via TrimmerRootDescriptor
+          or supply a JsonSerializerContext.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
