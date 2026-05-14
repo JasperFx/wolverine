@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using FastExpressionCompiler;
 using ImTools;
@@ -17,6 +18,17 @@ using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
+// AOT note (#2746): Tenanted DbContext construction reflects over the DbContext
+// generic type to find the public ctor accepting DbContextOptions<T>, then
+// expression-compiles a factory. Same chunk M (LoggerVariableSource) Dynamic-
+// codegen pattern; AOT consumers register the DbContext factory explicitly
+// (or use the Static codegen path that bakes it in).
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "FastExpressionCompiler.CompileFast at registration; AOT consumers register an explicit factory. See AOT guide / #2755.")]
+[UnconditionalSuppressMessage("Trimming", "IL2090",
+    Justification = "DbContext T parameter accessed for ctor lookup; T is statically rooted by AddWolverineEFCore<T>(). See AOT guide.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "FastExpressionCompiler emits IL at registration time; AOT consumers register an explicit factory. See AOT guide / #2755.")]
 public class TenantedDbContextBuilderByConnectionString<T> : IDbContextBuilder<T>  where T : DbContext
 {
     private readonly Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> _configuration;

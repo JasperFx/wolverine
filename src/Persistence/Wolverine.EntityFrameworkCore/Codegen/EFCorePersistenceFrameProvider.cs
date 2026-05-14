@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx;
@@ -20,6 +21,24 @@ using Wolverine.Runtime;
 namespace Wolverine.EntityFrameworkCore.Codegen;
 
 // ReSharper disable once InconsistentNaming
+//
+// AOT note (#2746): This whole class is the EF Core codegen frame provider.
+// Every site here closes generic helper types (ApplyAncillaryStoreFrame<>,
+// CreateTenantedDbContext<>, EfCoreStorageActionApplier.ApplyAction<,>,
+// IDbContextBuilder<>) over runtime saga / entity / DbContext types at
+// codegen time, or reflectively walks DbContext type members to discover
+// SaveChangesAsync / Version / etc. AOT-clean apps run pre-generated
+// frames in TypeLoadMode.Static and bypass this class entirely; Dynamic-
+// mode codegen consumers preserve their saga / DbContext types via
+// TrimmerRootDescriptor. Same chunk P (saga frame providers) pattern.
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "EFCore codegen frame provider — Dynamic-mode codegen path; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2067",
+    Justification = "EFCore codegen frame provider — entity / DbContext types statically rooted via persistence registration. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2075",
+    Justification = "EFCore codegen frame provider — DbContext.SaveChangesAsync etc. lookups on statically-rooted DbContext types. See AOT guide.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "EFCore codegen frame provider — closed generics over runtime DbContext / entity types at codegen time. See AOT guide.")]
 internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";

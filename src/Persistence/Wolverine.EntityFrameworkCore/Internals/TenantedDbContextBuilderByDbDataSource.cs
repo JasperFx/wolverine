@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using FastExpressionCompiler;
 using ImTools;
@@ -17,6 +18,14 @@ using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
+// AOT note (#2746): Sibling of TenantedDbContextBuilderByConnectionString;
+// same FastExpressionCompiler-based factory. See chunk-AB notes / #2755.
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "FastExpressionCompiler.CompileFast at registration; AOT consumers register an explicit factory. See AOT guide / #2755.")]
+[UnconditionalSuppressMessage("Trimming", "IL2090",
+    Justification = "DbContext T parameter accessed for ctor lookup; T is statically rooted by AddWolverineEFCore<T>(). See AOT guide.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "FastExpressionCompiler emits IL at registration time; AOT consumers register an explicit factory. See AOT guide / #2755.")]
 public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> where T : DbContext
 {
     private readonly Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> _configuration;

@@ -9,6 +9,15 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Reflective surface resolved via class-level
+          [UnconditionalSuppressMessage] on the codegen frame providers / saga
+          diagnostics / tenanted DbContext builders, plus a forwarded
+          [DAM(PublicConstructors|NonPublicConstructors|PublicProperties)] on
+          AddDbContextWithWolverineIntegration<T> to satisfy EF Core's own
+          AddDbContext<TContext> requirement.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
