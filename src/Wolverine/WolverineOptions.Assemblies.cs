@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -50,6 +51,18 @@ public sealed partial class WolverineOptions
     public IEnumerable<Assembly> Assemblies => HandlerGraph.Discovery.Assemblies;
 
 
+    // determineCallingAssembly is a best-effort fallback that runs only when the
+    // caller didn't pass an assemblyName to UseWolverine, the cached
+    // RememberedApplicationAssembly is empty, AND jasperfx.ApplicationAssembly is
+    // also empty. AOT-clean apps avoid this path entirely: they explicitly set
+    // ApplicationAssembly (or pass assemblyName to UseWolverine) — see the AOT
+    // publishing guide. The StackFrame.GetMethod() reflection is only used to
+    // identify which calling assembly *registered* Wolverine; the call doesn't
+    // need full method metadata, just DeclaringType.Assembly. Trim removal of
+    // method bodies still leaves the declaring-type metadata intact for normally-
+    // reachable methods, so the practical risk is low even outside the AOT path.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Best-effort caller-assembly resolution; AOT-clean apps set ApplicationAssembly explicitly. See AOT guide.")]
     private Assembly? determineCallingAssembly()
     {
         var stack = new StackTrace();
