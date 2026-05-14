@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;
 using JasperFx.Core;
@@ -41,6 +42,14 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
 
+    // typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(...) at L59
+    // closes the saga schema generic over (sagaType, idType) at startup. Same
+    // chunk D / I / J / K / AE / AF / AG CloseAndBuildAs pattern: AOT-clean apps
+    // preserve saga state types via TrimmerRootDescriptor. Cross-link to #2769.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public MySqlMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings,
         MySqlDataSource dataSource,
         ILogger<MySqlMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings,
