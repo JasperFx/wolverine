@@ -1,10 +1,12 @@
-﻿namespace Wolverine.Attributes;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace Wolverine.Attributes;
 
 /// <summary>
 ///     Marks the assembly as an automatically loaded Wolverine extension module
 /// </summary>
 [AttributeUsage(AttributeTargets.Assembly)]
-public class WolverineModuleAttribute<T> : WolverineModuleAttribute
+public class WolverineModuleAttribute<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T> : WolverineModuleAttribute
     where T : IWolverineExtension
 {
     /// <summary>

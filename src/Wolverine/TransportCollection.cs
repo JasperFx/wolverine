@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using Wolverine.Configuration;
 using Wolverine.Transports;
@@ -70,7 +71,7 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
         _transports[transport.Protocol] = transport;
     }
 
-    public T GetOrCreate<T>(BrokerName? name = null) where T : ITransport, new()
+    public T GetOrCreate<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(BrokerName? name = null) where T : ITransport, new()
     {
         if (name == null)
         {
