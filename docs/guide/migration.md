@@ -28,6 +28,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
+| `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Only affects code that stores `saga.Version` in an `int` variable, casts it explicitly, or binds it to a column typed `int`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip

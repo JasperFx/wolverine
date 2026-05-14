@@ -89,7 +89,15 @@ public class system_message_type_filtering
         var observer = new RecordingObserver();
         runtime.Observer = observer;
 
-        // Force routing for each type so the observer hook is exercised
+        // PrepopulateRoutingCache (#2769) primes the router cache at startup, so a
+        // plain RoutingFor() call would hit the cache and skip the observer hook.
+        // Clear each entry first so the cache-miss path runs and the system-type
+        // filter around Observer.MessageRouted is exercised.
+        runtime.ClearRoutingFor(typeof(NormalUserMessage));
+        runtime.ClearRoutingFor(typeof(SampleInternalMessage));
+        runtime.ClearRoutingFor(typeof(SampleAgentCommand));
+        runtime.ClearRoutingFor(typeof(SampleNotToBeRouted));
+
         runtime.RoutingFor(typeof(NormalUserMessage));
         runtime.RoutingFor(typeof(SampleInternalMessage));
         runtime.RoutingFor(typeof(SampleAgentCommand));
