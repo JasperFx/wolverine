@@ -65,6 +65,14 @@ npm install && npm run docs
 - `wolverine.slnx` - Full solution
 - `wolverine_slim.slnx` - Lightweight variant
 
+> ⚠️ **Use `wolverine.slnx` (the full solution) when chasing compilation failures.**
+> `wolverine_slim.slnx` omits several extension projects — most notably
+> `Wolverine.EntityFrameworkCore`, `Wolverine.Polecat`, `Wolverine.RavenDb`,
+> `Wolverine.Http.Newtonsoft`, and `Wolverine.FluentValidation`. A clean
+> slim build is **not sufficient evidence** that a tightening change to a
+> dependency (e.g. a new AOT/trim annotation in JasperFx) is clean across
+> Wolverine. Reproduce CI by building the full solution before pushing.
+
 ## Key Entry Points
 
 | Concept | Location |
