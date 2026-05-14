@@ -3,6 +3,17 @@
     <PropertyGroup>
         <Description>High Performance ASP.Net Core HTTP endpoints using the Wolverine runtime</Description>
         <PackageId>WolverineFx.Http</PackageId>
+        <!--
+          AOT-compatible (#2746). All ~128 IL warnings resolved through:
+          - Namespace-scoped UnconditionalSuppressMessage in GlobalSuppressions.cs
+            covering the codegen surface (Wolverine.Http and descendants)
+          - Per-ctor [DAM] annotations on AsParametersBindingFrame /
+            FormBindingFrame for parameter-type member access
+          - Per-method [UnconditionalSuppressMessage(IL2072)] at
+            AsParamatersAttributeUsage.TryMatch / FromFormAttributeUsage.TryMatch
+            where ParameterInfo.ParameterType flows into the [DAM]-annotated ctors
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

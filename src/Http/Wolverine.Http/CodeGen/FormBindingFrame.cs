@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -32,6 +33,13 @@ internal class FromFormAttributeUsage : IParameterStrategy
 
     
 
+    // parameter.ParameterType flows into FormBindingFrame's
+    // [DAM(PublicConstructors|PublicProperties)]-annotated ctor parameter;
+    // ParameterInfo.ParameterType doesn't carry the DAM annotation. Suppress
+    // at the call site — the user's [FromForm] type is statically rooted via
+    // endpoint discovery (chunk Q HandlerDiscovery RUC propagation upstream).
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "User [FromForm] type statically rooted via endpoint discovery; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
          variable = default;
@@ -71,7 +79,7 @@ internal class FormBindingFrame : SyncFrame
     private readonly List<Variable> _parameters = new();
     private readonly List<IReadHttpFrame> _props = new();
     public Variable Variable { get; }
-    public FormBindingFrame(Type queryType, HttpChain chain){
+    public FormBindingFrame([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type queryType, HttpChain chain){
         Variable = new Variable(queryType, this);
 
         var constructors = queryType.GetConstructors();

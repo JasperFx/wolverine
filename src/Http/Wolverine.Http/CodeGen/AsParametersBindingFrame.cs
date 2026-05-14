@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -13,6 +14,14 @@ using Wolverine.Runtime;
 
 internal class AsParamatersAttributeUsage : IParameterStrategy
 {
+    // parameter.ParameterType flows into AsParametersBindingFrame's
+    // [DAM(PublicConstructors|PublicProperties)]-annotated ctor parameter;
+    // ParameterInfo.ParameterType doesn't carry the DAM annotation. Suppress
+    // at the call site — the user's [AsParameters] type is statically rooted
+    // via endpoint discovery (which carries [RequiresUnreferencedCode]
+    // upstream after the chunk Q HandlerDiscovery work).
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "User [AsParameters] type statically rooted via endpoint discovery; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide.")]
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
         variable = default;
@@ -78,7 +87,7 @@ internal class AsParametersBindingFrame : SyncFrame
     private bool _hasForms = false;
     private bool _hasJsonBody = false;
 
-    public AsParametersBindingFrame(Type queryType, HttpChain chain, IServiceContainer container)
+    public AsParametersBindingFrame([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type queryType, HttpChain chain, IServiceContainer container)
     {
         Variable = new Variable(queryType, this);
 
