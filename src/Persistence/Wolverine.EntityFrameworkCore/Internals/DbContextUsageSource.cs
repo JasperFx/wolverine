@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -304,6 +305,8 @@ internal static class DbContextUsageFactory
     /// here keeps this single source file compatible with all three EF Core
     /// majors that the wolverine repo targets.
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Reflection over IEntityType implementation type's GetDeclaredQueryFilters / GetQueryFilter methods to maintain compatibility with EF 8/9 (single LambdaExpression) and EF 10 (collection). The IEntityType is provided by EF Core at runtime and its concrete type's methods are preserved by EF Core itself.")]
     private static bool HasAnyQueryFilter(IEntityType entityType)
     {
         var type = entityType.GetType();
@@ -405,6 +408,8 @@ internal static class DbContextUsageFactory
 /// </summary>
 internal static class DatabaseDescriptorFactory
 {
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "DatabaseDescriptor(subject) reads subject's runtime-type properties for diagnostic reporting. User DbContext subclass properties trimmed away are silently omitted, which is acceptable for this diagnostic surface.")]
     public static DatabaseDescriptor FromDbContext(DbContext dbContext)
     {
         var providerName = dbContext.Database.ProviderName ?? "";

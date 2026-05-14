@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -20,6 +21,9 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// </remarks>
 public static class PendingMigrationsProbe
 {
+    [RequiresDynamicCode(
+        "EF Core's GetPendingMigrationsAsync uses migrations infrastructure that requires runtime code generation. " +
+        "Migrations are not supported with NativeAOT; AOT-publishing apps should use a migration bundle or run migrations out-of-process.")]
     public static async Task<PendingMigrationsReported> RunAsync(
         IServiceProvider services,
         Uri subjectUri,

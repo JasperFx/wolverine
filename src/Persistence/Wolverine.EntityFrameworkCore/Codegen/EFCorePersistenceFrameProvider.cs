@@ -55,6 +55,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     
     public Frame[] DetermineFrameToNullOutMaybeSoftDeleted(Variable entity) => [];
 
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Variable.VariableType returns the spec type without DAM annotation. FindInterfaceThatCloses inspects the generic-interface graph for IQueryPlan<,> / IBatchQueryPlan<,>; user spec types are statically rooted by handler discovery and preserved by their registration.")]
     public bool TryBuildFetchSpecificationFrame(
         Variable specVariable,
         IServiceContainer container,

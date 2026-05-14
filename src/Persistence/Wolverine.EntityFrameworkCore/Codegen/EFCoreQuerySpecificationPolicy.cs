@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
@@ -56,6 +57,8 @@ internal class EFCoreQuerySpecificationPolicy : IMethodPreCompilationPolicy
     /// namespace. Namespace guard prevents false positives from user types
     /// that happen to implement a similarly-named interface from another library.
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "type originates from chain return-value discovery and is rooted by handler registration. FindInterfaceThatCloses inspects the generic-interface graph for IQueryPlan<,> / IBatchQueryPlan<,>; user spec types are preserved by their handler registration.")]
     private static bool IsEfCoreSpecification(Type type)
     {
         if (type == null) return false;

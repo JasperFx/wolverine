@@ -37,6 +37,8 @@ internal class FetchSpecificationFrame : AsyncFrame, IEFCoreBatchableFrame
     private Variable? _batchQuery;
     private Variable? _batchItem;
 
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Variable.VariableType returns the spec type without DAM annotation. FindInterfaceThatCloses inspects the generic-interface graph for IQueryPlan<,> / IBatchQueryPlan<,>; user spec types are statically rooted by handler discovery and preserved by their registration.")]
     public FetchSpecificationFrame(Variable specVar)
     {
         _spec = specVar ?? throw new ArgumentNullException(nameof(specVar));
