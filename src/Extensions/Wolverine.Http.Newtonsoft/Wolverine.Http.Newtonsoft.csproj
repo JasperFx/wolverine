@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>Newtonsoft.Json (Json.NET) serialization support for Wolverine.Http. Provides Wolverine 5.x-compatible Newtonsoft.Json wire-format opt-in via UseNewtonsoftJsonForSerialization() extension methods on WolverineHttpOptions. As of Wolverine 6.0, the core WolverineFx.Http package no longer depends on Newtonsoft.Json — install this package alongside it if you need Newtonsoft.Json instead of System.Text.Json for HTTP endpoints.</Description>
+        <PackageId>WolverineFx.Http.Newtonsoft</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Mirrors WolverineFx.Newtonsoft: the
+          NewtonsoftHttpSerialization wrappers themselves are AOT-clean,
+          and Newtonsoft.Json already carries its own
+          [RequiresUnreferencedCode] disclaimers on its public Serialize /
+          Deserialize methods. The IL warnings only surface when user code
+          calls Newtonsoft against trim-unsafe types. Net result for this
+          package: zero leaf suppressions needed. AOT consumers of
+          Wolverine.Http should prefer System.Text.Json (the default) and
+          only opt back into Newtonsoft if they need 5.x wire-format compat.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Newtonsoft.Json" />
+    </ItemGroup>
+
+    <Import Project="../../../Analysis.Build.props" />
+
+</Project>

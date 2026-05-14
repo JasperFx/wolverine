@@ -164,7 +164,10 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         services.AddType(typeof(IApiDescriptionProvider), typeof(WolverineApiDescriptionProvider),
             ServiceLifetime.Singleton);
         services.AddSingleton<WolverineHttpOptions>();
-        services.AddSingleton<NewtonsoftHttpSerialization>();
+        // NewtonsoftHttpSerialization moved to the WolverineFx.Http.Newtonsoft
+        // companion package in 6.0. The package's AddWolverineHttpNewtonsoft()
+        // service-collection extension registers the singleton on demand; only
+        // apps that call UseNewtonsoftJsonForSerialization() pay for it now.
         services.AddSingleton<HttpTransportExecutor>();
 
         services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));

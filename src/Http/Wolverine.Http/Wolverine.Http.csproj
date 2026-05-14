@@ -21,16 +21,15 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
         <PackageReference Include="Asp.Versioning.Abstractions"/>
         <!--
-          Wolverine.Http carries its own Newtonsoft.Json surface
-          (NewtonsoftHttpSerialization, WolverineHttpOptions.UseNewtonsoftJsonForSerialization,
-          JsonStyle.NewtonsoftJson, the ProblemDetailsContinuationPolicy converter).
-          In 5.x this came in transitively via core Wolverine; that dependency
-          moved out of core in 6.0 (see WolverineFx.Newtonsoft / migration.md).
-          Wolverine.Http now declares the direct dependency. A future cleanup
-          (#2742) may extract this whole surface to a WolverineFx.Http.Newtonsoft
-          companion package.
+          Newtonsoft.Json was removed from WolverineFx.Http in 6.0 (#2742).
+          The Newtonsoft surface (NewtonsoftHttpSerialization,
+          UseNewtonsoftJsonForSerialization, the codegen frames that target
+          NewtonsoftHttpSerialization) moved to the WolverineFx.Http.Newtonsoft
+          companion package. Core retains the JsonUsage.NewtonsoftJson enum
+          value and an internal INewtonsoftHttpCodeGen seam; selecting the
+          enum without the extension package installed throws a useful
+          codegen-time exception. See docs/guide/migration.md.
         -->
-        <PackageReference Include="Newtonsoft.Json"/>
     </ItemGroup>
 
     <ItemGroup>

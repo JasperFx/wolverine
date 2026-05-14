@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Shouldly;
+using Wolverine.Http.Newtonsoft;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;
 
@@ -28,13 +29,19 @@ public class using_newtonsoft_for_serialization
         });
 
         builder.Services.AddWolverineHttp();
+        // As of Wolverine 6.0, Newtonsoft.Json HTTP support lives in the
+        // separate WolverineFx.Http.Newtonsoft package — register its
+        // services here, then opt in via UseNewtonsoftJsonForSerialization()
+        // below.
+        builder.Services.AddWolverineHttpNewtonsoft();
 
         await using var host = await AlbaHost.For(builder, app =>
         {
             app.MapWolverineEndpoints(opts =>
             {
                 // Opt into using Newtonsoft.Json for JSON serialization just with Wolverine.HTTP routes
-                // Configuring the JSON serialization is optional
+                // Configuring the JSON serialization is optional. This extension method comes from
+                // the WolverineFx.Http.Newtonsoft package (using Wolverine.Http.Newtonsoft;).
                 opts.UseNewtonsoftJsonForSerialization(settings => settings.TypeNameHandling = TypeNameHandling.All);
             });
         });

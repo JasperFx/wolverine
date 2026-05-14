@@ -203,6 +203,12 @@ The `WolverineFx.Newtonsoft` package provides the same `UseNewtonsoftForSerializ
 `WolverineOptions` and per-endpoint configuration. Add the `using Wolverine.Newtonsoft;` directive
 to bring the extensions into scope.
 
+::: tip
+For HTTP-endpoint JSON serialization, there's a parallel `WolverineFx.Http.Newtonsoft` package that
+extracts the HTTP-side Newtonsoft surface (`WolverineHttpOptions.UseNewtonsoftJsonForSerialization`) from
+core `WolverineFx.Http` in 6.0. See [the HTTP JSON docs](/guide/http/json.html#using-newtonsoft-json) for setup.
+:::
+
 The default configuration is:
 
 ```cs

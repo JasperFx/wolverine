@@ -20,6 +20,9 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `IMassTransitInterop.UseNewtonsoftForSerialization(...)` | interface method | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Same |
 | `NewtonsoftSerializer` type | `Wolverine.Runtime.Serialization` namespace | `Wolverine.Newtonsoft` namespace *(BREAKING)* | Update `using` |
 | `Subscription.Scope` JSON converter attribute | `[StringEnumConverter]` (Newtonsoft) | `[JsonStringEnumConverter]` (STJ) | Wire format unchanged; if you serialize `Subscription` yourself with Newtonsoft and rely on string-named scopes, configure `StringEnumConverter` on your own settings |
+| `WolverineHttpOptions.UseNewtonsoftJsonForSerialization(...)` | instance method on core `WolverineFx.Http` | extension method in `WolverineFx.Http.Newtonsoft` *(BREAKING)* | Install `WolverineFx.Http.Newtonsoft`; call `services.AddWolverineHttpNewtonsoft();` alongside `AddWolverineHttp()`; add `using Wolverine.Http.Newtonsoft;` |
+| `NewtonsoftHttpSerialization` type | `Wolverine.Http` namespace in core `WolverineFx.Http` | `Wolverine.Http.Newtonsoft` namespace in `WolverineFx.Http.Newtonsoft` *(BREAKING)* | Update `using` |
+| `ProblemDetailsContinuationPolicy.WriteProblems` diagnostic logger dump | `JsonConvert.SerializeObject` (Newtonsoft) | `JsonSerializer.Serialize` (STJ) | None — diagnostic-only log line; output shape unchanged |
 | `SnapshotLifecycle` namespace | `Marten.Events.Projections` | `JasperFx.Events.Projections` *(BREAKING)* | Add `using JasperFx.Events.Projections;` |
 | `OperationRole` namespace | `Marten.Internal.Operations` | `Weasel.Core` *(BREAKING)* | Add `using Weasel.Core;` |
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
@@ -140,6 +143,31 @@ The call surface itself is unchanged — `opts.UseNewtonsoftForSerialization(set
 Transports that pin a `NewtonsoftSerializer` internally for NServiceBus / MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS and SNS NServiceBus mappers, Azure Service Bus listeners) carry the `WolverineFx.Newtonsoft` dependency for you. You don't need to install it explicitly unless you call one of the Newtonsoft APIs from your own code.
 
 In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute — it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. Wire format is unchanged (still string-named scopes). If you serialize `Subscription` instances yourself with Newtonsoft and rely on the string-named scope shape, configure `StringEnumConverter` on your own settings explicitly.
+
+### `Wolverine.Http` Newtonsoft moved to `WolverineFx.Http.Newtonsoft` package (BREAKING)
+
+Mirrors the core extraction above: the `WolverineFx.Http` NuGet package no longer depends on Newtonsoft.Json. All Newtonsoft-flavored HTTP serialization moved to a separate `WolverineFx.Http.Newtonsoft` package and is exposed as an **extension method** rather than an instance method on `WolverineHttpOptions`.
+
+If you call the following 5.x API:
+
+- `WolverineHttpOptions.UseNewtonsoftJsonForSerialization(...)`
+- `new NewtonsoftHttpSerialization(...)` directly (rare — it was an internal-feeling singleton)
+
+you must:
+
+1. **Install the new package**: `dotnet add package WolverineFx.Http.Newtonsoft`
+2. **Register the package's services** alongside `AddWolverineHttp()`:
+   ```csharp
+   builder.Services.AddWolverineHttp();
+   builder.Services.AddWolverineHttpNewtonsoft();   // new
+   ```
+3. **Add `using Wolverine.Http.Newtonsoft;`** to bring the extension method (and the `NewtonsoftHttpSerialization` type) into scope.
+
+The call surface itself is unchanged — `opts.UseNewtonsoftJsonForSerialization(settings => …)` works exactly as before, it's just an extension method now. See the [HTTP JSON serialization docs](/guide/http/json.html#using-newtonsoft-json) for the full example.
+
+Core `WolverineFx.Http` retains the `JsonUsage.NewtonsoftJson` enum value so the public switch shape doesn't change. The codegen path inside `JsonResourceWriterPolicy` / `JsonBodyParameterStrategy` now dispatches through an internal `INewtonsoftHttpCodeGen` seam implemented in the new package; selecting `JsonUsage.NewtonsoftJson` without the package installed throws an `InvalidOperationException` at codegen time pointing you at `dotnet add package WolverineFx.Http.Newtonsoft`.
+
+In a related cleanup, `ProblemDetailsContinuationPolicy.WriteProblems` (which dumps the `ProblemDetails` payload into the log line for the "found problems with this message" diagnostic) switched from `Newtonsoft.Json.JsonConvert.SerializeObject` to `System.Text.Json.JsonSerializer.Serialize`. This is a logging dump only — `ProblemDetails` round-trips cleanly through STJ; there is no observable output-format change.
 
 ### `IForwardsTo<T>` discovery is now explicit (BREAKING)
 
