@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx;
@@ -291,6 +292,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return handler;
     }
 
+    // Closes FanoutMessageHandler<> over the runtime-resolved messageType
+    // and Activator.CreateInstance's the result. Per-message-type lazy-init
+    // (cached in _handlers ImHashMap after first call). Same chunk J
+    // (RoutingFor) pattern: AOT-clean apps in TypeLoadMode.Static pre-
+    // populate _handlers at HandlerGraph.Compile time so the steady-state
+    // hot path is pure cache lookups. The pre-population work is tracked in
+    // #2769 (CloseAndBuildAs elimination).
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "FanoutMessageHandler<> closed over runtime messageType; AOT consumers pre-populate _handlers via TypeLoadMode.Static. See AOT guide / #2769.")]
     private IMessageHandler getOrBuildFanoutHandler(Type messageType, HandlerChain chain)
     {
         if (_handlers.TryFind(messageType, out var cached) && cached != null)
@@ -312,6 +322,16 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return handler;
     }
 
+    // Compile is the bootstrap-time handler-graph build. The IL2026 here comes
+    // from the call to Forwarders.FindForwards (which carries
+    // [RequiresUnreferencedCode]) plus registerMessageTypes' MakeGenericType
+    // /GetInterfaces walks. Pre-population of _messageTypes / _handlers caches
+    // would close most of these — tracked in #2769 (CloseAndBuildAs elimination)
+    // and the IForwardsTo follow-up #2757. Until those land, suppress at the
+    // Compile boundary: a single annotation here keeps WolverineRuntime
+    // .StartAsync (the public bootstrap entry point) free of the cascade.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Bootstrap-time handler-graph build; Forwarders.FindForwards assembly scan + per-message-type cache population. Pre-population work tracked in #2769 / #2757. See AOT guide.")]
     internal void Compile(WolverineOptions options, IServiceContainer container)
     {
         if (_hasCompiled)
@@ -408,6 +428,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
     }
 
+    // Walks chain.MessageType.GetInterfaces() to find interop interfaces,
+    // then closes generic-handler types over those interface message types
+    // via MakeGenericType. Bootstrap-time helper; AOT consumers preserve
+    // interop-interface types via opts.AddMessageInterfaceAssembly(...) +
+    // appropriate trim descriptors.
+    [UnconditionalSuppressMessage("Trimming", "IL2055",
+        Justification = "Closed generic message-handler type for interop interface; bootstrap-time only. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "MessageType.GetInterfaces walk at bootstrap; user message types statically rooted via HandlerDiscovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType over runtime interface type; AOT consumers preserve interop-interface message types via opts.AddMessageInterfaceAssembly. See AOT guide.")]
     private void registerMessageTypes()
     {
         lock (_messageTypesLock)
@@ -515,6 +546,15 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         return new HandlerChain(options, group, this);
     }
 
+    // typeof(ForwardingHandler<,>).CloseAndBuildAs<MessageHandler>(this, source, destination)
+    // closes the forwarding-handler generic over (source, destination) message
+    // types. AddForwarders runs at bootstrap from HandlerGraph.Compile (or via
+    // the IForwardsTo<> assembly scan whose elimination is tracked in #2757).
+    // Same chunk D / I / J / K CloseAndBuildAs pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "ForwardingHandler<,> closed over runtime (source, destination) message types at bootstrap; user types statically rooted. See AOT guide / #2757.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "ForwardingHandler<,> closed over runtime (source, destination) message types at bootstrap; user types statically rooted. See AOT guide / #2757.")]
     internal void AddForwarders(Forwarders forwarders)
     {
         foreach (var pair in forwarders.Relationships)
