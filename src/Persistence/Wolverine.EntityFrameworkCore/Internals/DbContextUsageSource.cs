@@ -126,14 +126,13 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
             }
             finally
             {
-                if (mainContext is IAsyncDisposable ad)
-                {
-                    await ad.DisposeAsync();
-                }
-                else
-                {
-                    mainContext.Dispose();
-                }
+                // DbContext implements IAsyncDisposable since EF Core 3.0 — and
+                // mainContext is statically typed T : DbContext — so always
+                // prefer DisposeAsync() to satisfy VSTHRD103 and avoid
+                // unnecessarily blocking on synchronous Dispose() in this
+                // async snapshot path. The previous if/else split was dead
+                // code: every concrete T reachable here is IAsyncDisposable.
+                await mainContext.DisposeAsync();
             }
         }
         catch
