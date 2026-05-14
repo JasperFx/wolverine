@@ -7,6 +7,14 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). All ~142 IL warnings resolved via
+          namespace-scoped UnconditionalSuppressMessage in GlobalSuppressions.cs
+          covering the Wolverine.Marten codegen surface (and descendants:
+          Codegen, Subscriptions, Persistence.Sagas, Distribution, Publishing,
+          Requirements). Same chunk AC (Wolverine.Http) approach.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
