@@ -119,7 +119,214 @@ fully qualified namespaces for the known tenants. When a message is received at 
 `TenantId` that's appropriate for each separate tenant-specific listening endpoint. That helps Wolverine also track
 tenant specific operations (with Marten maybe?) and tracks the tenant id across any outgoing messages or responses as well.
 
+## Single Namespace, Topic-per-Tenant Routing <Badge type="tip" text="6.0" />
 
+The configuration above gives every tenant its own Azure Service Bus *namespace*. That topology is the right answer when
+isolation, throttling, or chargeback have to live at the broker boundary.
 
+A second, lighter-weight topology is common in SaaS deployments where the application owns a single Azure Service Bus
+namespace and gives every tenant a dedicated *topic* inside it. Tenant isolation lives at the topic level; one connection
+string, one namespace-level RBAC policy, one set of metrics. The tradeoff is that broker-level concerns (per-tenant
+throttling, namespace-scoped credentials) all collapse onto the shared namespace — pick this topology when that's
+acceptable.
+
+Wolverine doesn't ship a built-in helper for topic-per-tenant routing because the right answer to *how* tenant ids map to
+topic names, *what* to do about unknown tenants, and *when* the catalog of tenants is loaded all depend on the
+application. The recipe below is a small `IMessageRouteSource` implementation plus a `WolverineOptions` extension method
+that any application can drop in and adapt.
+
+### The route source
+
+`TopicPerTenantRoute` resolves the per-tenant `AzureServiceBusTopic` at publish time using the
+`DeliveryOptions.TenantId` carried by the outgoing envelope. Wolverine's per-message-type router asks
+`IMessageRouteSource.FindRoutes` exactly once per message type (the result is cached) — so the actual per-tenant
+resolution happens inside `CreateForSending`, where the `TenantId` is known.
+
+<!-- snippet: sample_topic_per_tenant_route -->
+<a id='snippet-sample_topic_per_tenant_route'></a>
+```cs
+internal sealed class TopicPerTenantRoute(IReadOnlyDictionary<string, AzureServiceBusTopic> topicsByTenant)
+    : IMessageRouteSource, IMessageRoute, IEndpointSource
+{
+    private ImHashMap<(Type messageType, string tenantId), MessageRoute> _routes
+        = ImHashMap<(Type, string), MessageRoute>.Empty;
+
+    // Non-additive: this is the canonical route for every user message type.
+    // The default LocalRouting / ExplicitRouting sources still take precedence
+    // for framework-internal messages because of the IsInternalMessage filter
+    // in FindRoutes below.
+    public bool IsAdditive => false;
+
+    public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
+    {
+        if (messageType.CanBeCastTo<IInternalMessage>()) yield break;
+        if (messageType.CanBeCastTo<IAgentCommand>()) yield break;
+        if (messageType.CanBeCastTo<INotToBeRouted>()) yield break;
+        yield return this;
+    }
+
+    // Surfaces the per-tenant topics so endpoint-level policies
+    // (UseDurableOutboxOnAllSendingEndpoints, OpenTelemetry registration, etc.)
+    // can discover them via the IEndpointSource seam.
+    public IEnumerable<Endpoint> ActiveEndpoints() => topicsByTenant.Values;
+
+    public Envelope CreateForSending(
+        object message,
+        DeliveryOptions? options,
+        ISendingAgent localDurableQueue,
+        WolverineRuntime runtime,
+        string? topicName)
+    {
+        var route = ResolveRoute(message.GetType(), options?.TenantId, runtime);
+        return route.CreateForSending(message, options, localDurableQueue, runtime, topicName);
+    }
+
+    public MessageSubscriptionDescriptor Describe() => new()
+    {
+        ContentType = "application/json",
+        Description = $"Tenant-aware Azure Service Bus topic routing across {topicsByTenant.Count} tenants",
+        Endpoint = topicsByTenant.Values.First().Uri
+    };
+
+    private MessageRoute ResolveRoute(Type messageType, string? tenantId, IWolverineRuntime runtime)
+    {
+        if (tenantId.IsEmpty())
+        {
+            throw new InvalidOperationException(
+                $"Cannot publish a message of type {messageType.FullNameInCode()} without a TenantId; " +
+                "topic-per-tenant routing is configured.");
+        }
+
+        if (!topicsByTenant.TryGetValue(tenantId, out var topic))
+        {
+            throw new InvalidOperationException(
+                $"Unknown tenant ID '{tenantId}' for message of type {messageType.FullNameInCode()}; " +
+                "no topic registered for this tenant.");
+        }
+
+        return GetOrBuildRoute(messageType, tenantId, topic, runtime);
+    }
+
+    private MessageRoute GetOrBuildRoute(
+        Type messageType,
+        string tenantId,
+        AzureServiceBusTopic topic,
+        IWolverineRuntime runtime)
+    {
+        var key = (messageType, tenantId);
+        if (_routes.TryFind(key, out var route)) return route;
+
+        route = new MessageRoute(messageType, topic, runtime);
+        _routes = _routes.AddOrUpdate(key, route);
+        return route;
+    }
+}
+```
+<!-- endSnippet -->
+
+### The extension method
+
+The extension wraps the route-source registration and walks the configured tenant list to materialize the per-tenant
+`AzureServiceBusTopic` endpoints. `MaybeCorrectName` applies the transport's identifier prefix and Service Bus naming
+rules so the actual broker topic names match what auto-provisioning would create.
+
+<!-- snippet: sample_topic_per_tenant_route_extension -->
+<a id='snippet-sample_topic_per_tenant_route_extension'></a>
+```cs
+public static class TopicPerTenantWolverineOptionsExtensions
+{
+    /// <summary>
+    /// Route every outgoing user message to a per-tenant Azure Service Bus topic
+    /// inside a single namespace. The tenant id is read from
+    /// <see cref="DeliveryOptions.TenantId"/> at publish time; an unknown tenant
+    /// or a missing tenant id raises <see cref="InvalidOperationException"/>.
+    /// </summary>
+    /// <param name="opts">The Wolverine options.</param>
+    /// <param name="tenantIds">The set of known tenant ids.</param>
+    /// <param name="topicNameForTenant">Maps a tenant id to its raw topic name.
+    /// The transport's identifier prefix and sanitization rules are applied automatically.</param>
+    public static WolverineOptions RouteByTenantToAzureServiceBusTopics(
+        this WolverineOptions opts,
+        IEnumerable<string> tenantIds,
+        Func<string, string> topicNameForTenant)
+    {
+        var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
+
+        var topicsByTenant = new Dictionary<string, AzureServiceBusTopic>(StringComparer.Ordinal);
+        foreach (var id in tenantIds)
+        {
+            var rawName = topicNameForTenant(id);
+            var name = transport.MaybeCorrectName(rawName);
+            var topic = transport.Topics[name];
+            topic.EndpointName = rawName;
+            topicsByTenant[id] = topic;
+        }
+
+        if (topicsByTenant.Count == 0)
+        {
+            throw new ArgumentException("At least one tenant ID is required.", nameof(tenantIds));
+        }
+
+        opts.PublishWithMessageRoutingSource(new TopicPerTenantRoute(topicsByTenant));
+
+        return opts;
+    }
+}
+```
+<!-- endSnippet -->
+
+### Wiring it up
+
+<!-- snippet: sample_using_topic_per_tenant_route -->
+<a id='snippet-sample_using_topic_per_tenant_route'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // The single Azure Service Bus namespace that hosts every
+        // tenant's topic.
+        opts.UseAzureServiceBus("Endpoint=sb://saas.servicebus.windows.net/;...");
+
+        // Wire the per-tenant routing source. Tenant ids and topic
+        // names typically come from configuration; the closure stays
+        // free to do whatever lookup makes sense for the application
+        // (configuration sections, a tenant-catalog table, etc.).
+        var tenantIds = new[] { "tenant-a", "tenant-b", "tenant-c" };
+        opts.RouteByTenantToAzureServiceBusTopics(
+            tenantIds,
+            tenantId => $"messages-{tenantId}");
+    }).StartAsync();
+
+// At publish time, the tenant id is supplied via DeliveryOptions.
+// The route source resolves the correct per-tenant topic before the
+// message ever reaches the transport.
+var bus = host.Services.GetRequiredService<IMessageBus>();
+await bus.PublishAsync(
+    new TenantBoundMessage("hello"),
+    new DeliveryOptions { TenantId = "tenant-b" });
+```
+<!-- endSnippet -->
+
+### Behavior notes
+
+- The route source is **non-additive** — it short-circuits the default routing sources for any user message type. Local
+  handlers, framework-internal messages (`IInternalMessage`, `IAgentCommand`, `INotToBeRouted`), and explicit per-message
+  `PublishMessage<T>().To*()` configuration still resolve through their own paths because of the filters in `FindRoutes`.
+  If your application needs both topic-per-tenant routing for some messages and explicit routing for others, tweak the
+  filter set in `FindRoutes` to skip the explicitly-routed message types.
+- A missing or empty `DeliveryOptions.TenantId` and an unknown tenant id both raise `InvalidOperationException` at
+  publish time. Decide whether your application wants exception semantics or silent drop, and adapt `ResolveRoute`
+  accordingly.
+- The per-tenant topic catalog is captured at startup. If new tenants need to be onboarded without a host restart, swap
+  the constructor's `IReadOnlyDictionary<string, AzureServiceBusTopic>` for a refreshable lookup (an
+  `IOptionsMonitor<...>`-backed view, or an explicit `RegisterTenant(string, string)` method that mutates an internal
+  `ImHashMap`).
+
+### Limitations vs. the broker-per-tenant topology
+
+The recipe above shares the **same Azure Service Bus connection string** across every tenant — that's the whole point of
+topic-per-tenant routing. If different tenants need different connection strings or fully-qualified namespaces, use the
+broker-per-tenant configuration above (`AddTenantByConnectionString` / `AddTenantByNamespace`) instead. The two
+topologies don't compose; pick one.
 
 
