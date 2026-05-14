@@ -242,7 +242,9 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
             AddTenantLookupTable = UseMasterTableTenancy,
-            TenantConnections = TenantConnections
+            TenantConnections = TenantConnections,
+            // Propagate the AutoCreate override (see #2780).
+            AutoCreate = AutoCreate
         };
         return settings;
     }

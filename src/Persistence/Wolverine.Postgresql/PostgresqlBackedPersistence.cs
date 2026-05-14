@@ -284,7 +284,13 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             MigrationLockId = MigrationLockId,
             SchemaName = EnvelopeStorageSchemaName,
             AddTenantLookupTable = UseMasterTableTenancy,
-            TenantConnections = TenantConnections
+            TenantConnections = TenantConnections,
+            // Propagate the AutoCreate override (see #2780). Without this,
+            // OverrideAutoCreateResources(autoCreate) mutated the wrapper's
+            // own field but never made it into DatabaseSettings, which is
+            // what MessageDatabase.Admin / MessageDatabase.Tenants /
+            // Migrator.ApplyAllAsync actually read.
+            AutoCreate = AutoCreate
         };
         return settings;
     }
