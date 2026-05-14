@@ -19,8 +19,9 @@
         [RequiresDynamicCode] annotations by design:
           - Runtime codegen entry points (HandlerGraph.Compile, AssemblyGenerator
             usage, the boot-time dispatch construction). AOT-clean usage is the
-            pre-generated `codegen write` step + `TypeLoadMode = Static`
-            path, which has its own smoke project (TBD as a follow-up).
+            pre-generated codegen-write step + TypeLoadMode = Static path,
+            covered by sister project Wolverine.AotSmoke.Static (#2746
+            sub-PR I).
           - Reflective handler / saga / transport discovery (HandlerDiscovery
             assembly scanning). The AOT-clean path is the source-generated
             handler manifest (TBD).

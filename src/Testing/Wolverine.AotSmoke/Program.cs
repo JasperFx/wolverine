@@ -20,8 +20,9 @@
 // annotations by design):
 //   - Host.Build / WolverineOptions extension methods that trigger codegen
 //     (UseWolverine → HandlerGraph.Compile → Roslyn AssemblyGenerator). The
-//     AOT-clean usage path is pre-generation via `dotnet run -- codegen write`
-//     + TypeLoadMode = Static. That story has its own smoke project (TBD).
+//     AOT-clean usage path is pre-generation via the codegen-write CLI
+//     + TypeLoadMode = Static. That story is covered by sister project
+//     Wolverine.AotSmoke.Static (added by #2746 sub-PR I).
 //   - Reflective discovery (HandlerDiscovery.IncludeAssembly type-scan,
 //     SagaTypeDescriptor reflection-resolved StartingMessages, transport
 //     IMessageRoutingConvention reflection)

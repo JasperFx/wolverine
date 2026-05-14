@@ -497,14 +497,26 @@ partial class Build
     //
     // Also runs the smoke binary end-to-end as a sanity check that the
     // exercised surfaces don't just compile but actually work.
+    //
+    // Companion smoke project Wolverine.AotSmoke.Static (added in #2746
+    // sub-PR I) covers the static-load contract: it boots under
+    // TypeLoadMode.Static + AssertAllPreGeneratedTypesExist + a sentinel
+    // IAssemblyGenerator that throws on any runtime compilation. If the
+    // committed pre-gen under that project's Internal/Generated/ drifts
+    // or the static-load path silently falls back to Roslyn, the smoke
+    // binary exits non-zero with a clear diagnostic.
     Target CIAotSmoke => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
         {
             var smoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke" / "Wolverine.AotSmoke.csproj";
+            var staticSmoke = RootDirectory / "src" / "Testing" / "Wolverine.AotSmoke.Static" / "Wolverine.AotSmoke.Static.csproj";
 
             DotNet($"build {smoke} --configuration {Configuration} --framework net9.0");
             DotNet($"run --project {smoke} --no-build --configuration {Configuration} --framework net9.0");
+
+            DotNet($"build {staticSmoke} --configuration {Configuration} --framework net9.0");
+            DotNet($"run --project {staticSmoke} --no-build --configuration {Configuration} --framework net9.0");
         });
 
     Target CIAzureServiceBus => _ => _
