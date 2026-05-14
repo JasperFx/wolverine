@@ -7,6 +7,14 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Single STJ catch-block fallback in
+          DatabaseSagaStoreDiagnostics.buildInstance routed through a
+          source-generated JsonSerializerContext (see
+          DatabaseSagaStoreDiagnosticsJsonContext). All other reflective
+          surface inherits annotations from Wolverine.csproj (chunks A–U).
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

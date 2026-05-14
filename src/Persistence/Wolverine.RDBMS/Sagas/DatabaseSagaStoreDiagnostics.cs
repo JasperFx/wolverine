@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
@@ -201,7 +202,10 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             // Body wasn't valid JSON — surface a string-wrapped value
             // so the diagnostic doesn't tear down on a single broken
             // row.
-            state = JsonSerializer.SerializeToElement(body);
+            // AOT: use the source-generated JsonTypeInfo<string> below so this
+            // catch-block fallback doesn't drag the reflection-based STJ
+            // overload into the trim graph. Same chunk N (NodeRecord) pattern.
+            state = JsonSerializer.SerializeToElement(body, DatabaseSagaStoreDiagnosticsJsonContext.Default.String);
         }
 
         return new SagaInstanceState(
@@ -305,3 +309,12 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
     }
 
 }
+
+/// <summary>
+/// Source-generated JSON context covering the types <see cref="DatabaseSagaStoreDiagnostics"/>
+/// serializes through STJ. Currently just <see cref="string"/> for the catch-block
+/// fallback when a saga body fails JSON parsing — surfaces the raw text wrapped
+/// as a JSON string. AOT-friendly path; mirrors chunk N's NodeRecordJsonContext.
+/// </summary>
+[JsonSerializable(typeof(string))]
+internal partial class DatabaseSagaStoreDiagnosticsJsonContext : JsonSerializerContext;
