@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Newtonsoft.Json;
 
-namespace Wolverine.Http;
+namespace Wolverine.Http.Newtonsoft;
 
 public class NewtonsoftHttpSerialization
 {
@@ -15,13 +15,13 @@ public class NewtonsoftHttpSerialization
     private readonly ArrayPool<char> _charPool;
     private readonly JsonSerializer _serializer;
 
-    public NewtonsoftHttpSerialization(WolverineHttpOptions options)
+    public NewtonsoftHttpSerialization(JsonSerializerSettings settings)
     {
         _bytePool = ArrayPool<byte>.Shared;
         _charPool = ArrayPool<char>.Shared;
         _jsonCharPool = new JsonArrayPool<char>(_charPool);
 
-        Settings = options.NewtonsoftSerializerSettings;
+        Settings = settings ?? new JsonSerializerSettings();
         _serializer = JsonSerializer.Create(Settings);
     }
 

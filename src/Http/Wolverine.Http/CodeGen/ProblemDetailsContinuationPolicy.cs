@@ -1,3 +1,4 @@
+using System.Text.Json;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -6,7 +7,6 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Middleware;
 
@@ -35,7 +35,11 @@ public class ProblemDetailsContinuationPolicy : IContinuationStrategy
 {
     public static void WriteProblems(ILogger logger, ProblemDetails details)
     {
-        var json = JsonConvert.SerializeObject(details, Formatting.None);
+        // Diagnostic-only logging dump; switched from Newtonsoft.Json's
+        // JsonConvert.SerializeObject to System.Text.Json in 6.0 alongside
+        // the Newtonsoft.Json extraction (#2742 / WolverineFx.Http.Newtonsoft).
+        // ProblemDetails round-trips cleanly through STJ; no observable change.
+        var json = JsonSerializer.Serialize(details);
         logger.LogInformation("Found problems with this message: {Problems}", json);
     }
     
