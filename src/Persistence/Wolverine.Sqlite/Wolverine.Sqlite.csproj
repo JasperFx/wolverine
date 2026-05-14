@@ -8,6 +8,20 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          AOT-compatible (#2746). Mirrors the chunk AE / AF (Postgresql /
+          SqlServer) pattern. Two reflective sites suppressed:
+          - SqliteMessageStore ctor: typeof(DatabaseSagaSchema<,>)
+            .CloseAndBuildAs over runtime (sagaType, idType) tuples at
+            startup. Cross-link to #2769 (CloseAndBuildAs elimination).
+          - Wolverine.Sqlite.Sagas.DatabaseSagaSchema<TId, TSaga>:
+            class-level [UnconditionalSuppressMessage] for reflection-based
+            STJ over the runtime saga state type TSaga (Insert / Update /
+            Load methods). Same chunk D / AE pattern.
+          AOT consumers preserve saga state types via TrimmerRootDescriptor
+          or supply a JsonSerializerContext.
+        -->
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
