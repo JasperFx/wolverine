@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling.Matches;
 
@@ -46,6 +47,15 @@ public static class ErrorHandlingPolicyExtensions
     /// <param name="policies"></param>
     /// <param name="exceptionType">An exception type to match against</param>
     /// <returns>The PolicyBuilder instance.</returns>
+    // TypeMatch<> closed over a runtime exceptionType. Same CloseAndBuildAs
+    // pattern as chunks D/I/J/K/O. AOT-clean apps that need typed exception
+    // filtering should prefer the strongly-typed OnException<TException>
+    // overload below — the closed generic instantiation is then statically
+    // known by the compiler.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "TypeMatch<> closed over runtime exception type; AOT consumers prefer the OnException<TException> typed overload. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "TypeMatch<> closed over runtime exception type; AOT consumers prefer the OnException<TException> typed overload. See AOT guide.")]
     public static PolicyExpression OnExceptionOfType(this IWithFailurePolicies policies, Type exceptionType)
     {
         var match = typeof(TypeMatch<>).CloseAndBuildAs<IExceptionMatch>(exceptionType);

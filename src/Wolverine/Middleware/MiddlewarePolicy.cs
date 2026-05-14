@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -165,6 +166,17 @@ public class MiddlewarePolicy : IChainPolicy
         private readonly MethodInfo[] _finals;
         private readonly MethodInfo[] _onExceptions;
 
+        // GetConstructors / GetMethods walk over a runtime-resolved middleware
+        // type. Middleware is opt-in (registered explicitly via
+        // opts.Policies.AddMiddleware<T> or AddMiddleware(typeof(T))) — the
+        // user-provided type is statically rooted by the call site. A future
+        // chunk could propagate [DAM(PublicConstructors|PublicMethods)] up
+        // through MiddlewarePolicy.AddType + IPolicies.AddMiddleware<T> /
+        // AddMiddleware(Type) to make the requirement explicit, but that's a
+        // 3-hop public-API cascade scoped for the CloseAndBuildAs follow-up
+        // (#2769) rather than this small-file batch.
+        [UnconditionalSuppressMessage("Trimming", "IL2070",
+            Justification = "Middleware types are opt-in via opts.Policies.AddMiddleware; user-supplied types are statically rooted by the registration call site. See AOT guide.")]
         public Application(IChain? chain, Type middlewareType, Func<IChain, bool> filter)
         {
             if (!middlewareType.IsPublic && !middlewareType.IsVisible)

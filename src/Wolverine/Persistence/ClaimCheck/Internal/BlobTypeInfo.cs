@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Wolverine.Persistence.ClaimCheck.Internal;
@@ -20,6 +21,14 @@ internal sealed class BlobTypeInfo
         Properties = properties;
     }
 
+    // GetProperties on a runtime-resolved message type, walking for [Blob]-
+    // decorated properties. Claim-check is opt-in (registered via
+    // opts.UseClaimCheckStorage); user message types that opt in are
+    // statically rooted via handler discovery / explicit registration. The
+    // cache is keyed on Type so each user message type is visited exactly
+    // once at first dispatch.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Claim-check is opt-in; user message types are statically rooted via handler discovery. See AOT guide.")]
     public static BlobTypeInfo For(Type type)
     {
         return _cache.GetOrAdd(type, static t =>

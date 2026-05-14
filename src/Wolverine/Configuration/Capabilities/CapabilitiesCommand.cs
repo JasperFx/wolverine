@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using JasperFx.CommandLine;
 using JasperFx.Core;
@@ -19,6 +20,16 @@ public class CapabilitiesCommand : JasperFxAsyncCommand<CapabilitiesInput>
         Usage("Write the Wolverine capabilities to the designated file name");
     }
 
+    // CapabilitiesCommand is a CLI tool (dotnet run -- describe) — not on the
+    // dispatch hot path. The JsonSerializer.SerializeAsync<TValue> overload is
+    // reflection-based; the ServiceCapabilities type tree is bounded but
+    // sufficiently large that a JsonSerializerContext upgrade is a separate
+    // refactor (chunk N's NodeRecord precedent). Suppress at the leaf and
+    // document the migration target.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "CLI tool, not dispatch path; ServiceCapabilities serialization should migrate to JsonSerializerContext (see chunk N pattern). See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "CLI tool, not dispatch path; ServiceCapabilities serialization should migrate to JsonSerializerContext (see chunk N pattern). See AOT guide.")]
     public override async Task<bool> Execute(CapabilitiesInput input)
     {
         if (input.FileName.IsEmpty())
