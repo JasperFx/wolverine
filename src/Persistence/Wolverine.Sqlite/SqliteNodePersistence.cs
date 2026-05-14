@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using Weasel.Core;
 using Weasel.Sqlite;
@@ -46,7 +47,11 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         // SQLite doesn't have RETURNING clause in the same way, we need to use last_insert_rowid()
-        var capabilitiesJson = System.Text.Json.JsonSerializer.Serialize(node.Capabilities.Select(x => x.ToString()).ToArray());
+        // Use the source-generated JsonSerializerContext for string[] (chunk N pattern) so the
+        // round-trip through System.Text.Json is AOT-clean — no leaf-site IL2026/IL3050 suppression.
+        var capabilitiesJson = System.Text.Json.JsonSerializer.Serialize(
+            node.Capabilities.Select(x => x.ToString()).ToArray(),
+            SqliteNodeCapabilitiesJsonContext.Default.StringArray);
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -388,7 +393,8 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         if (!(await reader.IsDBNullAsync(7)))
         {
             var capabilitiesJson = await reader.GetFieldValueAsync<string>(7);
-            var capabilities = System.Text.Json.JsonSerializer.Deserialize<string[]>(capabilitiesJson);
+            var capabilities = System.Text.Json.JsonSerializer.Deserialize(
+                capabilitiesJson, SqliteNodeCapabilitiesJsonContext.Default.StringArray);
             if (capabilities != null)
             {
                 node.Capabilities.AddRange(capabilities.Select(x => new Uri(x)));
@@ -397,4 +403,17 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         return node;
     }
+}
+
+/// <summary>
+/// Source-generated JSON context for the WolverineNode.Capabilities round-trip in
+/// <see cref="SqliteNodePersistence"/>. Lets the Persist/Read paths use the AOT-friendly
+/// <c>JsonTypeInfo</c> overloads instead of the reflection-based defaults — clearing
+/// IL2026/IL3050 in trim/AOT builds without leaf-site suppression. Same chunk N
+/// (NodeRecord) pattern; the type set is statically known (just <c>string[]</c>),
+/// so the source generator can emit fully-typed serializers.
+/// </summary>
+[JsonSerializable(typeof(string[]))]
+internal partial class SqliteNodeCapabilitiesJsonContext : JsonSerializerContext
+{
 }
