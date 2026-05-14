@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ImTools;
 using JasperFx.Core;
@@ -724,6 +725,28 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private static ImHashMap<Type, MethodInfo?> _typedEnumerableCascadeMethods =
         ImHashMap<Type, MethodInfo?>.Empty;
 
+    // Resolves the constructed CascadeTypedItemsAsync<T> MethodInfo for a message
+    // type that implements IAsyncEnumerable<T>. Steady state hits the ImHashMap
+    // cache; the miss path walks GetInterfaces (IL2070) and MakeGenericMethod
+    // (IL2060 + IL3050). AOT-clean apps pre-populate the cache during handler-
+    // graph compilation: the source-generated handler registration knows which
+    // message types implement IAsyncEnumerable<T> and seeds _typedEnumerableCascade
+    // Methods, so the miss path never fires at steady state. The cached
+    // MethodInfo is invoked dynamically by the cascading dispatch site
+    // (line 693), which is also runtime codegen — same suppression rationale.
+    //
+    // Leaf suppression rather than [RequiresDynamicCode] propagation because
+    // this method is on the per-message cascading dispatch hot path through
+    // EnqueueCascadingAsync; cascading [Requires*] up there would force every
+    // user-facing handler-result API to declare it.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Cached typed-enumerable cascader for runtime messageType; AOT consumers pre-populate the cache at handler-graph compile time. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2060",
+        Justification = "Cached typed-enumerable cascader for runtime messageType; AOT consumers pre-populate the cache at handler-graph compile time. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "messageType reaches GetInterfaces from runtime-resolved message types that are statically rooted via handler registration.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericMethod over CascadeTypedItemsAsync<T>; AOT consumers pre-populate the cache at handler-graph compile time. See AOT guide.")]
     private static MethodInfo? ResolveTypedAsyncEnumerableCascader(Type messageType)
     {
         if (_typedEnumerableCascadeMethods.TryFind(messageType, out var cached))
