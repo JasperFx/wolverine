@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Security.Claims;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -116,6 +117,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         return typeof(TChain).CanBeCastTo(parameters.Single().ParameterType);
     }
 
+    // Walks GetProperties + GetFields on a runtime-resolved message type to find
+    // [Audit]-decorated members. Audit attributes are opt-in; user message types
+    // that opt in are statically rooted via handler discovery (which carries
+    // RUC propagation upstream after chunk Q). Same chunk Q / R pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "[Audit] is opt-in on user message types; member walk fires at codegen time only. See AOT guide.")]
     protected void applyAuditAttributes(Type type)
     {
         foreach (var property in type.GetProperties())
@@ -135,6 +142,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         }
     }
 
+    // GetMethods on runtime-resolved handler types to find static `Configure(IChain)`
+    // methods. Handler types are statically rooted via HandlerDiscovery; this fires
+    // at codegen time only. Same chunk Q (HandlerDiscovery.actionsFromType) pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Handler-type method walk for static Configure methods at codegen time; handler types are statically rooted via HandlerDiscovery. See AOT guide.")]
     protected void applyAttributesAndConfigureMethods(GenerationRules rules, IServiceContainer container)
     {
         var handlers = HandlerCalls();
@@ -309,6 +321,12 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     private bool _appliedImpliedMiddleware;
     private int _middlewareOutgoingCounter = 100;
     
+    // GetMethods walks on runtime-resolved handler types to discover
+    // [WolverineBefore]/[WolverineAfter]/[WolverineOnException]/[WolverineFinally]
+    // attribute-marked methods. Handler types are statically rooted via
+    // HandlerDiscovery; this fires at codegen time only. Same chunk Q pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Handler-type method walks for [Wolverine*] attributes at codegen time; handler types statically rooted via HandlerDiscovery. See AOT guide.")]
     public void ApplyImpliedMiddlewareFromHandlers(GenerationRules generationRules)
     {
         if (_appliedImpliedMiddleware) return;
@@ -447,6 +465,15 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public abstract void UseForResponse(MethodCall methodCall);
 
+    // typeof(Applier<>).CloseAndBuildAs<IApplier> closes the internal Applier<T>
+    // shape over a runtime-resolved IResponseAware type so the generic static-
+    // virtual ConfigureResponse hook can be invoked. Same chunk D / I / J / K
+    // CloseAndBuildAs pattern. IResponseAware is opt-in; user types are
+    // statically rooted via handler return-type discovery.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Applier<TResponseAware> closed over runtime IResponseAware type at codegen time; user types statically rooted via handler return discovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Applier<TResponseAware> closed over runtime IResponseAware type at codegen time; user types statically rooted via handler return discovery. See AOT guide.")]
     protected internal void tryApplyResponseAware()
     {
         var responseAwares = ReturnVariablesOfType(typeof(IResponseAware)).ToArray();
