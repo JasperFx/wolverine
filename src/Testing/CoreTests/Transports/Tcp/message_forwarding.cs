@@ -17,6 +17,10 @@ public class message_forwarding
             opts.DisableConventionalDiscovery();
             opts.IncludeType<NewMessageHandler>();
 
+            // 6.0: forwarders are no longer auto-discovered from the application
+            // assembly — register the IForwardsTo pair explicitly. See #2757.
+            opts.RegisterMessageForwarder<OriginalMessage, NewMessage>();
+
             opts.Publish(x =>
             {
                 x.Message<OriginalMessage>();

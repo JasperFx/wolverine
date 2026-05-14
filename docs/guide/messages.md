@@ -421,6 +421,19 @@ Using this strategy, other systems could still send your system the original `ap
 message, and on the receiving end, Wolverine would know to deserialize the Json data into the `PersonBorn` object, then call its
 `Transform()` method to build out the `PersonBornV2` type that matches up with your message handler.
 
+::: warning Wolverine 6.0 breaking change
+Prior to 6.0, Wolverine scanned the application assembly at startup for `IForwardsTo<T>` implementations and registered them
+automatically. That scan is gone in 6.0 because it is not trim/AOT-clean. Register your forwarders explicitly:
+
+```csharp
+opts.RegisterMessageForwarder<PersonBorn, PersonBornV2>();
+```
+
+If you need the legacy behavior temporarily while migrating, opt back into the assembly scan with
+`opts.UseAutomaticForwarderDiscovery()`. That method is `[Obsolete]` and slated for removal in 7.0; new code should prefer
+the explicit `RegisterMessageForwarder<TFrom, TTo>()` API. See `docs/guide/migration.md` and issue #2757.
+:::
+
 ## "Self Serializing" Messages
 
 ::: info
