@@ -394,6 +394,17 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         tryApplyLocalQueueConfiguration(options);
 
         options.MessagePartitioning.MaybeInferGrouping(this);
+
+        // Pre-populate the per-message-type cascading-async-enumerable cache on
+        // MessageContext so the reflective lazy-init in
+        // MessageContext.ResolveTypedAsyncEnumerableCascader never fires at
+        // steady state. AOT pillar follow-up #2769 (Option A).
+        var allMessageTypes = AllMessageTypes().ToArray();
+        MessageContext.PrepopulateCascadeCache(allMessageTypes);
+
+        // Same Option A pre-population for the IntrinsicSerializer<T> cache so
+        // ISerializable message types skip the first-occurrence CloseAndBuildAs.
+        Wolverine.Runtime.Serialization.IntrinsicSerializer.Instance.Prepopulate(allMessageTypes);
     }
 
     private void compileWithRuntimeScanning(WolverineOptions options, ILogger logger)
