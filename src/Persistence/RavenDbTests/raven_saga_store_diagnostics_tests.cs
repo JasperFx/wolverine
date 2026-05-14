@@ -6,6 +6,7 @@ using Raven.Client.Documents;
 using Raven.TestDriver;
 using Shouldly;
 using Wolverine;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RavenDb;
 using Wolverine.Tracking;
@@ -70,12 +71,15 @@ public class raven_saga_store_diagnostics_tests : RavenTestDriver, IAsyncLifetim
     public async Task registered_saga_types_includes_raven_owned_saga()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        var diag = registered.SingleOrDefault(d => d.SagaType.FullName == typeof(RavenDiagSaga).FullName);
+        var diag = registered.SingleOrDefault(d => d.StateType.FullName == typeof(RavenDiagSaga).FullName);
         diag.ShouldNotBeNull();
         diag.StorageProvider.ShouldBe("RavenDb");
-        diag.StartingMessages.Select(m => m.FullName).ShouldContain(typeof(StartRavenDiagSaga).FullName!);
+        diag.Messages
+            .Where(m => m.Role == SagaRole.Start || m.Role == SagaRole.StartOrHandle)
+            .Select(m => m.MessageType.FullName)
+            .ShouldContain(typeof(StartRavenDiagSaga).FullName!);
     }
 
     [Fact]

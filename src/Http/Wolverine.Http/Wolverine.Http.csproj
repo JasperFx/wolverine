@@ -21,4 +21,17 @@
         -->
         <PackageReference Include="Newtonsoft.Json"/>
     </ItemGroup>
+
+    <ItemGroup>
+        <!--
+            The Wolverine.CritterWatch.Http companion package uses
+            WolverineHttpOptions.Endpoints to look up HttpChain instances by
+            stable chain id when CritterWatch requests a generated-source-code
+            preview (#84). Promoting the property to public would expose the
+            full HttpGraph to consumers; friend visibility keeps the surface
+            small while letting the integration package work without
+            reflection.
+        -->
+        <InternalsVisibleTo Include="Wolverine.CritterWatch.Http"/>
+    </ItemGroup>
 </Project>

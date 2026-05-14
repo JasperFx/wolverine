@@ -7,6 +7,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Sagas;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence.Sagas;
 using Wolverine.SqlServer;
@@ -66,12 +67,15 @@ public class efcore_saga_store_diagnostics_tests : IAsyncLifetime
     public async Task registered_saga_types_includes_efcore_owned_sagas()
     {
         var diagnostics = _host.GetRuntime().SagaStorage;
-        var registered = await diagnostics.GetRegisteredSagaTypesAsync(CancellationToken.None);
+        var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
 
-        var guidWorkflow = registered.SingleOrDefault(d => d.SagaType.FullName == typeof(GuidBasicWorkflow).FullName);
+        var guidWorkflow = registered.SingleOrDefault(d => d.StateType.FullName == typeof(GuidBasicWorkflow).FullName);
         guidWorkflow.ShouldNotBeNull();
-        guidWorkflow.StorageProvider.ShouldBe("EFCore");
-        guidWorkflow.StartingMessages.Select(m => m.FullName).ShouldContain(typeof(GuidStart).FullName!);
+        guidWorkflow.StorageProvider.ShouldBe("EntityFrameworkCore");
+        guidWorkflow.Messages
+            .Where(m => m.Role == SagaRole.Start || m.Role == SagaRole.StartOrHandle)
+            .Select(m => m.MessageType.FullName)
+            .ShouldContain(typeof(GuidStart).FullName!);
     }
 
     [Fact]

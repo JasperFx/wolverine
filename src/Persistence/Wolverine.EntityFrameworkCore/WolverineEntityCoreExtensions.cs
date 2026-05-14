@@ -2,6 +2,7 @@ using System.Data.Common;
 using JasperFx;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using JasperFx.MultiTenancy;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +95,10 @@ public static class WolverineEntityCoreExtensions
 
         services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
 
+        // CritterWatch (#102): per-tenant snapshot, masked to server / database
+        // / tenantId only — never the raw connection string.
+        services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+
         if (autoCreate != AutoCreate.None)
         {
             services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
@@ -101,7 +106,7 @@ public static class WolverineEntityCoreExtensions
 
         return services;
     }
-    
+
     /// <summary>
     /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
     /// for separate databases per tenant using DbDataSource. This option is necessary when using EF Core *with*
@@ -149,6 +154,10 @@ public static class WolverineEntityCoreExtensions
 
         services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
 
+        // CritterWatch (#102): per-tenant snapshot via DbDataSource shares the
+        // same masked descriptor shape as the connection-string variant.
+        services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+
         if (autoCreate != AutoCreate.None)
         {
             services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
@@ -173,6 +182,10 @@ public static class WolverineEntityCoreExtensions
 
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
+
+        // CritterWatch (#102): expose this DbContext to the descriptor pipeline
+        // so the Storage tab can render its model + Wolverine integration shape.
+        services.AddSingleton<IDbContextUsageSource, DbContextUsageSource<T>>();
 
         return services;
     }
@@ -268,6 +281,11 @@ public static class WolverineEntityCoreExtensions
             // in IInitialData-driven dev loops. See GH-2539.
             options.Services.TryAdd(ServiceDescriptor.Singleton(typeof(IDatabaseCleaner<>), typeof(DatabaseCleaner<>)));
             options.Services.TryAdd(ServiceDescriptor.Singleton(typeof(DatabaseCleaner<>), typeof(DatabaseCleaner<>)));
+
+            // CritterWatch (#102): catch any plain `AddDbContext<>` registrations
+            // not wired through Wolverine's integration helpers and surface them
+            // in the Storage tab with WolverineEnabled = false.
+            UntrackedDbContextDiscovery.RegisterImplicitUsageSources(options.Services);
         }
         catch (InvalidOperationException e)
         {

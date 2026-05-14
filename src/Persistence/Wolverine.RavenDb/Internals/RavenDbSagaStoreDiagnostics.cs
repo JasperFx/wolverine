@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 
@@ -38,11 +39,11 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         _store = store;
     }
 
-    public Task<IReadOnlyList<SagaTypeDescriptor>> GetRegisteredSagaTypesAsync(CancellationToken ct)
+    public Task<IReadOnlyList<SagaDescriptor>> GetRegisteredSagasAsync(CancellationToken ct)
     {
         var distinct = sagaIndex().Values.Distinct().ToArray();
         var descriptors = distinct.Select(buildDescriptor).ToArray();
-        return Task.FromResult<IReadOnlyList<SagaTypeDescriptor>>(descriptors);
+        return Task.FromResult<IReadOnlyList<SagaDescriptor>>(descriptors);
     }
 
     public async Task<SagaInstanceState?> ReadSagaAsync(string sagaTypeName, object identity, CancellationToken ct)
@@ -102,14 +103,9 @@ internal sealed class RavenDbSagaStoreDiagnostics : ISagaStoreDiagnostics
         return list;
     }
 
-    private SagaTypeDescriptor buildDescriptor(Type sagaType)
+    private SagaDescriptor buildDescriptor(Type sagaType)
     {
-        var (starting, continuing) = SagaMessageBuckets.For(sagaType, _runtime.Options.HandlerGraph);
-        return new SagaTypeDescriptor(
-            TypeDescriptor.For(sagaType),
-            starting,
-            continuing,
-            "RavenDb");
+        return SagaDescriptorBuilder.Build(_runtime.Options.HandlerGraph, sagaType, "RavenDb");
     }
 
     private static SagaInstanceState buildInstance(Type sagaType, object identity, object saga)
