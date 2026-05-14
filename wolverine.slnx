@@ -37,6 +37,7 @@
     <Project Path="src/Extensions/Wolverine.Protobuf/Wolverine.Protobuf.csproj" />
   </Folder>
   <Folder Name="/Http/">
+    <Project Path="src/Extensions/Wolverine.Http.Newtonsoft/Wolverine.Http.Newtonsoft.csproj" />
     <Project Path="src/Http/CrazyStartingWebApp/CrazyStartingWebApp.csproj" />
     <Project Path="src/Http/DeepMiddlewareUsage/DeepMiddlewareUsage.csproj" />
     <Project Path="src/Http/NSwagDemonstrator/NSwagDemonstrator.csproj" />

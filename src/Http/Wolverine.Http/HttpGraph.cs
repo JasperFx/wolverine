@@ -151,9 +151,25 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         return chain;
     }
 
-    internal void UseNewtonsoftJson()
+    internal INewtonsoftHttpCodeGen? NewtonsoftCodeGen { get; private set; }
+
+    /// <summary>
+    ///     Wire the Newtonsoft.Json HTTP codegen path. Called by the WolverineFx.Http.Newtonsoft
+    ///     extension package's <c>UseNewtonsoftJsonForSerialization()</c> extension method;
+    ///     core <see cref="JsonResourceWriterPolicy"/> / <see cref="JsonBodyParameterStrategy"/>
+    ///     dispatch through the supplied hook when <see cref="JsonUsage.NewtonsoftJson"/>
+    ///     is selected.
+    /// </summary>
+    internal void UseNewtonsoftJson(INewtonsoftHttpCodeGen codeGen)
     {
-        _builtInWriterPolicies.OfType<JsonResourceWriterPolicy>().Single().Usage = JsonUsage.NewtonsoftJson;
-        _strategies.OfType<JsonBodyParameterStrategy>().Single().Usage = JsonUsage.NewtonsoftJson;
+        NewtonsoftCodeGen = codeGen ?? throw new ArgumentNullException(nameof(codeGen));
+
+        var writerPolicy = _builtInWriterPolicies.OfType<JsonResourceWriterPolicy>().Single();
+        writerPolicy.Usage = JsonUsage.NewtonsoftJson;
+        writerPolicy.NewtonsoftCodeGen = codeGen;
+
+        var bodyStrategy = _strategies.OfType<JsonBodyParameterStrategy>().Single();
+        bodyStrategy.Usage = JsonUsage.NewtonsoftJson;
+        bodyStrategy.NewtonsoftCodeGen = codeGen;
     }
 }

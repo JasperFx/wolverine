@@ -5,7 +5,6 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
-using Newtonsoft.Json;
 using Wolverine.Configuration;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
@@ -204,7 +203,17 @@ public class WolverineHttpOptions
 
     internal Lazy<JsonSerializerOptions> JsonSerializerOptions { get; set; } = new(() => new JsonSerializerOptions());
 
-    internal JsonSerializerSettings NewtonsoftSerializerSettings { get; set; } = new();
+    /// <summary>
+    ///     Set by the WolverineFx.Http.Newtonsoft companion package's
+    ///     <c>UseNewtonsoftJsonForSerialization()</c> extension method to
+    ///     thread the user's <c>JsonSerializerSettings</c> customization
+    ///     into the singleton <c>NewtonsoftHttpSerialization</c> the
+    ///     extension package's <c>AddWolverineHttpNewtonsoft()</c>
+    ///     IServiceCollection extension registers. Untyped (object) so the
+    ///     core Wolverine.Http assembly does not have to reference
+    ///     Newtonsoft.Json.
+    /// </summary>
+    internal object? NewtonsoftSettingsConfiguration { get; set; }
 
     internal HttpGraph? Endpoints { get; set; }
 
@@ -259,17 +268,12 @@ public class WolverineHttpOptions
         Endpoints!.Rules.Sources.Add(source);
     }
 
-    /// <summary>
-    /// Opt into using Newtonsoft.Json for all JSON serialization in the Wolverine
-    /// Http handlers
-    /// </summary>
-    /// <param name="configure"></param>
-    public void UseNewtonsoftJsonForSerialization(Action<JsonSerializerSettings>? configure = null)
-    {
-        configure?.Invoke(NewtonsoftSerializerSettings);
-        Endpoints!.UseNewtonsoftJson();
-
-    }
+    // Newtonsoft.Json HTTP serialization moved to the WolverineFx.Http.Newtonsoft
+    // companion package in 6.0. The 5.x instance method
+    // WolverineHttpOptions.UseNewtonsoftJsonForSerialization(...) is now an
+    // extension method declared in that package; install it and add
+    // `using Wolverine.Http.Newtonsoft;` to bring the same call surface back
+    // into scope. See docs/guide/migration.md.
 
     /// <summary>
     ///     Customize Wolverine's handling of parameters to HTTP endpoint methods
