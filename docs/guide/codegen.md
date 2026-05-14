@@ -1,5 +1,23 @@
 # Working with Code Generation
 
+::: danger Wolverine 6.0 changes the IoC integration default
+**`ServiceLocationPolicy.NotAllowed` is now the default.** If your DI registrations are opaque to Wolverine's
+codegen (lambda factories with `Scoped` or `Transient` lifetime, mixed-scope `IEnumerable<T>`, etc.), the host
+now throws `InvalidServiceLocationException` at startup instead of silently emitting a service-locator call.
+
+**Two paths forward:**
+
+1. **Preferred** — change the registration to a form Wolverine can see through: `AddScoped<TInterface, TImpl>()`
+   instead of `AddScoped<TInterface>(sp => new TImpl(...))`, or constructor injection into the handler.
+2. **Opt-in escape hatch** — list specific types Wolverine should service-locate, via
+   `opts.CodeGeneration.AlwaysUseServiceLocationFor<TService>()`. This keeps the rest of the codegen
+   constructor-inlined and only routes the listed types through the service locator.
+
+If you want the 5.x behaviour back wholesale, set `opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn`
+(or `AlwaysAllowed` to silence the warnings too). See the [IoC + Service Location section below](#wolverine-code-generation-and-ioc) for the full story
+and the [5 → 6 migration guide](/guide/migration.html) for the rationale.
+:::
+
 ::: warning
 If you are experiencing noticeable startup lags or seeing spikes in memory utilization with an application using
 Wolverine, you will want to pursue using either the `Auto` or `Static` modes for code generation as explained in this guide.
@@ -283,11 +301,13 @@ is theoretically possible to use other IoC tools with Wolverine, but only if you
 for your IoC configuration.
 :::
 
-As of Wolverine 5.0, you now have the ability to better control the usage of the service locator in Wolverine's
-code generation to potentially avoid unwanted usage:
+As of Wolverine 5.0, you can control the usage of the service locator in Wolverine's code generation:
 
-::: warning
-Starting in Wolverine 6.0, the default `ServiceLocationPolicy` will change from `AllowedButWarn` to `NotAllowed`. Code that currently triggers warnings will throw `InvalidServiceLocationException` after upgrading. See the [migration guide](/guide/migration.html) for how to prepare on 5.x.
+::: warning Default changed in 6.0
+The default `ServiceLocationPolicy` is now `NotAllowed` (was `AllowedButWarn` in 5.x). Any code path that
+previously emitted a "Utilizing service location for…" warning now throws `InvalidServiceLocationException`
+at host startup. See the [LOUD callout at the top of this page](#working-with-code-generation) and the
+[5 → 6 migration guide](/guide/migration.html) for the upgrade path.
 :::
 
 <!-- snippet: sample_configuring_servicelocationpolicy -->

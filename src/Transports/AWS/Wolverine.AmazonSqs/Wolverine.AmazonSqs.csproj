@@ -7,6 +7,13 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+        <!--
+          UseNServiceBusInterop() pins a NewtonsoftSerializer for wire-format
+          compatibility with NSB producers. Newtonsoft moved out of WolverineFx
+          core in 6.0; the transport carries the dependency so users opting
+          into the NSB-interop path don't need the extra install by hand.
+        -->
+        <ProjectReference Include="..\..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

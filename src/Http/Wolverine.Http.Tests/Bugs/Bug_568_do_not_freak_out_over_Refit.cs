@@ -24,6 +24,14 @@ public class Bug_568_do_not_freak_out_over_Refit
         builder.Host.UseWolverine(opts =>
         {
             opts.Discovery.IncludeAssembly(GetType().Assembly);
+
+            // Refit proxies are registered via an opaque lambda factory (the
+            // AddRefitClient<T> internals), which the new Wolverine 6.0 default
+            // (ServiceLocationPolicy.NotAllowed) rejects. The canonical fix
+            // documented in /guide/codegen.html#allow-list-for-service-location
+            // is exactly this — allow the Refit proxy interface specifically
+            // and leave the rest of the codegen constructor-inlined.
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<ITestHttpClient>();
         });
         
         builder.Services.AddWolverineHttp();

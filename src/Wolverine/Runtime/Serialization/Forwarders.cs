@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.Core.Reflection;
 
@@ -17,6 +18,10 @@ internal class Forwarders
         Relationships[type] = forwardedType;
     }
 
+    [RequiresUnreferencedCode(
+        "Walks Assembly.ExportedTypes looking for IForwardsTo<> implementations. Trimming may remove " +
+        "message-forwarder types that are only reached reflectively here. Apps in TypeLoadMode.Static " +
+        "have the forwards baked into pre-generated code and don't reach this path.")]
     public void FindForwards(Assembly assembly)
     {
         var candidates = assembly.ExportedTypes.Where(x => x.IsConcrete() && !x.IsOpenGeneric());

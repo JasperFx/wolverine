@@ -6,7 +6,7 @@ such as this example using Rabbit MQ from the Wolverine tests:
 <!-- snippet: sample_binding_topics_and_topic_patterns_to_queues -->
 <a id='snippet-sample_binding_topics_and_topic_patterns_to_queues'></a>
 ```cs
-theSender = Host.CreateDefaultBuilder()
+theSender = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseRabbitMq("host=localhost;port=5672").AutoProvision();
@@ -15,7 +15,7 @@ theSender = Host.CreateDefaultBuilder()
             exchange.BindTopic("color.green").ToQueue("green");
             exchange.BindTopic("color.blue").ToQueue("blue");
             exchange.BindTopic("color.*").ToQueue("all");
-            
+
             // Need this to be able to go to ONLY the green receiver for a test
             exchange.BindTopic("special").ToQueue("green");
         });
@@ -26,9 +26,9 @@ theSender = Host.CreateDefaultBuilder()
         opts.ServiceName = "TheSender";
 
         opts.PublishMessagesToRabbitMqExchange<RoutedMessage>("wolverine.topics", m => m.TopicName);
-    }).Start();
+    }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L28-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L35-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_binding_topics_and_topic_patterns_to_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can explicitly publish a message to a topic through this syntax:
@@ -41,7 +41,7 @@ var publisher = theSender.Services
 
 await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L109-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L132-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic' title='Start of snippet'>anchor</a></sup>
 <a id='snippet-sample_send_to_topic-1'></a>
 ```cs
 var publisher = theSender.Services
@@ -49,7 +49,7 @@ var publisher = theSender.Services
 
 await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L321-L327' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L364-L370' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

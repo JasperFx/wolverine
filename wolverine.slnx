@@ -32,6 +32,7 @@
     <Project Path="src/Extensions/Wolverine.MemoryPack/Wolverine.MemoryPack.csproj" />
     <Project Path="src/Extensions/Wolverine.MessagePack.Tests/Wolverine.MessagePack.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.MessagePack/Wolverine.MessagePack.csproj" />
+    <Project Path="src/Extensions/Wolverine.Newtonsoft/Wolverine.Newtonsoft.csproj" />
     <Project Path="src/Extensions/Wolverine.Protobuf.Tests/Wolverine.Protobuf.Tests.csproj" />
     <Project Path="src/Extensions/Wolverine.Protobuf/Wolverine.Protobuf.csproj" />
   </Folder>
@@ -233,6 +234,7 @@
     <Project Path="src/Testing/BackPressureTests/BackPressureTests.csproj" />
     <Project Path="src/Testing/ConsoleApp/ConsoleApp.csproj" />
     <Project Path="src/Testing/CoreTests/CoreTests.csproj" />
+    <Project Path="src/Testing/Wolverine.AotSmoke/Wolverine.AotSmoke.csproj" />
     <Project Path="src/Testing/MessageRoutingTests/MessageRoutingTests.csproj" />
     <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
     <Project Path="src/Testing/Module1/Module1.csproj" />

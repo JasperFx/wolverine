@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration.Capabilities;

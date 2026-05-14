@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -136,6 +137,24 @@ public partial class WolverineRuntime
     private ImHashMap<Type, IMessageRouter> _messageTypeRouting = ImHashMap<Type, IMessageRouter>.Empty;
 
 
+    // RoutingFor is the per-message-type router-resolution entry point. The cache-
+    // miss path closes MessageRouter<T> / EmptyMessageRouter<T> over the runtime-
+    // resolved messageType — same CloseAndBuildAs reflective pattern as chunk D
+    // and chunk I. AOT-clean apps in TypeLoadMode.Static pre-populate this cache
+    // at bootstrap (envelope-mapper / message-type discovery sources, see #2715
+    // and the AOT publishing guide) so the steady-state hot path is pure lookups
+    // and the miss path's reflective close never fires. Trim-only apps without
+    // source generation need MessageRouter<>/EmptyMessageRouter<> closed types
+    // preserved via TrimmerRootDescriptor on their message types.
+    //
+    // Leaf suppression rather than [RequiresDynamicCode] on RoutingFor because
+    // RoutingFor is on the per-message dispatch hot path through MessageContext.
+    // Cascading [Requires*] up there would force every user-facing send/publish
+    // API to declare it.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-populate _messageTypeRouting via source-generated discovery. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Closed generic resolved from runtime messageType; AOT consumers pre-populate _messageTypeRouting via source-generated discovery. See AOT guide.")]
     public IMessageRouter RoutingFor(Type messageType)
     {
         if (messageType == typeof(object))

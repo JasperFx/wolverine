@@ -1,16 +1,158 @@
 # Migration Guide
 
-## Coming in 6.0: ServiceLocationPolicy.NotAllowed becomes the default
+## Key Changes in 6.0
 
-In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` will default to `NotAllowed` instead of `AllowedButWarn`. Apps that currently rely on Wolverine's code generation falling back to service location at runtime will throw `InvalidServiceLocationException` on startup after upgrading.
+::: warning
+6.0 is currently in active development on the `main` branch. Items below describe the
+state of `main` as the 6.0 work proceeds — the released 6.0 may add to or refine this
+list. Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0).
+:::
 
-To prepare while still on 5.x:
+### At a glance: settings & APIs that changed in 6.0
+
+The table below is the **complete inventory** of changed defaults, removed APIs, and moved namespaces in 6.0. Anything not in this table is either backward-compatible (new property added with a sensible default) or an internal change with no observable surface. Each row links into the long-form explanation below; the `Migration action` column is the one-line summary if you only have time to skim.
+
+| Setting / API | 5.x | 6.0 | Migration action |
+|---|---|---|---|
+| `WolverineOptions.ServiceLocationPolicy` | `AllowedButWarn` | **`NotAllowed`** *(BREAKING)* | Restructure registrations or [allow-list per type](#servicelocationpolicy-notallowed-is-the-default-breaking); or call [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) |
+| `WolverineOptions.UseNewtonsoftForSerialization(...)` | instance method on core `WolverineFx` | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Install `WolverineFx.Newtonsoft`; add `using Wolverine.Newtonsoft;` |
+| `IEndpointConfiguration<T>.CustomNewtonsoftJsonSerialization(...)` | instance method on the interface | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Same |
+| `IMassTransitInterop.UseNewtonsoftForSerialization(...)` | interface method | extension method in `WolverineFx.Newtonsoft` *(BREAKING)* | Same |
+| `NewtonsoftSerializer` type | `Wolverine.Runtime.Serialization` namespace | `Wolverine.Newtonsoft` namespace *(BREAKING)* | Update `using` |
+| `Subscription.Scope` JSON converter attribute | `[StringEnumConverter]` (Newtonsoft) | `[JsonStringEnumConverter]` (STJ) | Wire format unchanged; if you serialize `Subscription` yourself with Newtonsoft and rely on string-named scopes, configure `StringEnumConverter` on your own settings |
+| `SnapshotLifecycle` namespace | `Marten.Events.Projections` | `JasperFx.Events.Projections` *(BREAKING)* | Add `using JasperFx.Events.Projections;` |
+| `OperationRole` namespace | `Marten.Internal.Operations` | `Weasel.Core` *(BREAKING)* | Add `using Weasel.Core;` |
+| Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
+| Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
+| **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
+
+::: tip
+If you just want to adopt the 6.0 API surface and bug fixes without simultaneously adopting the new runtime defaults, call [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) once at the top of your `UseWolverine` lambda. Then opt into each new default at your own pace.
+:::
+
+---
+
+### `.NET 8.0` support dropped (BREAKING)
+
+Wolverine 6.0 requires **.NET 9.0 or .NET 10.0**. The JasperFx 2.0-alpha line that the rest of 6.0 builds on no longer targets net8.0, so neither does Wolverine.
+
+If you're on .NET 8 LTS and aren't ready to move:
+
+- Pin to the latest Wolverine 5.x release.
+- Bug fixes for the 5.x line continue to ship from the [`5.0` maintenance branch](https://github.com/JasperFx/wolverine/tree/5.0) — open issues / PRs that target that branch the same way you do for `main`.
+
+### Critter-stack 2.0-alpha dependency line (BREAKING)
+
+The whole critter-stack moved to a coordinated 2.0-alpha set of packages built on JasperFx 2.0. Wolverine 6.0 pins:
+
+| Package | 5.x line | 6.0 |
+|---|---|---|
+| JasperFx | 1.31.x | 2.0.0-alpha.10 |
+| JasperFx.Events | 1.36.x | 2.0.0-alpha.3 |
+| JasperFx.RuntimeCompiler | 4.5.x | 2.0.0-alpha.2 |
+| JasperFx.SourceGeneration | 1.1.x | 2.0.0-alpha.2 |
+| Marten | 8.35.x | 9.0.0-alpha.1 |
+| Marten.AspNetCore | 8.35.x | 9.0.0-alpha.1 |
+| Polecat | 2.1.x | 4.0.0-alpha.1 |
+
+If you reference any of these directly from your own project, bump in lockstep with Wolverine.
+
+### `SnapshotLifecycle` moved to `JasperFx.Events.Projections` (BREAKING)
+
+`Marten.Events.Projections.SnapshotLifecycle` no longer exists in Marten 9. The same type now lives at `JasperFx.Events.Projections.SnapshotLifecycle` and is consumed by both Marten and Polecat.
+
+If you import `using Marten.Events.Projections;` and reference `SnapshotLifecycle.Inline` / `SnapshotLifecycle.Async`, add `using JasperFx.Events.Projections;` alongside it. Marten's `Snapshot<T>(...)` overload still accepts the type from this new namespace.
+
+There is no Wolverine documentation page for `SnapshotLifecycle` itself — it's a Marten projection-configuration type. The Marten 9 projection docs cover its full semantics; the only Wolverine-visible change is the `using` directive.
+
+### `OperationRole` moved to `Weasel.Core` (BREAKING)
+
+If you write custom `IStorageOperation` implementations (rare but supported), `OperationRole` now lives in `Weasel.Core` instead of `Marten.Internal.Operations`. Add `using Weasel.Core;`.
+
+No Wolverine documentation page covers this directly — `IStorageOperation` is Marten internals territory. The only Wolverine-visible change is the `using` directive.
+
+### `ServiceLocationPolicy.NotAllowed` is the default (BREAKING)
+
+In Wolverine 6.0, `WolverineOptions.ServiceLocationPolicy` defaults to `NotAllowed` (was `AllowedButWarn` in 5.x). Apps that previously relied on Wolverine's code generation falling back to service location at runtime now throw `InvalidServiceLocationException` on startup.
+
+**Preferred upgrade path** — change IoC registrations to forms Wolverine can see through:
+
+- `AddScoped<TInterface, TImpl>()` instead of `AddScoped<TInterface>(sp => new TImpl(...))`
+- Constructor injection into your handlers (Wolverine inlines that into generated code)
+
+**Escape hatch** — opt specific types into the allow-list:
+
+```csharp
+opts.CodeGeneration.AlwaysUseServiceLocationFor<IMyOpaqueService>();
+```
+
+Use this for services with genuinely opaque lambda factory registrations (Refit proxies, EF Core `DbContext` types with runtime configuration, etc.). The rest of the codegen stays inlined; only the listed types route through the service locator.
+
+**To prepare while still on 5.x:**
 
 1. Run your app with `Warning`-level (or lower) logging on the `Wolverine` category. Look for log messages starting with `Utilizing service location for ...`.
-2. For each one, either register the service in DI in a way that the codegen can resolve through constructor injection, or — if it genuinely must be service-located — opt in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
-3. Once the warnings are gone, you can set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` to assert the absence going forward.
+2. For each one, either restructure the registration (preferred) or opt the type in explicitly with `opts.CodeGeneration.AlwaysUseServiceLocationFor<T>()`.
+3. Once the warnings are gone, set `opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed` on 5.x to assert the absence going forward — on 6.0 this is the default, no explicit assignment needed.
 
-See [Code Generation](/guide/codegen.html) for details.
+See [Code Generation](/guide/codegen.html) for the full IoC + service-location story, including the LOUD callout at the top of that page.
+
+### One-line revert: `RestoreV5Defaults()`
+
+For applications that want to adopt Wolverine 6's API surface, NuGet line, target frameworks, and bug fixes — without simultaneously adopting its new runtime defaults — Wolverine 6.0 adds a one-line escape hatch:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.RestoreV5Defaults();
+    // … the rest of your configuration
+});
+```
+
+`RestoreV5Defaults()` flips every runtime default that changed between Wolverine 5.x and 6.x back to its 5.x value. Today that means **one** default: `ServiceLocationPolicy` flips from `NotAllowed` back to `AllowedButWarn`. As more defaults flip between 6.0 and 6.x patch releases, they get added to this method and to the [at-a-glance table above](#at-a-glance-settings-apis-that-changed-in-6-0).
+
+**What this method does NOT do:**
+
+- **It does not change the default JSON serializer.** System.Text.Json has been the Wolverine default since **5.0** (`UseSystemTextJsonForSerialization()` is wired in the `WolverineOptions` constructor). There is no 5.x Newtonsoft default to restore. If you want Newtonsoft as the default (the 4.x-and-earlier behavior), install [`WolverineFx.Newtonsoft`](#newtonsoft-json-moved-to-wolverinefx-newtonsoft-package-breaking) and call `opts.UseNewtonsoftForSerialization()` explicitly.
+- **It does not change build-time things.** Dropping `net8.0` and moving to the JasperFx 2.0-alpha NuGet line are not runtime flags. Either move to net9+ or pin Wolverine 5.x.
+- **It does not change package layout.** Newtonsoft moving to its own NuGet package is resolved by `dotnet add package WolverineFx.Newtonsoft`, not by a runtime call.
+
+**Treat it as a temporary migration step.** The point of upgrading to 6.0 is to adopt the new defaults eventually; `RestoreV5Defaults()` exists so you can sequence the migration — adopt 6.0's API + bug fixes today, then remove the call and opt into each new default at your own pace.
+
+### Newtonsoft.Json moved to `WolverineFx.Newtonsoft` package (BREAKING)
+
+The core `WolverineFx` NuGet package no longer depends on Newtonsoft.Json. All Newtonsoft integration moved to a separate `WolverineFx.Newtonsoft` package and is exposed as **extension methods** rather than instance methods on `WolverineOptions` / `IEndpointConfiguration` / `IMassTransitInterop`.
+
+If you call any of the following 5.x APIs:
+
+- `WolverineOptions.UseNewtonsoftForSerialization(...)`
+- `IEndpointConfiguration<T>.CustomNewtonsoftJsonSerialization(...)`
+- `IMassTransitInterop.UseNewtonsoftForSerialization(...)`
+- `new NewtonsoftSerializer(...)` directly
+
+you must:
+
+1. **Install the new package**: `dotnet add package WolverineFx.Newtonsoft`
+2. **Add `using Wolverine.Newtonsoft;`** to bring the extension methods (and the `NewtonsoftSerializer` type) into scope.
+
+The call surface itself is unchanged — `opts.UseNewtonsoftForSerialization(settings => …)` etc. work exactly as before, they're just extension methods now. See the [Newtonsoft.Json Serialization](/guide/messages.html#newtonsoft-json-serialization) section of the serialization docs.
+
+Transports that pin a `NewtonsoftSerializer` internally for NServiceBus / MassTransit wire-compat (RabbitMQ's `UseNServiceBusInterop()`, the AWS SQS and SNS NServiceBus mappers, Azure Service Bus listeners) carry the `WolverineFx.Newtonsoft` dependency for you. You don't need to install it explicitly unless you call one of the Newtonsoft APIs from your own code.
+
+In a related cleanup, `Subscription.Scope` no longer carries a `[Newtonsoft.Json.Converters.StringEnumConverter]` attribute — it's now annotated with `[System.Text.Json.Serialization.JsonStringEnumConverter]`. Wire format is unchanged (still string-named scopes). If you serialize `Subscription` instances yourself with Newtonsoft and rely on the string-named scope shape, configure `StringEnumConverter` on your own settings explicitly.
+
+### Performance: per-endpoint serializer cache pre-population
+
+The `Endpoint._serializers` cache that used to fill on first-miss at runtime is now pre-populated during `Endpoint.Compile()` with every globally-registered serializer. Effect for users: zero behavioral change; the hot-path serializer lookup is now a pure read.
+
+Side note for users who register an `IMessageSerializer` *after* host startup: the post-Compile registration is still picked up via fallback to the global serializer registry on miss, but it's no longer cached on the endpoint. Either register the serializer before `StartAsync()` (the documented path) or use the endpoint-level `RegisterSerializer(...)` API on the specific endpoint that should see it.
+
+### Performance conventions for contributors
+
+Wolverine's hot-path dictionary lookups stay on `ImHashMap<TKey, TValue>` — this is now codified in [the contributors' CLAUDE.md](https://github.com/JasperFx/wolverine/blob/main/CLAUDE.md#performance-conventions). If you're contributing a perf PR and feel the urge to swap `ImHashMap` for `FrozenDictionary`, read that section first. The right fix for hot-path mutation is bootstrap-time pre-population in the relevant `Compile()` path, not a data-structure swap.
+
+### Stale `DefaultSerializer` XmlDoc fixed
+
+A long-standing XmlDoc on `WolverineOptions.DefaultSerializer` claimed Newtonsoft.Json as the default. System.Text.Json has actually been the default since Wolverine **5.0** (`UseSystemTextJsonForSerialization()` is wired in the default constructor). The XmlDoc was finally corrected in 6.0; no behavior change.
 
 ## Key Changes in 5.0
 
@@ -174,7 +316,7 @@ var builder = WebApplication.CreateBuilder(args);
 // will assert this is missing on startup:(
 builder.Services.AddWolverineHttp();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L40-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_services' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L44-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_adding_http_services' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Also for Wolverine.Http users, the `[Document]` attribute behavior in the Marten integration is now "required by default."

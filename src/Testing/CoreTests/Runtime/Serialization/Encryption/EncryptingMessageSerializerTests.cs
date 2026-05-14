@@ -1,5 +1,6 @@
 using Shouldly;
 using Wolverine;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.Serialization.Encryption;
 using Wolverine.Util;

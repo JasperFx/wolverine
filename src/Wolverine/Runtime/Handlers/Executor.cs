@@ -104,6 +104,41 @@ internal class Executor : IExecutor
 
     public IMessageHandler Handler { get; }
 
+    /// <summary>
+    /// Acquire an envelope for an <c>InvokeAsync</c>-style invocation. Wraps
+    /// <see cref="WolverineRuntime.AcquireInternalEnvelope"/> with the
+    /// <see cref="Envelope.Message"/>-stamping ritual, and falls back to
+    /// direct allocation when no runtime is wired (the test-only constructor
+    /// path). See wolverine#2726.
+    /// </summary>
+    private (Envelope envelope, bool fromPool) AcquireInternalEnvelope(object message)
+    {
+        // Helpers live on the concrete WolverineRuntime, not IWolverineRuntime,
+        // so an internal hot-path detail doesn't leak into the public-ish
+        // interface. In practice _runtime is always WolverineRuntime; the
+        // test-only constructor path leaves _runtime null and we fall back
+        // to direct allocation below.
+        if (_runtime is not WolverineRuntime runtime)
+        {
+            return (new Envelope(message), false);
+        }
+
+        var envelope = runtime.AcquireInternalEnvelope(out var fromPool);
+        // The Message setter also stamps MessageType — that's what the
+        // Envelope(object) constructor does, so the pool path matches the
+        // direct-allocation path's post-condition.
+        envelope.Message = message;
+        return (envelope, fromPool);
+    }
+
+    private void ReleaseInternalEnvelope(Envelope envelope, bool fromPool)
+    {
+        if (_runtime is WolverineRuntime runtime)
+        {
+            runtime.ReleaseInternalEnvelope(envelope, fromPool);
+        }
+    }
+
     public async Task InvokeInlineAsync(Envelope envelope, CancellationToken cancellation)
     {
         using var activity = Handler.TelemetryEnabled ? WolverineTracing.StartExecuting(envelope) : null;
@@ -142,41 +177,54 @@ internal class Executor : IExecutor
     public async Task<T> InvokeAsync<T>(object message, MessageBus bus, CancellationToken cancellation = default,
         TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        var envelope = new Envelope(message)
-        {
-            ReplyUri = TransportConstants.RepliesUri,
-            ReplyRequested = typeof(T).ToMessageTypeName(),
-            ResponseType = typeof(T),
-            TenantId = options?.TenantId ?? bus.TenantId,
-            DoNotCascadeResponse = true
-        };
-        
+        // Pool when ActiveSession is null (production hot path); allocate
+        // fresh when tracking is on, so EnvelopeRecord captures aren't
+        // corrupted by a recycle. See wolverine#2726.
+        var (envelope, fromPool) = AcquireInternalEnvelope(message);
+        envelope.ReplyUri = TransportConstants.RepliesUri;
+        envelope.ReplyRequested = typeof(T).ToMessageTypeName();
+        envelope.ResponseType = typeof(T);
+        envelope.TenantId = options?.TenantId ?? bus.TenantId;
+        envelope.DoNotCascadeResponse = true;
+
         options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
 
-        await InvokeInlineAsync(envelope, cancellation).ConfigureAwait(false);
-
-        if (envelope.Response == null)
+        try
         {
-            return default!;
-        }
+            await InvokeInlineAsync(envelope, cancellation).ConfigureAwait(false);
 
-        return (T)envelope.Response;
+            if (envelope.Response == null)
+            {
+                return default!;
+            }
+
+            return (T)envelope.Response;
+        }
+        finally
+        {
+            ReleaseInternalEnvelope(envelope, fromPool);
+        }
     }
 
-    public Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
+    public async Task InvokeAsync(object message, MessageBus bus, CancellationToken cancellation = default,
         TimeSpan? timeout = null, DeliveryOptions? options = null)
     {
-        var envelope = new Envelope(message)
-        {
-            TenantId = options?.TenantId ?? bus.TenantId
-        };
-        
+        var (envelope, fromPool) = AcquireInternalEnvelope(message);
+        envelope.TenantId = options?.TenantId ?? bus.TenantId;
+
         options?.Override(envelope);
 
         bus.TrackEnvelopeCorrelation(envelope, Activity.Current);
-        return InvokeInlineAsync(envelope, cancellation);
+        try
+        {
+            await InvokeInlineAsync(envelope, cancellation).ConfigureAwait(false);
+        }
+        finally
+        {
+            ReleaseInternalEnvelope(envelope, fromPool);
+        }
     }
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)

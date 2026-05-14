@@ -196,7 +196,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L451-L485' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L451-L489' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_customized_envelope_mapping' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 That code isn't necessarily for the feint of heart, but that will sometimes be an easier recipe than trying to write
@@ -263,6 +263,8 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
         _serializer = new MassTransitJsonSerializer(endpoint);
     }
 
+    public override string ToString() => "MassTransit Interop";
+
     public MassTransitJsonSerializer Serializer => _serializer;
 
     public string BuildMessageBody(Envelope envelope)
@@ -296,7 +298,7 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs/Internal/MassTransitMapper.cs#L7-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_masstransitmapper_for_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case above, the `MassTransitSerializer` is a two step process that first deserializes a JSON document that contains
@@ -344,7 +346,7 @@ using var host = await Host.CreateDefaultBuilder()
                 });
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L186-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_masstransit' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L210-L242' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_masstransit' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Here's some details that you will need to know:
@@ -389,7 +391,7 @@ builder.UseWolverine(opts =>
     opts.Policies.RegisterInteropMessageAssembly(typeof(IInterfaceMessage).Assembly);
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L493-L516' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L497-L520' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_nservicebus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And some details that you will need to know:
@@ -432,7 +434,7 @@ using var host = await Host.CreateDefaultBuilder()
             .InteropWithCloudEvents(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L223-L240' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_cloudevents' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L247-L264' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_rabbitmq_interop_with_cloudevents' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With CloudEvents interoperability:

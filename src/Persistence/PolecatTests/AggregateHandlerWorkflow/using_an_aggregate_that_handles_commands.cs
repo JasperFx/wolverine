@@ -1,4 +1,5 @@
 using IntegrationTests;
+using JasperFx.Events.Projections;
 using JasperFx.CodeGeneration;
 using JasperFx.Events;
 using Polecat;

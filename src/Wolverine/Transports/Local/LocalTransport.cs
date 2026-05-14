@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
@@ -243,6 +244,26 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         return configuration;
     }
 
+    // CloseAndBuildAs<IApplier>(handlerType) closes the internal Applier<>
+    // pseudo-generic over a runtime-resolved IConfigureLocalQueue handler type.
+    // Apps in TypeLoadMode.Static have their handler graph pre-discovered into
+    // source-generated registration code (see the AOT publishing guide); the
+    // handler types they reference are statically rooted and CloseAndBuildAs's
+    // reflection finds them safely. Trim-only apps without source generation
+    // need handler types preserved via TrimmerRootDescriptor or
+    // [DynamicallyAccessedMembers] on the surface that produces the handler
+    // type list.
+    //
+    // Leaf suppression rather than annotating ApplyConfiguration with
+    // [RequiresDynamicCode] because LocalTransport.ApplyConfiguration is on
+    // the bootstrap-time HandlerGraph.Compile cascade — propagating [Requires*]
+    // up that cascade would force every Wolverine startup path to acknowledge
+    // the warning. The AOT-clean Static-mode path doesn't add new runtime
+    // codegen at startup; it just runs the source-generated registrations.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Runtime-resolved handler types; AOT-clean apps in TypeLoadMode.Static have these baked into source-generated registration. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Runtime-resolved handler types; AOT-clean apps in TypeLoadMode.Static have these baked into source-generated registration. See AOT guide.")]
     internal void ApplyConfiguration(HandlerChain chain)
     {
         // Gotta go recursive
@@ -250,7 +271,7 @@ internal class LocalTransport : TransportBase<LocalQueue>, ILocalMessageRoutingC
         {
             ApplyConfiguration(handlerChain);
         }
-        
+
         var configured = chain.Handlers.Select(x => x.HandlerType)
             .Where(x => x.CanBeCastTo(typeof(IConfigureLocalQueue))).ToArray();
 

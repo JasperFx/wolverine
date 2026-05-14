@@ -221,7 +221,7 @@ public class saga_store_diagnostics_tests
 
 /// <summary>
 /// Saga-type-and-storage matrix tests for
-/// <see cref="Wolverine.Configuration.Capabilities.ServiceCapabilities.SagaTypes"/>.
+/// <see cref="Wolverine.Configuration.Capabilities.ServiceCapabilities.Sagas"/>.
 /// Pinned separately from the start/continue classification tests
 /// (those live in <c>exporting_saga_capabilities</c>) so a regression
 /// on the StorageProvider tag — the field downstream tools group by —
@@ -239,7 +239,7 @@ public class service_capabilities_saga_types_tests
                 // Bare-bones discovery — must not pick up the dozens of
                 // saga fixtures sitting in CoreTests. We use this to
                 // validate that an app with literally zero saga
-                // handlers reports an empty SagaTypes collection rather
+                // handlers reports an empty Sagas collection rather
                 // than blowing up.
                 opts.Discovery.DisableConventionalDiscovery();
             })
@@ -248,7 +248,7 @@ public class service_capabilities_saga_types_tests
         var capabilities = await Wolverine.Configuration.Capabilities.ServiceCapabilities.ReadFrom(
             host.GetRuntime(), null, CancellationToken.None);
 
-        capabilities.SagaTypes.ShouldBeEmpty();
+        capabilities.Sagas.ShouldBeEmpty();
     }
 }
 

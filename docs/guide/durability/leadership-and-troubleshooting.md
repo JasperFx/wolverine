@@ -28,6 +28,10 @@ leader by the matching row in the `wolverine_node_assignments` table that refers
 If you are frequently stopping and starting a local process -- especially if you are doing that through a debugger -- you
 may want to utilize the `Solo` durability mode explained below:
 
+::: tip
+Running on PostgreSQL and seeing frequent **"Lost advisory-lock connection"**, **"stepping down from leadership"**, or **"Detected duplicate agent wolverine://leader/"** log lines in a steady-state cluster? The leader election itself is healthy — it's detecting and recovering from server-side session loss correctly — but the underlying database connection is being dropped by something in the network path (managed-PG idle eviction, k8s service mesh, NAT/conntrack, connection pooler in transaction-pooling mode, etc.). See [Connection Stability for Leader Election](postgresql#connection-stability-for-leader-election) for the configuration knobs that fix it.
+:::
+
 
 ## Solo Mode
 

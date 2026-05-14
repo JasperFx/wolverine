@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Raven.Client.Documents;
 using Raven.Client.Documents.Session;
 using Wolverine.Configuration.Capabilities;

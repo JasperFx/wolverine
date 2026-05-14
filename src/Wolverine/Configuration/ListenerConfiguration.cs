@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Threading.Tasks.Dataflow;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
-using Newtonsoft.Json;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
@@ -406,18 +405,6 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     public TSelf Named(string name)
     {
         add(e => e.EndpointName = name);
-        return this.As<TSelf>();
-    }
-
-    public TSelf CustomNewtonsoftJsonSerialization(JsonSerializerSettings customSettings)
-    {
-        add(e =>
-        {
-            var serializer = new NewtonsoftSerializer(customSettings);
-
-            e.DefaultSerializer = serializer;
-        });
-
         return this.As<TSelf>();
     }
 

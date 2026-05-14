@@ -17,6 +17,13 @@ namespace CoreTests.Bugs
                 .UseWolverine(opts =>
                 {
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+
+                    // The opaque lambda-factory registration form is exactly the
+                    // case Wolverine 6.0's NotAllowed default rejects: codegen can't
+                    // see through it to inline-construct, so it falls back to service
+                    // location. Test's purpose is the handler-name disambiguation,
+                    // not the lambda form, so allow the type explicitly.
+                    opts.CodeGeneration.AlwaysUseServiceLocationFor<IIdentityService>();
                     opts.Services.AddScoped<IIdentityService>(x => new IdentityService());
                 }).StartAsync();
 

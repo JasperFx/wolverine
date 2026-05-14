@@ -129,7 +129,7 @@ Or lastly, make up your own criteria to find and mark message types within your 
 ```cs
 opts.Discovery.CustomizeHandlerDiscovery(types => types.Includes.Implements<IDiagnosticsMessageHandler>());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L39-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Diagnostics/DiagnosticsApp/Program.cs#L35-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_use_your_own_marker_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that only types that are in assemblies either marked with `[assembly: WolverineModule]` or the main application assembly
@@ -169,11 +169,11 @@ Just in time for 1.0, Wolverine switched to using System.Text.Json as the defaul
 :::
 
 Wolverine needs to be able to serialize and deserialize your message objects when sending messages with external transports like Rabbit MQ or when using the inbox/outbox message storage.
-To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json?view=net-6.0) but
-you may also opt into using old, battle tested Newtonsoft.Json.
+To that end, the default serialization is performed with [System.Text.Json](https://docs.microsoft.com/en-us/dotnet/api/system.text.json?view=net-6.0). You may also opt into using
+the battle-tested Newtonsoft.Json by installing the separate `WolverineFx.Newtonsoft` NuGet package (see below).
 
-And to instead opt into using System.Text.Json with different defaults -- which can give you better performance but with
-increased risk of serialization failures -- use this syntax where `opts` is a `WolverineOptions` object:
+To opt into using System.Text.Json with different defaults — which can give you better performance but with
+increased risk of serialization failures — use this syntax where `opts` is a `WolverineOptions` object:
 
 <!-- snippet: sample_opting_into_stj -->
 <a id='snippet-sample_opting_into_stj'></a>
@@ -186,10 +186,25 @@ opts.UseSystemTextJsonForSerialization(stj =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Transports/Local/local_integration_specs.cs#L26-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_stj' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-When using Newtonsoft.Json, the default configuration is:
+### Newtonsoft.Json Serialization
 
-<!-- snippet: sample_default_newtonsoft_settings -->
-<a id='snippet-sample_default_newtonsoft_settings'></a>
+::: tip
+As of **Wolverine 6.0**, Newtonsoft.Json support lives in a separate `WolverineFx.Newtonsoft` NuGet package. The core `WolverineFx` package no longer depends on Newtonsoft.Json; install `WolverineFx.Newtonsoft` alongside it to opt in.
+:::
+
+To install:
+
+```bash
+dotnet add package WolverineFx.Newtonsoft
+```
+
+The `WolverineFx.Newtonsoft` package provides the same `UseNewtonsoftForSerialization` /
+`CustomNewtonsoftJsonSerialization` API as Wolverine 5.x, now exposed as extension methods on
+`WolverineOptions` and per-endpoint configuration. Add the `using Wolverine.Newtonsoft;` directive
+to bring the extensions into scope.
+
+The default configuration is:
+
 ```cs
 return new JsonSerializerSettings
 {
@@ -197,8 +212,6 @@ return new JsonSerializerSettings
     PreserveReferencesHandling = PreserveReferencesHandling.Objects
 };
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Serialization/NewtonsoftSerializer.cs#L146-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_default_newtonsoft_settings' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 To customize the Newtonsoft.Json serialization, use this option:
 

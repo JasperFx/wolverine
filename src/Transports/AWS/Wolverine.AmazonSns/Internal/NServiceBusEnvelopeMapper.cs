@@ -3,7 +3,7 @@ using System.Text;
 using Amazon.SimpleNotificationService.Model;
 using JasperFx.Core;
 using Newtonsoft.Json;
-using Wolverine.Runtime.Serialization;
+using Wolverine.Newtonsoft;
 using Wolverine.Util;
 using Endpoint = Wolverine.Configuration.Endpoint;
 

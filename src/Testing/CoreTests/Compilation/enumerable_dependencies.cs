@@ -21,6 +21,16 @@ public class enumerable_dependencies
                 opts.Services.AddSingleton<IWidget, BWidget>();
                 opts.Services.AddScoped<IWidget, ServiceUsingWidget>();
 
+                // Mixed scoping of IWidget across Singleton + Scoped registrations
+                // forces the IEnumerable<IWidget> resolution path into service
+                // location — the codegen's "concrete type not public" gate trips
+                // because IEnumerable<T> isn't a public sealed type the generator
+                // can inline-construct. Wolverine 6.0's NotAllowed default rejects
+                // this. Opt the IEnumerable<IWidget> in explicitly since the
+                // test's purpose is exactly to verify mixed-scope IEnumerable<T>
+                // resolution still works.
+                opts.CodeGeneration.AlwaysUseServiceLocationFor<IEnumerable<IWidget>>();
+
                 opts.CodeGeneration.GeneratedCodeOutputPath = AppContext.BaseDirectory
                     .ParentDirectory()!.ParentDirectory()!.ParentDirectory()!.AppendPath("Internal", "Generated");
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;

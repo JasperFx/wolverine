@@ -363,6 +363,16 @@ as shown in context below in an application shown below:
 ```cs
 app.MapWolverineEndpoints(opts =>
 {
+    opts.UseApiVersioning(v =>
+    {
+        // Existing unversioned endpoints are left unchanged
+        v.UnversionedPolicy = UnversionedPolicy.PassThrough;
+        v.Sunset("3.0").On(DateTimeOffset.Parse("2027-01-01T00:00:00Z"))
+            .WithLink(new Uri("https://example.com/migrate-to-v2"), "Migration guide", "text/html");
+        v.Deprecate("1.0").On(DateTimeOffset.Parse("2026-12-31T00:00:00Z"))
+            .WithLink(new Uri("https://example.com/sunset-v1"));
+    });
+
     // This is strictly to test the endpoint policy
 
     opts.ConfigureEndpoints(httpChain =>
@@ -384,7 +394,7 @@ app.MapWolverineEndpoints(opts =>
     // into the Wolverine.HTTP library
     opts.UseDataAnnotationsValidationProblemDetailMiddleware();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L249-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L300-L334' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_endpoints' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## AsParameters Binding
@@ -420,7 +430,7 @@ public class ValidatedQuery
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L228-L254' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L232-L258' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### AsParameters with [FromBody] <Badge type="tip" text="5.25" />
@@ -469,7 +479,7 @@ public class ValidatedWithFromBody
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L256-L293' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L260-L297' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_fluent_validation_with_asparameters_and_frombody' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## QueryString Binding <Badge type="tip" text="5.0" />

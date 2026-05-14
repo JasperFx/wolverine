@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Serialization;
 using Xunit;
 

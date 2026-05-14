@@ -41,9 +41,12 @@ public class WolverineOptionsTests
     }
 
     [Fact]
-    public void default_service_location_policy_should_be_allowed_by_warn()
+    public void default_service_location_policy_should_be_not_allowed()
     {
-        new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.AllowedButWarn);
+        // Wolverine 6.0 flipped the default from AllowedButWarn to NotAllowed.
+        // Apps that need service location for a specific type must opt in
+        // explicitly via opts.CodeGeneration.AlwaysUseServiceLocationFor<T>().
+        new WolverineOptions().ServiceLocationPolicy.ShouldBe(ServiceLocationPolicy.NotAllowed);
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events.Projections;
 using Marten.Events.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

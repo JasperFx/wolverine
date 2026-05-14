@@ -23,6 +23,8 @@
         <ProjectReference Include="..\Module1\Module1.csproj"/>
         <ProjectReference Include="..\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+        <!-- Test surface still exercises the Newtonsoft serialization shape. -->
+        <ProjectReference Include="..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj" />
     </ItemGroup>
 
     <ItemGroup>

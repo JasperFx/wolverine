@@ -1,4 +1,5 @@
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
@@ -21,6 +22,14 @@ public class using_container_or_service_provider_in_handlers : CompilationContex
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             opts.IncludeType<CSP3Handler>();
             opts.IncludeType<CSP4Handler>();
+
+            // These tests deliberately exercise the IServiceProvider-as-dependency
+            // injection patterns (ctor and method-parameter forms). Wolverine 6.0's
+            // default ServiceLocationPolicy.NotAllowed would reject the codegen path
+            // for those, so this fixture explicitly opts into AlwaysAllowed to
+            // demonstrate that the SL-enabled patterns still work when an app
+            // chooses to permit them.
+            opts.ServiceLocationPolicy = ServiceLocationPolicy.AlwaysAllowed;
         });
     }
 

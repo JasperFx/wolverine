@@ -7,6 +7,15 @@ Wolverine 3.0 *is* tested with both the built in `ServiceProvider` and Lamar. It
 IoC containers now as long as they conform to the .NET conforming container, but this isn't tested by the Wolverine team.
 :::
 
+::: warning Wolverine 6.0: IoC registrations need to be transparent to codegen
+Wolverine generates message-handler and HTTP-endpoint adapter code at startup. By default in 6.0,
+that codegen refuses to fall back to a runtime service locator — if you register a service with an
+opaque pattern (e.g. `AddScoped<TInterface>(sp => new TImpl(...))`), Wolverine will throw
+`InvalidServiceLocationException` at host startup. **Prefer concrete-type registrations
+(`AddScoped<TInterface, TImpl>()`)** for anything Wolverine needs to inject. See
+[Working with Code Generation](/guide/codegen.html) for the full story and the opt-in escape hatch.
+:::
+
 Wolverine is configured with the `IHostBuilder.UseWolverine()` or `HostApplicationBuilder` extension methods, with the actual configuration
 living on a single `WolverineOptions` object. The `WolverineOptions` is the configuration model for your Wolverine application,
 and as such it can be used to configure directives about:
@@ -38,9 +47,8 @@ using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// The almost inevitable inclusion of Swashbuckle:)
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// The almost inevitable inclusion of OpenApi:)
+builder.Services.AddOpenApi();
 
 // For now, this is enough to integrate Wolverine into
 // your application, but there'll be *many* more
@@ -61,9 +69,7 @@ app.MapPost("/issues/create", (CreateIssue body, IMessageBus bus) => bus.InvokeA
 // An endpoint to assign an issue to an existing user that delegates to Wolverine as a mediator
 app.MapPost("/issues/assign", (AssignIssue body, IMessageBus bus) => bus.InvokeAsync(body));
 
-// Swashbuckle inclusion
-app.UseSwagger();
-app.UseSwaggerUI();
+app.MapOpenApi();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
@@ -72,7 +78,7 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 // your Wolverine application
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/Quickstart/Program.cs#L1-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_quickstart_program' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## "Headless" Applications

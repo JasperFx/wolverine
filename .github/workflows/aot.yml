@@ -1,0 +1,46 @@
+name: aot
+
+# AOT smoke (wolverine#2715). Builds the Wolverine.AotSmoke project, which
+# sets IsAotCompatible=true + TrimMode=full + WarningsAsErrors covering the
+# IL2026/IL2075/IL3050 family. If a Wolverine API the smoke exercises later
+# gains a [RequiresDynamicCode] / [RequiresUnreferencedCode] dependency, this
+# job fails fast with the specific call chain.
+#
+# Intentionally bounded to the AOT-clean Wolverine surface today (Envelope
+# value-shape, WolverineOptions configuration, DeliveryOptions, scheduling
+# helpers). As more of Wolverine gets [RequiresDynamicCode] annotations,
+# the smoke expands to cover the newly-validated AOT-clean entry points.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  config: Release
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run AOT smoke
+        run: ./build.sh CIAotSmoke

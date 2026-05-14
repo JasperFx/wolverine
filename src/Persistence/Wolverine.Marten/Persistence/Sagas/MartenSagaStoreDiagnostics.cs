@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
+using JasperFx.Descriptors;
 using Marten;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;

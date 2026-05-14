@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Wolverine.Configuration.Capabilities;
 
 namespace Wolverine.Persistence.Sagas;

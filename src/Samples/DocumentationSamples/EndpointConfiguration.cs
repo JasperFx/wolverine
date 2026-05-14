@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Wolverine;
+using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports.Tcp;
 

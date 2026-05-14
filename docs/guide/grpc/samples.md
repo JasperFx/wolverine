@@ -328,7 +328,7 @@ builder.Services.AddWolverineGrpcClient<IInventoryService>(o =>
     o.Address = new Uri("http://localhost:5007");
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderChainWithGrpc/OrderServer/Program.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_chain_add_wolverine_grpc_client' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/OrderChainWithGrpc/OrderServer/Program.cs#L28-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_chain_add_wolverine_grpc_client' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 **What to copy**: `AddWolverineGrpcClient<T>()` in the calling service + an ordinary Wolverine

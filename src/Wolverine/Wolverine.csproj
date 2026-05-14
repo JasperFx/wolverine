@@ -2,6 +2,26 @@
     <PropertyGroup>
         <Description>Build Robust Event Driven Architectures with Simpler Code</Description>
         <PackageId>WolverineFx</PackageId>
+        <!--
+          AOT pillar (wolverine#2715). IsAotCompatible=true is intentionally NOT
+          set here yet. Wolverine's runtime-codegen surface (HandlerGraph.Compile,
+          AssemblyGenerator usage, reflective handler discovery, the dynamic
+          envelope-mapper reflection) needs [RequiresDynamicCode] /
+          [RequiresUnreferencedCode] annotations propagated through ~150 entry
+          points before the IsAotCompatible declaration would be honest — see
+          the AOT-pillar tracking issue for the per-file breakdown.
+
+          The regression-guard for the AOT-clean *subset* of Wolverine's surface
+          (Envelope value-shape, WolverineOptions configuration, DeliveryOptions,
+          etc.) lives in src/Testing/Wolverine.AotSmoke. That project sets
+          IsAotCompatible=true itself with WarningsAsErrors covering the IL2*/IL3*
+          codes, so if a previously-AOT-clean Wolverine API gains a reflective
+          dependency, the smoke build fails in CI.
+
+          Once the per-file annotation pass is complete, flip IsAotCompatible=true
+          here and the smoke project becomes a redundant (but still useful)
+          subset-coverage signal.
+        -->
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
@@ -14,7 +34,13 @@
         <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.ObjectPool" />
         <PackageReference Include="NewId" />
-        <PackageReference Include="Newtonsoft.Json" />
+        <!--
+          Newtonsoft.Json was removed from the core WolverineFx package in 6.0.
+          The Newtonsoft surface (UseNewtonsoftForSerialization,
+          CustomNewtonsoftJsonSerialization, the MassTransit-interop variant)
+          moved to the WolverineFx.Newtonsoft package as extension methods.
+          See docs/guide/migration.md.
+        -->
         <PackageReference Include="System.Diagnostics.DiagnosticSource" />
         <PackageReference Include="System.Threading.Tasks.Dataflow" />
     </ItemGroup>
@@ -29,6 +55,16 @@
 
     <ItemGroup>
       <None Include="Runtime\Metrics\METRICS.md" />
+    </ItemGroup>
+
+    <!--
+      WolverineFx.Newtonsoft's extension methods need to reach the
+      MassTransitJsonSerializer.ApplyInnerSerializer hook (internal) to swap
+      the inner JSON serializer without widening the public IMassTransitInterop
+      surface. The grant is intentional and scoped to this one consumer.
+    -->
+    <ItemGroup>
+      <InternalsVisibleTo Include="Wolverine.Newtonsoft" />
     </ItemGroup>
 
     <Import Project="../../Analysis.Build.props" />

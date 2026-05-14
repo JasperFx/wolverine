@@ -13,7 +13,7 @@ var builder = Host.CreateDefaultBuilder()
                 opts.Connection(ConnectionSource.ConnectionString);
 
                 opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
-                opts.Projections.Snapshot<ProviderShift>(SnapshotLifecycle.Inline);
+                opts.Projections.Snapshot<ProviderShift>(JasperFx.Events.Projections.SnapshotLifecycle.Inline);
 
                 opts.Projections.Add<BoardViewProjection>(ProjectionLifecycle.Async);
             })
