@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx;
@@ -274,6 +275,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return Task.FromResult(found);
     }
 
+    // AttachTypesSynchronously walks Assembly.ExportedTypes on the *generated*
+    // handler assembly (or the pre-compiled one in TypeLoadMode.Static) to
+    // resolve the generated handler class by name. Trim removal of the
+    // generated handler class would already break Wolverine at runtime; the
+    // ExportedTypes walk is finding a type that's known by construction.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "ExportedTypes walk over the generated handler assembly to attach the generated handler type; the type is known by construction at codegen time. See AOT guide.")]
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
@@ -380,6 +388,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         Postprocessors.Add(cascading);
     }
 
+    // GetProperties / GetFields walk on MessageType to find a member matching
+    // valueName + valueType. The member resolution happens at codegen time
+    // when binding handler parameters to message members. Same chunk Q / R / S
+    // pattern: message types are statically rooted via HandlerDiscovery.
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "MessageType member walk at codegen time; user message types are statically rooted via HandlerDiscovery. See AOT guide.")]
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
         if (source == ValueSource.Claim)
@@ -419,6 +433,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return false;
     }
 
+    // GetMethods walk on handler types to find a public-static method with the
+    // requested name + return type. Codegen-time helper; handler types
+    // statically rooted via HandlerDiscovery.
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Handler-type method walk at codegen time; handler types are statically rooted via HandlerDiscovery. See AOT guide.")]
     private bool tryFindMethodVariable(string methodName, Type returnType, out Variable variable)
     {
         var handlerTypes = Handlers.Select(h => h.HandlerType).Distinct();
@@ -441,6 +460,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             $"Could not find a public static method '{methodName}' returning {returnType.FullNameInCode()} on handler types: {handlerTypes.Select(t => t.FullNameInCode()).Join(", ")}");
     }
 
+    // typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(...)
+    // closes the guard-frame generic over the entity type at codegen time.
+    // Same chunk D / I / J / K CloseAndBuildAs pattern.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
     public override Frame[] AddStopConditionIfNull(Variable variable)
     {
         var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(variable, variable.VariableType);
@@ -448,6 +474,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return [frame, new HandlerContinuationFrame(frame)];
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "EntityIsNotNullGuardFrame<> closed over runtime entity type at codegen time; user types statically rooted. See AOT guide.")]
     public override Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement)
     {
         switch (requirement.OnMissing)
@@ -497,7 +527,11 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return new HandlerChain(call, parent);
     }
 
-    public static HandlerChain For<T>(string methodName, HandlerGraph parent)
+    // GetMethod on typeof(T) for the named handler method. T is the user-
+    // supplied handler type; adding [DAM(PublicMethods|NonPublicMethods)] on T
+    // documents the requirement explicitly. Test-helper API surface — caller
+    // sites pass concrete types so the cascade stops here.
+    public static HandlerChain For<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] T>(string methodName, HandlerGraph parent)
     {
         var handlerType = typeof(T);
         var method = handlerType.GetMethod(methodName,
