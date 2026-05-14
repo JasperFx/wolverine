@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -21,6 +22,10 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 /// <see cref="BatchedQuery"/> with other batchable loads on the same handler.
 /// </para>
 /// </summary>
+// AOT note (#2746): MakeGenericType over runtime spec type at codegen time.
+// Same chunk M / chunk P pattern.
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "Spec generic closures over runtime types at codegen; AOT consumers run pre-generated frames. See AOT guide.")]
 internal class FetchSpecificationFrame : AsyncFrame, IEFCoreBatchableFrame
 {
     private readonly Variable _spec;

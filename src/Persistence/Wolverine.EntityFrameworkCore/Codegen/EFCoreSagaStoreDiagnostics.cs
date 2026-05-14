@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using JasperFx.Core.Reflection;
@@ -27,6 +28,25 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 /// DbContexts get correct routing too — each saga is dispatched to
 /// whichever DbContext owns its entity model.
 /// </remarks>
+// AOT note (#2746): saga diagnostics over runtime saga / DbContext types.
+// Same chunk Z (RavenDb) pattern: AOT consumers preserve saga state types
+// via TrimmerRootDescriptor or supply a JsonSerializerContext for the saga
+// state. Class-level suppression matches the EFCorePersistenceFrameProvider
+// approach above.
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "EFCore saga diagnostics — reflection-based STJ over saga state; AOT consumers supply a JsonSerializerContext. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2060",
+    Justification = "EFCore saga diagnostics — generic DbContext.Set<TSaga> invoked reflectively; saga types statically rooted via handler discovery. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2067",
+    Justification = "EFCore saga diagnostics — saga / DbContext types statically rooted via persistence registration. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2075",
+    Justification = "EFCore saga diagnostics — Id member walk on runtime saga type; statically rooted via handler discovery. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2091",
+    Justification = "EFCore saga diagnostics — generic helper closes over saga state type at runtime; bounded by handler discovery. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2111",
+    Justification = "EFCore saga diagnostics — reflective method invoke on DbContext member; bounded by saga registration. See AOT guide.")]
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "EFCore saga diagnostics — MakeGenericMethod over runtime saga / DbContext types. See AOT guide.")]
 internal sealed class EFCoreSagaStoreDiagnostics : ISagaStoreDiagnostics
 {
     private readonly IWolverineRuntime _runtime;

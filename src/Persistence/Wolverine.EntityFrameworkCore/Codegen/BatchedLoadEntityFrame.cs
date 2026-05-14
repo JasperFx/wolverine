@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -18,6 +19,10 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
 /// the middleware chain to supply the <c>BatchedQuery</c> variable, and an
 /// <see cref="ExecuteBatchQueryFrame"/> must appear after all batch loads.
 /// </summary>
+// AOT note (#2746): Task<>.MakeGenericType(sagaType) at codegen time. Same
+// chunk M (LoggerVariableSource) / chunk P (saga frame providers) pattern.
+[UnconditionalSuppressMessage("AOT", "IL3050",
+    Justification = "Task<>.MakeGenericType over runtime saga type at codegen; AOT consumers run pre-generated frames in TypeLoadMode.Static. See AOT guide.")]
 internal class BatchedLoadEntityFrame : SyncFrame
 {
     private readonly Type _dbContextType;

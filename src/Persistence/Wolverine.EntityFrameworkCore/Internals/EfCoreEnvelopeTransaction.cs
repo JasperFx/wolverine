@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -13,6 +14,12 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// <summary>
 ///     Envelope transaction for raw database access for DbContexts w/o the explicit wolverine mappings
 /// </summary>
+// AOT note (#2746): IDomainEventScraper reflection over runtime DbContext.
+// Same chunk Z / chunk P pattern.
+[UnconditionalSuppressMessage("Trimming", "IL2026",
+    Justification = "EFCore envelope transaction reflects over runtime DbContext for domain-event scraping; AOT consumers preserve DbContext / domain-event types via TrimmerRootDescriptor. See AOT guide.")]
+[UnconditionalSuppressMessage("Trimming", "IL2075",
+    Justification = "EFCore envelope transaction reflects over runtime DbContext for domain-event scraping; AOT consumers preserve DbContext / domain-event types via TrimmerRootDescriptor. See AOT guide.")]
 public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 {
     private readonly MessageContext _messaging;

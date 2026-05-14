@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
@@ -32,7 +33,7 @@ public static class WolverineEntityCoreExtensions
     /// <param name="wolverineDatabaseSchema"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
+    public static IServiceCollection AddDbContextWithWolverineIntegration<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceCollection services, Action<DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         return addDbContextWithWolverineIntegration<T>(services, (_, b) => configure(b), wolverineDatabaseSchema);
      }
@@ -44,7 +45,7 @@ public static class WolverineEntityCoreExtensions
     /// <param name="wolverineDatabaseSchema"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
-    public static IServiceCollection AddDbContextWithWolverineIntegration<T>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
+    public static IServiceCollection AddDbContextWithWolverineIntegration<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(this IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         return addDbContextWithWolverineIntegration<T>(services, configure, wolverineDatabaseSchema);
     }
@@ -167,7 +168,11 @@ public static class WolverineEntityCoreExtensions
     }
 
 
-    private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
+    // EF Core's AddDbContext<T> requires DAM(PublicConstructors) on T to satisfy
+    // its own internal reflection. Forward the annotation up so callers (e.g.
+    // AddWolverineEFCore<T>) get the cascade and concrete-type registration
+    // sites satisfy it automatically.
+    private static IServiceCollection addDbContextWithWolverineIntegration<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
         registerEFCoreSagaStoreDiagnostics(services);
