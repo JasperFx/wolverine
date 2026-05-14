@@ -30,6 +30,8 @@ internal static class ExtensionLoader
         return false;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "AssemblyFinder.FindAssemblies scans the application base directory for assemblies with [WolverineModule]. AOT-publishing apps should opt out of auto-extension-discovery (see https://wolverinefx.net/guide/extensions.html#disabling-assembly-scanning) and register extensions explicitly.")]
     internal static Assembly[] FindExtensionAssemblies()
     {
         if (_extensions != null)

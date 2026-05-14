@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -7,7 +8,9 @@ namespace Wolverine.Persistence.Sagas;
 
 internal class CreateNewSagaFrame : SyncFrame
 {
-    public CreateNewSagaFrame(Type sagaType)
+    public CreateNewSagaFrame(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+        Type sagaType)
     {
         if (!sagaType.HasDefaultConstructor())
         {

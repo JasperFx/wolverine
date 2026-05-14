@@ -1,4 +1,5 @@
-﻿using System.Linq.Expressions;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
@@ -7,7 +8,11 @@ namespace Wolverine.Runtime.Handlers;
 
 public class HandlerCall : MethodCall
 {
-    public HandlerCall(Type handlerType, string methodName) : base(handlerType, methodName)
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "MethodCall reflects handlerType.GetMethod(methodName) at codegen time. handlerType flows from Wolverine's handler discovery, which roots application handler types via opts.Discovery.IncludeAssembly / IncludeType registration. AOT consumers run pre-generated handlers via TypeLoadMode.Static so the reflective close never fires.")]
+    public HandlerCall(
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)]
+        Type handlerType, string methodName) : base(handlerType, methodName)
     {
         MessageType = Method.MessageType()!;
 

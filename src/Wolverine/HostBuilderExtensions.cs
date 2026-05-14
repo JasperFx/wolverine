@@ -92,6 +92,10 @@ public static class HostBuilderExtensions
     /// <param name="configure">Apply specific Wolverine configuration for this application</param>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "services.AddJasperFx() scans for IJasperFxCommand types via Assembly.GetExportedTypes(). AOT-publishing apps should pre-register commands via the source-generated DiscoveredCommands manifest; the underlying AddJasperFx surface is already documented as requiring trim-safe registration on those code paths.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "JasperFx command bootstrap closes generic List<T> for enumerable arguments. AOT consumers rely on the same source-generated command manifest used by the trim story.")]
     internal static IServiceCollection AddWolverine(this IServiceCollection services, WolverineOptions options,
         ExtensionDiscovery discovery = ExtensionDiscovery.Automatic,
         Action<WolverineOptions>? configure = null)
@@ -332,6 +336,11 @@ public static class HostBuilderExtensions
     /// <param name="hostBuilder"></param>
     /// <param name="args"></param>
     /// <returns></returns>
+    [RequiresUnreferencedCode(
+        "Dispatches to JasperFx commands resolved reflectively from the entry/extension assemblies. " +
+        "AOT-publishing apps should pre-register commands via the source-generated DiscoveredCommands manifest.")]
+    [RequiresDynamicCode(
+        "Command input parsing closes generic List<T> via MakeGenericType for enumerable arguments / flags.")]
     public static Task<int> RunWolverineAsync(this IHostBuilder hostBuilder, string[] args)
     {
         return hostBuilder.RunJasperFxCommands(args);

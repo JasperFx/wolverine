@@ -49,6 +49,8 @@ public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
         ApplyTransactionSupport(chain, container);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "Service-dependency types flow from registered persistence-frame providers; AOT consumers register saga storage types explicitly via the AOT publishing guide so the interface-closure scan resolves against statically-rooted types.")]
     public bool CanApply(IChain chain, IServiceContainer container)
     {
         return chain is SagaChain || chain.ServiceDependencies(container, []).Any(x => x.Closes(typeof(ISagaStorage<,>)));

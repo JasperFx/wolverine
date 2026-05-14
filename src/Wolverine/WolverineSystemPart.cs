@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
@@ -26,6 +27,10 @@ internal class WolverineSystemPart : SystemPartBase
         _runtime = (WolverineRuntime)runtime;
     }
 
+    [RequiresUnreferencedCode(
+        "Renders the full WolverineOptions and HandlerGraph diagnostic surface to the console via OptionsDescription, " +
+        "which reflects over each subject's runtime-type properties. Trimmed-away properties are silently omitted. " +
+        "Annotation matches the SystemPartBase.WriteToConsole base method.")]
     public override async Task WriteToConsole()
     {
         WithinDescription = true;

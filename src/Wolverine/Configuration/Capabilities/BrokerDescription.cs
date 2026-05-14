@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Descriptors;
 using Wolverine.Transports;
 
@@ -9,6 +10,8 @@ public class BrokerDescription : OptionsDescription
     {
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "OptionsDescription(subject) reads subject.GetType().GetProperties() to build a diagnostic description. BrokerDescription is a diagnostic surface (Capabilities reporting); properties of subject's runtime type that are trimmed are silently omitted, which is acceptable for this purpose.")]
     public BrokerDescription(ITransport subject) : base(subject)
     {
         ProtocolName = subject.Protocol;

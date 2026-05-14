@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -11,6 +12,8 @@ namespace Wolverine.Shims.MassTransit;
 /// </summary>
 internal class ConsumeContextVariableSource : IVariableSource
 {
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "type is supplied by Wolverine's variable-source matching pipeline. TypeExtensions.Closes inspects the type's generic-interface graph for ConsumeContext<>; user message types are statically rooted via HandlerDiscovery and preserved.")]
     public bool Matches(Type type)
     {
         return type.Closes(typeof(ConsumeContext<>));

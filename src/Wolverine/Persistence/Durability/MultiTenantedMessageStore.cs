@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;
 using JasperFx.Blocks;
@@ -369,6 +370,8 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
 
     public IMessageStoreAdmin Admin => this;
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "DatabaseDescriptor(subject) reads subject's runtime-type properties for diagnostic reporting. Trimmed-away properties on MultiTenantedMessageStore are silently omitted, which is acceptable for this diagnostic surface.")]
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this)

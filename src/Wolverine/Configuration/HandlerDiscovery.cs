@@ -150,6 +150,8 @@ public sealed partial class HandlerDiscovery
         return findAllMessages(handlers).Distinct().ToList();
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Conventional handler discovery walks Assembly.ExportedTypes via JasperFx TypeQuery. Trimmed-away handler types simply do not register; AOT consumers should opt out of conventional discovery (DisableConventionalDiscovery) or use IncludeType to make registration explicit.")]
     internal IEnumerable<Type> findAllMessages(HandlerGraph handlers)
     {
         foreach (var messageType in handlers.AllMessageTypes())
@@ -165,6 +167,8 @@ public sealed partial class HandlerDiscovery
         foreach (var type in discovered) yield return type;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "HandlerQuery.Find walks Assembly.ExportedTypes via JasperFx TypeQuery. AOT consumers either DisableConventionalDiscovery() and register explicit types via IncludeType, or rely on the AOT publishing guide's source-generated handler manifest.")]
     internal (Type, MethodInfo)[] FindCalls(WolverineOptions options)
     {
         if (options.ApplicationAssembly != null)
@@ -193,6 +197,8 @@ public sealed partial class HandlerDiscovery
     /// <summary>
     /// Discovers and includes all assemblies marked with [WolverineHandlerModule] attribute.
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "AssemblyFinder.FindAssemblies scans the application base directory and inspects the referenced-assembly graph for [WolverineHandlerModule]. AOT-published apps either skip this discovery (no handler-module attributes) or pre-register their handlers explicitly per the AOT publishing guide.")]
     internal HandlerDiscovery DiscoverHandlerModules()
     {
         var handlerModuleAssemblies = AssemblyFinder

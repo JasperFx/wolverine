@@ -73,7 +73,7 @@ public sealed partial class WolverineOptions
     /// Thrown when <typeparamref name="TForwarder"/> doesn't implement
     /// <see cref="IForwardsTo{T}"/>.
     /// </exception>
-    public WolverineOptions RegisterMessageForwarder<TForwarder>()
+    public WolverineOptions RegisterMessageForwarder<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] TForwarder>()
     {
         var forwardingInterface = typeof(TForwarder).FindInterfaceThatCloses(typeof(IForwardsTo<>));
         if (forwardingInterface is null)

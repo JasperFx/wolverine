@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using Wolverine.Logging;
@@ -151,6 +152,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public IMessageStoreAdmin Admin => this;
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "DatabaseDescriptor(subject) reads subject's runtime-type properties for diagnostic reporting. NullMessageStore properties trimmed away are silently omitted, which is acceptable for this diagnostic surface.")]
     public DatabaseDescriptor Describe()
     {
         return new DatabaseDescriptor(this);
