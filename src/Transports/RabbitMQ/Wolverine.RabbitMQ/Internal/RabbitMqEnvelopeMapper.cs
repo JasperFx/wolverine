@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using JasperFx.Core;
 using RabbitMQ.Client;
@@ -16,6 +17,18 @@ public interface IRabbitMqEnvelopeMapper : IEnvelopeMapper<IReadOnlyBasicPropert
 
 public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, IBasicProperties>, IRabbitMqEnvelopeMapper
 {
+    // Inherits EnvelopeMapper<,>'s reflection-based property mapping (chunk B
+    // #2753 annotated the base ctor as [RequiresDynamicCode] +
+    // [RequiresUnreferencedCode]). Suppress at the leaf so the cascade
+    // doesn't propagate through Endpoint.buildMapper (an abstract method
+    // overridden by every transport-specific endpoint). AOT-clean apps
+    // either supply their own IRabbitMqEnvelopeMapper or preserve the
+    // closed EnvelopeMapper<IReadOnlyBasicProperties, IBasicProperties> via
+    // TrimmerRootDescriptor. See AOT guide.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Inherits EnvelopeMapper<,> reflective property mapping; AOT consumers supply their own mapper or preserve the closed type. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Inherits EnvelopeMapper<,> reflective property mapping; AOT consumers supply their own mapper or preserve the closed type. See AOT guide.")]
     public RabbitMqEnvelopeMapper(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint)
     {
         MapProperty(x => x.CorrelationId!, (e, p) => e.CorrelationId = p.CorrelationId,
