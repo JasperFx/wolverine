@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core.Reflection;
 
 namespace Wolverine.Persistence.Sagas;
@@ -24,7 +25,7 @@ public class InMemorySagaPersistor
         return null;
     }
 
-    public void Store<T>(T document)
+    public void Store<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(T document)
     {
         if (document == null)
         {
@@ -48,7 +49,7 @@ public class InMemorySagaPersistor
         _data.TryRemove(key, out _);
     }
 
-    public void StoreAction<T>(IStorageAction<T> action)
+    public void StoreAction<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>(IStorageAction<T> action)
     {
         switch (action.Action)
         {
@@ -57,7 +58,7 @@ public class InMemorySagaPersistor
                 var id = idProp!.GetValue(action.Entity);
                 Delete<T>(id!);
                 break;
-            
+
             case StorageAction.Insert:
             case StorageAction.Store:
             case StorageAction.Update:
