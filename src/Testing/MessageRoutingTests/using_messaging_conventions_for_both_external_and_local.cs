@@ -18,9 +18,16 @@ public class using_messaging_conventions_for_both_external_and_local : MessageRo
     public void calls_the_observer_on_new_message_routers()
     {
         var observer = Substitute.For<IWolverineObserver>();
-        theHost.GetRuntime().Observer = observer;
+        var runtime = theHost.GetRuntime();
+        runtime.Observer = observer;
 
-        var router = theHost.GetRuntime().RoutingFor(typeof(M4));
+        // PrepopulateRoutingCache (#2769) primed the router cache at startup
+        // with the existing observer. Clear M4 so the post-swap RoutingFor call
+        // takes the cache-miss path and fires Observer.MessageRouted against
+        // the substituted observer.
+        runtime.ClearRoutingFor(typeof(M4));
+
+        var router = runtime.RoutingFor(typeof(M4));
         observer.Received().MessageRouted(typeof(M4), router);
     }
     
