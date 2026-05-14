@@ -39,7 +39,7 @@
           The Newtonsoft surface (UseNewtonsoftForSerialization,
           CustomNewtonsoftJsonSerialization, the MassTransit-interop variant)
           moved to the WolverineFx.Newtonsoft package as extension methods.
-          See docs/guide/migration.md. 
+          See docs/guide/migration.md.
         -->
     </ItemGroup>
     <ItemGroup>
