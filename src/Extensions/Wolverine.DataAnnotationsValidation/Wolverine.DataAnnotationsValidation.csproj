@@ -8,10 +8,20 @@
     <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
     <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
     <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    <!--
+      AOT-compatible (#2746). DataAnnotations validation runs against
+      message types that the user already roots through Wolverine's
+      handler discovery, so the validator's reflection over property
+      attributes resolves against trim-rooted members. See per-site
+      justifications in source if any IL warnings surface.
+    -->
+    <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
   </ItemGroup>
+
+  <Import Project="../../../Analysis.Build.props" />
 
 </Project>
