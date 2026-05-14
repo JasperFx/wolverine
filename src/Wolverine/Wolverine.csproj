@@ -19,10 +19,10 @@
         <PackageReference Include="System.Threading.Tasks.Dataflow" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="../../../jasperfx/src/JasperFx/JasperFx.csproj" />
-        <ProjectReference Include="../../../jasperfx/src/JasperFx.Events/JasperFx.Events.csproj" />
-        <ProjectReference Include="../../../jasperfx/src/JasperFx.RuntimeCompiler/JasperFx.RuntimeCompiler.csproj" />
-        <ProjectReference Include="../../../jasperfx/src/JasperFx.SourceGeneration/JasperFx.SourceGeneration.csproj"
+        <PackageReference Include="JasperFx" />
+        <PackageReference Include="JasperFx.Events" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" />
+        <PackageReference Include="JasperFx.SourceGeneration"
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false" />
     </ItemGroup>

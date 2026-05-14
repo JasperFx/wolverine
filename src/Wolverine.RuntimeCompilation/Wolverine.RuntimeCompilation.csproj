@@ -5,7 +5,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="../../../jasperfx/src/JasperFx.RuntimeCompiler/JasperFx.RuntimeCompiler.csproj" />
+        <PackageReference Include="JasperFx.RuntimeCompiler" />
     </ItemGroup>
 
     <ItemGroup>
