@@ -108,8 +108,10 @@ public class ConcurrencyTestSaga : Saga
     public string Value { get; set; } = null!;
     public void Handle(UpdateConcurrencyTestSaga order, OptConcurrencyDbContext ctx)
     {
-        // Fake 999 updates of the saga while this event is being handled
-        ctx.ConcurrencyTestSagas.Entry(this).Property("Version").OriginalValue = 999;
+        // Fake 999 updates of the saga while this event is being handled. Literal must
+        // be `long` so the boxed value unboxes cleanly inside EF Core's concurrency-token
+        // comparator now that Saga.Version is `long` (was `int` pre-Marten-9).
+        ctx.ConcurrencyTestSagas.Entry(this).Property("Version").OriginalValue = 999L;
 
         Value = order.NewValue;
     }
