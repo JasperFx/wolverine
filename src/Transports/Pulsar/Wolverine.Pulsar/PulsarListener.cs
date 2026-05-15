@@ -138,22 +138,16 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     private Uri? getRetryLetterTopicUri(PulsarEndpoint endpoint)
     {
-#pragma warning disable CS0618 // Pulsar-native topic-path form is required by the Pulsar client
         return NativeRetryLetterQueueEnabled
-            ? PulsarEndpoint.UriFor(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
+            ? PulsarEndpoint.NativeTopicPath(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
                 endpoint.RetryLetterTopic?.TopicName ?? $"{endpoint.TopicName}-RETRY")
             : null;
-#pragma warning restore CS0618
     }
 
     private Uri getDeadLetteredTopicUri(PulsarEndpoint endpoint)
     {
-#pragma warning disable CS0618 // Pulsar-native topic-path form is required by the Pulsar client
-        var topicDql = PulsarEndpoint.UriFor(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
+        return PulsarEndpoint.NativeTopicPath(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
             endpoint.DeadLetterTopic?.TopicName ?? $"{endpoint.TopicName}-DLQ");
-#pragma warning restore CS0618
-
-        return topicDql;
     }
 
     public ValueTask CompleteAsync(Envelope envelope)
