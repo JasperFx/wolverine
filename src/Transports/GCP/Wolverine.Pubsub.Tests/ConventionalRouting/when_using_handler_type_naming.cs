@@ -10,14 +10,14 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class when_using_handler_type_naming : IDisposable
+public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
-    private readonly IWolverineRuntime _runtime;
+    private IHost _host = null!;
+    private IWolverineRuntime _runtime = null!;
 
-    public when_using_handler_type_naming()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UsePubsubTesting()
                 .AutoProvision()
@@ -41,6 +41,8 @@ public class when_using_handler_type_naming : IDisposable
         _runtime.Endpoints.ActiveListeners().Any(x => x.Uri.ToString().Contains(expectedName))
             .ShouldBeTrue($"Expected active listener containing '{expectedName}' for handler type");
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

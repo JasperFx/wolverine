@@ -89,9 +89,9 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
         _default.Dispose();
     }
 
-    protected void with(Action<WolverineOptions> configuration)
+    protected async Task with(Action<WolverineOptions> configuration)
     {
-        Host = WolverineHost.For(configuration);
+        Host = await WolverineHost.ForAsync(configuration);
     }
 
     protected HandlerChain chainFor<T>()

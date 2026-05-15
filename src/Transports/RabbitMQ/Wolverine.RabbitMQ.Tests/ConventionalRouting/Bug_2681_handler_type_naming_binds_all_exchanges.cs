@@ -26,14 +26,14 @@ namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 /// The reporter has a candidate fix; this test pins down the expected behaviour
 /// independently so the contract is verifiable from outside the convention.
 /// </summary>
-public class Bug_2681_handler_type_naming_binds_all_exchanges : IDisposable
+public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
-    private readonly IWolverineRuntime _runtime;
+    private IHost _host = null!;
+    private IWolverineRuntime _runtime = null!;
 
-    public Bug_2681_handler_type_naming_binds_all_exchanges()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -45,6 +45,8 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IDisposable
 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void handler_queue_is_bound_to_every_handled_message_exchange()
@@ -94,14 +96,14 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IDisposable
 /// message-type exchange via a custom configuration must not be bound a second
 /// time.
 /// </summary>
-public class Bug_2681_custom_bindings_are_not_double_added : IDisposable
+public class Bug_2681_custom_bindings_are_not_double_added : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
-    private readonly IWolverineRuntime _runtime;
+    private IHost _host = null!;
+    private IWolverineRuntime _runtime = null!;
 
-    public Bug_2681_custom_bindings_are_not_double_added()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -124,6 +126,8 @@ public class Bug_2681_custom_bindings_are_not_double_added : IDisposable
 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void user_custom_binding_is_not_double_added_by_the_convention()

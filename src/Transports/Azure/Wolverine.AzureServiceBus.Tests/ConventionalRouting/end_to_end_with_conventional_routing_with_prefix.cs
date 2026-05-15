@@ -13,9 +13,9 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("shazaam")
@@ -24,15 +24,13 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
             opts.ServiceName = "Sender";
         });
 
-        _receiver = WolverineHost.For(opts =>
+        _receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("shazaam")
                 .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
-
-        return Task.CompletedTask;
     }
 
     public async Task DisposeAsync()

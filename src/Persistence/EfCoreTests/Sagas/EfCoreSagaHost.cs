@@ -16,9 +16,9 @@ public class EfCoreSagaHost : ISagaHost
 {
     private IHost _host = null!;
 
-    public IHost BuildHost<TSaga>()
+    public async Task<IHost> BuildHostAsync<TSaga>()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
@@ -32,7 +32,7 @@ public class EfCoreSagaHost : ISagaHost
             opts.PublishAllMessages().Locally();
         });
 
-        _host.ResetResourceState().GetAwaiter().GetResult();
+        await _host.ResetResourceState();
 
         return _host;
     }

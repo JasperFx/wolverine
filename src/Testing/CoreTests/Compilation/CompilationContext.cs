@@ -24,19 +24,19 @@ public abstract class CompilationContext : IDisposable
         _host = Host.CreateDefaultBuilder().UseWolverine(configure).Start();
     }
 
-    protected void AllHandlersCompileSuccessfully(Action<WolverineOptions>? configure = null)
+    protected async Task AllHandlersCompileSuccessfully(Action<WolverineOptions>? configure = null)
     {
         configure ??= _ => { };
-        using var host = WolverineHost.For(configure);
+        using var host = await WolverineHost.ForAsync(configure);
         host.Get<HandlerGraph>().Chains.Length.ShouldBeGreaterThan(0);
     }
 
-    public MessageHandler HandlerFor<TMessage>(Action<WolverineOptions>? configure = null)
+    public async Task<MessageHandler> HandlerFor<TMessage>(Action<WolverineOptions>? configure = null)
     {
         if (_host == null)
         {
             configure ??= _ => { };
-            _host = WolverineHost.For(configure);
+            _host = await WolverineHost.ForAsync(configure);
         }
 
         return _host.Get<HandlerGraph>().HandlerFor(typeof(TMessage))!.As<MessageHandler>();
@@ -44,7 +44,7 @@ public abstract class CompilationContext : IDisposable
 
     public async Task<IMessageContext> Execute<TMessage>(TMessage message)
     {
-        var handler = HandlerFor<TMessage>();
+        var handler = await HandlerFor<TMessage>();
         theEnvelope = new Envelope(message!);
         var context = new MessageContext(_host.Get<IWolverineRuntime>());
         context.ReadEnvelope(theEnvelope, InvocationCallback.Instance);
@@ -55,8 +55,8 @@ public abstract class CompilationContext : IDisposable
     }
 
     [Fact]
-    public void can_compile_all()
+    public async Task can_compile_all()
     {
-        AllHandlersCompileSuccessfully();
+        await AllHandlersCompileSuccessfully();
     }
 }

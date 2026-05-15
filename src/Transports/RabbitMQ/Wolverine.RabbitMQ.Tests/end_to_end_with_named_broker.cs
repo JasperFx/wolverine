@@ -25,7 +25,7 @@ public class end_to_end_with_named_broker
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.AddNamedRabbitMqBroker(theName, factory => {}).AutoProvision().AutoPurgeOnStartup();
 
@@ -37,7 +37,7 @@ public class end_to_end_with_named_broker
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.AddNamedRabbitMqBroker(theName, factory => { }).AutoProvision();
 
@@ -71,7 +71,7 @@ public class end_to_end_with_named_broker
     public async Task correct_scheme_on_reply_uri()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.Discovery.DisableConventionalDiscovery();
             
@@ -85,7 +85,7 @@ public class end_to_end_with_named_broker
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision();
 

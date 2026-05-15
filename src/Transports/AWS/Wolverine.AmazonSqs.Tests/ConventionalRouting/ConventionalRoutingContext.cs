@@ -9,21 +9,14 @@ namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
 public abstract class ConventionalRoutingContext : IDisposable
 {
-    private readonly object _hostLock = new();
     private IHost _host = null!;
 
-    internal IWolverineRuntime theRuntime
+    internal async Task<IWolverineRuntime> theRuntime()
     {
-        get
-        {
-            lock (_hostLock)
-            {
-                _host ??= WolverineHost.For(opts =>
-                    opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
-            }
+        _host ??= await WolverineHost.ForAsync(opts =>
+            opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
 
-            return _host.Services.GetRequiredService<IWolverineRuntime>();
-        }
+        return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
     public void Dispose()
@@ -31,28 +24,28 @@ public abstract class ConventionalRoutingContext : IDisposable
         _host?.Dispose();
     }
 
-    internal void ConfigureConventions(Action<AmazonSqsMessageRoutingConvention> configure)
+    internal async Task ConfigureConventions(Action<AmazonSqsMessageRoutingConvention> configure)
     {
-        _host = Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UseAmazonSqsTransport().UseConventionalRouting(configure).AutoProvision()
                     .AutoPurgeOnStartup();
-            }).Start();
+            }).StartAsync();
     }
 
-    internal IMessageRouter RoutingFor<T>()
+    internal async Task<IMessageRouter> RoutingFor<T>()
     {
-        return theRuntime.RoutingFor(typeof(T));
+        return (await theRuntime()).RoutingFor(typeof(T));
     }
 
-    internal void AssertNoRoutes<T>()
+    internal async Task AssertNoRoutes<T>()
     {
-        RoutingFor<T>().ShouldBeOfType<EmptyMessageRouter<T>>();
+        (await RoutingFor<T>()).ShouldBeOfType<EmptyMessageRouter<T>>();
     }
 
-    internal IMessageRoute[] PublishingRoutesFor<T>()
+    internal async Task<IMessageRoute[]> PublishingRoutesFor<T>()
     {
-        return RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
+        return (await RoutingFor<T>()).ShouldBeOfType<MessageRouter<T>>().Routes;
     }
 }

@@ -30,7 +30,7 @@ public class RabbitMqBrokerHealthProbe_tests
     [Fact]
     public async Task probe_returns_healthy_for_a_running_transport()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision();
         });
@@ -55,7 +55,7 @@ public class RabbitMqBrokerHealthProbe_tests
     [Fact]
     public async Task probe_returns_unhealthy_when_underlying_connection_is_closed()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision();
         });

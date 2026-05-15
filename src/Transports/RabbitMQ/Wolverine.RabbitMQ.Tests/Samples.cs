@@ -594,10 +594,10 @@ public class Samples
         #endregion
     }
 
-    public static void configure_routing_conventions()
+    public static async Task configure_routing_conventions()
     {
         #region sample_conventional_routing_exchange_conventions
-        var sender = WolverineHost.For(opts =>
+        var sender = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .UseConventionalRouting(conventions =>
@@ -613,8 +613,8 @@ public class Samples
                     });
                 });
         });
-        
-        var receiver = WolverineHost.For(opts =>
+
+        var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .UseConventionalRouting(conventions =>
@@ -635,7 +635,7 @@ public class Samples
                 });
         });
         #endregion
-      
+
     }
 
     #region sample_rabbitmq_configuration_in_wolverine_extension

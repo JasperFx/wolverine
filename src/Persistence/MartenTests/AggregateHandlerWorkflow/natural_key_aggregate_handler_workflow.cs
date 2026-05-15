@@ -18,14 +18,14 @@ using Wolverine.Tracking;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 
-public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncDisposable
+public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncLifetime, IAsyncDisposable
 {
-    private readonly IHost _host;
-    private readonly IDocumentStore _store;
+    private IHost _host = null!;
+    private IDocumentStore _store = null!;
 
-    public natural_key_aggregate_handler_workflow()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.Services.AddMarten(m =>
                 {
@@ -43,10 +43,15 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncD
         _store = _host.Services.GetRequiredService<IDocumentStore>();
     }
 
+    Task IAsyncLifetime.DisposeAsync() => DisposeAsync().AsTask();
+
     public async ValueTask DisposeAsync()
     {
-        await _host.StopAsync();
-        _host.Dispose();
+        if (_host != null)
+        {
+            await _host.StopAsync();
+            _host.Dispose();
+        }
     }
 
     [Fact]

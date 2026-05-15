@@ -59,9 +59,9 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     }
 
     [Fact]
-    public void ignore_method_marked_as_NotHandler()
+    public async Task ignore_method_marked_as_NotHandler()
     {
-        with(x => x.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
+        await with(x => x.DisableConventionalDiscovery().IncludeType<NetflixHandler>());
         //withAllDefaults();
         chainFor<MovieAdded>()
             .ShouldNotHaveHandler<NetflixHandler>(x => x.Handles(new MovieAdded()));
@@ -121,26 +121,26 @@ public class customized_finding : IntegrationContext
     {
     }
 
-    private void withTypeDiscovery(Action<TypeQuery> customize)
+    private Task withTypeDiscovery(Action<TypeQuery> customize)
     {
-        with(opts =>
+        return with(opts =>
         {
             opts.Discovery.CustomizeHandlerDiscovery(customize);
         });
     }
 
     [Fact]
-    public void extra_suffix()
+    public async Task extra_suffix()
     {
-        withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
+        await withTypeDiscovery(x => x.Includes.WithNameSuffix("Watcher"));
 
         chainFor<MovieAdded>().ShouldHaveHandler<MovieWatcher>(x => x.Handle(null!));
     }
 
     [Fact]
-    public void handler_types_from_a_marker_interface()
+    public async Task handler_types_from_a_marker_interface()
     {
-        withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
+        await withTypeDiscovery(x => x.Includes.Implements<IMovieThing>());
 
         chainFor<MovieAdded>().ShouldHaveHandler<EpisodeWatcher>(x => x.Handle(new MovieAdded()));
     }
@@ -164,9 +164,9 @@ public class customized_finding : IntegrationContext
     }
 
     [Fact]
-    public void find_handlers_from_included_assembly()
+    public async Task find_handlers_from_included_assembly()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.Discovery.IncludeAssembly(typeof(Module2Message1).Assembly);
         });
@@ -178,9 +178,9 @@ public class customized_finding : IntegrationContext
     }
 
     [Fact]
-    public void find_handlers_from_handler_module_assemblies()
+    public async Task find_handlers_from_handler_module_assemblies()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.Discovery.IncludeHandlerModules = true;
         });

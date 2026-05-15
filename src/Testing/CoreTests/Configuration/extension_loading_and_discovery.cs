@@ -14,9 +14,9 @@ public class extension_loading_and_discovery : IntegrationContext
     }
 
     [Fact]
-    public void the_application_still_wins()
+    public async Task the_application_still_wins()
     {
-        using var host = WolverineHost.For(options =>
+        using var host = await WolverineHost.ForAsync(options =>
         {
             options.DisableConventionalDiscovery();
             options.Include<OptionalExtension>();
@@ -24,32 +24,32 @@ public class extension_loading_and_discovery : IntegrationContext
         });
 
         using var scope = host.Services.CreateScope();
-        
+
         scope.ServiceProvider.GetRequiredService<IColorService>()
             .ShouldBeOfType<BlueService>();
     }
 
     [Fact]
-    public void try_find_extension_miss()
+    public async Task try_find_extension_miss()
     {
-        using var host = WolverineHost.For(options =>
+        using var host = await WolverineHost.ForAsync(options =>
         {
             options.DisableConventionalDiscovery();
         });
-        
+
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         runtime.TryFindExtension<OptionalExtension>().ShouldBeNull();
     }
 
     [Fact]
-    public void try_find_extension_hit()
+    public async Task try_find_extension_hit()
     {
-        using var host = WolverineHost.For(options =>
+        using var host = await WolverineHost.ForAsync(options =>
         {
             options.DisableConventionalDiscovery();
             options.Include<OptionalExtension>();
         });
-        
+
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         runtime.TryFindExtension<OptionalExtension>().ShouldBeOfType<OptionalExtension>().ShouldNotBeNull();
     }
@@ -71,9 +71,9 @@ public class extension_loading_and_discovery : IntegrationContext
     }
 
     [Fact]
-    public void will_apply_an_extension()
+    public async Task will_apply_an_extension()
     {
-        using var runtime = WolverineHost.For(opts =>
+        using var runtime = await WolverineHost.ForAsync(opts =>
         {
             #region sample_explicitly_add_extension
             opts.Include<OptionalExtension>();
@@ -83,30 +83,30 @@ public class extension_loading_and_discovery : IntegrationContext
         });
 
         using var scope = runtime.Services.CreateScope();
-        
+
         scope.ServiceProvider.GetRequiredService<IColorService>()
             .ShouldBeOfType<RedService>();
     }
 
     [Fact]
-    public void will_only_apply_extension_once()
+    public async Task will_only_apply_extension_once()
     {
-        using var host = WolverineHost.For(registry =>
+        using var host = await WolverineHost.ForAsync(registry =>
         {
             registry.Include<OptionalExtension>();
             registry.Include<OptionalExtension>();
             registry.Include<OptionalExtension>();
             registry.Include<OptionalExtension>();
         });
-        
+
         host.Get<IServiceContainer>().RegistrationsFor<IColorService>()
             .Count().ShouldBe(1);
     }
 
     [Fact]
-    public void picks_up_on_handlers_from_extension()
+    public async Task picks_up_on_handlers_from_extension()
     {
-        with(x => x.Include<MyExtension>());
+        await with(x => x.Include<MyExtension>());
 
         var handlerChain = chainFor<ExtensionMessage>();
         handlerChain.Handlers.Single()

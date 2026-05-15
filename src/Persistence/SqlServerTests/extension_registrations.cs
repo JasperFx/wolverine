@@ -12,9 +12,9 @@ namespace SqlServerTests;
 public class extension_registrations : SqlServerContext
 {
     [Fact]
-    public void registrations()
+    public async Task registrations()
     {
-        using var runtime = WolverineHost.For(x =>
+        using var runtime = await WolverineHost.ForAsync(x =>
             x.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString));
         var container = runtime.Get<IServiceContainer>();
 

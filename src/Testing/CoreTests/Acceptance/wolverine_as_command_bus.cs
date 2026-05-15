@@ -17,9 +17,9 @@ public class wolverine_as_command_bus : IntegrationContext
     {
     }
 
-    private void configure()
+    private Task configure()
     {
-        with(opts =>
+        return with(opts =>
         {
             opts.Services.AddSingleton(theTracker);
 
@@ -37,20 +37,20 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task exceptions_will_be_thrown_to_caller()
     {
-        configure();
+        await configure();
 
         var message = new Message5
         {
             FailThisManyTimes = 1
         };
-        
+
         await Should.ThrowAsync<DivideByZeroException>(() => Publisher.InvokeAsync(message));
     }
 
     [Fact]
     public async Task will_process_inline()
     {
-        configure();
+        await configure();
 
         var message = new Message5();
 
@@ -62,7 +62,7 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task use_retry_in_invoke()
     {
-        configure();
+        await configure();
         var message = new InvokedMessage { FailThisManyTimes = 2 };
 
         await Publisher.InvokeAsync(message);
@@ -71,7 +71,7 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task will_send_cascading_messages()
     {
-        configure();
+        await configure();
 
         var message = new Message5();
 

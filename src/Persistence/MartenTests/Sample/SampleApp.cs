@@ -18,7 +18,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        theHost = WolverineHost.For(opts =>
+        theHost = await WolverineHost.ForAsync(opts =>
         {
             opts.PublishAllMessages().Locally();
 

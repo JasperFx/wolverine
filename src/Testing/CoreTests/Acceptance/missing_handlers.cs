@@ -11,7 +11,7 @@ public class missing_handlers
     [Fact]
     public async Task calls_all_the_missing_handlers()
     {
-        using var host = WolverineHost.For(x =>
+        using var host = await WolverineHost.ForAsync(x =>
         {
             x.PublishMessage<MessageWithNoHandler>().ToLocalQueue("foo");
             x.Services.AddSingleton<IMissingHandler, RecordingMissingHandler>();

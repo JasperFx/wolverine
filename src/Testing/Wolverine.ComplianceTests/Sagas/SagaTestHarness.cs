@@ -24,13 +24,18 @@ public class SagaTestHarness<T> : IDisposable
         _host?.Dispose();
     }
 
-    protected void withApplication()
+    protected async Task withApplication()
     {
-        _host = SagaHost.BuildHost<T>();
+        _host = await SagaHost.BuildHostAsync<T>();
     }
 
-    protected string codeFor<TMessage>()
+    protected async Task<string> codeFor<TMessage>()
     {
+        if (_host == null)
+        {
+            await withApplication();
+        }
+
         return _host!.Get<HandlerGraph>().HandlerFor<TMessage>()!.As<MessageHandler>().Chain!.SourceCode!;
     }
 
@@ -38,7 +43,7 @@ public class SagaTestHarness<T> : IDisposable
     {
         if (_host == null)
         {
-            withApplication();
+            await withApplication();
         }
 
         await _host!.InvokeMessageAndWaitAsync(message!);
@@ -48,7 +53,7 @@ public class SagaTestHarness<T> : IDisposable
     {
         if (_host == null)
         {
-            withApplication();
+            await withApplication();
         }
 
         await _host!.ExecuteAndWaitValueTaskAsync(x => x.SendAsync(message!));

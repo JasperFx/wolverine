@@ -19,14 +19,18 @@ namespace MartenTests.Persistence;
 public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
-    private readonly IHost theReceiver;
+    private IHost theReceiver = null!;
 
-    private readonly IHost theSender;
+    private IHost theSender = null!;
 
     public end_to_end_with_persistence(ITestOutputHelper output)
     {
         _output = output;
-        theSender = WolverineHost.For(opts =>
+    }
+
+    public async Task InitializeAsync()
+    {
+        theSender = await WolverineHost.ForAsync(opts =>
         {
             opts.Publish(x =>
             {
@@ -45,7 +49,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             opts.ListenAtPort(2567);
         });
 
-        theReceiver = WolverineHost.For(opts =>
+        theReceiver = await WolverineHost.ForAsync(opts =>
         {
             opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "receiver");
 
@@ -58,10 +62,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
                 x.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
         });
-    }
 
-    public async Task InitializeAsync()
-    {
         await theSender.ResetResourceState();
         await theReceiver.ResetResourceState();
     }

@@ -14,7 +14,7 @@ public class ping_handling
     [Fact]
     public async Task ping_happy_path_with_tcp()
     {
-        using (var runtime = WolverineHost.For(opts => { opts.ListenAtPort(2222); }))
+        using (var runtime = await WolverineHost.ForAsync(opts => { opts.ListenAtPort(2222); }))
         {
             var sender = new BatchedSender(new TcpEndpoint(2222), new SocketSenderProtocol(),
                 CancellationToken.None, NullLogger.Instance);

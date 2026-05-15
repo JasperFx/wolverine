@@ -52,7 +52,7 @@ public class end_to_end
     public async Task rabbitmq_transport_is_exposed_as_a_resource()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
 
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
@@ -108,7 +108,7 @@ public class end_to_end
     public async Task rabbitmq_transport_is_NOT_exposed_as_a_resource_if_external_transports_are_stubbed()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
@@ -140,7 +140,7 @@ public class end_to_end
     public async Task send_message_to_and_receive_through_rabbitmq_with_durable_transport_option()
     {
         var queueName = "durable_test_queue_no_dlq";
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
 
@@ -159,7 +159,7 @@ public class end_to_end
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision().DisableDeadLetterQueueing();
 
@@ -195,7 +195,7 @@ public class end_to_end
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
@@ -207,7 +207,7 @@ public class end_to_end
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision();
 
@@ -242,7 +242,7 @@ public class end_to_end
     public async Task send_message_to_and_receive_through_rabbitmq_with_inline_receivers_and_with_CloudEvents()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
 
@@ -254,7 +254,7 @@ public class end_to_end
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision();
 
@@ -446,7 +446,7 @@ public class end_to_end
         var queueName = RabbitTesting.NextQueueName();
         var exchangeName = RabbitTesting.NextExchangeName();
 
-        var publisher = WolverineHost.For(opts =>
+        var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -458,7 +458,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup();
         });
 
-        var receiver = WolverineHost.For(opts =>
+        var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -494,7 +494,7 @@ public class end_to_end
     {
         var queueName = RabbitTesting.NextQueueName();
 
-        var publisher = WolverineHost.For(opts =>
+        var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.Durability.ScheduledJobFirstExecution = 1.Seconds();
             opts.Durability.ScheduledJobPollingTime = 1.Seconds();
@@ -514,7 +514,7 @@ public class end_to_end
 
         await publisher.ResetResourceState();
 
-        var receiver = WolverineHost.For(opts =>
+        var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Receiver";
 
@@ -560,7 +560,7 @@ public class end_to_end
         var queueName3 = RabbitTesting.NextQueueName() + "e23";
 
 
-        var publisher = WolverineHost.For(opts =>
+        var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision()
                 .BindExchange(exchangeName).ToQueue(queueName1)
@@ -570,7 +570,7 @@ public class end_to_end
             opts.PublishAllMessages().ToRabbitExchange(exchangeName);
         });
 
-        var receiver1 = WolverineHost.For(opts =>
+        var receiver1 = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq();
 
@@ -578,7 +578,7 @@ public class end_to_end
             opts.Services.AddSingleton<ColorHistory>();
         });
 
-        var receiver2 = WolverineHost.For(opts =>
+        var receiver2 = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq();
 
@@ -586,7 +586,7 @@ public class end_to_end
             opts.Services.AddSingleton<ColorHistory>();
         });
 
-        var receiver3 = WolverineHost.For(opts =>
+        var receiver3 = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq();
 
@@ -624,7 +624,7 @@ public class end_to_end
     {
         var queueName = RabbitTesting.NextQueueName();
 
-        var publisher = WolverineHost.For(opts =>
+        var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().AutoProvision()
                 .BindExchange("topics", ExchangeType.Topic)
@@ -635,7 +635,7 @@ public class end_to_end
             opts.DisableConventionalDiscovery();
         });
 
-        var receiver = WolverineHost.For(opts =>
+        var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq();
 
@@ -841,7 +841,7 @@ public class end_to_end
     public async Task request_reply_from_within_handler()
     {
         var queueName = RabbitTesting.NextQueueName();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
 
@@ -856,7 +856,7 @@ public class end_to_end
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery()
                 .IncludeType(typeof(ColorRequestHandler));

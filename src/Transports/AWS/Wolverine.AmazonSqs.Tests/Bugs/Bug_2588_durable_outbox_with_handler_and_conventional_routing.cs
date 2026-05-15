@@ -20,13 +20,13 @@ namespace Wolverine.AmazonSqs.Tests.Bugs;
 /// <c>endpoint.Subscriptions.Any() == false</c> and never upgrade the endpoint
 /// mode to Durable.
 /// </summary>
-public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IDisposable
+public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
+    private IHost _host = null!;
 
-    public Bug_2588_durable_outbox_with_handler_and_conventional_routing()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseAmazonSqsTransportLocally()
                 .UseConventionalRouting()
@@ -62,6 +62,8 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IDi
 
         brokerEndpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

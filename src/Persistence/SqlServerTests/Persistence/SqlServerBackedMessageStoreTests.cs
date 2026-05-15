@@ -30,7 +30,7 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
 
     protected override async Task initialize()
     {
-        theHost = WolverineHost.For(opts => { opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString); });
+        theHost = await WolverineHost.ForAsync(opts => { opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString); });
 
         await theHost.ResetResourceState();
 

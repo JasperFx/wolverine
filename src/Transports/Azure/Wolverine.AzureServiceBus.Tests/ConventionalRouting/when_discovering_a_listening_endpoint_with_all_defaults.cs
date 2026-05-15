@@ -10,35 +10,32 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {
     private readonly Uri theExpectedUri = "asb://queue/routed2".ToUri();
-    private readonly AzureServiceBusQueue theQueue;
-
-    public when_discovering_a_listening_endpoint_with_all_defaults()
-    {
-        theQueue = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AzureServiceBusQueue>();
-    }
 
     [Fact]
-    public void endpoint_should_be_a_listener()
+    public async Task endpoint_should_be_a_listener()
     {
+        var theQueue = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AzureServiceBusQueue>();
         theQueue.IsListener.ShouldBeTrue();
     }
 
     [Fact]
-    public void endpoint_should_not_be_null()
+    public async Task endpoint_should_not_be_null()
     {
+        var theQueue = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AzureServiceBusQueue>();
         theQueue.ShouldNotBeNull();
     }
 
     [Fact]
-    public void mode_is_buffered_by_default()
+    public async Task mode_is_buffered_by_default()
     {
+        var theQueue = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AzureServiceBusQueue>();
         theQueue.Mode.ShouldBe(EndpointMode.BufferedInMemory);
     }
 
     [Fact]
-    public void should_be_an_active_listener()
+    public async Task should_be_an_active_listener()
     {
-        theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == theExpectedUri)
+        (await theRuntime()).Endpoints.ActiveListeners().Any(x => x.Uri == theExpectedUri)
             .ShouldBeTrue();
     }
 }

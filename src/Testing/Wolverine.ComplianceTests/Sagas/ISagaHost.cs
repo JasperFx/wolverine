@@ -4,7 +4,7 @@ namespace Wolverine.ComplianceTests.Sagas;
 
 public interface ISagaHost
 {
-    IHost BuildHost<TSaga>();
+    Task<IHost> BuildHostAsync<TSaga>();
 
     Task<T?> LoadState<T>(Guid id) where T : Saga;
     Task<T?> LoadState<T>(int id) where T : Saga;

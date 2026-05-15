@@ -23,7 +23,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
         
-        theSender = WolverineHost.For(senderRegistry =>
+        theSender = await WolverineHost.ForAsync(senderRegistry =>
         {
             senderRegistry
                 .DisableConventionalDiscovery()
@@ -48,7 +48,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         
         await theSender.ResetResourceState();
 
-        theReceiver = WolverineHost.For(receiverRegistry =>
+        theReceiver = await WolverineHost.ForAsync(receiverRegistry =>
         {
             receiverRegistry.DisableConventionalDiscovery()
                 .IncludeType<TTriggerHandler>()

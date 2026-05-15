@@ -11,14 +11,14 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
-public class when_using_handler_type_naming : IDisposable
+public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
-    private readonly IWolverineRuntime _runtime;
+    private IHost _host = null!;
+    private IWolverineRuntime _runtime = null!;
 
-    public when_using_handler_type_naming()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .AutoProvision()
@@ -30,6 +30,8 @@ public class when_using_handler_type_naming : IDisposable
 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void listener_endpoint_should_be_named_after_handler_type()

@@ -14,9 +14,9 @@ namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 public class conventional_listener_discovery : ConventionalRoutingContext
 {
     [Fact]
-    public void disable_sender_with_lambda()
+    public async Task disable_sender_with_lambda()
     {
-        ConfigureConventions(c => c.QueueNameForSender(t =>
+        await ConfigureConventions(c => c.QueueNameForSender(t =>
         {
             if (t == typeof(PublishedMessage))
             {
@@ -26,56 +26,58 @@ public class conventional_listener_discovery : ConventionalRoutingContext
             return t.ToMessageTypeName().Replace('.', '-');
         }));
 
-        AssertNoRoutes<PublishedMessage>();
+        await AssertNoRoutes<PublishedMessage>();
     }
 
     [Fact]
-    public void exclude_types()
+    public async Task exclude_types()
     {
-        ConfigureConventions(c => { c.ExcludeTypes(t => t == typeof(PublishedMessage)); });
+        await ConfigureConventions(c => { c.ExcludeTypes(t => t == typeof(PublishedMessage)); });
 
-        AssertNoRoutes<PublishedMessage>();
+        await AssertNoRoutes<PublishedMessage>();
 
         var uri = "sqs://published.message".ToUri();
-        var endpoint = theRuntime.Endpoints.EndpointFor(uri);
+        var runtime = await theRuntime();
+        var endpoint = runtime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
-        theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
+        runtime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
             .ShouldBeFalse();
     }
 
     [Fact]
-    public void include_types()
+    public async Task include_types()
     {
-        ConfigureConventions(c => { c.IncludeTypes(t => t == typeof(PublishedMessage)); });
+        await ConfigureConventions(c => { c.IncludeTypes(t => t == typeof(PublishedMessage)); });
 
-        AssertNoRoutes<Message1>();
+        await AssertNoRoutes<Message1>();
 
-        PublishingRoutesFor<PublishedMessage>().Any().ShouldBeTrue();
+        (await PublishingRoutesFor<PublishedMessage>()).Any().ShouldBeTrue();
 
         var uri = "sqs://Message1".ToUri();
-        var endpoint = theRuntime.Endpoints.EndpointFor(uri);
+        var runtime = await theRuntime();
+        var endpoint = runtime.Endpoints.EndpointFor(uri);
         endpoint.ShouldBeNull();
 
-        theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
+        runtime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
             .ShouldBeFalse();
     }
 
     [Fact]
-    public void configure_sender_overrides()
+    public async Task configure_sender_overrides()
     {
-        ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
+        await ConfigureConventions(c => c.ConfigureSending((c, _) => c.AddOutgoingRule(new FakeEnvelopeRule())));
 
-        var route = PublishingRoutesFor<PublishedMessage>().Single().As<MessageRoute>().Sender.Endpoint
+        var route = (await PublishingRoutesFor<PublishedMessage>()).Single().As<MessageRoute>().Sender.Endpoint
             .ShouldBeOfType<AzureServiceBusQueue>();
 
         route.OutgoingRules.Single().ShouldBeOfType<FakeEnvelopeRule>();
     }
 
     [Fact]
-    public void disable_listener_by_lambda()
+    public async Task disable_listener_by_lambda()
     {
-        ConfigureConventions(c => c.QueueNameForListener(t =>
+        await ConfigureConventions(c => c.QueueNameForListener(t =>
         {
             if (t == typeof(RoutedMessage))
             {
@@ -86,7 +88,8 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         }));
 
         var uri = "sqs://routed".ToUri();
-        var endpoint = theRuntime.Endpoints.EndpointFor(uri);
+        var runtime = await theRuntime();
+        var endpoint = runtime.Endpoints.EndpointFor(uri);
 
         // An endpoint may exist at this URI as a SENDER (since a handler is
         // registered for RoutedMessage and the framework eagerly pre-registers
@@ -94,19 +97,20 @@ public class conventional_listener_discovery : ConventionalRoutingContext
         // the listener side must NOT have been created.
         if (endpoint != null) endpoint.IsListener.ShouldBeFalse();
 
-        theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
+        runtime.Endpoints.ActiveListeners().Any(x => x.Uri == uri)
             .ShouldBeFalse();
     }
 
     [Fact]
-    public void configure_listener()
+    public async Task configure_listener()
     {
-        ConfigureConventions(c => c.ConfigureListeners((x, _) =>
+        await ConfigureConventions(c => c.ConfigureListeners((x, _) =>
         {
             x.UseDurableInbox();
         }));
 
-        var endpoint = theRuntime.Endpoints.EndpointFor("asb://queue/routed".ToUri())
+        var runtime = await theRuntime();
+        var endpoint = runtime.Endpoints.EndpointFor("asb://queue/routed".ToUri())
             .ShouldBeOfType<AzureServiceBusQueue>();
 
         endpoint.Mode.ShouldBe(EndpointMode.Durable);

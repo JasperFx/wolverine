@@ -9,44 +9,46 @@ using Xunit;
 
 namespace CoreTests.Acceptance;
 
-public class sending_messages_to_named_endpoints : IDisposable
+public class sending_messages_to_named_endpoints : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _receiver1;
-    private readonly IHost _receiver2;
-    private readonly IHost _receiver3;
-    private readonly IHost _sender;
+    private IHost _receiver1 = null!;
+    private IHost _receiver2 = null!;
+    private IHost _receiver3 = null!;
+    private IHost _sender = null!;
 
-    public sending_messages_to_named_endpoints()
+    public async Task InitializeAsync()
     {
         var port1 = PortFinder.GetAvailablePort();
         var port2 = PortFinder.GetAvailablePort();
         var port3 = PortFinder.GetAvailablePort();
 
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             opts.Publish().ToPort(port1).Named("one");
             opts.Publish().ToPort(port2).Named("two");
             opts.Publish().ToPort(port3).Named("three");
         });
 
-        _receiver1 = WolverineHost.For(opts =>
+        _receiver1 = await WolverineHost.ForAsync(opts =>
         {
             opts.ListenAtPort(port1);
             opts.ServiceName = "one";
         });
 
-        _receiver2 = WolverineHost.For(opts =>
+        _receiver2 = await WolverineHost.ForAsync(opts =>
         {
             opts.ListenAtPort(port2);
             opts.ServiceName = "two";
         });
 
-        _receiver3 = WolverineHost.For(opts =>
+        _receiver3 = await WolverineHost.ForAsync(opts =>
         {
             opts.ListenAtPort(port3);
             opts.ServiceName = "three";
         });
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

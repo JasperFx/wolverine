@@ -6,14 +6,16 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
+public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext, IAsyncLifetime
 {
-    private readonly MessageRoute theRoute;
+    private MessageRoute theRoute = null!;
 
-    public when_discovering_a_sender_with_all_defaults()
+    public async Task InitializeAsync()
     {
-        theRoute = PublishingRoutesFor<PublishedMessage>().Single().As<MessageRoute>();
+        theRoute = (await PublishingRoutesFor<PublishedMessage>()).Single().As<MessageRoute>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void should_have_exactly_one_route()

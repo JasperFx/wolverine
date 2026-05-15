@@ -25,7 +25,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
         
-        theSender = WolverineHost.For(senderRegistry =>
+        theSender = await WolverineHost.ForAsync(senderRegistry =>
         {
             senderRegistry.Durability.Mode = DurabilityMode.Solo;
             senderRegistry.Durability.ScheduledJobFirstExecution = 0.Seconds(); // Start immediately!
@@ -53,7 +53,7 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         await theSender.ClearAllPersistedWolverineDataAsync();
 
-        theReceiver = WolverineHost.For(receiverRegistry =>
+        theReceiver = await WolverineHost.ForAsync(receiverRegistry =>
         {
             receiverRegistry.Durability.Mode = DurabilityMode.Solo;
             receiverRegistry.Services.AddSingleton<ILogger>(NullLogger.Instance);

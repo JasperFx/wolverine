@@ -11,14 +11,14 @@ using Xunit;
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
 [Trait("Category", "Flaky")]
-public class when_using_handler_type_naming : IDisposable
+public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
-    private readonly IWolverineRuntime _runtime;
+    private IHost _host = null!;
+    private IWolverineRuntime _runtime = null!;
 
-    public when_using_handler_type_naming()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.UseAmazonSqsTransport()
                 .UseConventionalRouting(NamingSource.FromHandlerType)
@@ -51,6 +51,8 @@ public class when_using_handler_type_naming : IDisposable
         _runtime.Endpoints.ActiveListeners().Any(x => x.Uri.ToString().Contains(expectedName, StringComparison.OrdinalIgnoreCase))
             .ShouldBeTrue($"Expected active listener containing '{expectedName}'");
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

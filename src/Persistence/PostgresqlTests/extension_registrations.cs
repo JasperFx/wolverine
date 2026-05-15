@@ -12,9 +12,9 @@ namespace PostgresqlTests;
 public class extension_registrations : PostgresqlContext
 {
     [Fact]
-    public void registrations()
+    public async Task registrations()
     {
-        using var runtime = WolverineHost.For(x =>
+        using var runtime = await WolverineHost.ForAsync(x =>
             x.PersistMessagesWithPostgresql(Servers.PostgresConnectionString));
 
         var container = runtime.Get<IServiceContainer>();

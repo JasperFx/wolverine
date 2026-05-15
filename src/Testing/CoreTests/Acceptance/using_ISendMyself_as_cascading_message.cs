@@ -47,14 +47,14 @@ public class using_ISendMyself_as_cascading_message : IntegrationContext
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
 
-        using var sender = WolverineHost.For(opts =>
+        using var sender = await WolverineHost.ForAsync(opts =>
         {
             opts.PublishMessage<RequestTrigger>().ToPort(receiverPort);
             opts.ListenAtPort(senderPort);
             opts.ServiceName = "Sender";
         });
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Receiver";
             opts.ListenAtPort(receiverPort);

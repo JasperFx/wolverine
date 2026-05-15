@@ -11,21 +11,18 @@ public abstract class ConventionalRoutingContext : IDisposable
 {
     private IHost _host = default!;
 
-    internal IWolverineRuntime theRuntime
+    internal async Task<IWolverineRuntime> theRuntime()
     {
-        get
-        {
-            _host ??= WolverineHost.For(opts => opts
-                .UsePubsubTesting()
-                .AutoProvision()
-                .AutoPurgeOnStartup()
-                .EnableDeadLettering()
-                .EnableSystemEndpoints()
-                .UseConventionalRouting()
-            );
+        _host ??= await WolverineHost.ForAsync(opts => opts
+            .UsePubsubTesting()
+            .AutoProvision()
+            .AutoPurgeOnStartup()
+            .EnableDeadLettering()
+            .EnableSystemEndpoints()
+            .UseConventionalRouting()
+        );
 
-            return _host.Services.GetRequiredService<IWolverineRuntime>();
-        }
+        return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
     public void Dispose()
@@ -33,9 +30,9 @@ public abstract class ConventionalRoutingContext : IDisposable
         _host?.Dispose();
     }
 
-    internal void ConfigureConventions(Action<PubsubMessageRoutingConvention> configure)
+    internal async Task ConfigureConventions(Action<PubsubMessageRoutingConvention> configure)
     {
-        _host = Host
+        _host = await Host
             .CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -46,21 +43,21 @@ public abstract class ConventionalRoutingContext : IDisposable
                     .EnableDeadLettering()
                     .EnableSystemEndpoints()
                     .UseConventionalRouting(configure);
-            }).Start();
+            }).StartAsync();
     }
 
-    internal IMessageRouter RoutingFor<T>()
+    internal async Task<IMessageRouter> RoutingFor<T>()
     {
-        return theRuntime.RoutingFor(typeof(T));
+        return (await theRuntime()).RoutingFor(typeof(T));
     }
 
-    internal void AssertNoRoutes<T>()
+    internal async Task AssertNoRoutes<T>()
     {
-        RoutingFor<T>().ShouldBeOfType<EmptyMessageRouter<T>>();
+        (await RoutingFor<T>()).ShouldBeOfType<EmptyMessageRouter<T>>();
     }
 
-    internal IMessageRoute[] PublishingRoutesFor<T>()
+    internal async Task<IMessageRoute[]> PublishingRoutesFor<T>()
     {
-        return RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
+        return (await RoutingFor<T>()).ShouldBeOfType<MessageRouter<T>>().Routes;
     }
 }

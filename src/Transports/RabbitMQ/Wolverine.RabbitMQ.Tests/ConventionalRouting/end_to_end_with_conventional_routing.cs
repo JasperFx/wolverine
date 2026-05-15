@@ -6,26 +6,28 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing : IDisposable
+public class end_to_end_with_conventional_routing : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _receiver;
-    private readonly IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
-    public end_to_end_with_conventional_routing()
+    public async Task InitializeAsync()
     {
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().UseConventionalRouting(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly)).AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
-        _receiver = WolverineHost.For(opts =>
+        _receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq().UseConventionalRouting(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly)).AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

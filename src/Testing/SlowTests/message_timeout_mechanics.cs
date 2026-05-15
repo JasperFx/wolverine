@@ -50,7 +50,7 @@ public class message_timeout_mechanics
     {
         PotentiallySlowMessageHandler.DidTimeout = false; // start clean
 
-        using var host = WolverineHost.For(
+        using var host = await WolverineHost.ForAsync(
             opts => { opts.DefaultExecutionTimeout = 50.Milliseconds(); });
 
         var session = await host

@@ -58,8 +58,8 @@ public class GuidIdentifiedSagaComplianceSpecs<T> : SagaTestHarness<GuidBasicWor
             Name = "Croaker"
         });
 
-        Debug.WriteLine(codeFor<GuidStart>());
-        Debug.WriteLine(codeFor<CompleteOne>());
+        Debug.WriteLine(await codeFor<GuidStart>());
+        Debug.WriteLine(await codeFor<CompleteOne>());
 
         await send(new CompleteOne(), stateId);
 
