@@ -20,12 +20,26 @@ public abstract partial class MessageDatabase<T>
             .ExecuteNonQueryAsync(_cancellation);
     }
 
-    public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
+    public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
         Logger.LogDebug("Rescheduling envelope {EnvelopeId} ({MessageType}) for retry in database inbox at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
         envelope.Status = EnvelopeStatus.Scheduled;
         envelope.OwnerId = TransportConstants.AnyNode;
 
-        return StoreIncomingAsync(envelope);
+        // Attempt UPDATE first.
+        var rowsAffected = await CreateCommand(
+                $"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} " +
+                $"set execution_time = @time, status = '{EnvelopeStatus.Scheduled}', attempts = @attempts, owner_id = {TransportConstants.AnyNode} " +
+                $"where id = @id and {DatabaseConstants.ReceivedAt} = @uri;")
+            .With("time", envelope.ScheduledTime!.Value)
+            .With("attempts", envelope.Attempts)
+            .With("id", envelope.Id)
+            .With("uri", envelope.Destination!.ToString())
+            .ExecuteNonQueryAsync(_cancellation);
+
+        if (rowsAffected == 0)
+        {
+            await StoreIncomingAsync(envelope);
+        }
     }
 }
