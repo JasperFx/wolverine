@@ -155,7 +155,31 @@ public partial class WolverineRuntime
             // transport route sources can resolve their endpoints), but
             // before RuntimeIsFullyStarted observers run. AOT pillar follow-up
             // #2769 (Option A).
-            PrepopulateRoutingCache(Handlers.AllMessageTypes());
+            //
+            // Skip in MediatorOnly and Serverless modes:
+            //   - MediatorOnly: no messaging happens through this runtime, so
+            //     RoutingFor() is never called in steady state. Pre-populating
+            //     would lazily instantiate local sending agents (the
+            //     LocalRoutingMessageSource resolves Endpoint.Agent as a side
+            //     effect of building a route), violating the mode's "no
+            //     transports" contract.
+            //   - Serverless: RemoveLocal() above stripped the local transport,
+            //     but MessageRouterBase<T>'s ctor unconditionally calls
+            //     GetOrBuildSendingAgent(TransportConstants.DurableLocalUri)
+            //     for scheduled-envelope fallback, which now throws
+            //     UnknownTransportException. Skipping the pre-population avoids
+            //     materializing routers we don't need in this mode; per-type
+            //     RoutingFor() on the cold path still works because callers
+            //     either target external endpoints directly or never invoke
+            //     routing for local-only types.
+            //
+            // TODO: a follow-up could make MessageRouterBase<T>'s LocalDurableQueue
+            // lazy / nullable so Serverless apps reclaim the AOT cold-start win.
+            var mode = Options.Durability.Mode;
+            if (mode != DurabilityMode.MediatorOnly && mode != DurabilityMode.Serverless)
+            {
+                PrepopulateRoutingCache(Handlers.AllMessageTypes());
+            }
 
             await Observer.RuntimeIsFullyStarted();
             _hasStarted = true;
