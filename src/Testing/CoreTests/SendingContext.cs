@@ -21,36 +21,30 @@ public abstract class SendingContext : IAsyncDisposable
 
     public int ReceiverPort { get; }
 
-    internal IWolverineRuntime theSendingRuntime => theSender.Services.GetRequiredService<IWolverineRuntime>();
+    internal async Task<IWolverineRuntime> theSendingRuntime() => (await theSender()).Services.GetRequiredService<IWolverineRuntime>();
 
-    internal IHost theSender
+    internal async Task<IHost> theSender()
     {
-        get
+        if (_sender == null)
         {
-            if (_sender == null)
+            _sender = await WolverineHost.ForAsync(opts =>
             {
-                _sender = WolverineHost.For(opts =>
-                {
-                    opts.PublishAllMessages().ToPort(ReceiverPort);
-                    opts.ListenAtPort(_senderPort);
-                });
-            }
-
-            return _sender;
+                opts.PublishAllMessages().ToPort(ReceiverPort);
+                opts.ListenAtPort(_senderPort);
+            });
         }
+
+        return _sender;
     }
 
-    internal IHost theReceiver
+    internal async Task<IHost> theReceiver()
     {
-        get
+        if (_receiver == null)
         {
-            if (_receiver == null)
-            {
-                _receiver = WolverineHost.For(opts => opts.ListenAtPort(ReceiverPort));
-            }
-
-            return _receiver;
+            _receiver = await WolverineHost.ForAsync(opts => opts.ListenAtPort(ReceiverPort));
         }
+
+        return _receiver;
     }
 
     public async ValueTask DisposeAsync()
@@ -68,9 +62,9 @@ public abstract class SendingContext : IAsyncDisposable
         }
     }
 
-    internal void SenderOptions(Action<WolverineOptions> configure)
+    internal async Task SenderOptions(Action<WolverineOptions> configure)
     {
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             configure(opts);
             opts.ListenAtPort(_senderPort);

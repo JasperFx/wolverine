@@ -31,7 +31,7 @@ public class efcore_saga_store_diagnostics_tests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             // Pin discovery to one workflow saga the SagaDbContext
             // maps. The compliance fixtures share a WildcardStart

@@ -7,14 +7,14 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
-public class end_to_end_with_conventional_routing_with_prefix : IDisposable
+public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _receiver;
-    private readonly IHost _sender;
+    private IHost _receiver = null!;
+    private IHost _sender = null!;
 
-    public end_to_end_with_conventional_routing_with_prefix()
+    public async Task InitializeAsync()
     {
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
@@ -26,7 +26,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             opts.ServiceName = "Sender";
         });
 
-        _receiver = WolverineHost.For(opts =>
+        _receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.UseRabbitMq()
                 .PrefixIdentifiers("shazaam")
@@ -37,6 +37,8 @@ public class end_to_end_with_conventional_routing_with_prefix : IDisposable
             opts.ServiceName = "Receiver";
         });
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

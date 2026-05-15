@@ -125,9 +125,9 @@ public class WolverineOptionsTests
     }
 
     [Fact]
-    public void sets_up_the_container_with_services()
+    public async Task sets_up_the_container_with_services()
     {
-        using var runtime = WolverineHost.For(registry =>
+        using var runtime = await WolverineHost.ForAsync(registry =>
         {
             registry.DisableConventionalDiscovery();
             registry.Services.AddScoped<IFoo, Foo>();

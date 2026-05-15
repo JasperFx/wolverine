@@ -16,9 +16,9 @@ public class local_integration_specs : IntegrationContext
     {
     }
 
-    private void configure()
+    private Task configure()
     {
-        with(opts =>
+        return with(opts =>
         {
             opts.Publish(x => x.Message<Message1>()
                 .ToLocalQueue("incoming"));
@@ -36,7 +36,7 @@ public class local_integration_specs : IntegrationContext
     [Fact]
     public async Task send_a_message_and_get_the_response()
     {
-        configure();
+        await configure();
 
         var message1 = new Message1();
         var session = await Host.SendMessageAndWaitAsync(message1, timeoutInMilliseconds: 15000);
@@ -47,9 +47,9 @@ public class local_integration_specs : IntegrationContext
     }
 
     [Fact]
-    public void no_circuit_breaker()
+    public async Task no_circuit_breaker()
     {
-        with(opts => { opts.LocalQueue("foo").UseDurableInbox(); });
+        await with(opts => { opts.LocalQueue("foo").UseDurableInbox(); });
 
         var runtime = Host.GetRuntime();
         var agent = runtime
@@ -63,9 +63,9 @@ public class local_integration_specs : IntegrationContext
     }
 
     [Fact]
-    public void build_isolated_watched_handler_pipeline_when_durable_and_circuit_breaker()
+    public async Task build_isolated_watched_handler_pipeline_when_durable_and_circuit_breaker()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.LocalQueue("foo")
                 .UseDurableInbox()
@@ -86,9 +86,9 @@ public class local_integration_specs : IntegrationContext
     }
 
     [Fact]
-    public void individual_configuration_by_queue()
+    public async Task individual_configuration_by_queue()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.LocalQueueFor<Message1>().MaximumParallelMessages(6);
         });
@@ -100,9 +100,9 @@ public class local_integration_specs : IntegrationContext
     }
 
     [Fact]
-    public void individual_configuration_by_queue_2()
+    public async Task individual_configuration_by_queue_2()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.LocalQueueFor<Message1>().MaximumParallelMessages(6);
         });
@@ -114,11 +114,11 @@ public class local_integration_specs : IntegrationContext
     }
 
     [Fact]
-    public void not_allowed_to_use_strict_ordering()
+    public async Task not_allowed_to_use_strict_ordering()
     {
-        Should.Throw<NotSupportedException>(() =>
+        await Should.ThrowAsync<NotSupportedException>(async () =>
         {
-            with(o => o.LocalQueue("one").ListenWithStrictOrdering());
+            await with(o => o.LocalQueue("one").ListenWithStrictOrdering());
         });
     }
 }

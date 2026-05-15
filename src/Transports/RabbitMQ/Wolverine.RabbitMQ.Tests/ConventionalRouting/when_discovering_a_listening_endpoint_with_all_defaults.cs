@@ -6,16 +6,18 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
-public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
+public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext, IAsyncLifetime
 {
-    private readonly RabbitMqEndpoint theEndpoint;
+    private RabbitMqEndpoint theEndpoint = null!;
     private readonly Uri theExpectedUri = "rabbitmq://queue/routed".ToUri();
 
-    public when_discovering_a_listening_endpoint_with_all_defaults()
+    public async Task InitializeAsync()
     {
-        ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
-        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
+        await ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
+        theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()
@@ -36,16 +38,17 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     }
 
     [Fact]
-    public void should_be_an_active_listener()
+    public async Task should_be_an_active_listener()
     {
-        theRuntime.Endpoints.ActiveListeners().Any(x => x.Uri == theExpectedUri)
+        (await theRuntime()).Endpoints.ActiveListeners().Any(x => x.Uri == theExpectedUri)
             .ShouldBeTrue();
     }
 
     [Fact]
-    public void the_queue_was_declared()
+    public async Task the_queue_was_declared()
     {
-        theTransport.Queues.Contains("routed").ShouldBeTrue();
-        theTransport.Queues["routed"].HasDeclared.ShouldBeTrue();
+        var transport = await theTransport();
+        transport.Queues.Contains("routed").ShouldBeTrue();
+        transport.Queues["routed"].HasDeclared.ShouldBeTrue();
     }
 }

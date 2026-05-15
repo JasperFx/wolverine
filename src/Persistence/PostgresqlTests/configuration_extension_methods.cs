@@ -14,9 +14,9 @@ namespace PostgresqlTests;
 public class configuration_extension_methods : PostgresqlContext
 {
     [Fact]
-    public void bootstrap_with_connection_string()
+    public async Task bootstrap_with_connection_string()
     {
-        using var host = WolverineHost.For(x =>
+        using var host = await WolverineHost.ForAsync(x =>
             x.PersistMessagesWithPostgresql(Servers.PostgresConnectionString));
         host.Services.GetRequiredService<IMessageStore>().ShouldBeOfType<PostgresqlMessageStore>()
             .Settings.ConnectionString.ShouldBe(Servers.PostgresConnectionString);

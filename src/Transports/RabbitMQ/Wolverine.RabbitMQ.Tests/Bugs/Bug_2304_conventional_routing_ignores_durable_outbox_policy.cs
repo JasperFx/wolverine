@@ -12,13 +12,13 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IDisposable
+public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
+    private IHost _host = null!;
 
-    public Bug_2304_conventional_routing_ignores_durable_outbox_policy()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.Services.AddMarten(m =>
                 {
@@ -55,6 +55,8 @@ public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IDisp
         // The endpoint should be Durable because of UseDurableOutboxOnAllSendingEndpoints()
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

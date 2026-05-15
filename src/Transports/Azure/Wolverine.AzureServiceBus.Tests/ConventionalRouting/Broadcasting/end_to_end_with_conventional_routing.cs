@@ -13,9 +13,9 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
-        _sender = WolverineHost.For(opts =>
+        _sender = await WolverineHost.ForAsync(opts =>
         {
             opts.UseAzureServiceBusTesting().UseTopicAndSubscriptionConventionalRouting(x =>
             {
@@ -28,7 +28,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
             opts.ServiceName = "Sender";
         });
 
-        _receiver = WolverineHost.For(opts =>
+        _receiver = await WolverineHost.ForAsync(opts =>
         {
             #region sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus
             opts.UseAzureServiceBusTesting()
@@ -52,8 +52,6 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
 
             opts.ServiceName = "Receiver";
         });
-
-        return Task.CompletedTask;
     }
 
     public async Task DisposeAsync()

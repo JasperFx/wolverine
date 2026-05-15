@@ -18,15 +18,15 @@ using Wolverine.Tracking;
 
 namespace PolecatTests.AggregateHandlerWorkflow;
 
-public class polecat_command_workflow_middleware : IDisposable
+public class polecat_command_workflow_middleware : IAsyncLifetime, IDisposable
 {
-    private readonly IHost theHost;
-    private readonly IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public polecat_command_workflow_middleware()
+    public async Task InitializeAsync()
     {
-        theHost = WolverineHost.For(opts =>
+        theHost = await WolverineHost.ForAsync(opts =>
         {
             opts.Services.AddPolecat(m =>
                 {
@@ -43,8 +43,10 @@ public class polecat_command_workflow_middleware : IDisposable
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
-        ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync().GetAwaiter().GetResult();
+        await ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

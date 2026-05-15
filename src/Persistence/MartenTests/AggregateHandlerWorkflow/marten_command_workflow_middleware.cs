@@ -19,15 +19,15 @@ using Wolverine.Tracking;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 
-public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
+public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifetime, IDisposable
 {
-    private readonly IHost theHost;
-    private readonly IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public marten_command_workflow_middleware()
+    public async Task InitializeAsync()
     {
-        theHost = WolverineHost.For(opts =>
+        theHost = await WolverineHost.ForAsync(opts =>
         {
             opts.Services.AddMarten(opts =>
                 {
@@ -44,6 +44,8 @@ public class marten_command_workflow_middleware : PostgresqlContext, IDisposable
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

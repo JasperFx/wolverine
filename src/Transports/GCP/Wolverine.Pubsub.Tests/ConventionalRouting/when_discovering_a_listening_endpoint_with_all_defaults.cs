@@ -5,15 +5,17 @@ using Xunit;
 
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
-public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
+public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext, IAsyncLifetime
 {
-    private readonly PubsubEndpoint theEndpoint;
+    private PubsubEndpoint theEndpoint = null!;
     private readonly Uri theExpectedUri = $"{PubsubTransport.ProtocolName}://wolverine/routed".ToUri();
 
-    public when_discovering_a_listening_endpoint_with_all_defaults()
+    public async Task InitializeAsync()
     {
-        theEndpoint = theRuntime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
+        theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()
@@ -34,9 +36,9 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     }
 
     [Fact]
-    public void should_be_an_active_listener()
+    public async Task should_be_an_active_listener()
     {
-        theRuntime.Endpoints
+        (await theRuntime()).Endpoints
             .ActiveListeners()
             .Any(x => x.Uri == theExpectedUri)
             .ShouldBeTrue();

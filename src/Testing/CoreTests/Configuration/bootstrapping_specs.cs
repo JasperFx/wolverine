@@ -25,9 +25,9 @@ public class bootstrapping_specs : IntegrationContext
     }
 
     [Fact]
-    public void registers_the_supplemental_code_files()
+    public async Task registers_the_supplemental_code_files()
     {
-        with(_ => {});
+        await with(_ => {});
 
         var container = Host.Services.GetRequiredService<IServiceContainer>();
         container.DefaultFor<WolverineSupplementalCodeFiles>()!
@@ -40,17 +40,17 @@ public class bootstrapping_specs : IntegrationContext
     }
 
     [Fact]
-    public void can_apply_a_wrapper_to_all_chains()
+    public async Task can_apply_a_wrapper_to_all_chains()
     {
-        with(opts => opts.Policies.Add<WrapWithSimple>());
+        await with(opts => opts.Policies.Add<WrapWithSimple>());
 
         chainFor<MovieAdded>().Middleware.OfType<SimpleWrapper>().Any().ShouldBeTrue();
     }
 
     [Fact]
-    public void can_customize_source_code_generation()
+    public async Task can_customize_source_code_generation()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.CodeGeneration.Sources.Add(new SpecialServiceSource());
             opts.IncludeType<SpecialServiceUsingThing>();

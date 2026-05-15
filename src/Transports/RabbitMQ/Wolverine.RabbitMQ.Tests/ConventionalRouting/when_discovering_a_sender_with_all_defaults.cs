@@ -9,15 +9,18 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.ConventionalRouting;
 
-public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
+public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext, IAsyncLifetime
 {
-    private readonly MessageRoute theRoute = null!;
-    public when_discovering_a_sender_with_all_defaults()
+    private MessageRoute theRoute = null!;
+
+    public async Task InitializeAsync()
     {
         DisableListenerDiscovery = true;
-        ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
-        theRoute = (PublishingRoutesFor<ConventionallyRoutedMessage>().Single() as MessageRoute)!;
+        await ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
+        theRoute = ((await PublishingRoutesFor<ConventionallyRoutedMessage>()).Single() as MessageRoute)!;
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void should_have_exactly_one_route()
@@ -43,11 +46,12 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
     public async Task has_declared_exchange()
     {
         // The rabbit object construction is lazy, so force it to happen
-        await new MessageBus(theRuntime).SendAsync(new ConventionallyRoutedMessage());
+        await new MessageBus(await theRuntime()).SendAsync(new ConventionallyRoutedMessage());
 
         var endpoint = theRoute.Sender.Endpoint.ShouldBeOfType<RabbitMqExchange>();
-        theTransport.Exchanges.Contains(endpoint.ExchangeName).ShouldBeTrue();
-        var theExchange = theTransport.Exchanges[endpoint.ExchangeName];
+        var transport = await theTransport();
+        transport.Exchanges.Contains(endpoint.ExchangeName).ShouldBeTrue();
+        var theExchange = transport.Exchanges[endpoint.ExchangeName];
         theExchange.HasDeclared.ShouldBeTrue();
     }
 

@@ -25,13 +25,13 @@ namespace Wolverine.RabbitMQ.Tests.Bugs;
 /// in <c>WolverineRuntime.discoverListenersFromConventions</c> /
 /// <c>MessageRoutingConvention.PreregisterSenders</c>. See GH-2588.
 /// </summary>
-public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IDisposable
+public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAsyncLifetime, IDisposable
 {
-    private readonly IHost _host;
+    private IHost _host = null!;
 
-    public Bug_2588_durable_outbox_with_handler_and_conventional_routing()
+    public async Task InitializeAsync()
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             opts.Services.AddMarten(m =>
                 {
@@ -53,6 +53,8 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IDi
             opts.DisableConventionalDiscovery().IncludeType<Bug2588Handler>();
         });
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     [Fact]
     public void conventionally_routed_sender_should_be_durable_when_handler_is_also_registered()

@@ -19,7 +19,7 @@ public class CosmosDbSagaHost : ISagaHost
         _fixture.InitializeAsync().GetAwaiter().GetResult();
     }
 
-    public IHost BuildHost<TSaga>()
+    public Task<IHost> BuildHostAsync<TSaga>()
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -35,7 +35,7 @@ public class CosmosDbSagaHost : ISagaHost
 
                 opts.Services.AddSingleton(_fixture.Client);
                 opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
-            }).Start();
+            }).StartAsync();
     }
 
     public Task<T?> LoadState<T>(Guid id) where T : Saga

@@ -55,7 +55,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
     public async Task correct_scheme_on_reply_uri()
     {
         var queueName = Guid.NewGuid().ToString();
-        using var publisher = WolverineHost.For(opts =>
+        using var publisher = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Publisher";
             opts.Discovery.DisableConventionalDiscovery();
@@ -74,7 +74,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
         });
 
 
-        using var receiver = WolverineHost.For(opts =>
+        using var receiver = await WolverineHost.ForAsync(opts =>
         {
             opts.ServiceName = "Receiver";
             opts.UseAzureServiceBusTesting().AutoProvision();

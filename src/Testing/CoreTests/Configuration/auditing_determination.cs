@@ -39,9 +39,9 @@ public class auditing_determination : IntegrationContext
     }
 
     [Fact]
-    public void adds_the_log_start_message_to_code()
+    public async Task adds_the_log_start_message_to_code()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.Policies.LogMessageStarting(LogLevel.Information);
         });
@@ -57,7 +57,7 @@ public class auditing_determination : IntegrationContext
     [Fact]
     public async Task execute_to_prove_it_does_not_blow_up()
     {
-        with(opts =>
+        await with(opts =>
         {
             opts.Policies.LogMessageStarting(LogLevel.Information);
         });
@@ -66,9 +66,9 @@ public class auditing_determination : IntegrationContext
     }
 
     [Fact]
-    public void use_audit_members_from_explicit_interface_adds()
+    public async Task use_audit_members_from_explicit_interface_adds()
     {
-        with(opts =>
+        await with(opts =>
         {
             #region sample_explicit_registration_of_audit_properties
             // opts is WolverineOptions inside of a UseWolverine() call
@@ -82,10 +82,10 @@ public class auditing_determination : IntegrationContext
     }
 
     [Fact]
-    public void use_audit_member_named_id_and_disambiguate()
+    public async Task use_audit_member_named_id_and_disambiguate()
     {
-        with(opts => opts.Policies.LogMessageStarting(LogLevel.Information));
-        
+        await with(opts => opts.Policies.LogMessageStarting(LogLevel.Information));
+
         var chain = chainFor<AuditedMessage2>();
         
         

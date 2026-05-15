@@ -18,20 +18,20 @@ using Wolverine.Util;
 
 namespace CircuitBreakingTests;
 
-public class stopping_and_starting_listeners : IDisposable
+public class stopping_and_starting_listeners : IAsyncLifetime, IDisposable
 {
-    private readonly int _port1;
-    private readonly int _port2;
-    private readonly int _port3;
-    private readonly IHost theListener;
+    private int _port1;
+    private int _port2;
+    private int _port3;
+    private IHost theListener = null!;
 
-    public stopping_and_starting_listeners()
+    public async Task InitializeAsync()
     {
         _port1 = PortFinder.GetAvailablePort();
         _port2 = PortFinder.GetAvailablePort();
         _port3 = PortFinder.GetAvailablePort();
 
-        theListener = WolverineHost.For(opts =>
+        theListener = await WolverineHost.ForAsync(opts =>
         {
             opts.Durability.Mode = DurabilityMode.Solo;
 
@@ -51,6 +51,8 @@ public class stopping_and_starting_listeners : IDisposable
                 .Requeue().AndPauseProcessing(5.Seconds());
         });
     }
+
+    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {

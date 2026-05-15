@@ -11,7 +11,7 @@ public class envelope_username_tracking
     [Fact]
     public async Task username_is_propagated_through_tcp_transport()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery();
             opts.IncludeType(typeof(UserNameTrackingHandler));
@@ -49,7 +49,7 @@ public class envelope_username_tracking
     [Fact]
     public async Task username_is_not_propagated_when_relay_disabled()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery();
             opts.IncludeType(typeof(UserNameTrackingHandler));

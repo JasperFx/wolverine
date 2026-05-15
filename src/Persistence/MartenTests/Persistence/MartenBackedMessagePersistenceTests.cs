@@ -20,18 +20,11 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
 {
     private readonly Envelope theEnvelope;
 
-    private readonly IHost theHost;
+    private IHost theHost = null!;
     private Envelope persisted = null!;
 
     public MartenBackedMessagePersistenceTests()
     {
-        theHost = WolverineHost.For(opts =>
-        {
-            opts.Services.AddMarten(x => { x.Connection(Servers.PostgresConnectionString); })
-                .IntegrateWithWolverine();
-        });
-
-
         theEnvelope = ObjectMother.Envelope();
         theEnvelope.Message = new Message1();
         theEnvelope.ScheduledTime = DateTime.Today.ToUniversalTime().AddDays(1);
@@ -45,6 +38,12 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
 
     public async Task InitializeAsync()
     {
+        theHost = await WolverineHost.ForAsync(opts =>
+        {
+            opts.Services.AddMarten(x => { x.Connection(Servers.PostgresConnectionString); })
+                .IntegrateWithWolverine();
+        });
+
         var persistence = theHost.Get<IMessageStore>();
 
         await persistence.Admin.RebuildAsync();

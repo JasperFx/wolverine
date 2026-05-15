@@ -25,12 +25,6 @@ public static class WolverineHost
         return bootstrap(_ => {});
     }
 
-    [Obsolete("Try to eliminate this")]
-    public static IHost For(Action<WolverineOptions> configure)
-    {
-        return bootstrap(configure);
-    }
-
     public static Task<IHost> ForAsync(Action<WolverineOptions> configure)
     {
         return bootstrapAsync(configure);

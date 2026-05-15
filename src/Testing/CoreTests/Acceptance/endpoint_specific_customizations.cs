@@ -9,9 +9,9 @@ namespace CoreTests.Acceptance;
 public class endpoint_specific_customizations : SendingContext
 {
     [Fact]
-    public void apply_customizations_to_certain_message_types_for_specific_type()
+    public async Task apply_customizations_to_certain_message_types_for_specific_type()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.PublishMessage<SpecialMessage>().To("stub://one")
                 .CustomizeOutgoing(e => e.Headers.Add("a", "one"))

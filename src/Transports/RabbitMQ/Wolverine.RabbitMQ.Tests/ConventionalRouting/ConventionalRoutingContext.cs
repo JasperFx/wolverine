@@ -17,43 +17,37 @@ public static class ConventionalRoutingTestDefaults
 public abstract class ConventionalRoutingContext : IDisposable
 {
     private IHost _host = null!;
-    
+
     internal bool DisableListenerDiscovery { get; set; }
-    
-    internal IWolverineRuntime theRuntime
+
+    internal async Task<IWolverineRuntime> theRuntime()
     {
-        get
+        if (_host == null)
         {
-            if (_host == null)
+            _host = await WolverineHost.ForAsync(opts =>
             {
-                _host = WolverineHost.For(opts =>
+                opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+
+                if (DisableListenerDiscovery)
                 {
-                    opts.UseRabbitMq().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
-
-                    if (DisableListenerDiscovery)
-                    {
-                        opts.Discovery.DisableConventionalDiscovery();
-                    }
-                });
-            }
-
-            return _host.Services.GetRequiredService<IWolverineRuntime>();
+                    opts.Discovery.DisableConventionalDiscovery();
+                }
+            });
         }
+
+        return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    internal RabbitMqTransport theTransport
+    internal async Task<RabbitMqTransport> theTransport()
     {
-        get
+        if (_host == null)
         {
-            if (_host == null)
-            {
-                _host = WolverineHost.For(opts => opts.UseRabbitMq().UseConventionalRouting());
-            }
-
-            var options = _host.Services.GetRequiredService<IWolverineRuntime>().Options;
-
-            return options.RabbitMqTransport();
+            _host = await WolverineHost.ForAsync(opts => opts.UseRabbitMq().UseConventionalRouting());
         }
+
+        var options = _host.Services.GetRequiredService<IWolverineRuntime>().Options;
+
+        return options.RabbitMqTransport();
     }
 
     public void Dispose()
@@ -61,31 +55,31 @@ public abstract class ConventionalRoutingContext : IDisposable
         _host?.Dispose();
     }
 
-    internal void ConfigureConventions(Action<RabbitMqMessageRoutingConvention> configure)
+    internal async Task ConfigureConventions(Action<RabbitMqMessageRoutingConvention> configure)
     {
-        _host = WolverineHost.For(opts =>
+        _host = await WolverineHost.ForAsync(opts =>
         {
             if (DisableListenerDiscovery)
             {
                 opts.Discovery.DisableConventionalDiscovery();
             }
-            
+
             opts.UseRabbitMq().UseConventionalRouting(configure).AutoProvision().AutoPurgeOnStartup();
         });
     }
 
-    internal IMessageRouter RoutingFor<T>()
+    internal async Task<IMessageRouter> RoutingFor<T>()
     {
-        return theRuntime.RoutingFor(typeof(T));
+        return (await theRuntime()).RoutingFor(typeof(T));
     }
 
-    internal void AssertNoRoutes<T>()
+    internal async Task AssertNoRoutes<T>()
     {
-        RoutingFor<T>().ShouldBeOfType<EmptyMessageRouter<T>>();
+        (await RoutingFor<T>()).ShouldBeOfType<EmptyMessageRouter<T>>();
     }
 
-    internal IMessageRoute[] PublishingRoutesFor<T>()
+    internal async Task<IMessageRoute[]> PublishingRoutesFor<T>()
     {
-        return RoutingFor<T>().ShouldBeOfType<MessageRouter<T>>().Routes;
+        return (await RoutingFor<T>()).ShouldBeOfType<MessageRouter<T>>().Routes;
     }
 }

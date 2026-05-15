@@ -15,7 +15,7 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
 {
     private IDocumentStore _store = null!;
 
-    public IHost BuildHost<TSaga>()
+    public Task<IHost> BuildHostAsync<TSaga>()
     {
         DatabaseFixture.EnsureServerConfigured();
         _store = GetDocumentStore();
@@ -35,7 +35,7 @@ public class RavenDbSagaHost : RavenTestDriver, ISagaHost
 
                 opts.Services.AddSingleton(_store);
                 opts.UseRavenDbPersistence();
-            }).Start();
+            }).StartAsync();
     }
 
     public Task<T?> LoadState<T>(Guid id) where T : Saga

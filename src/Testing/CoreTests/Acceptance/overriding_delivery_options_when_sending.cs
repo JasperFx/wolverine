@@ -10,18 +10,18 @@ namespace CoreTests.Acceptance;
 public class overriding_delivery_options_when_sending : SendingContext
 {
     [Fact]
-    public void apply_message_type_rules_from_attributes()
+    public async Task apply_message_type_rules_from_attributes()
     {
-        var envelope = theSendingRuntime.RoutingFor(typeof(MessageWithSpecialAttribute))
+        var envelope = (await theSendingRuntime()).RoutingFor(typeof(MessageWithSpecialAttribute))
             .RouteForPublish(new MessageWithSpecialAttribute(), null).Single();
 
         envelope.Headers["special"].ShouldBe("true");
     }
 
     [Fact]
-    public void deliver_by_mechanics()
+    public async Task deliver_by_mechanics()
     {
-        var envelope = theSendingRuntime.RoutingFor(typeof(MessageWithSpecialAttribute))
+        var envelope = (await theSendingRuntime()).RoutingFor(typeof(MessageWithSpecialAttribute))
             .RouteForPublish(new MessageWithSpecialAttribute(), null).Single();
 
         envelope.DeliverBy!.Value.ShouldBeGreaterThan(DateTimeOffset.UtcNow);
@@ -30,9 +30,10 @@ public class overriding_delivery_options_when_sending : SendingContext
     [Fact]
     public async Task honor_customization_attributes_on_message_type()
     {
-        var session = await theSender.TrackActivity()
+        var sender = await theSender();
+        var session = await sender.TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theReceiver)
+            .AlsoTrack(await theReceiver())
             .SendMessageAndWaitAsync(new MessageWithSpecialAttribute());
 
         var outgoing = session
@@ -42,32 +43,32 @@ public class overriding_delivery_options_when_sending : SendingContext
     }
 
     [Fact]
-    public void message_type_rules_override_endpoint_rules()
+    public async Task message_type_rules_override_endpoint_rules()
     {
-        SenderOptions(opts =>
+        await SenderOptions(opts =>
         {
             opts.PublishMessage<MessageWithSpecialAttribute>()
                 .ToPort(ReceiverPort)
                 .CustomizeOutgoing(e => e.Headers["special"] = "different");
         });
 
-        var outgoing = theSendingRuntime
+        var outgoing = (await theSendingRuntime())
             .RouteForSend(new MessageWithSpecialAttribute(), null).Single();
 
         outgoing.Headers["special"].ShouldBe("true");
     }
 
     [Fact]
-    public void delivery_options_trumps_all_other_rules()
+    public async Task delivery_options_trumps_all_other_rules()
     {
-        SenderOptions(opts =>
+        await SenderOptions(opts =>
         {
             opts.PublishMessage<MessageWithSpecialAttribute>()
                 .ToPort(ReceiverPort)
                 .CustomizeOutgoing(e => e.Headers["special"] = "different");
         });
 
-        var outgoing = theSendingRuntime
+        var outgoing = (await theSendingRuntime())
             .RouteForSend(new MessageWithSpecialAttribute(), new DeliveryOptions().WithHeader("special", "explicit"))
             .Single();
 
@@ -77,10 +78,11 @@ public class overriding_delivery_options_when_sending : SendingContext
     [Fact]
     public async Task can_use_delivery_options_on_send()
     {
-        var session = await theSender
+        var sender = await theSender();
+        var session = await sender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theReceiver)
+            .AlsoTrack(await theReceiver())
             .SendMessageAndWaitAsync(new StatusMessage(), new DeliveryOptions
             {
                 AckRequested = true
@@ -95,10 +97,11 @@ public class overriding_delivery_options_when_sending : SendingContext
     {
         var uri = $"tcp://localhost:{ReceiverPort}".ToUri();
 
-        var session = await theSender
+        var sender = await theSender();
+        var session = await sender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theReceiver)
+            .AlsoTrack(await theReceiver())
             .SendMessageAndWaitAsync(uri, new StatusMessage(), new DeliveryOptions
             {
                 AckRequested = true
@@ -111,10 +114,11 @@ public class overriding_delivery_options_when_sending : SendingContext
     [Fact]
     public async Task can_use_delivery_options_on_publish()
     {
-        var session = await theSender
+        var sender = await theSender();
+        var session = await sender
             .TrackActivity()
             .IncludeExternalTransports()
-            .AlsoTrack(theReceiver)
+            .AlsoTrack(await theReceiver())
             .PublishMessageAndWaitAsync(new StatusMessage(), new DeliveryOptions
             {
                 AckRequested = true

@@ -14,13 +14,13 @@ public class EfCoreCompilationScenarios
     [Fact]
     public async Task ef_context_is_scoped_and_options_are_scoped()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateItemHandler));
 
             // Default of both is scoped
             opts.Services.AddDbContext<SampleDbContext>();
-            
+
             opts.UseEntityFrameworkCoreTransactions();
         });
 
@@ -47,7 +47,7 @@ public class EfCoreCompilationScenarios
     [Fact]
     public async Task ef_context_is_singleton_and_options_are_singleton()
     {
-        using var host = WolverineHost.For(opts =>
+        using var host = await WolverineHost.ForAsync(opts =>
         {
             opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateItemHandler));
             

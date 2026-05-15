@@ -15,15 +15,15 @@ public class PostgresqlSagaHost : ISagaHost
 {
     private IHost _host = null!;
 
-    public IHost BuildHost<TSaga>()
+    public async Task<IHost> BuildHostAsync<TSaga>()
     {
-        _host =  Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.DisableConventionalDiscovery().IncludeType<TSaga>();
 
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "sagas");
-            }).Start();
+            }).StartAsync();
 
         return _host;
     }

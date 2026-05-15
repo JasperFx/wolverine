@@ -26,20 +26,20 @@ public class logging_configuration : IntegrationContext
     }
 
     [Fact]
-    public void set_log_message_activity_from_attribute_no_global_policy()
+    public async Task set_log_message_activity_from_attribute_no_global_policy()
     {
         // Not configuration
-        with(opts => { });
+        await with(opts => { });
 
         chainFor<AuditedMessage3>().Middleware.OfType<LogStartingActivity>()
             .Single().Level.ShouldBe(LogLevel.Information);
     }
-    
+
     [Fact]
-    public void override_starting_message_activity_from_attribute_over_global_policy()
+    public async Task override_starting_message_activity_from_attribute_over_global_policy()
     {
         // Not configuration
-        with(opts =>
+        await with(opts =>
         {
             opts.Policies.LogMessageStarting(LogLevel.Debug);
         });
@@ -47,21 +47,21 @@ public class logging_configuration : IntegrationContext
         // Still Information!
         chainFor<AuditedMessage3>().Middleware.OfType<LogStartingActivity>()
             .Single().Level.ShouldBe(LogLevel.Information);
-        
+
         // The default is still from the global policy
         chainFor<NormalMessage>().Middleware.OfType<LogStartingActivity>()
             .Single().Level.ShouldBe(LogLevel.Debug);
     }
 
     [Fact]
-    public void override_the_log_start_messaging_to_off()
+    public async Task override_the_log_start_messaging_to_off()
     {
         // Not configuration
-        with(opts =>
+        await with(opts =>
         {
             opts.Policies.LogMessageStarting(LogLevel.Debug);
         });
-        
+
         // Attribute says None, so it's None!!!
         chainFor<QuietMessage2>().Middleware.OfType<LogStartingActivity>()
             .Any().ShouldBeFalse();
