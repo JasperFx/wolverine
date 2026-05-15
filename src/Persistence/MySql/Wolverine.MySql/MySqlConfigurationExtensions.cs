@@ -89,7 +89,6 @@ public static class MySqlConfigurationExtensions
     /// <param name="schema"></param>
     /// <param name="transportSchema"></param>
     /// <returns></returns>
-    [Obsolete("Prefer PersistMessagesWithMySql().EnableMessageTransport()")]
     public static MySqlPersistenceExpression UseMySqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
