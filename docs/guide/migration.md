@@ -28,6 +28,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | Target framework | `net8.0;net9.0;net10.0` | `net9.0;net10.0` *(BREAKING)* | Move to .NET 9+ or pin Wolverine 5.x |
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
+| `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
 | `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Only affects code that stores `saga.Version` in an `int` variable, casts it explicitly, or binds it to a column typed `int`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
@@ -197,6 +198,39 @@ opts.UseAutomaticForwarderDiscovery();
 This re-enables the 5.x assembly scan against `WolverineOptions.ApplicationAssembly`. It is marked `[Obsolete]` and `[RequiresUnreferencedCode]` because the underlying scan walks exported types and the trimmer cannot prove which forwarder types are reachable. It is provided as a backward-compatibility escape valve for the 6.0 release cycle and is **slated for removal in 7.0** — migrate to `RegisterMessageForwarder<TFrom, TTo>()` before then.
 
 If you don't use `IForwardsTo<T>` at all, no change is needed.
+
+### `EventForwardingToWolverine()` removed (BREAKING)
+
+Both `MartenConfigurationExpression.EventForwardingToWolverine(...)` extension method overloads (parameterless and the one taking `Action<IEventForwarding>`) were marked `[Obsolete]` in the 3.x line with a "will be removed in Wolverine 4.0" notice. They are now actually removed in 6.0.
+
+The replacement has been available since 3.0: set `MartenIntegration.UseFastEventForwarding = true` inside the `IntegrateWithWolverine` configure callback. Event-subscription transformations (`SubscribeToEvent<T>().TransformedTo(...)`) live on the same `MartenIntegration` instance, so they move into the same callback.
+
+**Before (5.x):**
+
+```csharp
+services.AddMarten(opts => opts.Connection(connString))
+    .IntegrateWithWolverine()
+    .EventForwardingToWolverine();
+```
+
+**After (6.0):**
+
+```csharp
+services.AddMarten(opts => opts.Connection(connString))
+    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
+```
+
+The `Action<IEventForwarding>` overload migrates to the same callback:
+
+```csharp
+services.AddMarten(opts => opts.Connection(connString))
+    .IntegrateWithWolverine(x =>
+    {
+        x.UseFastEventForwarding = true;
+        x.SubscribeToEvent<SecondEvent>()
+            .TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
+    });
+```
 
 ### Performance: per-endpoint serializer cache pre-population
 

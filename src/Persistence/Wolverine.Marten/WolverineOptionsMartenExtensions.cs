@@ -251,56 +251,6 @@ public static class WolverineOptionsMartenExtensions
     }
 
     /// <summary>
-    ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
-    ///     Wolverine outbox
-    /// </summary>
-    /// <param name="expression"></param>
-    /// <returns></returns>
-    [Obsolete(
-        $"Favor using the {nameof(MartenIntegration.UseFastEventForwarding)} property as part of {nameof(IntegrateWithWolverine)}. This will be removed in Wolverine 4.0")]
-    public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression)
-    {
-        var integration = expression.Services.FindMartenIntegration();
-        if (integration == null)
-        {
-            expression.IntegrateWithWolverine();
-            integration = expression.Services.FindMartenIntegration();
-        }
-
-        integration!.UseFastEventForwarding = true;
-
-        return expression;
-    }
-
-    /// <summary>
-    ///     Enable publishing of events to Wolverine message routing when captured in Marten sessions that are enrolled in a
-    ///     Wolverine outbox. This requires usage of Marten transactional middleware within Wolverine, and makes no guarantees
-    ///     about ordering
-    /// </summary>
-    /// <param name="expression"></param>
-    /// <returns></returns>
-    [Obsolete(
-        $"All of these options are available within the {nameof(IntegrateWithWolverine)}() method. This will be removed in Wolverine 4.0")]
-    public static MartenServiceCollectionExtensions.MartenConfigurationExpression EventForwardingToWolverine(
-        this MartenServiceCollectionExtensions.MartenConfigurationExpression expression,
-        Action<IEventForwarding> configure)
-    {
-        var integration = expression.Services.FindMartenIntegration();
-        if (integration == null)
-        {
-            expression.IntegrateWithWolverine();
-            integration = expression.Services.FindMartenIntegration();
-        }
-
-        integration!.UseFastEventForwarding = true;
-
-        configure(integration);
-
-        return expression;
-    }
-
-    /// <summary>
     ///     Register a custom subscription that will process a batch of Marten events at a time with
     ///     a user defined action
     /// </summary>

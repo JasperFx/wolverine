@@ -79,9 +79,11 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                         opts.Connection(Servers.PostgresConnectionString);
                         opts.Logger(new TestOutputMartenLogger(_output));
                     })
-                    .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "sender").EventForwardingToWolverine(opts =>
+                    .IntegrateWithWolverine(x =>
                     {
-                        opts.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
+                        x.MessageStorageSchemaName = "sender";
+                        x.UseFastEventForwarding = true;
+                        x.SubscribeToEvent<SecondEvent>().TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
                     });
 
                 services.AddResourceSetupOnStartup();
@@ -148,8 +150,9 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
             .ConfigureServices(services =>
             {
                 services.AddMarten(Servers.PostgresConnectionString)
-                    .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
+                    .IntegrateWithWolverine(opts =>
                     {
+                        opts.UseFastEventForwarding = true;
                         opts.SubscribeToEvent<SecondEvent>().TransformedTo(e =>
                             new SecondMessage(e.StreamId, e.Sequence));
                     });
