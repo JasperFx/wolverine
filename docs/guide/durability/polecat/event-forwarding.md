@@ -30,16 +30,34 @@ Timing wise, the "event forwarding" happens at the time of committing the transa
 new events, and the resulting event messages go out as cascading messages only after the original transaction succeeds -- just
 like any other outbox usage. **There is no guarantee about ordering in this case.**
 
-To opt into this feature, chain the `AddPolecat().EventForwardingToWolverine()` call as
-shown below:
+To opt into this feature, set `PolecatIntegration.UseFastEventForwarding = true` inside the
+configure callback on `IntegrateWithWolverine()` as shown below:
 
 ```cs
 builder.Services.AddPolecat(opts =>
     {
         opts.Connection(connectionString);
     })
-    .IntegrateWithWolverine()
-    .EventForwardingToWolverine();
+    // Enroll Polecat in the Wolverine outbox and opt into
+    // forwarding events to the Wolverine outbox on SaveChangesAsync()
+    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
+```
+
+If you also need to transform events into a different message type before they hit Wolverine's
+routing rules, use `SubscribeToEvent<T>().TransformedTo(...)` on the same `PolecatIntegration`
+instance — exactly like the Marten side:
+
+```cs
+builder.Services.AddPolecat(opts =>
+    {
+        opts.Connection(connectionString);
+    })
+    .IntegrateWithWolverine(x =>
+    {
+        x.UseFastEventForwarding = true;
+        x.SubscribeToEvent<SecondEvent>()
+            .TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
+    });
 ```
 
 This does need to be paired with Wolverine configuration to add
