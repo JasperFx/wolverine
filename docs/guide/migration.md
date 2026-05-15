@@ -29,6 +29,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | Critter-stack package versions | 1.x line | 2.0-alpha line | Bump in lockstep across JasperFx, Marten, Polecat — full table below |
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
+| `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Only affects code that stores `saga.Version` in an `int` variable, casts it explicitly, or binds it to a column typed `int`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
@@ -231,6 +232,26 @@ services.AddMarten(opts => opts.Connection(connString))
             .TransformedTo(e => new SecondMessage(e.StreamId, e.Sequence));
     });
 ```
+
+### `RedisTransport.BuildRedisStreamUri(...)` removed (BREAKING)
+
+Both `RedisTransport.BuildRedisStreamUri(...)` overloads (the 2-param `(streamKey, databaseId)` form and the 3-param `(streamKey, databaseId, consumerGroup)` form) were marked `[Obsolete]` and were thin forwarders to `RedisEndpointUri.Stream(...)`. They're now removed in 6.0.
+
+Replace any call to `RedisTransport.BuildRedisStreamUri(...)` with the identical-signature `RedisEndpointUri.Stream(...)`:
+
+**Before:**
+
+```csharp
+var uri = RedisTransport.BuildRedisStreamUri("orders", databaseId: 3);
+```
+
+**After:**
+
+```csharp
+var uri = RedisEndpointUri.Stream("orders", databaseId: 3);
+```
+
+If you never called these helpers directly (most users don't — Wolverine builds these URIs internally from `ListenToRedisStream(...)` / `PublishToRedisStream(...)`), no change is needed.
 
 ### Performance: per-endpoint serializer cache pre-population
 

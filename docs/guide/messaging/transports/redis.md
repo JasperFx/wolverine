@@ -273,7 +273,3 @@ using Wolverine.Redis;
 
 var uri = RedisEndpointUri.Stream("orders", databaseId: 3);
 ```
-
-::: tip
-`RedisTransport.BuildRedisStreamUri` is deprecated. Use `RedisEndpointUri.Stream` instead.
-:::
