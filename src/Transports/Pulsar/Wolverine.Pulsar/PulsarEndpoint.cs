@@ -49,17 +49,16 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
 
     public bool IsPersistent => Persistence.Equals(Persistent);
 
-    [Obsolete("This overload returns a Pulsar-native topic path (persistent://...), not a Wolverine endpoint URI (pulsar://...). The native Pulsar client requires the former; PulsarEndpointUri produces the latter — they are NOT interchangeable, which is why this overload is not delegated. Build Pulsar-native topic paths directly. This helper will be removed in a future version.")]
-    public static Uri UriFor(bool persistent, string tenant, string @namespace, string topicName)
+    /// <summary>
+    /// Build a Pulsar-native topic-path URI of the form
+    /// <c>persistent://{tenant}/{namespace}/{topic}</c> (or <c>non-persistent://...</c>) for
+    /// hand-off to the native Pulsar client. This is NOT a Wolverine endpoint URI —
+    /// for those, use <see cref="PulsarEndpointUri"/>.
+    /// </summary>
+    internal static Uri NativeTopicPath(bool persistent, string tenant, string @namespace, string topicName)
     {
-        var scheme = persistent ? "persistent" : "non-persistent";
+        var scheme = persistent ? Persistent : NonPersistent;
         return new Uri($"{scheme}://{tenant}/{@namespace}/{topicName}");
-    }
-
-    [Obsolete("Use PulsarEndpointUri.Topic instead. This helper will be removed in a future version.")]
-    public static Uri UriFor(string topicPath)
-    {
-        return PulsarEndpointUri.Topic(topicPath);
     }
 
     public override IDictionary<string, object> DescribeProperties()

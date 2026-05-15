@@ -56,16 +56,16 @@ public class PulsarEndpointTests
     }
 
     [Fact]
-    public void uri_for_all_props_and_persistent()
+    public void native_topic_path_all_props_and_persistent()
     {
-        var uri = PulsarEndpoint.UriFor(true, "public", "default", "aaa");
+        var uri = PulsarEndpoint.NativeTopicPath(true, "public", "default", "aaa");
         uri.ShouldBe(new Uri("persistent://public/default/aaa"));
     }
 
     [Fact]
-    public void uri_for_all_props_and_non_persistent()
+    public void native_topic_path_all_props_and_non_persistent()
     {
-        var uri = PulsarEndpoint.UriFor(false, "public", "default", "aaa");
+        var uri = PulsarEndpoint.NativeTopicPath(false, "public", "default", "aaa");
         uri.ShouldBe(new Uri("non-persistent://public/default/aaa"));
     }
 
@@ -73,7 +73,7 @@ public class PulsarEndpointTests
     public void uri_for_topic_string()
     {
         var topicPath = "persistent://t1/ns1/aaa";
-        var uri = PulsarEndpoint.UriFor(topicPath);
+        var uri = PulsarEndpointUri.Topic(topicPath);
         var endpoint = new PulsarEndpoint(uri, null!);
 
         endpoint.Persistence.ShouldBe(PulsarEndpoint.Persistent);
@@ -85,7 +85,7 @@ public class PulsarEndpointTests
     [Fact]
     public void uri_for_topic_string_handles_non_persistent_scheme()
     {
-        var uri = PulsarEndpoint.UriFor("non-persistent://t1/ns1/aaa");
+        var uri = PulsarEndpointUri.Topic("non-persistent://t1/ns1/aaa");
         var endpoint = new PulsarEndpoint(uri, null!);
 
         endpoint.Persistence.ShouldBe(PulsarEndpoint.NonPersistent);
@@ -97,7 +97,7 @@ public class PulsarEndpointTests
     [Fact]
     public void uri_for_topic_string_preserves_realistic_topic_names()
     {
-        var uri = PulsarEndpoint.UriFor("persistent://my-tenant/my-namespace/order.created.v2");
+        var uri = PulsarEndpointUri.Topic("persistent://my-tenant/my-namespace/order.created.v2");
         var endpoint = new PulsarEndpoint(uri, null!);
 
         endpoint.Persistence.ShouldBe(PulsarEndpoint.Persistent);
@@ -107,20 +107,20 @@ public class PulsarEndpointTests
     }
 
     [Fact]
-    public void uri_for_bool_produces_retry_suffix_path_used_by_pulsar_listener()
+    public void native_topic_path_produces_retry_suffix_used_by_pulsar_listener()
     {
         // Mirrors the call pattern in PulsarListener.getRetryLetterTopicUri:
-        // PulsarEndpoint.UriFor(isPersistent, tenant, namespace, "{topic}-RETRY").
-        var uri = PulsarEndpoint.UriFor(true, "public", "default", "orders-RETRY");
+        // PulsarEndpoint.NativeTopicPath(isPersistent, tenant, namespace, "{topic}-RETRY").
+        var uri = PulsarEndpoint.NativeTopicPath(true, "public", "default", "orders-RETRY");
         uri.ShouldBe(new Uri("persistent://public/default/orders-RETRY"));
     }
 
     [Fact]
-    public void uri_for_bool_produces_dlq_suffix_path_used_by_pulsar_listener()
+    public void native_topic_path_produces_dlq_suffix_used_by_pulsar_listener()
     {
         // Mirrors the call pattern in PulsarListener.getDeadLetteredTopicUri:
-        // PulsarEndpoint.UriFor(isPersistent, tenant, namespace, "{topic}-DLQ").
-        var uri = PulsarEndpoint.UriFor(true, "public", "default", "orders-DLQ");
+        // PulsarEndpoint.NativeTopicPath(isPersistent, tenant, namespace, "{topic}-DLQ").
+        var uri = PulsarEndpoint.NativeTopicPath(true, "public", "default", "orders-DLQ");
         uri.ShouldBe(new Uri("persistent://public/default/orders-DLQ"));
     }
 }
