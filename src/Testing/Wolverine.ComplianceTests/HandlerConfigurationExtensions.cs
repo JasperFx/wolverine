@@ -18,21 +18,6 @@ public static class HandlerConfigurationExtensions
     }
 
     /// <summary>
-    /// Testing usage to disable all automatic handler discovery and only use the supplied type
-    /// as the sole handler type for this application
-    /// </summary>
-    /// <param name="handlers"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    [Obsolete("This is a weird testing helper that's not used anymore and will be deleted in Wolverine 3")]
-    public static WolverineOptions OnlyType<T>(this WolverineOptions handlers)
-    {
-        handlers.Discovery.DisableConventionalDiscovery().IncludeType<T>();
-
-        return handlers;
-    }
-
-    /// <summary>
     /// Explicitly add this type to Wolverine as a handler type
     /// </summary>
     /// <param name="handlers"></param>
