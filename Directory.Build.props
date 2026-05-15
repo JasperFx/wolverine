@@ -14,16 +14,22 @@
         <!--
           Wolverine 6.0 alpha line. Bumped from 5.39.0 (the last 5.x release
           left on the main branch's Directory.Build.props) to flag every
-          package built from main as a 6.0 pre-release. This is the first
-          explicitly-versioned 6.0 alpha after the cumulative work merged
-          this release cycle (envelope pool #2741, Newtonsoft extraction
-          #2743, migration polish #2744, AOT pillar foundation #2747 et al).
+          package built from main as a 6.0 pre-release. The alpha number
+          ticks with each NuGet publish off main. The 5.x maintenance line
+          ships from the `5.0` branch and continues to use its own
+          Directory.Build.props.
 
-          Bump the alpha number with each NuGet publish off main. The 5.x
-          maintenance line ships from the `5.0` branch and continues to use
-          its own Directory.Build.props.
+          alpha.1: first explicitly-versioned 6.0 pre-release after the
+                   cumulative work merged this release cycle (envelope pool
+                   #2741, Newtonsoft extraction #2743, migration polish
+                   #2744, AOT pillar foundation #2747 et al).
+          alpha.2: JasperFx alpha.13 / JasperFx.Events alpha.8 pin matrix +
+                   AOT chunk M annotations across the persistence + transport
+                   surfaces, Saga.Version int->long for Marten 9 IRevisioned
+                   alignment, Marten 9.0.0-alpha.2 / Polecat 4.0.0-alpha.3 /
+                   JasperFx.RuntimeCompiler 5.0.0-alpha.1 bumps (PR #2806).
         -->
-        <Version>6.0.0-alpha.1</Version>
+        <Version>6.0.0-alpha.2</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
