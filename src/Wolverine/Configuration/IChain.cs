@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
 using System.Reflection;
 using JasperFx;
@@ -50,7 +51,13 @@ public static class ChainMiddlewareExtensions
     /// <param name="chain">The chain to add middleware to</param>
     /// <param name="middlewareType">The middleware class type</param>
     /// <param name="methodName">The name of the method to call</param>
-    public static void AddMiddleware(this IChain chain, Type middlewareType, string methodName)
+    [RequiresUnreferencedCode(
+        "MethodCall reflects over middlewareType.GetMethod(methodName); the named method must survive trimming. " +
+        "AOT-publishing apps should use the strongly-typed AddMiddleware<T>(Expression) overload or pre-generate " +
+        "handlers via TypeLoadMode.Static.")]
+    public static void AddMiddleware(this IChain chain,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)]
+        Type middlewareType, string methodName)
     {
         chain.Middleware.Add(new MethodCall(middlewareType, methodName));
     }
@@ -72,7 +79,13 @@ public static class ChainMiddlewareExtensions
     /// <param name="chain">The chain to add the postprocessor to</param>
     /// <param name="middlewareType">The middleware class type</param>
     /// <param name="methodName">The name of the method to call</param>
-    public static void AddPostprocessor(this IChain chain, Type middlewareType, string methodName)
+    [RequiresUnreferencedCode(
+        "MethodCall reflects over middlewareType.GetMethod(methodName); the named method must survive trimming. " +
+        "AOT-publishing apps should use the strongly-typed AddPostprocessor<T>(Expression) overload or pre-generate " +
+        "handlers via TypeLoadMode.Static.")]
+    public static void AddPostprocessor(this IChain chain,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)]
+        Type middlewareType, string methodName)
     {
         chain.Postprocessors.Add(new MethodCall(middlewareType, methodName));
     }

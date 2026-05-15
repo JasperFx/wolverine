@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events.Tags;
 using Polecat.Events.Dcb;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;

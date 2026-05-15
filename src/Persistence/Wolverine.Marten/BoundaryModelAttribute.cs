@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -39,6 +40,10 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         set => _onMissing = value;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2065",
+        Justification = "MakeGenericType closes IEventBoundary<TAggregate>; GetProperty(nameof(IEventBoundary.Aggregate)) is statically referenced via nameof and the closed-generic IEventBoundary<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventBoundary<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
     public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
         GenerationRules rules)
     {

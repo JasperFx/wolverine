@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Events;
 using Marten;
 using Marten.Metadata;
 using Microsoft.Extensions.Hosting;
@@ -138,7 +139,7 @@ public static class GLetterMessageHandler
 
 public class GSimpleAggregate : IRevisioned
 {
-    public int Version { get; set; }
+    public long Version { get; set; }
     public Guid Id { get; set; }
 
     public int ACount { get; set; }

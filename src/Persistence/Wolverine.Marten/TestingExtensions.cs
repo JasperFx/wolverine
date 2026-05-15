@@ -32,7 +32,7 @@ public static class TestingExtensions
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static TrackedSessionConfiguration ResetAllMartenDataFirst<T>(this TrackedSessionConfiguration configuration)
-        where T : IDocumentStore
+        where T : class, IDocumentStore
     {
         return configuration.BeforeExecution(async (runtime, cancellation) =>
         {
@@ -114,7 +114,7 @@ public static class TestingExtensions
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static TrackedSessionConfiguration PauseThenCatchUpOnMartenDaemonActivity<T>(this TrackedSessionConfiguration configuration, CatchUpMode mode = CatchUpMode.AndResumeNormally)
-        where T : IDocumentStore
+        where T : class, IDocumentStore
     {
         configuration.BeforeExecution(async (runtime, cancellation) =>
         {
@@ -202,7 +202,7 @@ public static class TestingExtensions
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static TrackedSessionConfiguration WaitForNonStaleDaemonDataAfterExecution<T>(
-        this TrackedSessionConfiguration configuration, TimeSpan timeout) where T : IDocumentStore
+        this TrackedSessionConfiguration configuration, TimeSpan timeout) where T : class, IDocumentStore
     {
         return configuration.AfterExecution(async (r, _) =>
         {

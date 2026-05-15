@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Descriptors;
 using Wolverine.Runtime.Handlers;
 
@@ -9,6 +10,8 @@ public class MessageHandlerDescriptor : OptionsDescription
     {
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "OptionsDescription(chain) reads chain.GetType().GetProperties() to build a diagnostic description. MessageHandlerDescriptor is a diagnostic surface (Capabilities reporting); HandlerChain properties trimmed away are silently omitted, which is acceptable.")]
     public MessageHandlerDescriptor(HandlerChain chain, HandlerGraph handlers) : base(chain)
     {
         // TODO -- get error handling too

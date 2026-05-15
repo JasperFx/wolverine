@@ -219,6 +219,10 @@ internal class EventCaptureActionSource : IReturnVariableActionSource
             yield break;
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2062",
+            Justification = "streamType = MakeGenericType(IEventStream<>, _aggregateType) at codegen time; AppendOne is statically referenced via nameof and the closed-generic IEventStream<TAggregate>.AppendOne method is preserved by the aggregate-type registration. AOT consumers pre-generate via TypeLoadMode.Static.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static so the reflective close never fires.")]
         public IEnumerable<Frame> Frames()
         {
             var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);

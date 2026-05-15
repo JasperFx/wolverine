@@ -98,7 +98,9 @@ internal class LoadDocumentFrame : AsyncFrame, IBatchableFrame
         if (Saga.VariableType.CanBeCastTo<IRevisioned>() && Saga.VariableType.CanBeCastTo<Saga>())
         {
             writer.WriteComment($"{Saga.VariableType.FullNameInCode()} implements {typeof(IRevisioned).FullNameInCode()}, so Wolverine will try to update based on the revision as a concurrency protection");
-            writer.Write($"var {ExpectedSagaRevision} = 0;");
+            // 0L because IRevisioned.Version is long in Marten 9.0; the saga.Version + 1 assignment
+            // below must land in a long variable to avoid CS0266 in generated code.
+            writer.Write($"var {ExpectedSagaRevision} = 0L;");
             writer.Write($"BLOCK:if ({Saga.Usage} != null)");
             writer.Write($"{ExpectedSagaRevision} = {Saga.Usage}.{nameof(IRevisioned.Version)} + 1;");
             writer.FinishBlock();

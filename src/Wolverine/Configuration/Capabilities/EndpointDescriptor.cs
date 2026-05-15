@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using JasperFx.Descriptors;
 
@@ -26,6 +27,8 @@ public class EndpointDescriptor : OptionsDescription
     {
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "OptionsDescription(subject) reads subject.GetType().GetProperties() to build a diagnostic description. EndpointDescriptor is a diagnostic surface (Capabilities reporting); properties of Endpoint subclasses that are trimmed are silently omitted, which is acceptable here.")]
     public EndpointDescriptor(Endpoint endpoint) : base(endpoint)
     {
         Uri = endpoint.Uri;

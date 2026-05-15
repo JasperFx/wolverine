@@ -308,6 +308,8 @@ public class SagaChain : HandlerChain
         frames.Add(ifNullBlock);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "SagaType originates from a HandlerCall's HandlerType, which is application-rooted via HandlerDiscovery. Saga types are concrete classes with public default constructors (CreateNewSagaFrame enforces this at runtime), preserved by the registration. AOT consumers run pre-generated frames via TypeLoadMode.Static.")]
     private void generateForOnlyStartingSaga(IServiceContainer container, IPersistenceFrameProvider frameProvider,
         List<Frame> frames)
     {

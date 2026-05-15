@@ -6,14 +6,20 @@ using Marten.Events.Daemon.Coordination;
 
 namespace Wolverine.Marten.Distribution;
 
-internal class WolverineProjectionCoordinator<T> : WolverineProjectionCoordinator, IProjectionCoordinator<T> where T : IDocumentStore
+// IProjectionCoordinator<T> / IProjectionCoordinator now exist in both
+// Marten.Events.Daemon.Coordination and JasperFx.Events.Daemon (lifted by
+// the dedupe pillar in JasperFx.Events 2.0.0-alpha.8+). Wolverine.Marten
+// implements the Marten-side contract; qualify with `global::Marten...` to
+// break the namespace-vs-namespace ambiguity inside Wolverine.Marten.*.
+internal class WolverineProjectionCoordinator<T> : WolverineProjectionCoordinator,
+    global::Marten.Events.Daemon.Coordination.IProjectionCoordinator<T> where T : class, IDocumentStore
 {
     public WolverineProjectionCoordinator(EventSubscriptionAgentFamily agents, T store) : base(agents, store)
     {
     }
 }
 
-internal class WolverineProjectionCoordinator : IProjectionCoordinator
+internal class WolverineProjectionCoordinator : global::Marten.Events.Daemon.Coordination.IProjectionCoordinator
 {
     private readonly EventSubscriptionAgentFamily _agents;
     private readonly EventStoreIdentity _identity;

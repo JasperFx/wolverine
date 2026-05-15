@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,8 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 /// </remarks>
 public static class UntrackedDbContextDiscovery
 {
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes DbContextUsageSource<TDbContext> over each registered DbContext type at app startup. User DbContext types are statically rooted by the user's services.AddDbContext<T>() registrations; AOT consumers preserve those types through their DI registrations.")]
     public static void RegisterImplicitUsageSources(IServiceCollection services)
     {
         var alreadyCovered = new HashSet<Type>();

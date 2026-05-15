@@ -55,6 +55,8 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     public readonly List<MethodCall> Handlers = new();
     private GeneratedType? _generatedType;
+
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     private Type? _handlerType;
 
     private bool _hasConfiguredFrames;
@@ -282,6 +284,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     // ExportedTypes walk is finding a type that's known by construction.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "ExportedTypes walk over the generated handler assembly to attach the generated handler type; the type is known by construction at codegen time. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2074",
+        Justification = "_handlerType assignment from ExportedTypes.FirstOrDefault — the generated handler type carries its codegen-emitted public constructor; trim preserves it because the type itself is rooted by the assembly load. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2077",
+        Justification = "_handlerType is populated by ExportedTypes scan on the generated assembly; the resolved Type's constructors are emitted by the same codegen step that produced the type, so trimming preserves them in any practical setup.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "QuickBuild closes IFinder<TParameter> via MakeGenericType + Activator.CreateInstance; AOT consumers run pre-generated handlers via TypeLoadMode.Static so the reflective close never fires.")]
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
@@ -551,6 +559,12 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         return new HandlerChain(call, parent);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "QuickBuild closes [FromKeyedServices] parameters via CloseAndBuildAs (MakeGenericType on IFinder<T>). The _handlerType field is populated from the generated assembly's ExportedTypes; constructors are emitted by codegen and preserved. AOT consumers pre-generate handlers via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2077",
+        Justification = "_handlerType is populated from the generated handler assembly; constructors are emitted by codegen so they survive trimming in any practical setup.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "QuickBuild closes IFinder<TParameter> via MakeGenericType + Activator.CreateInstance for [FromKeyedServices] resolution; AOT consumers run pre-generated handlers via TypeLoadMode.Static so the reflective close never fires.")]
     internal MessageHandler CreateHandler(IServiceContainer container)
     {
         if (_handlerType == null)
@@ -754,6 +768,8 @@ internal interface IEntityIsNotNullGuard
 
 internal class EntityIsNotNullGuardFrame<T> : MethodCall, IEntityIsNotNullGuard
 {
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "MethodCall reflects EntityIsNotNullGuard<T>.GetMethod(\"Assert\"); the Assert method is statically referenced via nameof-style binding in the EntityIsNotNullGuard<T> class and survives trimming. The closed-generic EntityIsNotNullGuard<T> is rooted at codegen time per the AOT guide.")]
     public EntityIsNotNullGuardFrame(Variable variable) : base(typeof(EntityIsNotNullGuard<T>), "Assert")
     {
         Arguments[0] = variable;

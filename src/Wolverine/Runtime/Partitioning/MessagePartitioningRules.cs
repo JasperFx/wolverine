@@ -240,6 +240,10 @@ internal class Grouper<TConcrete, TProperty> : IGrouper
 {
     private readonly Func<TConcrete, TProperty> _source;
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "LambdaBuilder.GetProperty compiles a property-access expression via FastExpressionCompiler. The groupMember PropertyInfo originates from the application's registered partitioning rule (a strongly-typed message property), so the property survives trimming via the rule's explicit registration.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Property-access lambda compiled via FastExpressionCompiler; AOT consumers running pre-generated handlers via TypeLoadMode.Static avoid this code path.")]
     public Grouper(PropertyInfo groupMember)
     {
         _source = LambdaBuilder.GetProperty<TConcrete, TProperty>(groupMember);

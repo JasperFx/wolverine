@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Core.Reflection;
@@ -89,6 +90,8 @@ public partial class WolverineOptions : IDescribeMyself
         return _serializers.ToDictionary(x => x.Key, x => x.Value);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "OptionsDescription / AddChildSet read each subject's runtime-type properties to build the diagnostic description tree. ToDescription is a diagnostic surface (rendered by WolverineSystemPart.WriteToConsole); trimmed-away properties are silently omitted, which is acceptable here.")]
     public OptionsDescription ToDescription()
     {
         var description = new OptionsDescription(this);

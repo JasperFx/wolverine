@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -12,6 +13,8 @@ public static class WolverineDbContextExtensions
     /// Ensures the database referenced by the DbContext's connection exists, creating it if necessary.
     /// TODO: Move this method to Weasel.EntityFrameworkCore.DbContextExtensions in a future Weasel release.
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Activator.CreateInstance over conn.GetType() — the runtime DbConnection subclass (NpgsqlConnection, SqlConnection, etc.) is selected by the configured EF provider. The provider's connection-type constructors are preserved by the EF provider package's own trim configuration.")]
     public static async Task EnsureDatabaseExistsAsync(
         this IServiceProvider services,
         DbContext context,

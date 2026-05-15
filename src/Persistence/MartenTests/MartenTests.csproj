@@ -27,6 +27,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\Extensions\Wolverine.MessagePack\Wolverine.MessagePack.csproj" />
         <ProjectReference Include="..\..\Samples\OrderSagaSample\OrderSagaSample.csproj"/>
+        <PackageReference Include="Marten.Newtonsoft" />
         <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj"/>
         <ProjectReference Include="..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
     </ItemGroup>

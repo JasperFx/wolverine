@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.Core;
@@ -45,6 +46,12 @@ public partial class HttpChain : IEndpointConventionBuilder
         return false;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "QuickBuild closes [FromKeyedServices] parameters via CloseAndBuildAs. _handlerType is populated from the generated handler assembly's ExportedTypes; constructors are emitted by codegen. AOT consumers pre-generate handlers via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2077",
+        Justification = "_handlerType is populated from the generated handler assembly; constructors are emitted by codegen so they survive trimming in any practical setup.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "QuickBuild closes IFinder<TParameter> via MakeGenericType + Activator.CreateInstance; AOT consumers run pre-generated handlers via TypeLoadMode.Static.")]
     private HttpHandler buildHandler()
     {
         this.InitializeSynchronously(_parent.Rules, _parent, _parent.Container.Services);

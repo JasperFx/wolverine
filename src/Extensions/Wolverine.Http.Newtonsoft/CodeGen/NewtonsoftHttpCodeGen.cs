@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -24,6 +25,8 @@ internal sealed class NewtonsoftHttpCodeGen : INewtonsoftHttpCodeGen
         return new ReadJsonBodyWithNewtonsoft(requestType).ReturnVariable!;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "MethodCall reflects NewtonsoftHttpSerialization.GetMethod(nameof(WriteJsonAsync)) at codegen time. The target method is statically referenced via nameof; the closed-generic type is rooted at codegen time per the AOT guide.")]
     public Frame CreateWriteJsonFrame(Variable resourceVariable)
     {
         var frame = new MethodCall(typeof(NewtonsoftHttpSerialization),

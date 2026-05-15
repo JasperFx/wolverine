@@ -94,6 +94,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     // Make the assumption that the route argument has to match the parameter name
     private GeneratedType? _generatedType;
+
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     private Type? _handlerType;
     private string _description;
     private Type? _requestType;

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -80,6 +81,8 @@ public partial class HttpChain
         return Task.FromResult(found);
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2074",
+        Justification = "_handlerType assignment from ExportedTypes / GetTypes scan — the generated HTTP handler type carries its codegen-emitted public constructor; trim preserves it because the type itself is rooted by the assembly load.")]
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {

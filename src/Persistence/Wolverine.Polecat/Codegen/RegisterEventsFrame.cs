@@ -2,6 +2,7 @@ using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using Polecat.Events;
 
 namespace Wolverine.Polecat.Codegen;

@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -9,6 +10,8 @@ internal class CreateMissingSagaFrame : SyncFrame
 {
     private readonly Variable _saga;
 
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Variable.VariableType returns the saga's runtime Type without DAM annotation. The saga type is application-rooted (registered as a handler) so its public default constructor survives trimming in any practical Wolverine setup; AOT consumers preserve saga types per the AOT publishing guide.")]
     public CreateMissingSagaFrame(Variable saga)
     {
         if (!saga.VariableType.HasDefaultConstructor())

@@ -1,3 +1,4 @@
+using JasperFx.Events;
 using Marten.Events;
 using Marten.Schema;
 using Wolverine;

@@ -8,6 +8,8 @@ internal class Forwarders
 {
     public Dictionary<Type, Type> Relationships { get; } = new();
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "type is supplied by RegisterMessageForwarder<TForwarder> (DAM-annotated) or by the assembly-scan FindForwards path (already RUC-propagated). The IForwardsTo<> interface closure inspection preserves the user-registered forwarder type.")]
     public void Add(Type type)
     {
         var forwardedType = type

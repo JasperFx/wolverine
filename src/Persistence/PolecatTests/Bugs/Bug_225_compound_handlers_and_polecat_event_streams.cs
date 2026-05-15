@@ -2,6 +2,7 @@ using IntegrationTests;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Polecat;
+using JasperFx.Events;
 using Polecat.Events;
 using Shouldly;
 using Wolverine;

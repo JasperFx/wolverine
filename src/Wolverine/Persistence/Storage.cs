@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
@@ -55,6 +56,8 @@ public static class Storage
     /// <returns></returns>
     public static Nothing<T> Nothing<T>() => new();
 
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Variable.VariableType returns the effect's runtime Type without DAM annotation; TypeExtensions.Closes inspects the generic-interface graph for IStorageAction<>. The entity type is application-rooted (handler return type), preserved in any practical setup; AOT consumers register effect entity types via the persistence-frame provider registration.")]
     internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container, IChain chain)
     {
         if (effect.VariableType.Closes(typeof(IStorageAction<>)) &&

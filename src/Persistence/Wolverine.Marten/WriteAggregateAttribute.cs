@@ -6,6 +6,7 @@ using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Aggregation;
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;

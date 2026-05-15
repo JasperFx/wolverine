@@ -58,7 +58,7 @@ public static class TransferMoneyHandler2
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
         
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {
@@ -109,7 +109,7 @@ public static class TransferMoneyEndpointWithBefore
     public static void Handle(
         TransferMoney command,
 
-        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
+        [WriteAggregate(nameof(TransferMoney.FromId), LoadStyle = global::Wolverine.Marten.ConcurrencyStyle.Exclusive)] IEventStream<Account> fromAccount,
 
         [WriteAggregate(nameof(TransferMoney.ToId))] IEventStream<Account> toAccount)
     {

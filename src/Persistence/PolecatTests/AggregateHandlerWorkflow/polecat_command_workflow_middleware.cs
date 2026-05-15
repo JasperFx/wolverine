@@ -222,7 +222,7 @@ public class LetterAggregate
 public static class SpecialLetterHandler
 {
     [ScheduleRetry(typeof(ConcurrencyException), 1, 2, 5)]
-    [AggregateHandler(ConcurrencyStyle.Exclusive)]
+    [AggregateHandler(global::Wolverine.Polecat.ConcurrencyStyle.Exclusive)]
     public static IEnumerable<object> Handle(IncrementAB command, LetterAggregate aggregate)
     {
         command.LetterAggregateId.ShouldBe(aggregate.Id);

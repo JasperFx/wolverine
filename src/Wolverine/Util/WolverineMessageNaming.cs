@@ -66,6 +66,8 @@ internal class MessageIdentityAttributeNaming : IMessageTypeNaming
 
 internal class ForwardNaming : IMessageTypeNaming
 {
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "messageType originates from Wolverine's message-type registry (HandlerDiscovery / RegisterMessageType). The IForwardsTo<> interface closure inspection runs against application-rooted forwarder types preserved by the registration.")]
     public bool TryDetermineName(Type messageType, out string messageTypeName)
     {
         if (messageType.Closes(typeof(IForwardsTo<>)))

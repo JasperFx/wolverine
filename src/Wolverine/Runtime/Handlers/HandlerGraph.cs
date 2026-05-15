@@ -463,6 +463,8 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     // appropriate trim descriptors.
     [UnconditionalSuppressMessage("Trimming", "IL2055",
         Justification = "Closed generic message-handler type for interop interface; bootstrap-time only. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "_messageTypes values originate from user-registered message types via RegisterMessageType / HandlerDiscovery. The TypeExtensions.Closes lambda inspects each type's generic-interface graph for MappedGenericMessageTypes keys; user message types are statically rooted via HandlerDiscovery and preserved.")]
     [UnconditionalSuppressMessage("Trimming", "IL2075",
         Justification = "MessageType.GetInterfaces walk at bootstrap; user message types statically rooted via HandlerDiscovery. See AOT guide.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",

@@ -3,6 +3,7 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.Resources;
 using Marten;
+using JasperFx.Events;
 using Marten.Events;
 using JasperFx.Events.Projections;
 using Marten.Events.Projections;

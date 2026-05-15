@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
@@ -38,6 +39,9 @@ public class EntityFrameworkCoreSystemPart : ISystemPart, IDatabaseSource
 
     public string Title { get; } = "Entity Core Framework";
     public Uri SubjectUri { get; } = new Uri("efcore://");
+
+    [RequiresUnreferencedCode(
+        "Renders the EFCore system-part description via OptionsDescription which reflects over EntityFrameworkCoreSystemPart's runtime-type properties. Trimmed-away properties are silently omitted. Annotation matches the ISystemPart.WriteToConsole base method.")]
     public async Task WriteToConsole()
     {
         var databases = await BuildDatabases();
