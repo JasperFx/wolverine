@@ -118,6 +118,13 @@ internal class PolecatOverrides : IConfigurePolecat
         // Polecat's DocumentMapping automatically detects IRevisioned types
         // and enables numeric revisions. Wolverine's Saga type uses Version property
         // which is handled by the saga persistence framework.
+
+        // Replace Polecat's default NulloMessageOutbox with the Wolverine bridge so
+        // projection authors who call `slice.PublishMessage(...)` from a Polecat
+        // RaiseSideEffects override actually have the message delivered through
+        // Wolverine after the projection batch's SQL transaction commits. Mirrors
+        // the Marten side at MartenIntegration.cs:153. See wolverine#2774.
+        options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
     }
 }
 
