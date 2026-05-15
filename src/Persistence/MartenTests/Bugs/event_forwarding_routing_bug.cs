@@ -27,8 +27,7 @@ public class event_forwarding_routing_bug
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "forwarding_routing";
                     })
-                    .IntegrateWithWolverine()
-                    .EventForwardingToWolverine();
+                    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
             })
             .StartAsync();
 

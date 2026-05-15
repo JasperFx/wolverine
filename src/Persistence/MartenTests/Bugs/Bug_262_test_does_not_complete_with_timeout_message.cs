@@ -23,8 +23,7 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
                     {
                         m.Connection(Servers.PostgresConnectionString);
                     })
-                    .EventForwardingToWolverine()
-                    .IntegrateWithWolverine();
+                    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
 
                 services.AddResourceSetupOnStartup();
             })

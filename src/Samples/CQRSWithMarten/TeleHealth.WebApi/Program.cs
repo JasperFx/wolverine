@@ -82,12 +82,9 @@ builder.Services.AddMarten(opts =>
     // asynchronous projections in a background process
     .AddAsyncDaemon(DaemonMode.HotCold)
 
-    // I added this to enroll Marten in the Wolverine outbox
-    .IntegrateWithWolverine()
-
-    // I also added this to opt into events being forward to
-    // the Wolverine outbox during SaveChangesAsync()
-    .EventForwardingToWolverine();
+    // Enroll Marten in the Wolverine outbox and opt into
+    // forwarding events to the Wolverine outbox on SaveChangesAsync()
+    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
 
 #endregion
 

@@ -31,8 +31,9 @@ new events, and the resulting event messages go out as cascading messages only a
 like any other outbox usage. **There is no guarantee about ordering in this case.** Instead, Wolverine is trying to have these
 events processed as soon as possible.
 
-To opt into this feature, chain the Wolverine `AddMarten().EventForwardingToWolverine()` call as
-shown in this application bootstrapping sample shown below:
+To opt into this feature, set `MartenIntegration.UseFastEventForwarding = true` inside the
+configure callback on `IntegrateWithWolverine()` as shown in this application bootstrapping
+sample below:
 
 <!-- snippet: sample_opting_into_wolverine_event_publishing -->
 <a id='snippet-sample_opting_into_wolverine_event_publishing'></a>
@@ -64,14 +65,11 @@ builder.Services.AddMarten(opts =>
     // asynchronous projections in a background process
     .AddAsyncDaemon(DaemonMode.HotCold)
 
-    // I added this to enroll Marten in the Wolverine outbox
-    .IntegrateWithWolverine()
-
-    // I also added this to opt into events being forward to
-    // the Wolverine outbox during SaveChangesAsync()
-    .EventForwardingToWolverine();
+    // Enroll Marten in the Wolverine outbox and opt into
+    // forwarding events to the Wolverine outbox on SaveChangesAsync()
+    .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L57-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L57-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This does need to be paired with a little bit of Wolverine configuration to add
@@ -142,8 +140,9 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
         .ConfigureServices(services =>
         {
             services.AddMarten(Servers.PostgresConnectionString)
-                .IntegrateWithWolverine().EventForwardingToWolverine(opts =>
+                .IntegrateWithWolverine(opts =>
                 {
+                    opts.UseFastEventForwarding = true;
                     opts.SubscribeToEvent<SecondEvent>().TransformedTo(e =>
                         new SecondMessage(e.StreamId, e.Sequence));
                 });
@@ -163,7 +162,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     events[1].Data.ShouldBeOfType<FourthEvent>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L142-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L142-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Where the result contains `FourthEvent` because `SecondEvent` was forwarded as `SecondMessage` and that persisted `FourthEvent` in a handler such as:

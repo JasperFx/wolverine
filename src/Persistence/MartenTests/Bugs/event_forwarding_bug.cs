@@ -32,8 +32,7 @@ public class event_forwarding_bug
                     m.Events.StreamIdentity = StreamIdentity.AsString;
                     m.Projections.LiveStreamAggregation<ShoppingList>();
                 }).UseLightweightSessions()
-                .IntegrateWithWolverine()
-                .EventForwardingToWolverine();;
+                .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
             }).StartAsync();
 
         var runtime = host.GetRuntime();
