@@ -80,7 +80,6 @@ public static class SqlServerConfigurationExtensions
     /// <param name="connectionString"></param>
     /// <param name="schema"></param>
     /// <returns></returns>
-    [Obsolete("Prefer PersistMessagesWithSqlServer().EnableMessageTransport()")]
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
