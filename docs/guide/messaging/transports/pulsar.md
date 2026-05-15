@@ -176,7 +176,3 @@ using Wolverine.Pulsar;
 
 var uri = PulsarEndpointUri.PersistentTopic("public", "default", "orders");
 ```
-
-::: tip
-`PulsarEndpoint.UriFor` is deprecated. Use `PulsarEndpointUri.Topic` (string overload) or `PersistentTopic`/`NonPersistentTopic` instead. The old `UriFor(bool, ...)` overload returned a Pulsar-native topic path, not a Wolverine endpoint URI — if you need that format, build the string directly.
-:::

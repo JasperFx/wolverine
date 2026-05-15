@@ -100,7 +100,6 @@ public static class PostgresqlConfigurationExtensions
     /// <param name="connectionString"></param>
     /// <param name="schema"></param>
     /// <returns></returns>
-    [Obsolete("Prefer PersistMessagesWithPostgresql().EnableMessageTransport()")]
     public static PostgresqlPersistenceExpression UsePostgresqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,

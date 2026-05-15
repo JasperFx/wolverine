@@ -30,6 +30,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `IForwardsTo<T>` discovery | implicit assembly scan at startup | **explicit `opts.RegisterMessageForwarder<TFrom, TTo>()`** *(BREAKING)* | Register each forwarder explicitly; or temporarily call [`opts.UseAutomaticForwarderDiscovery()`](#iforwardsto-discovery-is-now-explicit-breaking) (`[Obsolete]`, removed in 7.0) |
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
+| `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
 | `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Only affects code that stores `saga.Version` in an `int` variable, casts it explicitly, or binds it to a column typed `int`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
@@ -252,6 +253,20 @@ var uri = RedisEndpointUri.Stream("orders", databaseId: 3);
 ```
 
 If you never called these helpers directly (most users don't — Wolverine builds these URIs internally from `ListenToRedisStream(...)` / `PublishToRedisStream(...)`), no change is needed.
+### `PulsarEndpoint.UriFor(...)` removed (BREAKING)
+
+Both `PulsarEndpoint.UriFor(...)` overloads were `[Obsolete]` in the 5.x line and are now removed in 6.0:
+
+- **`UriFor(string topicPath)`** — was a thin forwarder to `PulsarEndpointUri.Topic(topicPath)`. Replace any caller with `PulsarEndpointUri.Topic(...)` directly. Same signature, same return shape.
+
+- **`UriFor(bool persistent, string tenant, string @namespace, string topicName)`** — returned a Pulsar-*native* topic path of the form `persistent://{tenant}/{ns}/{topic}` for hand-off to the native Pulsar client. That is NOT a Wolverine endpoint URI (`pulsar://...`); the two forms are deliberately not interchangeable. The internal Pulsar transport now uses a renamed helper `PulsarEndpoint.NativeTopicPath(...)` (also `internal`, same signature). External callers of the old `UriFor(bool, ...)` overload were rare-to-nonexistent — if you need this form for your own native-Pulsar interop, construct it directly:
+
+  ```csharp
+  var scheme = persistent ? "persistent" : "non-persistent";
+  var nativePath = new Uri($"{scheme}://{tenant}/{@namespace}/{topicName}");
+  ```
+
+If you only ever called `UriFor(string)`, this is a one-line `using`-already-imported rename.
 
 ### Performance: per-endpoint serializer cache pre-population
 
