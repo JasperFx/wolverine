@@ -45,7 +45,7 @@ public class end_to_end_with_named_broker
             opts.Discovery.IncludeAssembly(typeof(end_to_end_with_named_broker).Assembly);
         });
 
-        ColorHandler.Received = new();
+        ColorHandler.Received = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _ = Task.Run(async () =>
         {
