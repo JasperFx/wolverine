@@ -1,3 +1,4 @@
+using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -31,7 +32,12 @@ public class end_to_end_with_named_broker
             opts.AddNamedKafkaBroker(brokerName, KafkaContainerFixture.ConnectionString)
                 .AutoProvision();
             opts.ListenToKafkaTopicOnNamedBroker(brokerName, topicName)
-                .ProcessInline();
+                .ProcessInline()
+                .ConfigureConsumer(x =>
+                {
+                    x.GroupId = Guid.NewGuid().ToString();
+                    x.AutoOffsetReset = AutoOffsetReset.Earliest;
+                });
             opts.Services.AddSingleton(callback);
 
             opts.Discovery.DisableConventionalDiscovery()
