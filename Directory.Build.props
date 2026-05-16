@@ -31,8 +31,14 @@
                    surfaces, Saga.Version int->long for Marten 9 IRevisioned
                    alignment, Marten 9.0.0-alpha.2 / Polecat 4.0.0-alpha.3 /
                    JasperFx.RuntimeCompiler 5.0.0-alpha.1 bumps (PR #2806).
+          alpha.3: Wolverine.Polecat IMessageOutbox bridge (#2814) — projection-emitted
+                   side-effect messages from Polecat projections now deliver through
+                   Wolverine after the projection's SQL transaction commits, mirroring
+                   the existing Wolverine.Marten bridge. Plus the 6.0 release-punchlist
+                   sweep (#2817, #2818, #2819, #2820, #2821) — drops several [Obsolete]
+                   APIs and converts WolverineHost.For callers to ForAsync (refs #2745).
         -->
-        <Version>6.0.0-alpha.2</Version>
+        <Version>6.0.0-alpha.3</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
