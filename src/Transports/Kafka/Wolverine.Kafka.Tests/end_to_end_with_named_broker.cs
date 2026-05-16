@@ -1,84 +1,62 @@
+using Confluent.Kafka;
 using JasperFx.Core;
-using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
-using Wolverine.Runtime;
-using Wolverine.Tracking;
-using Xunit.Abstractions;
 
 namespace Wolverine.Kafka.Tests;
 
 public class end_to_end_with_named_broker
 {
-    private readonly ITestOutputHelper _output;
-    private readonly BrokerName theName = new BrokerName("other");
+    private readonly BrokerName brokerName = new("other");
+    private const int MillisecondsTimeout = 30_000;
 
-    public end_to_end_with_named_broker(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-    
     [Fact]
     public async Task send_message_to_and_receive_through_kafka_with_inline_receivers()
     {
         var topicName = Guid.NewGuid().ToString();
         using var publisher = await WolverineHost.ForAsync(opts =>
         {
-            opts.AddNamedKafkaBroker(theName, KafkaContainerFixture.ConnectionString).AutoProvision().AutoPurgeOnStartup();
+            opts.AddNamedKafkaBroker(brokerName, KafkaContainerFixture.ConnectionString)
+                .AutoProvision();
 
             opts.PublishAllMessages()
-                .ToKafkaTopicOnNamedBroker(theName, topicName)
+                .ToKafkaTopicOnNamedBroker(brokerName, topicName)
                 .SendInline();
         });
 
-
+        var callback = new TaskCompletionSource<ColorChosen>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var receiver = await WolverineHost.ForAsync(opts =>
         {
-            opts.AddNamedKafkaBroker(theName, KafkaContainerFixture.ConnectionString).AutoProvision();
+            opts.AddNamedKafkaBroker(brokerName, KafkaContainerFixture.ConnectionString)
+                .AutoProvision();
+            opts.ListenToKafkaTopicOnNamedBroker(brokerName, topicName)
+                .ProcessInline()
+                .ConfigureConsumer(x =>
+                {
+                    x.GroupId = Guid.NewGuid().ToString();
+                    x.AutoOffsetReset = AutoOffsetReset.Earliest;
+                });
+            opts.Services.AddSingleton(callback);
 
-            opts.ListenToKafkaTopicOnNamedBroker(theName, topicName).ProcessInline().Named(topicName);
-            opts.Services.AddSingleton<ColorHistory>();
-
-            // Include test assembly for handler discovery
-            opts.Discovery.IncludeAssembly(typeof(end_to_end_with_named_broker).Assembly);
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType<ColorHandler>();
         });
+        var message = new ColorChosen { Name = Guid.NewGuid().ToString() };
 
-        ColorHandler.Received = new();
+        await publisher.SendAsync(message);
 
-        _ = Task.Run(async () =>
-        {
-            for (int i = 0; i < 10000; i++)
-            {
-                await publisher.SendAsync(new ColorChosen { Name = "blue" });
-            }
-        });
-        
-
-
-        await ColorHandler.Received.Task.TimeoutAfterAsync(10000);        
+        var receivedMessage = await callback.Task
+            .TimeoutAfterAsync(MillisecondsTimeout);
+        receivedMessage.Name.ShouldBe(message.Name);
     }
-    
-}
-
-public record RequestId(Guid Id);
-public record ResponseId(Guid Id);
-
-public static class RequestIdHandler
-{
-    public static ResponseId Handle(RequestId message) => new ResponseId(message.Id);
 }
 
 public class ColorHandler
 {
-    public void Handle(ColorChosen message, ColorHistory history, Envelope envelope)
+    public static void Handle(ColorChosen message, TaskCompletionSource<ColorChosen> callback)
     {
-        history.Name = message.Name;
-        history.Envelope = envelope;
-
-        Received.TrySetResult(true);
+        callback.TrySetResult(message);
     }
-
-    public static TaskCompletionSource<bool> Received { get; set; } = new();
 }
