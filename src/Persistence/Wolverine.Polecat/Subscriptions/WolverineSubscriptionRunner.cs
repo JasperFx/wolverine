@@ -17,7 +17,7 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
         _subscription = subscription;
         _runtime = runtime;
         Name = subscription.SubscriptionName;
-        Version = subscription.SubscriptionVersion;
+        Version = subscription.Version;
         subscription.Filter(this);
         Options = subscription.Options;
     }
