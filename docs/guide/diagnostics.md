@@ -151,7 +151,7 @@ be helpful:
 <!-- snippet: sample_using_preview_subscriptions -->
 <a id='snippet-sample_using_preview_subscriptions'></a>
 ```cs
-public static void using_preview_subscriptions(IMessageBus bus)
+private static void using_preview_subscriptions(IMessageBus bus)
 {
     // Preview where Wolverine is wanting to send a message
     var outgoing = bus.PreviewSubscriptions(new BlueMessage());

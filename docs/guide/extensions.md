@@ -44,7 +44,7 @@ public class SampleExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L9-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sampleextension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L10-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sampleextension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Extensions can be applied programmatically against the `WolverineOptions` like this:
@@ -73,7 +73,7 @@ using var host = await Host.CreateDefaultBuilder()
 
     .StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L50-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_including_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L51-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_including_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Lastly, you can also add `IWolverineExtension` types to your IoC container registration that will be applied to `WolverineOptions` just
@@ -109,7 +109,7 @@ internal class DisableExternalTransports : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L460-L469' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L480-L489' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disableexternaltransports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And that extension is just added to the application's IoC container at test bootstrapping time like this:
@@ -123,7 +123,7 @@ public static IServiceCollection DisableAllExternalWolverineTransports(this ISer
     return services;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L436-L443' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/HostBuilderExtensions.cs#L456-L463' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_extension_method_to_disable_external_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In usage, the `IWolverineExtension` objects added to the IoC container are applied *after* the inner configuration
@@ -152,7 +152,7 @@ public class ConfigurationUsingExtension : IWolverineExtension
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L25-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuration_using_extension' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/ExtensionSamples.cs#L26-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuration_using_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There's also a small helper method to register Wolverine extensions like so:

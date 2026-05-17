@@ -58,7 +58,7 @@ builder.Services.AddMarten(opts =>
 
         opts.Projections.Add<AppointmentProjection>(ProjectionLifecycle.Inline);
         opts.Projections
-            .Snapshot<ProviderShift>(SnapshotLifecycle.Async);
+            .Snapshot<ProviderShift>(JasperFx.Events.Projections.SnapshotLifecycle.Async);
     })
 
     // This adds a hosted service to run
@@ -69,7 +69,7 @@ builder.Services.AddMarten(opts =>
     // forwarding events to the Wolverine outbox on SaveChangesAsync()
     .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L57-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/CQRSWithMarten/TeleHealth.WebApi/Program.cs#L57-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opting_into_wolverine_event_publishing' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This does need to be paired with a little bit of Wolverine configuration to add
@@ -162,7 +162,7 @@ public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     events[1].Data.ShouldBeOfType<FourthEvent>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L142-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L144-L174' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_can_be_awaited_from_tests' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Where the result contains `FourthEvent` because `SecondEvent` was forwarded as `SecondMessage` and that persisted `FourthEvent` in a handler such as:
@@ -177,7 +177,7 @@ public static Task HandleAsync(SecondMessage message, IDocumentSession session)
     return session.SaveChangesAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L219-L225' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/event_streaming.cs#L222-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_execution_of_forwarded_events_second_message_to_fourth_event' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Overriding Side-Effect Message Metadata <Badge type="tip" text="5.x" />
