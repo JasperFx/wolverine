@@ -36,7 +36,7 @@ public abstract class BatchSubscription : IWolverineSubscription, IEventFilterab
 
     public string SubscriptionName { get; protected set; }
 
-    public uint SubscriptionVersion { get; set; } = 1;
+    public uint Version { get; set; } = 1;
 
     void IWolverineSubscription.Filter(IEventFilterable filterable)
     {

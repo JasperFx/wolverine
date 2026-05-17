@@ -17,7 +17,7 @@ public interface IWolverineSubscription
     /// <summary>
     /// Apply versioning if you need blue/green subscriptions for new versions to catch up from the beginning
     /// </summary>
-    public uint SubscriptionVersion { get; set; }
+    public uint Version { get; set; }
 
     /// <summary>
     /// Apply filters on event data for better runtime efficiency

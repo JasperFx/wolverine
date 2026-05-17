@@ -21,7 +21,7 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
         using var scope = services.CreateScope();
         var subscription = scope.ServiceProvider.GetRequiredService<T>();
         Name = subscription.SubscriptionName;
-        Version = subscription.SubscriptionVersion;
+        Version = subscription.Version;
         subscription.Filter(this);
         Options = subscription.Options;
     }

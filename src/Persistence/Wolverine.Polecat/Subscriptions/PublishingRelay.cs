@@ -28,7 +28,7 @@ public interface IPublishingRelay
     /// </summary>
     void PublishEvent(Type eventType);
 
-    uint SubscriptionVersion { get; set; }
+    uint Version { get; set; }
 
     /// <summary>
     /// Should this subscription be applied to archived events? The default is false
