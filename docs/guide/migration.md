@@ -31,7 +31,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
-| `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Only affects code that stores `saga.Version` in an `int` variable, casts it explicitly, or binds it to a column typed `int`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. |
+| `Saga.Version` property type | `int` | `long` | Typically none — `int` widens implicitly to `long`. Tracks the matching `IRevisioned.Version` widening in Marten 9.0. **Sagas that hand-rolled `public new int Version` to work around the 5.x type mismatch with `IRevisioned.Version: long` must drop that shadow on upgrade** — see [`Saga.Version` widening: drop any `new int Version` shadow on saga subclasses](#sagaversion-widening-drop-any-new-int-version-shadow-on-saga-subclasses). |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip
@@ -267,6 +267,27 @@ Both `PulsarEndpoint.UriFor(...)` overloads were `[Obsolete]` in the 5.x line an
   ```
 
 If you only ever called `UriFor(string)`, this is a one-line `using`-already-imported rename.
+
+### `Saga.Version` widening: drop any `new int Version` shadow on saga subclasses
+
+`Wolverine.Saga.Version` widened from `int` to `long` in 6.0 to match `Marten.Metadata.IRevisioned.Version` (which itself widened to `long` in Marten 9.0.0-alpha.2). For the vast majority of saga code, this is an invisible change — `int` widens implicitly to `long`.
+
+There is **one upgrade hazard** worth a callout: sagas in the wild sometimes hand-rolled a `public new int Version` shadow on a Wolverine 5.x saga subclass to work around the 5.x type mismatch with `IRevisioned`. For example:
+
+```csharp
+public class OrderSaga : Wolverine.Saga
+{
+    public string Id { get; set; }
+    public new int Version { get; set; }  // ← drop this on upgrade
+    // ...
+}
+```
+
+In 6.0, that shadow is no longer needed (the base `Saga.Version: long` aligns with `IRevisioned.Version: long` by default) and is actively harmful: it leaves two `Version` properties on the type with different return types, which makes `Type.GetProperty("Version")` ambiguous in any reflective lookup. Wolverine's own Marten integration uses the typed `GetProperty(name, typeof(long))` overload to avoid this, but other consumers (Marten metadata customization, user-written diagnostics, model-binding frameworks) may still trip on the ambiguity at startup with `System.Reflection.AmbiguousMatchException`.
+
+Recommended action on upgrade: **search your saga types for `new int Version` and delete the shadow.** The inherited `Saga.Version` does the right thing.
+
+If you'd rather keep the shadow for backward compatibility (e.g. a column already typed `int`), change its return type to `long` (`public new long Version`) so it doesn't conflict with the inherited property type. That's a wire-format change; the simpler upgrade is to drop the shadow and let the inherited `long` handle it.
 
 ### Performance: per-endpoint serializer cache pre-population
 

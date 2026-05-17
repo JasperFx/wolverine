@@ -174,7 +174,20 @@ internal class MartenOverrides : IConfigureMarten
             if (mapping.DocumentType.CanBeCastTo<Saga>())
             {
                 mapping.UseNumericRevisions = true;
-                mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(nameof(Saga.Version))!;
+                // GetProperty(name, returnType) — not GetProperty(name) — because
+                // saga subclasses in the wild (pre-6.0) sometimes declare
+                // `public new int Version` to work around the 5.x mismatch
+                // between Saga.Version: int and Marten's IRevisioned.Version:
+                // long. After the 6.0 widening of Saga.Version to long
+                // (matching Marten 9.0.0-alpha.2's IRevisioned.Version), the
+                // single-arg overload throws AmbiguousMatchException on those
+                // subclasses because the inherited long and the derived int
+                // are two distinct properties. Filtering by return type picks
+                // the inherited long property unambiguously and treats the
+                // derived shadow as harmless dead code (which it now is, per
+                // the Saga.Version XML doc).
+                mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(
+                    nameof(Saga.Version), typeof(long))!;
             }
         });
     }
