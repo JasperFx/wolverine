@@ -37,8 +37,11 @@
                    the existing Wolverine.Marten bridge. Plus the 6.0 release-punchlist
                    sweep (#2817, #2818, #2819, #2820, #2821) — drops several [Obsolete]
                    APIs and converts WolverineHost.For callers to ForAsync (refs #2745).
+          alpha.4: Wolverine.Polecat — JasperFxSubscriptionBase.SubscriptionVersion ->
+                   Version rename (#2826, row 4 of jasperfx#273). Kafka tests stabilised
+                   (#2824).
         -->
-        <Version>6.0.0-alpha.3</Version>
+        <Version>6.0.0-alpha.4</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
