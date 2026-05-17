@@ -236,7 +236,7 @@ partial class Build
             var postgresqlTests = RootDirectory / "src" / "Persistence" / "PostgresqlTests" / "PostgresqlTests.csproj";
 
             BuildTestProjects(postgresqlTests);
-            // PersistenceTests only targets net8.0/net9.0
+            // Pin PersistenceTests to net9.0 in CI; csproj targets net9.0;net10.0.
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 

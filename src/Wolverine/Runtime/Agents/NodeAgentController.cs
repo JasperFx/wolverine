@@ -250,11 +250,7 @@ public partial class NodeAgentController
 
         await _persistence.ReleaseLeadershipLockAsync();
 
-#if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
-#else
-        _cancellation.Cancel();
-#endif
     }
 }
 

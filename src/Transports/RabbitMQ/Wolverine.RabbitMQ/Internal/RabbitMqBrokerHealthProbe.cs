@@ -141,16 +141,8 @@ public partial class RabbitMqTransport : IBrokerHealthProbe
 
     private static X509Certificate2 LoadCertificate(string certPath, string? passphrase)
     {
-#if NET9_0_OR_GREATER
         return string.IsNullOrEmpty(passphrase)
             ? X509CertificateLoader.LoadCertificateFromFile(certPath)
             : X509CertificateLoader.LoadPkcs12FromFile(certPath, passphrase);
-#else
-#pragma warning disable SYSLIB0057
-        return string.IsNullOrEmpty(passphrase)
-            ? new X509Certificate2(certPath)
-            : new X509Certificate2(certPath, passphrase);
-#pragma warning restore SYSLIB0057
-#endif
     }
 }
