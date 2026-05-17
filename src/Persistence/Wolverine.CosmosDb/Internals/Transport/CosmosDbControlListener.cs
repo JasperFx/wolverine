@@ -62,11 +62,7 @@ internal class CosmosDbControlListener : IListener
 
     public async ValueTask DisposeAsync()
     {
-#if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
-#else
-        _cancellation.Cancel();
-#endif
         _receivingLoop.SafeDispose();
     }
 
@@ -74,11 +70,7 @@ internal class CosmosDbControlListener : IListener
 
     public async ValueTask StopAsync()
     {
-#if NET8_0_OR_GREATER
         await _cancellation.CancelAsync();
-#else
-        _cancellation.Cancel();
-#endif
         if (_receivingLoop != null)
         {
             await _receivingLoop;

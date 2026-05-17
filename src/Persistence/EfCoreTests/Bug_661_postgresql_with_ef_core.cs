@@ -12,7 +12,6 @@ namespace EfCoreTests;
 
 public class Bug_661_postgresql_with_ef_core
 {
-#if NET8_0_OR_GREATER
     [Fact]
     public async Task can_set_up_with_default_schema_name()
     {
@@ -23,11 +22,10 @@ public class Bug_661_postgresql_with_ef_core
                 {
                     o.UseNpgsql(Servers.PostgresConnectionString);
                 });
-                
+
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
                 opts.Services.AddResourceSetupOnStartup();
                 opts.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(Servers.PostgresConnectionString));
             }).StartAsync();
     }
-#endif
 }

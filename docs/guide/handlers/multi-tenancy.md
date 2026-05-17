@@ -10,7 +10,7 @@ inline, you can execute that message for a specific tenant with this syntax:
 <!-- snippet: sample_invoking_by_tenant -->
 <a id='snippet-sample_invoking_by_tenant'></a>
 ```cs
-public static async Task invoking_by_tenant(IMessageBus bus)
+private static async Task invoking_by_tenant(IMessageBus bus)
 {
     // Invoke inline
     await bus.InvokeForTenantAsync("tenant1", new CreateTodo("Release Wolverine 1.0"));
@@ -33,7 +33,7 @@ the `DeliveryOptions` approach:
 <!-- snippet: sample_publish_by_tenant -->
 <a id='snippet-sample_publish_by_tenant'></a>
 ```cs
-public static async Task publish_by_tenant(IMessageBus bus)
+private static async Task publish_by_tenant(IMessageBus bus)
 {
     await bus.PublishAsync(new CreateTodo("Fix that last broken test"),
         new DeliveryOptions { TenantId = "tenant3" });

@@ -378,7 +378,7 @@ public static class MakePurchaseHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/mixed_aggregate_handler_with_multiple_streams.cs#L86-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_makepurchasehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/mixed_aggregate_handler_with_multiple_streams.cs#L88-L116' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_makepurchasehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

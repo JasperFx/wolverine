@@ -49,7 +49,7 @@ var publisher = theSender.Services
 
 await publisher.BroadcastToTopicAsync("color.purple", new Message1());
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L364-L370' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/send_by_topics.cs#L371-L377' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_to_topic-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

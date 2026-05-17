@@ -94,15 +94,9 @@ app.UseRouting();
 
 app.UseAuthorization();
 
-#if NET9_0_OR_GREATER
 app.MapStaticAssets();
 app.MapRazorPages()
     .WithStaticAssets();
-#endif
-#if NET8_0
-app.UseStaticFiles();
-app.MapRazorPages();
-#endif
 
 // This line puts the SignalR hub for Wolverine at the 
 // designated route for your clients
@@ -110,7 +104,7 @@ app.MapWolverineSignalRHub("/api/messages");
 
 return await app.RunJasperFxCommands(args);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L62-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/WolverineChat/Program.cs#L62-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_map_wolverine_signalrhub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Custom hubs

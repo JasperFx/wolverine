@@ -90,7 +90,7 @@ uses StronglyTypedId:
 [StronglyTypedId(Template.Guid)]
 public readonly partial struct LetterId;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L84-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_letter_id' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L85-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_letter_id' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 You can use the `LetterId` type as a route argument as this example shows:
@@ -107,7 +107,7 @@ public static async ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocum
 public static StrongLetterAggregate Handle(
     [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L12-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Route Prefixes <Badge type="tip" text="5.14" />

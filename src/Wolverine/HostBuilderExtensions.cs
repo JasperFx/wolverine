@@ -283,7 +283,6 @@ public static class HostBuilderExtensions
         return services;
     }
 
-#if NET8_0_OR_GREATER
     /// <summary>
     /// Bootstrap Wolverine into a HostApplicationBuilder
     /// </summary>
@@ -297,21 +296,6 @@ public static class HostBuilderExtensions
 
         return builder;
     }
-    #else
-    /// <summary>
-    /// Bootstrap Wolverine into a HostApplicationBuilder
-    /// </summary>
-    /// <param name="builder"></param>
-    /// <param name="configure"></param>
-    /// <returns></returns>
-    public static HostApplicationBuilder UseWolverine(this HostApplicationBuilder builder,
-        Action<WolverineOptions>? configure)
-    {
-        builder.Services.AddWolverine(configure);
-
-        return builder;
-    }
-#endif
 
     internal static void MessagingRootService<T>(this IServiceCollection services,
         Func<IWolverineRuntime, T> expression)

@@ -12,7 +12,7 @@ So for message types that are routed to Azure Service Bus queues or topics, you 
 <!-- snippet: sample_send_delayed_message -->
 <a id='snippet-sample_send_delayed_message'></a>
 ```cs
-public async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
+private async Task SendScheduledMessage(IMessageContext bus, Guid invoiceId)
 {
     var message = new ValidateInvoiceIsNotLate
     {

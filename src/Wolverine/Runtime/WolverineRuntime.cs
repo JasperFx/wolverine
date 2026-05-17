@@ -48,15 +48,9 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Options = options;
         Handlers = options.HandlerGraph;
 
-        // Set the envelope ID generation strategy based on configuration
         Envelope.IdGenerator = options.EnvelopeIdGeneration switch
         {
-#if NET9_0_OR_GREATER
             EnvelopeIdGeneration.GuidV7 => Guid.CreateVersion7,
-#else
-            EnvelopeIdGeneration.GuidV7 => throw new NotSupportedException(
-                "EnvelopeIdGeneration.GuidV7 requires .NET 9 or later. Guid.CreateVersion7 is not available on .NET 8."),
-#endif
             _ => MassTransit.NewId.NextSequentialGuid
         };
 

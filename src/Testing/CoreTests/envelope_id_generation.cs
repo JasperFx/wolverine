@@ -32,7 +32,6 @@ public class envelope_id_generation : IDisposable
         envelope.Id.ShouldNotBe(Guid.Empty);
     }
 
-#if NET9_0_OR_GREATER
     [Fact]
     public void guid_v7_mode_produces_version_7_guids()
     {
@@ -99,7 +98,6 @@ public class envelope_id_generation : IDisposable
 
         GuidV7TestHandler.LastReceived.ShouldBe("hello");
     }
-#endif
 
     [Fact]
     public void all_newid_usages_respect_id_generator()

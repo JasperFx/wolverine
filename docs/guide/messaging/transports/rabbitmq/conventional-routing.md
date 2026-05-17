@@ -84,7 +84,7 @@ This keeps existing naming conventions intact and avoids the need to drop down t
 <!-- snippet: sample_conventional_routing_exchange_conventions -->
 <a id='snippet-sample_conventional_routing_exchange_conventions'></a>
 ```cs
-var sender = WolverineHost.For(opts =>
+var sender = await WolverineHost.ForAsync(opts =>
 {
     opts.UseRabbitMq()
         .UseConventionalRouting(conventions =>
@@ -101,7 +101,7 @@ var sender = WolverineHost.For(opts =>
         });
 });
 
-var receiver = WolverineHost.For(opts =>
+var receiver = await WolverineHost.ForAsync(opts =>
 {
     opts.UseRabbitMq()
         .UseConventionalRouting(conventions =>

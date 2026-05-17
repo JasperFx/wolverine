@@ -63,7 +63,7 @@ The "scheduled execution" feature can be used with local execution within the sa
 <!-- snippet: sample_schedule_job_locally -->
 <a id='snippet-sample_schedule_job_locally'></a>
 ```cs
-public async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
+private async Task ScheduleLocally(IMessageContext bus, Guid invoiceId)
 {
     var message = new ValidateInvoiceIsNotLate
     {
