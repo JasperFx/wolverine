@@ -42,8 +42,14 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         Container = container;
         Rules = _options.CodeGeneration;
     }
-    
+
     internal IServiceContainer Container { get; }
+
+    // Types registered via WolverineHttpOptions.SourceServiceFromHttpContext<T>().
+    // Stored on the HTTP graph so the RequestServicesVariableSource is only added to
+    // HTTP chains' per-method sources, never to the shared WolverineOptions.CodeGeneration.Sources
+    // that non-HTTP message-handler chains also read from.
+    internal HashSet<Type> HttpContextSourcedTypes { get; } = new();
 
     /// <summary>
     /// When true, automatically apply antiforgery metadata to form data and file upload endpoints.
