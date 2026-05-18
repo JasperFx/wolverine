@@ -125,16 +125,34 @@ internal partial class OracleMessageStore
 
     public async Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
-        await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
-            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
-            $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Attempts} = :attempts " +
-            "WHERE id = :id");
-        cmd.With("id", envelope.Id);
-        cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime });
-        cmd.With("attempts", envelope.Attempts);
-        await cmd.ExecuteNonQueryAsync(_cancellation);
-        await conn.CloseAsync();
+        envelope.Status = EnvelopeStatus.Scheduled;
+        envelope.OwnerId = TransportConstants.AnyNode;
+
+        // Upsert, aligned with MessageDatabase<T>.RescheduleExistingEnvelopeForRetryAsync.
+        // Try the same UPDATE shape ScheduleExecutionAsync uses; if no row exists
+        // (ProcessInline retry #1, BufferedLocalQueue's scheduled-publish path) fall back
+        // to an INSERT via StoreIncomingAsync. See #2823 for the unconditional-INSERT
+        // failure mode this replaces in the SQL Server / Postgres providers.
+        int rowsAffected;
+        await using (var conn = await _dataSource.OpenConnectionAsync(_cancellation))
+        {
+            var cmd = conn.CreateCommand(
+                $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
+                $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
+                $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
+                $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
+            cmd.With("id", envelope.Id);
+            cmd.Parameters.Add(new OracleParameter("time", OracleDbType.TimeStampTZ) { Value = envelope.ScheduledTime!.Value });
+            cmd.With("attempts", envelope.Attempts);
+            cmd.With("uri", envelope.Destination?.ToString() ?? string.Empty);
+            rowsAffected = await cmd.ExecuteNonQueryAsync(_cancellation);
+            await conn.CloseAsync();
+        }
+
+        if (rowsAffected == 0)
+        {
+            await StoreIncomingAsync(envelope);
+        }
     }
 
     public async Task ScheduleExecutionAsync(Envelope envelope)
