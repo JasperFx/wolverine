@@ -61,6 +61,14 @@ public partial class HttpChain
             handleMethod.Sources.Add(new LoggerVariableSource(loggedType));
             handleMethod.Sources.Add(new MessageBusSource());
 
+            // Per-method scoping for SourceServiceFromHttpContext<T>(). Registering on the
+            // method (rather than WolverineOptions.CodeGeneration.Sources) keeps the
+            // httpContext-shaped frame out of non-HTTP message handler chains.
+            foreach (var serviceType in _parent.HttpContextSourcedTypes)
+            {
+                handleMethod.Sources.Add(new RequestServicesVariableSource(serviceType));
+            }
+
             handleMethod.Frames.AddRange(DetermineFrames(assembly.Rules));
         }
     }
