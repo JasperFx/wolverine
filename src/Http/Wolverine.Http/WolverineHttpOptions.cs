@@ -250,13 +250,13 @@ public class WolverineHttpOptions
     /// <summary>
     /// Tell Wolverine that services of type T should always be sourced from the HttpContext.RequestServices.
     /// This enables your system to use shared services with AspNetCore middleware while still allowing Wolverine
-    /// to generate inlined constructor invocation code otherwise
+    /// to generate inlined constructor invocation code otherwise. Scoped to HTTP chains — non-HTTP message
+    /// handlers that happen to consume the same service type continue to use normal constructor resolution.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     public void SourceServiceFromHttpContext<T>()
     {
-        var source = new RequestServicesVariableSource(typeof(T));
-        Endpoints!.Rules.Sources.Add(source);
+        Endpoints!.HttpContextSourcedTypes.Add(typeof(T));
     }
 
     /// <summary>
