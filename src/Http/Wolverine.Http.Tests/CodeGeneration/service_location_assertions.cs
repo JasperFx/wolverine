@@ -235,6 +235,28 @@ public class service_location_assertions
 
     }
 
+    // Regression for https://github.com/JasperFx/wolverine/issues/2831 — when
+    // SourceServiceFromHttpContext<IThing>() is configured, a non-HTTP handler whose
+    // parameter is IThing must still generate compilable code: it has no httpContext
+    // in scope, so the HTTP-shaped variable source must not leak in. The override of
+    // IThing to a typed registration keeps the handler chain on the constructor-injection
+    // path so the test asserts purely against codegen — independent of whatever the
+    // current ServiceLocationPolicy default is.
+    [Fact]
+    public async Task non_http_handler_with_http_context_sourced_type_is_resolved_through_normal_di()
+    {
+        await using var host = await buildHost(ServiceProviderSource.IsolatedAndScoped, opts =>
+        {
+            opts.Services.AddScoped<IThing, BigThing>();
+        });
+
+        UseThingHandler.LastSeen = null;
+
+        await host.InvokeAsync(new UseThing());
+
+        UseThingHandler.LastSeen.ShouldBeOfType<BigThing>();
+    }
+
     [Theory]
     [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
     [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
@@ -305,6 +327,15 @@ public record UseWidget;
 public static class UseWidgetHandler
 {
     public static void Handle(UseWidget command, IWidget service) => Debug.WriteLine("Got me a widget to use");
+}
+
+public record UseThing;
+
+public static class UseThingHandler
+{
+    public static IThing? LastSeen { get; set; }
+
+    public static void Handle(UseThing command, IThing thing) => LastSeen = thing;
 }
 
 public class RecordingLogger : ILoggerFactory, ILogger
