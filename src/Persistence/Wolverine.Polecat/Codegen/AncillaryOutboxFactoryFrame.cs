@@ -34,14 +34,17 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
         _outerFactory = chain.FindVariable(_factoryType);
         yield return _outerFactory;
 
-        Factory = new CastVariable(_outerFactory, typeof(OutboxedSessionFactory));
+        // See Wolverine.Marten's mirror of this frame: CastVariable snapshots parent.Usage
+        // at construction time, which breaks under Lamar's post-FindVariables IsOnlyOne
+        // rename. Plain Variable + cast emitted in GenerateCode reads the live parent.Usage.
+        Factory = new Variable(typeof(OutboxedSessionFactory), this);
         creates.Add(Factory);
         yield return Factory;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        // This only exists to resolve the variables
+        writer.Write($"var {Factory!.Usage} = ({typeof(OutboxedSessionFactory).FullNameInCode()}){_outerFactory.Usage};");
         Next?.GenerateCode(method, writer);
     }
 }
