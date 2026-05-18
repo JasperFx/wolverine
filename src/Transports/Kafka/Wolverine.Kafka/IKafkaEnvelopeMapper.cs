@@ -44,7 +44,33 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
     public void MapIncomingToEnvelope(Envelope envelope, Message<string, byte[]> incoming)
     {
+        // Honor Wolverine's own infrastructure messages (currently just ping) even when this
+        // listener is configured for raw JSON. InlineKafkaSender.PingAsync produces a
+        // wolverine-ping envelope on the topic for sender liveness checks; without this guard
+        // the raw-JSON mapper would stamp the user's message type on it, and the four-byte
+        // ping body would blow up the JSON deserializer with "0x01 is an invalid start of a
+        // value." See https://github.com/JasperFx/wolverine/issues/2838.
+        if (TryReadHeader(incoming, EnvelopeConstants.MessageTypeKey, out var incomingMessageType)
+            && incomingMessageType == Envelope.PingMessageType)
+        {
+            envelope.MessageType = Envelope.PingMessageType;
+            envelope.Data = incoming.Value;
+            return;
+        }
+
         envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
+    }
+
+    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string value)
+    {
+        if (incoming.Headers != null && incoming.Headers.TryGetLastBytes(key, out var bytes))
+        {
+            value = Encoding.UTF8.GetString(bytes);
+            return true;
+        }
+
+        value = default!;
+        return false;
     }
 }
