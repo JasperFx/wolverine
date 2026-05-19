@@ -408,9 +408,9 @@ public class CustomerProjection : MultiStreamProjection<Customer, Guid>
 
     public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<Customer> slice)
     {
-        if (slice.Aggregate != null && slice.Aggregate.Location.IsNotEmpty())
+        if (slice.Snapshot != null && slice.Snapshot.Location.IsNotEmpty())
         {
-            slice.PublishMessage(new CustomerChanged(slice.Aggregate));
+            slice.PublishMessage(new CustomerChanged(slice.Snapshot));
         }
 
         return new ValueTask();

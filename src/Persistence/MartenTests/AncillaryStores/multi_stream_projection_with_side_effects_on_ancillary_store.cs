@@ -175,9 +175,9 @@ public class Issue2529CounterProjection : MultiStreamProjection<Issue2529Counter
 
     public override ValueTask RaiseSideEffects(IDocumentOperations operations, IEventSlice<Issue2529Counter> slice)
     {
-        if (slice.Aggregate is not null)
+        if (slice.Snapshot is not null)
         {
-            slice.PublishMessage(new CounterIncremented(slice.Aggregate.Id, slice.Aggregate.Count));
+            slice.PublishMessage(new CounterIncremented(slice.Snapshot.Id, slice.Snapshot.Count));
         }
         return ValueTask.CompletedTask;
     }
