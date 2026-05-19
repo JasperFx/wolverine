@@ -5,6 +5,12 @@ namespace Wolverine.Runtime.Serialization;
 
 public static class EnvelopeSerializer
 {
+    /// <summary>
+    /// Caps applied to inbound envelopes during deserialization. Defaults to
+    /// <see cref="EnvelopeReaderLimits.Default"/>.
+    /// </summary>
+    public static EnvelopeReaderLimits Limits { get; set; } = EnvelopeReaderLimits.Default;
+
     public static void ReadDataElement(Envelope env, string key, string value)
     {
         try
@@ -152,7 +158,24 @@ public static class EnvelopeSerializer
     {
         using var ms = new MemoryStream(buffer);
         using var br = new BinaryReader(ms);
+        var limits = Limits;
         var numberOfMessages = br.ReadInt32();
+        if (numberOfMessages < 0 || numberOfMessages > limits.MaxBatchSize)
+        {
+            throw new InvalidEnvelopeException(
+                $"Envelope batch size {numberOfMessages} is outside the allowed range [0..{limits.MaxBatchSize}].");
+        }
+
+        // Each envelope is at least ~16 bytes on the wire (SentAt int64 +
+        // headerCount int32 + byteCount int32). Reject claims that can't fit
+        // in the buffer we actually received.
+        const int MinBytesPerEnvelope = 16;
+        if ((long)numberOfMessages * MinBytesPerEnvelope > buffer.Length)
+        {
+            throw new InvalidEnvelopeException(
+                $"Envelope batch size {numberOfMessages} is impossible for a {buffer.Length}-byte buffer.");
+        }
+
         var messages = new Envelope[numberOfMessages];
         for (var i = 0; i < numberOfMessages; i++)
         {
@@ -174,15 +197,7 @@ public static class EnvelopeSerializer
         using var ms = new MemoryStream(buffer);
         using var br = new BinaryReader(ms);
         envelope.SentAt = DateTime.FromBinary(br.ReadInt64());
-        var headerCount = br.ReadInt32();
-
-        for (var j = 0; j < headerCount; j++)
-        {
-            ReadDataElement(envelope, br.ReadString(), br.ReadString());
-        }
-
-        var byteCount = br.ReadInt32();
-        envelope.Data = br.ReadBytes(byteCount);
+        readEnvelopeBody(br, envelope, Limits);
     }
 
     private static Envelope readSingle(BinaryReader br)
@@ -191,18 +206,39 @@ public static class EnvelopeSerializer
         {
             SentAt = DateTime.FromBinary(br.ReadInt64())
         };
+        readEnvelopeBody(br, msg, Limits);
+        return msg;
+    }
 
+    private static void readEnvelopeBody(BinaryReader br, Envelope envelope, EnvelopeReaderLimits limits)
+    {
         var headerCount = br.ReadInt32();
+        if (headerCount < 0 || headerCount > limits.MaxHeaderCount)
+        {
+            throw new InvalidEnvelopeException(
+                $"Envelope header count {headerCount} is outside the allowed range [0..{limits.MaxHeaderCount}].");
+        }
 
         for (var j = 0; j < headerCount; j++)
         {
-            ReadDataElement(msg, br.ReadString(), br.ReadString());
+            ReadDataElement(envelope, br.ReadString(), br.ReadString());
         }
 
         var byteCount = br.ReadInt32();
-        msg.Data = br.ReadBytes(byteCount);
+        if (byteCount < 0 || byteCount > limits.MaxDataSize)
+        {
+            throw new InvalidEnvelopeException(
+                $"Envelope data size {byteCount} bytes is outside the allowed range [0..{limits.MaxDataSize}].");
+        }
 
-        return msg;
+        var remaining = br.BaseStream.Length - br.BaseStream.Position;
+        if (byteCount > remaining)
+        {
+            throw new InvalidEnvelopeException(
+                $"Envelope claims {byteCount} bytes of data but only {remaining} remain in the buffer.");
+        }
+
+        envelope.Data = br.ReadBytes(byteCount);
     }
 
     public static byte[] Serialize(IList<Envelope> messages)
