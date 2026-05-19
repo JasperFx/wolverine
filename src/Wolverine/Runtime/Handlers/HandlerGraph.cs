@@ -426,13 +426,36 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
     private void compileWithRuntimeScanning(WolverineOptions options, ILogger logger)
     {
-        foreach (var assembly in Discovery.Assemblies)
-        {
-            logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers",
-                assembly.GetName());
-        }
+        (Type, MethodInfo)[] methods;
 
-        var methods = Discovery.FindCalls(options);
+        // Cold-start fast path (Wolverine#1577 Tier 1): in TypeLoadMode.Static, or when the
+        // user opts in via UseStaticRegistries(), consume the pre-generated HandlerRegistry
+        // instead of scanning assemblies. Never applies during `codegen write` itself — that
+        // must run a fresh scan to regenerate the registry accurately.
+        if (shouldConsumeStaticRegistry(options) &&
+            Discovery.TryLoadStaticHandlerRegistry(options, out var registryTypes))
+        {
+            logger.LogInformation(
+                "Using pre-generated Wolverine HandlerRegistry ({Count} handler types); skipping assembly scan",
+                registryTypes.Count);
+            methods = Discovery.FindCallsFromTypes(registryTypes, options);
+        }
+        else
+        {
+            if (shouldConsumeStaticRegistry(options))
+            {
+                logger.LogWarning(
+                    "Static TypeLoadMode is active but no pre-generated HandlerRegistry was found — falling back to a runtime assembly scan. Run 'dotnet run -- codegen write' to eliminate handler discovery scanning.");
+            }
+
+            foreach (var assembly in Discovery.Assemblies)
+            {
+                logger.LogInformation("Searching assembly {Assembly} for Wolverine message handlers",
+                    assembly.GetName());
+            }
+
+            methods = Discovery.FindCalls(options);
+        }
 
         var calls = methods.Select(x => new HandlerCall(x.Item1, x.Item2));
 
@@ -445,6 +468,18 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             AddRange(calls);
         }
+    }
+
+    private static bool shouldConsumeStaticRegistry(WolverineOptions options)
+    {
+        // Regenerating the registry during `codegen write` must always do a fresh scan,
+        // otherwise a stale registry would perpetuate itself and miss new handlers.
+        if (DynamicCodeBuilder.WithinCodegenCommand)
+        {
+            return false;
+        }
+
+        return options.CodeGeneration.TypeLoadMode == TypeLoadMode.Static || options.UseStaticHandlerRegistry;
     }
 
     private void tryApplyLocalQueueConfiguration(WolverineOptions options)

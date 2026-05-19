@@ -372,6 +372,27 @@ public sealed partial class WolverineOptions
     public GenerationRules CodeGeneration { get; }
 
     /// <summary>
+    ///     When true, Wolverine consumes the pre-generated handler registry (emitted by
+    ///     <c>dotnet run -- codegen write</c>) to skip runtime assembly scanning during handler
+    ///     discovery. Implicitly enabled in <see cref="JasperFx.CodeGeneration.TypeLoadMode.Static" />;
+    ///     set explicitly via <see cref="UseStaticRegistries" /> for dynamic-mode users who still want
+    ///     to bypass scanning. Falls back to a runtime scan (with a warning) when no registry is present.
+    /// </summary>
+    internal bool UseStaticHandlerRegistry { get; set; }
+
+    /// <summary>
+    ///     Opt into consuming the pre-generated static handler registry emitted by
+    ///     <c>dotnet run -- codegen write</c> so that startup skips conventional handler discovery's
+    ///     assembly scan, even when not running in <see cref="JasperFx.CodeGeneration.TypeLoadMode.Static" />.
+    ///     If no generated registry is found, Wolverine logs a warning and falls back to scanning.
+    /// </summary>
+    public WolverineOptions UseStaticRegistries()
+    {
+        UseStaticHandlerRegistry = true;
+        return this;
+    }
+
+    /// <summary>
     ///     Configure how & where Wolverine discovers message handler classes and message types to override or expand
     ///     the built in conventions. Register additional Wolverine module assemblies
     /// </summary>
