@@ -3,6 +3,7 @@
     <PropertyGroup>
         <Description>Code-first and proto-first gRPC service support for Wolverine, including gRPC message transport</Description>
         <PackageId>WolverineFx.Grpc</PackageId>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
