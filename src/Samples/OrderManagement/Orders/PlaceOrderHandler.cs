@@ -9,7 +9,7 @@ namespace Orders;
 
 public record PurchaseOrder(string Id, string Status = "Placed");
 
-public class PurchaseOrderProjection : SingleStreamProjection<PurchaseOrder, string>
+public partial class PurchaseOrderProjection : SingleStreamProjection<PurchaseOrder, string>
 {
     public static PurchaseOrder Create(
         IEvent<OrderPlaced> @event

@@ -26,7 +26,7 @@ public class Day
     public double South { get; set; }
 }
 
-public class DayProjection: MultiStreamProjection<Day, int>
+public partial class DayProjection: MultiStreamProjection<Day, int>
 {
     public DayProjection()
     {
@@ -42,12 +42,12 @@ public class DayProjection: MultiStreamProjection<Day, int>
         // You can also access Event data
         FanOut<Traveled, Stop>(x => x.Data.Stops);
 
-        ProjectionName = "Day";
+        Name = "Day";
 
         // Opt into 2nd level caching of up to 100
         // most recently encountered aggregates as a
         // performance optimization
-        CacheLimitPerTenant = 1000;
+        Options.CacheLimitPerTenant = 1000;
 
         // With large event stores of relatively small
         // event objects, moving this number up from the
@@ -93,11 +93,11 @@ public class Distance
     public int Day { get; set; }
 }
 
-public class DistanceProjection: EventProjection
+public partial class DistanceProjection: EventProjection
 {
     public DistanceProjection()
     {
-        ProjectionName = "Distance";
+        Name = "Distance";
     }
 
     // Create a new Distance document based on a Travel event

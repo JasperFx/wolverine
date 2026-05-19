@@ -99,7 +99,7 @@ public class Bug2545Aggregate
     public static Bug2545Aggregate Create(Bug2545Triggered _) => new();
 }
 
-public class Bug2545Projection : SingleStreamProjection<Bug2545Aggregate, Guid>
+public partial class Bug2545Projection : SingleStreamProjection<Bug2545Aggregate, Guid>
 {
     public const string CorrelationId = "todo-correlation-42";
     public const string CausationId = "caused-by-triggered-event";

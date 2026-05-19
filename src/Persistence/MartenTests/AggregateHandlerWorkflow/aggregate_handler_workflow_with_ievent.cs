@@ -154,7 +154,7 @@ public static class StringIdentifiedHandler
     }
 }
 
-public class LetterCountsByStringProjection: SingleStreamProjection<LetterCountsByString, string>
+public partial class LetterCountsByStringProjection: SingleStreamProjection<LetterCountsByString, string>
 {
     public override LetterCountsByString Evolve(LetterCountsByString? snapshot, string id, IEvent e)
     {

@@ -209,7 +209,7 @@ public class Bug4268MainAggregate
     public static Bug4268MainAggregate Create(Bug4268MainStarted _) => new();
 }
 
-public class Bug4268Projection : SingleStreamProjection<Bug4268Aggregate, Guid>
+public partial class Bug4268Projection : SingleStreamProjection<Bug4268Aggregate, Guid>
 {
     public static Bug4268Aggregate Create(Bug4268Started _) => new();
 
@@ -224,7 +224,7 @@ public class Bug4268Projection : SingleStreamProjection<Bug4268Aggregate, Guid>
     }
 }
 
-public class Bug4268MainProjection : SingleStreamProjection<Bug4268MainAggregate, Guid>
+public partial class Bug4268MainProjection : SingleStreamProjection<Bug4268MainAggregate, Guid>
 {
     public static Bug4268MainAggregate Create(Bug4268MainStarted _) => new();
 

@@ -3,7 +3,7 @@ using Polecat.Projections;
 
 namespace PolecatTests.Distribution.TripDomain;
 
-public class DistanceProjection : EventProjection
+public partial class DistanceProjection : EventProjection
 {
     public DistanceProjection()
     {
