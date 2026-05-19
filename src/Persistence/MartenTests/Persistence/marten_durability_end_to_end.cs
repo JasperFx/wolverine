@@ -166,10 +166,10 @@ public class marten_durability_end_to_end : IAsyncLifetime
         }
     }
 
-    protected int ReceivedMessageCount()
+    protected async Task<int> ReceivedMessageCount()
     {
-        using var session = _receiverStore.LightweightSession();
-        return session.Query<TraceDoc>().Count();
+        await using var session = _receiverStore.LightweightSession();
+        return await session.Query<TraceDoc>().CountAsync();
     }
 
     protected async Task WaitForMessagesToBeProcessed(int count)
@@ -177,7 +177,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         await using var session = _receiverStore.QuerySession();
         for (var i = 0; i < 480; i++)
         {
-            var actual = session.Query<TraceDoc>().Count();
+            var actual = await session.Query<TraceDoc>().CountAsync();
             var envelopeCount = PersistedIncomingCount();
 
 
@@ -240,7 +240,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         await WaitForMessagesToBeProcessed(10);
         PersistedIncomingCount().ShouldBe(0);
         PersistedOutgoingCount().ShouldBe(0);
-        ReceivedMessageCount().ShouldBe(10);
+        (await ReceivedMessageCount()).ShouldBe(10);
     }
 
     [Fact]
@@ -252,7 +252,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         await WaitForMessagesToBeProcessed(5);
         PersistedIncomingCount().ShouldBe(0);
         PersistedOutgoingCount().ShouldBe(0);
-        ReceivedMessageCount().ShouldBe(5);
+        (await ReceivedMessageCount()).ShouldBe(5);
     }
 }
 

@@ -78,6 +78,11 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                     {
                         opts.Connection(Servers.PostgresConnectionString);
                         opts.Logger(new TestOutputMartenLogger(_output));
+
+                        // Fast event forwarding publishes events in BeforeSaveChanges, before commit.
+                        // Marten's default Quick append mode does not assign IEvent.Sequence until the
+                        // server-side INSERT, so Rich mode is required for the forwarded events to carry a sequence.
+                        opts.Events.AppendMode = EventAppendMode.Rich;
                     })
                     .IntegrateWithWolverine(x =>
                     {
