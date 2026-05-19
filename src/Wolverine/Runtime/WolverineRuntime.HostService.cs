@@ -14,6 +14,7 @@ using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
+using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime;
@@ -69,6 +70,7 @@ public partial class WolverineRuntime
                 MaxBatchSize: Options.MaxIncomingEnvelopeBatchSize,
                 MaxDataSize: Options.MaxIncomingEnvelopeDataSize,
                 MaxHeaderCount: Options.MaxIncomingEnvelopeHeaderCount);
+            WireProtocol.MaxFrameSize = Options.MaxIncomingTcpFrameSize;
 
             await _stores.Value.InitializeAsync();
 

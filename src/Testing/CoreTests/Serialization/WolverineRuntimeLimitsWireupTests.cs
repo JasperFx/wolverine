@@ -5,6 +5,7 @@ using Xunit;
 
 namespace CoreTests.Serialization;
 
+[Collection("EnvelopeSerializerLimits")]
 public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
 {
     public Task InitializeAsync() => Task.CompletedTask;

@@ -27,6 +27,15 @@ public static class WireProtocol
     public static byte[] AcknowledgedBuffer = Encoding.Unicode.GetBytes(Acknowledged);
     public static byte[] RevertBuffer = Encoding.Unicode.GetBytes(Revert);
 
+    /// <summary>
+    /// Maximum total byte size of a single inbound TCP frame. Defaults to
+    /// 32 MiB. Wolverine publishes the configured
+    /// <see cref="WolverineOptions.MaxIncomingTcpFrameSize"/> value into this
+    /// property at host startup. Process-global; in a multi-host process the
+    /// last host to start determines the active cap.
+    /// </summary>
+    public static int MaxFrameSize { get; set; } = 32 * 1024 * 1024;
+
     // Nothing but actually sending here. Worry about timeouts and retries somewhere
     // else
     public static async Task SendAsync(Stream stream, OutgoingMessageBatch batch, byte[]? messageBytes,
@@ -69,6 +78,12 @@ public static class WireProtocol
         {
             var lengthBytes = await stream.ReadBytesAsync(sizeof(int));
             var length = BitConverter.ToInt32(lengthBytes, 0);
+            if (length < 0 || length > MaxFrameSize)
+            {
+                throw new InvalidEnvelopeException(
+                    $"TCP frame length {length} is outside the allowed range [0..{MaxFrameSize}].");
+            }
+
             if (length == 0)
             {
                 return;

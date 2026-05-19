@@ -5,6 +5,7 @@ using Xunit;
 
 namespace CoreTests.Serialization;
 
+[Collection("EnvelopeSerializerLimits")]
 public class EnvelopeSerializerGuardTests
 {
     [Fact]

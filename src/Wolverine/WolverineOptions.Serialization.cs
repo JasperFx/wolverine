@@ -38,6 +38,16 @@ public sealed partial class WolverineOptions
         = EnvelopeReaderLimits.Default.MaxHeaderCount;
 
     /// <summary>
+    /// Maximum total byte size of a single inbound TCP transport frame
+    /// (one batch of envelopes). Defaults to 32 MiB. The TCP receive path
+    /// reads a 4-byte length prefix and allocates that many bytes before
+    /// individual envelope contents are parsed; the cap prevents an
+    /// attacker-controlled length from driving a multi-gigabyte allocation
+    /// before the per-envelope guards can fire.
+    /// </summary>
+    public int MaxIncomingTcpFrameSize { get; set; } = 32 * 1024 * 1024;
+
+    /// <summary>
     ///     Override or get the default message serializer for the application. The default is
     ///     <see cref="SystemTextJsonSerializer"/> (wired in the <see cref="WolverineOptions"/>
     ///     constructor via <see cref="UseSystemTextJsonForSerialization"/>). To restore the
