@@ -3,6 +3,7 @@
     <PropertyGroup>
         <Description>MemoryPack serialization for Wolverine Applications</Description>
         <PackageId>WolverineFx.MemoryPack</PackageId>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

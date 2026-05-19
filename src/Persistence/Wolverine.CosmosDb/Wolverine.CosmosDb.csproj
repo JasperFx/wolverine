@@ -8,6 +8,30 @@
         <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
         <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
         <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <!--
+          NOT AOT-compatible (#2746).
+
+          Wolverine.CosmosDb is built around the C# `dynamic` keyword for
+          interacting with Cosmos DB's flexible-schema documents — the
+          MessageStore admin and durability agent flows use Container.
+          GetItemQueryIterator<dynamic> + per-item member access via the
+          DLR (Microsoft.CSharp.RuntimeBinder.Binder.GetMember/SetMember/
+          InvokeMember). `dynamic` requires runtime call-site generation,
+          which is fundamentally incompatible with Native AOT — there is
+          no annotation that makes this surface AOT-clean.
+
+          Flag-off matches the precedent set by Marten.Newtonsoft
+          (Marten PR #4468): when a wrapper's whole purpose is the
+          AOT-hostile upstream/runtime feature and there's no meaningful
+          AOT-clean subset, the honest answer is unflagged + documented
+          rather than suppressed-into-silence.
+
+          AOT-publishing applications that need Cosmos DB envelope storage
+          should either (a) shape envelope persistence around the typed
+          Microsoft.Azure.Cosmos<T> APIs instead of dynamic, or (b) use
+          one of the typed RDBMS / Marten / Polecat persistence packages
+          which are AOT-flagged.
+        -->
     </PropertyGroup>
 
     <ItemGroup>

@@ -3,6 +3,7 @@
 	<PropertyGroup>
 		<Description>Protobuf serialization for Wolverine Applications</Description>
 		<PackageId>WolverineFx.Protobuf</PackageId>
+		<IsAotCompatible>true</IsAotCompatible>
 	</PropertyGroup>
 
 	<ItemGroup>
