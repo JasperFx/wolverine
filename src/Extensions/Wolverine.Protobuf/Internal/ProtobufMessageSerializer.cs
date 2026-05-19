@@ -1,4 +1,5 @@
-﻿using Google.Protobuf;
+﻿using System.Diagnostics.CodeAnalysis;
+using Google.Protobuf;
 
 using Wolverine.Runtime.Serialization;
 
@@ -10,6 +11,8 @@ internal class ProtobufMessageSerializer(ProtobufSerializerOptions options) : IM
     private readonly ProtobufSerializerOptions _options = options;
     public string ContentType => "binary/protobuf";
 
+    [UnconditionalSuppressMessage("Trimming", "IL2067",
+        Justification = "messageType is a Wolverine-handler-discovered IMessage type — statically rooted via HandlerDiscovery + the registration boundary. Generated protobuf message classes have a public parameterless constructor by design (Google.Protobuf code-gen contract).")]
     public object ReadFromData(Type messageType, Envelope envelope)
     {
         if (envelope?.Data == null || envelope.Data.Length == 0)
