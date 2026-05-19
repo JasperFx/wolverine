@@ -40,8 +40,29 @@
           alpha.4: Wolverine.Polecat — JasperFxSubscriptionBase.SubscriptionVersion ->
                    Version rename (#2826, row 4 of jasperfx#273). Kafka tests stabilised
                    (#2824).
+          alpha.5: Critter Stack 2026 foundation re-align (refs #2728 chip).
+                   Bumped to the post-publish pin matrix:
+                     JasperFx                          alpha.13 -> alpha.17
+                     JasperFx.Events                   alpha.8  -> alpha.16
+                     JasperFx.Events.SourceGenerator   (new)       alpha.9
+                     JasperFx.RuntimeCompiler          alpha.1  -> alpha.5
+                     JasperFx.SourceGeneration         alpha.2  -> alpha.6
+                     Marten / .AspNetCore / .Newtonsoft alpha.2 -> alpha.4
+                     Polecat                           alpha.3  -> alpha.8
+                     Weasel.* (7 packages)             8.15.1   -> 9.0.0-alpha.6
+                   Adopts the JasperFx.Events 2.0 Phase 2 source-generator
+                   projection-dispatch contract — every project that defines a
+                   Marten projection class now references the SG analyzer
+                   (analyzer-only, OutputItemType=Analyzer) and every projection
+                   class is declared `partial` so the SG can emit the dispatcher
+                   into the sibling partial. Closes the cancellation-leak fix
+                   in JasperFx PR #285 that resolves #2832 in passing. Three
+                   small test-side renames track Marten 9 API shifts:
+                     IEventSlice<T>.Aggregate -> IEventSlice<T>.Snapshot
+                     ProjectionBase.ProjectionName -> Name
+                     ProjectionBase.CacheLimitPerTenant -> Options.CacheLimitPerTenant
         -->
-        <Version>6.0.0-alpha.4</Version>
+        <Version>6.0.0-alpha.5</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
