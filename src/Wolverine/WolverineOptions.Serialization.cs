@@ -12,6 +12,32 @@ public sealed partial class WolverineOptions
     private IMessageSerializer? _defaultSerializer;
 
     /// <summary>
+    /// Maximum number of envelopes accepted in a single inbound batch payload
+    /// (HTTP batch endpoint, TCP wire protocol, Pub/Sub batch, etc.). Defaults
+    /// to 1000. Raise this for high-throughput batch consumers that legitimately
+    /// move batches larger than the default.
+    /// </summary>
+    public int MaxIncomingEnvelopeBatchSize { get; set; }
+        = EnvelopeReaderLimits.Default.MaxBatchSize;
+
+    /// <summary>
+    /// Maximum size in bytes of an individual envelope's payload data segment.
+    /// Defaults to 4 MiB. Raise this if you legitimately move large payloads
+    /// (e.g. embedded blobs) over the wire protocol.
+    /// </summary>
+    public int MaxIncomingEnvelopeDataSize { get; set; }
+        = EnvelopeReaderLimits.Default.MaxDataSize;
+
+    /// <summary>
+    /// Maximum number of headers an inbound envelope may declare. Defaults to
+    /// 128. Headers are key/value string pairs read off the wire; the cap
+    /// prevents an attacker-controlled count from driving an unbounded loop
+    /// of small allocations.
+    /// </summary>
+    public int MaxIncomingEnvelopeHeaderCount { get; set; }
+        = EnvelopeReaderLimits.Default.MaxHeaderCount;
+
+    /// <summary>
     ///     Override or get the default message serializer for the application. The default is
     ///     <see cref="SystemTextJsonSerializer"/> (wired in the <see cref="WolverineOptions"/>
     ///     constructor via <see cref="UseSystemTextJsonForSerialization"/>). To restore the

@@ -7,7 +7,11 @@ public static class EnvelopeSerializer
 {
     /// <summary>
     /// Caps applied to inbound envelopes during deserialization. Defaults to
-    /// <see cref="EnvelopeReaderLimits.Default"/>.
+    /// <see cref="EnvelopeReaderLimits.Default"/>. Wolverine publishes the
+    /// configured <see cref="WolverineOptions"/> values into this property
+    /// at host startup. The slot is process-global; when several Wolverine
+    /// hosts run in the same process, the last one to start determines the
+    /// active limits.
     /// </summary>
     public static EnvelopeReaderLimits Limits { get; set; } = EnvelopeReaderLimits.Default;
 
