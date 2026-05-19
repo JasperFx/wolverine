@@ -3,6 +3,7 @@
     <PropertyGroup>
         <Description>MessagePack serialization for Wolverine Applications</Description>
         <PackageId>WolverineFx.MessagePack</PackageId>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
