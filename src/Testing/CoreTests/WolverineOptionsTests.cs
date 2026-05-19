@@ -11,9 +11,11 @@ using Wolverine.Configuration;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
 using Wolverine.Transports.Sending;
+using Wolverine.Transports.Tcp;
 using Xunit;
 
 namespace CoreTests;
@@ -26,6 +28,16 @@ public class WolverineOptionsTests
     public void publish_agent_events_should_be_false_by_default()
     {
         new WolverineOptions().Policies.PublishAgentEvents.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void envelope_reader_limit_defaults_match_the_record()
+    {
+        var opts = new WolverineOptions();
+        opts.MaxIncomingEnvelopeBatchSize.ShouldBe(EnvelopeReaderLimits.Default.MaxBatchSize);
+        opts.MaxIncomingEnvelopeDataSize.ShouldBe(EnvelopeReaderLimits.Default.MaxDataSize);
+        opts.MaxIncomingEnvelopeHeaderCount.ShouldBe(EnvelopeReaderLimits.Default.MaxHeaderCount);
+        opts.MaxIncomingTcpFrameSize.ShouldBe(WireProtocol.DefaultMaxFrameSize);
     }
 
     [Fact]

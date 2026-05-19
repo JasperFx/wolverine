@@ -6,8 +6,15 @@ using Xunit;
 namespace CoreTests.Serialization;
 
 [Collection("EnvelopeSerializerLimits")]
-public class EnvelopeSerializerGuardTests
+public class EnvelopeSerializerGuardTests : IDisposable
 {
+    public void Dispose()
+    {
+        // Reset so a test that mutates Limits cannot leak state to other tests
+        // in the collection.
+        EnvelopeSerializer.Limits = EnvelopeReaderLimits.Default;
+    }
+
     [Fact]
     public void default_limits_have_expected_values()
     {

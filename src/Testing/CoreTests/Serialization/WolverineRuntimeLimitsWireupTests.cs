@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports.Tcp;
 using Xunit;
 
 namespace CoreTests.Serialization;
@@ -13,6 +14,7 @@ public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
     public Task DisposeAsync()
     {
         EnvelopeSerializer.Limits = EnvelopeReaderLimits.Default;
+        WireProtocol.MaxFrameSize = WireProtocol.DefaultMaxFrameSize;
         return Task.CompletedTask;
     }
 
@@ -41,5 +43,19 @@ public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
             .StartAsync();
 
         EnvelopeSerializer.Limits.ShouldBe(EnvelopeReaderLimits.Default);
+        WireProtocol.MaxFrameSize.ShouldBe(WireProtocol.DefaultMaxFrameSize);
+    }
+
+    [Fact]
+    public async Task host_startup_publishes_configured_tcp_frame_size_to_wire_protocol()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.MaxIncomingTcpFrameSize = 7 * 1024 * 1024;
+            })
+            .StartAsync();
+
+        WireProtocol.MaxFrameSize.ShouldBe(7 * 1024 * 1024);
     }
 }

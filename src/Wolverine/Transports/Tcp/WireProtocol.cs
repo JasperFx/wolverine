@@ -28,13 +28,20 @@ public static class WireProtocol
     public static byte[] RevertBuffer = Encoding.Unicode.GetBytes(Revert);
 
     /// <summary>
+    /// Default value for <see cref="MaxFrameSize"/> and
+    /// <see cref="WolverineOptions.MaxIncomingTcpFrameSize"/> — 32 MiB.
+    /// Sourcing both initializers from this constant prevents drift.
+    /// </summary>
+    public const int DefaultMaxFrameSize = 32 * 1024 * 1024;
+
+    /// <summary>
     /// Maximum total byte size of a single inbound TCP frame. Defaults to
     /// 32 MiB. Wolverine publishes the configured
     /// <see cref="WolverineOptions.MaxIncomingTcpFrameSize"/> value into this
     /// property at host startup. Process-global; in a multi-host process the
     /// last host to start determines the active cap.
     /// </summary>
-    public static int MaxFrameSize { get; set; } = 32 * 1024 * 1024;
+    public static int MaxFrameSize { get; set; } = DefaultMaxFrameSize;
 
     // Nothing but actually sending here. Worry about timeouts and retries somewhere
     // else

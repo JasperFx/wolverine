@@ -1,6 +1,7 @@
 using System.Text.Json;
 using JasperFx.Core;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports.Tcp;
 
 namespace Wolverine;
 
@@ -45,7 +46,7 @@ public sealed partial class WolverineOptions
     /// attacker-controlled length from driving a multi-gigabyte allocation
     /// before the per-envelope guards can fire.
     /// </summary>
-    public int MaxIncomingTcpFrameSize { get; set; } = 32 * 1024 * 1024;
+    public int MaxIncomingTcpFrameSize { get; set; } = WireProtocol.DefaultMaxFrameSize;
 
     /// <summary>
     ///     Override or get the default message serializer for the application. The default is
