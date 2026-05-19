@@ -6,9 +6,9 @@ namespace MartenTests.Bugs.ConsumerFeature1;
 
 public class MyEventConsumer
 {
-    public DomainObjectX LoadAsync(IDocumentSession session) =>
+    public Task<DomainObjectX> LoadAsync(IDocumentSession session) =>
         // force to write the same document which has an opt-in for optimistic concurrency
-        session.Query<DomainObjectX>().First();
+        session.Query<DomainObjectX>().FirstAsync();
     
     public static IMartenOp Consume(MyEvent @event, DomainObjectX domainObjectX, ILogger<MyEventConsumer> logger)
     {
