@@ -11,6 +11,7 @@
         <ProjectReference Include="..\..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
         <ProjectReference Include="..\..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
         <ProjectReference Include="..\Messages\Messages.csproj"/>
+        <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>

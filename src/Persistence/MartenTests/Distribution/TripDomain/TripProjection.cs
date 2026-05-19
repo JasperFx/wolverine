@@ -2,7 +2,7 @@ using Marten.Events.Aggregation;
 
 namespace MartenTests.Distribution.TripDomain;
 
-public class TripProjection : SingleStreamProjection<Trip, Guid>
+public partial class TripProjection : SingleStreamProjection<Trip, Guid>
 {
     public TripProjection()
     {
@@ -45,7 +45,7 @@ public class TripProjection : SingleStreamProjection<Trip, Guid>
     }
 }
 
-public class Trip2Projection : SingleStreamProjection<Trip, Guid>
+public partial class Trip2Projection : SingleStreamProjection<Trip, Guid>
 {
     public Trip2Projection()
     {

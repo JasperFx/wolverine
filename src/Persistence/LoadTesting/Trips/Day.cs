@@ -26,7 +26,7 @@ public class Day
     public double South { get; set; }
 }
 
-public class DayProjection: MultiStreamProjection<Day, int>
+public partial class DayProjection: MultiStreamProjection<Day, int>
 {
     public DayProjection()
     {
@@ -93,7 +93,7 @@ public class Distance
     public int Day { get; set; }
 }
 
-public class DistanceProjection: EventProjection
+public partial class DistanceProjection: EventProjection
 {
     public DistanceProjection()
     {

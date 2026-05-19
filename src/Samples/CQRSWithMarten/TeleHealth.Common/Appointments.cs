@@ -27,7 +27,7 @@ public record AppointmentStarted;
 
 public record AppointmentFinished;
 
-public class AppointmentDurationProjection : EventProjection
+public partial class AppointmentDurationProjection : EventProjection
 {
     public AppointmentDurationProjection()
     {

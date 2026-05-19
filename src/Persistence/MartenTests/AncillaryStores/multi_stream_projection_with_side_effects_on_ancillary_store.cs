@@ -161,7 +161,7 @@ public class Issue2529Counter
 }
 
 // ── Multi-stream projection that publishes side effects ──
-public class Issue2529CounterProjection : MultiStreamProjection<Issue2529Counter, Guid>
+public partial class Issue2529CounterProjection : MultiStreamProjection<Issue2529Counter, Guid>
 {
     public Issue2529CounterProjection()
     {

@@ -4,7 +4,7 @@ using Marten.Events.Aggregation;
 
 namespace LoadTesting.Trips;
 
-public class TripProjection: SingleStreamProjection<Trip, Guid>
+public partial class TripProjection: SingleStreamProjection<Trip, Guid>
 {
     // These methods can be either public, internal, or private but there's
     // a small performance gain to making them public

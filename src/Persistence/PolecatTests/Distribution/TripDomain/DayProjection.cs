@@ -2,7 +2,7 @@ using Polecat.Projections;
 
 namespace PolecatTests.Distribution.TripDomain;
 
-public class DayProjection : MultiStreamProjection<Day, int>
+public partial class DayProjection : MultiStreamProjection<Day, int>
 {
     public DayProjection()
     {

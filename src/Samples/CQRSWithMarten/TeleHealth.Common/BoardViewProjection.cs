@@ -7,7 +7,7 @@ using Marten.Events.Projections;
 
 namespace TeleHealth.Common;
 
-public class BoardViewProjection : MultiStreamProjection<BoardView, Guid>
+public partial class BoardViewProjection : MultiStreamProjection<BoardView, Guid>
 {
     public BoardViewProjection()
     {

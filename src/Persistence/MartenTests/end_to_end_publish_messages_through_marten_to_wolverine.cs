@@ -212,7 +212,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
     }
 }
 
-public class Projection3 : SingleStreamProjection<SideEffects1, Guid>
+public partial class Projection3 : SingleStreamProjection<SideEffects1, Guid>
 {
     public void Apply(SideEffects1 aggregate, AEvent _)
     {
@@ -393,7 +393,7 @@ public record CustomerActivated;
 
 public record CustomerMoved(string Location);
 
-public class CustomerProjection : MultiStreamProjection<Customer, Guid>
+public partial class CustomerProjection : MultiStreamProjection<Customer, Guid>
 {
     public CustomerProjection()
     {

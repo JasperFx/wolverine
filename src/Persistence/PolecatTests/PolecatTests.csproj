@@ -24,6 +24,7 @@
         </PackageReference>
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="StronglyTypedId" />
+        <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>

@@ -149,7 +149,7 @@ public static class GotFiveHandler
     public static void Handle(GotFiveResponse m) => Debug.WriteLine("Got five response for " + m.Id);
 }
 
-public class LetterCountsProjectionWithSideEffects: SingleStreamProjection<LetterCounts, Guid>
+public partial class LetterCountsProjectionWithSideEffects: SingleStreamProjection<LetterCounts, Guid>
 {
     public override LetterCounts Evolve(LetterCounts? snapshot, Guid id, IEvent e)
     {
