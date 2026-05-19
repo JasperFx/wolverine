@@ -193,11 +193,68 @@ Adopting `opts.UseRuntimeCompilation()` today makes the v6 upgrade a no-op for y
 
 ## Embedding Codegen in Docker
 
-This blog post from Oskar Dudycz will apply to Wolverine as well: [How to create a Docker image for the Marten application](https://event-driven.io/en/marten_and_docker/)
+The sweet spot for production deployments is `Dynamic` codegen at development time, then pre-generated code artifacts baked into the production image so cold start never pays the runtime-codegen cost. A multi-stage Dockerfile that runs `dotnet run -- codegen write` in the build stage gets you there.
 
-At this point, the most successful mechanism and sweet spot is to run the codegen as `Dynamic` at development time, but generating
-the code artifacts just in time for production deployments. From Wolverine's sibling project Marten, see this section on [Application project setup](https://martendb.io/devops/devops.html#application-project-set-up)
-for embedding the code generation directly into your Docker images for deployment.
+### Wire up the CLI command
+
+`dotnet run -- codegen write` is provided by the JasperFx command-line integration that ships with Wolverine. The last line of your `Program.cs` needs to hand control to it:
+
+```csharp
+return await app.RunJasperFxCommands(args);
+```
+
+Without this, the `codegen write` verb is unreachable and the build-stage step below will fail.
+
+### A multi-stage Dockerfile
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+WORKDIR /src
+
+COPY ["Application/Application.csproj", "Application/"]
+
+# Add more COPY lines for any project references your app needs
+# COPY ["Shared/Shared.csproj", "Shared/"]
+
+COPY . .
+WORKDIR "/src/Application"
+
+# Pre-generate Wolverine handler / endpoint adapter code into
+# Application/Internal/Generated/ so the production image ships static C#
+# instead of compiling at boot. Pair with TypeLoadMode.Static in production.
+RUN dotnet run -- codegen write
+RUN dotnet publish "Application.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
+ENV DOTNET_RUNNING_IN_CONTAINER=1
+ENV DOTNET_NOLOGO=1
+ENV DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+RUN addgroup -g 1001 -S nonroot && adduser -u 1001 -S nonroot -G nonroot
+RUN mkdir /app
+RUN chown nonroot:nonroot /app
+WORKDIR /app
+COPY --chown=nonroot:nonroot --from=build /app/publish .
+
+FROM runtime
+EXPOSE 5000
+USER nonroot
+ENTRYPOINT ["dotnet", "Application.dll"]
+```
+
+The base image tags above (`9.0-alpine`) match Wolverine 6.0's minimum TFM (`net9.0`). Pick whichever LTS your app targets — `10.0-alpine` works the same way once you're on `net10.0`.
+
+### The `codegen write` step has no runtime resources
+
+This is the constraint that bites people: `dotnet run -- codegen write` boots the host far enough to discover handlers and HTTP endpoints, then exits before serving traffic. If anything in your `Program.cs` reaches out to a database, broker, or other external resource _before_ control reaches `RunJasperFxCommands(args)`, the build-stage step will block or fail because none of that infrastructure is reachable from inside the Dockerfile's build container.
+
+Two ways to dodge it:
+
+1. **Defer infrastructure to hosted services / DI factories.** Things like `PersistMessagesWithPostgresql(...)`, transport listener registrations, and resource-setup-on-startup all defer their actual I/O to host startup — they're already safe. The trap is custom code in `Program.cs` that eagerly connects (e.g. an inline `await dataSource.OpenConnectionAsync()` before `app.Run()` / `RunJasperFxCommands`).
+2. **Detect the codegen verb and short-circuit external wiring.** Same pattern that works for Aspire — see [the Aspire / OpenAPI codegen section](#handling-code-generation-with-wolverine-when-using-aspire-or-microsoft-extensions-apidescription-server) below — wrap conditionally-disabled transports / persistence inside `if (CodeGeneration.IsRunningGeneration())` so the build-stage run skips them.
+
+### Beyond Static: Native AOT
+
+Pre-generated codegen is the prerequisite for publishing the app with Native AOT (`dotnet publish /p:PublishAot=true`). Once the Dockerfile above is producing a `Static`-mode image, the [AOT publishing guide](/guide/aot.md) covers the additional `IsAotCompatible` / trimmer-annotation pieces needed to shrink the production image further and skip the runtime-compilation pipeline entirely.
 
 ## Troubleshooting Code Generation Issues
 
