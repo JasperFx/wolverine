@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FluentValidation;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -34,6 +35,8 @@ internal class HttpChainFluentValidationPolicy : IHttpPolicy
         }
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType/MakeGenericMethod close FluentValidationHttpExecutor.ExecuteOne<T>/ExecuteMany<T> over the HTTP chain's request type at codegen time; AOT consumers pre-generate via TypeLoadMode.Static. Same pattern as Wolverine.FluentValidation's FluentValidationPolicy. See AOT guide / #2769.")]
     private static void addValidationMiddleware(HttpChain chain, IServiceContainer container, Type validatedType)
     {
         var validatorInterface = typeof(IValidator<>).MakeGenericType(validatedType);
