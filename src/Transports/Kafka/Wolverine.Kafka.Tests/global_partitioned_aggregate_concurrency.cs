@@ -223,7 +223,7 @@ public record GpStreamEventB(string Data);
 public record GpStreamEventCascaded(string Source);
 
 // --- Aggregate ---
-public class GpStreamAggregate : IRevisioned
+public partial class GpStreamAggregate : IRevisioned
 {
     public Guid Id { get; set; }
     public long Version { get; set; }
