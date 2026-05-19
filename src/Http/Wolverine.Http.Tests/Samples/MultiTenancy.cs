@@ -68,9 +68,28 @@ public static class MultiTenancy
         app.MapWolverineEndpoints(opts =>
         {
             // Configure your tenant id detection...
+            opts.TenantId.IsRequestHeaderValue("tenant");
 
-            // Require tenant id some how, some way...
+            // AssertExists() is the default in 6.0 whenever any detection strategy
+            // is registered. Calling it explicitly is still valid and documents intent.
             opts.TenantId.AssertExists();
+        });
+
+        #endregion
+    }
+
+    public static void do_not_assert_tenant(WebApplication app)
+    {
+        #region sample_do_not_assert_tenant_id_exists
+        app.MapWolverineEndpoints(opts =>
+        {
+            // Configure your tenant id detection...
+            opts.TenantId.IsRequestHeaderValue("tenant");
+
+            // Opt out of the 6.0 default fail-loud behavior. Missing tenant ids
+            // will fall through to the master ("default") tenant. Prefer DefaultIs(...)
+            // if you actually want a known fallback tenant.
+            opts.TenantId.DoNotAssertExists();
         });
 
         #endregion

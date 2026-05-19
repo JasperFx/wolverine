@@ -246,24 +246,35 @@ See [Referencing the TenantId](/guide/handlers/multi-tenancy.html#referencing-th
 
 ## Requiring Tenant Id -- or Not!
 
-You can direct Wolverine.HTTP to verify that there is a non-null, non-empty tenant id on all requests with this syntax:
+Starting in Wolverine 6.0, the tenant id is **required by default** on any HTTP endpoint that participates in multi-tenancy whenever at least one detection strategy is registered (`IsRequestHeaderValue`, `IsQueryStringValue`, `IsClaimTypeNamed`, `IsRouteArgumentNamed`, `IsSubDomainName`, or `DetectWith(...)`). A request that omits the tenant id returns a 400 with a [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) body stating that the tenant id was missing.
+
+The `AssertExists()` call is therefore now optional. It is still valid and documents intent:
 
 <!-- snippet: sample_assert_tenant_id_exists -->
-<a id='snippet-sample_assert_tenant_id_exists'></a>
-```cs
-app.MapWolverineEndpoints(opts =>
-{
-    // Configure your tenant id detection...
-
-    // Require tenant id some how, some way...
-    opts.TenantId.AssertExists();
-});
-```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Samples/MultiTenancy.cs#L67-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_assert_tenant_id_exists' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-At runtime, this is going to return a status code of 400 with a [ProblemDetails](https://learn.microsoft.com/en-us/dotnet/api/microsoft.aspnetcore.mvc.problemdetails?view=aspnetcore-7.0) specification 
-response stating that the tenant id was missing. 
+There are two ways to opt out of this default:
+
+**Preferred — register a fallback tenant.** If your application has a meaningful default tenant for unauthenticated or header-omitted traffic, register it with `DefaultIs(...)`. When a `DefaultIs(...)` strategy is registered the framework treats it as your explicit fallback and does not assert:
+
+```csharp
+opts.TenantId.IsRequestHeaderValue("X-Tenant-Id");
+opts.TenantId.DefaultIs("public");
+```
+
+**Discouraged — disable the assertion.** For non-multi-tenant scenarios (or to restore the 5.x behavior of silently coercing missing tenant ids to the master tenant) call `DoNotAssertExists()`. This is a footgun in multi-tenant deployments because cascaded messages and downstream side effects will execute against the master tenant store:
+
+<!-- snippet: sample_do_not_assert_tenant_id_exists -->
+<!-- endSnippet -->
+
+### Migrating from 5.x
+
+In 5.x, `AssertExists()` was opt-in and missing tenant ids were silently coerced to the master tenant store. In 6.0 the default is reversed. If your 5.x deployment relied on the silent coercion, either:
+
+1. Register `opts.TenantId.DefaultIs(...)` with the tenant id you want missing-id traffic to land on, or
+2. Call `opts.TenantId.DoNotAssertExists()` to keep the old behavior verbatim.
+
+The framework otherwise leaves the `MessageBus.TenantId` null-to-`*DEFAULT*` coercion and the per-tenant database routing untouched — only the HTTP-layer assertion default has changed.
 
 But of course, you will frequently have *some* endpoints within your system that do **not** use any kind
 of multi-tenancy, so you can completely opt out of all tenant id detection and assertions through the
