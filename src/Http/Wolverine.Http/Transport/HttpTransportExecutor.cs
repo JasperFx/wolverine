@@ -46,6 +46,11 @@ internal class HttpTransportExecutor
         {
             envelopes = EnvelopeSerializer.ReadMany(data);
         }
+        catch (InvalidEnvelopeException e)
+        {
+            _logger.LogWarning(e, "Rejected malformed envelope batch in Http Transport ExecuteBatchAsync()");
+            return Results.Problem($"Invalid envelope: {e.Message}", statusCode: 400);
+        }
         catch (Exception e)
         {
             _logger.LogError(e, "Error trying to read Envelope[] in the Http Transport ExecuteBatchAsync()");
@@ -87,7 +92,21 @@ internal class HttpTransportExecutor
         Envelope? envelope = null;
         if (values[0] == HttpTransport.EnvelopeContentType)
         {
-            var data = await httpContext.Request.Body.ReadAllBytesAsync(); envelope = EnvelopeSerializer.Deserialize(data);
+            var data = await httpContext.Request.Body.ReadAllBytesAsync();
+            try
+            {
+                envelope = EnvelopeSerializer.Deserialize(data);
+            }
+            catch (InvalidEnvelopeException e)
+            {
+                _logger.LogWarning(e, "Rejected malformed envelope in Http Transport InvokeAsync()");
+                return Results.Problem($"Invalid envelope: {e.Message}", statusCode: 400);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error trying to deserialize envelope in Http Transport InvokeAsync()");
+                return Results.Problem("Error trying to deserialize envelope", statusCode: 500);
+            }
         }
         else
         {

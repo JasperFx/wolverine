@@ -10,9 +10,11 @@ using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Transports;
 using Wolverine.Transports.Local;
+using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime;
@@ -60,6 +62,15 @@ public partial class WolverineRuntime
             logCodeGenerationConfiguration();
 
             await ApplyAsyncExtensions();
+
+            // Run after async extensions (which may mutate the options) and
+            // before any listener is started so an early-arriving message
+            // can't race the publish.
+            EnvelopeSerializer.Limits = new EnvelopeReaderLimits(
+                MaxBatchSize: Options.MaxIncomingEnvelopeBatchSize,
+                MaxDataSize: Options.MaxIncomingEnvelopeDataSize,
+                MaxHeaderCount: Options.MaxIncomingEnvelopeHeaderCount);
+            WireProtocol.MaxFrameSize = Options.MaxIncomingTcpFrameSize;
 
             await _stores.Value.InitializeAsync();
 

@@ -53,6 +53,55 @@ public class HttpTransportExecutorTests : IntegrationContext
     }
 
     [Fact]
+    public async Task execute_batch_returns_400_for_oversize_envelope_batch_claim()
+    {
+        // Wire-claim of int.MaxValue envelopes in a 4-byte payload — well over
+        // the configured MaxIncomingEnvelopeBatchSize cap.
+        var body = BitConverter.GetBytes(int.MaxValue);
+
+        await Scenario(s =>
+        {
+            s.Post.ByteArray(body).ToUrl("/_wolverine/batch/test")
+                .ContentType(HttpTransport.EnvelopeBatchContentType);
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task invoke_returns_400_for_oversize_envelope_data_claim()
+    {
+        // Construct a minimal binary envelope that claims int.MaxValue bytes of
+        // payload data — well over the configured MaxIncomingEnvelopeDataSize cap.
+        // Layout: SentAt (int64) + headerCount=0 (int32) + byteCount=int.MaxValue (int32).
+        using var ms = new MemoryStream();
+        using (var bw = new BinaryWriter(ms, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            bw.Write(DateTime.UtcNow.ToBinary());
+            bw.Write(0);            // headerCount
+            bw.Write(int.MaxValue); // byteCount
+        }
+        var body = ms.ToArray();
+
+        await Scenario(s =>
+        {
+            s.Post.ByteArray(body).ToUrl("/_wolverine/invoke")
+                .ContentType(HttpTransport.EnvelopeContentType);
+            s.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task invoke_returns_500_for_invalid_envelope_data()
+    {
+        await Scenario(s =>
+        {
+            s.Post.ByteArray(new byte[] { 0xFF, 0xFF, 0xFF }).ToUrl("/_wolverine/invoke")
+                .ContentType(HttpTransport.EnvelopeContentType);
+            s.StatusCodeShouldBe(500);
+        });
+    }
+
+    [Fact]
     public async Task invoke_returns_415_for_wrong_content_type()
     {
         var result = await Scenario(s =>
