@@ -276,6 +276,97 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
     }
 
     [Fact]
+    public async Task tenant_id_assertion_is_on_by_default_when_detection_is_registered()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+        });
+
+        var results = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant");
+            x.StatusCodeShouldBe(400);
+        });
+
+        var details = results.ReadAsJson<ProblemDetails>();
+        details.Detail.ShouldBe(TenantIdDetection
+            .NoMandatoryTenantIdCouldBeDetectedForThisHttpRequest);
+    }
+
+    [Fact]
+    public async Task DefaultIs_suppresses_the_default_assertion()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.DefaultIs("acme");
+        });
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant");
+            x.StatusCodeShouldBe(200);
+        });
+
+        result.ReadAsText().ShouldBe("acme");
+    }
+
+    [Fact]
+    public async Task DoNotAssertExists_opts_out_of_the_default()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.DoNotAssertExists();
+        });
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant/raw");
+            x.StatusCodeShouldBe(200);
+        });
+
+        result.ReadAsText().ShouldBe(StorageConstants.DefaultTenantId);
+    }
+
+    [Fact]
+    public async Task DoNotAssertExists_then_AssertExists_resolves_to_assertion()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.DoNotAssertExists();
+            opts.TenantId.AssertExists();
+        });
+
+        await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant");
+            x.StatusCodeShouldBe(400);
+        });
+    }
+
+    [Fact]
+    public async Task AssertExists_then_DoNotAssertExists_resolves_to_opt_out()
+    {
+        await configure(opts =>
+        {
+            opts.TenantId.IsQueryStringValue("tenant");
+            opts.TenantId.AssertExists();
+            opts.TenantId.DoNotAssertExists();
+        });
+
+        var result = await theHost.Scenario(x =>
+        {
+            x.Get.Url("/tenant/raw");
+            x.StatusCodeShouldBe(200);
+        });
+
+        result.ReadAsText().ShouldBe(StorageConstants.DefaultTenantId);
+    }
+
+    [Fact]
     public async Task end_to_end_through_marten()
     {
         await configure(opts =>
@@ -427,6 +518,14 @@ public static class TenantedEndpoints
         httpContext.Features.Set(CustomActivityFeature.FromHttpContext(httpContext));
         tenantId.Value.ShouldBe(bus.TenantId);
         return bus.TenantId!;
+    }
+
+    // Plain endpoint without invariant checks, registered with the default TenancyMode,
+    // so DoNotAssertExists tests can observe the request actually flowing through.
+    [WolverineGet("/tenant/raw")]
+    public static string RawTenantId(IMessageBus bus)
+    {
+        return bus.TenantId ?? "(none)";
     }
 
     [WolverineGet("/todo/{id}")]

@@ -65,6 +65,14 @@ public interface ITenantDetectionPolicies
     void AssertExists();
 
     /// <summary>
+    /// Opt out of the default fail-loud behavior. When called, requests that omit the
+    /// tenant id will fall through to the master ("default") tenant instead of returning 400.
+    /// This is a safety footgun in multi-tenanted deployments — prefer DefaultIs(...) if you
+    /// actually want a fallback tenant, and reserve this for non-multi-tenant scenarios.
+    /// </summary>
+    void DoNotAssertExists();
+
+    /// <summary>
     /// Register a custom tenant detection strategy. Be aware though, this object
     /// will be resolved from your application container, but will be done as with Singleton
     /// scoping.

@@ -38,7 +38,12 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
 
     public void AssertExists()
     {
-        AssertTenantExists = true;
+        _assertSetting = true;
+    }
+
+    public void DoNotAssertExists()
+    {
+        _assertSetting = false;
     }
 
     public void DetectWith(ITenantDetection detection)
@@ -60,11 +65,23 @@ internal class TenantIdDetection : ITenantDetectionPolicies, IHttpPolicy
         DetectWith(Services.GetRequiredService<IServiceContainer>().QuickBuild<T>());
     }
 
-    public bool AssertTenantExists { get; set; }
+    // null = no explicit choice; resolve via EffectiveAssertTenantExists.
+    private bool? _assertSetting;
+
+    private bool EffectiveAssertTenantExists
+    {
+        get
+        {
+            if (_assertSetting.HasValue) return _assertSetting.Value;
+            if (Strategies.Count == 0) return false;
+            if (Strategies.Any(s => s is FallbackDefault)) return false;
+            return true;
+        }
+    }
 
     public bool ShouldAssertTenantIdExists(HttpChain chain)
     {
-        if (!AssertTenantExists) return false;
+        if (!EffectiveAssertTenantExists) return false;
 
         if (chain.TenancyMode == null) return true;
 
