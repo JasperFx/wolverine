@@ -142,6 +142,18 @@ public static class Program
             });
 
             using var host = hostBuilder.Build();
+
+            // Wolverine#1577 Tier 1: the pre-generated handler registry must be present and
+            // non-empty. Build() runs handler-graph compilation, which (under TypeLoadMode.Static)
+            // consumes this registry instead of scanning assemblies — see the
+            // "Using pre-generated Wolverine HandlerRegistry" log line above.
+            var registryFailure = AssertHandlerRegistryGenerated();
+            if (registryFailure != null)
+            {
+                await Console.Error.WriteLineAsync($"FAIL: {registryFailure}");
+                return 5;
+            }
+
             await host.StartAsync();
 
             var bus = host.Services.GetRequiredService<IMessageBus>();
@@ -204,6 +216,43 @@ public static class Program
         // assemblies / built-in handlers don't get drawn in.
         opts.Discovery.DisableConventionalDiscovery()
             .IncludeType<AotSmokeHandler>();
+    }
+
+    // Locates the codegen-emitted HandlerRegistry subclass in this assembly and asserts it
+    // captured the smoke's handler. Returns null on success or a diagnostic string on failure.
+    // A missing/stale registry means `dotnet run -- codegen write` needs to be re-run + committed.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Smoke assertion. Walks this assembly's types to confirm the codegen-emitted registry exists; the type is rooted by construction once codegen write has run.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification = "Smoke assertion. Activator.CreateInstance over the generated registry subclass, which carries its codegen-emitted public parameterless constructor.")]
+    internal static string? AssertHandlerRegistryGenerated()
+    {
+        var registryType = typeof(Program).Assembly.GetTypes().FirstOrDefault(t =>
+            t is { IsClass: true, IsAbstract: false } &&
+            typeof(Wolverine.Runtime.Handlers.HandlerRegistry).IsAssignableFrom(t));
+
+        if (registryType == null)
+        {
+            return "No pre-generated GeneratedHandlerRegistry found in the smoke assembly. " +
+                   "Run 'dotnet run --project src/Testing/Wolverine.AotSmoke.Static codegen write' and commit the output.";
+        }
+
+        var registry = (Wolverine.Runtime.Handlers.HandlerRegistry)Activator.CreateInstance(registryType)!;
+        var handlerTypes = registry.HandlerTypes();
+
+        if (handlerTypes.Length == 0)
+        {
+            return $"{registryType.Name}.HandlerTypes() is empty; expected the smoke's {nameof(AotSmokeHandler)}.";
+        }
+
+        if (!handlerTypes.Contains(typeof(AotSmokeHandler)))
+        {
+            return $"{registryType.Name}.HandlerTypes() did not include {nameof(AotSmokeHandler)}; " +
+                   "the committed registry is stale. Re-run codegen write.";
+        }
+
+        Console.WriteLine($"OK: pre-generated {registryType.Name} captured {handlerTypes.Length} handler type(s).");
+        return null;
     }
 
     internal static void Notify(AotSmokeMessage message)
