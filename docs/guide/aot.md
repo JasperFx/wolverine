@@ -95,6 +95,26 @@ If you publish AOT in `Dynamic` mode (the default), expect warnings from these s
 
 Even without publishing AOT, `TypeLoadMode.Static` produces meaningful cold-start improvements: the host doesn't pay the per-handler Roslyn compile cost on first message. The [`CritterStackScalability`](https://github.com/JasperFx/CritterStackScalability) `coldstart wolverine` harness measures this against the V5.39.0 baseline.
 
+## Pre-generated static registries
+
+`codegen write` also emits a `GeneratedHandlerRegistry` (under `Internal/Generated/WolverineHandlers/`) that captures the discovered handler types as a compile-time `typeof(...)` array. In `TypeLoadMode.Static`, Wolverine consumes this registry at startup and **skips conventional handler discovery's assembly scan** entirely — there's no `Assembly.ExportedTypes` walk and no convention filtering across your assemblies. Handler-method selection still runs over exactly the registry's types, so behavior is identical to a full scan.
+
+This is on by default in `TypeLoadMode.Static`. Dynamic-mode apps that still want to skip the scan can opt in explicitly:
+
+```csharp
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseStaticRegistries();
+    // … the rest of your configuration
+});
+```
+
+The fallback is safe rather than loud: if no `GeneratedHandlerRegistry` is present (you forgot to run `codegen write`, or the file wasn't committed), Wolverine logs a single warning and falls back to the runtime assembly scan instead of throwing. Re-run `dotnet run -- codegen write` and commit the regenerated files to eliminate the scan.
+
+::: tip
+Regenerating during `codegen write` always performs a fresh scan, so the registry can never perpetuate a stale handler set — add the regeneration step to CI alongside the rest of your pre-generated code.
+:::
+
 ## Migration checklist
 
 If you're moving an existing 5.x Wolverine app to 6.0 AOT:

@@ -192,6 +192,56 @@ public sealed partial class HandlerDiscovery
             .SelectMany(actionsFromType).ToArray();
     }
 
+    // Cold-start fast path (Wolverine#1577 Tier 1): build the same (Type, MethodInfo)
+    // pairs FindCalls would produce, but from a known, pre-discovered set of handler
+    // types (the generated HandlerRegistry) instead of an assembly scan. Reuses the
+    // exact actionsFromType selection so behavior is identical to a full scan.
+    internal (Type, MethodInfo)[] FindCallsFromTypes(IReadOnlyList<Type> handlerTypes, WolverineOptions options)
+    {
+        if (options.ApplicationAssembly != null)
+        {
+            Assemblies.Fill(options.ApplicationAssembly);
+        }
+
+        return handlerTypes
+            .Concat(_explicitTypes)
+            .Distinct()
+            .SelectMany(actionsFromType)
+            .ToArray();
+    }
+
+    // Locates the pre-generated HandlerRegistry subclass in the application assembly and
+    // returns its captured handler types. The single-assembly ExportedTypes walk is far
+    // cheaper than conventional discovery's multi-assembly scan + convention filtering.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification =
+            "ExportedTypes walk over the application assembly to find the codegen-emitted HandlerRegistry; the type is rooted by construction. See AOT guide.")]
+    [UnconditionalSuppressMessage("Trimming", "IL2072",
+        Justification =
+            "Activator.CreateInstance over the generated HandlerRegistry subclass; the type carries its codegen-emitted public parameterless constructor. See AOT guide.")]
+    internal bool TryLoadStaticHandlerRegistry(WolverineOptions options, out IReadOnlyList<Type> handlerTypes)
+    {
+        handlerTypes = Array.Empty<Type>();
+
+        var assembly = options.ApplicationAssembly;
+        if (assembly == null)
+        {
+            return false;
+        }
+
+        var registryType = assembly.ExportedTypes.FirstOrDefault(t =>
+            t is { IsClass: true, IsAbstract: false } && typeof(HandlerRegistry).IsAssignableFrom(t));
+
+        if (registryType == null)
+        {
+            return false;
+        }
+
+        var registry = (HandlerRegistry)Activator.CreateInstance(registryType)!;
+        handlerTypes = registry.HandlerTypes();
+        return true;
+    }
+
     internal IList<Type> ExplicitTypes => _explicitTypes;
 
     /// <summary>
