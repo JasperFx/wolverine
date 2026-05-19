@@ -277,7 +277,7 @@ public static class LetterMessageHandler
 
 }
 
-public class SimpleAggregate : IRevisioned
+public partial class SimpleAggregate : IRevisioned
 {
     // This will be the aggregate version
     public int Version { get; set; }

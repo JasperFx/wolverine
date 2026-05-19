@@ -137,7 +137,7 @@ public static class GLetterMessageHandler
     }
 }
 
-public class GSimpleAggregate : IRevisioned
+public partial class GSimpleAggregate : IRevisioned
 {
     public long Version { get; set; }
     public Guid Id { get; set; }
