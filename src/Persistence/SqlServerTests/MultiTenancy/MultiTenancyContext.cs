@@ -41,6 +41,7 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
     public new async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(SqlConnection conn, string databaseName)

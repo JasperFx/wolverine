@@ -44,6 +44,8 @@ public class solo_mode_does_not_release_orphaned_messages : IAsyncLifetime
     {
         await theSoloHost.StopAsync();
         await theBalancedHost.StopAsync();
+        theSoloHost.Dispose();
+        theBalancedHost.Dispose();
     }
 
     [Fact]

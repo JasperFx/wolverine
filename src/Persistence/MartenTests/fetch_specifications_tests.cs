@@ -53,6 +53,7 @@ public class fetch_specifications_tests : PostgresqlContext, IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     private IDocumentStore Store => _host.Services.GetRequiredService<IDocumentStore>();

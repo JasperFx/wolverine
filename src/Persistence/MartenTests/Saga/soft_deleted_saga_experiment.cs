@@ -39,6 +39,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

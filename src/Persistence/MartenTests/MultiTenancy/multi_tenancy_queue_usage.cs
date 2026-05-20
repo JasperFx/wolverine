@@ -153,10 +153,11 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _receiver.StopAsync();
+        await Task.WhenAll(
+            _receiver.StopAsync(),
+            _sender.StopAsync()
+        );
         _receiver.Dispose();
-
-        await _sender.StopAsync();
         _sender.Dispose();
     }
 

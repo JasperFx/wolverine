@@ -321,9 +321,10 @@ public class
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

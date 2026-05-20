@@ -76,6 +76,7 @@ public class registration_of_message_stores : IAsyncLifetime
         if (_host != null)
         {
             await _host.StopAsync();
+            _host.Dispose();
         }
     }
 

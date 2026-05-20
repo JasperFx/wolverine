@@ -43,24 +43,31 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
     }
 }
 
-public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyncLifetime
+public class MartenBackedListenerContext : PostgresqlContext, IAsyncLifetime
 {
-    protected readonly IMessageStoreAdmin MessageStoreAdmin =
-        new PostgresqlMessageStore(new DatabaseSettings()
-                { ConnectionString = Servers.PostgresConnectionString }, new DurabilitySettings(), NpgsqlDataSource.Create(Servers.PostgresConnectionString),
-            new NullLogger<PostgresqlMessageStore>());
+    private readonly PostgresqlMessageStore _messageStoreAdmin;
 
+    protected IMessageStoreAdmin MessageStoreAdmin => _messageStoreAdmin;
     protected readonly IList<Envelope> theEnvelopes = new List<Envelope>();
     private readonly IHandlerPipeline thePipeline = Substitute.For<IHandlerPipeline>();
     protected readonly DocumentStore theStore;
     protected readonly Uri theUri = "tcp://localhost:1111".ToUri();
     internal DurableReceiver theReceiver = null!;
     protected DurabilitySettings theSettings = null!;
-
+    private PostgresqlMessageStore? _persistence;
 
     public MartenBackedListenerContext()
     {
-        theStore = DocumentStore.For(opts => { opts.Connection(Servers.PostgresConnectionString); });
+        theStore = DocumentStore.For(opts => 
+            opts.Connection(Servers.PostgresConnectionString));
+
+        _messageStoreAdmin = new PostgresqlMessageStore(
+            new DatabaseSettings {
+                ConnectionString = Servers.PostgresConnectionString 
+            }, 
+            new DurabilitySettings(), 
+            NpgsqlDataSource.Create(Servers.PostgresConnectionString),
+            new NullLogger<PostgresqlMessageStore>());
     }
 
     public async Task InitializeAsync()
@@ -70,13 +77,13 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
 
         await MessageStoreAdmin.RebuildAsync();
 
-        var persistence =
-            new PostgresqlMessageStore(
-                new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
-                new NullLogger<PostgresqlMessageStore>());
+        _persistence = new PostgresqlMessageStore(
+            new DatabaseSettings() { ConnectionString = Servers.PostgresConnectionString }, theSettings,
+            NpgsqlDataSource.Create(Servers.PostgresConnectionString),
+            new NullLogger<PostgresqlMessageStore>());
 
         var runtime = Substitute.For<IWolverineRuntime>();
-        runtime.Storage.Returns(persistence);
+        runtime.Storage.Returns(_persistence);
         runtime.Pipeline.Returns(thePipeline);
         runtime.DurabilitySettings.Returns(theSettings);
 
@@ -84,15 +91,18 @@ public class MartenBackedListenerContext : PostgresqlContext, IDisposable, IAsyn
         theReceiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);
     }
 
-    public Task DisposeAsync()
-    {
-        Dispose();
-        return Task.CompletedTask;
-    }
-
-    public void Dispose()
+    public async Task DisposeAsync()
     {
         theStore?.Dispose();
+        if (MessageStoreAdmin is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync();
+        }
+        if (_persistence is not null)
+        {
+            await _persistence.DisposeAsync();
+            _persistence = null;
+        }
     }
 
     protected Envelope notScheduledEnvelope()

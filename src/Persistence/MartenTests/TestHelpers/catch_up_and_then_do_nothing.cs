@@ -57,6 +57,7 @@ public class catch_up_and_then_do_nothing : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

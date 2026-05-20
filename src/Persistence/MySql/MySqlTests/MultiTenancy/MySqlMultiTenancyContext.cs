@@ -42,6 +42,7 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(MySqlConnection conn, string databaseName)

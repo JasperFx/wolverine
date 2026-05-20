@@ -36,6 +36,7 @@ public class global_entity_defaults : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

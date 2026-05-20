@@ -17,7 +17,6 @@ using Wolverine.Util;
 
 namespace MartenTests.Persistence;
 
-[Trait("Category", "Flaky")]
 public class marten_durability_end_to_end : IAsyncLifetime
 {
     private const string SenderSchemaName = "sender";
@@ -27,6 +26,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
     private DocumentStore _receiverStore = null!;
     private LightweightCache<string, IHost> _senders = null!;
     private DocumentStore _sendingStore = null!;
+    private PostgresqlMessageStore? _receiverMessageStore;
+    private PostgresqlMessageStore? _senderMessageStore;
 
     public async Task InitializeAsync()
     {
@@ -52,15 +53,15 @@ public class marten_durability_end_to_end : IAsyncLifetime
         var advanced = new DurabilitySettings();
 
         var logger = new NullLogger<PostgresqlMessageStore>();
-        await new PostgresqlMessageStore(new DatabaseSettings()
+        _receiverMessageStore = new PostgresqlMessageStore(new DatabaseSettings()
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = ReceiverSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
-                logger)
-            .RebuildAsync();
+                logger);
+        await _receiverMessageStore.RebuildAsync();
 
-        await new PostgresqlMessageStore(new DatabaseSettings()
+        _senderMessageStore = new PostgresqlMessageStore(new DatabaseSettings()
                     { ConnectionString = Servers.PostgresConnectionString, SchemaName = SenderSchemaName }, advanced, NpgsqlDataSource.Create(Servers.PostgresConnectionString),
-                logger)
-            .RebuildAsync();
+                logger);
+        await _senderMessageStore.RebuildAsync();
 
         await _sendingStore.Advanced.Clean.CompletelyRemoveAllAsync();
         await _sendingStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
@@ -72,6 +73,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Policies.AutoApplyTransactions();
                     opts.DisableConventionalDiscovery();
                     opts.IncludeType<TraceHandler>();
@@ -93,6 +95,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
             return Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.DisableConventionalDiscovery();
                     opts.Policies.AutoApplyTransactions();
 
@@ -137,6 +140,18 @@ public class marten_durability_end_to_end : IAsyncLifetime
         _receiverStore = null!;
         _sendingStore.Dispose();
         _sendingStore = null!;
+
+        if (_receiverMessageStore != null)
+        {
+            await _receiverMessageStore.DisposeAsync();
+            _receiverMessageStore = null;
+        }
+
+        if (_senderMessageStore != null)
+        {
+            await _senderMessageStore.DisposeAsync();
+            _senderMessageStore = null;
+        }
     }
 
     protected void StartReceiver(string name)
@@ -178,13 +193,10 @@ public class marten_durability_end_to_end : IAsyncLifetime
         for (var i = 0; i < 480; i++)
         {
             var actual = await session.Query<TraceDoc>().CountAsync();
-            var envelopeCount = PersistedIncomingCount();
-
+            var envelopeCount = await PersistedIncomingCount();
 
             if (actual == count && envelopeCount == 0)
-            {
                 return;
-            }
 
             await Task.Delay(250);
         }
@@ -192,24 +204,28 @@ public class marten_durability_end_to_end : IAsyncLifetime
         throw new Exception("All messages were not received");
     }
 
-    protected long PersistedIncomingCount()
+    protected async Task<long> PersistedIncomingCount()
     {
-        using var conn = _receiverStore.Tenancy.Default.Database.CreateConnection();
-        conn.Open();
+        await using var conn = _receiverStore.Tenancy.Default.Database.CreateConnection();
+        await conn.OpenAsync();
 
-        return (long)conn.CreateCommand(
-                $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'")
-            .ExecuteScalar()!;
+        var command = conn.CreateCommand(
+            $"select count(*) from receiver.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}'");
+
+        var count = await command.ExecuteScalarAsync();
+        return Convert.ToInt64(count);
     }
 
-    protected long PersistedOutgoingCount()
+    protected async Task<long> PersistedOutgoingCount()
     {
-        using var conn = _sendingStore.Tenancy.Default.Database.CreateConnection();
-        conn.Open();
+        await using var conn = _receiverStore.Tenancy.Default.Database.CreateConnection();
+        await conn.OpenAsync();
 
-        return (long)conn.CreateCommand(
-                $"select count(*) from sender.{DatabaseConstants.OutgoingTable}")
-            .ExecuteScalar()!;
+        var command = conn.CreateCommand(
+            $"select count(*) from sender.{DatabaseConstants.OutgoingTable}");
+
+        var count = await command.ExecuteScalarAsync();
+        return Convert.ToInt64(count);
     }
 
     protected async Task StopReceiver(string name)
@@ -234,12 +250,12 @@ public class marten_durability_end_to_end : IAsyncLifetime
         StartSender("Sender1");
         await SendMessages("Sender1", 10);
         await StopSender("Sender1");
-        PersistedOutgoingCount().ShouldBe(10);
+        (await PersistedOutgoingCount()).ShouldBe(10);
         StartReceiver("Receiver1");
         StartSender("Sender2");
         await WaitForMessagesToBeProcessed(10);
-        PersistedIncomingCount().ShouldBe(0);
-        PersistedOutgoingCount().ShouldBe(0);
+        (await PersistedIncomingCount()).ShouldBe(0);
+        (await PersistedOutgoingCount()).ShouldBe(0);
         (await ReceivedMessageCount()).ShouldBe(10);
     }
 
@@ -250,8 +266,8 @@ public class marten_durability_end_to_end : IAsyncLifetime
         await SendMessages("Sender1", 5);
         StartReceiver("Receiver1");
         await WaitForMessagesToBeProcessed(5);
-        PersistedIncomingCount().ShouldBe(0);
-        PersistedOutgoingCount().ShouldBe(0);
+        (await PersistedIncomingCount()).ShouldBe(0);
+        (await PersistedOutgoingCount()).ShouldBe(0);
         (await ReceivedMessageCount()).ShouldBe(5);
     }
 }

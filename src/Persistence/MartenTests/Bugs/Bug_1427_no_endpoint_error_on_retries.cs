@@ -19,7 +19,7 @@ public class Bug_1427_no_endpoint_error_on_retries : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public Task InitializeAsync()
+    public async Task InitializeAsync()
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Services.AddMarten(o =>
@@ -60,12 +60,13 @@ public class Bug_1427_no_endpoint_error_on_retries : IAsyncLifetime
         });
 
         _host = builder.Build();
-        return _host.StartAsync();
+        await _host.StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

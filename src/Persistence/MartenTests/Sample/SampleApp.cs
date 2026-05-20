@@ -37,6 +37,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
         if (theHost != null)
         {
             await theHost.StopAsync();
+            theHost.Dispose();
         }
     }
 

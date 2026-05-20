@@ -118,9 +118,10 @@ public class MonolithFixture : IAsyncLifetime
         }
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return Host.StopAsync();
+        await Host.StopAsync();
+        Host.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)

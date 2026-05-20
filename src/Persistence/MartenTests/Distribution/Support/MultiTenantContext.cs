@@ -73,8 +73,8 @@ public abstract class MultiTenantContext : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _tenancyStore.DisposeAsync();
-        _hosts.Reverse();
-        foreach (var host in _hosts.ToArray()) await shutdownHostAsync(host);
+        await Task.WhenAll(_hosts.Select(ShutdownHostAsync));
+        _hosts.Clear();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
@@ -172,12 +172,11 @@ public abstract class MultiTenantContext : IAsyncLifetime
         return host;
     }
 
-    private async Task shutdownHostAsync(IHost host)
+    private static async Task ShutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
-        _hosts.Remove(host);
     }
 
     protected Uri[] runningSubscriptions(IHost host)

@@ -16,11 +16,10 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Persistence;
 
-public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyncLifetime
+public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
     private IHost theReceiver = null!;
-
     private IHost theSender = null!;
 
     public end_to_end_with_persistence(ITestOutputHelper output)
@@ -69,14 +68,9 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
     public Task DisposeAsync()
     {
-        Dispose();
-        return Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
         theSender?.Dispose();
         theReceiver?.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]

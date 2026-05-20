@@ -55,6 +55,7 @@ public class catch_up_then_restart : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

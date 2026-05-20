@@ -39,6 +39,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

@@ -96,6 +96,8 @@ public class end_to_end : IAsyncLifetime
     {
         await _receivingHost.StopAsync();
         await _publishingHost.StopAsync();
+        _receivingHost.Dispose();
+        _publishingHost.Dispose();
     }
 
     #endregion

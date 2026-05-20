@@ -43,19 +43,15 @@ public abstract class SingleTenantContext : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        _hosts.Reverse();
-        foreach (var host in _hosts.ToArray())
-        {
-            await shutdownHostAsync(host);
-        }
+        await Task.WhenAll(_hosts.Select(ShutdownHostAsync));
+        _hosts.Clear();
     }
 
-    private async Task shutdownHostAsync(IHost host)
+    private static async Task ShutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
-        _hosts.Remove(host);
     }
 
     protected async Task<IHost> startHostAsync()

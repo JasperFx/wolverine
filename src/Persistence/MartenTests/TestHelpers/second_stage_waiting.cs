@@ -59,6 +59,7 @@ public class second_stage_waiting : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

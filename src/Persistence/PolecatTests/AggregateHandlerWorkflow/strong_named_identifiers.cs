@@ -36,6 +36,7 @@ public class strong_named_identifiers : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     [Fact]

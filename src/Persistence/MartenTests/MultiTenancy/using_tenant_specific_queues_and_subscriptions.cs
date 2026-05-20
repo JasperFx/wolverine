@@ -104,21 +104,17 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
 
     public async Task DisposeAsync()
     {
-        foreach (var host in _receivers) host.GetRuntime().Agents.DisableHealthChecks();
-
-        _receivers.Reverse();
-        foreach (var host in _receivers.ToArray()) await shutdownHostAsync(host);
-
-        await _sender.StopAsync();
-        _sender.Dispose();
+        await Task.WhenAll([
+            .._receivers.Select(ShutdownHostAsync),
+            ShutdownHostAsync(_sender)
+        ]);
     }
 
-    private async Task shutdownHostAsync(IHost host)
+    private static async Task ShutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
-        _receivers.Remove(host);
     }
 
     private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)

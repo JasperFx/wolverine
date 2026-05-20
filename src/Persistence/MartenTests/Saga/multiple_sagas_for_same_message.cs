@@ -37,6 +37,7 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]
