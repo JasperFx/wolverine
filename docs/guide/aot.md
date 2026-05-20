@@ -115,6 +115,23 @@ The fallback is safe rather than loud: if no `GeneratedHandlerRegistry` is prese
 Regenerating during `codegen write` always performs a fresh scan, so the registry can never perpetuate a stale handler set — add the regeneration step to CI alongside the rest of your pre-generated code.
 :::
 
+## Validation and AOT
+
+There is **no pre-generated `ValidatorRegistry`** to build for AOT — but the picture has two distinct paths, only one of which scans assemblies. See #2855 for the full investigation.
+
+**Middleware application is scan-free (AOT-clean).** `FluentValidationPolicy` decides whether to apply validation to a handler chain by *querying the IoC container* per message type (`container.RegistrationsFor(typeof(IValidator<>))`), not by walking `Assembly.ExportedTypes`. The codegen-time policy and the runtime `Execute*` calls carry leaf trim/AOT annotations (see [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746)), so this path is trim-safe. Likewise `DataAnnotationsValidationExecutor` reflects only over the handler-rooted message type's `[Validation*]` attribute graph (leaf-annotated, no scan).
+
+**Validator *discovery* at bootstrap is the one non-AOT seam.** `opts.UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's `AssemblyScanner` over your `ApplicationAssembly` to find and register `IValidator<T>` implementations. That scan is fundamentally trim-hostile (it walks exported types and constructs open generics reflectively). For trim/AOT publishing, opt out of the scan and register validators explicitly:
+
+```csharp
+opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+
+// then register each validator yourself (trim-safe):
+opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
+```
+
+With `ExplicitRegistration`, Wolverine performs no assembly scan; the middleware-application path was already scan-free, so the whole FluentValidation surface is then AOT-clean. (If you instead rely on FluentValidation's own `AddValidatorsFromAssembly*` outside Wolverine, that scan has the same trim-hostility — register explicitly there too, and see [FluentValidation's AOT guidance](https://docs.fluentvalidation.net/).)
+
 ## Migration checklist
 
 If you're moving an existing 5.x Wolverine app to 6.0 AOT:

@@ -162,3 +162,14 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L60-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Trimming / AOT
+
+Applying the validation middleware is trim/AOT-safe: `FluentValidationPolicy` decides which handlers to wrap by querying the IoC container per message type, not by scanning assemblies. The one trim-hostile seam is validator **discovery** — `UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's `AssemblyScanner` at bootstrap. For trim/AOT publishing, opt out of the scan and register validators explicitly:
+
+```csharp
+opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
+```
+
+See the [AOT publishing guide](/guide/aot.html#validation-and-aot) for the full story.
