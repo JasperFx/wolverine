@@ -6,6 +6,8 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Sagas;
 using Weasel.Core;
+using Wolverine;
+using Wolverine.Persistence.Durability;
 using Wolverine.Marten;
 
 namespace MartenTests.Persistence.Sagas;
@@ -19,6 +21,8 @@ public class MartenSagaHost : ISagaHost
         _host = await WolverineHost.ForAsync(opts =>
         {
             opts.DisableConventionalDiscovery().IncludeType<TSaga>();
+
+            opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.Services.AddMarten(x =>
             {

@@ -68,6 +68,7 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

@@ -13,6 +13,7 @@ public class BootstrapWithAutoTransactions
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten("some connection string")
                     .IntegrateWithWolverine();
 

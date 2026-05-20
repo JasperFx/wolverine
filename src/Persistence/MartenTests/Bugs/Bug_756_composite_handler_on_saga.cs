@@ -16,6 +16,7 @@ public class Bug_756_composite_handler_on_saga
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.IncludeType<SagaExample>();
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 

@@ -20,6 +20,7 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine()
                     .UseLightweightSessions();

@@ -46,6 +46,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
             }).IntegrateWithWolverine();
 
             opts.ListenAtPort(2567);
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         theReceiver = await WolverineHost.ForAsync(opts =>
@@ -60,6 +61,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
                 x.Connection(Servers.PostgresConnectionString);
                 x.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         await theSender.ResetResourceState();
@@ -114,7 +116,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
             var item2 = await session.LoadAsync<ItemCreated>(item.Id);
             if (item2 == null)
             {
-                Thread.Sleep(500);
+                await Task.Delay(500);
                 item2 = await session.LoadAsync<ItemCreated>(item.Id);
             }
 

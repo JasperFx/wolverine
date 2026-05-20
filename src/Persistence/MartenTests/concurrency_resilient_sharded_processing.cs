@@ -53,6 +53,7 @@ public class concurrency_resilient_sharded_processing
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
     
                 opts.Services.AddMarten(m =>
@@ -99,6 +100,7 @@ public class concurrency_resilient_sharded_processing
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 
                 opts.Services.AddMarten(m =>
@@ -153,6 +155,7 @@ public class concurrency_resilient_sharded_processing
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use
@@ -197,6 +200,7 @@ public class concurrency_resilient_sharded_processing
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(LetterMessageHandler));
                 
                 // Telling Wolverine how to assign a GroupId to a message, that we'll use

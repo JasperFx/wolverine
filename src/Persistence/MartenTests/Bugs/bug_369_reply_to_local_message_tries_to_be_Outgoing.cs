@@ -17,6 +17,7 @@ public class bug_369_reply_to_local_message_tries_to_be_Outgoing : PostgresqlCon
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 

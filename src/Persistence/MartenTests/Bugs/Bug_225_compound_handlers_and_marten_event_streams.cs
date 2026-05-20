@@ -22,7 +22,11 @@ public class Bug_225_compound_handlers_and_marten_event_streams : PostgresqlCont
                 services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
             })
-            .UseWolverine(opts => { opts.Policies.AutoApplyTransactions(); })
+            .UseWolverine(opts => 
+            { 
+                opts.Policies.AutoApplyTransactions();
+                opts.Durability.Mode = DurabilityMode.Solo;
+            })
             .StartAsync();
 
         var id = Guid.NewGuid();

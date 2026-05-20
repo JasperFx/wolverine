@@ -20,6 +20,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.IncludeType<SoftDeletedOrderSaga>();
 
                 opts.Services.AddMarten(m =>

@@ -17,6 +17,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
 
@@ -47,6 +48,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
 
@@ -69,10 +71,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    // opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    //     .IntegrateWithWolverine();
-                    //
-                    // opts.Policies.AutoApplyTransactions();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();
 
@@ -101,6 +100,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
                     //     .IntegrateWithWolverine();
                     //
                     // opts.Policies.AutoApplyTransactions();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();
 

@@ -138,6 +138,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.Mode = DurabilityMode.Balanced;
 
                 opts.ListenToPostgresqlQueue("numbers").ListenWithStrictOrdering();

@@ -28,6 +28,7 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);

@@ -20,6 +20,7 @@ public class Marten_StorageCommand_Smoke_Tests : PostgresqlContext
 
         var exitCode = await Host.CreateDefaultBuilder().UseWolverine(registry =>
         {
+            registry.Durability.Mode = DurabilityMode.Solo;
             registry.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
         }).RunWolverineAsync(args);

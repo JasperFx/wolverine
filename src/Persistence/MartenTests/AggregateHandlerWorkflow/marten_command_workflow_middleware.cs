@@ -16,6 +16,7 @@ using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Tracking;
+using Wolverine;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 
@@ -40,6 +41,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifet
             opts.Services.AddResourceSetupOnStartup();
 
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();

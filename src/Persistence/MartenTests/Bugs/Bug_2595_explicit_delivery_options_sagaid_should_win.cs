@@ -32,6 +32,7 @@ public class Bug_2595_explicit_delivery_options_sagaid_should_win : PostgresqlCo
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 

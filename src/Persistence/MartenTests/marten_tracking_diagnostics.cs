@@ -36,6 +36,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // AutoApplyTransactions wires the Marten persistence frame provider's
                 // ApplyTransactionSupport onto chains that touch Marten — that's what
@@ -65,6 +66,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 opts.Policies.AutoApplyTransactions();
                 // OutboxDiagnosticsEnabled left at its default (false)

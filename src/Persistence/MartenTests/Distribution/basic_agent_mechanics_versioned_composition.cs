@@ -38,7 +38,7 @@ public class basic_agent_mechanics_versioned_composition(ITestOutputHelper outpu
         {
             w.AgentScheme = theDistributor.Scheme;
         
-            // 3 projections x 2 databases = 6 total
+            // 3 projections x 4 databases = 12 total
             w.ExpectRunningAgents(theOriginalHost, 12);
         }, 30.Seconds());
 
@@ -52,7 +52,7 @@ public class basic_agent_mechanics_versioned_composition(ITestOutputHelper outpu
         {
             w.AgentScheme = theDistributor.Scheme;
 
-            // 3 projections x 2 databases = 6 total
+            // 3 projections x 4 databases = 12 total
             w.ExpectRunningAgents(theOriginalHost, 3);
             w.ExpectRunningAgents(host2, 3);
             w.ExpectRunningAgents(host3, 3);

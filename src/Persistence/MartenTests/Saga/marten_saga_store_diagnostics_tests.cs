@@ -32,6 +32,7 @@ public class marten_saga_store_diagnostics_tests : PostgresqlContext, IAsyncLife
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<DiagSaga>();
 
                 opts.Services.AddMarten(x =>

@@ -49,8 +49,7 @@ public class aggregate_handler_workflow_with_ievent
                     });
                 
                 opts.Policies.AutoApplyTransactions();
-                
-
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

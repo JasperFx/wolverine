@@ -37,6 +37,7 @@ public class Bug_2387_write_aggregate_throw_exception_codegen : PostgresqlContex
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

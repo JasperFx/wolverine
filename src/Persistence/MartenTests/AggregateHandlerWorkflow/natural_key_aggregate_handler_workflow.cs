@@ -36,6 +36,8 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
                 .UseLightweightSessions()
                 .IntegrateWithWolverine();
 
+            opts.Durability.Mode = DurabilityMode.Solo;
+
             opts.Services.AddResourceSetupOnStartup();
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });

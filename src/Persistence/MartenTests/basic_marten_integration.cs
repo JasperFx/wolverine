@@ -33,6 +33,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
                     o.AutoCreateSchemaObjects = AutoCreate.All;
                 }).UseLightweightSessions().IntegrateWithWolverine();
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
     }
@@ -68,6 +69,7 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
                     o.AutoCreateSchemaObjects = AutoCreate.All;
                 }).IntegrateWithWolverine(x => x.MessageStorageSchemaName = "wolverine");
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).Start();
 

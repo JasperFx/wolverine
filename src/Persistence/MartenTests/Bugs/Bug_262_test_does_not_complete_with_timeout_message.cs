@@ -29,6 +29,7 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
             })
             .UseWolverine(w =>
             {
+                w.Durability.Mode = DurabilityMode.Solo;
                 w.Policies.AutoApplyTransactions();
 
                 // Uncommenting this makes the test hang and probably turn red.

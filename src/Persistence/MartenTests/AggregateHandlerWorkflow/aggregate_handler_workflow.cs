@@ -46,6 +46,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

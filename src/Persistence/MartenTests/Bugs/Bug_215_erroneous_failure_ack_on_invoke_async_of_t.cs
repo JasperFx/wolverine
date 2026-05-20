@@ -25,6 +25,7 @@ public class Bug_215_erroneous_failure_ack_on_invoke_async_of_t : PostgresqlCont
 
                 opts.Policies.AutoApplyTransactions();
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

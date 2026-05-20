@@ -17,6 +17,7 @@ public class Bug_778_multiple_marten_ops_in_tuple : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(SpawnHandler));
 
                 opts.Services.AddMarten(m =>

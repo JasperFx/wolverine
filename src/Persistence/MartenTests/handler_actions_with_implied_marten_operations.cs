@@ -23,6 +23,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();

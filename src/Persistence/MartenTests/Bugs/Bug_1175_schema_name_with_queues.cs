@@ -42,6 +42,7 @@ public class Bug_1175_schema_name_with_queues
                         options.MessageStorageSchemaName = "sender";
                     });
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 
             }).StartAsync();
@@ -69,6 +70,7 @@ public class Bug_1175_schema_name_with_queues
                         options.MessageStorageSchemaName = "listener";
                     });
 
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 
             }).StartAsync();

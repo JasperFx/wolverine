@@ -38,6 +38,7 @@ public class always_enforce_consistency_workflow : PostgresqlContext, IAsyncLife
 
                 opts.Services.AddResourceSetupOnStartup();
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+                opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();

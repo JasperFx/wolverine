@@ -20,6 +20,7 @@ public class mixed_aggregate_handler_with_multiple_streams
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 MartenServiceCollectionExtensions.AddMarten(opts.Services, m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);

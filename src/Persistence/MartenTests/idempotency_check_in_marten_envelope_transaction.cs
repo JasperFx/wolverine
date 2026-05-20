@@ -26,6 +26,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -100,6 +101,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 // TODO -- make this the default
                 opts.OnException<DuplicateIncomingEnvelopeException>().Discard();
                 opts.Policies.AutoApplyTransactions(idempotency);
@@ -141,6 +143,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 // TODO -- make this the default
                 opts.OnException<DuplicateIncomingEnvelopeException>().Discard();
                 opts.Policies.AutoApplyTransactions(idempotency);

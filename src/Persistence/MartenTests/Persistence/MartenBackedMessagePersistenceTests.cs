@@ -40,6 +40,8 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
     {
         theHost = await WolverineHost.ForAsync(opts =>
         {
+            opts.Durability.Mode = DurabilityMode.Solo;
+
             opts.Services.AddMarten(x => { x.Connection(Servers.PostgresConnectionString); })
                 .IntegrateWithWolverine();
         });

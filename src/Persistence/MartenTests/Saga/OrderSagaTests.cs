@@ -39,6 +39,7 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
                 .UseWolverine(options =>
                 {
                     options.Discovery.IncludeAssembly(Assembly.GetAssembly(typeof(Order))!);
+                    options.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();
 

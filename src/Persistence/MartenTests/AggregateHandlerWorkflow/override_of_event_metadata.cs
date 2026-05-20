@@ -20,6 +20,7 @@ public class override_of_event_metadata
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(AEventHandler))
                     .IncludeType(typeof(EmitEventsWithMetadataHandler));
 

@@ -21,6 +21,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Policies.AutoApplyTransactions();
                 opts.Services.AddMarten(m =>
                 {

@@ -39,6 +39,8 @@ public class batch_processing
                     batching.BatchSize = 8;
                     batching.LocalExecutionQueueName = "items";
                 }).UseDurableInbox();
+                opts.Durability.Mode = DurabilityMode.Solo;
+                
             }).StartAsync();
         
         await theHost.CleanAllMartenDataAsync();
@@ -122,6 +124,7 @@ public class batch_processing
                     batching.BatchSize = 8;
                     batching.LocalExecutionQueueName = "items";
                 }).UseDurableInbox();
+                opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
         
         var item1 = new BatchItem("one", Guid.NewGuid());

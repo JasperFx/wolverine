@@ -17,6 +17,7 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // Add the auto transaction middleware attachment policy
                 opts.Policies.AutoApplyTransactions();
@@ -36,6 +37,7 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // Add the auto transaction middleware attachment policy
                 opts.Policies.AutoApplyTransactions();

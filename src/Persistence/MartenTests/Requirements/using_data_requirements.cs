@@ -21,6 +21,7 @@ public class using_data_requirements : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
