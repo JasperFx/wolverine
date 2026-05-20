@@ -46,6 +46,14 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
                             .ForAggregate<SubscriptionState>();
                         m.Events.RegisterTagType<FacultyId>("faculty");
 
+                        // FetchForWritingByTags<T> resolves its aggregator via the JasperFx.Events
+                        // source generator, which only emits a dispatcher for an aggregate that is
+                        // registered as a single-stream projection. Registering SubscriptionState as a
+                        // live aggregation (it also carries an Id) gives the SG something to generate
+                        // for; without it the boundary fetch throws InvalidProjectionException. This
+                        // mirrors Marten's own DCB tests (StudentCourseEnrollment / HsTicketSummary).
+                        m.Projections.LiveStreamAggregation<SubscriptionState>();
+
                         // Register event types
                         m.Events.AddEventType<CourseCreated>();
                         m.Events.AddEventType<CourseCapacityChanged>();

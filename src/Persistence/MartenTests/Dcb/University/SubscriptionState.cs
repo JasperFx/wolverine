@@ -6,8 +6,14 @@ namespace MartenTests.Dcb.University;
 /// Ported from the Axon SubscribeStudentToCourseCommandHandler.State which uses
 /// EventCriteria.either() to load events matching CourseId OR StudentId.
 /// </summary>
-public class SubscriptionState
+public partial class SubscriptionState
 {
+    // Required so the aggregate can be registered as a single-stream projection
+    // (LiveStreamAggregation), which is what makes the JasperFx.Events source generator
+    // emit the dispatcher that FetchForWritingByTags<SubscriptionState> resolves. For the
+    // boundary (tag-query) path this Id is not stream-bound — it just satisfies the
+    // single-stream projection shape, the same way Marten's own DCB aggregates carry one.
+    public string Id { get; set; } = null!;
     public CourseId? CourseId { get; private set; }
     public int CourseCapacity { get; private set; }
     public int StudentsSubscribedToCourse { get; private set; }
