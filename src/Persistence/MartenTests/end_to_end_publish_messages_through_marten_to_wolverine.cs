@@ -3,6 +3,7 @@ using System.Text.Json;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Grouping;
@@ -21,7 +22,7 @@ using Weasel.Postgresql;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
-using IRevisioned = Marten.Metadata.IRevisioned;
+using IRevisioned = JasperFx.IRevisioned;
 
 namespace MartenTests;
 
@@ -250,13 +251,15 @@ public static class GotBHandler
     }
 }
 
-public class SideEffects1 : IRevisioned
+public class SideEffects1 : JasperFx.ILongVersioned
 {
     public Guid Id { get; set; }
     public int A { get; set; }
     public int B { get; set; }
     public int C { get; set; }
     public int D { get; set; }
+    // ILongVersioned (long), not IRevisioned (int): JasperFx 2.0 rc split numeric
+    // versioning, and this document tracks a long stream version.
     public long Version { get; set; }
 }
 

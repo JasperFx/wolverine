@@ -14,7 +14,7 @@ using Wolverine.Marten.Codegen;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
-using IRevisioned = Marten.Metadata.IRevisioned;
+using IRevisioned = JasperFx.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 

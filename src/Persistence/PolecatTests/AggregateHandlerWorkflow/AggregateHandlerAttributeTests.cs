@@ -8,6 +8,12 @@ using Wolverine.Configuration;
 using Wolverine.Polecat;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+// JasperFx rc lifted its own IdentityAttribute (JasperFx.IdentityAttribute),
+// which now collides with Wolverine.Polecat.IdentityAttribute under the
+// `using Wolverine.Polecat;` import above. These tests exercise Polecat's
+// aggregate-handler attribute recognition (Polecat stays on alpha.10), so
+// pin [Identity] to the Polecat attribute the way it resolved pre-bump.
+using IdentityAttribute = Wolverine.Polecat.IdentityAttribute;
 
 namespace PolecatTests.AggregateHandlerWorkflow;
 

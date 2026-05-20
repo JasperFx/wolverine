@@ -175,19 +175,15 @@ internal class MartenOverrides : IConfigureMarten
             {
                 mapping.UseNumericRevisions = true;
                 // GetProperty(name, returnType) — not GetProperty(name) — because
-                // saga subclasses in the wild (pre-6.0) sometimes declare
-                // `public new int Version` to work around the 5.x mismatch
-                // between Saga.Version: int and Marten's IRevisioned.Version:
-                // long. After the 6.0 widening of Saga.Version to long
-                // (matching Marten 9.0.0-alpha.2's IRevisioned.Version), the
-                // single-arg overload throws AmbiguousMatchException on those
-                // subclasses because the inherited long and the derived int
-                // are two distinct properties. Filtering by return type picks
-                // the inherited long property unambiguously and treats the
-                // derived shadow as harmless dead code (which it now is, per
-                // the Saga.Version XML doc).
+                // saga subclasses in the wild sometimes declare a shadowing
+                // `public new ... Version` property. Saga.Version is permanently
+                // an int (it aligns with JasperFx 2.0 rc's IRevisioned.Version,
+                // which is an int; the long-versioned event-sourcing case is a
+                // separate ILongVersioned.Version). Filtering by the int return
+                // type picks the canonical Saga.Version revision property and
+                // ignores any derived shadow of a different type.
                 mapping.Metadata.Revision.Member = mapping.DocumentType.GetProperty(
-                    nameof(Saga.Version), typeof(long))!;
+                    nameof(Saga.Version), typeof(int))!;
             }
         });
     }

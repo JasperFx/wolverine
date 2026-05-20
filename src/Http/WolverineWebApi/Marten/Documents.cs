@@ -2,6 +2,7 @@ using System.Linq.Expressions;
 using Marten;
 using Marten.Linq;
 using Marten.Metadata;
+using JasperFx.Metadata;
 using Microsoft.AspNetCore.Mvc;
 using Wolverine.Http;
 using Wolverine.Http.Marten;

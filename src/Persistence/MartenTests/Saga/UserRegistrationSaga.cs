@@ -1,4 +1,5 @@
 using Marten.Metadata;
+using JasperFx;
 using Wolverine.Persistence.Sagas;
 
 namespace MartenTests.Saga;
