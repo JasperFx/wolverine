@@ -162,3 +162,7 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Extensions/Wolverine.FluentValidation.Tests/Samples.cs#L60-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrap_with_fluent_validation_and_custom_failure_condition' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Trimming / AOT
+
+Wolverine's Fluent Validation middleware does not scan assemblies for validators — `FluentValidationPolicy` discovers them by querying the IoC container per message type, so the Wolverine side is already trim/AOT-safe with no pre-generation step required. The one non-AOT seam is FluentValidation's own `AddValidatorsFromAssembly(...)` scan; for trim/AOT publishing, register validators explicitly (`services.AddScoped<IValidator<MyMessage>, MyMessageValidator>()`) rather than scanning. See the [AOT publishing guide](/guide/aot.html#validation-is-already-scan-free) for the full story.

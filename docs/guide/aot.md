@@ -115,6 +115,15 @@ The fallback is safe rather than loud: if no `GeneratedHandlerRegistry` is prese
 Regenerating during `codegen write` always performs a fresh scan, so the registry can never perpetuate a stale handler set — add the regeneration step to CI alongside the rest of your pre-generated code.
 :::
 
+## Validation is already scan-free
+
+`WolverineFx.FluentValidation` and `WolverineFx.DataAnnotationsValidation` do **not** scan assemblies for validators on Wolverine's side, so there's no discovery step to pre-generate away for AOT.
+
+- **FluentValidation** — `FluentValidationPolicy` discovers validators by querying the IoC container per message type (`container.RegistrationsFor(typeof(IValidator<>))`), not by walking `Assembly.ExportedTypes`. The codegen-time policy and the runtime `Execute*` calls carry leaf trim/AOT annotations (see [AOT-pillar tracking](https://github.com/JasperFx/wolverine/issues/2746)), so the path is AOT-clean. The one non-AOT seam is FluentValidation's *own* `AddValidatorsFromAssembly(...)` registration scan — that runs outside Wolverine's control. For trim/AOT apps, register validators explicitly (`services.AddScoped<IValidator<MyMessage>, MyMessageValidator>()`) instead of `AddValidatorsFromAssembly*`, and consult [FluentValidation's AOT guidance](https://docs.fluentvalidation.net/) for its side.
+- **DataAnnotations** — `DataAnnotationsValidationExecutor` reflects over the message type's `[Validation*]` attribute graph at runtime; the message type is handler-rooted and the reflective surface is leaf-annotated. No assembly scan.
+
+In short: nothing extra to do for validation when moving to `TypeLoadMode.Static` — Wolverine's validation discovery doesn't participate in the assembly-scan cold-start cost. See #2855 for the full investigation.
+
 ## Migration checklist
 
 If you're moving an existing 5.x Wolverine app to 6.0 AOT:
