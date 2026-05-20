@@ -96,9 +96,9 @@ public class RevisionedSaga : Wolverine.Saga
     
     public Guid Id { get; set; }
 
-    // No `new Version` shadow needed in 6.0 — Wolverine.Saga.Version was
-    // widened from int to long to match Marten 9's IRevisioned.Version, so
-    // the base property is now the saga's revision tracker by default.
+    // No `new Version` shadow needed in 6.0 — Wolverine.Saga.Version (an int)
+    // matches JasperFx 2.0 rc's IRevisioned.Version (also an int), so the base
+    // property is the saga's revision tracker by default.
     // See docs/guide/migration.md.
 
     public bool One { get; set; }
