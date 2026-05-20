@@ -1,4 +1,5 @@
 using System.Data;
+using JasperFx.Events.Daemon;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MySqlConnector;
