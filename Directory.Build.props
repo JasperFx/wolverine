@@ -61,8 +61,21 @@
                      IEventSlice<T>.Aggregate -> IEventSlice<T>.Snapshot
                      ProjectionBase.ProjectionName -> Name
                      ProjectionBase.CacheLimitPerTenant -> Options.CacheLimitPerTenant
+          rc.1:    First 6.0 release candidate. Critter Stack 2026 rc pin matrix
+                   (PR #2872):
+                     JasperFx / .RuntimeCompiler / .SourceGeneration / .Events
+                       (+ .Events.SourceGenerator)     alpha.* -> 2.0.0-rc.2 / 5.0.0-rc.2
+                     Marten / .AspNetCore / .Newtonsoft alpha.4 -> 9.0.0-rc.1
+                     Weasel.* (7 packages)             alpha.7 -> 9.0.0-rc.1
+                     Polecat                           alpha.10 -> 4.0.0-rc.1
+                   JasperFx 2.0 rc split numeric versioning into IRevisioned.Version
+                   (int) and ILongVersioned.Version (long); Saga.Version reverts to
+                   int (permanent) so sagas implement IRevisioned directly, and
+                   event-stream-versioned aggregates implement ILongVersioned. rc
+                   namespace relocations absorbed across tests/samples (IRevisioned,
+                   TenancyStyle, Identity/IdentityAttribute, ISoftDeleted).
         -->
-        <Version>6.0.0-alpha.5</Version>
+        <Version>6.0.0-rc.1</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
