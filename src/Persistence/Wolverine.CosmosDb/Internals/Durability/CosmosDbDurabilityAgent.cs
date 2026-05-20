@@ -40,7 +40,7 @@ public partial class CosmosDbDurabilityAgent : IAgent
         _localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(TransportConstants.Scheduled);
         _settings = runtime.DurabilitySettings;
 
-        Uri = new Uri("cosmosdb://durability");
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://cosmosdb/durability");
 
         _logger = runtime.LoggerFactory.CreateLogger<CosmosDbDurabilityAgent>();
 
