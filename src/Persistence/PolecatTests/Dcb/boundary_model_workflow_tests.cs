@@ -18,18 +18,9 @@ namespace PolecatTests.Dcb;
 
 // Parity port of MartenTests.Dcb.boundary_model_workflow_tests — same DCB scenarios run against
 // Polecat (SQL Server) to guarantee the Wolverine + Polecat boundary-model integration covers the
-// same cases as the Wolverine + Marten one.
-//
-// KNOWN FAILING (visible TODO) as of Polecat 4.0.0-alpha.8 — fixed by JasperFx/polecat#123, pending a
-// published Polecat release. Two Polecat-side defects, both verified resolved against a local Polecat
-// build of that PR (the full suite goes 5/5):
-//   1. Multi-condition EventTagQuery returned zero rows. A single tag condition (Or<TTag>) worked, but
-//      any query OR-combining distinct tag types returned nothing because Polecat INNER JOINed every
-//      tag-type table (requiring each event to carry all queried tags). can_fetch_..._multiple_tag_types
-//      hits this directly via session.Events — no Wolverine code involved.
-//   2. Boundary append to an existing tag-derived stream threw ExistingStreamIdCollisionException
-//      (Polecat used StreamAction.Start instead of Append). This breaks the [BoundaryModel] handler save.
-// Both are fixed to match Marten's behavior in polecat#123. These tests go green once Polecat ships it.
+// same cases as the Wolverine + Marten one. Requires the two DCB fixes from JasperFx/polecat#123
+// (cross-tag-type EventTagQuery LEFT JOIN; boundary append via StreamAction.Append), shipped in
+// Polecat 4.0.0-alpha.10.
 public class boundary_model_workflow_tests : IAsyncLifetime
 {
     private IHost theHost = null!;
