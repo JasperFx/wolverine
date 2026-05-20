@@ -83,7 +83,7 @@ internal class PublishingRelay : BatchSubscription, IPublishingRelay
             }
             else
             {
-                if (e.TenantId != global::Polecat.Tenancy.DefaultTenantId)
+                if (e.TenantId != JasperFx.StorageConstants.DefaultTenantId)
                 {
                     await bus.PublishAsync(e, new DeliveryOptions{TenantId = e.TenantId});
                 }
