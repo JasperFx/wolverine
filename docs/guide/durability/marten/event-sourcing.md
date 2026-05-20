@@ -1476,6 +1476,43 @@ public class SubscriptionState
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Identity-less Boundary Aggregates with `[BoundaryAggregate]`
+
+A boundary aggregate is built from `Apply` / `Create` methods, and the source generator emits the evolver that `FetchForWritingByTags<T>()` (and `AggregateByTagsAsync<T>()`) resolve at runtime. The generator normally discovers the aggregate's identity (`TId`) from an `Id` property or an `[AggregateIdentity]` member. A *true* boundary aggregate, though, has **no single-stream identity** — it spans multiple streams by tag — so the generator cannot infer a `TId`, emits nothing, and the DCB fetch throws:
+
+```
+JasperFx.Events.Projections.InvalidProjectionException : No source-generated dispatcher found for ...
+```
+
+Mark such an identity-less aggregate with `[BoundaryAggregate]` (from `JasperFx.Events.Aggregation`) to opt it into evolver generation:
+
+```cs
+using JasperFx.Events.Aggregation;
+
+[BoundaryAggregate]
+public partial class SubscriptionState
+{
+    // No Id property, no [AggregateIdentity] — spans streams by tag only
+    public CourseId? CourseId { get; private set; }
+    public StudentId? StudentId { get; private set; }
+
+    public void Apply(StudentEnrolledInFaculty e) => StudentId = e.StudentId;
+    public void Apply(CourseCreated e) => CourseId = e.CourseId;
+    // ... remaining Apply methods
+}
+```
+
+Requirements:
+
+- The aggregate must be `partial` and live in an assembly that references the `JasperFx.Events.SourceGenerator` analyzer.
+- The `[BoundaryAggregate]` attribute must sit on the type **in its own defining assembly** — that is the compilation the generator emits into and the assembly the runtime scans (`typeof(T).Assembly`) when resolving the evolver.
+
+::: tip
+This is only needed for the **identity-less** case. An aggregate that carries an `Id` (or an `[AggregateIdentity]` member) — like the `SubscriptionState` shown above, which keeps an `Id` and is registered as a live single-stream projection — already gets an evolver and needs no marker.
+:::
+
+The `[BoundaryAggregate]` marker comes from JasperFx.Events 2.0.0-alpha.21 / JasperFx.Events.SourceGenerator 2.0.0-alpha.13 ([jasperfx#324](https://github.com/JasperFx/jasperfx/issues/324)). See the [Marten DCB documentation](https://github.com/JasperFx/marten/issues/4513) for the canonical attribute reference; the note here covers the Wolverine handler-side workflow.
+
 ### Using the `[BoundaryModel]` Attribute
 
 The `[BoundaryModel]` attribute on a handler parameter triggers the DCB workflow. Your handler class must include a `Load()` (or `LoadAsync()`, `Before()`, `BeforeAsync()`) method that returns an `EventTagQuery`:
