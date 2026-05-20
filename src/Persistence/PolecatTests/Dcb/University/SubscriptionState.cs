@@ -1,5 +1,6 @@
-#region sample_wolverine_dcb_subscription_state
-namespace MartenTests.Dcb.University;
+namespace PolecatTests.Dcb.University;
+
+/// <summary>
 /// Built from events tagged with BOTH CourseId and StudentId.
 /// This is the core DCB pattern — the consistency boundary spans multiple streams.
 ///
@@ -58,4 +59,3 @@ public partial class SubscriptionState
             AlreadySubscribed = false;
     }
 }
-#endregion

@@ -1,4 +1,5 @@
 using System.Data.Common;
+using JasperFx.Events.Daemon;
 using System.Diagnostics.CodeAnalysis;
 using ImTools;
 using JasperFx;

@@ -1,4 +1,5 @@
 using System.Data;
+using JasperFx.Events.Daemon;
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;

@@ -1,42 +1,39 @@
 using IntegrationTests;
 using JasperFx.Events;
+using JasperFx.Events.Projections;
 using JasperFx.Events.Tags;
 using JasperFx.Resources;
-using Marten;
-using Marten.Events;
-using MartenTests.Dcb.University;
+using Polecat;
+using Polecat.Events;
+using Polecat.Projections;
+using PolecatTests.Dcb.University;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Npgsql;
 using Shouldly;
 using Wolverine;
-using Wolverine.Marten;
+using Wolverine.Polecat;
 using Wolverine.Tracking;
 
-namespace MartenTests.Dcb;
+namespace PolecatTests.Dcb;
 
-public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
+// Parity port of MartenTests.Dcb.boundary_model_workflow_tests — same DCB scenarios run against
+// Polecat (SQL Server) to guarantee the Wolverine + Polecat boundary-model integration covers the
+// same cases as the Wolverine + Marten one. Requires the two DCB fixes from JasperFx/polecat#123
+// (cross-tag-type EventTagQuery LEFT JOIN; boundary append via StreamAction.Append), shipped in
+// Polecat 4.0.0-alpha.10.
+public class boundary_model_workflow_tests : IAsyncLifetime
 {
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
     public async Task InitializeAsync()
     {
-        // Drop the schema if it exists to avoid migration conflicts
-        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
-        {
-            await conn.OpenAsync();
-            await using var cmd = conn.CreateCommand();
-            cmd.CommandText = "DROP SCHEMA IF EXISTS dcb_boundary_tests CASCADE;";
-            await cmd.ExecuteNonQueryAsync();
-        }
-
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddMarten(m =>
+                opts.Services.AddPolecat(m =>
                     {
-                        m.Connection(Servers.PostgresConnectionString);
+                        m.ConnectionString = Servers.SqlServerConnectionString;
                         m.DatabaseSchemaName = "dcb_boundary_tests";
 
                         // Register tag types for DCB
@@ -47,23 +44,15 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
                         m.Events.RegisterTagType<FacultyId>("faculty");
 
                         // FetchForWritingByTags<T> resolves its aggregator via the JasperFx.Events
-                        // source generator, which only emits a dispatcher for an aggregate that is
-                        // registered as a single-stream projection. Registering SubscriptionState as a
-                        // live aggregation (it also carries an Id) gives the SG something to generate
-                        // for; without it the boundary fetch throws InvalidProjectionException. This
-                        // mirrors Marten's own DCB tests (StudentCourseEnrollment / HsTicketSummary).
-                        m.Projections.LiveStreamAggregation<SubscriptionState>();
-
-                        // Register event types
-                        m.Events.AddEventType<CourseCreated>();
-                        m.Events.AddEventType<CourseCapacityChanged>();
-                        m.Events.AddEventType<StudentEnrolledInFaculty>();
-                        m.Events.AddEventType<StudentSubscribedToCourse>();
-                        m.Events.AddEventType<StudentUnsubscribedFromCourse>();
+                        // source generator, which only emits a dispatcher for an aggregate backed by a
+                        // single-stream projection. SubscriptionStateProjection is that partial
+                        // SingleStreamProjection<SubscriptionState, string> subclass; registered Live it
+                        // is computed on demand with no snapshot table. This is Polecat's equivalent of
+                        // the Marten DCB test's LiveStreamAggregation<SubscriptionState>(); without it
+                        // the boundary fetch throws InvalidProjectionException.
+                        m.Projections.Add<SubscriptionStateProjection>(ProjectionLifecycle.Live);
 
                         m.Events.StreamIdentity = StreamIdentity.AsString;
-
-                        m.DisableNpgsqlLogging = true;
                     })
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
@@ -72,6 +61,8 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
             }).StartAsync();
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
+        await ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync();
+        await theStore.Advanced.CleanAllEventDataAsync();
     }
 
     public async Task DisposeAsync()

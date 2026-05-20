@@ -1,4 +1,5 @@
 using System.Data.Common;
+using JasperFx.Events.Daemon;
 using JasperFx.MultiTenancy;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
