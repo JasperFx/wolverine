@@ -109,9 +109,10 @@ public class ConcurrencyTestSaga : Saga
     public void Handle(UpdateConcurrencyTestSaga order, OptConcurrencyDbContext ctx)
     {
         // Fake 999 updates of the saga while this event is being handled. Literal must
-        // be `long` so the boxed value unboxes cleanly inside EF Core's concurrency-token
-        // comparator now that Saga.Version is `long` (was `int` pre-Marten-9).
-        ctx.ConcurrencyTestSagas.Entry(this).Property("Version").OriginalValue = 999L;
+        // be `int` so the boxed value unboxes cleanly inside EF Core's concurrency-token
+        // comparator: Saga.Version is `int` (it aligns with JasperFx 2.0 rc's
+        // IRevisioned.Version, an int).
+        ctx.ConcurrencyTestSagas.Entry(this).Property("Version").OriginalValue = 999;
 
         Value = order.NewValue;
     }

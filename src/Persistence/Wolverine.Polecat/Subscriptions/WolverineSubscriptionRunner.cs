@@ -29,7 +29,7 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
 
         // Use the session's tenant id for multi-tenant support
         var tenantId = operations.TenantId;
-        if (tenantId.IsNotEmpty() && tenantId != global::Polecat.Tenancy.DefaultTenantId)
+        if (tenantId.IsNotEmpty() && tenantId != JasperFx.StorageConstants.DefaultTenantId)
         {
             context.TenantId = tenantId;
         }
