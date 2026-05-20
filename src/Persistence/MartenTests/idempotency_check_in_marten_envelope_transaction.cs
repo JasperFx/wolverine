@@ -26,6 +26,7 @@ public class idempotency_check_in_marten_envelope_transaction : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MaybeIdempotentHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
@@ -101,6 +102,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MaybeIdempotentHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 // TODO -- make this the default
                 opts.OnException<DuplicateIncomingEnvelopeException>().Discard();
@@ -143,6 +145,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MaybeIdempotentHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 // TODO -- make this the default
                 opts.OnException<DuplicateIncomingEnvelopeException>().Discard();

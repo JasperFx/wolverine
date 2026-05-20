@@ -34,6 +34,7 @@ public class MartenFaultPublishingTests : DurableFaultPublishingCompliance
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.KeepAfterMessageHandling = 5.Minutes();
 
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Discovery.IncludeType<AlwaysFailsHandler>();
                 opts.Discovery.IncludeType<FaultSinkHandler>();
                 opts.Services.AddSingleton<FaultSink>();

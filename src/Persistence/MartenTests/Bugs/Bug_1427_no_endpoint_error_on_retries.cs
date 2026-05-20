@@ -47,6 +47,8 @@ public class Bug_1427_no_endpoint_error_on_retries : IAsyncLifetime
 
             options.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
+            options.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(StartBatchHandler));
             options.Durability.Mode = DurabilityMode.Solo;
 
             // ISSUE: this attempt to retry the failed messages leads to the "Wolverine.Runtime.Handlers.NoHandlerForEndpointException"

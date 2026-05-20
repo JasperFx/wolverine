@@ -36,6 +36,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MartenTrackingHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // AutoApplyTransactions wires the Marten persistence frame provider's
@@ -66,6 +67,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MartenTrackingHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 opts.Policies.AutoApplyTransactions();

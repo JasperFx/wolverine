@@ -21,6 +21,13 @@ public class using_data_requirements : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(CreateThingHandler))
+                    .IncludeType(typeof(CreateThing2Handler))
+                    .IncludeType(typeof(CreateThingByAttributeHandler))
+                    .IncludeType(typeof(CreateThingByAttributeExplicitHandler))
+                    .IncludeType(typeof(EnsureNoDuplicateThingHandler))
+                    .IncludeType(typeof(CreateThing3Handler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(Servers.PostgresConnectionString)

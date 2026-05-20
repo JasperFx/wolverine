@@ -98,7 +98,8 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
                 {
                     x.MainConnectionString = Servers.PostgresConnectionString;
                 });
-
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(PlayerMessageHandler));
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

@@ -41,6 +41,10 @@ public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifet
             opts.Services.AddResourceSetupOnStartup();
 
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(SpecialLetterHandler))
+                .IncludeType(typeof(LetterAggregateHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
         });
 

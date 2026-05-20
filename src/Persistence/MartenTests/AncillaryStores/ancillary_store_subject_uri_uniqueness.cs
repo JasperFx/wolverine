@@ -45,7 +45,9 @@ public class ancillary_store_subject_uri_uniqueness : IAsyncLifetime
                     m.DatabaseSchemaName = "things";
                 }).IntegrateWithWolverine();
 
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Durability.Mode = DurabilityMode.Solo;
+
             }).StartAsync();
     }
 

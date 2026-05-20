@@ -21,7 +21,10 @@ public class starting_saga_by_returning_it_from_handler : PostgresqlContext
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 
-                opts.Discovery.IncludeType(typeof(StartSagasThing));
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(Saga1))
+                    .IncludeType(typeof(Saga2))
+                    .IncludeType(typeof(StartSagasThing));
 
                 opts.Policies.AutoApplyTransactions();
             }).StartAsync();

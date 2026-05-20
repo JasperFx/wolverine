@@ -29,6 +29,9 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
             })
             .UseWolverine(w =>
             {
+                w.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(SomeSaga))
+                    .IncludeType(typeof(Handler));
                 w.Durability.Mode = DurabilityMode.Solo;
                 w.Policies.AutoApplyTransactions();
 

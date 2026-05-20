@@ -59,6 +59,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(PeristDocHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
@@ -152,6 +153,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         using var otherHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(PeristDocHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();

@@ -77,7 +77,8 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 opts.Durability.TenantCheckPeriod = 250.Milliseconds();
-
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(TenantDocHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.ListenToPostgresqlQueue("one");
@@ -110,6 +111,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery();
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();

@@ -28,6 +28,11 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(TransferFundsWithDualVersionHandler))
+                    .IncludeType(typeof(TransferWithConsistencyCheckHandler))
+                    .IncludeType(typeof(TransferWithConsistencyCheckNoConcurrentModificationHandler))
+                    .IncludeType(typeof(TransferFundsHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {

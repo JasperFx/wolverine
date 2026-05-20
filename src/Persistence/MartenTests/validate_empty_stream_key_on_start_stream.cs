@@ -22,6 +22,7 @@ public class validate_empty_stream_key_on_start_stream: PostgresqlContext, IAsyn
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(m =>

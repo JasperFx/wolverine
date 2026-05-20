@@ -110,6 +110,10 @@ public class Bug_2318_ancillary_dlq_replay : IAsyncLifetime
                     .ProcessEventsWithWolverineHandlersInStrictOrder("bug2318_sub",
                         o => o.IncludeType<AncillaryEvent2318>());
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(SomeMessage2318Handler))
+                    .IncludeType(typeof(AncillaryEvent2318Handler))
+                    .IncludeType(typeof(AncillaryCommand2318Handler));
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

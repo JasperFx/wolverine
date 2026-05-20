@@ -31,6 +31,9 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(CreateUserHandler))
+                    .IncludeType(typeof(CreateUser2Handler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {

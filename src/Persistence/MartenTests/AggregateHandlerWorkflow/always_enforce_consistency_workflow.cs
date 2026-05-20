@@ -37,7 +37,10 @@ public class always_enforce_consistency_workflow : PostgresqlContext, IAsyncLife
                     .IntegrateWithWolverine();
 
                 opts.Services.AddResourceSetupOnStartup();
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(ConsistentPropertyHandler))
+                    .IncludeType(typeof(ConsistentAggregateHandlerUsage))
+                    .IncludeType(typeof(ConsistentParamHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 

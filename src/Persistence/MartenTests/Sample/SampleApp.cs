@@ -27,6 +27,9 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
             opts.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(UserHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
         });
 

@@ -63,6 +63,7 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
                     m.Connection(thingsConnectionString);
                 }).IntegrateWithWolverine(x => x.MainConnectionString = Servers.PostgresConnectionString);
 
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddResourceSetupOnStartup();

@@ -84,6 +84,10 @@ public class Bug_2576_ancillary_scheduled_message_stuck_incoming : IAsyncLifetim
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AncillaryCommand2576Handler))
+                    .IncludeType(typeof(AncillaryEvent2576Handler))
+                    .IncludeType(typeof(SomeMessage2576Handler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.MessageIdentity = MessageIdentity.IdAndDestination;
                 opts.Durability.KeepAfterMessageHandling = 1.Hours();

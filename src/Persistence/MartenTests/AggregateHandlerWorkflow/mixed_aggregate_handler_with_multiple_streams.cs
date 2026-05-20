@@ -20,6 +20,7 @@ public class mixed_aggregate_handler_with_multiple_streams
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(MakePurchaseHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 MartenServiceCollectionExtensions.AddMarten(opts.Services, m =>
                 {

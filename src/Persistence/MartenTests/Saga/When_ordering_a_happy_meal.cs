@@ -16,6 +16,9 @@ public class When_ordering_a_happy_meal : PostgresqlContext, IAsyncLifetime
             Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<HappyMealSaga3>()
+                        .IncludeType<SodaHandler>();
                     opts.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();

@@ -21,6 +21,7 @@ public class event_forwarding_routing_bug
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(SomeEventHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.PublishAllMessages().ToLocalQueue("forwarded-events");
                 opts.Services.AddMarten(m =>
@@ -47,6 +48,7 @@ public class event_forwarding_routing_bug
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(SomeEventHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.PublishAllMessages().ToLocalQueue("forwarded-events");
                 opts.Services.AddMarten(m =>

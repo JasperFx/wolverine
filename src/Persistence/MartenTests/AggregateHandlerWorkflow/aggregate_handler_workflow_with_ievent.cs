@@ -33,7 +33,9 @@ public class aggregate_handler_workflow_with_ievent
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(AEventHandler)).IncludeType(typeof(RaiseLetterHandler));
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AEventHandler))
+                    .IncludeType(typeof(RaiseLetterHandler));
                 
                 opts.Services.AddMarten(m =>
                     {
@@ -75,7 +77,8 @@ public class aggregate_handler_workflow_with_ievent
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(StringIdentifiedHandler));
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(StringIdentifiedHandler));
                 
                 opts.Services.AddMarten(m =>
                     {

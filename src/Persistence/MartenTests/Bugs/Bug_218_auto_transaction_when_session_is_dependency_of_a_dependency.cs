@@ -23,6 +23,9 @@ public class Bug_218_auto_transaction_when_session_is_dependency_of_a_dependency
                     .IntegrateWithWolverine();
 
                 opts.Services.AddScoped<IBug218Repository, Bug218Repository>();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<CreateBug218Handler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
 

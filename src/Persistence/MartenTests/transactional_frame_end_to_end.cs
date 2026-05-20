@@ -67,6 +67,7 @@ public class transactional_frame_end_to_end : PostgresqlContext
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateDocCommand2Handler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 // And actually use the policy
                 opts.Policies.Add<CommandsAreTransactional>();

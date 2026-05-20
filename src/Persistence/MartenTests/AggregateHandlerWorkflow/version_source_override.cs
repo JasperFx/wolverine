@@ -26,6 +26,9 @@ public class version_source_override : PostgresqlContext, IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(ParamVersionSourceHandler))
+                    .IncludeType(typeof(CustomVersionSourceHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {

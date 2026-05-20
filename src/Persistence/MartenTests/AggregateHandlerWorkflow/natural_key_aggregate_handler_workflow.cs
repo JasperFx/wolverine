@@ -36,6 +36,8 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
                 .UseLightweightSessions()
                 .IntegrateWithWolverine();
 
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(NkOrderHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
 
             opts.Services.AddResourceSetupOnStartup();
@@ -46,10 +48,10 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
     }
 
     public async Task DisposeAsync()
-        {
-            await _host.StopAsync();
-            _host.Dispose();
-        }
+    {
+        await _host.StopAsync();
+        _host.Dispose();
+    }
 
     [Fact]
     public async Task handle_command_with_natural_key_returning_single_event()

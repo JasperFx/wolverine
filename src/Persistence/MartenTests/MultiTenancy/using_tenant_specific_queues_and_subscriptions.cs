@@ -63,6 +63,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(UpdateColorCountsHandler));
                 // This is too extreme for real usage, but helps tests to run faster
                 opts.Durability.NodeReassignmentPollingTime = 1.Seconds();
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
@@ -138,6 +139,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(UpdateColorCountsHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.Mode = DurabilityMode.Balanced;
 

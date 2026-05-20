@@ -31,6 +31,8 @@ public class Bug_226_disambiguate_loggers : PostgresqlContext
             .UseWolverine(opts => 
             { 
                 opts.Policies.Add<RequiringLoggerPolicy>();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<StoreSomethingHandler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
             })
             .StartAsync();

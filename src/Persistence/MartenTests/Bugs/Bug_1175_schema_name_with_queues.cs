@@ -42,6 +42,8 @@ public class Bug_1175_schema_name_with_queues
                         options.MessageStorageSchemaName = "sender";
                     });
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(ColorResponseHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 
@@ -70,6 +72,8 @@ public class Bug_1175_schema_name_with_queues
                         options.MessageStorageSchemaName = "listener";
                     });
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(ColorRequestHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 

@@ -28,6 +28,7 @@ public class using_an_aggregate_that_handles_commands : PostgresqlContext, IDisp
         theHost = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.ApplicationAssembly = GetType().Assembly;
                 opts.Services.AddMarten(o =>

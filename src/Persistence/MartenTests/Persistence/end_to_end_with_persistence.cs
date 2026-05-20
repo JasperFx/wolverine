@@ -46,6 +46,10 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
             }).IntegrateWithWolverine();
 
             opts.ListenAtPort(2567);
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(ItemCreatedHandler))
+                .IncludeType(typeof(QuestionHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
         });
 
@@ -61,6 +65,9 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
                 x.Connection(Servers.PostgresConnectionString);
                 x.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(ItemCreatedHandler));
             opts.Durability.Mode = DurabilityMode.Solo;
         });
 

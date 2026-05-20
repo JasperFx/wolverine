@@ -36,6 +36,9 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(GotBHandler))
+                    .IncludeType(typeof(CustomerChangedHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddMarten(m =>
@@ -80,6 +83,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
@@ -125,6 +129,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
@@ -175,6 +180,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
@@ -306,6 +312,9 @@ public class
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(CustomerChangedHandler))
+                    .IncludeType(typeof(GotBHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddMarten(m =>

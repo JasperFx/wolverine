@@ -27,6 +27,9 @@ public class batch_querying_support : PostgresqlContext, IAsyncLifetime
 
                 }).UseLightweightSessions().IntegrateWithWolverine();
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(DoStuffWithDocsHandler))
+                    .IncludeType(typeof(ReadAggregateWithDocsHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();

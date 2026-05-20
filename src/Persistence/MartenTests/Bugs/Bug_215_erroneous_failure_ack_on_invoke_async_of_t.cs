@@ -24,7 +24,8 @@ public class Bug_215_erroneous_failure_ack_on_invoke_async_of_t : PostgresqlCont
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(LookupHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();

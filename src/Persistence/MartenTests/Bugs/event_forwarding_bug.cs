@@ -20,6 +20,10 @@ public class event_forwarding_bug
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AddShoppingListItemHandler))
+                    .IncludeType(typeof(CreateShoppingListHandler))
+                    .IncludeType(typeof(IntegrationHandler));
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Durability.Mode = DurabilityMode.Solo;

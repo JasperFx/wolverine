@@ -4,6 +4,7 @@ using JasperFx.Events.Tags;
 using JasperFx.Resources;
 using Marten;
 using Marten.Events;
+using MartenTests.AncillaryStores;
 using MartenTests.Dcb.University;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -68,6 +69,8 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BoundaryModelSubscribeStudentHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
