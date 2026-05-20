@@ -20,6 +20,16 @@ services:
       - POSTGRES_DATABASE=postgres
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+    # max_connections raised from the Postgres default of 100 (#2810). The
+    # Marten CI job now runs the whole MartenTests project in a single
+    # process (PR #2870), so Npgsql connection pools from every test class —
+    # including the MultiTenancy tests that each provision multiple per-tenant
+    # databases — accumulate within one process instead of dying with a
+    # per-class process. At the default 100 that overflowed with
+    # "53300: sorry, too many clients already". 500 matches the headroom the
+    # local dev Postgres already runs with (where the full single-process
+    # suite passes).
+    command: ["postgres", "-c", "max_connections=500"]
 
   gcp-pubsub:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
