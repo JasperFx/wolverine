@@ -33,6 +33,14 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                         m.Connection(Servers.PostgresConnectionString);
                         m.Projections.Snapshot<LetterAggregate>(SnapshotLifecycle.Inline);
 
+                        // These handlers intentionally mutate the FetchForWriting aggregate in place
+                        // (e.g. to compute the returned Response). Marten 9 defaults
+                        // UseIdentityMapForAggregates = true, which reuses that mutated instance as the
+                        // inline projection's apply baseline — double-counting the events. Opt back into
+                        // the Marten 8 round-trip behavior for this store so the snapshot rebuilds purely
+                        // from events. See JasperFx/wolverine#2857 and JasperFx/marten#4509.
+                        m.Events.UseIdentityMapForAggregates = false;
+
                         m.DisableNpgsqlLogging = true;
                     })
                     .UseLightweightSessions()
