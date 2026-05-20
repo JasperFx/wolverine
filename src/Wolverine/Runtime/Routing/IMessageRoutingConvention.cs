@@ -41,6 +41,19 @@ public interface IMessageRoutingConvention
     void PreregisterSenders(IReadOnlyList<Type> handledMessageTypes, IWolverineRuntime runtime)
     {
     }
+
+    /// <summary>
+    /// Diagnostic description of this routing convention for routing explanations, the
+    /// describe-routing CLI, and service capabilities. The default implementation reports the
+    /// type name with no description; built-in and extension conventions should override to
+    /// supply a meaningful, AI-readable explanation (and, for broker conventions, the parent
+    /// transport's scheme/name/description).
+    /// </summary>
+    RoutingConventionDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = GetType().Name,
+        Description = string.Empty
+    };
 }
 
 #endregion

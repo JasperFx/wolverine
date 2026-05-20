@@ -72,6 +72,15 @@ public interface IWolverineRuntime
     IMessageRouter RoutingFor(Type messageType);
 
     /// <summary>
+    ///     Produce a structured, on-demand explanation of how a message type is routed: which
+    ///     <see cref="IMessageRouteSource"/>s were consulted (in order), what each produced, whether
+    ///     a terminating source short-circuited the chain, the final routes, and whether the type is
+    ///     a framework system message type. Intended for diagnostics — the describe-routing CLI and
+    ///     external tooling — and runs against the live route sources with no steady-state cost.
+    /// </summary>
+    RoutingExplanation ExplainRoutingFor(Type messageType);
+
+    /// <summary>
     ///     Try to find an applied extension of type T
     /// </summary>
     /// <typeparam name="T"></typeparam>

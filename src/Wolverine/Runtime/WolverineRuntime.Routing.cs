@@ -28,6 +28,19 @@ public interface IMessageRouteSource
     /// to add more routes from the subsequent routing sources?
     /// </summary>
     bool IsAdditive { get; }
+
+    /// <summary>
+    /// Diagnostic description of this route source for routing explanations, the
+    /// describe-routing CLI, and service capabilities. The default implementation reports the
+    /// type name and IsAdditive with no description; built-in and extension sources should
+    /// override to supply a meaningful, AI-readable explanation (and any conventions consulted).
+    /// </summary>
+    RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = GetType().Name,
+        Description = string.Empty,
+        IsAdditive = IsAdditive
+    };
 }
 
 #endregion
@@ -54,6 +67,13 @@ internal class AgentMessages : IMessageRouteSource
     }
 
     public bool IsAdditive => false;
+
+    public RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = "AgentCommands",
+        Description = "Routes Wolverine agent command messages (types implementing IAgentCommand) to the internal agent local queue. Terminating: nothing else routes an agent command.",
+        IsAdditive = IsAdditive
+    };
 }
 
 internal class ExplicitRouting : IMessageRouteSource
@@ -90,6 +110,13 @@ internal class ExplicitRouting : IMessageRouteSource
     }
 
     public bool IsAdditive => false;
+
+    public RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = "ExplicitRouting",
+        Description = "Routes to endpoints with explicit publishing rules (PublishMessage/PublishAllMessages/To...) that match this message type, plus any sharded or globally-partitioned message topologies. Terminating: when an explicit rule matches, conventional and local routing are skipped.",
+        IsAdditive = IsAdditive
+    };
 }
 
 internal class LocalRouting : IMessageRouteSource
@@ -119,6 +146,13 @@ internal class LocalRouting : IMessageRouteSource
     }
 
     public bool IsAdditive { get; set; }
+
+    public RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = "LocalRouting",
+        Description = "Routes a message to a local in-process queue when the application has a handler for it (or a registered message batch). This is how commands handled in the same process are dispatched. Disabled by LocalRoutingConventionDisabled.",
+        IsAdditive = IsAdditive
+    };
 }
 
 internal class MessageRoutingConventions : IMessageRouteSource
@@ -130,6 +164,14 @@ internal class MessageRoutingConventions : IMessageRouteSource
     }
 
     public bool IsAdditive => true;
+
+    public RouteSourceDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = "ConventionalRouting",
+        Description = "Routes via registered message routing conventions — including broker conventions (e.g. RabbitMQ/Kafka topic-or-queue-per-message-type) configured with UseConventionalRouting. Additive: convention routes are combined with any others.",
+        IsAdditive = IsAdditive,
+        Conventions = runtime.Options.RoutingConventions.Select(x => x.Describe(runtime)).ToArray()
+    };
 }
 
 public partial class WolverineRuntime
@@ -198,6 +240,54 @@ public partial class WolverineRuntime
         }
 
         return routes;
+    }
+
+    public RoutingExplanation ExplainRoutingFor(Type messageType)
+    {
+        var explanation = new RoutingExplanation
+        {
+            MessageType = messageType.FullNameInCode(),
+            IsSystemMessageType = messageType.IsSystemMessageType(),
+            LocalRoutingConventionDisabled = Options.LocalRoutingConventionDisabled
+        };
+
+        // Mirror findRoutes() exactly so the explanation matches real routing behavior: routes
+        // accumulate across sources, and a non-additive (terminating) source short-circuits the
+        // chain once the accumulated set is non-empty — even if that source itself produced none.
+        var accumulated = new List<IMessageRoute>();
+        var terminated = false;
+        string? terminatingSourceName = null;
+
+        foreach (var source in Options.RouteSources())
+        {
+            var step = new RouteSourceStep { Source = source.Describe(this) };
+
+            if (terminated)
+            {
+                step.SkipReason =
+                    $"not consulted — terminating source '{terminatingSourceName}' had already produced routes";
+                explanation.Steps.Add(step);
+                continue;
+            }
+
+            var produced = source.FindRoutes(messageType, this).ToList();
+            step.Produced = produced.Select(x => x.Describe()).ToList();
+            explanation.Steps.Add(step);
+
+            accumulated.AddRange(produced);
+
+            if (accumulated.Count != 0 && !source.IsAdditive)
+            {
+                terminated = true;
+                terminatingSourceName = step.Source.Name;
+            }
+        }
+
+        // The authoritative final route set (with any de-duplication applied) is whatever
+        // RoutingFor produces and caches.
+        explanation.FinalRoutes = RoutingFor(messageType).Routes.Select(x => x.Describe()).ToList();
+
+        return explanation;
     }
 
     /// <summary>

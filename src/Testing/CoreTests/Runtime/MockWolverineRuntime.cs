@@ -103,6 +103,14 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
         return Routers.TryGetValue(messageType, out var router) ? router : Substitute.For<IMessageRouter>();
     }
 
+    public Wolverine.Runtime.Routing.RoutingExplanation ExplainRoutingFor(Type messageType)
+    {
+        return new Wolverine.Runtime.Routing.RoutingExplanation
+        {
+            MessageType = messageType.FullName ?? messageType.Name
+        };
+    }
+
     public T? TryFindExtension<T>() where T : class
     {
         throw new NotImplementedException();

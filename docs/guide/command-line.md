@@ -233,6 +233,31 @@ The output for a single message type includes:
 - **Message-level attributes** — any `ModifyEnvelopeAttribute`-derived attributes (e.g.,
   `[DeliverWithin]`) applied to the message class
 
+**Explain *why* a message routes where it does** <Badge type="tip" text="6.0" /> — add `--explain`
+(`-e`) to print the route source chain in the order Wolverine consults it, what each source
+produced, and which **terminating** source short-circuited the rest:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder --explain
+```
+
+The explanation lists each route source (`MessageTransformations`, `AgentCommands`,
+`ExplicitRouting`, `LocalRouting`, `ConventionalRouting`, plus any custom sources) with a short
+description, whether it is additive or terminating, the routes it produced, and a skip reason when
+an earlier terminating source already produced routes. Conventional broker routing also reports the
+broker scheme/name and the transport's own description, so named brokers of the same transport type
+can be told apart. This is the CLI surface over the `IWolverineRuntime.ExplainRoutingFor(Type)` API
+(see [Troubleshooting Message Routing](/guide/diagnostics#troubleshooting-message-routing)).
+
+For machine or AI-agent consumption, add `--json` (`-j`) to emit the same explanation as JSON:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder --json
+```
+
+The text output is intentionally stable and labeled so it reads well for humans *and* parses cleanly
+for AI agents; `--json` gives a fully structured form.
+
 **Show the complete routing topology** (all message types):
 
 ```bash
