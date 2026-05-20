@@ -309,6 +309,37 @@ partial class Build
     }
 
     /// <summary>
+    /// Runs an entire test project in a single <c>dotnet test</c> invocation,
+    /// retrying the whole project once on failure. Execution stays serial — the
+    /// project's <c>[assembly: CollectionBehavior(CollectionPerAssembly)]</c>
+    /// (e.g. MartenTests/NoParallelization.cs) keeps every test class in one
+    /// collection, so there's no concurrency and therefore no shared-schema /
+    /// shared-database collision risk. The win over
+    /// <see cref="RunSingleProjectOneClassAtATime"/> is process count: one
+    /// <c>dotnet test</c> spawn instead of one-per-class (111 for MartenTests),
+    /// eliminating the per-class process-start + assembly-load + xUnit-discovery
+    /// overhead that dominates the wall clock on the slow persistence jobs.
+    ///
+    /// Tradeoff vs. one-class-at-a-time: per-class retry granularity is lost
+    /// (a failure re-runs the whole project), and all classes share one process
+    /// (a hung daemon / leaked connection in one class can affect another rather
+    /// than being isolated to its own process). Used where the spawn overhead
+    /// outweighs those — see #2810.
+    /// </summary>
+    void RunWholeProjectWithRetry(string projectPath, string frameworkOverride = null)
+    {
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        Log.Information("Running entire project {Project} in a single invocation (see #2810)", projectName);
+
+        // No FullyQualifiedName filter — run the whole assembly. Still exclude
+        // Flaky-tagged tests, matching the one-class-at-a-time path's filter.
+        if (!RunTestWithRetry(projectPath, "Category!=Flaky", projectName, frameworkOverride: frameworkOverride))
+        {
+            throw new Exception($"Tests failed in {projectName}");
+        }
+    }
+
+    /// <summary>
     /// Runs a single test project one class at a time with retry logic.
     /// Used by individual Nuke targets for specific test projects.
     /// </summary>
