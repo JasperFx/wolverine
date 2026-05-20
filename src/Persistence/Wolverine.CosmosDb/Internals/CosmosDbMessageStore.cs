@@ -4,6 +4,7 @@ using JasperFx.Descriptors;
 using Microsoft.Azure.Cosmos;
 using Wolverine.CosmosDb.Internals.Durability;
 using Wolverine.CosmosDb.Internals.Transport;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -52,7 +53,7 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
 
     public string Name => _databaseName;
 
-    public Uri Uri => new("cosmosdb://durability");
+    public Uri Uri => new($"{PersistenceConstants.AgentScheme}://cosmosdb/durability");
 
     public string IdentityFor(Envelope envelope) => _identity(envelope);
 
@@ -107,15 +108,14 @@ public partial class CosmosDbMessageStore : IMessageStoreWithAgentSupport
         _scheduledLockId = $"lock|scheduled|{runtime.Options.ServiceName.ToLowerInvariant()}";
         _runtime = runtime;
 
-        // Unlike the RavenDb message store, CosmosDb returns null from BuildAgentFamily,
-        // so NodeAgentController never registers a second durability agent. The agent
-        // built and started here is the only one polling — leaving the eager
-        // StartTimers() call intact is correct. See #2623 for the matching RavenDb fix
-        // that DID need to drop StartTimers because RavenDb has a competing
-        // wolverinedb://ravendb/durability agent registered through IAgentFamily.
-        var agent = BuildAgent(runtime);
-        agent.As<CosmosDbDurabilityAgent>().StartTimers();
-        return agent;
+        // NodeAgentController owns the durability agent lifecycle via the
+        // wolverinedb://cosmosdb/durability URI (built through
+        // MessageStoreCollection.BuildAgentAsync and started with StartAsync); do not
+        // start a second instance here. The agent built here is held by
+        // WolverineRuntime.DurableScheduledJobs purely for its disposal-time StopAsync,
+        // which is null-safe on the unstarted task fields. Eagerly calling StartTimers()
+        // would produce two concurrent pollers sharing this store — the #2623 bug.
+        return BuildAgent(runtime);
     }
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
