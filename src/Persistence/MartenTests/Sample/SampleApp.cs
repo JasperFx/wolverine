@@ -1,3 +1,4 @@
+using JasperFx;
 using IntegrationTests;
 using Marten;
 using Marten.Schema;

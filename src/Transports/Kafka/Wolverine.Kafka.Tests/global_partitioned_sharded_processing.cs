@@ -4,6 +4,7 @@ using JasperFx.Core;
 using JasperFx.Events;
 using Marten;
 using Marten.Metadata;
+using JasperFx;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Configuration;
@@ -137,8 +138,10 @@ public static class GLetterMessageHandler
     }
 }
 
-public partial class GSimpleAggregate : IRevisioned
+public partial class GSimpleAggregate : JasperFx.ILongVersioned
 {
+    // ILongVersioned (long), not IRevisioned (int): this is an event-sourced
+    // aggregate tracking a long stream version under JasperFx 2.0 rc.
     public long Version { get; set; }
     public Guid Id { get; set; }
 

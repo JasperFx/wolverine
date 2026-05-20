@@ -5,6 +5,7 @@ using JasperFx.Resources;
 using JasperFx.Events;
 using Marten;
 using Marten.Metadata;
+using JasperFx;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -223,9 +224,11 @@ public record GpStreamEventB(string Data);
 public record GpStreamEventCascaded(string Source);
 
 // --- Aggregate ---
-public partial class GpStreamAggregate : IRevisioned
+public partial class GpStreamAggregate : JasperFx.ILongVersioned
 {
     public Guid Id { get; set; }
+    // ILongVersioned (long), not IRevisioned (int): this is an event-sourced
+    // aggregate tracking a long stream version under JasperFx 2.0 rc.
     public long Version { get; set; }
     public int ACount { get; set; }
     public int BCount { get; set; }

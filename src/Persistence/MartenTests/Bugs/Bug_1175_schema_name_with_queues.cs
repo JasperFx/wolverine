@@ -2,6 +2,7 @@ using System.Diagnostics;
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using Marten;
 using Marten.Storage;
 using Microsoft.Extensions.Hosting;

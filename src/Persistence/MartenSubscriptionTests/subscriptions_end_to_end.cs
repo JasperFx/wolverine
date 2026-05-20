@@ -423,7 +423,7 @@ public class subscriptions_end_to_end
                         m.DisableNpgsqlLogging = true;
                         m.Connection(Servers.PostgresConnectionString);
                         m.DatabaseSchemaName = "subscriptions";
-                        m.Events.TenancyStyle = Marten.Storage.TenancyStyle.Conjoined;
+                        m.Events.TenancyStyle = JasperFx.MultiTenancy.TenancyStyle.Conjoined;
                     }).IntegrateWithWolverine()
                     .UseLightweightSessions()
                     .PublishEventsToWolverine("Publish", x =>

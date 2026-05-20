@@ -1,3 +1,4 @@
+using JasperFx;
 using IntegrationTests;
 using JasperFx.Core;
 using JasperFx.Events.Daemon;

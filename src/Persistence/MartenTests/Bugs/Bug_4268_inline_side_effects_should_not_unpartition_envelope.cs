@@ -1,6 +1,7 @@
 using IntegrationTests;
 using JasperFx;
 using JasperFx.Core;
+using JasperFx.MultiTenancy;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
