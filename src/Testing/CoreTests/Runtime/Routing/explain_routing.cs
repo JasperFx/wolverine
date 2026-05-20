@@ -77,6 +77,28 @@ public class explain_routing
     }
 
     [Fact]
+    public async Task reports_local_routing_convention_disabled_flag()
+    {
+        using var enabled = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts => opts.Discovery.IncludeType(typeof(ExplainLocalHandler)))
+            .StartAsync();
+        enabled.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage))
+            .LocalRoutingConventionDisabled.ShouldBeFalse();
+
+        using var disabled = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.IncludeType(typeof(ExplainLocalHandler));
+                opts.Policies.DisableConventionalLocalRouting();
+            })
+            .StartAsync();
+
+        var explanation = disabled.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage));
+        explanation.LocalRoutingConventionDisabled.ShouldBeTrue();
+        explanation.ToText().ShouldContain("LOCAL-ROUTING-CONVENTION-DISABLED: true");
+    }
+
+    [Fact]
     public async Task flags_system_message_types()
     {
         using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync();

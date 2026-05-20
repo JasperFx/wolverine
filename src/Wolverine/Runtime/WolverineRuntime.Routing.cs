@@ -247,7 +247,8 @@ public partial class WolverineRuntime
         var explanation = new RoutingExplanation
         {
             MessageType = messageType.FullNameInCode(),
-            IsSystemMessageType = messageType.IsSystemMessageType()
+            IsSystemMessageType = messageType.IsSystemMessageType(),
+            LocalRoutingConventionDisabled = Options.LocalRoutingConventionDisabled
         };
 
         // Mirror findRoutes() exactly so the explanation matches real routing behavior: routes

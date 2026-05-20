@@ -205,6 +205,9 @@ sources keep contributing. `RoutingExplanation` makes that precedence visible:
   (`IInternalMessage` / `IAgentCommand` / `INotToBeRouted`, or types from an
   `[ExcludeFromServiceCapabilities]` assembly), which are filtered out of observers and service
   capabilities.
+- `LocalRoutingConventionDisabled` — the current value of
+  `WolverineOptions.LocalRoutingConventionDisabled`; when `true` the `LocalRouting` source is
+  short-circuited, so it explains why a locally-handled message routes nowhere locally.
 - `Steps` — one `RouteSourceStep` per route source consulted, in order, each carrying the source's
   descriptor, the routes it produced, and a `SkipReason` when a prior terminating source had
   already short-circuited the chain.

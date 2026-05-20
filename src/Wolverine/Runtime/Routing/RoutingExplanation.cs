@@ -26,6 +26,13 @@ public class RoutingExplanation
     /// </summary>
     public bool IsSystemMessageType { get; set; }
 
+    /// <summary>
+    /// The current value of <see cref="WolverineOptions.LocalRoutingConventionDisabled"/>. When true,
+    /// the LocalRouting source is short-circuited and never routes any message to a local in-process
+    /// queue — surfaced here so it's obvious why local routing produced nothing.
+    /// </summary>
+    public bool LocalRoutingConventionDisabled { get; set; }
+
     /// <summary>Each route source consulted, in the order Wolverine consulted them.</summary>
     public List<RouteSourceStep> Steps { get; set; } = new();
 
@@ -42,6 +49,7 @@ public class RoutingExplanation
         var sb = new StringBuilder();
         sb.AppendLine($"MESSAGE: {MessageType}");
         sb.AppendLine($"SYSTEM-MESSAGE-TYPE: {IsSystemMessageType.ToString().ToLowerInvariant()}");
+        sb.AppendLine($"LOCAL-ROUTING-CONVENTION-DISABLED: {LocalRoutingConventionDisabled.ToString().ToLowerInvariant()}");
         sb.AppendLine();
         sb.AppendLine("ROUTE SOURCES (in order consulted):");
         if (Steps.Count == 0)
