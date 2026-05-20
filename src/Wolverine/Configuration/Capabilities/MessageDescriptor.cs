@@ -29,6 +29,13 @@ public class MessageDescriptor
         var routes = runtime.RoutingFor(messageType).Routes;
         Subscriptions.AddRange(routes.Select(x => x.Describe()));
 
+        // The route sources / conventions that actually contributed this message's routes, so
+        // tooling (and AI agents) can see *why* it routes where it does, not just the destinations.
+        var explanation = runtime.ExplainRoutingFor(messageType);
+        RouteSources.AddRange(explanation.Steps
+            .Where(x => x.SkipReason is null && x.Produced.Count != 0)
+            .Select(x => x.Source));
+
         var chain = runtime.Options.HandlerGraph.ChainFor(messageType);
         if (chain != null)
         {
@@ -58,4 +65,11 @@ public class MessageDescriptor
     public List<MessageHandlerDescriptor> Handlers { get; set; } = new();
 
     public List<MessageSubscriptionDescriptor> Subscriptions { get; set; } = new();
+
+    /// <summary>
+    /// The route sources and conventions that contributed this message type's routes — the "why"
+    /// behind <see cref="Subscriptions"/>. Surfaced so external tooling (e.g. CritterWatch) and AI
+    /// agents can reason about routing decisions, not just the resulting destinations.
+    /// </summary>
+    public List<RouteSourceDescriptor> RouteSources { get; set; } = new();
 }

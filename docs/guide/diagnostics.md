@@ -166,3 +166,53 @@ private static void using_preview_subscriptions(IMessageBus bus)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Routing/routing_rules.cs#L102-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_preview_subscriptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Explaining *Why* a Message Routes Where It Does <Badge type="tip" text="6.0" />
+
+`PreviewSubscriptions` tells you *where* a message goes; `IWolverineRuntime.ExplainRoutingFor(Type)`
+tells you *why*. It returns a structured `RoutingExplanation` that walks Wolverine's route source
+chain in order and records what each source did:
+
+```csharp
+var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
+
+RoutingExplanation explanation = runtime.ExplainRoutingFor(typeof(CreateOrder));
+
+// Human- and AI-readable text rendering
+Console.WriteLine(explanation.ToText());
+
+// Or inspect the structure directly
+foreach (var step in explanation.Steps)
+{
+    // step.Source is a RouteSourceDescriptor (Name, Description, IsAdditive, Conventions)
+    if (step.SkipReason is not null)
+    {
+        // an earlier *terminating* source already produced routes, so this one never ran
+        Console.WriteLine($"{step.Source.Name}: skipped — {step.SkipReason}");
+    }
+    else
+    {
+        Console.WriteLine($"{step.Source.Name}: produced {step.Produced.Count} route(s)");
+    }
+}
+```
+
+Wolverine consults its route sources in a fixed order, and a **terminating** source (e.g.
+`ExplicitRouting`, `AgentCommands`) short-circuits the rest of the chain once any routes have been
+accumulated, while **additive** sources (e.g. `LocalRouting`, `ConventionalRouting`) let later
+sources keep contributing. `RoutingExplanation` makes that precedence visible:
+
+- `MessageType` and `IsSystemMessageType` — the latter is `true` for framework-internal types
+  (`IInternalMessage` / `IAgentCommand` / `INotToBeRouted`, or types from an
+  `[ExcludeFromServiceCapabilities]` assembly), which are filtered out of observers and service
+  capabilities.
+- `Steps` — one `RouteSourceStep` per route source consulted, in order, each carrying the source's
+  descriptor, the routes it produced, and a `SkipReason` when a prior terminating source had
+  already short-circuited the chain.
+- `FinalRoutes` — the final, de-duplicated route set actually used.
+
+The same information is also available from the command line — see
+[`describe-routing --explain`](/guide/command-line#describe-routing) — and the route-source
+descriptors are surfaced in Wolverine's service capabilities so external tooling (e.g. CritterWatch)
+can reason about routing decisions. The text output is deliberately stable and labeled so it is
+useful for both humans and AI agents.
+

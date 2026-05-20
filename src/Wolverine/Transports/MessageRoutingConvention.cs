@@ -157,6 +157,19 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
         return endpoint;
     }
 
+    RoutingConventionDescriptor IMessageRoutingConvention.Describe(IWolverineRuntime runtime)
+    {
+        var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
+        return new RoutingConventionDescriptor
+        {
+            Name = GetType().Name,
+            Description = "Conventional broker routing: maps each message type to a broker destination (queue/topic/exchange) by naming convention, so messages publish to the broker without an explicit per-type rule.",
+            TransportScheme = transport.Protocol,
+            TransportName = transport.Name,
+            TransportDescription = transport.Describe()
+        };
+    }
+
     IEnumerable<Endpoint> IMessageRoutingConvention.DiscoverSenders(Type messageType, IWolverineRuntime runtime)
     {
         var endpoint = tryRegisterSenderConfiguration(messageType, runtime);

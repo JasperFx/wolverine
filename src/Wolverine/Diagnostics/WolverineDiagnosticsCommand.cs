@@ -47,6 +47,15 @@ public class WolverineDiagnosticsInput : NetCoreInput
     [FlagAlias("all", 'a')]
     [Description("For describe-routing: show complete routing topology for all known message types.")]
     public bool AllFlag { get; set; }
+
+    [FlagAlias("explain", 'e')]
+    [Description("For describe-routing <MessageType>: explain why the type routes where it does — " +
+                 "each route source consulted, what it produced, and which terminating source short-circuited the rest.")]
+    public bool ExplainFlag { get; set; }
+
+    [FlagAlias("json", 'j')]
+    [Description("For describe-routing <MessageType>: emit the routing explanation as JSON for machine / AI-agent consumption.")]
+    public bool JsonFlag { get; set; }
 }
 
 /// <summary>
@@ -471,6 +480,11 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
                     return true;
                 }
 
+                if (input.ExplainFlag || input.JsonFlag)
+                {
+                    return ExplainSingleTypeRouting(input.MessageTypeArg, runtime, input.JsonFlag);
+                }
+
                 return DescribeSingleTypeRouting(input.MessageTypeArg, runtime);
             }
             finally
@@ -651,6 +665,39 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
 
             AnsiConsole.Write(senderTable);
         }
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time describe-routing diagnostics CLI; reflection-based JSON of the RoutingExplanation runs interactively, never on an AOT-published hot path.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "Dev-time describe-routing diagnostics CLI; reflection-based JSON of the RoutingExplanation runs interactively, never on an AOT-published hot path.")]
+    private static bool ExplainSingleTypeRouting(string search, IWolverineRuntime runtime, bool asJson)
+    {
+        var options = runtime.Options;
+        var messageTypes = options.Discovery.FindAllMessages(options.HandlerGraph).ToArray();
+        var messageType = FindMessageType(search, messageTypes, options.HandlerGraph);
+
+        if (messageType == null)
+        {
+            AnsiConsole.MarkupLine($"[red]No message type found matching '[bold]{Markup.Escape(search)}[/]'.[/]");
+            return false;
+        }
+
+        var explanation = runtime.ExplainRoutingFor(messageType);
+
+        if (asJson)
+        {
+            // Plain Console.WriteLine (not AnsiConsole markup) so the JSON is emitted verbatim
+            // for machine / AI-agent consumption.
+            Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(explanation,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+        else
+        {
+            Console.WriteLine(explanation.ToText());
+        }
+
+        return true;
     }
 
     private static bool DescribeSingleTypeRouting(string search, IWolverineRuntime runtime)

@@ -33,6 +33,14 @@ public interface ITransport
     /// </summary>
     public string Name { get; }
 
+    /// <summary>
+    ///     Human- and AI-readable description of this transport, folded into routing explanations
+    ///     for conventional (broker) routing. The default reports the name and scheme; individual
+    ///     transports should override to explain what the broker is and how conventional routing
+    ///     maps message types onto it.
+    /// </summary>
+    string Describe() => $"{Name} broker (scheme '{Protocol}')";
+
     Endpoint? ReplyEndpoint();
 
     Endpoint GetOrCreateEndpoint(Uri uri);
