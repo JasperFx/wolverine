@@ -165,4 +165,11 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Trimming / AOT
 
-Wolverine's Fluent Validation middleware does not scan assemblies for validators — `FluentValidationPolicy` discovers them by querying the IoC container per message type, so the Wolverine side is already trim/AOT-safe with no pre-generation step required. The one non-AOT seam is FluentValidation's own `AddValidatorsFromAssembly(...)` scan; for trim/AOT publishing, register validators explicitly (`services.AddScoped<IValidator<MyMessage>, MyMessageValidator>()`) rather than scanning. See the [AOT publishing guide](/guide/aot.html#validation-is-already-scan-free) for the full story.
+Applying the validation middleware is trim/AOT-safe: `FluentValidationPolicy` decides which handlers to wrap by querying the IoC container per message type, not by scanning assemblies. The one trim-hostile seam is validator **discovery** — `UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's `AssemblyScanner` at bootstrap. For trim/AOT publishing, opt out of the scan and register validators explicitly:
+
+```csharp
+opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
+```
+
+See the [AOT publishing guide](/guide/aot.html#validation-and-aot) for the full story.
