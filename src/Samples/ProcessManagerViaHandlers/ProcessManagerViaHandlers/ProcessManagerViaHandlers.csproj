@@ -4,6 +4,12 @@
         <TargetFramework>net9.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <!-- This Microsoft.NET.Sdk.Web sample serves no static web assets (no wwwroot,
+             no Razor/Blazor). Disabling StaticWebAssets skips the DefineStaticWebAssets
+             task, which intermittently fails the CI build with an IOException on its
+             obj/.../rpswa.dswa.cache.json cache under parallel MSBuild ("being used by
+             another process"). Nothing here needs that pipeline. -->
+        <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
     </PropertyGroup>
 
     <ItemGroup>
