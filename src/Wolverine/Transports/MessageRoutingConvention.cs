@@ -33,6 +33,16 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
     /// </summary>
     private readonly HashSet<Type> _configuredSenders = new();
 
+    /// <summary>
+    /// Guards the non-thread-safe sender-registration state (<see cref="_configuredSenders"/>
+    /// and the subscriber endpoint's Subscriptions list). <c>tryRegisterSenderConfiguration</c>
+    /// is reachable both from <see cref="PreregisterSenders"/> during host startup and from
+    /// the lazy <see cref="DiscoverSenders"/> on the first publish path; if a publish races
+    /// the tail of startup these run concurrently on the same convention instance and corrupt
+    /// the <see cref="HashSet{T}"/>. See GH-2874.
+    /// </summary>
+    private readonly object _senderRegistrationLock = new();
+
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
         if(_onlyApplyToOutboundMessages)
@@ -232,43 +242,50 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
             return null;
         }
 
-        var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
-
         var destinationName = _identifierForSender(messageType);
         if (destinationName.IsEmpty())
         {
             return null;
         }
 
-        var corrected = transport.MaybeCorrectName(destinationName);
-
-        var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
-        endpoint.EndpointName = destinationName;
-
-        // Register the subscription so that endpoint policies like
-        // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
-        // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
-        //
-        // Marked IsFromConvention=true so ExplicitRouting (and the diagnostics command)
-        // don't mistake the conventional sender for a user-wired publish rule. Without
-        // this flag, ExplicitRouting picks up the conventional sender via
-        // Endpoint.ShouldSendMessage and short-circuits past LocalRouting — handled
-        // messages stop routing to their local handlers and explicit publish rules get
-        // duplicated against the conventional broker exchange. See the MessageRoutingTests
-        // regression that motivated splitting Subscription.ForType from
-        // Subscription.ForConventionalType.
-        if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+        // Serialize the mutation of _configuredSenders and the endpoint's Subscriptions
+        // list. This method runs both during startup (PreregisterSenders) and lazily on
+        // the first publish (DiscoverSenders); a publish racing the tail of startup would
+        // otherwise corrupt the non-thread-safe HashSet. See GH-2874.
+        lock (_senderRegistrationLock)
         {
-            endpoint.Subscriptions.Add(Subscription.ForConventionalType(messageType));
-        }
+            var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
 
-        if (_configuredSenders.Add(messageType))
-        {
-            _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
-            configuration.As<IDelayedEndpointConfiguration>().Apply();
-        }
+            var corrected = transport.MaybeCorrectName(destinationName);
 
-        return endpoint;
+            var (configuration, endpoint) = FindOrCreateSubscriber(corrected, transport);
+            endpoint.EndpointName = destinationName;
+
+            // Register the subscription so that endpoint policies like
+            // UseDurableOutboxOnAllSendingEndpoints() recognize this as a sender
+            // endpoint when Compile() applies policies. See GH-2304 / GH-2588.
+            //
+            // Marked IsFromConvention=true so ExplicitRouting (and the diagnostics command)
+            // don't mistake the conventional sender for a user-wired publish rule. Without
+            // this flag, ExplicitRouting picks up the conventional sender via
+            // Endpoint.ShouldSendMessage and short-circuits past LocalRouting — handled
+            // messages stop routing to their local handlers and explicit publish rules get
+            // duplicated against the conventional broker exchange. See the MessageRoutingTests
+            // regression that motivated splitting Subscription.ForType from
+            // Subscription.ForConventionalType.
+            if (!endpoint.Subscriptions.Any(s => s.Matches(messageType)))
+            {
+                endpoint.Subscriptions.Add(Subscription.ForConventionalType(messageType));
+            }
+
+            if (_configuredSenders.Add(messageType))
+            {
+                _configureSending(configuration, new MessageRoutingContext(messageType, runtime));
+                configuration.As<IDelayedEndpointConfiguration>().Apply();
+            }
+
+            return endpoint;
+        }
     }
 
     private bool _onlyApplyToOutboundMessages;
