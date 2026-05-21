@@ -28,4 +28,9 @@
       <ProjectReference Include="..\Wolverine.ClaimCheck.AmazonS3\Wolverine.ClaimCheck.AmazonS3.csproj" />
     </ItemGroup>
 
+  <ItemGroup>
+    <!-- Core WolverineFx no longer ships the Roslyn runtime compiler (#2876); this
+         Dynamic-mode test project needs it. The package auto-registers via its [WolverineModule]. -->
+    <ProjectReference Include="../../Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+  </ItemGroup>
 </Project>
