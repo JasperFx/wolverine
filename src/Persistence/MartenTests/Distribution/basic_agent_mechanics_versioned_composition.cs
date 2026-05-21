@@ -1,65 +1,68 @@
 using JasperFx.Core;
-using JasperFx.Events.Projections;
 using Marten;
 using MartenTests.Distribution.Support;
 using MartenTests.Distribution.TripDomain;
+using Microsoft.Extensions.Hosting;
+using Shouldly;
 using Wolverine;
+using Wolverine.Marten.Distribution;
 using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-[Trait("Category", "Flaky")]
-public class basic_agent_mechanics_versioned_composition(ITestOutputHelper output) : MultiTenantContext(output)
+public class basic_agent_mechanics_versioned_composition(ITestOutputHelper output)
+    : MultiTenantContext(output)
 {
     [Fact]
     public async Task start_with_multiple_databases_on_one_single_node()
     {
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
+        string[] tenants = ["tenant1", "tenant2"];
+        await AddTenantsAsync(tenants);
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = theDistributor.Scheme;
-
-            // 3 projections x 2 databases = 6 total
-            w.ExpectRunningAgents(theOriginalHost, 6);
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
+            // 1 composite projection x 2 databases = 2 total
+            w.ExpectRunningAgents(theOriginalHost, 2);
         }, 30.Seconds());
+        await AssertAgentsUrisAsync(theOriginalHost, tenants);
     }
-    
+
     [Fact]
     public async Task spread_databases_out_via_host()
     {
-        await tenancy.AddDatabaseRecordAsync("tenant1", tenant1ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant2", tenant2ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant3", tenant3ConnectionString);
-        await tenancy.AddDatabaseRecordAsync("tenant4", tenant4ConnectionString);
-        
+        string[] tenants = ["tenant1", "tenant2", "tenant3"];
+        await AddTenantsAsync(tenants);
+
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
-            w.AgentScheme = theDistributor.Scheme;
-        
-            // 3 projections x 4 databases = 12 total
-            w.ExpectRunningAgents(theOriginalHost, 12);
-        }, 30.Seconds());
-
-        var host2 = await startHostAsync();
-        
-
-        var host3 = await startHostAsync();
-        var host4 = await startHostAsync();
-        
-        await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
-        {
-            w.AgentScheme = theDistributor.Scheme;
-
-            // 3 projections x 4 databases = 12 total
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
+            // 1 composite projection x 3 databases = 3 total
             w.ExpectRunningAgents(theOriginalHost, 3);
-            w.ExpectRunningAgents(host2, 3);
-            w.ExpectRunningAgents(host3, 3);
-            w.ExpectRunningAgents(host4, 3);
         }, 30.Seconds());
+        await AssertAgentsUrisAsync(theOriginalHost, tenants);
+
+        var extraHosts = await Task.WhenAll<IHost>([startHostAsync(), startHostAsync()]);
+        await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
+            // 1 composite projection x 3 databases = 3 total
+            w.ExpectRunningAgents(theOriginalHost, 1);
+            w.ExpectRunningAgents(extraHosts[0], 1);
+            w.ExpectRunningAgents(extraHosts[1], 1);
+        }, 30.Seconds());
+        await AssertAgentsUrisAsync(theOriginalHost, tenants);
+        await AssertAgentsUrisAsync(extraHosts[0], tenants);
+        await AssertAgentsUrisAsync(extraHosts[1], tenants);
     }
 
+    private static async Task AssertAgentsUrisAsync(IHost host, params string[] tenants)
+    {
+        var uris = await GetAgentUrisAsync(host);
+        var expectedUris = tenants.Select(tenant =>
+            $"event-subscriptions://marten/main/localhost.{tenant}/trips/all/v2");
+        uris.ShouldBe(expectedUris, ignoreOrder: true);
+    }
 
     protected override void SetupProjections(StoreOptions storeOptions)
     {

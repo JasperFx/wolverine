@@ -189,26 +189,6 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         await conn.CloseAsync();
     }
 
-    private async Task publishNumbers(string tenantId, List<ColorSum> colors)
-    {
-        await using var session = theSenderStore.LightweightSession(tenantId);
-
-        while (colors.Any(x => !x.IsComplete()))
-        {
-            foreach (var color in colors)
-            {
-                if (color.IsComplete())
-                {
-                    continue;
-                }
-
-                color.PublishSome(session);
-            }
-        }
-
-        await session.SaveChangesAsync();
-    }
-
     [Fact]
     public async Task big_bang_end_to_end()
     {

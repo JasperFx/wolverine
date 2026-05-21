@@ -1,5 +1,4 @@
 using IntegrationTests;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
 using JasperFx.Events.Projections;
 using Marten;
@@ -11,9 +10,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Shouldly;
-using Weasel.Core;
+using System.Collections.Concurrent;
 using Weasel.Postgresql;
-using Weasel.Postgresql.Tables;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
@@ -25,48 +23,37 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-public class with_ancillary_stores : IAsyncLifetime
+public class with_ancillary_stores(ITestOutputHelper output) : IAsyncLifetime
 {
-    private readonly List<IHost> _hosts = new();
-    private readonly ITestOutputHelper _output;
+    private readonly ConcurrentBag<IHost> _hosts = [];
+    private readonly ConcurrentBag<XUnitEventObserver> _observers = [];
     protected IHost theOriginalHost = null!;
-    internal EventSubscriptionAgentFamily theProjectionAgents = null!;
 
-    public with_ancillary_stores(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
-    private static async Task dropSchema()
+    public async Task InitializeAsync()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        await new Table(new DbObjectName("csp2", "wolverine_node_records")).DropAsync(conn);
-        await new Table(new DbObjectName("csp2", "wolverine_nodes")).DropAsync(conn);
-        await new Table(new DbObjectName("csp2", "wolverine_node_assignments")).DropAsync(conn);
+        await conn.DropSchemaAsync("csp2");
+        await conn.DropSchemaAsync("csp3");
         await conn.CloseAsync();
-    }
-    
-    public async Task InitializeAsync()
-    {
-        await dropSchema();
 
         theOriginalHost = await startHostAsync();
     }
 
     public async Task DisposeAsync()
     {
+        _observers.Each(x => x.Dispose());
         await Task.WhenAll(_hosts.Select(ShutdownHostAsync));
         _hosts.Clear();
     }
-    
-    private static async Task ShutdownHostAsync(IHost host)
+
+    private async Task ShutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
     }
-    
+
     protected async Task<IHost> startHostAsync()
     {
         #region sample_using_distributed_projections_with_ancillary_stores
@@ -75,11 +62,11 @@ public class with_ancillary_stores : IAsyncLifetime
             {
                 opts.Durability.HealthCheckPollingTime = 1.Seconds();
                 opts.Durability.CheckAssignmentPeriod = 1.Seconds();
-                
+
                 opts.UseMessagePackSerialization();
-                
+
                 opts.UseSharedMemoryQueueing();
-                
+
                 opts.Services.AddMarten(m =>
                     {
                         m.DisableNpgsqlLogging = true;
@@ -97,8 +84,8 @@ public class with_ancillary_stores : IAsyncLifetime
                         // cluster
                         m.UseWolverineManagedEventSubscriptionDistribution = true;
                     });
-                
-                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
+
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(output));
 
                 opts.Services.AddMartenStore<ITripStore>(m =>
                 {
@@ -111,16 +98,12 @@ public class with_ancillary_stores : IAsyncLifetime
                     m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
                 }).IntegrateWithWolverine();
 
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
             }).StartAsync();
 
         #endregion
 
-        new XUnitEventObserver(host, _output);
-
+        _observers.Add(new XUnitEventObserver(host, output));
         _hosts.Add(host);
-
-        theProjectionAgents ??= host.Services.GetServices<IAgentFamily>().OfType<EventSubscriptionAgentFamily>().Single();
 
         return host;
     }
@@ -131,7 +114,7 @@ public class with_ancillary_stores : IAsyncLifetime
         theOriginalHost.Services.GetRequiredService<IProjectionCoordinator<ITripStore>>()
             .ShouldBeOfType<WolverineProjectionCoordinator<ITripStore>>();
     }
-    
+
     [Fact]
     public async Task can_do_the_full_marten_reset_all_data_call()
     {
@@ -142,44 +125,42 @@ public class with_ancillary_stores : IAsyncLifetime
     }
 
     [Fact]
-    public async Task find_all_known_agents()
-    {
-        var uris = await theProjectionAgents.AllKnownAgentsAsync();
-        
-        uris.Count.ShouldBe(6);
-        
-        uris.OrderBy(x => x.ToString()).ShouldBe([
-            new Uri("event-subscriptions://marten/itripstore/localhost.postgres/day/all"),
-            new Uri("event-subscriptions://marten/itripstore/localhost.postgres/distance/all"),
-            new Uri("event-subscriptions://marten/itripstore/localhost.postgres/trip/all"),
-            new Uri("event-subscriptions://marten/main/localhost.postgres/day/all"),
-            new Uri("event-subscriptions://marten/main/localhost.postgres/distance/all"),
-            new Uri("event-subscriptions://marten/main/localhost.postgres/trip/all"),
-
-        
-        ]);
-
-    }
-    
-    
-    [Fact]
     public async Task spread_out_over_multiple_hosts()
     {
         await theOriginalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+        await AssertAgentUrisAsync(theOriginalHost);
 
-        var host2 = await startHostAsync();
-        var host3 = await startHostAsync();
-        
+        var extraHosts = await Task.WhenAll<IHost>([startHostAsync(), startHostAsync()]);
+
         // Now, let's check that the load is redistributed!
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
             w.ExpectRunningAgents(theOriginalHost, 2);
-            w.ExpectRunningAgents(host2, 2);
-            w.ExpectRunningAgents(host3, 2);
+            w.ExpectRunningAgents(extraHosts[0], 2);
+            w.ExpectRunningAgents(extraHosts[1], 2);
         }, 30.Seconds());
+
+        await AssertAgentUrisAsync(theOriginalHost);
+        await AssertAgentUrisAsync(extraHosts[0]);
+        await AssertAgentUrisAsync(extraHosts[1]);
     }
 
+    private async static Task AssertAgentUrisAsync(IHost host)
+    {
+        var agentsFamily = host.Services.GetServices<IAgentFamily>()
+            .OfType<EventSubscriptionAgentFamily>().Single();
+        var agents = await agentsFamily.AllKnownAgentsAsync();
+        var uris = agents.Select(x => x.AbsoluteUri);
+        uris.ShouldBe([
+            "event-subscriptions://marten/itripstore/localhost.postgres/day/all",
+            "event-subscriptions://marten/itripstore/localhost.postgres/distance/all",
+            "event-subscriptions://marten/itripstore/localhost.postgres/trip/all",
+            "event-subscriptions://marten/main/localhost.postgres/day/all",
+            "event-subscriptions://marten/main/localhost.postgres/distance/all",
+            "event-subscriptions://marten/main/localhost.postgres/trip/all"
+        ], ignoreOrder: true);
+    }
 }
 
 public interface ITripStore : IDocumentStore;

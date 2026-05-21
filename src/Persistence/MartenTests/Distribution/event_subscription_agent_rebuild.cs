@@ -1,7 +1,6 @@
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using NSubstitute;
-using Shouldly;
 using Wolverine.Marten.Distribution;
 
 namespace MartenTests.Distribution;

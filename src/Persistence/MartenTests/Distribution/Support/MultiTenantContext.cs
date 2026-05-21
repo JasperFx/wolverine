@@ -1,59 +1,40 @@
 using IntegrationTests;
-using JasperFx.CodeGeneration;
 using JasperFx.Core;
-using JasperFx.Events.Projections;
 using Marten;
 using Marten.Storage;
-using MartenTests.Distribution.TripDomain;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
+using System.Collections.Concurrent;
 using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
-using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit.Abstractions;
 
 namespace MartenTests.Distribution.Support;
 
-public abstract class MultiTenantContext : IAsyncLifetime
+public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifetime
 {
-    private readonly List<IHost> _hosts = new();
-    private readonly ITestOutputHelper _output;
-
+    private readonly ConcurrentBag<IHost> _hosts = [];
+    private readonly ConcurrentBag<XUnitEventObserver> _observers = [];
+    private readonly ConcurrentDictionary<string, string> _tenantConnectionStrings = [];
     private DocumentStore _tenancyStore = null!;
-    protected MasterTableTenancy tenancy = null!;
-    protected string tenant1ConnectionString = null!;
-    protected string tenant2ConnectionString = null!;
-    protected string tenant3ConnectionString = null!;
-    protected string tenant4ConnectionString = null!;
+    protected MasterTableTenancy _tenancy = null!;
     protected IHost theOriginalHost = null!;
-    internal EventSubscriptionAgentFamily theDistributor = null!;
-
-    protected MultiTenantContext(ITestOutputHelper output)
-    {
-        _output = output;
-    }
 
     public async Task InitializeAsync()
     {
-        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-
-        await conn.DropSchemaAsync("tenants");
-
-
-        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant1");
-        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant2");
-        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant3");
-        tenant4ConnectionString = await CreateDatabaseIfNotExists(conn, "tenant4");
-
-        await dropSchema();
+        await DropSchemasAsync("tenants", "multiple", "csp");
+        await Task.WhenAll([
+            CreateDatabaseIfNotExists("tenant1"),
+            CreateDatabaseIfNotExists("tenant2"),
+            CreateDatabaseIfNotExists("tenant3"),
+        ]);
 
         _tenancyStore = DocumentStore.For(opts =>
         {
@@ -62,41 +43,40 @@ public abstract class MultiTenantContext : IAsyncLifetime
         });
 
         await _tenancyStore.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
-        tenancy = (MasterTableTenancy)_tenancyStore.Options.Tenancy;
-        await tenancy.ClearAllDatabaseRecordsAsync();
+        _tenancy = (MasterTableTenancy)_tenancyStore.Options.Tenancy;
+        await _tenancy.ClearAllDatabaseRecordsAsync();
 
         theOriginalHost = await startHostAsync();
-
-        theDistributor = theOriginalHost.Services.GetServices<IAgentFamily>().OfType<EventSubscriptionAgentFamily>().Single();
     }
 
     public async Task DisposeAsync()
     {
+        _observers.Each(x => x.Dispose());
         await _tenancyStore.DisposeAsync();
         await Task.WhenAll(_hosts.Select(ShutdownHostAsync));
         _hosts.Clear();
     }
 
-    private async Task<string> CreateDatabaseIfNotExists(NpgsqlConnection conn, string databaseName)
+    private async Task CreateDatabaseIfNotExists(string databaseName)
     {
+        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         var builder = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString);
-
+        await conn.OpenAsync();
         var exists = await conn.DatabaseExists(databaseName);
         if (!exists)
-        {
             await new DatabaseSpecification().BuildDatabase(conn, databaseName);
-        }
 
         builder.Database = databaseName;
 
-        return builder.ConnectionString;
+        _tenantConnectionStrings.TryAdd(databaseName, builder.ConnectionString);
     }
 
-    private static async Task dropSchema()
+    private static async Task DropSchemasAsync(params string[] names)
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
-        await conn.DropSchemaAsync("csp");
+        foreach (var name in names)
+            await conn.DropSchemaAsync(name);
         await conn.CloseAsync();
     }
 
@@ -123,14 +103,11 @@ public abstract class MultiTenantContext : IAsyncLifetime
                         m.MainDatabaseConnectionString = Servers.PostgresConnectionString;
                         m.UseWolverineManagedEventSubscriptionDistribution = true;
                     });
-
-                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
-
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+                opts.Discovery.DisableConventionalDiscovery();
+                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(output));
             }).StartAsync();
 
-        new XUnitEventObserver(host, _output);
-
+        _observers.Add(new XUnitEventObserver(host, output));
         _hosts.Add(host);
 
         return host;
@@ -138,50 +115,25 @@ public abstract class MultiTenantContext : IAsyncLifetime
 
     protected abstract void SetupProjections(StoreOptions storeOptions);
 
-    protected async Task<IHost> startGreenHostAsync()
-    {
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Services.AddMarten(m =>
-                    {
-                        m.DisableNpgsqlLogging = true;
-
-                        m.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString, "tenants");
-                        m.DatabaseSchemaName = "csp";
-
-                        m.Projections.Add<Trip2Projection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<StartingProjection>(ProjectionLifecycle.Async);
-                        m.Projections.Add<EndingProjection>(ProjectionLifecycle.Async);
-                    })
-                    .IntegrateWithWolverine(m => m.MainDatabaseConnectionString = Servers.PostgresConnectionString);
-
-                    // TODO --derive this from Marten Tenancy
-
-                opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
-
-                opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
-            }).StartAsync();
-
-        new XUnitEventObserver(host, _output);
-
-        _hosts.Add(host);
-
-        return host;
-    }
-
-    private static async Task ShutdownHostAsync(IHost host)
+    private async Task ShutdownHostAsync(IHost host)
     {
         host.GetRuntime().Agents.DisableHealthChecks();
         await host.StopAsync();
         host.Dispose();
     }
 
-    protected Uri[] runningSubscriptions(IHost host)
+    protected static async Task<string[]> GetAgentUrisAsync(IHost host)
     {
-        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
-        return runtime.Agents.AllRunningAgentUris().Where(x => x.Scheme == EventSubscriptionAgentFamily.SchemeName).ToArray();
+        var agentsFamily = host.Services.GetServices<IAgentFamily>()
+            .OfType<EventSubscriptionAgentFamily>().Single();
+        var agents = await agentsFamily.AllKnownAgentsAsync();
+        return [.. agents.Select(x => x.AbsoluteUri)];
+    }
+
+    protected async Task AddTenantsAsync(params string[] tenants)
+    {
+        var records = tenants.Select(x =>
+            _tenancy.AddDatabaseRecordAsync(x, _tenantConnectionStrings[x]));
+        await Task.WhenAll(records);
     }
 }
