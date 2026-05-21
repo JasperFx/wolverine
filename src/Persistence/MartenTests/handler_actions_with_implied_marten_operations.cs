@@ -1,6 +1,9 @@
 ﻿using IntegrationTests;
 using Marten;
 using Marten.Exceptions;
+// JasperFx 2.0 rc.3 dedupe lifted DocumentAlreadyExistsException out of
+// Marten.Exceptions into the JasperFx namespace; Marten throws the lifted type.
+using DocumentAlreadyExistsException = JasperFx.DocumentAlreadyExistsException;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;

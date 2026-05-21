@@ -74,8 +74,15 @@
                    event-stream-versioned aggregates implement ILongVersioned. rc
                    namespace relocations absorbed across tests/samples (IRevisioned,
                    TenancyStyle, Identity/IdentityAttribute, ISoftDeleted).
+          rc.2:    Critter Stack 2026 rc refresh — bump to the latest published
+                   prerelease line:
+                     JasperFx / .RuntimeCompiler / .SourceGeneration / .Events
+                       (+ .Events.SourceGenerator)     rc.2 -> 2.0.0-rc.3 / 5.0.0-rc.3
+                     Marten / .AspNetCore / .Newtonsoft rc.2 -> 9.0.0-rc.3
+                     Polecat                           rc.1 -> 4.0.0-rc.2
+                     Weasel.* (7 packages)             unchanged (9.0.0-rc.1 is latest)
         -->
-        <Version>6.0.0-rc.1</Version>
+        <Version>6.0.0-rc.2</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
