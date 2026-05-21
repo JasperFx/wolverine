@@ -33,6 +33,9 @@ public class Bug_2182_unresolved_IProblemDetailSource
         {
             opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly);
             opts.UseFluentValidation(); // from Wolverine.FluentValidation
+            // ManualOnly discovery does not auto-load the WolverineFx.RuntimeCompilation module, so a
+            // Dynamic-mode app must opt into runtime compilation explicitly (#2876).
+            opts.UseRuntimeCompilation();
             // ExtensionDiscovery.ManualMode and Wolverine.Http.FluentValidation services are not registered
         });
 
@@ -74,6 +77,7 @@ public class Bug_2182_unresolved_IProblemDetailSource
             opts.Discovery.IncludeAssembly(typeof(Bug_2182_Endpoint.Request).Assembly);
             opts.UseFluentValidation(); // from Wolverine.FluentValidation
             opts.UseFluentValidationProblemDetail(); // from Wolverine.Http.FluentValidation
+            opts.UseRuntimeCompilation(); // ManualOnly discovery: opt into runtime codegen (#2876)
         });
 
         await using var host = await AlbaHost.For(_builder, app =>
@@ -128,6 +132,8 @@ public class Bug_2182_unresolved_IProblemDetailSource
             opts.UseFluentValidation();
             if (useFluentValidationProblemDetail)
                 opts.UseFluentValidationProblemDetail();
+            // Harmless/idempotent under Automatic discovery; required for the ManualOnly case (#2876).
+            opts.UseRuntimeCompilation();
         });
 
         await using var host = await AlbaHost.For(_builder, app =>

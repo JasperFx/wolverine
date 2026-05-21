@@ -21,4 +21,9 @@
         <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
+  <ItemGroup>
+    <!-- Core WolverineFx no longer ships the Roslyn runtime compiler (#2876); this
+         Dynamic-mode test project needs it. The package auto-registers via its [WolverineModule]. -->
+    <ProjectReference Include="../../Wolverine.RuntimeCompilation/Wolverine.RuntimeCompilation.csproj" />
+  </ItemGroup>
 </Project>

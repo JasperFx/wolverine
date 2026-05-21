@@ -53,6 +53,12 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <!-- Pinned so the EF Core projects unify on the 4.14.0 Roslyn line. Core WolverineFx no
+         longer references JasperFx.RuntimeCompiler (#2876), which previously pulled
+         CodeAnalysis.CSharp.Workspaces 4.14.0 and masked EF Core Design's transitive 4.8.0
+         (conflicting with Workspaces.MSBuild 4.14.0). WolverineFx.EntityFrameworkCore
+         references this directly so the unification flows to all EF sample/test projects. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="5.0.3" />
     <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="9.0.5" />
     <PackageVersion Include="Microsoft.FeatureManagement" Version="3.2.0" />
