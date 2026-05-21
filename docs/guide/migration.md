@@ -31,6 +31,7 @@ The table below is the **complete inventory** of changed defaults, removed APIs,
 | `MartenConfigurationExpression.EventForwardingToWolverine(...)` | extension method on the Marten configuration expression *(both overloads `[Obsolete]` since 3.x)* | **removed** *(BREAKING)* | Move the flag into the `IntegrateWithWolverine` callback: [`IntegrateWithWolverine(x => x.UseFastEventForwarding = true)`](#eventforwardingtowolverine-removed-breaking) |
 | `RedisTransport.BuildRedisStreamUri(...)` | static helper on `RedisTransport` *(`[Obsolete]`)* | **removed** *(BREAKING)* | Call [`RedisEndpointUri.Stream(...)`](#redistransport-buildredisstreamuri-removed-breaking) — identical signature, drop the helper |
 | `PulsarEndpoint.UriFor(...)` | static helpers on `PulsarEndpoint` *(both overloads `[Obsolete]`)* | **removed** *(BREAKING)* | For the Wolverine-URI form, call [`PulsarEndpointUri.Topic(...)`](#pulsarendpoint-urifor-removed-breaking); the native-topic-path form (`persistent://...`) was an internal-only seam now covered by `PulsarEndpoint.NativeTopicPath` |
+| Runtime code generation (Roslyn) | bundled in core `WolverineFx` (via `JasperFx.RuntimeCompiler`) | **moved to the opt-in `WolverineFx.RuntimeCompilation` package** *(BREAKING for `TypeLoadMode.Dynamic`/`Auto`)* | Reference [`WolverineFx.RuntimeCompilation`](#runtime-code-generation-moved-to-the-wolverinefxruntimecompilation-package-breaking) (it auto-registers), or pre-generate with `TypeLoadMode.Static` |
 | **One-line full revert** | n/a | [`opts.RestoreV5Defaults()`](#one-line-revert-restorev5defaults) | Flip every runtime default this method covers back to its 5.x value |
 
 ::: tip
@@ -171,6 +172,26 @@ The call surface itself is unchanged — `opts.UseNewtonsoftJsonForSerialization
 Core `WolverineFx.Http` retains the `JsonUsage.NewtonsoftJson` enum value so the public switch shape doesn't change. The codegen path inside `JsonResourceWriterPolicy` / `JsonBodyParameterStrategy` now dispatches through an internal `INewtonsoftHttpCodeGen` seam implemented in the new package; selecting `JsonUsage.NewtonsoftJson` without the package installed throws an `InvalidOperationException` at codegen time pointing you at `dotnet add package WolverineFx.Http.Newtonsoft`.
 
 In a related cleanup, `ProblemDetailsContinuationPolicy.WriteProblems` (which dumps the `ProblemDetails` payload into the log line for the "found problems with this message" diagnostic) switched from `Newtonsoft.Json.JsonConvert.SerializeObject` to `System.Text.Json.JsonSerializer.Serialize`. This is a logging dump only — `ProblemDetails` round-trips cleanly through STJ; there is no observable output-format change.
+
+### Runtime code generation moved to the `WolverineFx.RuntimeCompilation` package (BREAKING)
+
+In 5.x, core `WolverineFx` referenced `JasperFx.RuntimeCompiler` (≈100 MB of Roslyn assemblies) and registered a default `IAssemblyGenerator`, so runtime code generation always "just worked." In 6.0 that dependency is **removed from core** and lives only in the opt-in **`WolverineFx.RuntimeCompilation`** package. This lets `TypeLoadMode.Static` / Native-AOT deployments ship without Roslyn — smaller binaries, faster cold start — but it is a breaking change for apps that compile at runtime.
+
+**Who is affected:** any app running `TypeLoadMode.Dynamic` (the default) or `TypeLoadMode.Auto`. Such an app now fails fast at startup with an error telling you to add the package or switch to Static:
+
+> Wolverine is running in TypeLoadMode.Dynamic, which compiles handler/middleware code at runtime, but no IAssemblyGenerator (Roslyn) is registered. Core WolverineFx no longer ships the runtime compiler. Either add the 'WolverineFx.RuntimeCompilation' NuGet package (it auto-registers when referenced, or call opts.UseRuntimeCompilation() in UseWolverine(...)), or pre-generate code with 'dotnet run -- codegen write' and set opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static.
+
+**Migration — pick one:**
+
+1. **Keep runtime codegen (simplest).** Reference the package; that's all — its `[WolverineModule]` auto-registers the Roslyn `IAssemblyGenerator` at bootstrap:
+   ```sh
+   dotnet add package WolverineFx.RuntimeCompilation
+   ```
+   If you've disabled extension auto-discovery (`ExtensionDiscovery.ManualOnly`), the module won't load automatically — call `opts.UseRuntimeCompilation()` inside `UseWolverine(...)` instead.
+
+2. **Go Roslyn-free in production (recommended for AOT / fast cold start).** Pre-generate code with `dotnet run -- codegen write`, commit `Internal/Generated`, and set `opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static`. Reference `WolverineFx.RuntimeCompilation` only as a dev/build-time dependency (for `codegen write`); production ships without Roslyn. See the [Code Generation guide](/guide/codegen).
+
+`WolverineFx.RuntimeCompilation` is available from `6.0.0-rc.2` onward.
 
 ### `IForwardsTo<T>` discovery is now explicit (BREAKING)
 
