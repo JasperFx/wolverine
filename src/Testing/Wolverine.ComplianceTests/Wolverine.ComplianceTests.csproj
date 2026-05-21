@@ -9,6 +9,14 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
         <ProjectReference Include="..\..\Persistence\Wolverine.RDBMS\Wolverine.RDBMS.csproj"/>
         <!--
+          Core WolverineFx no longer ships the Roslyn runtime compiler (#2876). Compliance
+          suites bootstrap Wolverine hosts in the default TypeLoadMode.Dynamic, so they need
+          the runtime compiler. Referencing WolverineFx.RuntimeCompilation here flows
+          transitively to the ~39 downstream test/sample projects and auto-registers
+          IAssemblyGenerator via its [WolverineModule] — no per-project change needed.
+        -->
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj"/>
+        <!--
           TransportCompliance.cs exercises options.UseNewtonsoftForSerialization()
           against every transport. Newtonsoft moved to its own package in 6.0;
           the compliance harness carries the explicit dependency so transport

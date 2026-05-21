@@ -18,7 +18,6 @@ using JasperFx.CodeGeneration.Services;
 using JasperFx.CommandLine;
 using JasperFx.CommandLine.Descriptions;
 using JasperFx.Resources;
-using JasperFx.RuntimeCompiler;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -108,26 +107,15 @@ public static class HostBuilderExtensions
 
         services.AddJasperFx();
         services.AddSingleton<MessageStoreCollection>();
-        // NOTE: this default registration is preserved in v5.x for backward compatibility
-        // so existing apps that rely on Wolverine compiling handler/middleware code at
-        // runtime continue to work without additional configuration. In v6, this line is
-        // expected to be removed: applications using TypeLoadMode.Dynamic / Auto fallback
-        // will need to install the WolverineFx.RuntimeCompilation package and call
-        // opts.UseRuntimeCompilation() inside UseWolverine(...). Production deployments
-        // that pre-generate code with TypeLoadMode.Static will then be able to ship
-        // without Roslyn at all (smaller binaries, faster cold start, AOT-readiness).
-        // See issue #1577 for the full cold-start optimization roadmap.
-        //
-        // The IL2026 warning on the AssemblyGenerator() constructor is intentional and
-        // suppressed here: AssemblyGenerator emits and loads runtime-generated types,
-        // which is fundamentally incompatible with trimming. The whole point of the
-        // v6 Static-mode story is to let AOT-compatible apps avoid this registration
-        // entirely via UseRuntimeCompilation() opt-in. See AOT pillar #2715 / #2746.
-        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-            Justification = "Wolverine's runtime-codegen default; Static-mode AOT apps avoid this registration. See #2715/#2746.")]
-        static IServiceCollection RegisterAssemblyGenerator(IServiceCollection s)
-            => s.AddSingleton<IAssemblyGenerator, AssemblyGenerator>();
-        RegisterAssemblyGenerator(services);
+
+        // The Roslyn runtime compiler (JasperFx.RuntimeCompiler / AssemblyGenerator) is no
+        // longer registered by, or referenced from, core WolverineFx. Apps running
+        // TypeLoadMode.Dynamic/Auto reference the WolverineFx.RuntimeCompilation package,
+        // which auto-registers IAssemblyGenerator via its [WolverineModule] (or an explicit
+        // opts.UseRuntimeCompilation() call). TypeLoadMode.Static apps pre-generate all code
+        // and ship without Roslyn — smaller binaries, faster cold start, AOT-readiness. A
+        // fail-fast guard at startup (WolverineRuntime.HostService.logCodeGenerationConfiguration)
+        // catches a Dynamic app that is missing the generator. See #2876 / #1577 / AOT pillar #2746.
 
         services.AddSingleton(typeof(AncillaryMessageStoreApplication<>));
         

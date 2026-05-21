@@ -8,7 +8,6 @@ using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
-using Microsoft.CodeAnalysis.VisualBasic;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;

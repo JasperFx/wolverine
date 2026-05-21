@@ -268,6 +268,21 @@ public partial class WolverineRuntime
         switch (Options.CodeGeneration.TypeLoadMode)
         {
             case TypeLoadMode.Dynamic:
+                // Core WolverineFx no longer ships the Roslyn runtime compiler (#2876). Dynamic mode
+                // always compiles handler/middleware dispatch at runtime, so it requires an
+                // IAssemblyGenerator — auto-registered by referencing WolverineFx.RuntimeCompilation,
+                // or via an explicit opts.UseRuntimeCompilation(). Fail fast with guidance if absent.
+                if (!_container.HasRegistrationFor(typeof(IAssemblyGenerator)))
+                {
+                    throw new InvalidOperationException(
+                        "Wolverine is running in TypeLoadMode.Dynamic, which compiles handler/middleware code at runtime, " +
+                        "but no IAssemblyGenerator (Roslyn) is registered. Core WolverineFx no longer ships the runtime compiler. " +
+                        "Either add the 'WolverineFx.RuntimeCompilation' NuGet package (it auto-registers when referenced, or call " +
+                        "opts.UseRuntimeCompilation() in UseWolverine(...)), or pre-generate code with 'dotnet run -- codegen write' " +
+                        "and set opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static. " +
+                        "See https://wolverinefx.net/guide/codegen.html (GH-2876).");
+                }
+
                 Logger.LogInformation(
                     $"The Wolverine code generation mode is {nameof(TypeLoadMode.Dynamic)}. This is suitable for development, but you may want to opt into other options for production usage to reduce start up time and resource utilization.");
                 Logger.LogInformation("See https://wolverine.netlify.app/guide/codegen.html for more information");

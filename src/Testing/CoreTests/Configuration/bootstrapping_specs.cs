@@ -69,6 +69,11 @@ public class bootstrapping_specs : IntegrationContext
             .UseWolverine(opts =>
             {
                 opts.DisableConventionalDiscovery();
+
+                // With ExtensionDiscovery.ManualOnly, Wolverine does not auto-load the
+                // WolverineFx.RuntimeCompilation module, so a TypeLoadMode.Dynamic app must
+                // opt into runtime Roslyn compilation explicitly (or pre-generate with Static).
+                opts.UseRuntimeCompilation();
             }, ExtensionDiscovery.ManualOnly)
             
             .StartAsync();

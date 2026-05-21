@@ -30,6 +30,10 @@
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
         <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+        <!-- Unify EF Core Design's transitive Roslyn (CSharp.Workspaces 4.8.0) up to the
+             solution's 4.14.0 line. Previously masked by core WolverineFx's JasperFx.RuntimeCompiler
+             reference, removed in #2876. Flows transitively to the EF sample/test projects. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
         <PackageReference Include="Microsoft.Build.Tasks.Core" />
     </ItemGroup>
 
