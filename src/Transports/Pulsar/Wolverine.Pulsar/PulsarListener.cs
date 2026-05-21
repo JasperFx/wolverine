@@ -158,7 +158,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
             if (consumer != null)
             {
-                return consumer.Acknowledge(e.MessageData, _cancellation);
+                return consumer.Acknowledge(FixMessageId(e.MessageData.MessageId, _endpoint.PulsarTopic()), _cancellation);
             }
         }
 
@@ -172,7 +172,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
             var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
-            await consumer!.Acknowledge(e.MessageData, _cancellation);
+            await consumer!.Acknowledge(FixMessageId(e.MessageData.MessageId, _endpoint.PulsarTopic()), _cancellation);
             await _sender.SendAsync(envelope);
         }
     }
@@ -297,12 +297,29 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             }
 
             // Acknowledge the original message
-            await sourceConsumer!.Acknowledge(e.MessageData, _cancellation);
+            await sourceConsumer!.Acknowledge(FixMessageId(e.MessageData.MessageId, _endpoint.PulsarTopic()), _cancellation);
 
             // Send copy to retry/DLQ topic
             await targetProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
                 .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// DotPulsar BatchHandler.Add creates MessageId objects without the topic for messages
+    /// inside a batch (https://github.com/apache/pulsar-dotpulsar/issues/287), so
+    /// Consumer._subConsumers[messageId.Topic] throws KeyNotFoundException on partitioned topics.
+    /// Reconstruct the MessageId with the correct partition sub-topic URI when it is missing.
+    /// </summary>
+    internal static MessageId FixMessageId(MessageId messageId, string topicUri)
+    {
+        if (string.IsNullOrEmpty(messageId.Topic) && messageId.Partition >= 0)
+        {
+            return new MessageId(messageId.LedgerId, messageId.EntryId, messageId.Partition,
+                messageId.BatchIndex, $"{topicUri}-partition-{messageId.Partition}");
+        }
+
+        return messageId;
     }
 
     private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception? exception,
