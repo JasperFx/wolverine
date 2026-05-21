@@ -82,7 +82,7 @@
                      Polecat                           rc.1 -> 4.0.0-rc.2
                      Weasel.* (7 packages)             unchanged (9.0.0-rc.1 is latest)
         -->
-        <Version>6.0.0-rc.2</Version>
+        <Version>6.0.0</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
