@@ -115,10 +115,10 @@ Most of the facilities shown here will require the [Oakton command line integrat
 
 Runtime code generation requires a Roslyn-backed `IAssemblyGenerator` to compile the generated C# source into an assembly that Wolverine can load. That implementation ships in `JasperFx.RuntimeCompiler`, which pulls in roughly 100 MB of Roslyn assemblies. For applications that pre-generate all of their handler / middleware code with `TypeLoadMode.Static` and never recompile at runtime, those assemblies are dead weight — bigger deployment, slower cold start, and incompatible with Native AOT.
 
-The `WolverineFx.RuntimeCompilation` package isolates that runtime-compilation dependency behind an opt-in extension method, so production deployments that don't need it can drop it (in a future major version) and ship without Roslyn.
+The `WolverineFx.RuntimeCompilation` package isolates that runtime-compilation dependency in a separate package, so production deployments that don't need it ship without Roslyn.
 
-::: info
-This package is the first deliverable in [issue #1577](https://github.com/JasperFx/wolverine/issues/1577) — the broader cold-start optimization and AOT-readiness roadmap. The opt-in API exists today on v5.x; the actual decoupling of `JasperFx.RuntimeCompiler` from the core `WolverineFx` package is planned for v6.0. Adopt the `opts.UseRuntimeCompilation()` call today and your app will be future-proof against the v6 cleanup.
+::: warning Changed in 6.0
+**As of Wolverine 6.0, core `WolverineFx` no longer references `JasperFx.RuntimeCompiler` or registers a default `IAssemblyGenerator`.** Applications running `TypeLoadMode.Dynamic` (the default) or `Auto` now **must** reference `WolverineFx.RuntimeCompilation` — simply referencing the package is enough (it auto-registers the Roslyn `IAssemblyGenerator` via a `[WolverineModule]`). `TypeLoadMode.Static` apps that pre-generate all of their code need nothing and ship without Roslyn. See [Migrating from 5 to 6](/guide/migration). On 5.x this package was an optional, forward-looking opt-in; in 6.0 it is required for runtime code generation. Part of the cold-start / AOT-readiness work in [#1577](https://github.com/JasperFx/wolverine/issues/1577) / [#2876](https://github.com/JasperFx/wolverine/issues/2876).
 :::
 
 ### When you need it
@@ -127,7 +127,7 @@ This package is the first deliverable in [issue #1577](https://github.com/Jasper
 |----------|-------------------|
 | Local development with `TypeLoadMode.Dynamic` (the default) | **Yes** — runtime compilation runs every time. |
 | `TypeLoadMode.Auto` with the source-code fall-back | **Yes** — compilation runs the first time a missing handler is invoked. |
-| Production with `TypeLoadMode.Static` and all generated code pre-built into the application assembly | **No** — runtime compilation is never invoked. (Currently the package's bits ride along with `WolverineFx`; in v6.0 it will be opt-in and you can drop it for a smaller deployment.) |
+| Production with `TypeLoadMode.Static` and all generated code pre-built into the application assembly | **No** — runtime compilation is never invoked. In 6.0 core `WolverineFx` no longer carries Roslyn, so a Static-mode deployment ships without it automatically. |
 | Running `dotnet run -- codegen write` from a CI build agent | **Yes** — that command emits the generated source by compiling it once. |
 
 ### Installation
@@ -140,7 +140,9 @@ The package depends on `JasperFx.RuntimeCompiler`. It does not pull in any other
 
 ### Configuration
 
-Inside `UseWolverine(...)`, opt in via the `UseRuntimeCompilation()` extension method:
+In 6.0, **referencing the package is usually all you need**: `WolverineFx.RuntimeCompilation` ships a `[WolverineModule]` that Wolverine auto-discovers at startup and which registers the Roslyn `IAssemblyGenerator` for you. With the default extension auto-discovery on, `TypeLoadMode.Dynamic`/`Auto` "just works" once the package is referenced — no code change required.
+
+You can also register it explicitly inside `UseWolverine(...)` via the `UseRuntimeCompilation()` extension method. This is **required** if you've turned extension auto-discovery off (`ExtensionDiscovery.ManualOnly`), and is handy when you want to gate it by environment (see below):
 
 ```csharp
 using Wolverine;
@@ -153,7 +155,7 @@ builder.Host.UseWolverine(opts =>
 });
 ```
 
-`UseRuntimeCompilation()` is idempotent — calling it twice does nothing on the second call. It registers `IAssemblyGenerator` as a singleton in DI using `TryAddSingleton`, so a custom registration you've already added wins.
+`UseRuntimeCompilation()` is idempotent — calling it twice (or alongside the auto-registering module) does nothing on the second call. It registers `IAssemblyGenerator` as a singleton in DI using `TryAddSingleton`, so a custom registration you've already added wins.
 
 For advanced scenarios where you need to register the runtime compiler outside of `UseWolverine(...)` (e.g., from a hosted-service registration ordering), the `IServiceCollection` overload is available:
 
@@ -183,13 +185,13 @@ Combine that with `TypeLoadMode.Static` in production and the `dotnet run -- cod
 
 ### What happens if you forget?
 
-On v5.x today, `WolverineFx` itself still registers a default `IAssemblyGenerator` for backward compatibility, so omitting `opts.UseRuntimeCompilation()` is harmless — your app keeps working exactly as before. The opt-in is forward-looking.
+In 6.0, core `WolverineFx` no longer registers a default `IAssemblyGenerator`. A `TypeLoadMode.Dynamic`/`Auto` app that starts without the runtime compiler available fails fast at startup with:
 
-In v6.0, the default registration goes away. Apps that hit a runtime-compilation code path without the package installed will see a startup error along the lines of:
+> Wolverine is running in TypeLoadMode.Dynamic, which compiles handler/middleware code at runtime, but no IAssemblyGenerator (Roslyn) is registered. Core WolverineFx no longer ships the runtime compiler. Either add the 'WolverineFx.RuntimeCompilation' NuGet package (it auto-registers when referenced, or call opts.UseRuntimeCompilation() in UseWolverine(...)), or pre-generate code with 'dotnet run -- codegen write' and set opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static.
 
-> No `IAssemblyGenerator` is registered in the application's service provider, but runtime code generation was requested. Either: (a) install the `WolverineFx.RuntimeCompilation` package and call `opts.UseRuntimeCompilation()` inside `UseWolverine(...)` for dev-time codegen, or (b) pre-generate all code (typically with `dotnet run -- codegen write`) and set `GenerationRules.TypeLoadMode = TypeLoadMode.Static` so runtime compilation is never invoked.
+To resolve it: reference `WolverineFx.RuntimeCompilation` (Dynamic/Auto mode), or move to `TypeLoadMode.Static` with pre-generated code (production, Roslyn-free).
 
-Adopting `opts.UseRuntimeCompilation()` today makes the v6 upgrade a no-op for you.
+(On 5.x, `WolverineFx` registered a default `IAssemblyGenerator`, so the package was an optional forward-looking opt-in. 6.0 removed that default — hence the requirement above.)
 
 ## Embedding Codegen in Docker
 
