@@ -168,7 +168,7 @@ public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
 
     private static async Task<bool> Poll(TimeSpan timeout, Func<bool> condition)
     {
-        var cts = new CancellationTokenSource(timeout);
+        using var cts = new CancellationTokenSource(timeout);
         while (!cts.IsCancellationRequested)
         {
             if (condition()) return true;

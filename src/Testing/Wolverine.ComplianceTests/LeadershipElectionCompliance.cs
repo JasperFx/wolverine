@@ -151,7 +151,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 
         var uri = new Uri("simple://");
 
-        var cancellation = new CancellationTokenSource();
+        using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(15.Seconds());
         while (!cancellation.IsCancellationRequested && !_hosts.Any(x => x.RunningAgents().Contains(uri)))
         {
@@ -361,7 +361,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         var expectedNodeNumbers = nodes.Select(x => x.NodeNumber()).ToHashSet();
 
         // Poll for delivery to all 3 nodes (control queue messages are not tracked)
-        var cancellation = new CancellationTokenSource();
+        using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(15.Seconds());
         while (!cancellation.IsCancellationRequested)
         {

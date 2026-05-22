@@ -121,7 +121,7 @@ public class multi_tenancy_with_multiple_files : SqliteContext, IAsyncLifetime
 
     private static async Task<bool> Poll(TimeSpan timeout, Func<bool> condition)
     {
-        var cts = new CancellationTokenSource(timeout);
+        using var cts = new CancellationTokenSource(timeout);
         while (!cts.IsCancellationRequested)
         {
             if (condition()) return true;

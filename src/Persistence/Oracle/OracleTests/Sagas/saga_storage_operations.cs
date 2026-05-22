@@ -138,7 +138,7 @@ public class saga_storage_operations
         await conn.OpenAsync();
 
         // Clean up the table
-        var cleanCmd = conn.CreateCommand(
+        await using var cleanCmd = conn.CreateCommand(
             $"DELETE FROM WOLVERINE.{nameof(OracleLightweightSaga).ToUpperInvariant()}_SAGA");
         await cleanCmd.ExecuteNonQueryAsync();
 

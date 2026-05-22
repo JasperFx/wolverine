@@ -9,7 +9,7 @@ using Xunit;
 
 namespace Wolverine.Http.Tests.Transport;
 
-public class CloudEventsHttpTransportTests
+public class CloudEventsHttpTransportTests : IDisposable
 {
     private readonly IHttpClientFactory _clientFactory;
     private readonly MockHttpMessageHandler _handler;
@@ -144,6 +144,12 @@ public class CloudEventsHttpTransportTests
 
         _handler.LastRequest.ShouldNotBeNull();
         _handler.LastRequest.Content!.Headers.ContentType!.MediaType.ShouldBe(HttpTransport.CloudEventsContentType);
+    }
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _handler.Dispose();
     }
 }
 

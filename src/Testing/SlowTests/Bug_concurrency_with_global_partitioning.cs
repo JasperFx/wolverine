@@ -109,7 +109,8 @@ public class Bug_concurrency_with_global_partitioning
         // Allow Kafka consumer group rebalancing to stabilize before sending messages
         await Task.Delay(15.Seconds());
 
-        var cts = new CancellationTokenSource(30.Seconds());
+        using var cts = new CancellationTokenSource(30.Seconds());
+        cts.CancelAfter(30.Seconds());
 
         // Simulate 6 institutions publishing concurrently, spreading across hosts
         var institutionIds = Enumerable.Range(1, 6)

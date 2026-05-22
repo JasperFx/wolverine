@@ -9,7 +9,7 @@ public class CircuitWatcherTester
     //[Fact]  //TODO -- CI doesn't like this one sometimes.
     public void ping_until_connected()
     {
-        var completed = new ManualResetEvent(false);
+        using var completed = new ManualResetEvent(false);
 
         var watcher = new CircuitWatcher(new StubCircuit(5, completed), default);
 
@@ -64,6 +64,7 @@ public class StubCircuit : ISenderCircuit
 
     public void Dispose()
     {
+        _completed.Dispose();
     }
 
     public void Start(ISenderCallback callback)

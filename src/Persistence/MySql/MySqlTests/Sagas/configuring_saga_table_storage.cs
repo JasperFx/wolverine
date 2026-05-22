@@ -49,7 +49,7 @@ public class configuring_saga_table_storage
         await conn.OpenAsync();
 
         // Drop and recreate the schema
-        var dropCmd = conn.CreateCommand();
+        await using var dropCmd = conn.CreateCommand();
         dropCmd.CommandText = "DROP DATABASE IF EXISTS color_sagas; CREATE DATABASE color_sagas;";
         await dropCmd.ExecuteNonQueryAsync();
 

@@ -357,7 +357,7 @@ public class encryption_acceptance : IDisposable
         var receiverPort = PortFinder.GetAvailablePort();
         var canary       = "WIRE-CANARY-" + Guid.NewGuid().ToString("N");
 
-        var captured = new MemoryStream();
+        using var captured = new MemoryStream();
         using var snifferCts = new CancellationTokenSource();
         var sniffer = new TcpListener(IPAddress.Loopback, snifferPort);
         sniffer.Start();

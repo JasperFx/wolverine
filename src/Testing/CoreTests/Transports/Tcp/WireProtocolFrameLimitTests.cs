@@ -24,7 +24,7 @@ public class WireProtocolFrameLimitTests
         {
             WireProtocol.MaxFrameSize = 32 * 1024 * 1024; // explicit 32 MiB for this test
 
-            var ms = new MemoryStream();
+            using var ms = new MemoryStream();
             var writer = new BinaryWriter(ms);
             writer.Write(int.MaxValue); // 4-byte hostile length prefix
             writer.Flush();
@@ -56,7 +56,7 @@ public class WireProtocolFrameLimitTests
         {
             WireProtocol.MaxFrameSize = 32 * 1024 * 1024;
 
-            var ms = new MemoryStream();
+            using var ms = new MemoryStream();
             var writer = new BinaryWriter(ms);
             writer.Write(-1); // negative length
             writer.Flush();
@@ -80,7 +80,7 @@ public class WireProtocolFrameLimitTests
     {
         // A zero-length frame is a valid ping / no-op that ReceiveAsync handles
         // by returning immediately without error.
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         var writer = new BinaryWriter(ms);
         writer.Write(0); // zero length
         writer.Flush();

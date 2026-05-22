@@ -24,6 +24,12 @@ public class MassSender(IHost sender)
     {
         _cancellation.Cancel();
     }
+
+    public void Dispose()
+    {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
+    }
     
     public void StartPublishing(int maximum = 5000, TimeSpan? time = null)
     {

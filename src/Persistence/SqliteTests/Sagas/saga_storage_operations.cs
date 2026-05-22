@@ -39,7 +39,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         await using var conn = await _dataSource.OpenConnectionAsync();
         var table = (Table)_theSchema.Table;
         var sql = table.ToBasicCreateTableSql();
-        var cmd = conn.CreateCommand();
+        await using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         await cmd.ExecuteNonQueryAsync();
         _theSchema.MarkAsChecked();

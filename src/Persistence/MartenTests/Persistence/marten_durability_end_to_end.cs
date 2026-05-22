@@ -218,7 +218,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
 
     protected async Task<long> PersistedOutgoingCount()
     {
-        await using var conn = _receiverStore.Tenancy.Default.Database.CreateConnection();
+        await using var conn = _sendingStore.Tenancy.Default.Database.CreateConnection();
         await conn.OpenAsync();
 
         var command = conn.CreateCommand(

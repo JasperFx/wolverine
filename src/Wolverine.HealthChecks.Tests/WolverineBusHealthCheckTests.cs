@@ -22,7 +22,7 @@ public class WolverineBusHealthCheckTests
     {
         var runtime = Substitute.For<IWolverineRuntime>();
         runtime.Options.Returns(new WolverineOptions { ServiceName = "test-service" });
-        var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         if (cancellationRequested) cts.Cancel();
         runtime.Cancellation.Returns(cts.Token);
 

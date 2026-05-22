@@ -44,14 +44,14 @@ public class basic_functionality : IAsyncLifetime
             // Drop queue tables if they exist
             try
             {
-                var cmd = conn.CreateCommand("DROP TABLE WOLVERINE.WOLVERINE_QUEUE_ONE CASCADE CONSTRAINTS");
+                await using var cmd = conn.CreateCommand("DROP TABLE WOLVERINE.WOLVERINE_QUEUE_ONE CASCADE CONSTRAINTS");
                 await cmd.ExecuteNonQueryAsync();
             }
             catch (OracleException) { /* table doesn't exist */ }
 
             try
             {
-                var cmd = conn.CreateCommand("DROP TABLE WOLVERINE.WOLVERINE_QUEUE_ONE_SCHEDULED CASCADE CONSTRAINTS");
+                await using var cmd = conn.CreateCommand("DROP TABLE WOLVERINE.WOLVERINE_QUEUE_ONE_SCHEDULED CASCADE CONSTRAINTS");
                 await cmd.ExecuteNonQueryAsync();
             }
             catch (OracleException) { /* table doesn't exist */ }
