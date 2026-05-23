@@ -61,13 +61,24 @@ internal class OutgoingSqsBatch
                 var entry = new SendMessageBatchRequestEntry(envelope.Id.ToString(), queue.Mapper!.BuildMessageBody(envelope));
                 if (queue.IsFifoQueue)
                 {
-                    if (envelope.GroupId.IsNotEmpty())
+                    var groupId = queue.Mapper.DetermineGroupId(envelope);
+                    if (groupId.IsNotEmpty())
                     {
-                        entry.MessageGroupId = envelope.GroupId;
+                        entry.MessageGroupId = groupId;
                     }
                     if (envelope.DeduplicationId.IsNotEmpty())
                     {
                         entry.MessageDeduplicationId = envelope.DeduplicationId;
+                    }
+                }
+                else if (queue.EnableFairQueueMessageGroups)
+                {
+                    // SQS fair queues: a MessageGroupId on a standard queue improves tenant fairness.
+                    // No deduplication semantics apply to standard queues. See GH-2886.
+                    var groupId = queue.Mapper.DetermineGroupId(envelope);
+                    if (groupId.IsNotEmpty())
+                    {
+                        entry.MessageGroupId = groupId;
                     }
                 }
 

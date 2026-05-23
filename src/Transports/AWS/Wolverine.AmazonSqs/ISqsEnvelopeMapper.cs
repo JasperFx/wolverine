@@ -14,6 +14,14 @@ public interface ISqsEnvelopeMapper
     IEnumerable<KeyValuePair<string, MessageAttributeValue>> ToAttributes(Envelope envelope);
 
     void ReadEnvelopeData(Envelope envelope, string messageBody, IDictionary<string, MessageAttributeValue> attributes);
+
+    /// <summary>
+    /// Determine the SQS <c>MessageGroupId</c> for an outgoing message. This is applied to FIFO
+    /// queues and, when <c>EnableFairQueueMessageGroups()</c> is set, to standard queues to opt into
+    /// SQS fair queues. Return <c>null</c> to leave <c>MessageGroupId</c> unset. The default maps
+    /// <see cref="Envelope.GroupId"/>; override to source the group id from a header, tenant id, etc.
+    /// </summary>
+    string? DetermineGroupId(Envelope envelope) => envelope.GroupId;
 }
 
 public class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
@@ -36,4 +44,6 @@ public class DefaultSqsEnvelopeMapper : ISqsEnvelopeMapper
         var buffer = Convert.FromBase64String(messageBody);
         EnvelopeSerializer.ReadEnvelopeData(envelope, buffer);
     }
+
+    public string? DetermineGroupId(Envelope envelope) => envelope.GroupId;
 }

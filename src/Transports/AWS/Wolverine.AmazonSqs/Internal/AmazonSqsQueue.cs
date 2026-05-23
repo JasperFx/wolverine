@@ -54,6 +54,15 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
     internal bool IsFifoQueue => QueueName.EndsWith(".fifo", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    ///     Opt this standard (non-FIFO) queue into Amazon SQS fair queues by mapping
+    ///     <see cref="Envelope.GroupId"/> to the SQS <c>MessageGroupId</c> on outgoing messages.
+    ///     This has no effect on FIFO queues, which always set <c>MessageGroupId</c>, and implies
+    ///     no ordering or deduplication semantics. Default is <c>false</c>. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html
+    /// </summary>
+    public bool EnableFairQueueMessageGroups { get; set; }
+
     // Set by the AmazonSqsTransport parent
     internal string? QueueUrl { get; private set; }
 
@@ -248,14 +257,25 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         var request = new SendMessageRequest(QueueUrl, body);
         if (IsFifoQueue)
         {
-            if (envelope.GroupId.IsNotEmpty())
+            var groupId = Mapper.DetermineGroupId(envelope);
+            if (groupId.IsNotEmpty())
             {
-                request.MessageGroupId = envelope.GroupId;
+                request.MessageGroupId = groupId;
             }
 
             if (envelope.DeduplicationId.IsNotEmpty())
             {
                 request.MessageDeduplicationId = envelope.DeduplicationId;
+            }
+        }
+        else if (EnableFairQueueMessageGroups)
+        {
+            // SQS fair queues: a MessageGroupId on a standard queue improves tenant fairness.
+            // No deduplication semantics apply to standard queues. See GH-2886.
+            var groupId = Mapper.DetermineGroupId(envelope);
+            if (groupId.IsNotEmpty())
+            {
+                request.MessageGroupId = groupId;
             }
         }
 

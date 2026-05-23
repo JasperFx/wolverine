@@ -214,7 +214,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
                                         {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'},
-                                        {text: 'FIFO Queues', link:'/guide/messaging/transports/sqs/fifo-queues'}
+                                        {text: 'FIFO Queues', link:'/guide/messaging/transports/sqs/fifo-queues'},
+                                        {text: 'Fair Queues', link:'/guide/messaging/transports/sqs/fair-queues'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
