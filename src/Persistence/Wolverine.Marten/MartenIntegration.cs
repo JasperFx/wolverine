@@ -149,9 +149,14 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
 internal class MartenOverrides : IConfigureMarten
 {
+    // Null for the main store (uses the runtime's default message store). Ancillary stores
+    // override this with their marker type so the outbox targets the ancillary store's own
+    // message store (its configured SchemaName / database). See GH-2887.
+    protected virtual Type? StoreType => null;
+
     public void Configure(IServiceProvider services, StoreOptions options)
     {
-        options.Events.MessageOutbox = new MartenToWolverineOutbox(services);
+        options.Events.MessageOutbox = new MartenToWolverineOutbox(services, StoreType);
 
         // Envelope is Wolverine's operational outbox document. Keep it
         // single-tenant and unpartitioned regardless of blanket document
@@ -189,7 +194,10 @@ internal class MartenOverrides : IConfigureMarten
     }
 }
 
-internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T : IDocumentStore{}
+internal class MartenOverrides<T> : MartenOverrides, IConfigureMarten<T> where T : IDocumentStore
+{
+    protected override Type? StoreType => typeof(T);
+}
 
 internal class EventWrapperForwarder : IHandledTypeRule
 {
