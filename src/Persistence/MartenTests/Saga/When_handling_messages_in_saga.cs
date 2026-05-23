@@ -17,6 +17,9 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<UserRegistrationSaga>();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
 
@@ -47,6 +50,9 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<UserRegistrationSaga>();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                     opts.Services.AddMarten(Servers.PostgresConnectionString)
                         .IntegrateWithWolverine();
 
@@ -69,10 +75,9 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    // opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    //     .IntegrateWithWolverine();
-                    //
-                    // opts.Policies.AutoApplyTransactions();
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<UserRegistrationSaga>();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();
 
@@ -97,10 +102,9 @@ public class When_handling_messages_in_saga : PostgresqlContext
             await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
                 {
-                    // opts.Services.AddMarten(Servers.PostgresConnectionString)
-                    //     .IntegrateWithWolverine();
-                    //
-                    // opts.Policies.AutoApplyTransactions();
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<UserRegistrationSaga>();
+                    opts.Durability.Mode = DurabilityMode.Solo;
                 })
                 .StartAsync();
 

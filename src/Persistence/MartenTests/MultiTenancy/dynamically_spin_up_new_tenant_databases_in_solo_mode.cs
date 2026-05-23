@@ -42,6 +42,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery();
                 opts.Durability.Mode = DurabilityMode.Solo;
 
                 // This is too extreme for real usage, but helps tests to run faster

@@ -22,6 +22,10 @@ public class reset_data_first : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AppendLettersHandler))
+                    .IncludeType(typeof(AppendLetters2Handler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -55,6 +59,7 @@ public class reset_data_first : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

@@ -150,7 +150,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task execution_of_forwarded_events_can_be_awaited_from_tests()
     {
-        var host = await Host.CreateDefaultBuilder()
+        using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
             .ConfigureServices(services =>
             {
@@ -216,12 +216,8 @@ public class TriggeredEvent
 
 public class TriggerEventHandler
 {
-    private static readonly TaskCompletionSource<TriggeredEvent> _source = new();
-    public static Task<TriggeredEvent> Waiter => _source.Task;
-
     public void Handle(TriggeredEvent message)
     {
-        _source.SetResult(message);
     }
 
     #region sample_execution_of_forwarded_events_second_message_to_fourth_event

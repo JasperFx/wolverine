@@ -20,6 +20,7 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 

@@ -20,6 +20,8 @@ public class not_found_usage : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(InvitationPolicy));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.DisableNpgsqlLogging = true;
@@ -34,6 +36,7 @@ public class not_found_usage : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

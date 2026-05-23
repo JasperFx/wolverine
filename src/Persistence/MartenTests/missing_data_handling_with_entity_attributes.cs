@@ -21,6 +21,10 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(GuidThingHandler))
+                    .IncludeType(typeof(ThingHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Policies.AutoApplyTransactions();
                 opts.Services.AddMarten(m =>
                 {
@@ -34,6 +38,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

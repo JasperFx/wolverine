@@ -54,7 +54,7 @@ public class health_check_timestamp_round_trip
 
             // Insert a node row using the column DEFAULT for health_check (the path
             // that NodeAgentController hits via PersistAsync on first heartbeat).
-            var insertCmd = conn.CreateCommand(
+            await using var insertCmd = conn.CreateCommand(
                 "INSERT INTO WOLVERINE.WOLVERINE_NODES (id, uri, capabilities, description, version) " +
                 "VALUES (:id, :uri, :capabilities, :description, :version)");
             insertCmd.With("id", nodeId);

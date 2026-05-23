@@ -41,6 +41,7 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
     public new async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(SqlConnection conn, string databaseName)
@@ -60,7 +61,7 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
 
     private static async Task<bool> DatabaseExistsAsync(SqlConnection conn, string databaseName)
     {
-        var cmd = conn.CreateCommand($"SELECT DB_ID(@databaseName)");
+        await using var cmd = conn.CreateCommand($"SELECT DB_ID(@databaseName)");
         cmd.Parameters.AddWithValue("@databaseName", databaseName);
         var result = await cmd.ExecuteScalarAsync();
         return result != null && result != DBNull.Value;

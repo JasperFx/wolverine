@@ -51,6 +51,8 @@ public class end_to_end_from_scratch : IAsyncLifetime
     {
         await Api.StopAsync();
         await UI.StopAsync();
+        Api.Dispose();
+        UI.Dispose();
     }
 
     [Fact]

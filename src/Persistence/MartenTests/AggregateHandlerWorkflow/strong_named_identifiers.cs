@@ -22,6 +22,8 @@ public class strong_named_identifiers : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(StrongLetterHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -33,6 +35,7 @@ public class strong_named_identifiers : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     [Fact]

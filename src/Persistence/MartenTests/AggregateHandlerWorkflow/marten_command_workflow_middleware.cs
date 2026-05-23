@@ -16,10 +16,11 @@ using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Wolverine.Marten;
 using Wolverine.Tracking;
+using Wolverine;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 
-public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifetime, IDisposable
+public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifetime
 {
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
@@ -40,16 +41,20 @@ public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifet
             opts.Services.AddResourceSetupOnStartup();
 
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(SpecialLetterHandler))
+                .IncludeType(typeof(LetterAggregateHandler));
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
-
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        theHost?.Dispose();
+        await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     internal async Task GivenAggregate()

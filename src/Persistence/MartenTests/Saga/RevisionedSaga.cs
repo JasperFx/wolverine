@@ -25,6 +25,8 @@ public class using_revisioned_sagas : IAsyncLifetime
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(RevisionedSaga));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.DisableNpgsqlLogging = true;

@@ -22,6 +22,10 @@ public class catch_up_then_restart : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AppendLettersHandler))
+                    .IncludeType(typeof(AppendLetters2Handler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -55,6 +59,7 @@ public class catch_up_then_restart : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

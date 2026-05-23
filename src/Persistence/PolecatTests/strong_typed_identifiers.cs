@@ -33,6 +33,7 @@ public class strong_typed_identifiers : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

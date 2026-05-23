@@ -8,10 +8,11 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution.Support;
 
-public class XUnitEventObserver : IObserver<IWolverineEvent>
+public class XUnitEventObserver : IObserver<IWolverineEvent>, IDisposable
 {
     private readonly ITestOutputHelper _output;
     private readonly int _assignedId;
+    private readonly IDisposable _subsriber;
 
     public XUnitEventObserver(IHost host, ITestOutputHelper output)
     {
@@ -20,7 +21,13 @@ public class XUnitEventObserver : IObserver<IWolverineEvent>
 
         _assignedId = runtime.Options.Durability.AssignedNodeNumber;
 
-        runtime.Tracker.Subscribe(this);
+        _subsriber = runtime.Tracker.Subscribe(this);
+    }
+
+    public void Dispose()
+    {
+        _subsriber?.Dispose();
+        GC.SuppressFinalize(this);
     }
 
     public void OnCompleted()

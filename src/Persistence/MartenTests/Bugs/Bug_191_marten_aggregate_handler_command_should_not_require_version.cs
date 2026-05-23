@@ -21,6 +21,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
             {
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(UpdateThingAggregateHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
 
                 opts.Services.AddMarten(marten =>
                 {

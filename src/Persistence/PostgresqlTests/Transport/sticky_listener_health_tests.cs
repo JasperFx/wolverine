@@ -88,7 +88,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
         await using var conn = await _dataSource.OpenConnectionAsync();
         try
         {
-            var drop = conn.CreateCommand();
+            await using var drop = conn.CreateCommand();
             drop.CommandText = $"DROP TABLE IF EXISTS {_tableName} CASCADE";
             await drop.ExecuteNonQueryAsync();
         }
@@ -105,7 +105,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
         await using var conn = await _dataSource.OpenConnectionAsync();
         try
         {
-            var drop = conn.CreateCommand();
+            await using var drop = conn.CreateCommand();
             drop.CommandText = $"DROP TABLE IF EXISTS {_tableName} CASCADE";
             await drop.ExecuteNonQueryAsync();
         }
@@ -140,7 +140,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
             {
                 for (var i = 0; i < 7; i++)
                 {
-                    var insert = conn.CreateCommand();
+                    await using var insert = conn.CreateCommand();
                     insert.CommandText =
                         $"INSERT INTO {_tableName} (id, body, message_type, keep_until) " +
                         "VALUES (gen_random_uuid(), '\\x00'::bytea, 'TestMessage', null)";

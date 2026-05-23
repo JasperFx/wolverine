@@ -6,10 +6,6 @@ using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Batching;
-using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 
 namespace MartenTests;
@@ -39,6 +35,11 @@ public class batch_processing
                     batching.BatchSize = 8;
                     batching.LocalExecutionQueueName = "items";
                 }).UseDurableInbox();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BatchItemHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
+                
             }).StartAsync();
         
         await theHost.CleanAllMartenDataAsync();
@@ -122,6 +123,10 @@ public class batch_processing
                     batching.BatchSize = 8;
                     batching.LocalExecutionQueueName = "items";
                 }).UseDurableInbox();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(BatchItemHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
             }).StartAsync();
         
         var item1 = new BatchItem("one", Guid.NewGuid());

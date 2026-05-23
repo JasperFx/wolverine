@@ -18,7 +18,7 @@ using Wolverine.Tracking;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 
-public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncLifetime, IAsyncDisposable
+public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncLifetime
 {
     private IHost _host = null!;
     private IDocumentStore _store = null!;
@@ -36,6 +36,10 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
                 .UseLightweightSessions()
                 .IntegrateWithWolverine();
 
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(NkOrderHandler));
+            opts.Durability.Mode = DurabilityMode.Solo;
+
             opts.Services.AddResourceSetupOnStartup();
             opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
         });
@@ -43,15 +47,10 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         _store = _host.Services.GetRequiredService<IDocumentStore>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => DisposeAsync().AsTask();
-
-    public async ValueTask DisposeAsync()
+    public async Task DisposeAsync()
     {
-        if (_host != null)
-        {
-            await _host.StopAsync();
-            _host.Dispose();
-        }
+        await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

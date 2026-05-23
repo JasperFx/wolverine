@@ -101,7 +101,7 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
 
     private static async Task<bool> Poll(TimeSpan timeout, Func<bool> condition)
     {
-        var cts = new CancellationTokenSource(timeout);
+        using var cts = new CancellationTokenSource(timeout);
         while (!cts.IsCancellationRequested)
         {
             if (condition()) return true;

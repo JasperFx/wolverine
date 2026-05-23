@@ -35,6 +35,7 @@ public class bumping_stale_outbox_messages : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     [Fact]

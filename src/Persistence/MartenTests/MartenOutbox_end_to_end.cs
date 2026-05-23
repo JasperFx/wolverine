@@ -18,6 +18,8 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(OutboxedMessageHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
 

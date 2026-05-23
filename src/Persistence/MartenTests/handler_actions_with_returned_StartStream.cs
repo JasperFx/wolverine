@@ -23,6 +23,8 @@ public class handler_actions_with_returned_StartStream : PostgresqlContext, IAsy
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(StartStreamMessageHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
@@ -68,6 +70,8 @@ public class start_stream_by_string_from_return_value : PostgresqlContext, IAsyn
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(StartStreamMessageHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services
                     .AddMarten(m =>
                     {

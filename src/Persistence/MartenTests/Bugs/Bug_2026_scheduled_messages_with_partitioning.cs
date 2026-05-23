@@ -23,6 +23,7 @@ public class Bug_2026_scheduled_messages_with_partitioning
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ReproduceBugHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddMarten(m =>

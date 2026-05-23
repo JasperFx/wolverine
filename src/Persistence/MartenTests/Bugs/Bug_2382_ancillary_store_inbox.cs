@@ -105,6 +105,10 @@ public class Bug_2382_ancillary_store_inbox : IAsyncLifetime
 
                 opts.Policies.AutoApplyTransactions();
                 opts.Services.AddResourceSetupOnStartup();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AncillaryMessage2382Handler))
+                    .IncludeType(typeof(MainStoreMessage2382Handler));
+
             }).StartAsync();
 
         await _host.ResetResourceState();

@@ -19,6 +19,8 @@ public class global_entity_defaults : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GlobalThingHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Policies.AutoApplyTransactions();
 
                 // Set global defaults
@@ -36,6 +38,7 @@ public class global_entity_defaults : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

@@ -42,6 +42,7 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     private async Task<string> CreateDatabaseIfNotExists(MySqlConnection conn, string databaseName)
@@ -49,13 +50,13 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
         var builder = new MySqlConnectionStringBuilder(Servers.MySqlConnectionString);
 
         // Check if database exists
-        var checkCmd = conn.CreateCommand();
+        await using var checkCmd = conn.CreateCommand();
         checkCmd.CommandText = $"SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '{databaseName}'";
         var exists = await checkCmd.ExecuteScalarAsync() != null;
 
         if (!exists)
         {
-            var createCmd = conn.CreateCommand();
+            await using var createCmd = conn.CreateCommand();
             createCmd.CommandText = $"CREATE DATABASE {databaseName}";
             await createCmd.ExecuteNonQueryAsync();
         }
@@ -70,7 +71,7 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
         await conn.OpenAsync();
 
         // Create items table if not exists
-        var createTableCmd = conn.CreateCommand();
+        await using var createTableCmd = conn.CreateCommand();
         createTableCmd.CommandText = @"
 CREATE TABLE IF NOT EXISTS items (
     Id BINARY(16) PRIMARY KEY,
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS items (
         await createTableCmd.ExecuteNonQueryAsync();
 
         // Clean the table
-        var deleteCmd = conn.CreateCommand();
+        await using var deleteCmd = conn.CreateCommand();
         deleteCmd.CommandText = "DELETE FROM items";
         await deleteCmd.ExecuteNonQueryAsync();
 

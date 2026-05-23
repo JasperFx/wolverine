@@ -49,6 +49,7 @@ public class catch_up_when_using_wolverine_distribution : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

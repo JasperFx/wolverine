@@ -26,8 +26,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         Stores.Main.Name.ShouldBe(StorageConstants.Main);
         Stores.Main.As<IMessageDatabase>().SchemaName.ShouldBe("control");
+        using var connection = Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection();
 
-        new NpgsqlConnectionStringBuilder(Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection().ConnectionString)
+        new NpgsqlConnectionStringBuilder(connection.ConnectionString)
             .Database.ShouldBe("postgres");
     }
 

@@ -43,6 +43,8 @@ public class end_to_end_round_trip : IAsyncLifetime
     {
         await _receiver.StopAsync();
         await _publisher.StopAsync();
+        _receiver.Dispose();
+        _publisher.Dispose();
 
         try
         {

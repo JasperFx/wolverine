@@ -16,11 +16,10 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Persistence;
 
-public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyncLifetime
+public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
     private IHost theReceiver = null!;
-
     private IHost theSender = null!;
 
     public end_to_end_with_persistence(ITestOutputHelper output)
@@ -47,6 +46,11 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             }).IntegrateWithWolverine();
 
             opts.ListenAtPort(2567);
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(ItemCreatedHandler))
+                .IncludeType(typeof(QuestionHandler));
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         theReceiver = await WolverineHost.ForAsync(opts =>
@@ -61,6 +65,10 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
                 x.Connection(Servers.PostgresConnectionString);
                 x.DatabaseSchemaName = "receiver";
             }).IntegrateWithWolverine();
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(ItemCreatedHandler));
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         await theSender.ResetResourceState();
@@ -69,14 +77,9 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
 
     public Task DisposeAsync()
     {
-        Dispose();
-        return Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
         theSender?.Dispose();
         theReceiver?.Dispose();
+        return Task.CompletedTask;
     }
 
     [Fact]
@@ -120,7 +123,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IDisposable, IAsyn
             var item2 = await session.LoadAsync<ItemCreated>(item.Id);
             if (item2 == null)
             {
-                Thread.Sleep(500);
+                await Task.Delay(500);
                 item2 = await session.LoadAsync<ItemCreated>(item.Id);
             }
 

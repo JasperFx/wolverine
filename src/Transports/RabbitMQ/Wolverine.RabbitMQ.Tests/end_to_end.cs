@@ -225,7 +225,7 @@ public class end_to_end
             await publisher.SendAsync(new ColorChosen { Name = "blue" });
         }
 
-        var cancellation = new CancellationTokenSource(30.Seconds());
+        using var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
         while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
@@ -272,7 +272,7 @@ public class end_to_end
             await publisher.SendAsync(new ColorChosen { Name = "blue" });
         }
 
-        var cancellation = new CancellationTokenSource(30.Seconds());
+        using var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
         while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)
@@ -321,7 +321,7 @@ public class end_to_end
             await publisher.SendAsync(new ColorChosen { Name = "blue" });
         }
 
-        var cancellation = new CancellationTokenSource(30.Seconds());
+        using var cancellation = new CancellationTokenSource(30.Seconds());
         var queue = receiver.Get<IWolverineRuntime>().Endpoints.EndpointByName(queueName).ShouldBeOfType<RabbitMqQueue>();
 
         while (!cancellation.IsCancellationRequested && await queue.QueuedCountAsync() > 0)

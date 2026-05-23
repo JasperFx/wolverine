@@ -33,6 +33,8 @@ public class SimpleSingularAgent : SingularAgent
     // This template method should be used to cleanly stop up your background service
     protected override Task stopAsync(CancellationToken cancellationToken)
     {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
         _timer.SafeDispose();
         return Task.CompletedTask;
     }

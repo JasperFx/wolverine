@@ -27,6 +27,10 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
             opts.Services.AddMarten(Servers.PostgresConnectionString)
                 .IntegrateWithWolverine();
+
+            opts.Discovery.DisableConventionalDiscovery()
+                .IncludeType(typeof(UserHandler));
+            opts.Durability.Mode = DurabilityMode.Solo;
         });
 
         await theHost.Get<IDocumentStore>().Advanced.Clean.CompletelyRemoveAllAsync();
@@ -37,6 +41,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
         if (theHost != null)
         {
             await theHost.StopAsync();
+            theHost.Dispose();
         }
     }
 

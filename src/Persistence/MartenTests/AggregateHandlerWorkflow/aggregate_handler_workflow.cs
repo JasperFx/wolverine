@@ -46,6 +46,10 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
                     .UseLightweightSessions()
                     .IntegrateWithWolverine();
 
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(RaiseIfValidatedHandler))
+                    .IncludeType(typeof(ResponseHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
             }).StartAsync();
 

@@ -28,7 +28,7 @@ public class concurrent_saga_chain_compilation
 
             var graph = host.Services.GetRequiredService<HandlerGraph>();
 
-            var start = new ManualResetEventSlim(false);
+            using var start = new ManualResetEventSlim(false);
             var failures = new ConcurrentBag<Exception>();
             var threads = new Thread[concurrency];
 

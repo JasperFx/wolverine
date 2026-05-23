@@ -26,6 +26,11 @@ public class second_stage_waiting : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(AppendLettersHandler))
+                    .IncludeType(typeof(AppendLetters2Handler))
+                    .IncludeType(typeof(GotFiveHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.Connection(Servers.PostgresConnectionString);
@@ -59,6 +64,7 @@ public class second_stage_waiting : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

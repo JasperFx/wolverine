@@ -25,6 +25,7 @@ public class Bug_971_replay_dead_letter_queue_of_event_wrapper
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ErrorCausingEventHandler));
                 opts.ApplicationAssembly = GetType().Assembly;
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Durability.ScheduledJobPollingTime = 250.Milliseconds();

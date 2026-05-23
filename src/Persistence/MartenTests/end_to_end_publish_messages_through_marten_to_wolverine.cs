@@ -36,6 +36,9 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(GotBHandler))
+                    .IncludeType(typeof(CustomerChangedHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddMarten(m =>
@@ -80,6 +83,8 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
                         m.DisableNpgsqlLogging = true;
@@ -124,6 +129,8 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
@@ -173,6 +180,8 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(GotBHandler));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                     {
                         m.Connection(Servers.PostgresConnectionString);
@@ -303,6 +312,9 @@ public class
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(CustomerChangedHandler))
+                    .IncludeType(typeof(GotBHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
                 opts.Services.AddMarten(m =>
@@ -321,9 +333,10 @@ public class
             }).StartAsync();
     }
 
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        return _host.StopAsync();
+        await _host.StopAsync();
+        _host.Dispose();
     }
     
     [Fact]

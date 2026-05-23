@@ -18,6 +18,8 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(ShippingSaga));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.Discovery.IncludeType<ShippingSaga>();
@@ -37,6 +39,7 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

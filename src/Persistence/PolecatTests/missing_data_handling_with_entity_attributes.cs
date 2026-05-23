@@ -35,6 +35,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await _host.StopAsync();
+        _host.Dispose();
     }
 
     [Fact]

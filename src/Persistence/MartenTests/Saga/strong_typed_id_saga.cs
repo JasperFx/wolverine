@@ -89,6 +89,8 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(OrderSagaWorkflow));
+                opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddMarten(m =>
                 {
                     m.DisableNpgsqlLogging = true;

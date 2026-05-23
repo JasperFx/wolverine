@@ -10,7 +10,7 @@ using Xunit;
 
 namespace Wolverine.Http.Tests.Transport;
 
-public class WolverineHttpTransportClientTests
+public class WolverineHttpTransportClientTests : IDisposable
 {
     private readonly IHttpClientFactory _clientFactory;
     private readonly MockHttpMessageHandler _handler;
@@ -73,6 +73,12 @@ public class WolverineHttpTransportClientTests
 
         var expectedData = EnvelopeSerializer.Serialize(envelopes);
         _handler.LastContent.ShouldBe(expectedData);
+    }
+
+    public void Dispose()
+    {
+        _httpClient.Dispose();
+        _handler.Dispose();
     }
 }
 

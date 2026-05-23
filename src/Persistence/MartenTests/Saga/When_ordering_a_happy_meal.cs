@@ -14,7 +14,13 @@ public class When_ordering_a_happy_meal : PostgresqlContext, IAsyncLifetime
     {
         _host = await
             Host.CreateDefaultBuilder()
-                .UseWolverine()
+                .UseWolverine(opts =>
+                {
+                    opts.Discovery.DisableConventionalDiscovery()
+                        .IncludeType<HappyMealSaga3>()
+                        .IncludeType<SodaHandler>();
+                    opts.Durability.Mode = DurabilityMode.Solo;
+                })
                 .StartAsync();
 
         var session = await _host.InvokeMessageAndWaitAsync(new HappyMealOrder { Drink = "Soda" });
