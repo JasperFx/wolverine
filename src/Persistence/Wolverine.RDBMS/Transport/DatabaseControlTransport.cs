@@ -132,8 +132,8 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
         {
             if (envelopes.Count == 1)
             {
-                await conn.CreateCommand($"delete from {TableName} where id = @id").With("id", envelopes.Single().Id)
-                    .ExecuteNonQueryAsync(cancellationToken);
+                await using var deleteCmd = conn.CreateCommand($"delete from {TableName} where id = @id").With("id", envelopes.Single().Id);
+                await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
             }
             else
             {
@@ -147,7 +147,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
                     builder.Append(';');
                 }
 
-                var command = builder.Compile();
+                await using var command = builder.Compile();
                 command.Connection = conn;
 
                 await command.ExecuteNonQueryAsync(cancellationToken);

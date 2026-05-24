@@ -13,7 +13,7 @@ internal partial class OracleMessageStore
     public async Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT {DatabaseConstants.OutgoingFields} FROM {SchemaName}.{DatabaseConstants.OutgoingTable} " +
             $"WHERE owner_id = {TransportConstants.AnyNode} AND destination = :destination " +
             $"FETCH FIRST {_durability.RecoveryBatchSize} ROWS ONLY");
@@ -29,7 +29,7 @@ internal partial class OracleMessageStore
         var data = EnvelopeSerializer.Serialize(envelope);
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"INSERT INTO {SchemaName}.{DatabaseConstants.OutgoingTable} ({DatabaseConstants.OutgoingFields}) " +
             "VALUES (:body, :id, :ownerId, :destination, :deliverBy, :attempts, :messageType)");
 
@@ -61,7 +61,7 @@ internal partial class OracleMessageStore
         if (envelopes.Length == 0) return;
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand("");
+        await using var cmd = conn.CreateCommand("");
         var placeholders = OracleCommandExtensions.WithEnvelopeIds(cmd, "id", envelopes);
         cmd.CommandText = $"DELETE FROM {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id IN ({placeholders})";
         await cmd.ExecuteNonQueryAsync(_cancellation);
@@ -73,7 +73,7 @@ internal partial class OracleMessageStore
         if (HasDisposed) return;
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"DELETE FROM {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = :id");
         cmd.With("id", envelope.Id);
         await cmd.ExecuteNonQueryAsync(_cancellation);
@@ -88,7 +88,7 @@ internal partial class OracleMessageStore
         {
             if (discards.Length > 0)
             {
-                var deleteCmd = conn.CreateCommand("");
+                await using var deleteCmd = conn.CreateCommand("");
                 var deletePlaceholders = OracleCommandExtensions.WithEnvelopeIds(deleteCmd, "id", discards);
                 deleteCmd.CommandText =
                     $"DELETE FROM {SchemaName}.{DatabaseConstants.OutgoingTable} WHERE id IN ({deletePlaceholders})";
@@ -97,7 +97,7 @@ internal partial class OracleMessageStore
 
             if (reassigned.Length > 0)
             {
-                var reassignCmd = conn.CreateCommand("");
+                await using var reassignCmd = conn.CreateCommand("");
                 var reassignPlaceholders = OracleCommandExtensions.WithEnvelopeIds(reassignCmd, "rid", reassigned);
                 reassignCmd.CommandText =
                     $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET owner_id = :node WHERE id IN ({reassignPlaceholders})";
@@ -118,7 +118,7 @@ internal partial class OracleMessageStore
         {
             var data = EnvelopeSerializer.Serialize(envelope);
 
-            var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
+            await using var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.OutgoingTable} ({DatabaseConstants.OutgoingFields}) " +
                 "VALUES (:body, :id, :ownerId, :destination, :deliverBy, :attempts, :messageType)");
             cmd.Transaction = (OracleTransaction)tx;

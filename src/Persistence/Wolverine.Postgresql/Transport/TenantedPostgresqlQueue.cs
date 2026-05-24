@@ -49,7 +49,7 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT 1";
             await cmd.ExecuteScalarAsync(cancellationToken);
         }
@@ -69,7 +69,7 @@ internal class TenantedPostgresqlQueue : Endpoint, IDatabaseBackedEndpoint
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         try
         {
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = $"select count(*) from {_parent.QueueTable.Identifier}";
             var raw = await cmd.ExecuteScalarAsync(cancellationToken);
             return raw switch

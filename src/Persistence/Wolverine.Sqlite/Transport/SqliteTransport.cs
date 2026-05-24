@@ -122,7 +122,8 @@ public class SqliteTransport : BrokerTransport<SqliteQueue>, ITransportConfigure
 
         await using var conn = await Store.DataSource.OpenConnectionAsync().ConfigureAwait(false);
 
-        var raw = (string?)await conn.CreateCommand("select datetime('now')").ExecuteScalarAsync();
+        await using var timeCmd = conn.CreateCommand("select datetime('now')");
+        var raw = (string?)await timeCmd.ExecuteScalarAsync();
         return new DateTimeOffset(DateTime.SpecifyKind(DateTime.Parse(raw!), DateTimeKind.Utc));
     }
 }

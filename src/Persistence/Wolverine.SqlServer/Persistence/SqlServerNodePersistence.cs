@@ -38,7 +38,8 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        await conn.CreateCommand($"delete from {_nodeTable}").ExecuteNonQueryAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand($"delete from {_nodeTable}");
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
     }
@@ -59,7 +60,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     {
         var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
 
-        var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description, version) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description, @version) ")
+        await using var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description, version) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description, @version) ")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString()).With("description", node.Description)
             .With("capabilities", strings)
@@ -89,7 +90,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var cmd = conn.CreateCommand($"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable}");
+        await using var cmd = conn.CreateCommand($"select {NodeColumns} from {_nodeTable};select {Id}, {NodeId}, {Started} from {_assignmentTable}");
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
@@ -140,7 +141,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             }
         }
 
-        var batch = builder.Compile();
+        await using var batch = builder.Compile();
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
         batch.Connection = conn;
@@ -216,7 +217,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var cmd = CommandExtensions.CreateCommand(conn,
+        await using var cmd = CommandExtensions.CreateCommand(conn,
                 $"select {NodeColumns} from {_nodeTable} where id = @id;select id, node_id, started from {_assignmentTable} where node_id = @id;")
             .With("id", nodeId);
 
@@ -301,7 +302,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
             builder.Append(")");
         }
 
-        var batch = builder.Compile();
+        await using var batch = builder.Compile();
         batch.Connection = conn;
         await batch.ExecuteNonQueryAsync(cancellationToken);
 

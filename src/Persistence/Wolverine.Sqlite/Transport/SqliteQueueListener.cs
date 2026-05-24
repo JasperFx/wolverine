@@ -130,7 +130,7 @@ internal class SqliteQueueListener : IListener
             var tx = await conn.BeginTransactionAsync(cancellationToken);
 
             // Move scheduled messages that are ready
-            var moveCommand = conn.CreateCommand();
+            await using var moveCommand = conn.CreateCommand();
             moveCommand.Transaction = tx;
             moveCommand.CommandText = $@"
                 INSERT INTO {_queueTableName} (id, body, message_type)
@@ -143,7 +143,7 @@ internal class SqliteQueueListener : IListener
             await moveCommand.ExecuteNonQueryAsync(cancellationToken);
 
             // Delete moved messages from scheduled table
-            var deleteCommand = conn.CreateCommand();
+            await using var deleteCommand = conn.CreateCommand();
             deleteCommand.Transaction = tx;
             deleteCommand.CommandText = $@"
                 DELETE FROM {_scheduledTableName}
@@ -194,7 +194,7 @@ internal class SqliteQueueListener : IListener
                 {
                     var tx = await conn.BeginTransactionAsync(_cancellation.Token);
 
-                    var cmd = conn.CreateCommand();
+                    await using var cmd = conn.CreateCommand();
                     cmd.Transaction = tx;
                     cmd.CommandText = $@"
                         SELECT {DatabaseConstants.Body}
@@ -219,7 +219,7 @@ internal class SqliteQueueListener : IListener
                     {
                         // Delete the messages we retrieved
                         var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
-                        var deleteCmd = conn.CreateCommand();
+                        await using var deleteCmd = conn.CreateCommand();
                         deleteCmd.Transaction = tx;
                         deleteCmd.CommandText = $"DELETE FROM {_queueTableName} WHERE lower({DatabaseConstants.Id}) IN ({ids})";
                         await deleteCmd.ExecuteNonQueryAsync(_cancellation.Token);

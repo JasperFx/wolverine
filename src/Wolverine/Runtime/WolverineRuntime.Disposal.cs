@@ -38,5 +38,10 @@ public partial class WolverineRuntime : IAsyncDisposable
         {
             await _accumulator.Value.DisposeAsync();
         }
+
+        if (_sagaStorage.IsValueCreated && _sagaStorage.Value is IDisposable d)
+        {
+            d.Dispose();
+        }
     }
 }

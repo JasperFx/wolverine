@@ -138,7 +138,7 @@ internal class SqlServerAdvisoryLock : IAdvisoryLock
 
         try
         {
-            var cancellation = new CancellationTokenSource();
+            using var cancellation = new CancellationTokenSource();
             cancellation.CancelAfter(1.Seconds());
 
             await _conn.ReleaseGlobalLock(lockId.ToString(), cancellation: cancellation.Token).ConfigureAwait(false);

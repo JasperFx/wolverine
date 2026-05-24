@@ -50,7 +50,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
-        var cmd = _dataSource.CreateCommand(
+        await using var cmd = _dataSource.CreateCommand(
                 $"insert into {_nodeTable} (id, uri, capabilities, description, version) values (:id, :uri, :capabilities, :description, :version) returning node_number")
             .With("id", node.NodeId)
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
@@ -133,7 +133,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             }
         }
         
-        var batch = builder.Compile();
+        await using var batch = builder.Compile();
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
         batch.Connection = conn;
         await batch.ExecuteNonQueryAsync(cancellationToken);
@@ -231,7 +231,7 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
                 $"insert into {_assignmentTable} (id, node_id) values (:{parameter.ParameterName}, :{nodeParameter.ParameterName}) on conflict (id) do update set node_id = :{nodeParameter.ParameterName};");
         }
 
-        var command = builder.Compile();
+        await using var command = builder.Compile();
         command.Connection = conn;
         await command.ExecuteNonQueryAsync(cancellationToken);
 
@@ -500,7 +500,7 @@ internal class AdvisoryLock : IAdvisoryLock
 
         try
         {
-            var cancellation = new CancellationTokenSource();
+            using var cancellation = new CancellationTokenSource();
             cancellation.CancelAfter(1.Seconds());
 
             await _conn.ReleaseGlobalLock(lockId, cancellation.Token).ConfigureAwait(false);

@@ -50,7 +50,7 @@ internal class DatabaseOperationBatch : IAgentCommand
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
 

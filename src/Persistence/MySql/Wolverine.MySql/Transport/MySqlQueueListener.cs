@@ -147,44 +147,44 @@ ORDER BY timestamp LIMIT @count FOR UPDATE SKIP LOCKED
             }
 
             // Create temp table to hold IDs to move
-            await CreateCmd($@"
+            await using var createTempCmd = CreateCmd($@"
 CREATE TEMPORARY TABLE IF NOT EXISTS temp_move_{_queueName} (
     id CHAR(36) PRIMARY KEY,
     body LONGBLOB,
     message_type VARCHAR(500),
     keep_until DATETIME(6)
-)")
-                .ExecuteNonQueryAsync(cancellationToken);
+)");
+            await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear any existing data
-            await CreateCmd($"TRUNCATE TABLE temp_move_{_queueName}")
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE temp_move_{_queueName}");
+            await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select scheduled messages that are ready
-            await CreateCmd($@"
+            await using var selectCmd = CreateCmd($@"
 INSERT INTO temp_move_{_queueName} (id, body, message_type, keep_until)
 SELECT id, body, message_type, keep_until
 FROM {_scheduledTableName}
 WHERE {DatabaseConstants.ExecutionTime} <= UTC_TIMESTAMP(6)
 AND id NOT IN (SELECT id FROM {_queueTableName})
-FOR UPDATE SKIP LOCKED")
-                .ExecuteNonQueryAsync(cancellationToken);
+FOR UPDATE SKIP LOCKED");
+            await selectCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Insert into queue table
-            await CreateCmd($@"
+            await using var insertCmd = CreateCmd($@"
 INSERT INTO {_queueTableName} (id, body, message_type, keep_until)
-SELECT id, body, message_type, keep_until FROM temp_move_{_queueName}")
-                .ExecuteNonQueryAsync(cancellationToken);
+SELECT id, body, message_type, keep_until FROM temp_move_{_queueName}");
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Delete from scheduled table
-            await CreateCmd($@"
+            await using var deleteCmd = CreateCmd($@"
 DELETE FROM {_scheduledTableName}
-WHERE id IN (SELECT id FROM temp_move_{_queueName})")
-                .ExecuteNonQueryAsync(cancellationToken);
+WHERE id IN (SELECT id FROM temp_move_{_queueName})");
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Get count
-            var countResult = await CreateCmd($"SELECT COUNT(*) FROM temp_move_{_queueName}")
-                .ExecuteScalarAsync(cancellationToken);
+            await using var countCmd = CreateCmd($"SELECT COUNT(*) FROM temp_move_{_queueName}");
+            var countResult = await countCmd.ExecuteScalarAsync(cancellationToken);
             count = Convert.ToInt64(countResult);
 
             await transaction.CommitAsync(cancellationToken);
@@ -267,25 +267,25 @@ WHERE id IN (SELECT id FROM temp_move_{_queueName})")
             }
 
             // First, delete any messages that are already in the incoming table (deduplication)
-            await CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable})")
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var dedupCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable})");
+            await dedupCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Create temp table for this operation
-            await CreateCmd($@"
+            await using var createTempCmd = CreateCmd($@"
 CREATE TEMPORARY TABLE IF NOT EXISTS temp_pop_{_queueName} (
     id CHAR(36) PRIMARY KEY,
     body LONGBLOB,
     message_type VARCHAR(500),
     keep_until DATETIME(6)
-)")
-                .ExecuteNonQueryAsync(cancellationToken);
+)");
+            await createTempCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Clear temp table
-            await CreateCmd($"TRUNCATE TABLE temp_pop_{_queueName}")
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var truncateCmd = CreateCmd($"TRUNCATE TABLE temp_pop_{_queueName}");
+            await truncateCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select messages to process with lock
-            var selectCmd = CreateCmd($@"
+            await using var selectCmd = CreateCmd($@"
 INSERT INTO temp_pop_{_queueName} (id, body, message_type, keep_until)
 SELECT id, body, message_type, keep_until
 FROM {_queueTableName}
@@ -296,11 +296,11 @@ FOR UPDATE SKIP LOCKED");
             await selectCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Delete from queue table
-            await CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM temp_pop_{_queueName})")
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM temp_pop_{_queueName})");
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Insert into incoming table
-            var insertCmd = CreateCmd($@"
+            await using var insertCmd = CreateCmd($@"
 INSERT INTO {_schemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until)
 SELECT id, 'Incoming', @ownerId, body, message_type, @receivedAt, keep_until
 FROM temp_pop_{_queueName}");
@@ -310,8 +310,8 @@ FROM temp_pop_{_queueName}");
 
             // Read the bodies
             var list = new List<Envelope>();
-            await using var reader = await CreateCmd($"SELECT body FROM temp_pop_{_queueName}")
-                .ExecuteReaderAsync(cancellationToken);
+            await using var readCmd = CreateCmd($"SELECT body FROM temp_pop_{_queueName}");
+            await using var reader = await readCmd.ExecuteReaderAsync(cancellationToken);
 
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
@@ -361,7 +361,7 @@ FROM temp_pop_{_queueName}");
             var idsToDelete = new List<Guid>();
             var list = new List<Envelope>();
 
-            var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
+            await using var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
             selectCmd.Parameters.AddWithValue("@count", count);
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
@@ -391,7 +391,7 @@ FROM temp_pop_{_queueName}");
             {
                 // Build parameterized IN clause
                 var paramNames = new string[idsToDelete.Count];
-                var cmd = CreateCmd("");
+                await using var cmd = CreateCmd("");
                 for (int i = 0; i < idsToDelete.Count; i++)
                 {
                     paramNames[i] = $"@id{i}";

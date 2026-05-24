@@ -413,7 +413,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        var cmd = conn.CreateCommand("");
+        await using var cmd = conn.CreateCommand("");
         if (table.MessageTypeColumnName.IsEmpty())
         {
             cmd.CommandText =
@@ -494,7 +494,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
         try
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"SELECT connection_string FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE tenant_id = :id");
             cmd.With("id", tenantId);
             await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
@@ -528,7 +528,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
         try
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"SELECT tenant_id, connection_string FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE disabled = 0");
             await using var reader = await cmd.ExecuteReaderAsync(_cancellation);
 
@@ -559,12 +559,12 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         {
             foreach (var assignment in tenantConnectionStrings.AllActiveByTenant())
             {
-                var deleteCmd = conn.CreateCommand(
+                await using var deleteCmd = conn.CreateCommand(
                     $"DELETE FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE tenant_id = :tid");
                 deleteCmd.With("tid", assignment.TenantId);
                 await deleteCmd.ExecuteNonQueryAsync(_cancellation);
 
-                var insertCmd = conn.CreateCommand(
+                await using var insertCmd = conn.CreateCommand(
                     $"INSERT INTO {SchemaName}.{DatabaseConstants.TenantsTableName} (tenant_id, connection_string) VALUES (:tid, :cs)");
                 insertCmd.With("tid", assignment.TenantId);
                 insertCmd.With("cs", assignment.Value);
@@ -584,7 +584,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         try
         {
             // Oracle MERGE for upsert
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"MERGE INTO {SchemaName}.{DatabaseConstants.TenantsTableName} t USING (SELECT :id AS tenant_id FROM DUAL) s ON (t.tenant_id = s.tenant_id) WHEN MATCHED THEN UPDATE SET connection_string = :conn, disabled = 0 WHEN NOT MATCHED THEN INSERT (tenant_id, connection_string, disabled) VALUES (:id, :conn, 0)");
             cmd.With("id", tenantId);
             cmd.With("conn", connectionString);
@@ -602,7 +602,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         await conn.OpenAsync(_cancellation);
         try
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.TenantsTableName} SET disabled = :disabled WHERE tenant_id = :id");
             cmd.With("id", tenantId);
             cmd.With("disabled", disabled ? 1 : 0);
@@ -620,7 +620,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         await conn.OpenAsync(_cancellation);
         try
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"DELETE FROM {SchemaName}.{DatabaseConstants.TenantsTableName} WHERE tenant_id = :id");
             cmd.With("id", tenantId);
             await cmd.ExecuteNonQueryAsync(_cancellation);

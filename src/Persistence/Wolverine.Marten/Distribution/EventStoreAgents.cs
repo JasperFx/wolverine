@@ -38,6 +38,8 @@ internal class EventStoreAgents : IAsyncDisposable
                 // TODO -- probably want to log this just in case
             }
         }
+
+        _daemonLock.Dispose();
     }
 
     public async ValueTask<IProjectionDaemon> FindDaemonAsync(DatabaseId databaseId)

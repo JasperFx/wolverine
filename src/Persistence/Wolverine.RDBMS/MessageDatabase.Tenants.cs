@@ -26,7 +26,7 @@ public abstract partial class MessageDatabase<T>
             builder.Append(");");
         }
 
-        var command = builder.Compile();
+        await using var command = builder.Compile();
         await using var conn = CreateConnection();
         await conn.OpenAsync(_cancellation);
         try

@@ -30,7 +30,7 @@ internal partial class OracleMessageStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
         cmd.Connection = conn;
 
         await using var reader = await cmd.ExecuteReaderAsync(token);
@@ -79,7 +79,7 @@ internal partial class OracleMessageStore
 
         writeScheduledMessageWhereClause(query, builder);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try
@@ -104,7 +104,7 @@ internal partial class OracleMessageStore
         builder.AppendParameter(envelopeId);
         builder.Append($" AND {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try
@@ -124,7 +124,7 @@ internal partial class OracleMessageStore
         builder.Append(
             $"SELECT {DatabaseConstants.MessageType}, COUNT(*) as total FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}' GROUP BY {DatabaseConstants.MessageType}");
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         var results = new List<ScheduledMessageCount>();
 

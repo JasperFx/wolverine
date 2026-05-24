@@ -111,7 +111,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         foreach (var schemaName in schemaNames)
         {
             var sql = $"SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema";
-            var cmd = conn.CreateCommand(sql).With("schema", schemaName);
+            await using var cmd = conn.CreateCommand(sql).With("schema", schemaName);
 
             await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
             while (await reader.ReadAsync(ct).ConfigureAwait(false))
@@ -358,7 +358,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return table;
     }
 
-    protected override Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
+    protected override async Task deleteMany(DbTransaction tx, Guid[] ids, DbObjectName tableName, string idColumnName)
     {
         var builder = new BatchBuilder();
 
@@ -369,11 +369,11 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             builder.AppendParameter(id);
         }
 
-        var batch = builder.Compile();
+        await using var batch = builder.Compile();
         batch.Connection = (SqlConnection)tx.Connection!;
         batch.Transaction = (SqlTransaction)tx;
 
-        return batch.ExecuteNonQueryAsync();
+        await batch.ExecuteNonQueryAsync();
     }
 
     protected override Task<bool> TryAttainLockAsync(int lockId, SqlConnection connection, CancellationToken token)
@@ -409,7 +409,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             {
                 var builder = new DbCommandBuilder(conn);
                 WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
-                var cmd = builder.Compile();
+                await using var cmd = builder.Compile();
                 cmd.Connection = conn;
                 cmd.Transaction = tx;
 
@@ -422,7 +422,7 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
                     return;
                 }
 
-                var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
+                await using var reassign = conn.CreateCommand($"{_settings.SchemaName}.uspMarkIncomingOwnership", tx);
                 reassign.CommandType = CommandType.StoredProcedure;
 
                 await reassign

@@ -180,6 +180,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     public async ValueTask DisposeAsync()
     {
         await _localCancellation.CancelAsync();
+        _localCancellation.Dispose();
 
         if (_consumer != null)
         {

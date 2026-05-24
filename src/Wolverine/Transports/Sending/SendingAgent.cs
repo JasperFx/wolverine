@@ -50,21 +50,19 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     public ISender Sender => _sender;
 
-    public virtual ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (_sender is IAsyncDisposable ad)
         {
-            return ad.DisposeAsync();
+            await ad.DisposeAsync().ConfigureAwait(false);
         }
-
-        if (_sender is IDisposable d)
+        else if (_sender is IDisposable d)
         {
             d.SafeDispose();
         }
 
         _sending.Dispose();
-
-        return ValueTask.CompletedTask;
+        _failureCountLock.Dispose();
     }
 
     Task ISenderCallback.MarkTimedOutAsync(OutgoingMessageBatch outgoing)

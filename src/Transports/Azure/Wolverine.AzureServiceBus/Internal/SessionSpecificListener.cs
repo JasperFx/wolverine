@@ -61,6 +61,7 @@ internal class AzureServiceBusSessionListener : IListener
     public ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         foreach (var task in _tasks) task.SafeDispose();
 
         return ValueTask.CompletedTask;

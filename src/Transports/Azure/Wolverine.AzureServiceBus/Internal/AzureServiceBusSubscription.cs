@@ -155,7 +155,7 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
     private async Task purgeWithSessions(ServiceBusClient client)
     {
-        var cancellation = new CancellationTokenSource();
+        using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(2000);
 
         var stopwatch = new Stopwatch();

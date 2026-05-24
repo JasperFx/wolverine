@@ -87,13 +87,13 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         await conn.OpenAsync(cancellationToken);
         try
         {
-            await conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
+            await using var cmd = conn.CreateCommand(_deleteFromIncomingAndScheduleSql)
                 .With("id", envelope.Id)
                 .With("body", EnvelopeSerializer.Serialize(envelope))
                 .With("type", envelope.MessageType!)
                 .With("expires", envelope.DeliverBy!)
-                .With("time", envelope.ScheduledTime!)
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime!);
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
         finally
         {
@@ -127,9 +127,9 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToQueueSql)
-                .With("id", envelope.Id)
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var cmd = conn.CreateCommand(_moveFromOutgoingToQueueSql)
+                .With("id", envelope.Id);
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException("No matching outgoing envelope");
         }
@@ -155,10 +155,10 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
 
         try
         {
-            var count = await conn.CreateCommand(_moveFromOutgoingToScheduledSql)
+            await using var cmd = conn.CreateCommand(_moveFromOutgoingToScheduledSql)
                 .With("id", envelope.Id)
-                .With("time", envelope.ScheduledTime!.Value)
-                .ExecuteNonQueryAsync(cancellationToken);
+                .With("time", envelope.ScheduledTime!.Value);
+            var count = await cmd.ExecuteNonQueryAsync(cancellationToken);
 
             if (count == 0) throw new InvalidOperationException($"No matching outgoing envelope for {envelope}");
         }
@@ -166,10 +166,10 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         {
             if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"))
             {
-                await conn.CreateCommand(
+                await using var cleanupCmd = conn.CreateCommand(
                         $"delete from {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
-                    .With("id", envelope.Id)
-                    .ExecuteNonQueryAsync(cancellationToken);
+                    .With("id", envelope.Id);
+                await cleanupCmd.ExecuteNonQueryAsync(cancellationToken);
 
                 return;
             }
@@ -197,12 +197,12 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
             {
                 try
                 {
-                    await conn.CreateCommand(_writeDirectlyToQueueTableSql)
+                    await using var cmd = conn.CreateCommand(_writeDirectlyToQueueTableSql)
                         .With("id", envelope.Id)
                         .With("body", EnvelopeSerializer.Serialize(envelope))
                         .With("type", envelope.MessageType!)
-                        .With("expires", envelope.DeliverBy!)
-                        .ExecuteNonQueryAsync(cancellationToken);
+                        .With("expires", envelope.DeliverBy!);
+                    await cmd.ExecuteNonQueryAsync(cancellationToken);
                 }
                 catch (SqlException e)
                 {
@@ -221,12 +221,12 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
     private async Task scheduleMessageAsync(Envelope envelope, CancellationToken cancellationToken,
         SqlConnection conn)
     {
-        await conn.CreateCommand(_writeDirectlyToTheScheduledTable)
+        await using var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable)
             .With("id", envelope.Id)
             .With("body", EnvelopeSerializer.Serialize(envelope))
             .With("type", envelope.MessageType!)
             .With("expires", envelope.DeliverBy!)
-            .With("time", envelope.ScheduledTime!)
-            .ExecuteNonQueryAsync(cancellationToken);
+            .With("time", envelope.ScheduledTime!);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 }

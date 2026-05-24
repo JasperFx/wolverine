@@ -107,6 +107,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     public async ValueTask DisposeAsync()
     {
         await StopAsync();
+        _cancellation.Dispose();
         _consumer.SafeDispose();
         _runner.Dispose();
     }
@@ -167,6 +168,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     public void Dispose()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _runner.Wait();
         _consumer.SafeDispose();
         _runner.Dispose();

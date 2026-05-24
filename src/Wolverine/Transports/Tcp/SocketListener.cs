@@ -40,6 +40,8 @@ public class SocketListener : IListener, IDisposable
         _listener?.Stop();
         _listener?.Server.Dispose();
         _receivingLoop?.Dispose();
+        _listenerCancellation?.Cancel();
+        _listenerCancellation?.Dispose();
         _receiver.Dispose();
     }
 
@@ -53,7 +55,10 @@ public class SocketListener : IListener, IDisposable
     public async ValueTask DisposeAsync()
     {
         if (_listenerCancellation is not null)
+        {
             await _listenerCancellation.CancelAsync();
+            _listenerCancellation.Dispose();
+        }
 
         _listener?.Stop();
         _listener = null;

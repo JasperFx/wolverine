@@ -72,6 +72,7 @@ internal class DurableSendingAgent : SendingAgent
         _deleteOutgoingOne.Dispose();
         _enqueueForRetry.Dispose();
         _storeAndForward.Dispose();
+        _queueLock.Dispose();
     }
 
     public override Task EnqueueForRetryAsync(OutgoingMessageBatch batch)

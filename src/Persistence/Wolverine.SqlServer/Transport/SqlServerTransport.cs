@@ -117,6 +117,7 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         await using var conn = new SqlConnection(Settings.ConnectionString);
         await conn.OpenAsync();
 
-        return (DateTimeOffset)(await conn.CreateCommand("select SYSDATETIMEOFFSET()").ExecuteScalarAsync())!;
+        await using var cmd = conn.CreateCommand("select SYSDATETIMEOFFSET()");
+        return (DateTimeOffset)(await cmd.ExecuteScalarAsync())!;
     }
 }

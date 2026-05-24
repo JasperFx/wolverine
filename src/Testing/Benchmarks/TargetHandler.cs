@@ -17,7 +17,7 @@ public static class TargetHandler
         _count = 0;
         _number = number;
 
-        var cancellation = new CancellationTokenSource();
+        using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(timeout);
         cancellation.Token.Register(() => _waiter.TrySetException(new TimeoutException()));
 

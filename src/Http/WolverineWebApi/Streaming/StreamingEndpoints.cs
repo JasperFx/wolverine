@@ -10,7 +10,7 @@ public static class StreamingEndpoints
     {
         return Results.Stream(async stream =>
         {
-            var writer = new StreamWriter(stream);
+            await using var writer = new StreamWriter(stream);
             for (var i = 0; i < 3; i++)
             {
                 await writer.WriteAsync($"data: Event {i}\n\n");
@@ -27,7 +27,7 @@ public static class StreamingEndpoints
     {
         return Results.Stream(async stream =>
         {
-            var writer = new StreamWriter(stream);
+            await using var writer = new StreamWriter(stream);
             for (var i = 0; i < 5; i++)
             {
                 await writer.WriteLineAsync($"line {i}");
