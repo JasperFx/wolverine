@@ -35,7 +35,7 @@
     <PackageVersion Include="JasperFx.Events" Version="2.0.0" />
     <PackageVersion Include="JasperFx.Events.SourceGenerator" Version="2.0.0" />
     <PackageVersion Include="JasperFx.RuntimeCompiler" Version="5.0.0" />
-    <PackageVersion Include="JasperFx.SourceGeneration" Version="2.0.0" />
+    <PackageVersion Include="JasperFx.SourceGenerator" Version="2.0.1" />
     <PackageVersion Include="Lamar.Microsoft.DependencyInjection" Version="15.0.1" />
     <PackageVersion Include="Marten" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.3" />
