@@ -27,6 +27,20 @@ public class
         return this;
     }
 
+    /// <summary>
+    ///     Opt this standard (non-FIFO) queue into Amazon SQS fair queues by mapping
+    ///     <see cref="Envelope.GroupId"/> (set through <c>DeliveryOptions.GroupId</c> or message
+    ///     partitioning) to the SQS <c>MessageGroupId</c> on outgoing messages. This improves
+    ///     fairness for multi-tenant workloads and implies no ordering or deduplication semantics.
+    ///     Has no effect on FIFO queues, which always set <c>MessageGroupId</c>. See
+    ///     https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html
+    /// </summary>
+    public AmazonSqsSubscriberConfiguration EnableFairQueueMessageGroups()
+    {
+        add(e => e.EnableFairQueueMessageGroups = true);
+        return this;
+    }
+
     /// Opt to send messages as raw JSON without any Wolverine metadata
     /// </summary>
     /// <param name="defaultMessageType">Optional. If both sending and receiving from this queue, you will want to specify a default message type</param>
