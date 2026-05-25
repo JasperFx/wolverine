@@ -224,7 +224,18 @@ public partial class WolverineRuntime
             Observer.MessageRouted(messageType, router);
         }
 
-        _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
+        // Never cache routes built during "description" mode. While
+        // WolverineSystemPart.WithinDescription is true, MessageRoute is allowed to take a
+        // null Sender (the endpoint's sending agent may not be built yet — e.g. during
+        // FindResources()/resource-setup-on-startup, before transports start). Caching such a
+        // route would let a null Sender escape onto the runtime hot path and NRE inside
+        // CreateForSending (the Envelope ctor dereferences agent.Endpoint). Routes requested
+        // during description are display-only and ephemeral; the real cache is populated later
+        // with live agents. See GH-2897.
+        if (!WolverineSystemPart.WithinDescription)
+        {
+            _messageTypeRouting = _messageTypeRouting.AddOrUpdate(messageType, router);
+        }
 
         return router;
     }

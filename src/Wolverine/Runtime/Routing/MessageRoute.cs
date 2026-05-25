@@ -106,7 +106,16 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     public Envelope CreateForSending(object message, DeliveryOptions? options, ISendingAgent localDurableQueue,
         WolverineRuntime runtime, string? topicName)
     {
-        var envelope = new Envelope(message, Sender)
+        // GH-2897 defense-in-depth: a route can carry a null Sender if it was built during
+        // description mode (WithinDescription) before the endpoint's sending agent existed.
+        // Such routes are no longer cached, so this should never trip — but resolve the live
+        // agent on demand rather than NRE inside the Envelope ctor (which dereferences
+        // agent.Endpoint) if one ever reaches the send path.
+        var sender = Sender ?? runtime.Endpoints.GetOrBuildSendingAgent(_endpoint.Uri)
+            ?? throw new InvalidOperationException(
+                $"Endpoint {_endpoint.Uri} does not have an active sending agent. Message type: {MessageType.FullNameInCode()}");
+
+        var envelope = new Envelope(message, sender)
         {
             Serializer = Serializer,
             ContentType = Serializer?.ContentType,
@@ -116,7 +125,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             GroupId = options?.GroupId
         };
 
-        if (Sender.Endpoint is LocalQueue)
+        if (sender.Endpoint is LocalQueue)
         {
             envelope.Status = EnvelopeStatus.Incoming;
         }
@@ -138,7 +147,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         options?.Override(envelope);
 
         // Will need the topic persisted, see https://github.com/JasperFx/wolverine/issues/1100
-        if (Sender.Endpoint.RoutingType == RoutingMode.ByTopic && envelope.TopicName.IsEmpty())
+        if (sender.Endpoint.RoutingType == RoutingMode.ByTopic && envelope.TopicName.IsEmpty())
         {
             envelope.TopicName = TopicRouting.DetermineTopicName(envelope);
         }
@@ -151,7 +160,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
                 envelope.OwnerId = TransportConstants.AnyNode;
                 runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) marked as Scheduled for local execution at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
             }
-            else if (!Sender.SupportsNativeScheduledSend)
+            else if (!sender.SupportsNativeScheduledSend)
             {
                 runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) wrapped for durable scheduled send to {Destination} (transport does not support native scheduling)", envelope.Id, envelope.MessageType, envelope.Destination);
                 return envelope.ForScheduledSend(localDurableQueue);
