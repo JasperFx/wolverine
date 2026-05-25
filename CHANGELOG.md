@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+## 6.0.1
+
+Patch release on the 6.0 line: a Critter Stack dependency refresh plus two
+targeted fixes and one new opt-in transport feature. No breaking changes.
+
+### WolverineFx (core)
+
+- **Keyed services now resolve correctly when code generation falls back to
+  service location.** When a handler dependency injected `IServiceProvider`
+  directly or used an opaque lambda registration (such as the ones the MS Graph
+  SDK adds), the generated code dropped the service key and emitted
+  `GetRequiredService<T>` instead of `GetRequiredKeyedService<T>`, throwing at
+  runtime. Fixed upstream in the JasperFx 2.0.1 code generation
+  (jasperfx GH-2878) and pulled in via the dependency bump below.
+
+### WolverineFx.AmazonSqs
+
+- **Amazon SQS standard queues can opt into [fair queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/using-messagegroupid-property.html)**
+  via `EnableFairQueueMessageGroups()`, which maps `Envelope.GroupId` to the SQS
+  `MessageGroupId` on outgoing messages to improve fairness for multi-tenant
+  workloads. Opt-in per endpoint, no ordering/deduplication semantics, and no
+  effect on FIFO queues (which always map `MessageGroupId`). (#2886)
+
+### WolverineFx.Marten
+
+- **Ancillary store outbox honors the per-store envelope schema.** Projection
+  side-effect messages published from an ancillary Marten store integrated via
+  `IntegrateWithWolverine(x => x.SchemaName = ...)` on a separate database now
+  write envelopes to that store's own schema instead of the main store's,
+  fixing `42P01: relation "public.wolverine_incoming_envelopes" does not exist`
+  in modular-monolith setups. (#2887)
+
+### Dependencies
+
+- JasperFx `2.0.0` → `2.0.1`
+- JasperFx.Events (and `.Events.SourceGenerator`) `2.0.0` → `2.1.0`
+- JasperFx source-generator package repointed to `JasperFx.SourceGenerator` `2.0.1` (#2891)
+- Marten (and `.AspNetCore` / `.Newtonsoft`) `9.0.0` → `9.0.1`
+- Polecat `4.0.0` → `4.1.1`
+- Weasel.* (7 packages) `9.0.0` → `9.0.1`
+
 ## 6.0.0-alpha.1
 
 First explicitly-versioned 6.0 alpha. Cumulative work since 5.39.0 on the `main`
