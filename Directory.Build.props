@@ -91,7 +91,7 @@
                      Weasel.* (7 packages)             9.0.0 -> 9.0.1
                      JasperFx.RuntimeCompiler (5.0.0) / .SourceGeneration (2.0.0) unchanged
         -->
-        <Version>6.0.1</Version>
+        <Version>6.0.2</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
