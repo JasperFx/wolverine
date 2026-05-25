@@ -18,8 +18,20 @@ namespace Wolverine;
 
 internal class WolverineSystemPart : SystemPartBase
 {
-    public static bool WithinDescription = false;
-    
+    // Scoped to the current async flow (AsyncLocal) rather than a process-global mutable field.
+    // A description pass (FindResources / describe) sets this true so MessageRoute may take a
+    // null Sender for display-only routing. As a global static, that "null Sender is OK" state
+    // could bleed across an await into concurrent route building on another task — or another
+    // host in the same process — and poison the runtime cache, NRE'ing on send. AsyncLocal keeps
+    // it confined to the description call tree that set it. See GH-2897.
+    private static readonly AsyncLocal<bool> _withinDescription = new();
+
+    public static bool WithinDescription
+    {
+        get => _withinDescription.Value;
+        set => _withinDescription.Value = value;
+    }
+
     private readonly WolverineRuntime _runtime;
 
     public WolverineSystemPart(IWolverineRuntime runtime) : base("Wolverine", new Uri("wolverine://" + runtime.Options.ServiceName))
@@ -34,21 +46,29 @@ internal class WolverineSystemPart : SystemPartBase
     public override async Task WriteToConsole()
     {
         WithinDescription = true;
-        await _runtime.StartLightweightAsync();
-        
-        _runtime.Options.WriteToConsole();
-        
-        AnsiConsole.WriteLine();
-        
-        await _runtime.Options.HandlerGraph.WriteToConsole();
-        AnsiConsole.WriteLine();
-        WriteMessageSubscriptions();
-        AnsiConsole.WriteLine();
-        WriteSendingEndpoints();
-        AnsiConsole.WriteLine();
-        WriteListeners();
-        AnsiConsole.WriteLine();
-        WriteErrorHandling();
+        try
+        {
+            await _runtime.StartLightweightAsync();
+
+            _runtime.Options.WriteToConsole();
+
+            AnsiConsole.WriteLine();
+
+            await _runtime.Options.HandlerGraph.WriteToConsole();
+            AnsiConsole.WriteLine();
+            WriteMessageSubscriptions();
+            AnsiConsole.WriteLine();
+            WriteSendingEndpoints();
+            AnsiConsole.WriteLine();
+            WriteListeners();
+            AnsiConsole.WriteLine();
+            WriteErrorHandling();
+        }
+        finally
+        {
+            // Don't leave the description flag set for anything that reuses this flow.
+            WithinDescription = false;
+        }
     }
     
     public void WriteMessageSubscriptions()
