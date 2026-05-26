@@ -21,6 +21,15 @@
         <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
         <PackageReference Include="Asp.Versioning.Abstractions"/>
         <!--
+          Emits the source-generated JasperFx DiscoveredCommands manifest for this
+          assembly so the 'openapi' command (and any future Wolverine.Http commands)
+          are discovered without a reflective assembly scan, keeping the AOT/trim
+          posture of WolverineFx.Http (IsAotCompatible) intact. Mirrors WolverineFx core.
+        -->
+        <PackageReference Include="JasperFx.SourceGenerator"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false" />
+        <!--
           Newtonsoft.Json was removed from WolverineFx.Http in 6.0 (#2742).
           The Newtonsoft surface (NewtonsoftHttpSerialization,
           UseNewtonsoftJsonForSerialization, the codegen frames that target
