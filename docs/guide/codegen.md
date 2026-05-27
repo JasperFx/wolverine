@@ -183,6 +183,39 @@ builder.Host.UseWolverine(opts =>
 
 Combine that with `TypeLoadMode.Static` in production and the `dotnet run -- codegen write` step in your build pipeline (see [Embedding Codegen in Docker](#embedding-codegen-in-docker) below), and your production deployment never invokes Roslyn.
 
+### Dropping Roslyn from the production image entirely
+
+The dev-time-only pattern above keeps `WolverineFx.RuntimeCompilation` referenced for the *whole* project, so the ~100 MB of Roslyn assemblies still ship in the production image — they're simply never registered. To actually **remove Roslyn from production builds**, make the package reference conditional on the build configuration and let production run pre-generated code in `Static` mode:
+
+```xml
+<!-- Referenced only in Debug, so a Release publish ships without Roslyn. -->
+<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+  <PackageReference Include="WolverineFx.RuntimeCompilation" Version="6.0.0" />
+</ItemGroup>
+```
+
+```csharp
+using JasperFx;
+using JasperFx.CodeGeneration;
+
+// Production runs the pre-generated code with no runtime compilation.
+// AssertAllPreGeneratedTypesExist (default: false) makes a missing or stale
+// generated type fail fast at startup instead of silently misbehaving.
+builder.Services.CritterStackDefaults(x =>
+{
+    x.Production.GeneratedCodeMode = TypeLoadMode.Static;
+    x.Production.AssertAllPreGeneratedTypesExist = true;
+});
+```
+
+Because `WolverineFx.RuntimeCompilation` **auto-registers** when referenced (via its `[WolverineModule]`), this pattern needs **no `UseRuntimeCompilation()` call** — and that's exactly what lets you drop the package in Release without a compile error. In `Debug` the package is present and `Dynamic` mode compiles at runtime; in a `Release`/`Production` build the package is gone and `Static` mode runs the pre-generated code.
+
+::: warning
+The condition must use `$(Configuration)` **with the parentheses**. A malformed condition such as `'$Configuration)' != 'Release'` silently never matches, so the assembly keeps shipping anyway — a common cause of "I excluded the package but Roslyn is still in my image."
+:::
+
+A complete, tested end-to-end example — `Program.cs`, the conditional `.csproj`, committed `Internal/Generated/`, a multi-stage `Dockerfile`, a `verify-production-build.sh` script that asserts the Release publish is Roslyn-free, and an Alba test that boots the app in the `Production` environment — lives in the **[CqrsMinimalApi sample](https://github.com/JasperFx/CritterStackSamples/tree/main/CqrsMinimalApi)**.
+
 ### What happens if you forget?
 
 In 6.0, core `WolverineFx` no longer registers a default `IAssemblyGenerator`. A `TypeLoadMode.Dynamic`/`Auto` app that starts without the runtime compiler available fails fast at startup with:
