@@ -7,12 +7,14 @@ using Xunit.Abstractions;
 
 namespace Wolverine.Http.Tests;
 
-// Reproduction for https://github.com/JasperFx/wolverine/issues/2917.
-// /issue2917 is [Transactional] (Marten outbox) and returns a cascading Issue2917Message.
-// Under the outbox that message is only sent in FlushOutgoingMessagesAsync, which the generated
-// endpoint runs AFTER WriteJsonAsync. With Alba the client receives the response before the flush
-// records the "sent" envelope, so a TrackActivity session that relies on the default
-// "wait until activity quiesces" behavior can finish empty.
+// Regression test for https://github.com/JasperFx/wolverine/issues/2917.
+// /issue2917 is an EF Core [Transactional] endpoint that returns a cascading Issue2917Message.
+// EF Core's Eager transaction middleware now commits the transaction and flushes the outbox (via
+// the CommitEfCoreEnvelopeTransaction postprocessor) BEFORE the HTTP response is written. Previously
+// the flush happened inside EnrollDbContextInTransaction.CommitAsync at the end of the wrap, AFTER
+// WriteJsonAsync wrote the response - so with Alba the client received the response before the
+// "sent" envelope was recorded and a TrackActivity session (with no explicit wait condition) could
+// finish empty.
 public class issue_2917_trackactivity_transactional_outbox : IntegrationContext
 {
     private readonly ITestOutputHelper _output;
@@ -23,7 +25,7 @@ public class issue_2917_trackactivity_transactional_outbox : IntegrationContext
     }
 
     [Fact]
-    public async Task tracked_session_should_capture_the_transactional_outbox_message()
+    public async Task tracked_session_captures_the_transactional_outbox_message()
     {
         var tracked = await Host
             .TrackActivity()
@@ -35,12 +37,10 @@ public class issue_2917_trackactivity_transactional_outbox : IntegrationContext
             .Name.ShouldBe("test");
     }
 
-    // Demonstrates the current workaround: an explicit wait condition keeps the tracked session
-    // open until the cascading message is actually received, past the HTTP response. If this PASSES
-    // while the test above FAILS, it proves the message IS sent — just after the response is
-    // written (and after ExecuteAndWaitAsync's default quiescence check has already returned).
+    // An explicit wait condition is no longer required (the test above passes without one), but it
+    // must of course still work.
     [Fact]
-    public async Task workaround_with_explicit_wait_condition()
+    public async Task tracked_session_with_explicit_wait_condition()
     {
         var tracked = await Host
             .TrackActivity()
