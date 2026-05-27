@@ -31,6 +31,15 @@ public abstract class GrpcServiceRegistry
     /// <summary>Hand-written service class types discovered at <c>codegen write</c> time.</summary>
     public abstract Type[] HandWrittenServiceTypes();
 
+    /// <summary>
+    ///     Direct-mapped hand-written service class types discovered at <c>codegen write</c> time — the
+    ///     concrete <c>*GrpcService</c>/<c>[WolverineGrpcService]</c> classes that receive no generated
+    ///     wrapper and are mapped directly by <c>MapWolverineGrpcServices()</c> (see
+    ///     <c>WolverineGrpcExtensions.FindGrpcServiceTypes</c>). Captured so that map-time discovery can
+    ///     skip its assembly scan too.
+    /// </summary>
+    public abstract Type[] DirectMappedServiceTypes();
+
     // Locates the pre-generated GrpcServiceRegistry subclass in the application assembly. The
     // single-assembly ExportedTypes walk is far cheaper than service discovery's multi-assembly scans.
     [UnconditionalSuppressMessage("Trimming", "IL2026",
@@ -72,14 +81,17 @@ internal class GrpcServiceRegistryCodeFile : ICodeFile
     private readonly Type[] _protoFirstStubTypes;
     private readonly Type[] _codeFirstContractTypes;
     private readonly Type[] _handWrittenServiceTypes;
+    private readonly Type[] _directMappedServiceTypes;
     private GeneratedType? _generatedType;
 
     public GrpcServiceRegistryCodeFile(IEnumerable<Type> protoFirstStubTypes,
-        IEnumerable<Type> codeFirstContractTypes, IEnumerable<Type> handWrittenServiceTypes)
+        IEnumerable<Type> codeFirstContractTypes, IEnumerable<Type> handWrittenServiceTypes,
+        IEnumerable<Type> directMappedServiceTypes)
     {
         _protoFirstStubTypes = onlyPublic(protoFirstStubTypes);
         _codeFirstContractTypes = onlyPublic(codeFirstContractTypes);
         _handWrittenServiceTypes = onlyPublic(handWrittenServiceTypes);
+        _directMappedServiceTypes = onlyPublic(directMappedServiceTypes);
     }
 
     private static Type[] onlyPublic(IEnumerable<Type> types)
@@ -99,7 +111,8 @@ internal class GrpcServiceRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(GrpcServiceRegistry.GeneratedTypeName, typeof(GrpcServiceRegistry));
 
-        foreach (var type in _protoFirstStubTypes.Concat(_codeFirstContractTypes).Concat(_handWrittenServiceTypes))
+        foreach (var type in _protoFirstStubTypes.Concat(_codeFirstContractTypes)
+                     .Concat(_handWrittenServiceTypes).Concat(_directMappedServiceTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
@@ -112,6 +125,9 @@ internal class GrpcServiceRegistryCodeFile : ICodeFile
 
         _generatedType.MethodFor(nameof(GrpcServiceRegistry.HandWrittenServiceTypes))
             .Frames.Add(new WriteServiceTypesFrame(_handWrittenServiceTypes));
+
+        _generatedType.MethodFor(nameof(GrpcServiceRegistry.DirectMappedServiceTypes))
+            .Frames.Add(new WriteServiceTypesFrame(_directMappedServiceTypes));
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
