@@ -133,6 +133,17 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HandlerDiscoverySamples.cs#L140-L151' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_describe_handler_match' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+You can get the same report from the command line without editing any code, using the
+[`describe-handlers`](/guide/command-line#describe-handlers) diagnostics command <Badge type="tip" text="6.0" />:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-handlers MyMissingMessageHandler
+```
+
+The type name is fuzzy-matched against the types in your application, so if more than one type matches you
+get a report for each. The command builds the host and compiles the handler graph without starting it, so
+no database or broker connection is required.
+
 ## Troubleshooting Message Routing
 
 Among other information, you can find a preview of how Wolverine will route known message types through the command line

@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
@@ -17,11 +18,11 @@ namespace Wolverine.Diagnostics;
 
 public class WolverineDiagnosticsInput : NetCoreInput
 {
-    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing")]
+    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing, describe-handlers")]
     public string Action { get; set; } = "codegen-preview";
 
-    [Description("For describe-routing: the message type name to inspect. " +
-                 "Accepts full name, short name, or alias.")]
+    [Description("For describe-routing / describe-handlers: the type name to inspect. " +
+                 "Accepts full name, short name, or a fuzzy match.")]
     public string MessageTypeArg { get; set; } = string.Empty;
 
     [FlagAlias("handler", 'h')]
@@ -76,6 +77,9 @@ public class WolverineDiagnosticsInput : NetCoreInput
 ///         <item>
 ///             <c>describe-routing --all</c> — show complete routing topology
 ///         </item>
+///         <item>
+///             <c>describe-handlers &lt;TypeName&gt;</c> — explain why a candidate type is (or is not) discovered as a message handler
+///         </item>
 ///     </list>
 /// </summary>
 [Description("Wolverine diagnostics tools for inspecting generated code and runtime behavior",
@@ -102,9 +106,12 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             case "describe-routing":
                 return await RunDescribeRoutingAsync(input);
 
+            case "describe-handlers":
+                return await RunDescribeHandlersAsync(input);
+
             default:
                 AnsiConsole.MarkupLine(
-                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing[/]");
+                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing, describe-handlers[/]");
                 return false;
         }
     }
@@ -891,5 +898,206 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
         }
 
         return "Transport routing convention";
+    }
+
+    // -------------------------------------------------------------------------
+    // describe-handlers implementation
+    // -------------------------------------------------------------------------
+
+    private static Task<bool> RunDescribeHandlersAsync(WolverineDiagnosticsInput input)
+    {
+        if (input.MessageTypeArg.IsEmpty())
+        {
+            AnsiConsole.MarkupLine("[red]describe-handlers requires a type name argument.[/]");
+            AnsiConsole.MarkupLine("[grey]Usage: wolverine-diagnostics describe-handlers <TypeName>[/]");
+            return Task.FromResult(false);
+        }
+
+        // Set codegen mode BEFORE building the host so Wolverine applies lightweight startup
+        // (transports stubbed, durability disabled — no database or message-broker connections).
+        DynamicCodeBuilder.WithinCodegenCommand = true;
+
+        try
+        {
+            using var host = input.BuildHost();
+
+            var options = host.Services.GetRequiredService<WolverineOptions>();
+
+            // Force HandlerGraph.Compile() to run *without starting the host*. Starting would
+            // require Roslyn (WolverineFx.RuntimeCompilation) for TypeLoadMode.Dynamic apps and
+            // would open transport/persistence connections. Resolving the code file collections
+            // compiles the handler graph, which is what populates the conventional handler-discovery
+            // include/exclude rules that DescribeHandlerMatch reports against.
+            _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
+
+            // Prefer the assemblies Wolverine actually scans (plus the application assembly) so a
+            // fuzzy search returns the user's own types rather than framework internals. Only if
+            // nothing matches there do we broaden to every loaded non-framework assembly — that still
+            // lets DescribeHandlerMatch find (and explain) a handler whose assembly is not scanned.
+            var matches = FindCandidateHandlerTypes(input.MessageTypeArg, CandidateTypes(ScannedAssemblies(options)));
+            if (matches.Length == 0)
+            {
+                matches = FindCandidateHandlerTypes(input.MessageTypeArg,
+                    CandidateTypes(AllLoadedApplicationAssemblies(options)));
+            }
+
+            if (matches.Length == 0)
+            {
+                AnsiConsole.MarkupLine(
+                    $"[red]No type found matching '[bold]{Markup.Escape(input.MessageTypeArg)}[/]'.[/]");
+                AnsiConsole.MarkupLine("[grey]Assemblies searched:[/]");
+                foreach (var name in AllLoadedApplicationAssemblies(options)
+                             .Select(a => a.GetName().Name)
+                             .Where(n => n != null)
+                             .Distinct()
+                             .OrderBy(n => n))
+                {
+                    AnsiConsole.MarkupLine($"  [grey]{Markup.Escape(name!)}[/]");
+                }
+
+                return Task.FromResult(false);
+            }
+
+            // Guard against a pathologically broad fuzzy term dumping dozens of reports.
+            const int maxReports = 25;
+            if (matches.Length > maxReports)
+            {
+                AnsiConsole.MarkupLine(
+                    $"[yellow]'{Markup.Escape(input.MessageTypeArg)}' matched {matches.Length} types. Please be more specific. Matches:[/]");
+                foreach (var t in matches.OrderBy(t => t.FullName))
+                {
+                    AnsiConsole.MarkupLine($"  [yellow]{(t.FullName ?? t.Name).EscapeMarkup()}[/]");
+                }
+
+                return Task.FromResult(false);
+            }
+
+            var first = true;
+            foreach (var type in matches.OrderBy(t => t.FullName))
+            {
+                if (!first)
+                {
+                    AnsiConsole.WriteLine();
+                    AnsiConsole.Write(new Rule());
+                }
+
+                first = false;
+
+                AnsiConsole.MarkupLine(
+                    $"[bold green]Handler discovery report: {type.FullNameInCode().EscapeMarkup()}[/]");
+                AnsiConsole.WriteLine();
+
+                // Print the raw DescribeHandlerMatch output (no markup) so it is copy-pasteable
+                // and identical to WolverineOptions.DescribeHandlerMatch used in code.
+                Console.WriteLine(options.DescribeHandlerMatch(type));
+            }
+
+            return Task.FromResult(true);
+        }
+        finally
+        {
+            DynamicCodeBuilder.WithinCodegenCommand = false;
+        }
+    }
+
+    // The assemblies Wolverine actually scans for handlers, plus the application assembly. This is
+    // the primary search scope so a fuzzy match returns the user's own types.
+    private static IEnumerable<Assembly> ScannedAssemblies(WolverineOptions options)
+    {
+        foreach (var assembly in options.Discovery.Assemblies)
+        {
+            yield return assembly;
+        }
+
+        if (options.ApplicationAssembly != null)
+        {
+            yield return options.ApplicationAssembly;
+        }
+    }
+
+    // The scanned assemblies plus every other non-framework assembly loaded into the app. Used as a
+    // fallback so we can still locate — and have DescribeHandlerMatch explain — a candidate handler
+    // type whose assembly is NOT currently being scanned.
+    private static IEnumerable<Assembly> AllLoadedApplicationAssemblies(WolverineOptions options)
+    {
+        foreach (var assembly in ScannedAssemblies(options))
+        {
+            yield return assembly;
+        }
+
+        foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            if (!assembly.IsDynamic && IsLikelyApplicationAssembly(assembly))
+            {
+                yield return assembly;
+            }
+        }
+    }
+
+    private static bool IsLikelyApplicationAssembly(Assembly assembly)
+    {
+        var name = assembly.GetName().Name ?? string.Empty;
+        return !name.StartsWith("System", StringComparison.OrdinalIgnoreCase)
+               && !name.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase)
+               && !name.StartsWith("netstandard", StringComparison.OrdinalIgnoreCase)
+               && !name.Equals("mscorlib", StringComparison.OrdinalIgnoreCase)
+               && !name.StartsWith("Spectre", StringComparison.OrdinalIgnoreCase)
+               && !name.StartsWith("JasperFx", StringComparison.OrdinalIgnoreCase)
+               && !name.StartsWith("Newtonsoft", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time describe-handlers diagnostics CLI; reflection over loaded assemblies' types runs interactively, never on an AOT-published hot path.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time describe-handlers diagnostics CLI; reflection over loaded assemblies' types runs interactively, never on an AOT-published hot path.")]
+    private static IReadOnlyList<Type> CandidateTypes(IEnumerable<Assembly> assemblies)
+    {
+        return assemblies
+            .Distinct()
+            .SelectMany(SafeGetTypes)
+            // Skip compiler-generated types (async state machines, display classes, etc.) — they
+            // are never what a user means by a handler type name.
+            .Where(t => !t.IsDefined(typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute), false))
+            .Distinct()
+            .ToArray();
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time describe-handlers diagnostics CLI; reflection over loaded assemblies' types runs interactively, never on an AOT-published hot path.")]
+    private static IEnumerable<Type> SafeGetTypes(Assembly assembly)
+    {
+        try
+        {
+            return assembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException e)
+        {
+            return e.Types.Where(t => t != null).Select(t => t!);
+        }
+        catch
+        {
+            return Array.Empty<Type>();
+        }
+    }
+
+    internal static Type[] FindCandidateHandlerTypes(string search, IReadOnlyList<Type> candidates)
+    {
+        // 1. Exact full name match
+        var exactFull = candidates
+            .Where(t => string.Equals(t.FullName, search, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (exactFull.Length > 0) return exactFull;
+
+        // 2. Exact short name match
+        var exactShort = candidates
+            .Where(t => string.Equals(t.Name, search, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (exactShort.Length > 0) return exactShort;
+
+        // 3. Fuzzy "contains" match on full or short name (may match several types)
+        return candidates
+            .Where(t => (t.FullName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+                        || t.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 }
