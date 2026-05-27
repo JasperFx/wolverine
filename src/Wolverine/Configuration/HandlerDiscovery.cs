@@ -24,6 +24,10 @@ public sealed partial class HandlerDiscovery
 
     private bool _conventionalDiscoveryDisabled;
 
+    // Set (only) by TryLoadStaticHandlerRegistry from the generated manifest's MessageTypes(); when
+    // non-null, findAllMessages uses it instead of scanning assemblies. See GH-2906.
+    private Type[]? _staticMessageTypes;
+
     public HandlerDiscovery()
     {
         specifyHandlerMethodRules();
@@ -163,8 +167,21 @@ public sealed partial class HandlerDiscovery
             yield return messageType;
         }
 
-        var discovered = _messageQuery.Find(Assemblies);
+        // In TypeLoadMode.Static the conventional message types were captured into the generated
+        // HandlerRegistry at codegen write time (cached by TryLoadStaticHandlerRegistry), so we skip
+        // the IMessage/[WolverineMessage] assembly scan entirely. Falls back to the scan otherwise.
+        var discovered = _staticMessageTypes ?? _messageQuery.Find(Assemblies);
         foreach (var type in discovered) yield return type;
+    }
+
+    // The conventional message types (IMessage implementations + [WolverineMessage]) found by scanning
+    // the discovery assemblies. Used only at `codegen write` time to capture them into the generated
+    // HandlerRegistry; at runtime under TypeLoadMode.Static they are read back from the manifest instead.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Conventional message-type scan executed at `codegen write` time to populate the static manifest; runtime TypeLoadMode.Static reads the captured typeof(...) literals and never calls this. See AOT guide.")]
+    internal Type[] DiscoverConventionalMessageTypes()
+    {
+        return _messageQuery.Find(Assemblies).ToArray();
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
@@ -239,6 +256,11 @@ public sealed partial class HandlerDiscovery
 
         var registry = (HandlerRegistry)Activator.CreateInstance(registryType)!;
         handlerTypes = registry.HandlerTypes();
+
+        // Cache the conventional message types captured in the manifest so findAllMessages can skip its
+        // own IMessage/[WolverineMessage] assembly scan (GH-2906). Only set on this Static-mode path,
+        // so a null _staticMessageTypes means "fall back to scanning".
+        _staticMessageTypes = registry.MessageTypes();
         return true;
     }
 

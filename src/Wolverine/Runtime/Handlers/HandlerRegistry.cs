@@ -27,6 +27,15 @@ public abstract class HandlerRegistry
     ///     normal handler-method selection to exactly these types instead of scanning assemblies.
     /// </summary>
     public abstract Type[] HandlerTypes();
+
+    /// <summary>
+    ///     The conventional message types discovered at <c>codegen write</c> time — the result of
+    ///     the <c>IMessage</c>/<c>[WolverineMessage]</c> assembly scan (see
+    ///     <c>HandlerDiscovery.findAllMessages</c>). Captured so message-type discovery can also skip
+    ///     the assembly scan in <see cref="TypeLoadMode.Static" />. Empty when the application declares
+    ///     no such message types (handler-derived message types are still resolved from the handler graph).
+    /// </summary>
+    public abstract Type[] MessageTypes();
 }
 
 /// <summary>
@@ -38,11 +47,18 @@ public abstract class HandlerRegistry
 internal class HandlerRegistryCodeFile : ICodeFile
 {
     private readonly Type[] _handlerTypes;
+    private readonly Type[] _messageTypes;
     private GeneratedType? _generatedType;
 
-    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes)
+    public HandlerRegistryCodeFile(IEnumerable<Type> handlerTypes, IEnumerable<Type> messageTypes)
     {
-        _handlerTypes = handlerTypes
+        _handlerTypes = onlyPublic(handlerTypes);
+        _messageTypes = onlyPublic(messageTypes);
+    }
+
+    private static Type[] onlyPublic(IEnumerable<Type> types)
+    {
+        return types
             .Where(x => x is { IsPublic: true } or { IsNestedPublic: true })
             .Distinct()
             .OrderBy(x => x.FullName, StringComparer.Ordinal)
@@ -57,13 +73,16 @@ internal class HandlerRegistryCodeFile : ICodeFile
     {
         _generatedType = assembly.AddType(HandlerRegistry.GeneratedTypeName, typeof(HandlerRegistry));
 
-        foreach (var type in _handlerTypes)
+        foreach (var type in _handlerTypes.Concat(_messageTypes))
         {
             assembly.ReferenceAssembly(type.Assembly);
         }
 
-        var method = _generatedType.MethodFor(nameof(HandlerRegistry.HandlerTypes));
-        method.Frames.Add(new WriteHandlerTypesFrame(_handlerTypes));
+        _generatedType.MethodFor(nameof(HandlerRegistry.HandlerTypes))
+            .Frames.Add(new WriteTypeArrayFrame(_handlerTypes));
+
+        _generatedType.MethodFor(nameof(HandlerRegistry.MessageTypes))
+            .Frames.Add(new WriteTypeArrayFrame(_messageTypes));
     }
 
     Task<bool> ICodeFile.AttachTypes(GenerationRules rules, Assembly assembly, IServiceProvider? services,
@@ -85,14 +104,15 @@ internal class HandlerRegistryCodeFile : ICodeFile
 }
 
 /// <summary>
-///     Writes the body of <see cref="HandlerRegistry.HandlerTypes" /> as a single
-///     <c>typeof(...)</c> array literal — fully resolved at codegen time, no reflection at runtime.
+///     Writes the body of a <see cref="HandlerRegistry" /> type-array accessor
+///     (<see cref="HandlerRegistry.HandlerTypes" /> / <see cref="HandlerRegistry.MessageTypes" />) as a
+///     single <c>typeof(...)</c> array literal — fully resolved at codegen time, no reflection at runtime.
 /// </summary>
-internal class WriteHandlerTypesFrame : SyncFrame
+internal class WriteTypeArrayFrame : SyncFrame
 {
     private readonly Type[] _types;
 
-    public WriteHandlerTypesFrame(Type[] types)
+    public WriteTypeArrayFrame(Type[] types)
     {
         _types = types;
     }
