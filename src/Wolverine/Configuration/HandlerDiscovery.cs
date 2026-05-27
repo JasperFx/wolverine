@@ -5,6 +5,7 @@ using JasperFx.Core;
 using JasperFx.Core.TypeScanning;
 using Wolverine.Attributes;
 using Wolverine.Persistence.Sagas;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
 namespace Wolverine.Configuration;
@@ -269,17 +270,18 @@ public sealed partial class HandlerDiscovery
     /// <summary>
     /// Discovers and includes all assemblies marked with [WolverineHandlerModule] attribute.
     /// </summary>
-    [UnconditionalSuppressMessage("Trimming", "IL2026",
-        Justification = "AssemblyFinder.FindAssemblies scans the application base directory and inspects the referenced-assembly graph for [WolverineHandlerModule]. AOT-published apps either skip this discovery (no handler-module attributes) or pre-register their handlers explicitly per the AOT publishing guide.")]
-    internal HandlerDiscovery DiscoverHandlerModules()
+    internal HandlerDiscovery DiscoverHandlerModules(Assembly? applicationAssembly)
     {
-        var handlerModuleAssemblies = AssemblyFinder
-            .FindAssemblies(a => a.HasAttribute<WolverineHandlerModuleAttribute>())
-            .Concat(AppDomain.CurrentDomain.GetAssemblies())
+        // GH-2905: load the deployed module assemblies via the runtime's deployment list (shared with
+        // extension discovery, GH-2902) instead of the AssemblyFinder.FindAssemblies bin-directory probe,
+        // then pick out the [WolverineHandlerModule]-marked ones from the loaded set. No filesystem scan.
+        ModuleAssemblyLoader.EnsureDeployedModuleAssembliesAreLoaded(applicationAssembly);
+
+        var handlerModuleAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && a.HasAttribute<WolverineHandlerModuleAttribute>())
             .Distinct()
-            .Where(a => a.HasAttribute<WolverineHandlerModuleAttribute>())
             .ToArray();
-        
+
         Assemblies.AddRange(handlerModuleAssemblies);
         return this;
     }

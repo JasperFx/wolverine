@@ -263,7 +263,7 @@ public static class HostBuilderExtensions
 
         if (options.Discovery.IncludeHandlerModules)
         {
-            options.HandlerGraph.Discovery.DiscoverHandlerModules();
+            options.HandlerGraph.Discovery.DiscoverHandlerModules(options.ApplicationAssembly);
         }
 
         options.ApplyLazyConfiguration();
