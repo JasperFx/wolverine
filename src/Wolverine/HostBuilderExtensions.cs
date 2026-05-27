@@ -251,7 +251,7 @@ public static class HostBuilderExtensions
         options.Services = services;
         if (discovery == ExtensionDiscovery.Automatic)
         {
-            ExtensionLoader.ApplyExtensions(options);
+            options.DiscoverAndApplyExtensions();
         }
 
         if (options.ApplicationAssembly != null)

@@ -1,10 +1,12 @@
+using JasperFx;
+
 namespace Wolverine;
 
 #region sample_iwolverineextension
 /// <summary>
 ///     Use to create loadable extensions to Wolverine applications
 /// </summary>
-public interface IWolverineExtension
+public interface IWolverineExtension : IJasperFxExtension
 {
     /// <summary>
     ///     Make any alterations to the WolverineOptions for the application
@@ -19,7 +21,7 @@ public interface IWolverineExtension
 /// Loadable extensions to Wolverine applications that may require
 /// IoC services or asynchronous operations
 /// </summary>
-public interface IAsyncWolverineExtension
+public interface IAsyncWolverineExtension : IJasperFxExtension
 {
     ValueTask Configure(WolverineOptions options);
 }

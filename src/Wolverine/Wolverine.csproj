@@ -58,9 +58,17 @@
         <!-- JasperFx.RuntimeCompiler (Roslyn) is intentionally NOT referenced by core
              WolverineFx. It ships only in the opt-in WolverineFx.RuntimeCompilation package
              so TypeLoadMode.Static / AOT apps don't carry Roslyn. See #2876. -->
-        <PackageReference Include="JasperFx.SourceGenerator"
-                          OutputItemType="Analyzer"
-                          ReferenceOutputAssembly="false" />
+        <!--
+          JasperFx.SourceGenerator hosts the ExtensionDiscoveryGenerator that emits the
+          compile-time JasperFx.Generated.DiscoveredExtensions manifest Wolverine reads at
+          startup instead of scanning the filesystem for [WolverineModule] assemblies (#2902).
+          PrivateAssets="none" flows the analyzer transitively to every WolverineFx consumer —
+          the app's own executable assembly and every extension/transport assembly — so they
+          all emit their manifest. The generator self-gates to eligible assemblies
+          ([JasperFxAssembly]/[WolverineModule]-marked or executable), so it is a no-op anywhere
+          it has nothing to emit.
+        -->
+        <PackageReference Include="JasperFx.SourceGenerator" PrivateAssets="none" />
     </ItemGroup>
 
     <ItemGroup>
