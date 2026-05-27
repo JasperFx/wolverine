@@ -96,7 +96,10 @@ public partial class HttpChain
     {
         Debug.WriteLine(_generatedType?.SourceCode);
 
-        _handlerType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName)
+        // GH-2908: resolve the generated handler by its full name (a targeted lookup, no GetTypes()
+        // enumeration in the pre-generated/Static case); fall back to the reflective scan only if it misses.
+        _handlerType = assembly.GetType($"{containingNamespace}.{_fileName}")
+            ?? assembly.ExportedTypes.FirstOrDefault(x => x.Name == _fileName)
             ?? assembly.GetTypes().FirstOrDefault(x => x.Name == _fileName);
 
         return _handlerType != null;
