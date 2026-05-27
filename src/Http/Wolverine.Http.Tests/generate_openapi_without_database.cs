@@ -54,7 +54,11 @@ public class generate_openapi_without_database
 
     private static async Task<string> GenerateDocumentWithoutDatabaseAsync()
     {
-        var builder = WebApplication.CreateBuilder([]);
+        // Build in the Development environment, which is what the CI runner uses and which turns on DI
+        // scope validation by default. This reproduces GH-2911: the Microsoft.AspNetCore.OpenApi
+        // document provider is a root-captured singleton, so the document must be generated without
+        // resolving a scoped service from the root provider.
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
 
         // Configure database-backed Wolverine message persistence (Marten/PostgreSQL) pointed at an
         // unreachable database. Port 9999 has nothing listening, so if document generation ever

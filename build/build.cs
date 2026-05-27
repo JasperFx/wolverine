@@ -193,7 +193,7 @@ partial class Build : NukeBuild
         });
     
     Target CodegenPreviewCommand => _ => _
-        .DependsOn(Compile)    
+        .DependsOn(Compile)
         .ProceedAfterFailure()
         .Executes(() =>
         {
@@ -206,7 +206,42 @@ partial class Build : NukeBuild
                 .AddApplicationArguments("codegen")
                 .AddApplicationArguments("preview"));
         });
-    
+
+    // Exercises the Wolverine.Http `openapi` command (GH-2903) against the TodoWebService sample,
+    // which uses Marten/PostgreSQL-backed message persistence and AddOpenApi(). Modeled on
+    // CodegenPreviewCommand above. This intentionally runs without a database (no docker services
+    // started) to prove the command generates the OpenAPI document straight from endpoint metadata
+    // without any database connectivity. Builds on demand so it can run as a standalone http CI step.
+    Target OpenApiCommand => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var project = RootDirectory / "src" / "Samples" / "TodoWebService" / "TodoWebService" /
+                          "TodoWebService.csproj";
+
+            // Full document for the default "v1" document. --no-launch-profile keeps the host
+            // environment (e.g. ASPNETCORE_ENVIRONMENT=Development on CI) intact instead of letting
+            // launchSettings.json override it; Development turns on DI scope validation, which also
+            // guards the GH-2911 fix.
+            DotNetRun(c => c
+                .SetProjectFile(project)
+                .SetConfiguration(Configuration)
+                .EnableNoLaunchProfile()
+                .SetFramework(Framework)
+                .AddApplicationArguments("openapi"));
+
+            // The fuzzy --route filter, which emits only the matching paths and their schemas
+            DotNetRun(c => c
+                .SetProjectFile(project)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoLaunchProfile()
+                .SetFramework(Framework)
+                .AddApplicationArguments("openapi")
+                .AddApplicationArguments("--route")
+                .AddApplicationArguments("todoitems"));
+        });
+
     Target SqliteTests => _ => _
         .DependsOn(Compile)
         .ProceedAfterFailure()

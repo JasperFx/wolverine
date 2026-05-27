@@ -38,6 +38,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # Exercises the `openapi` command (GH-2903) against the TodoWebService sample, which uses
+      # Marten/PostgreSQL-backed message persistence + AddOpenApi(). Runs *before* any database
+      # container is started to prove the command generates the OpenAPI document without database
+      # connectivity. Modeled on the command-line targets in the .NET CI target (./build.sh ci).
+      - name: Exercise the openapi command
+        run: ./build.sh OpenApiCommand --framework net9.0
+
       - name: Run HTTP Tests
         run: ./build.sh CIHttp --framework net9.0
 
