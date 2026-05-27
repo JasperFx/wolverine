@@ -257,7 +257,7 @@ the EF Core transactional middleware, the domain events published to that interf
 
 Likewise, if you are using `IDbContextOutbox<T>`, the domain events published to `IEventPublisher` will be correctly piped to Wolverine if you:
 
-1. Pull both `IEventPublisher` and `IDbContextOutbox<T>` from the same scoped service provider (nested container in Lamar / StructureMap parlance)
+1. Pull both `IEventPublisher` and `IDbContextOutbox<T>` from the same scoped service provider
 2. Call `IDbContextOutbox<T>.SaveChangesAndFlushMessagesAsync()`
 
 3. So, we’re going to have to do some sleight of hand to keep your domain entities synchronous

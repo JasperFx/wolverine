@@ -268,6 +268,15 @@ public static class HostBuilderExtensions
 
         options.ApplyLazyConfiguration();
 
+        // JasperFx's inline IEnumerable<T> codegen needs keyed "mirror" singletons registered for any
+        // service family that mixes a singleton with non-singleton registrations (e.g. one AddSingleton
+        // + one AddScoped of the same interface). The generated code injects the singleton element via
+        // [FromKeyedServices(key)]; without the mirror the singleton element resolves as null at runtime
+        // (resolves #2896). The mirror keys are ordinal-based, so this MUST run as the last registration
+        // step Wolverine controls — after the configure callback and ApplyLazyConfiguration, and before
+        // the host builds the service provider. It is idempotent and only touches mixed-lifetime families.
+        services.AddJasperFxEnumerableSingletonSupport();
+
         return services;
     }
 

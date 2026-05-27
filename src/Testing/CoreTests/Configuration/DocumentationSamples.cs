@@ -1,6 +1,4 @@
 using JasperFx.Core;
-using Lamar;
-using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.Tracking;
 using Xunit;
@@ -9,27 +7,6 @@ namespace CoreTests.Configuration;
 
 public static class DocumentationSamples
 {
-    public static async Task bootstrap_with_lamar()
-    {
-        #region sample_use_lamar_with_host_builder
-        // With IHostBuilder
-        var builder = Host.CreateDefaultBuilder();
-        builder.UseLamar();
-
-        #endregion
-        
-        
-    }
-
-    public static async Task bootstrap_with_lamar_using_web_app()
-    {
-        var builder = Host.CreateApplicationBuilder();
-        
-        // Little ugly, and Lamar *should* have a helper for this...
-        builder.ConfigureContainer<ServiceRegistry>(new LamarServiceProviderFactory());
-    }
-
-
     #region sample_using_tracked_sessions_end_to_end
     // Personally, I prefer to reuse the IHost between tests and
     // do something to clear off any dirty state, but other folks

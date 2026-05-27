@@ -216,7 +216,7 @@ by MVC Core or Minimal API or even some other kind of AspNetCore `Endpoint`.
 :::
 
 By default, any time [Wolverine has to revert to using a service locator](/guide/codegen.html#wolverine-code-generation-and-ioc) 
-to generate the adapter code for an HTTP endpoint, Wolverine is using an isolated `IServiceScope` (or Lamar `INestedContainer`) within the generated code.
+to generate the adapter code for an HTTP endpoint, Wolverine is using an isolated `IServiceScope` within the generated code.
 
 But, with Wolverine 5.0+ you can opt into Wolverine just using the `HttpContext.RequestServices` so that you
 can share services with AspNetCore middleware. You can also configure *some* service types to be pulled from

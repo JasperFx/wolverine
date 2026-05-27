@@ -388,7 +388,7 @@ Here's some facts you do need to know about this whole process:
   lifetime is either an `internal` type or uses an "opaque" Lambda registration (think `IServiceCollection.AddScoped(s => {})`)
 
 ::: tip
-The code generation using IoC configuration is tested with both the built in .NET `ServiceProvider` and [Lamar](https://jasperfx.github.io/lamar). It 
+The code generation using IoC configuration is tested with the built in .NET `ServiceProvider`. It
 is theoretically possible to use other IoC tools with Wolverine, but only if you are *only* using `IServiceCollection`
 for your IoC configuration.
 :::

@@ -510,7 +510,6 @@ partial class Build : NukeBuild
     {
         { "jasperfx", ["JasperFx", "JasperFx.Events", "EventTests", "JasperFx.RuntimeCompiler"] },
         { "weasel", ["Weasel.Core", "Weasel.Postgresql", "Weasel.SqlServer"] },
-        {"lamar", ["Lamar", "Lamar.Microsoft.DependencyInjection"]},
         {"marten", ["Marten"]},
         {"polecat", ["Polecat"]}
     };

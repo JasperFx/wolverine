@@ -428,8 +428,8 @@ Built in examples of the agent and agent family are:
 ## IoC Container Integration
 
 ::: info
-Wolverine has been tested with both the built in `ServiceProvider` and [Lamar](https://jasperfx.github.io/lamar), which was originally built
-specifically to support what ended up becoming Wolverine. The previous limitation to only supporting Lamar was lifted in Wolverine 3.0.
+Wolverine uses the built in .NET `ServiceProvider` as its IoC container. It's theoretically possible to use
+other conforming containers, but only the built in `ServiceProvider` is tested by the Wolverine team.
 :::
 
 Wolverine is a significantly different animal than other .NET frameworks, and uses the IoC container quite differently than most

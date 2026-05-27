@@ -2,7 +2,6 @@
 using CoreTests.Bugs;
 using CoreTests.Shims;
 using JasperFx.Core.Reflection;
-using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,7 +21,6 @@ public class DefaultApp : IDisposable
     public DefaultApp()
     {
         Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
-            .UseLamar()
             .UseWolverine(opts =>
             {
                 opts.Policies.MessageExecutionLogLevel(LogLevel.Information);

@@ -70,9 +70,8 @@ the root container or injected into a `Singleton` scoped service.
 
 Not to worry! You have a couple options:
 
-1. Switch to using [Lamar](https://jasperfx.github.io/lamar) as your IoC container that doesn't have the fussy, whiney limitations about scoping that `ServiceProvider` does and generally works a little better with Wolverine anyway
-2. Follow the admittedly annoying steps in [this article about using `Scoped` services from `Singleton` services](https://learn.microsoft.com/en-us/dotnet/core/extensions/scoped-service)
-3. Inject `IWolverineRuntime`, and build `new MessageBus(runtime)` instances at will.
+1. Follow the admittedly annoying steps in [this article about using `Scoped` services from `Singleton` services](https://learn.microsoft.com/en-us/dotnet/core/extensions/scoped-service)
+2. Inject `IWolverineRuntime`, and build `new MessageBus(runtime)` instances at will.
 
 ## Invoking Message Execution
 

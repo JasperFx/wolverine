@@ -1,9 +1,8 @@
 # Configuration Extensions
 
 ::: warning
-As of Wolverine 3.0 and our move to directly support non-Lamar IoC containers, it is no longer
-possible to alter service registrations through Wolverine extensions that are themselves registered
-in the IoC container at bootstrapping time.
+As of Wolverine 3.0, it is no longer possible to alter service registrations through Wolverine
+extensions that are themselves registered in the IoC container at bootstrapping time.
 :::
 
 Wolverine supports the concept of extensions for modularizing Wolverine configuration with implementations of the `IWolverineExtension` interface:

@@ -62,9 +62,8 @@ builder.Services.AddWolverineHttp();
 ```
 
 ::: info
-We had to separate the IoC service registrations from the addition of the 
-Wolverine endpoints when Wolverine was decoupled from Lamar as its only
-IoC tool. Two steps forward, one step back.
+The IoC service registrations are separate from the addition of the Wolverine
+endpoints because Wolverine uses the built in .NET `ServiceProvider`.
 :::
 
 Next, let's add support for [Wolverine.HTTP]() endpoints:
