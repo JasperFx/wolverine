@@ -402,7 +402,7 @@ like `[Entity]` or `[WriteAggregate]` or `[ReadAggregate]`.
 
 The Marten workflow command handler method signature needs to follow these rules:
 
-* Either explicitly use the `[AggregateHandler]` attribute on the handler method **or use the `AggregateHandler` suffix** on the message handler type to tell Wolverine to opt into the aggregate command workflow.
+* Either explicitly use the `[AggregateHandler]` attribute on the handler method **or use the `AggregateHandler` suffix** on the message handler type to tell Wolverine to opt into the aggregate command workflow. Note that the suffix opts in _by name alone_: a handler type that happens to end in `AggregateHandler` is promoted into this workflow, so its return values are appended to the event stream as events instead of being published as cascading messages. See the warning under [Reading the Latest Version of an Aggregate](#reading-the-latest-version-of-an-aggregate) if that surprises you.
 * The first argument should be the command type, just like any other Wolverine message handler
 * The 2nd argument should be the aggregate -- either the aggregate itself (`Order`) or wrapped
   in the Marten `IEventStream<T>` type (`IEventStream<Order>`). There is an example of that usage below:
@@ -743,6 +743,17 @@ public static class FindLettersHandler
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/read_aggregate_attribute_usage.cs#L81-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_messsage_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: warning
+`[ReadAggregate]` only _loads_ the aggregate; on its own it does **not** opt the handler into the
+heavier aggregate event-sourcing workflow. But remember that Wolverine _also_ opts a handler into that
+workflow when its **type name ends with `AggregateHandler`** (see [Handler Method Signatures](#handler-method-signatures)).
+If both are true, the handler's return value is **appended to the aggregate's event stream as an event**
+rather than published as a cascading message — almost never what you want for a read-only handler, and it
+can look like the message simply vanished. Wolverine logs a startup warning when it detects this
+combination. If you intend the return value to be published as a message, rename the handler type so it
+does **not** end in `AggregateHandler`. See [JasperFx/wolverine#2922](https://github.com/JasperFx/wolverine/pull/2922).
+:::
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code.
 The aggregate/stream identity is found with the same rules as the `[Entity]` or `[Aggregate]` attributes:
