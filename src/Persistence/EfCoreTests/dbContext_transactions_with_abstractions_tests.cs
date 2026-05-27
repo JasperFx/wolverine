@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,8 @@ using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Tracking;
+using Wolverine.SqlServer;
+
 
 namespace EfCoreTests;
 
@@ -55,8 +58,12 @@ public class dbContext_transactions_with_abstractions_tests
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContext<Fixture.AbstractionDbContext>(x => x.UseInMemoryDatabase("abstraction"));
+                opts.Services.AddDbContextWithWolverineIntegration<Fixture.AbstractionDbContext>(x =>
+                    x.UseSqlServer(Servers.SqlServerConnectionString));
+
                 opts.Services.AddScoped<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
 
                 opts.UseEntityFrameworkCoreTransactions()
                     .WithDbContextAbstraction<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
