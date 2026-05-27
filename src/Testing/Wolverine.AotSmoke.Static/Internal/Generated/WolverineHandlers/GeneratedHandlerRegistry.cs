@@ -14,6 +14,12 @@ namespace Internal.Generated.WolverineHandlers
             return new System.Type[] { typeof(AotSmokeHandler) };
         }
 
+
+        public override System.Type[] MessageTypes()
+        {
+            return System.Array.Empty<System.Type>();
+        }
+
     }
 
     // END: GeneratedHandlerRegistry
