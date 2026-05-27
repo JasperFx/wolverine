@@ -43,8 +43,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     public const string TransactionModeKey = "TransactionMiddlewareMode";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
+    private ImHashMap<Type, Type> _abstractions = ImHashMap<Type, Type>.Empty;
 
     public TransactionMiddlewareMode DefaultMode { get; set; } = TransactionMiddlewareMode.Eager;
+
+    public void RegisterAbstraction(Type abstractionType, Type dbContextType)
+    {
+        _abstractions = _abstractions.AddOrUpdate(abstractionType, dbContextType);
+    }
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -209,6 +215,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             }
         }
 
+        var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
+        if (abstractionType != null)
+        {
+            chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbContextType));
+        }
+
         var saveChangesAsync =
             dbContextType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
@@ -309,6 +321,12 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             }
         }
 
+        var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
+        if (abstractionType != null)
+        {
+            chain.Middleware.Insert(0, new CastDbContextFrame(abstractionType, dbType));
+        }
+
         var saveChangesAsync =
             dbType.GetMethod(nameof(DbContext.SaveChangesAsync), [typeof(CancellationToken)]);
 
@@ -341,7 +359,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         var serviceDependencies = chain.ServiceDependencies(container, Type.EmptyTypes).ToArray();
-        return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>());
+        return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>() || _abstractions.Contains(x));
     }
 
     internal Type? TryDetermineDbContextType(Type entityType, IServiceContainer container)
@@ -420,8 +438,22 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         {
             return DetermineDbContextType(saga.SagaType, container);
         }
-// START HERE. Look for any IStorageAction<T>, and use the T
-        var contextTypes = chain.ServiceDependencies(container, Type.EmptyTypes).Where(x => x.CanBeCastTo<DbContext>()).ToArray();
+
+        IEnumerable<Type> FindDbContextTypes()
+        {
+            var dependencies = chain.ServiceDependencies(container, Type.EmptyTypes);
+
+            var contextTypes = dependencies.Where(x => x.CanBeCastTo<DbContext>()).ToArray();
+            var abstractionTypes = dependencies.Where(x => _abstractions.Contains(x)).ToArray();
+
+            return contextTypes
+                .Concat(abstractionTypes.Select(x => _abstractions.TryFind(x, out var concrete) ? concrete : null))
+                .OfType<Type>() // Removes nullability
+                .Distinct()
+                .ToArray();
+        }
+
+        var contextTypes = FindDbContextTypes().ToArray();
 
         if (contextTypes.Length == 0)
         {
@@ -446,6 +478,34 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         return contextTypes.Single();
+    }
+
+    public class CastDbContextFrame : SyncFrame
+    {
+        private readonly Type _abstractionType;
+        private readonly Type _dbContextType;
+        private Variable _abstraction = null!;
+
+        public CastDbContextFrame(Type abstractionType, Type dbContextType)
+        {
+            _abstractionType = abstractionType;
+            _dbContextType = dbContextType;
+            DbContext = new Variable(_dbContextType, this);
+        }
+
+        public Variable DbContext { get; }
+
+        public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            writer.WriteLine($"if ({_abstraction.Usage} is not {_dbContextType.FullNameInCode()} {DbContext.Usage}) throw new System.Exception($\"DbContext abstraction - {_abstraction.Usage} must be implemented by {_dbContextType.FullNameInCode()}.\");");
+            Next?.GenerateCode(method, writer);
+        }
+
+        public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+        {
+            _abstraction = chain.FindVariable(_abstractionType);
+            yield return _abstraction;
+        }
     }
 
     public class IncrementSagaVersionIfNecessary : SyncFrame
