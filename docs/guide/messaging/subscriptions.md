@@ -90,6 +90,27 @@ at bootstrapping time. See [Message Discovery](/guide/messages.html#message-disc
 preview functionality by "telling" Wolverine what your outgoing message types are.
 :::
 
+For a more focused look at a single message type — including an explanation of *why* it routes the way it
+does — use the `describe-routing` command <Badge type="tip" text="5.15" />:
+
+```bash
+# Routing for one message type (full name, short name, or fuzzy match)
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder
+
+# Add --explain to walk Wolverine's route-source chain in order and see which
+# terminating source short-circuited the rest
+dotnet run -- wolverine-diagnostics describe-routing CreateOrder --explain
+
+# Or show the complete routing topology for every known message type
+dotnet run -- wolverine-diagnostics describe-routing --all
+```
+
+The `--explain` flag <Badge type="tip" text="6.0" /> is the command-line surface over the
+`IWolverineRuntime.ExplainRoutingFor(Type)` API, and `--json` emits the same explanation in a structured
+form for tooling or AI agents. See the [Command Line Diagnostics](/tutorials/command-line-diagnostics)
+tutorial for a guided tour and the [Command Line Integration](/guide/command-line#describe-routing)
+reference for every flag.
+
 ## Explicit Subscriptions
 
 To route messages to specific endpoints, we can apply static message routing rules by using a routing rule as shown below:
