@@ -74,7 +74,16 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     public IReadOnlyList<ICodeFile> BuildFiles()
     {
-        return _chains;
+        // Pre-generated endpoint registry for TypeLoadMode.Static cold-start (GH-2925, the Wolverine.Http
+        // counterpart to the GH-2906 handler manifest): capture the discovered endpoint types so startup
+        // can skip the HttpChainSource.FindActions ExportedTypes scan. The types come from the already-built
+        // chains (chain.EndpointType), so no scan is needed to produce the manifest.
+        var files = new List<ICodeFile>(_chains)
+        {
+            new HttpEndpointRegistryCodeFile(_chains.Select(x => x.EndpointType))
+        };
+
+        return files;
     }
 
     public string ChildNamespace => "WolverineHandlers";
@@ -104,7 +113,23 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         var source = new HttpChainSource(_options.Assemblies);
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
 
-        var calls = source.FindActions();
+        // Cold-start fast path (GH-2925): in TypeLoadMode.Static, consume the pre-generated
+        // HttpEndpointRegistry instead of scanning assemblies. Never applies during `codegen write`
+        // itself — that must run a fresh scan to regenerate the registry accurately.
+        MethodCall[] calls;
+        if (!DynamicCodeBuilder.WithinCodegenCommand && Rules.TypeLoadMode == TypeLoadMode.Static &&
+            HttpEndpointRegistry.TryLoad(_options.ApplicationAssembly, out var endpointTypes))
+        {
+            logger.LogInformation(
+                "Using pre-generated Wolverine HTTP endpoint registry ({Count} endpoint types); skipping assembly scan",
+                endpointTypes.Count);
+            calls = source.FindActions(endpointTypes);
+        }
+        else
+        {
+            calls = source.FindActions();
+        }
+
         logger.LogInformation("Found {Count} Wolverine HTTP endpoints in assemblies {Assemblies}", calls.Length,
             _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
         if (calls.Length == 0)

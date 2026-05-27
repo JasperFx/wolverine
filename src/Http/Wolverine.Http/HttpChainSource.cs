@@ -35,6 +35,16 @@ internal class HttpChainSource
             .SelectMany(actionsFromType).ToArray();
     }
 
+    // Static-mode counterpart to FindActions(): the endpoint types were already discovered and
+    // captured into the generated HttpEndpointRegistry at codegen write time, so we apply the normal
+    // endpoint-method selection to exactly those types instead of scanning assemblies. See GH-2925.
+    internal MethodCall[] FindActions(IReadOnlyList<Type> endpointTypes)
+    {
+        return endpointTypes
+            .Distinct()
+            .SelectMany(actionsFromType).ToArray();
+    }
+
     private IEnumerable<MethodCall> actionsFromType(Type type)
     {
         return type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.Static)
