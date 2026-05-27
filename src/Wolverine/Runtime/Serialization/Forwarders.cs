@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.Core.Reflection;
+using JasperFx.Core.TypeScanning;
 
 namespace Wolverine.Runtime.Serialization;
 
@@ -26,7 +27,12 @@ internal class Forwarders
         "have the forwards baked into pre-generated code and don't reach this path.")]
     public void FindForwards(Assembly assembly)
     {
-        var candidates = assembly.ExportedTypes.Where(x => x.IsConcrete() && !x.IsOpenGeneric());
-        foreach (var type in candidates.Where(t => t.Closes(typeof(IForwardsTo<>)))) Add(type);
+        // Route the scan through JasperFx's central TypeQuery (GH-2909) instead of an ad-hoc
+        // Assembly.ExportedTypes walk. Concretes|Closed reproduces the previous
+        // IsConcrete() && !IsOpenGeneric() candidate filter; the IForwardsTo<> closure check is unchanged.
+        var query = new TypeQuery(TypeClassification.Concretes | TypeClassification.Closed);
+        query.Includes.WithCondition("Closes IForwardsTo<>", t => t.Closes(typeof(IForwardsTo<>)));
+
+        foreach (var type in query.Find([assembly])) Add(type);
     }
 }

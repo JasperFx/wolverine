@@ -1,6 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core.Reflection;
+using JasperFx.Core.TypeScanning;
 using Wolverine.Attributes;
 
 namespace Wolverine.Http;
@@ -24,13 +26,20 @@ internal class HttpChainSource
         _typeFilters.Excludes += type => type.HasAttribute<WolverineIgnoreAttribute>();
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification =
+            "Endpoint discovery scan routed through JasperFx TypeQuery — the single annotated scanning entry point (GH-2909). AOT/TypeLoadMode.Static consumers use the pre-generated HttpEndpointRegistry (the FindActions(types) overload) and never reach this scan. See GH-2925.")]
     internal MethodCall[] FindActions()
     {
-        var discovered = _assemblies.SelectMany(x => x.ExportedTypes)
-            .Where(x => _typeFilters.Matches(x))
-            .Where(x => x.IsPublic && x.GetGenericArguments().Length == 0);
+        // Route the endpoint type scan through JasperFx's central TypeQuery (GH-2909) rather than an
+        // ad-hoc Assembly.ExportedTypes walk; the endpoint-specific include/exclude rules stay in
+        // _typeFilters, so discovery semantics are unchanged. TypeClassification.All keeps every
+        // non-trimmed type (e.g. static endpoint classes) that the previous scan considered.
+        var query = new TypeQuery(TypeClassification.All);
+        query.Includes.WithCondition("Wolverine HTTP endpoint type",
+            x => _typeFilters.Matches(x) && x.IsPublic && x.GetGenericArguments().Length == 0);
 
-        return discovered
+        return query.Find(_assemblies)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
     }
