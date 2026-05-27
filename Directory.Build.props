@@ -90,8 +90,18 @@
                      Polecat                           4.0.0 -> 4.1.1
                      Weasel.* (7 packages)             9.0.0 -> 9.0.1
                      JasperFx.RuntimeCompiler (5.0.0) / .SourceGeneration (2.0.0) unchanged
+          6.0.3:   JasperFx 2.1.x family -> 2.1.3. Picks up the source-generated extension/option
+                   discovery + DI-registration manifests (jasperfx #371/#374), the mixed-lifetime
+                   IEnumerable<T> codegen fix (jasperfx #376, resolves GH-2896), and the
+                   InputParserGenerator nullable-annotation fix (jasperfx #379) that this upgrade
+                   required on net10 + TreatWarningsAsErrors:
+                     JasperFx                          2.0.1 -> 2.1.3
+                     JasperFx.Events (+ .Events.SourceGenerator)  2.1.0 -> 2.1.3
+                     JasperFx.SourceGenerator           2.0.1 -> 2.1.3
+                     JasperFx.RuntimeCompiler          unchanged (own 5.x line)
+                     Marten / Weasel.* / Polecat       unchanged
         -->
-        <Version>6.0.2</Version>
+        <Version>6.0.3</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
