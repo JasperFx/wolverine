@@ -133,8 +133,9 @@ public static class WolverineGrpcExtensions
         }
 
         // Map hand-written classes that have NO generated wrapper directly (i.e. those not
-        // claimed by a HandWrittenGrpcServiceChain in the graph).
-        foreach (var type in FindDirectMappedServiceTypes(assemblies, graph))
+        // claimed by a HandWrittenGrpcServiceChain in the graph). Under TypeLoadMode.Static this reads
+        // the pre-generated manifest instead of scanning assemblies (GH-2907).
+        foreach (var type in ResolveDirectMappedServiceTypes(runtime, assemblies, graph))
         {
             MapGrpcServiceMethod.MakeGenericMethod(type).Invoke(null, [endpoints]);
         }
@@ -225,6 +226,23 @@ public static class WolverineGrpcExtensions
     public static IEnumerable<Type> FindGrpcServiceTypes(IEnumerable<Assembly> assemblies,
         GrpcGraph? graph = null)
     {
+        return FindDirectMappedServiceTypes(assemblies, graph);
+    }
+
+    // Cold-start fast path (GH-2907): in TypeLoadMode.Static, read the direct-mapped service types from
+    // the pre-generated GrpcServiceRegistry instead of scanning assemblies. The manifest already excludes
+    // wrapper-claimed types (it was captured via FindGrpcServiceTypes at codegen write time). Never
+    // applies during `codegen write` itself — that must run a fresh scan to regenerate the registry.
+    private static IEnumerable<Type> ResolveDirectMappedServiceTypes(WolverineRuntime runtime,
+        IEnumerable<Assembly> assemblies, GrpcGraph? graph)
+    {
+        if (!DynamicCodeBuilder.WithinCodegenCommand &&
+            runtime.Options.CodeGeneration.TypeLoadMode == TypeLoadMode.Static &&
+            GrpcServiceRegistry.TryLoad(runtime.Options.ApplicationAssembly, out var registry))
+        {
+            return registry!.DirectMappedServiceTypes();
+        }
+
         return FindDirectMappedServiceTypes(assemblies, graph);
     }
 

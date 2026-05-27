@@ -49,13 +49,21 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
 
     public IReadOnlyList<ICodeFile> BuildFiles()
     {
-        // GH-2926: capture the discovered service types (across all three discovery flavors) so startup
-        // can skip the GetExportedTypes scans under TypeLoadMode.Static. The types come from the
-        // already-built chains, so no scan is needed to produce the manifest.
+        // GH-2926/GH-2907: capture the discovered service types (across all four discovery flavors) so
+        // startup can skip the GetExportedTypes scans under TypeLoadMode.Static. The first three come
+        // from the already-built chains (no scan). Direct-mapped services receive no chain, so — like
+        // the conventional message types in the handler manifest — they require a scan, performed only
+        // while actually generating code (BuildFiles is also enumerated during a Static-mode attach,
+        // where a scan would defeat the purpose).
+        var directMapped = DynamicCodeBuilder.WithinCodegenCommand
+            ? WolverineGrpcExtensions.FindGrpcServiceTypes(_options.Assemblies, this)
+            : [];
+
         var registry = new GrpcServiceRegistryCodeFile(
             _chains.Select(x => x.StubType),
             _codeFirstChains.Select(x => x.ServiceContractType),
-            _handWrittenChains.Select(x => x.ServiceClassType));
+            _handWrittenChains.Select(x => x.ServiceClassType),
+            directMapped);
 
         return [.._chains, .._codeFirstChains, .._handWrittenChains, registry];
     }

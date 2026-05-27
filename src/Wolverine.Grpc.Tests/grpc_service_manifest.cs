@@ -2,9 +2,11 @@ using GreeterProtoFirstGrpc.Server;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.Grpc.Tests;
@@ -46,13 +48,25 @@ public class grpc_service_manifest
             registryFile.AssembleTypes(generatedAssembly);
             var code = generatedAssembly.GenerateCode(serviceVariableSource);
 
-            // All three discovery flavors get their own accessor...
+            // All four discovery flavors get their own accessor (GH-2907 adds direct-mapped)...
             code.ShouldContain("ProtoFirstStubTypes()");
             code.ShouldContain("CodeFirstContractTypes()");
             code.ShouldContain("HandWrittenServiceTypes()");
+            code.ShouldContain("DirectMappedServiceTypes()");
 
             // ...and the discovered proto-first stub type is captured.
             code.ShouldContain(nameof(GreeterGrpcService));
+
+            // Satellite parity (GH-2907): every direct-mapped service the live map-time scan would find
+            // across the registered assemblies — including the referenced GreeterProtoFirstGrpc.Server
+            // satellite — is captured in the manifest, so MapWolverineGrpcServices can skip its scan
+            // under TypeLoadMode.Static.
+            var assemblies = ((WolverineRuntime)host.Services.GetRequiredService<IWolverineRuntime>())
+                .Options.Assemblies;
+            foreach (var type in WolverineGrpcExtensions.FindGrpcServiceTypes(assemblies, graph))
+            {
+                code.ShouldContain($"typeof({type.FullNameInCode()})");
+            }
         }
         finally
         {
