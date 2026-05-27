@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### WolverineFx.Http
+
+- **New `openapi` command for build-time OpenAPI generation without starting the host.**
+  `dotnet run -- openapi` writes the application's OpenAPI document straight from endpoint metadata,
+  reusing the same `Microsoft.AspNetCore.OpenApi` document provider that Microsoft's
+  `GetDocument.Insider` tool uses, but **without** calling `IHost.StartAsync()`. This means the
+  document can be generated in build/CI pipelines for applications backed by database message
+  persistence (or external brokers) with no database or broker connectivity required. Requires
+  `builder.Services.AddOpenApi()`. Writes to standard output by default; supports `--document`,
+  `--output` (a file path), `--list`, and `--route` (a fuzzy route filter that emits only the matching
+  paths and the schema components they reference — handy for troubleshooting a single endpoint). See the
+  [HTTP metadata guide](https://wolverinefx.net/guide/http/metadata.html) (GH-2903).
+
 ## 6.0.1
 
 Patch release on the 6.0 line: a Critter Stack dependency refresh plus two
