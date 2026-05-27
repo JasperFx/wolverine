@@ -114,7 +114,24 @@ is deliberately stable and labeled so it reads well for humans *and* parses clea
 See [Troubleshooting Message Routing](/guide/diagnostics#troubleshooting-message-routing) for the
 programmatic side.
 
-## Step 4: Check Your Infrastructure
+## Step 4: Troubleshoot Handler Discovery
+
+If you expected Wolverine to find a handler but it isn't running, ask Wolverine to explain its discovery
+decision for that type:
+
+```bash
+# By handler class name (also accepts a fully-qualified name or a fuzzy partial match)
+dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
+```
+
+The argument is matched against the types in your application, and if it matches more than one type you get
+a report for *each*. Every report tells you whether the type's assembly is being scanned, which type-level
+include/exclude rules HIT or MISS, and — per method — whether it satisfies the handler naming and signature
+conventions. It's the command-line surface over `WolverineOptions.DescribeHandlerMatch(Type)`, so you don't
+have to drop a temporary `Console.WriteLine(...)` into your bootstrapping code (see
+[Troubleshooting Handler Discovery](/guide/diagnostics#troubleshooting-handler-discovery)).
+
+## Step 5: Check Your Infrastructure
 
 Wolverine's transports and the durable inbox/outbox register self-diagnosing environment checks — can I
 reach the database? the broker? are the IoC registrations valid?
@@ -131,7 +148,7 @@ dotnet run -- resources setup     # also: check, list, teardown, statistics
 
 `resources setup` is a great way to provision a clean environment before a test run.
 
-## Step 5: Inspect and Recover Message Storage
+## Step 6: Inspect and Recover Message Storage
 
 For applications using the durable inbox/outbox, the `storage` command administers the message store:
 
@@ -149,7 +166,7 @@ envelopes (optionally filtered to a single exception type). To purge inbox rows 
 dotnet run -- clear-handled
 ```
 
-## Step 6: Export a Full Snapshot with `capabilities`
+## Step 7: Export a Full Snapshot with `capabilities`
 
 <Badge type="tip" text="5.8" />
 
@@ -180,6 +197,7 @@ dotnet run -- openapi --route "GET /orders/{id}"
 | `codegen write` / `preview` | What code is Wolverine generating? |
 | `wolverine-diagnostics codegen-preview` | …for *one* handler / endpoint / gRPC service |
 | `wolverine-diagnostics describe-routing [--explain] [--json]` | Where — and *why* — does a message route? |
+| `wolverine-diagnostics describe-handlers <TypeName>` | Why is (or isn't) a type discovered as a handler? |
 | `check-env` | Can I connect to my infrastructure? |
 | `resources setup / check / teardown` | Provision or inspect stateful resources |
 | `storage counts / clear / rebuild / release` | Inbox/outbox state and recovery |

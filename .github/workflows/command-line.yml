@@ -1,0 +1,71 @@
+name: command-line
+
+# Smoke test for the Wolverine command-line diagnostics surface. Builds the
+# Quickstart sample (which opts into RunJasperFxCommands) and exercises the
+# `wolverine-diagnostics describe-handlers` command end to end: it must discover
+# a known handler and emit the expected DescribeHandlerMatch report, and it must
+# exit non-zero for an unknown type. No database or message broker is required —
+# the command builds the host and compiles the handler graph without starting it.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  config: Release
+
+jobs:
+  describe-handlers-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: wolverine-diagnostics describe-handlers smoke test
+        run: |
+          set -euo pipefail
+
+          echo "::group::Positive case — known handler is discovered"
+          output=$(dotnet run --project src/Samples/Quickstart --framework net9.0 -- \
+            wolverine-diagnostics describe-handlers CreateIssueHandler)
+          echo "$output"
+          echo "$output" | grep -q "Handler discovery report: Quickstart.CreateIssueHandler"
+          echo "$output" | grep -q "Successfully found Quickstart.CreateIssueHandler during scanning."
+          echo "$output" | grep -q "HIT -- Method name is 'Handle'"
+          echo "::endgroup::"
+
+          echo "::group::Fuzzy case — a partial name matches multiple types"
+          fuzzy=$(dotnet run --project src/Samples/Quickstart --framework net9.0 -- \
+            wolverine-diagnostics describe-handlers Create)
+          echo "$fuzzy"
+          count=$(echo "$fuzzy" | grep -c "Handler discovery report:")
+          echo "matched report count = $count"
+          test "$count" -ge 2
+          echo "::endgroup::"
+
+          echo "::group::Negative case — unknown type exits non-zero"
+          if dotnet run --project src/Samples/Quickstart --framework net9.0 -- \
+               wolverine-diagnostics describe-handlers ZzzNoSuchHandler > /dev/null 2>&1; then
+            echo "Expected describe-handlers to exit non-zero for an unknown type"
+            exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "describe-handlers smoke test passed"

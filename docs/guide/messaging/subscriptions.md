@@ -111,6 +111,17 @@ form for tooling or AI agents. See the [Command Line Diagnostics](/tutorials/com
 tutorial for a guided tour and the [Command Line Integration](/guide/command-line#describe-routing)
 reference for every flag.
 
+If a message has no local handler when you expected one — which leaves it with no local route — the cause is
+usually handler discovery rather than routing. The
+[`describe-handlers`](/guide/command-line#describe-handlers) command <Badge type="tip" text="6.0" /> explains
+why a given type is (or isn't) discovered as a handler:
+
+```bash
+dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
+```
+
+See [Troubleshooting Handler Discovery](/guide/diagnostics#troubleshooting-handler-discovery) for more.
+
 ## Explicit Subscriptions
 
 To route messages to specific endpoints, we can apply static message routing rules by using a routing rule as shown below:

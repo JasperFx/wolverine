@@ -272,6 +272,29 @@ The `--all` output includes:
 - **Listeners** — all configured listening endpoints with name, mode, and parallelism
 - **Senders** — all configured sending endpoints with name, mode, and subscription count
 
+### describe-handlers <Badge type="tip" text="6.0" />
+
+Explain *why* a candidate type is — or is not — discovered as a message handler. This is the command-line
+surface over [`WolverineOptions.DescribeHandlerMatch(Type)`](/guide/diagnostics#troubleshooting-handler-discovery),
+so you no longer have to drop a temporary `Console.WriteLine(...)` into your bootstrapping code.
+
+```bash
+# By handler class name
+dotnet run -- wolverine-diagnostics describe-handlers CreateOrderHandler
+
+# By fully-qualified name
+dotnet run -- wolverine-diagnostics describe-handlers MyApp.Orders.CreateOrderHandler
+```
+
+The argument is matched against the types in your application — exact full name, then exact short name, then
+a fuzzy "contains" match. If the term matches **more than one** type, Wolverine prints a discovery report for
+*each* match. For every matched type the report shows whether its assembly is being scanned, which type-level
+include/exclude rules HIT or MISS, and — for each method — whether it satisfies the handler naming and
+signature conventions.
+
+Like the other diagnostics commands, this builds the host and compiles the handler graph but does **not**
+start it, so no database or message-broker connections are opened.
+
 ## Other Highlights
 
 * See the [code generation support](./codegen)
