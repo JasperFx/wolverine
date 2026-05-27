@@ -246,7 +246,7 @@ types that are known in the IoC container. If there's any potential for confusio
 between the request type argument and what should be coming from the IoC
 container, you can decorate parameters with the `[FromServices]` attribute
 from ASP.Net Core to give Wolverine a hint. Otherwise, Wolverine is asking the underlying
-Lamar container if it knows how to resolve the service from the parameter argument.
+IoC container if it knows how to resolve the service from the parameter argument.
 
 
 ## Accessing HttpContext

@@ -1,10 +1,9 @@
 # Configuration
 
 ::: info
-As of 3.0,  Wolverine **does not require the usage of the [Lamar](https://jasperfx.github.io/lamar) IoC container**, and will no longer replace the built in .NET container with Lamar.
-
-Wolverine 3.0 *is* tested with both the built in `ServiceProvider` and Lamar. It's theoretically possible to use other
-IoC containers now as long as they conform to the .NET conforming container, but this isn't tested by the Wolverine team.
+Wolverine uses the built in .NET `ServiceProvider` as its IoC container and does not replace it. It's
+theoretically possible to use other IoC containers as long as they conform to the .NET conforming container,
+but this isn't tested by the Wolverine team.
 :::
 
 ::: warning Wolverine 6.0: IoC registrations need to be transparent to codegen

@@ -25,7 +25,7 @@ builder.Host.UseWolverine(opts =>
 <!-- endSnippet -->
 
 ::: tip
-When using the opt in `Handlers.AutoApplyTransactions()` option, Wolverine (really Lamar) can detect that your handler method uses a `DbContext` if it's a method argument,
+When using the opt in `Handlers.AutoApplyTransactions()` option, Wolverine can detect that your handler method uses a `DbContext` if it's a method argument,
 a dependency of any service injected as a method argument, or a dependency of any service injected as a constructor
 argument of the handler class.
 :::

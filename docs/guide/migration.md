@@ -355,28 +355,21 @@ By and large, we've *tried* to replace any API nomenclature using "master" with 
 The 3.0 release did not have any breaking changes to the public API, but does come with some significant internal
 changes.
 
-### Lamar Removal
+### Built-in IoC Container
+
+The biggest change is that Wolverine no longer automatically replaces the built in `ServiceProvider` and
+uses the .NET conforming container directly. At this point it is theoretically possible to use Wolverine with
+any IoC library that fully supports the ASP.Net Core DI conformance behavior, but Wolverine has only been
+tested against the default `ServiceProvider`.
+
+Do be aware that `ServiceProvider` is stricter than some third-party containers about service resolution and
+lifetime scoping, so there might be some hiccups. See the [Configuration Guide](/guide/configuration) for more
+information. Wolverine uses the IoC configuration to generate code that inlines dependency creation in a way
+that's more efficient than resolving through an IoC tool at runtime when it can.
 
 ::: tip
-Lamar is more "forgiving" than the built in `ServiceProvider`. If after converting to Wolverine 3.0, you receive
-messages from `ServiceProvider` about not being able to resolve this, that, or the other, just go back to Lamar with
-the steps in this guide.
-:::
-
-The biggest change is that Wolverine is no longer directly coupled to the [Lamar IoC library](https://jasperfx.github.io/lamar) and
-Wolverine will no longer automatically replace the built in `ServiceProvider` with Lamar. At this point it is theoretically
-possible to use Wolverine with any IoC library that fully supports the ASP.Net Core DI conformance behavior, but Wolverine
-has only been tested against the default `ServiceProvider` and Lamar IoC containers. 
-
-Do be aware if moving to Wolverine 3.0 that Lamar is more forgiving than `ServiceProvider`, so there might be some hiccups
-if you choose to forgo Lamar. See the [Configuration Guide](/guide/configuration) for more information. Lamar does still have a little more
-robust support for the code generation abilities in Wolverine (Wolverine uses the IoC configuration to generate code to inline
-dependency creation in a way that's more efficient than an IoC tool at runtime -- when it can).
-
-::: tip
-If you have any issues with Wolverine's code generation about your message handlers or HTTP endpoints after upgrading to Wolverine 3.0,
-please open a GitHub issue with Wolverine, but just know that you can probably fall back to using Lamar as the IoC tool
-to "fix" those issues with code generation planning.
+If you have any issues with Wolverine's code generation about your message handlers or HTTP endpoints after
+upgrading, please open a GitHub issue with Wolverine.
 :::
 
 Wolverine 3.0 can now be bootstrapped with the `HostApplicationBuilder` or any standard .NET bootstrapping mechanism through
@@ -448,9 +441,9 @@ schema for the queues.
 
 ### Wolverine.Http
 
-For [Wolverine.Http usage](/guide/http/), the Wolverine 3.0 usage of the less capable `ServiceProvider` instead of the previously
-mandated [Lamar](https://jasperfx.github.io/lamar) library necessitates the usage of this API to register necessary
-services for Wolverine.HTTP in addition to adding the Wolverine endpoints:
+For [Wolverine.Http usage](/guide/http/), the Wolverine 3.0 usage of the built in `ServiceProvider`
+necessitates the usage of this API to register necessary services for Wolverine.HTTP in addition to
+adding the Wolverine endpoints:
 
 <!-- snippet: sample_adding_http_services -->
 <a id='snippet-sample_adding_http_services'></a>
