@@ -254,7 +254,10 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
     bool ICodeFile.AttachTypesSynchronously(GenerationRules rules, Assembly assembly, IServiceProvider? services,
         string containingNamespace)
     {
-        _generatedRuntimeType = assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
+        // GH-2908: resolve the generated wrapper by its full name (a targeted lookup, no GetTypes()
+        // enumeration in the pre-generated/Static case); fall back to the reflective scan only if it misses.
+        _generatedRuntimeType = assembly.GetType($"{containingNamespace}.{TypeName}")
+                                ?? assembly.ExportedTypes.FirstOrDefault(x => x.Name == TypeName)
                                 ?? assembly.GetTypes().FirstOrDefault(x => x.Name == TypeName);
 
         return _generatedRuntimeType != null;
