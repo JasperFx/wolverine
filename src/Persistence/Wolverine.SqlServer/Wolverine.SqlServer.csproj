@@ -30,5 +30,4 @@
       <PackageReference Include="Weasel.SqlServer" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

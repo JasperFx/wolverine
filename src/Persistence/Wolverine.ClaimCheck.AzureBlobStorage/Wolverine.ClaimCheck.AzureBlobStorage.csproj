@@ -19,5 +19,4 @@
       <PackageReference Include="Azure.Storage.Blobs" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>
