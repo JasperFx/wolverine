@@ -195,6 +195,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
 
         var enrolledInTransaction = false;
+        var multiTenantTransaction = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
             if (isMultiTenanted(container, dbContextType))
@@ -203,6 +204,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
                 chain.Middleware.Insert(0, createContext);
                 chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbContextType, chain.Idempotency));
+                multiTenantTransaction = true;
             }
             else
             {
@@ -221,25 +223,33 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         chain.Postprocessors.Add(call);
 
-        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction);
+        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbContextType);
     }
 
-    // Eager mode wraps the rest of the chain in EnrollDbContextInTransaction's try/catch. The
-    // commit + outbox flush is emitted as the CommitEfCoreEnvelopeTransaction postprocessor added
-    // here (right after SaveChanges), rather than at the end of the wrap, so it runs BEFORE the
-    // response writer that Wolverine.Http appends to Postprocessors during codegen. That keeps the
-    // transaction commit + MessageContext flush ahead of the HTTP response (GH-2917), while still
-    // committing AFTER SaveChanges and flushing AFTER the commit - so it does NOT reintroduce the
-    // flush-before-commit stranding bug (see Wolverine.Http.Tests/Bug_efcore_outbox_flush_before_commit.cs).
+    // Eager mode wraps the rest of the chain in a transaction middleware's try/catch. The commit +
+    // outbox flush is emitted as a postprocessor added here (right after SaveChanges), rather than at
+    // the end of the wrap, so it runs BEFORE the response writer that Wolverine.Http appends to
+    // Postprocessors during codegen. That keeps the transaction commit + MessageContext flush ahead of
+    // the HTTP response (GH-2917), while still committing AFTER SaveChanges and flushing AFTER the
+    // commit - so it does NOT reintroduce the flush-before-commit stranding bug (see
+    // Wolverine.Http.Tests/Bug_efcore_outbox_flush_before_commit.cs).
     //
-    // Lightweight mode skips EnrollDbContextInTransaction (no try-block wrap, no CommitAsync), so a
-    // standalone FlushOutgoingMessages postprocessor is the only flush trigger and must stay.
+    //  - Single DbContext (EnrollDbContextInTransaction): commit via the enlisted EfCoreEnvelopeTransaction.
+    //  - Multi-tenant (StartDatabaseTransactionForDbContext): commit the DbContext transaction directly,
+    //    then flush the MessageContext. The postprocessor is IFlushesMessages so the chain does not also
+    //    add a standalone FlushOutgoingMessages (which would flush after the response and before commit).
+    //  - Lightweight mode (no try-block wrap, no commit frame): a standalone FlushOutgoingMessages
+    //    postprocessor is the only flush trigger and must stay.
     private static void applyEagerCommitOrLightweightFlush(IChain chain, TransactionMiddlewareMode mode,
-        bool enrolledInTransaction)
+        bool enrolledInTransaction, bool multiTenantTransaction, Type dbContextType)
     {
         if (enrolledInTransaction)
         {
             chain.Postprocessors.Add(new CommitEfCoreEnvelopeTransaction());
+        }
+        else if (multiTenantTransaction)
+        {
+            chain.Postprocessors.Add(new CommitTenantedDbContextTransaction(dbContextType));
         }
         else if (mode != TransactionMiddlewareMode.Eager
                  && chain.RequiresOutbox() && chain.ShouldFlushOutgoingMessages())
@@ -303,6 +313,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var mode = ResolveEffectiveMode(chain);
 
         var enrolledInTransaction = false;
+        var multiTenantTransaction = false;
         if (mode == TransactionMiddlewareMode.Eager)
         {
             if (isMultiTenanted(container, dbType))
@@ -310,6 +321,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 var createContext = typeof(CreateTenantedDbContext<>).CloseAndBuildAs<Frame>(dbType);
                 chain.Middleware.Insert(0, createContext);
                 chain.Middleware.Insert(0, new StartDatabaseTransactionForDbContext(dbType, chain.Idempotency));
+                multiTenantTransaction = true;
             }
             else
             {
@@ -329,7 +341,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         chain.Postprocessors.Add(call);
 
         // See applyEagerCommitOrLightweightFlush + the no-entity overload above (GH-2917).
-        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction);
+        applyEagerCommitOrLightweightFlush(chain, mode, enrolledInTransaction, multiTenantTransaction, dbType);
     }
 
     public bool CanApply(IChain chain, IServiceContainer container)
