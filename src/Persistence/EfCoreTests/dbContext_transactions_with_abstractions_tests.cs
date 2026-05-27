@@ -36,6 +36,7 @@ public abstract class Fixture
         IRepository IUnitOfWork.GetRepository() => this;
     }
 
+    [Transactional]
     [WolverineHandler]
     public class AbstractionCommandHandler
     {
@@ -67,6 +68,8 @@ public class dbContext_transactions_with_abstractions_tests
 
                 opts.UseEntityFrameworkCoreTransactions()
                     .WithDbContextAbstraction<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+
+                opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<Fixture.AbstractionCommandHandler>();
             }).StartAsync();
