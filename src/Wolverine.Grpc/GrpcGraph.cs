@@ -47,7 +47,18 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
     /// <summary>Hand-written service chains (concrete service class → generated delegation wrapper).</summary>
     public IReadOnlyList<HandWrittenGrpcServiceChain> HandWrittenChains => _handWrittenChains;
 
-    public IReadOnlyList<ICodeFile> BuildFiles() => [.._chains, .._codeFirstChains, .._handWrittenChains];
+    public IReadOnlyList<ICodeFile> BuildFiles()
+    {
+        // GH-2926: capture the discovered service types (across all three discovery flavors) so startup
+        // can skip the GetExportedTypes scans under TypeLoadMode.Static. The types come from the
+        // already-built chains, so no scan is needed to produce the manifest.
+        var registry = new GrpcServiceRegistryCodeFile(
+            _chains.Select(x => x.StubType),
+            _codeFirstChains.Select(x => x.ServiceContractType),
+            _handWrittenChains.Select(x => x.ServiceClassType));
+
+        return [.._chains, .._codeFirstChains, .._handWrittenChains, registry];
+    }
 
     /// <summary>
     ///     Scans the assemblies already registered with Wolverine and builds chains for every
@@ -59,46 +70,79 @@ public class GrpcGraph : ICodeFileCollectionWithServices, IDescribeMyself
     {
         var logger = Container.GetInstance<ILogger<GrpcGraph>>();
 
-        AssertNoConcreteProtoStubs(_options.Assemblies);
-
-        var stubs = FindProtoFirstStubs(_options.Assemblies).ToArray();
-        logger.LogInformation(
-            "Found {Count} proto-first Wolverine gRPC services in assemblies {Assemblies}",
-            stubs.Length,
-            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
-
-        foreach (var stub in stubs)
+        // Cold-start fast path (GH-2926): in TypeLoadMode.Static, rebuild the chains from the
+        // pre-generated GrpcServiceRegistry instead of scanning assemblies (and skip the codegen-time
+        // validation scans). Never applies during `codegen write` itself — that must run a fresh scan
+        // to regenerate the registry accurately.
+        if (!DynamicCodeBuilder.WithinCodegenCommand && Rules.TypeLoadMode == TypeLoadMode.Static &&
+            GrpcServiceRegistry.TryLoad(_options.ApplicationAssembly, out var registry))
         {
-            _chains.Add(new GrpcServiceChain(stub, this));
-        }
+            logger.LogInformation(
+                "Using pre-generated Wolverine gRPC service registry; skipping assembly scan");
 
-        DisambiguateCollidingTypeNames(_chains);
-
-        var contracts = FindCodeFirstServiceContracts(_options.Assemblies).ToArray();
-        logger.LogInformation(
-            "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies}",
-            contracts.Length,
-            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
-
-        foreach (var contract in contracts)
-        {
-            CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
-            var codeFirstChain = new CodeFirstGrpcServiceChain(contract)
+            foreach (var stub in registry!.ProtoFirstStubTypes())
             {
-                ApplicationAssemblies = _options.Assemblies
-            };
-            _codeFirstChains.Add(codeFirstChain);
+                _chains.Add(new GrpcServiceChain(stub, this));
+            }
+
+            DisambiguateCollidingTypeNames(_chains);
+
+            foreach (var contract in registry.CodeFirstContractTypes())
+            {
+                _codeFirstChains.Add(new CodeFirstGrpcServiceChain(contract)
+                {
+                    ApplicationAssemblies = _options.Assemblies
+                });
+            }
+
+            foreach (var serviceClass in registry.HandWrittenServiceTypes())
+            {
+                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+            }
         }
-
-        var handWritten = FindHandWrittenServiceClasses(_options.Assemblies).ToArray();
-        logger.LogInformation(
-            "Found {Count} hand-written Wolverine gRPC service classes in assemblies {Assemblies}",
-            handWritten.Length,
-            _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
-
-        foreach (var serviceClass in handWritten)
+        else
         {
-            _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+            AssertNoConcreteProtoStubs(_options.Assemblies);
+
+            var stubs = FindProtoFirstStubs(_options.Assemblies).ToArray();
+            logger.LogInformation(
+                "Found {Count} proto-first Wolverine gRPC services in assemblies {Assemblies}",
+                stubs.Length,
+                _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
+
+            foreach (var stub in stubs)
+            {
+                _chains.Add(new GrpcServiceChain(stub, this));
+            }
+
+            DisambiguateCollidingTypeNames(_chains);
+
+            var contracts = FindCodeFirstServiceContracts(_options.Assemblies).ToArray();
+            logger.LogInformation(
+                "Found {Count} code-first Wolverine gRPC service contracts in assemblies {Assemblies}",
+                contracts.Length,
+                _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
+
+            foreach (var contract in contracts)
+            {
+                CodeFirstGrpcServiceChain.AssertNoConcreteImplementationConflicts(contract, _options.Assemblies);
+                var codeFirstChain = new CodeFirstGrpcServiceChain(contract)
+                {
+                    ApplicationAssemblies = _options.Assemblies
+                };
+                _codeFirstChains.Add(codeFirstChain);
+            }
+
+            var handWritten = FindHandWrittenServiceClasses(_options.Assemblies).ToArray();
+            logger.LogInformation(
+                "Found {Count} hand-written Wolverine gRPC service classes in assemblies {Assemblies}",
+                handWritten.Length,
+                _options.Assemblies.Select(x => x.GetName().Name!).Join(", "));
+
+            foreach (var serviceClass in handWritten)
+            {
+                _handWrittenChains.Add(new HandWrittenGrpcServiceChain(serviceClass));
+            }
         }
 
         // Apply policy-registered middleware and IChainPolicy implementations.
