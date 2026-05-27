@@ -246,10 +246,6 @@ await app.Services.ApplyAsyncWolverineExtensions();
 
 ## Wolverine Plugin Modules
 
-::: warning
-This functionality will likely be eliminated in Wolverine 3.0. 
-:::
-
 ::: tip
 Use this sparingly, but it might be advantageous for adding extra instrumentation or extra middleware
 :::
@@ -269,11 +265,45 @@ with this attribute to automatically add that extension to Wolverine:
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Module1/Properties/AssemblyInfo.cs#L29-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_wolverine_module_to_load_extension' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+You can also use the non-generic `[assembly: WolverineModule]` form to mark an assembly purely as a *handler*
+module — its handlers are discovered, but no `IWolverineExtension` is applied.
+
+### How discovery works (source generator, not runtime scanning)
+
+::: tip
+Module discovery moved to a compile-time source generator in Wolverine 6.0 (GH-2902). Earlier versions
+probed the application's bin directory at startup (`AssemblyFinder`), which was slower and not AOT/trim-friendly.
+:::
+
+The `[WolverineModule]` and `[WolverineModule<T>]` attributes both derive from JasperFx's `[JasperFxAssembly]`
+attribute. The **`JasperFx.SourceGenerator`** analyzer — which the `WolverineFx` package flows transitively to
+every project that references it (directly or through any Wolverine extension/transport package) — sees these
+assembly attributes at **compile time** and emits a small `JasperFx.Generated.DiscoveredExtensions` manifest into
+the assembly listing the declared extension type(s). At startup Wolverine reads those generated manifests from the
+loaded assemblies instead of scanning the filesystem and speculatively `Assembly.Load`-ing candidates.
+
+A few consequences worth knowing:
+
+* **Only the type declared in `[WolverineModule<T>]` (or `[WolverineModule(typeof(T))]`) is auto-applied.** Other
+  `IWolverineExtension` implementations sitting in the same assembly are *not* activated automatically — register
+  those explicitly with `opts.Include<T>()` or `services.AddWolverineExtension<T>()`.
+* The extension assembly must be **compiled against WolverineFx 6.0+** so that the analyzer runs and emits its
+  manifest. A module built against an older Wolverine will not be auto-discovered; reference it and call its
+  configuration explicitly instead.
+* Wolverine walks the application's **reference graph** to make sure referenced module assemblies (for example
+  `WolverineFx.RuntimeCompilation`) are loaded before reading their manifests, so "reference the package and it
+  just activates" still works. This deliberately does *not* glob the bin directory the way the old scan did.
+
 ## Disabling Assembly Scanning
 
-Some Wolverine users have seen rare issues with the assembly scanning cratering an application with out of memory
-exceptions in the case of an application directory being the same as the root of a Docker container. *If* you experience
-that issue, or just want a faster start up time, you can disable the automatic extension discovery using this syntax:
+::: info
+As of Wolverine 6.0 there is no runtime bin-directory assembly scan for extensions — discovery is driven by the
+compile-time manifest described above. `ExtensionDiscovery.ManualOnly` remains the switch to turn automatic module
+discovery off entirely.
+:::
+
+If you want a marginally faster start up, or you simply want full control over which extensions are applied, you can
+disable automatic extension discovery (the reference-graph walk and manifest read) with this syntax:
 
 <!-- snippet: sample_disabling_assembly_scanning -->
 <a id='snippet-sample_disabling_assembly_scanning'></a>
