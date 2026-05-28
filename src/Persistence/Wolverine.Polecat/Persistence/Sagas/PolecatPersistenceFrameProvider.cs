@@ -58,26 +58,9 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IServiceContainer container)
     {
-        if (chain is SagaChain)
-        {
-            return true;
-        }
-
         // DIAGNOSTIC: force true unconditionally to confirm whether the bug is in CanApply
-        // detection vs. something deeper in the Polecat outbox path.
+        // detection vs. something deeper in the Polecat outbox path. GH-2941 follow-up.
         return true;
-
-        if (chain.ReturnVariablesOfType<IPolecatOp>().Any()) return true;
-
-        // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame
-        // depending on IDocumentSession. See MartenPersistenceFrameProvider.CanApply for the full
-        // explanation; Polecat mirrors the Marten path, so the same scheduled-cascade-loss bug
-        // applies symmetrically.
-        if (ChainHasPolecatSessionAttributes(chain)) return true;
-
-        var serviceDependencies = chain
-            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations) }).ToArray();
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
     }
 
     private static bool ChainHasPolecatSessionAttributes(IChain chain)
