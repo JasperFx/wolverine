@@ -17,6 +17,7 @@
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="DotPulsar" Version="5.1.2" />
     <PackageVersion Include="FluentAssertions" Version="6.12.2" />
+    <PackageVersion Include="FluentResults" Version="3.16.0" />
     <PackageVersion Include="FluentValidation" Version="12.0.0" />
     <PackageVersion Include="FSharp.Core" Version="9.0.303" />
     <PackageVersion Include="GitHubActionsTestLogger" Version="2.4.1" />

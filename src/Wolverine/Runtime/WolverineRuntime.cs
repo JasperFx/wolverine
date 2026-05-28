@@ -101,7 +101,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
         _endpoints = new EndpointCollection(this);
 
-        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>(), DurabilitySettings.AssignedNodeNumber);
+        Replies = new ReplyTracker(loggers.CreateLogger<ReplyTracker>(), DurabilitySettings.AssignedNodeNumber,
+            Options.ResultTypes);
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies, LoggerFactory.CreateLogger<FailureAcknowledgementHandler>()));
 

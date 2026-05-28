@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime.RemoteInvocation;
@@ -21,11 +22,14 @@ internal class ReplyTracker : IReplyTracker
     public int AssignedNodeNumber { get; set; }
     private readonly ConcurrentDictionary<Guid, IReplyListener> _listeners = new();
     private readonly ILogger<ReplyTracker> _logger;
+    private readonly ResultTypeRegistry? _resultTypes;
 
-    public ReplyTracker(ILogger<ReplyTracker> logger, int assignedNodeNumber)
+    public ReplyTracker(ILogger<ReplyTracker> logger, int assignedNodeNumber,
+        ResultTypeRegistry? resultTypes = null)
     {
         AssignedNodeNumber = assignedNodeNumber;
         _logger = logger;
+        _resultTypes = resultTypes;
     }
 
 #pragma warning disable VSTHRD200
@@ -33,9 +37,9 @@ internal class ReplyTracker : IReplyTracker
 #pragma warning restore VSTHRD200
     {
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers
-        var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken);
+        var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken, _resultTypes);
         _listeners.AddOrUpdate(envelope.Id, listener, (_, _) => listener);
-        
+
         _logger.LogDebug("Registering a reply listener for message type {MessageType} and conversation id {ConversationId} on Node {NodeNumber}", typeof(T).ToMessageTypeName(), envelope.ConversationId, AssignedNodeNumber);
 
         return listener.Task;

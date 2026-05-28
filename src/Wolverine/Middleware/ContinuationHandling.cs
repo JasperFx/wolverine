@@ -50,6 +50,20 @@ public static class ContinuationHandling
         var strategies = rules.ContinuationStrategies();
         foreach (var strategy in strategies)
         {
+            // GH-2221: strategies that need to consult per-host state (e.g. the custom-Result
+            // registry that ResultTypeContinuationPolicy reads) implement the opt-in
+            // IRulesAwareContinuationStrategy overload and receive `rules`. Existing strategies
+            // continue to use the rules-free overload; this is a non-breaking extension.
+            if (strategy is IRulesAwareContinuationStrategy rulesAware)
+            {
+                if (rulesAware.TryFindContinuationHandler(chain, call, rules, out frame))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
             if (strategy.TryFindContinuationHandler(chain, call, out frame))
             {
                 return true;
@@ -64,6 +78,17 @@ public static class ContinuationHandling
 public interface IContinuationStrategy
 {
     bool TryFindContinuationHandler(IChain chain, MethodCall call, out Frame? frame);
+}
+
+/// <summary>
+/// Opt-in extension of <see cref="IContinuationStrategy" /> for strategies that need read access
+/// to <see cref="GenerationRules" /> to consult per-host state (e.g. the custom-Result-type
+/// registry that <c>ResultTypeContinuationPolicy</c> reads). Implementing this interface causes
+/// the dispatcher to call the rules-aware overload instead of the rules-free one. See GH-2221.
+/// </summary>
+public interface IRulesAwareContinuationStrategy : IContinuationStrategy
+{
+    bool TryFindContinuationHandler(IChain chain, MethodCall call, GenerationRules rules, out Frame? frame);
 }
 
 internal class HandlerContinuationPolicy : IContinuationStrategy
