@@ -74,7 +74,7 @@ public class Bug_2941_read_aggregate_scheduled_cascade : IClassFixture<ReadAggre
         tracked.Received.MessagesOf<PcSomethingWasScheduled>().Count().ShouldBe(1);
     }
 
-    [Fact(Skip = "Requires Polecat upstream fix: DocumentSessionBase.SaveChangesAsync early-returns when _workTracker has no outstanding work, which silently skips StoreIncomingEnvelopeParticipant added via Session.StoreIncoming(...) for a [ReadAggregate] handler whose body emits only a scheduled cascade (no doc ops, no streams). The Wolverine-side CanApply fix is necessary but not sufficient on Polecat. Unskip when Polecat ships a SaveChangesAsync that runs participants even when no document/stream work is outstanding. GH-2941.")]
+    [Fact]
     public async Task read_aggregate_handler_schedules_its_cascading_message()
     {
         // The GH-2941 case. Without the CanApply fix this times out: the cascade is recorded as
