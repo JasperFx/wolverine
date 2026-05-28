@@ -19,7 +19,7 @@ public class EFCoreTransactionConfiguration
     /// </summary>
     /// <typeparam name="TAbstraction">The abstraction type (e.g., IUnitOfWork)</typeparam>
     /// <typeparam name="TDbContext">The concrete DbContext type</typeparam>
-    public EFCoreTransactionConfiguration WithDbContextAbstraction<TAbstraction, TDbContext>() where TDbContext : Microsoft.EntityFrameworkCore.DbContext
+    public EFCoreTransactionConfiguration WithDbContextAbstraction<TAbstraction, TDbContext>() where TDbContext : Microsoft.EntityFrameworkCore.DbContext, TAbstraction
     {
         _provider.RegisterAbstraction(typeof(TAbstraction), typeof(TDbContext));
         _options.CodeGeneration.AlwaysUseServiceLocationFor<TAbstraction>();

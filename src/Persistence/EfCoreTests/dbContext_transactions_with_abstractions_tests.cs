@@ -9,44 +9,32 @@ using Wolverine.Attributes;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Tracking;
-using Wolverine.SqlServer;
+using Wolverine.Postgresql;
+using JasperFx.Resources;
 
 
 namespace EfCoreTests;
 
-public abstract class Fixture
+public abstract class DbContextAbstractionTestFixture
 {
     public record AbstractionCommand;
 
-    public interface IRepository;
-    
-    public interface IUnitOfWork
-    {
-        IRepository GetRepository();
-        Task<int> SaveChangesAsync(CancellationToken cancellationToken);
-    }
+    public interface IItemRepository;
 
-    public class AbstractionDbContext(DbContextOptions<AbstractionDbContext> options) : DbContext(options), IUnitOfWork, IRepository
+    public class AbstractionDbContext(DbContextOptions<AbstractionDbContext> options) : DbContext(options), IItemRepository
     {
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.MapWolverineEnvelopeStorage("wolverine");
         }
-
-        IRepository IUnitOfWork.GetRepository() => this;
     }
 
-    [Transactional]
     [WolverineHandler]
     public class AbstractionCommandHandler
     {
-        public Task Handle(AbstractionCommand command, IUnitOfWork uow)
+        public async Task Handle(AbstractionCommand command, IItemRepository items)
         {
-            var repository = uow.GetRepository();
 
-            // Happily use abstract repositories
-
-            return Task.CompletedTask;
         }
     }
 }
@@ -59,47 +47,58 @@ public class dbContext_transactions_with_abstractions_tests
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContextWithWolverineIntegration<Fixture.AbstractionDbContext>(x =>
-                    x.UseSqlServer(Servers.SqlServerConnectionString));
+                opts.CodeGeneration.SourceCodeWritingEnabled = true;
+                opts.Durability.Mode = DurabilityMode.Solo;
 
-                opts.Services.AddScoped<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                opts.Services.AddDbContextWithWolverineIntegration<DbContextAbstractionTestFixture.AbstractionDbContext>(x =>
+                    x.UseNpgsql(Servers.PostgresConnectionString));
 
-                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+                opts.Services.AddScoped<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
 
-                opts.UseEntityFrameworkCoreTransactions()
-                    .WithDbContextAbstraction<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
+
+                opts.UseEntityFrameworkCoreTransactions(mode: Wolverine.Persistence.TransactionMiddlewareMode.Eager)
+                    .WithDbContextAbstraction<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
 
                 opts.Policies.AutoApplyTransactions();
 
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<Fixture.AbstractionCommandHandler>();
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var chain = runtime.Handlers.ChainFor<Fixture.AbstractionCommand>();
+        var chain = runtime.Handlers.ChainFor<DbContextAbstractionTestFixture.AbstractionCommand>();
 
         chain.ShouldNotBeNull();
+
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
         chain.Middleware.OfType<EFCorePersistenceFrameProvider.CastDbContextFrame>().ShouldNotBeEmpty();
     }
 
 
     [Fact]
-    public async Task execution_works_with_abstraction()
+    public async Task codegen_works_with_abstraction()
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContext<Fixture.AbstractionDbContext>(x => x.UseInMemoryDatabase("abstraction_exec"));
-                opts.Services.AddScoped<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                opts.Services.AddDbContextWithWolverineIntegration<DbContextAbstractionTestFixture.AbstractionDbContext>(x =>
+                    x.UseNpgsql(Servers.PostgresConnectionString));
+
+                opts.Services.AddScoped<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
+
+                opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
 
                 opts.UseEntityFrameworkCoreTransactions()
-                    .WithDbContextAbstraction<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                    .WithDbContextAbstraction<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
 
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<Fixture.AbstractionCommandHandler>();
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
             }).StartAsync();
 
         // If it compiles and runs without error, the cast worked
-        Should.NotThrow(async () => await host.InvokeMessageAndWaitAsync(new Fixture.AbstractionCommand()));
+        Should.NotThrow(async () => await host.InvokeMessageAndWaitAsync(new DbContextAbstractionTestFixture.AbstractionCommand()));
     }
 
     [Fact]
@@ -108,19 +107,23 @@ public class dbContext_transactions_with_abstractions_tests
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Services.AddDbContext<Fixture.AbstractionDbContext>(x => x.UseInMemoryDatabase("abstraction_post"));
-                opts.Services.AddScoped<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                opts.Services.AddDbContextWithWolverineIntegration<DbContextAbstractionTestFixture.AbstractionDbContext>(x =>
+                    x.UseNpgsql(Servers.PostgresConnectionString));
+
+                opts.Services.AddScoped<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
+
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
 
                 opts.UseEntityFrameworkCoreTransactions()
-                    .WithDbContextAbstraction<Fixture.IUnitOfWork, Fixture.AbstractionDbContext>();
+                    .WithDbContextAbstraction<DbContextAbstractionTestFixture.IItemRepository, DbContextAbstractionTestFixture.AbstractionDbContext>();
 
                 opts.Policies.AutoApplyTransactions();
 
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<Fixture.AbstractionCommandHandler>();
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
             }).StartAsync();
 
         var runtime = host.GetRuntime();
-        var chain = runtime.Handlers.ChainFor<Fixture.AbstractionCommand>();
+        var chain = runtime.Handlers.ChainFor<DbContextAbstractionTestFixture.AbstractionCommand>();
 
         chain.ShouldNotBeNull();
         chain.Postprocessors.OfType<MethodCall>()
