@@ -9,6 +9,7 @@ using JasperFx.Events;
 using Polecat.Events;
 using Wolverine.Configuration;
 using Wolverine.Polecat.Codegen;
+using Wolverine.Polecat.Requirements;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -64,9 +65,53 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
         if (chain.ReturnVariablesOfType<IPolecatOp>().Any()) return true;
 
+        // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame
+        // depending on IDocumentSession. See MartenPersistenceFrameProvider.CanApply for the full
+        // explanation; Polecat mirrors the Marten path structurally. NOTE: this is necessary but
+        // not sufficient on the Polecat side - Polecat 4.1.1's DocumentSessionBase.SaveChangesAsync
+        // early-returns when _workTracker has no outstanding work, which skips transaction
+        // participants entirely. A handler that only adds a StoreIncomingEnvelopeParticipant via
+        // PolecatEnvelopeTransaction.PersistIncomingAsync therefore never gets its participant
+        // executed, even after this fix attaches the SaveChangesAsync postprocessor. The full
+        // Polecat fix is upstream in Polecat's SaveChangesAsync guard.
+        if (ChainHasPolecatSessionAttributes(chain)) return true;
+
         var serviceDependencies = chain
             .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations) }).ToArray();
         return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
+    }
+
+    private static bool ChainHasPolecatSessionAttributes(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            foreach (var parameter in call.Method.GetParameters())
+            {
+                if (parameter.GetCustomAttributes().Any(a => a is ReadAggregateAttribute)) return true;
+            }
+        }
+
+        foreach (var call in chain.HandlerCalls())
+        {
+            if (call.Method.GetCustomAttributes().Any(IsDocumentExistsAttribute)) return true;
+            if (call.HandlerType.GetCustomAttributes(true).OfType<Attribute>().Any(IsDocumentExistsAttribute)) return true;
+        }
+
+        var messageType = chain.InputType();
+        if (messageType != null && messageType.GetCustomAttributes(true).OfType<Attribute>().Any(IsDocumentExistsAttribute))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDocumentExistsAttribute(Attribute attribute)
+    {
+        var type = attribute.GetType();
+        if (!type.IsGenericType) return false;
+        var def = type.GetGenericTypeDefinition();
+        return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
