@@ -350,6 +350,19 @@ request types of your HTTP endpoints -- and the [UseFluentValidation](/guide/han
 `WolverineFx.FluentValidation` package will help find these validators and register them in a way that optimizes this
 middleware usage.
 
+::: tip AOT publishing
+`UseFluentValidation()` defaults to `RegistrationBehavior.DiscoverAndRegisterValidators`, which runs FluentValidation's
+`AssemblyScanner` at bootstrap and is **not trim/AOT-safe**. For AOT publishing, opt out of the scan and register your
+validators explicitly:
+
+```csharp
+opts.UseFluentValidation(RegistrationBehavior.ExplicitRegistration);
+opts.Services.AddScoped<IValidator<CreateCustomer>, CreateCustomerValidator>();
+```
+
+See [Validation and AOT](/guide/aot.html#validation-and-aot) for the full story.
+:::
+
 Next, add this one single line of code to your Wolverine.Http bootstrapping:
 
 ```csharp
