@@ -26,7 +26,7 @@ public interface IPlayerStore : IDocumentStore;
 
 public interface IThingStore : IDocumentStore;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L267-L272' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L268-L273' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_separate_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 We can add Wolverine integration to both through a similar call to `IntegrateWithWolverine()` as normal as shown below:
@@ -74,11 +74,12 @@ theHost = await Host.CreateDefaultBuilder()
         {
             x.MainConnectionString = Servers.PostgresConnectionString;
         });
-
+        opts.Discovery.DisableConventionalDiscovery()
+            .IncludeType(typeof(PlayerMessageHandler));
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L57-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L57-L106' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_ancillary_marten_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Let's specifically zoom in on this code from within the big sample above:
@@ -118,7 +119,7 @@ public static class PlayerMessageHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L252-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AncillaryStores/bootstrapping_ancillary_marten_stores_with_wolverine.cs#L253-L266' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_playermessagehandler' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info

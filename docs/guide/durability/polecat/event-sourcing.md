@@ -711,8 +711,14 @@ namespace MartenTests.Dcb.University;
 /// Ported from the Axon SubscribeStudentToCourseCommandHandler.State which uses
 /// EventCriteria.either() to load events matching CourseId OR StudentId.
 /// </summary>
-public class SubscriptionState
+public partial class SubscriptionState
 {
+    // Required so the aggregate can be registered as a single-stream projection
+    // (LiveStreamAggregation), which is what makes the JasperFx.Events source generator
+    // emit the dispatcher that FetchForWritingByTags<SubscriptionState> resolves. For the
+    // boundary (tag-query) path this Id is not stream-bound — it just satisfies the
+    // single-stream projection shape, the same way Marten's own DCB aggregates carry one.
+    public string Id { get; set; } = null!;
     public CourseId? CourseId { get; private set; }
     public int CourseCapacity { get; private set; }
     public int StudentsSubscribedToCourse { get; private set; }
@@ -758,7 +764,7 @@ public class SubscriptionState
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Identity-less Boundary Aggregates with `[BoundaryAggregate]`

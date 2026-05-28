@@ -491,12 +491,14 @@ public class SimpleSingularAgent : SingularAgent
     // This template method should be used to cleanly stop up your background service
     protected override Task stopAsync(CancellationToken cancellationToken)
     {
+        _cancellation.Cancel();
+        _cancellation.Dispose();
         _timer.SafeDispose();
         return Task.CompletedTask;
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/SimpleSingularAgent.cs#L1-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplesingularagent' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/Wolverine.ComplianceTests/SimpleSingularAgent.cs#L1-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplesingularagent' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To add that to your Wolverine system, we've added this convenience method:

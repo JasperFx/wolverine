@@ -352,7 +352,7 @@ public static async Task run_end_to_end(IHost host)
     // command handler
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L33-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L10-L27' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_sessions_end_to_end' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the code sample above, the `InvokeAndMessageAndWaitAsync()` method puts the Wolverine runtime into a "tracked" mode
@@ -394,7 +394,7 @@ public static async Task run_end_to_end_with_external_transports(IHost host)
     // command handler
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L63-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_external_brokers_with_tracked_sessions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L40-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_external_brokers_with_tracked_sessions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And to test the invocation of an event message to a specific handler, we can still do that by sending the message to a specific local queue:
@@ -410,7 +410,7 @@ public static async Task test_specific_handler(IHost host)
         c => c.EndpointFor("local queue name").SendAsync(new OrderPlaced("111")).AsTask());
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_test_specific_queue_end_to_end' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/DocumentationSamples.cs#L29-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_test_specific_queue_end_to_end' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## With EF Core

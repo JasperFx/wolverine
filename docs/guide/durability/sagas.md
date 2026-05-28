@@ -695,7 +695,7 @@ public class RevisionedSaga : Wolverine.Saga
         chain.SuccessLogLevel = LogLevel.None;
     }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L80-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Saga/RevisionedSaga.cs#L82-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_overriding_logging_on_saga' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or if you wanted to just do it globally, something like this approach:

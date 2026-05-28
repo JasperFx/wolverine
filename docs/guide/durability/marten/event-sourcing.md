@@ -437,7 +437,7 @@ public static void Handle(OrderEventSourcingSample.MarkItemReady command, IEvent
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L26-L54' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L27-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_explicit_stream' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Just as in other Wolverine [message handlers](/guide/handlers/), you can use
@@ -535,7 +535,7 @@ public class MarkItemReady
     public string ItemName { get; init; } = null!;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L10-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L11-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemready_with_explicit_identity' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Validation <Badge type="tip" text="4.8" />
@@ -644,7 +644,7 @@ public static (
     return (new UpdatedAggregate(), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L62-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L63-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_response_for_updated_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note the usage of the `Wolverine.Marten.UpdatedAggregate` response in the handler. That type by itself is just a directive 
@@ -662,7 +662,7 @@ public static Task<Order> update_and_get_latest(IMessageBus bus, MarkItemReady c
     return bus.InvokeAsync<Order>(command);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L101-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Alternatives/Signatures.cs#L102-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_updatedaggregate_with_invoke_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Likewise, you can use `UpdatedAggregate` as the response body of an HTTP endpoint with Wolverine.HTTP [as shown here](/guide/http/marten.html#responding-with-the-updated-aggregate~~~~).
@@ -697,7 +697,7 @@ public static class RaiseIfValidatedHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L436-L451' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/aggregate_handler_workflow.cs#L448-L463' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_passing_aggregate_into_validate_method' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Archiving Streams
@@ -1146,7 +1146,7 @@ public class StrongLetterAggregate
     public void Apply(DEvent _) => DCount++;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L184-L207' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L187-L210' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And now let's use that identifier type in message handlers:
@@ -1209,7 +1209,7 @@ public static class StrongLetterHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L124-L180' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L127-L183' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And also in some of the equivalent Wolverine.HTTP endpoints:
@@ -1279,7 +1279,7 @@ public record NkHandlerOrderCreated(NkHandlerOrderNumber OrderNumber, string Cus
 public record NkHandlerItemAdded(string ItemName, decimal Price);
 public record NkHandlerOrderCompleted;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L125-L161' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L124-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_aggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Using Natural Keys in Command Handlers
@@ -1293,7 +1293,7 @@ public record AddNkOrderItem(NkHandlerOrderNumber OrderNum, string ItemName, dec
 public record AddNkOrderItems(NkHandlerOrderNumber OrderNum, (string Name, decimal Price)[] Items);
 public record CompleteNkOrder(NkHandlerOrderNumber OrderNum);
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L163-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_commands' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L162-L167' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_commands' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Wolverine uses the natural key type on the command property to call `FetchForWriting<TAggregate, TNaturalKey>()` under the covers, resolving the stream by the natural key in a single database round-trip.
@@ -1329,7 +1329,7 @@ public static class NkOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L170-L195' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/natural_key_aggregate_handler_workflow.cs#L169-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_marten_natural_key_handlers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For more details on how natural keys work at the Marten level, see the [Marten natural keys documentation](https://martendb.io/events/natural-keys).
@@ -1437,8 +1437,14 @@ namespace MartenTests.Dcb.University;
 /// Ported from the Axon SubscribeStudentToCourseCommandHandler.State which uses
 /// EventCriteria.either() to load events matching CourseId OR StudentId.
 /// </summary>
-public class SubscriptionState
+public partial class SubscriptionState
 {
+    // Required so the aggregate can be registered as a single-stream projection
+    // (LiveStreamAggregation), which is what makes the JasperFx.Events source generator
+    // emit the dispatcher that FetchForWritingByTags<SubscriptionState> resolves. For the
+    // boundary (tag-query) path this Id is not stream-bound — it just satisfies the
+    // single-stream projection shape, the same way Marten's own DCB aggregates carry one.
+    public string Id { get; set; } = null!;
     public CourseId? CourseId { get; private set; }
     public int CourseCapacity { get; private set; }
     public int StudentsSubscribedToCourse { get; private set; }
@@ -1484,7 +1490,7 @@ public class SubscriptionState
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Dcb/University/SubscriptionState.cs#L1-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_dcb_subscription_state' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Identity-less Boundary Aggregates with `[BoundaryAggregate]`
