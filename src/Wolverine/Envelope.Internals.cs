@@ -102,6 +102,16 @@ public partial class Envelope
     
     [JsonIgnore]
     internal bool InBatch { get; set; }
+
+    /// <summary>
+    /// Set to <c>true</c> by <see cref="Runtime.WolverineRuntime.AcquireInternalEnvelope"/>
+    /// when this envelope was pulled from <see cref="Runtime.WolverineRuntime.EnvelopePool"/>.
+    /// Consumers downstream of the acquire site (e.g. the outgoing send path's
+    /// <see cref="Transports.Sending.InlineSendingAgent"/> success branch) check this
+    /// flag to know whether they should return the envelope to the pool when the
+    /// envelope's lifecycle ends. Cleared by <see cref="Reset"/>. See wolverine#2955.
+    /// </summary>
+    internal bool FromPool { get; set; }
     
     [JsonIgnore]
     internal ISendingAgent? Sender { get; set; }
@@ -514,6 +524,7 @@ public partial class Envelope
         Status = default;
         OwnerId = 0;
         InBatch = false;
+        FromPool = false;
         Sender = null;
         Listener = null;
         IsResponse = false;
