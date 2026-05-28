@@ -158,7 +158,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
             if (consumer != null)
             {
-                return consumer.Acknowledge(e.MessageData, _cancellation);
+                return consumer.Acknowledge(FixMessageId(e.MessageData.MessageId, consumer.Topic), _cancellation);
             }
         }
 
@@ -172,7 +172,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
         {
             var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
-            await consumer!.Acknowledge(e.MessageData, _cancellation);
+            await consumer!.Acknowledge(FixMessageId(e.MessageData.MessageId, consumer.Topic), _cancellation);
             await _sender.SendAsync(envelope);
         }
     }
@@ -297,12 +297,35 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             }
 
             // Acknowledge the original message
-            await sourceConsumer!.Acknowledge(e.MessageData, _cancellation);
+            await sourceConsumer!.Acknowledge(FixMessageId(e.MessageData.MessageId, sourceConsumer.Topic), _cancellation);
 
             // Send copy to retry/DLQ topic
             await targetProducer.Send(messageMetadata, e.MessageData.Data, _cancellation)
                 .ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Workaround for https://github.com/apache/pulsar-dotpulsar/issues/287. DotPulsar's
+    /// <c>BatchHandler.Add</c> constructs the inner <see cref="MessageId" /> for each message of a
+    /// batch via the four-arg ctor and never sets <see cref="MessageId.Topic" />, so
+    /// <c>Consumer.Acknowledge</c> hits <c>_subConsumers[messageId.Topic]</c> with the empty
+    /// string and throws <see cref="System.Collections.Generic.KeyNotFoundException" /> on
+    /// partitioned topics. Reconstruct the <see cref="MessageId" /> with the partition sub-topic
+    /// URI built from the <see cref="IConsumer.Topic" /> the source consumer was subscribed to.
+    /// Using <c>consumer.Topic</c> rather than <c>_endpoint.PulsarTopic()</c> means the same
+    /// helper works for the retry consumer (which subscribes to <c>{baseTopic}-RETRY</c>) without
+    /// any branching — DotPulsar reports the actual subscribed topic per consumer.
+    /// </summary>
+    internal static MessageId FixMessageId(MessageId messageId, string consumerTopic)
+    {
+        if (string.IsNullOrEmpty(messageId.Topic) && messageId.Partition >= 0)
+        {
+            return new MessageId(messageId.LedgerId, messageId.EntryId, messageId.Partition,
+                messageId.BatchIndex, $"{consumerTopic}-partition-{messageId.Partition}");
+        }
+
+        return messageId;
     }
 
     private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception? exception,
