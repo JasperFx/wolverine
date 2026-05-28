@@ -67,13 +67,11 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
         // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame
         // depending on IDocumentSession. See MartenPersistenceFrameProvider.CanApply for the full
-        // explanation; Polecat mirrors the Marten path structurally. NOTE: this is necessary but
-        // not sufficient on the Polecat side - Polecat 4.1.1's DocumentSessionBase.SaveChangesAsync
-        // early-returns when _workTracker has no outstanding work, which skips transaction
-        // participants entirely. A handler that only adds a StoreIncomingEnvelopeParticipant via
-        // PolecatEnvelopeTransaction.PersistIncomingAsync therefore never gets its participant
-        // executed, even after this fix attaches the SaveChangesAsync postprocessor. The full
-        // Polecat fix is upstream in Polecat's SaveChangesAsync guard.
+        // explanation; Polecat mirrors the Marten path structurally. Pairs with the upstream
+        // Polecat fix (polecat#161, shipped in Polecat 4.2.1): DocumentSessionBase.SaveChangesAsync
+        // now also runs queued ITransactionParticipants when there are no document operations
+        // outstanding, so the StoreIncomingEnvelopeParticipant added via Session.StoreIncoming(...)
+        // for a scheduled cascade actually executes inside the chain's session transaction.
         if (ChainHasPolecatSessionAttributes(chain)) return true;
 
         var serviceDependencies = chain
