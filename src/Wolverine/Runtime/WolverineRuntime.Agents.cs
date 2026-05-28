@@ -66,15 +66,23 @@ public partial class WolverineRuntime : IAgentRuntime
     public async Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class
     {
         var messageBus = new MessageBus(this);
-        
+
         if (Options.UniqueNodeId == destination.NodeId)
         {
             return await messageBus.InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
         }
 
+        // GH-2949: remote-node InvokeAsync<T> used to wait only 10s for the typed reply while
+        // the same-node path above gets 30s. The asymmetry is backwards - a remote
+        // request-reply traverses the control endpoint + serialization + network, so it needs
+        // at least as much budget as a same-node in-memory call, not less. The 10s ceiling was
+        // tight enough that loaded CI runners (especially the RavenDb leader-election tests
+        // that chain `StartAgents` -> `AgentsStarted` during leadership takeover) hit it on a
+        // real timing race and surfaced 'Timed out waiting for expected response
+        // Wolverine.Runtime.Agents.AgentsStarted ... configured timeout of 10000 milliseconds'.
         return await messageBus
             .EndpointFor(destination.ControlUri)
-            .InvokeAsync<T>(command, _agentCancellation.Token, 10.Seconds());
+            .InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
     }
 
     public Uri[] AllRunningAgentUris()
