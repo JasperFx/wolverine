@@ -31,8 +31,14 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         base(ToUri(name, databaseName), role)
     {
         Parent = parent;
-        var queueTableName = $"wolverine_queue_{name}";
-        var scheduledTableName = $"wolverine_queue_{name}_scheduled";
+        // GH-2942: PostgreSQL silently truncates identifiers longer than NAMEDATALEN (63 chars
+        // by default), which made the schema-diff fail with "Missing known broker resources"
+        // because the in-memory model carried the full name and the DB had the truncated one.
+        // PostgresqlIdentifier.Shorten() is the canonical Weasel helper for this - it returns the
+        // name unchanged if it fits, otherwise truncates to 58 chars + a deterministic 4-char
+        // FNV-1a hex hash so two similar long queue names cannot collide on the same table name.
+        var queueTableName = PostgresqlIdentifier.Shorten($"wolverine_queue_{name}");
+        var scheduledTableName = PostgresqlIdentifier.Shorten($"wolverine_queue_{name}_scheduled");
 
         Mode = EndpointMode.Durable;
         Name = name;
