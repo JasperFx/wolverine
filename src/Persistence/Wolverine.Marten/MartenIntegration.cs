@@ -69,6 +69,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.Sources.Add(new EventStoreOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
+
+        // GH-2944: pre-populate chain.AncillaryStoreType so the message-type-to-ancillary-store
+        // map built later in WolverineRuntime.HostService sees it. See MartenStoreEagerPolicy for
+        // the Phase A vs Phase B ordering trap this addresses.
+        options.Policies.Add<MartenStoreEagerPolicy>();
         
         // QuerySpecificationPolicy detects ICompiledQuery/IQueryPlan-typed variables
         // produced by Load/LoadAsync methods and injects FetchSpecificationFrames to
