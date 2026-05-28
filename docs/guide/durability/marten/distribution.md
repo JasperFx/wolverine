@@ -26,7 +26,7 @@ opts.Services.AddMarten(m =>
         m.UseWolverineManagedEventSubscriptionDistribution = true;
     });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L71-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L60-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
@@ -113,11 +113,11 @@ var host = await Host.CreateDefaultBuilder()
     {
         opts.Durability.HealthCheckPollingTime = 1.Seconds();
         opts.Durability.CheckAssignmentPeriod = 1.Seconds();
-        
+
         opts.UseMessagePackSerialization();
-        
+
         opts.UseSharedMemoryQueueing();
-        
+
         opts.Services.AddMarten(m =>
             {
                 m.DisableNpgsqlLogging = true;
@@ -135,8 +135,8 @@ var host = await Host.CreateDefaultBuilder()
                 // cluster
                 m.UseWolverineManagedEventSubscriptionDistribution = true;
             });
-        
-        opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
+
+        opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(output));
 
         opts.Services.AddMartenStore<ITripStore>(m =>
         {
@@ -149,9 +149,8 @@ var host = await Host.CreateDefaultBuilder()
             m.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
         }).IntegrateWithWolverine();
 
-        opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L76-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L59-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

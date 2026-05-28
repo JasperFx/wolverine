@@ -365,9 +365,22 @@ public interface IMessageRoutingConvention
     void PreregisterSenders(IReadOnlyList<Type> handledMessageTypes, IWolverineRuntime runtime)
     {
     }
+
+    /// <summary>
+    /// Diagnostic description of this routing convention for routing explanations, the
+    /// describe-routing CLI, and service capabilities. The default implementation reports the
+    /// type name with no description; built-in and extension conventions should override to
+    /// supply a meaningful, AI-readable explanation (and, for broker conventions, the parent
+    /// transport's scheme/name/description).
+    /// </summary>
+    RoutingConventionDescriptor Describe(IWolverineRuntime runtime) => new()
+    {
+        Name = GetType().Name,
+        Description = string.Empty
+    };
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Runtime/Routing/IMessageRoutingConvention.cs#L5-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_imessageroutingconvention' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As a concrete example, the Wolverine team received [this request](https://github.com/JasperFx/wolverine/issues/1130) to conventionally route messages based on 

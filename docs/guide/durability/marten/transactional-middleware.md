@@ -19,6 +19,8 @@ It is no longer necessary to mark a handler method with `[Transactional]` if you
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
+        opts.Discovery.DisableConventionalDiscovery();
+        opts.Durability.Mode = DurabilityMode.Solo;
         opts.Services.AddMarten("some connection string")
             .IntegrateWithWolverine();
 
@@ -26,7 +28,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Policies.AutoApplyTransactions();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Sample/BootstrapWithAutoTransactions.cs#L12-L23' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Sample/BootstrapWithAutoTransactions.cs#L12-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_auto_apply_transactions_with_marten' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 With this enabled, Wolverine will automatically use the Marten
@@ -182,7 +184,7 @@ public class CommandsAreTransactional : IHandlerPolicy
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L134-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L136-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Then add the policy to your application like this:
@@ -193,11 +195,13 @@ Then add the policy to your application like this:
 using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
+        opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateDocCommand2Handler));
+        opts.Durability.Mode = DurabilityMode.Solo;
         // And actually use the policy
         opts.Policies.Add<CommandsAreTransactional>();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L74' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L66-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_commandsaretransactional' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Using IDocumentOperations <Badge type="tip" text="3.14" />
@@ -229,6 +233,6 @@ public class CreateDocCommand2Handler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L90-L107' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/transactional_frame_end_to_end.cs#L92-L109' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_idocumentoperations' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 

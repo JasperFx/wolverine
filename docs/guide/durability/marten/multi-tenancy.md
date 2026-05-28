@@ -151,7 +151,7 @@ public static class CreateTenantDocumentHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L85-L111' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L87-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_multi_tenancy_sample_code' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 For completeness, here's the Wolverine and Marten bootstrapping:
@@ -162,6 +162,8 @@ For completeness, here's the Wolverine and Marten bootstrapping:
 _host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
+        opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(CreateTenantDocumentHandler));
+        opts.Durability.Mode = DurabilityMode.Solo;
         opts.Services.AddMarten(Servers.PostgresConnectionString)
             .IntegrateWithWolverine()
             .UseLightweightSessions();
@@ -170,7 +172,7 @@ _host = await Host.CreateDefaultBuilder()
 
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L31' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L19-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setup_with_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 and after that, the calls to [InvokeForTenantAsync()]() "just work" as you can see if you squint hard enough reading this test:
@@ -216,7 +218,7 @@ public async Task execute_with_tenancy()
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L43-L82' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/MultiTenancy/conjoined_tenancy.cs#L45-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_conjoined_tenancy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 

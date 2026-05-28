@@ -223,3 +223,164 @@ public static void Handle(UpdateItemCommand command, ItemsDbContext db)
 }
 ```
 
+
+## DbContext Abstractions <Badge type="tip" text="6.2" />
+
+Sometimes the application code wants to depend on an interface that's implemented by a `DbContext`
+rather than on the concrete `DbContext` itself — a `DbContext` that doubles as a custom
+`IRepository`, an `IUnitOfWork`, or a similar abstraction. Wolverine's EF Core transactional
+middleware can be taught to recognise those abstractions at handler-graph compile time so the
+auto-applied transaction/outbox still wraps the handler. Register the abstraction with
+`WithDbContextAbstraction<TAbstraction, TDbContext>()`:
+
+<!-- snippet: sample_register_dbcontext_abstraction -->
+<a id='snippet-sample_register_dbcontext_abstraction'></a>
+```cs
+opts.Services.AddDbContextWithWolverineIntegration<OrdersDbContext>(x =>
+    x.UseNpgsql(connectionString));
+
+// Forward the abstraction to the SAME scoped DbContext via a factory. This keeps
+// `IOrderRepository` and `OrdersDbContext` pointing at one instance per scope, which is
+// what `AddScoped<TAbs, TImpl>()` does NOT do (it would create a separate one per
+// registered interface).
+opts.Services.AddScoped<IOrderRepository>(sp => sp.GetRequiredService<OrdersDbContext>());
+
+opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+opts.UseEntityFrameworkCoreTransactions()
+    .WithDbContextAbstraction<IOrderRepository, OrdersDbContext>();
+
+opts.Policies.AutoApplyTransactions();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L432-L450' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_dbcontext_abstraction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: tip
+The generic constraint `where TDbContext : DbContext, TAbstraction` means the registration only
+covers abstractions that the `DbContext` implements **directly**. Wrappers around a `DbContext`
+are out of scope; declare the abstraction on the `DbContext` itself.
+:::
+
+Handlers depend on the abstraction the same way they'd depend on any other service. Wolverine
+emits a runtime cast at the top of the handler chain so `SaveChangesAsync` and the EF Core
+outbox enrolment fire against the concrete `DbContext` underneath:
+
+<!-- snippet: sample_handler_using_dbcontext_abstraction -->
+<a id='snippet-sample_handler_using_dbcontext_abstraction'></a>
+```cs
+public class PlaceOrderViaAbstractionHandler
+{
+    public static void Handle(PlaceOrderViaAbstraction cmd, IOrderRepository orders)
+    {
+        // The handler depends on the abstraction. Wolverine's transactional middleware
+        // recognises the chain as `DbContext`-backed via the registered abstraction and emits
+        // a runtime cast at the top of the chain so SaveChangesAsync + outbox enrolment fire
+        // against the concrete OrdersDbContext underneath.
+        orders.Orders.Add(new OrderEntity { Id = cmd.Id, Description = cmd.Description });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L351-L365' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handler_using_dbcontext_abstraction' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Multiple abstractions for the same DbContext
+
+A single `DbContext` can implement several abstractions, and a handler may depend on more than
+one of them. The contract Wolverine honours is: **both parameters resolve to the same scoped
+`DbContext` instance, just viewed through different interfaces**, so a single `SaveChangesAsync`
+commits all the writes the handler made through either parameter.
+
+To make this work the abstractions must forward to the same scoped `DbContext` in DI — use a
+factory registration, **not** `AddScoped<TAbstraction, TDbContext>()` (the latter would create a
+separate `DbContext` per registered abstraction):
+
+<!-- snippet: sample_register_multiple_dbcontext_abstractions -->
+<a id='snippet-sample_register_multiple_dbcontext_abstractions'></a>
+```cs
+opts.Services.AddDbContextWithWolverineIntegration<StoreDbContext>(x =>
+    x.UseNpgsql(Servers.PostgresConnectionString,
+        b => b.MigrationsHistoryTable("__EFMigrationsHistory", "store_abs_schema")));
+
+// Two abstractions forwarded to the SAME scoped DbContext instance via factory
+// lambdas. `AddScoped<TAbs, TImpl>()` would create *separate* instances per
+// registration; the factory form is the one users want when an abstraction is
+// just a view over a DbContext that's already in the scope.
+opts.Services.AddScoped<IItemRepository>(sp => sp.GetRequiredService<StoreDbContext>());
+opts.Services.AddScoped<IOrderInsightRepository>(sp => sp.GetRequiredService<StoreDbContext>());
+
+opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine_abs");
+
+opts.UseEntityFrameworkCoreTransactions()
+    .WithDbContextAbstraction<IItemRepository, StoreDbContext>()
+    .WithDbContextAbstraction<IOrderInsightRepository, StoreDbContext>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L130-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_multiple_dbcontext_abstractions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A handler can take both abstractions; the casts inside the chain land on the single shared
+`DbContext` and one transaction commits everything atomically:
+
+<!-- snippet: sample_handler_using_multiple_abstractions -->
+<a id='snippet-sample_handler_using_multiple_abstractions'></a>
+```cs
+public class CrossAbstractionAuditHandler
+{
+    public static (bool SameInstance, Type ItemsType, Type OrdersType) LastSeen;
+
+    // The handler depends on TWO abstractions of the same `DbContext`. At runtime both
+    // parameters resolve to the same scoped `StoreDbContext`, just viewed through different
+    // interfaces — so a single `SaveChangesAsync` commits writes the handler made through
+    // either parameter atomically. The forwarding-factory DI registrations above are what
+    // make this work; without them you'd get two separate `DbContext` instances.
+    public static void Handle(CrossAbstractionAudit cmd, IItemRepository items, IOrderInsightRepository orders)
+    {
+        // Cast both back to the concrete DbContext - the cast must succeed (the constraint on
+        // WithDbContextAbstraction guarantees TDbContext : TAbstraction) and the resulting
+        // references must be the SAME instance. That's the contract Wolverine's
+        // CastDbContextFrame + the user's forwarding-factory DI registrations together provide:
+        // one DbContext in scope, viewed through different interfaces.
+        var itemsCtx = (StoreDbContext)items;
+        var ordersCtx = (StoreDbContext)orders;
+
+        LastSeen = (ReferenceEquals(itemsCtx, ordersCtx), itemsCtx.GetType(), ordersCtx.GetType());
+
+        // Both writes go through the single scoped DbContext - the EF Core middleware's
+        // SaveChangesAsync postprocessor commits them as one transaction.
+        items.Items.Add(new StoreItem { Id = cmd.ItemId, Name = "cross-abs" });
+        orders.StoreOrders.Add(new StoreOrder { Id = cmd.OrderId, Status = "audited" });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L391-L421' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handler_using_multiple_abstractions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+### Multi-DbContext, mixed abstraction
+
+Each `DbContext` is independent — a host can mix abstracted and non-abstracted `DbContext`s
+freely. The middleware picks the right one for each handler based on its actual parameter
+dependencies:
+
+<!-- snippet: sample_register_mixed_dbcontexts -->
+<a id='snippet-sample_register_mixed_dbcontexts'></a>
+```cs
+// First DbContext: abstracted via IOrderRepository.
+opts.Services.AddDbContextWithWolverineIntegration<OrdersDbContext>(x =>
+    x.UseNpgsql(Servers.PostgresConnectionString,
+        b => b.MigrationsHistoryTable("__EFMigrationsHistory", "orders_abs_schema")));
+opts.Services.AddScoped<IOrderRepository>(sp => sp.GetRequiredService<OrdersDbContext>());
+
+// Second DbContext: used directly, no abstraction.
+opts.Services.AddDbContextWithWolverineIntegration<CustomersDbContext>(x =>
+    x.UseNpgsql(Servers.PostgresConnectionString,
+        b => b.MigrationsHistoryTable("__EFMigrationsHistory", "customers_abs_schema")));
+
+opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine_abs");
+
+// Only OrdersDbContext is registered as having an abstraction — Wolverine's
+// transactional middleware still wraps handlers that depend on
+// CustomersDbContext directly.
+opts.UseEntityFrameworkCoreTransactions()
+    .WithDbContextAbstraction<IOrderRepository, OrdersDbContext>();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L62-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_mixed_dbcontexts' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
