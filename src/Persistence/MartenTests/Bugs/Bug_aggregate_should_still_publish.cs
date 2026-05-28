@@ -45,6 +45,18 @@ public class Bug_aggregate_should_still_publish : PostgresqlContext, IClassFixtu
             .TrackActivity()
             .Timeout(30.Seconds())
             .WaitForMessageToBeReceivedAt<SomethingWasScheduled>(theHost)
+            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PublishSomething(Guid.NewGuid())));
+
+        tracked.Received.MessagesOf<SomethingWasScheduled>().Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task normal_handler_schedules_its_cascading_message()
+    {
+        var tracked = await theHost
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<SomethingWasScheduled>(theHost)
             .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new ScheduleSomething(Guid.NewGuid())));
 
         tracked.Received.MessagesOf<SomethingWasScheduled>().Count().ShouldBe(1);
@@ -52,6 +64,20 @@ public class Bug_aggregate_should_still_publish : PostgresqlContext, IClassFixtu
 
     [Fact]
     public async Task read_aggregate_handler_with_safe_name_publishes_its_cascading_message()
+    {
+        // ScheduleReader uses [ReadAggregate] exactly like the original repro, but its type name does
+        // NOT end with "AggregateHandler", so the return value is published as a cascading message.
+        var tracked = await theHost
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .WaitForMessageToBeReceivedAt<SomethingWasScheduled>(theHost)
+            .ExecuteAndWaitAsync(_ => theHost.MessageBus().PublishAsync(new PublishViaReader(Guid.NewGuid())));
+
+        tracked.Received.MessagesOf<SomethingWasScheduled>().Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task read_aggregate_handler_with_safe_name_schedules_its_cascading_message()
     {
         // ScheduleReader uses [ReadAggregate] exactly like the original repro, but its type name does
         // NOT end with "AggregateHandler", so the return value is published as a cascading message.
@@ -74,9 +100,9 @@ public class Bug_aggregate_should_still_publish : PostgresqlContext, IClassFixtu
             .TrackActivity()
             .Timeout(30.Seconds())
             .ExecuteAndWaitAsync(_ =>
-                theHost.MessageBus().PublishAsync(new ScheduleSomethingUsingAggregate(Guid.NewGuid())));
+                theHost.MessageBus().PublishAsync(new PublishSomethingUsingAggregate(Guid.NewGuid())));
 
-        tracked.Received.MessagesOf<ScheduleSomethingUsingAggregate>().Count().ShouldBe(1);
+        tracked.Received.MessagesOf<PublishSomethingUsingAggregate>().Count().ShouldBe(1);
         tracked.Received.MessagesOf<SomethingWasScheduled>().ShouldBeEmpty();
     }
 
@@ -175,11 +201,15 @@ internal sealed class CapturingLoggerProvider(ConcurrentBag<string> warnings) : 
     }
 }
 
+public record PublishSomething(Guid Id);
+
 public record ScheduleSomething(Guid Id);
 
-public record ScheduleSomethingUsingAggregate(Guid Id);
+public record PublishSomethingUsingAggregate(Guid Id);
 
 public record ScheduleViaReader(Guid Id);
+
+public record PublishViaReader(Guid Id);
 
 public record SomethingWasScheduled(Guid Id);
 
@@ -188,7 +218,7 @@ public record SomethingWasScheduled(Guid Id);
 public static class AggregateHandler
 {
     public static SomethingWasScheduled Handle(
-        ScheduleSomethingUsingAggregate command,
+        PublishSomethingUsingAggregate command,
         [ReadAggregate(Required = false)] LetterAggregate aggregate)
     {
         return new SomethingWasScheduled(command.Id);
@@ -197,21 +227,39 @@ public static class AggregateHandler
 
 // Same [ReadAggregate] usage, but the type name does not end with "AggregateHandler", so the return
 // value is published as a cascading message.
-public static class ScheduleReader
+public static class PublishReader
 {
     public static SomethingWasScheduled Handle(
-        ScheduleViaReader command,
+        PublishViaReader command,
         [ReadAggregate(Required = false)] LetterAggregate aggregate)
     {
         return new SomethingWasScheduled(command.Id);
     }
 }
 
+// Same [ReadAggregate] usage, but scheduling in the future so the message cannot be emitted right away.
+public static class ScheduleReader
+{
+    public static DeliveryMessage<SomethingWasScheduled> Handle(
+        ScheduleViaReader command,
+        [ReadAggregate(Required = false)] LetterAggregate aggregate)
+    {
+        return new SomethingWasScheduled(command.Id)
+            .DelayedFor(TimeSpan.FromSeconds(2));
+    }
+}
+
 public static class SomeOtherHandler
 {
-    public static SomethingWasScheduled Handle(ScheduleSomething command)
+    public static SomethingWasScheduled Handle(PublishSomething command)
     {
         return new SomethingWasScheduled(command.Id);
+    }
+    
+    public static DeliveryMessage<SomethingWasScheduled> Handle(ScheduleSomething command)
+    {
+        return new SomethingWasScheduled(command.Id)
+            .DelayedFor(TimeSpan.FromSeconds(2));
     }
 
     public static void Handle(SomethingWasScheduled message)
