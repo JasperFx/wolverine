@@ -68,7 +68,9 @@ public class response_handling : IDisposable
 
         _theListener.Complete(response);
 
-        await Should.ThrowAsync<WolverineRequestReplyException>(async () => { await waiter; });
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        await Should.ThrowAsync<WolverineRequestReplyException>(() => waiter);
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
 
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }

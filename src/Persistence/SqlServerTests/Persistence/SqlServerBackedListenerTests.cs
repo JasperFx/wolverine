@@ -19,7 +19,7 @@ public class SqlServerBackedListenerTests : SqlServerBackedListenerContext
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
         persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
-        assertEnvelopeWasEnqueued(envelope);
+        await assertEnvelopeWasEnqueued(envelope);
     }
 
     [Fact]
@@ -31,6 +31,6 @@ public class SqlServerBackedListenerTests : SqlServerBackedListenerContext
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
         persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
-        assertEnvelopeWasEnqueued(envelope);
+        await assertEnvelopeWasEnqueued(envelope);
     }
 }

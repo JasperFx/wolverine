@@ -170,14 +170,13 @@ public abstract class DurabilityComplianceContext<TTriggerHandler, TItemCreatedH
 
         await send(c => c.SendAsync(item));
 
-        var outgoing = loadAllOutgoingEnvelopes(theSender).SingleOrDefault();
+        var outgoing = (await loadAllOutgoingEnvelopes(theSender)).SingleOrDefault();
 
         outgoing.ShouldNotBeNull();
         outgoing.MessageType.ShouldBe(typeof(ItemCreated).ToMessageTypeName());
     }
 
-    protected abstract IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender);
-
+    protected abstract Task<IReadOnlyList<Envelope>> loadAllOutgoingEnvelopes(IHost sender);
 
     [Fact]
     public async Task SendScheduledMessage()

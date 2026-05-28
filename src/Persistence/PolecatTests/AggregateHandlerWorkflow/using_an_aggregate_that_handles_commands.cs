@@ -3,8 +3,6 @@ using JasperFx.Events.Projections;
 using JasperFx.CodeGeneration;
 using JasperFx.Events;
 using Polecat;
-using Polecat.Events;
-using Polecat.Projections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -16,13 +14,13 @@ using Wolverine.Tracking;
 
 namespace PolecatTests;
 
-public class using_an_aggregate_that_handles_commands : IDisposable
+public class using_an_aggregate_that_handles_commands : IAsyncLifetime
 {
-    private readonly IHost theHost;
-    private readonly IDocumentStore theStore;
+    private IHost theHost = null!;
+    private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public using_an_aggregate_that_handles_commands()
+    public async Task InitializeAsync()
     {
         theHost = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -41,12 +39,14 @@ public class using_an_aggregate_that_handles_commands : IDisposable
             }).Start();
 
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
-        ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync().GetAwaiter().GetResult();
+        var database = ((DocumentStore)theStore).Database;
+        await database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public void Dispose()
+    public async Task DisposeAsync()
     {
-        theHost?.Dispose();
+        await theHost.StopAsync();
+        theHost.Dispose();
     }
 
     internal async Task GivenAggregate()

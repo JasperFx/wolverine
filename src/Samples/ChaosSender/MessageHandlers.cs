@@ -28,43 +28,43 @@ public class MessageHandlers : IWolverineHandler
         _repository = repository;
     }
 
-    public void Handle(Tracked1 tracked)
+    public ValueTask HandleAsync(Tracked1 tracked)
     {
         if (_random.Next(0, 100) < 5)
         {
             throw new DivideByZeroException("Boom!");
         }
 
-        _repository.MarkDeleted(tracked.Id);
+        return _repository.MarkDeleted(tracked.Id);
     }
 
-    public void Handle(Tracked2 tracked)
+    public ValueTask HandleAsync(Tracked2 tracked)
     {
         if (_random.Next(0, 100) < 5)
         {
             throw new BadImageFormatException("Boom!");
         }
 
-        _repository.MarkDeleted(tracked.Id);
+        return _repository.MarkDeleted(tracked.Id);
     }
 
-    public void Handle(Tracked3 tracked)
+    public ValueTask HandleAsync(Tracked3 tracked)
     {
-        _repository.MarkDeleted(tracked.Id);
+        return _repository.MarkDeleted(tracked.Id);
     }
 
-    public void Handle(Tracked4 tracked)
+    public ValueTask HandleAsync(Tracked4 tracked)
     {
-        _repository.MarkDeleted(tracked.Id);
+        return _repository.MarkDeleted(tracked.Id);
     }
 
-    public void Handle(Tracked5 tracked)
+    public ValueTask HandleAsync(Tracked5 tracked)
     {
         if (_random.Next(0, 100) < 3)
         {
             throw new DivideByZeroException("Boom!");
         }
 
-        _repository.MarkDeleted(tracked.Id);
+        return _repository.MarkDeleted(tracked.Id);
     }
 }

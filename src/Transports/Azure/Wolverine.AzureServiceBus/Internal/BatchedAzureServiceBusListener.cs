@@ -79,23 +79,22 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
         return false;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _task.SafeDispose();
         _complete.SafeDispose();
         _defer.SafeDispose();
         _deadLetter.SafeDispose();
-        return new ValueTask();
     }
 
     public Uri Address => _endpoint.Uri;
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
-        return new ValueTask(_receiver.CloseAsync());
+        await _cancellation.CancelAsync();
+        await _receiver.CloseAsync();
     }
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)

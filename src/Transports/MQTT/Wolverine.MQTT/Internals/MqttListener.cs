@@ -76,14 +76,12 @@ internal class MqttListener : IListener
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _complete.SafeDispose();
         _defer.SafeDispose();
-
-        return ValueTask.CompletedTask;
     }
 
     public async Task ReceiveAsync(MqttApplicationMessageReceivedEventArgs args)

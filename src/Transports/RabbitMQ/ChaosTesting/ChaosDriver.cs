@@ -127,7 +127,7 @@ public class ChaosDriver : IAsyncDisposable, IDisposable
             bus.TenantId = "tenant3";
         }
 
-        var task = Task.Factory.StartNew(async () =>
+        var _ = Task.Run(async () =>
         {
             _output.WriteLine($"Starting to continuously send messages from node {name} in batches of {batchSize}");
             while (DateTimeOffset.UtcNow < endingDate)
