@@ -149,7 +149,7 @@ SELECT message.{DatabaseConstants.Body} from message;
             builder.StartNewCommand();
             builder.Append($"select count(*) from temp_move_{_queueName}");
 
-            var batch = builder.Compile();
+            await using var batch = builder.Compile();
             batch.Connection = conn;
 
             count = (long)(await batch
@@ -236,7 +236,7 @@ SELECT message.{DatabaseConstants.Body} from message;
 
         builder.StartNewCommand();
         builder.Append($"select body from temp_pop_{_queueName}");
-        var batch = builder.Compile();
+        await using var batch = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
@@ -311,7 +311,7 @@ SELECT message.{DatabaseConstants.Body} from message;
             builder.Append($"delete from {_queueTableName} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= (now() at time zone 'utc')");
             builder.StartNewCommand();
             builder.Append($"delete from {_queue.ScheduledTable.Identifier} where {DatabaseConstants.KeepUntil} IS NOT NULL and {DatabaseConstants.KeepUntil} <= (now() at time zone 'utc')");
-            var batch = builder.Compile();
+            await using var batch = builder.Compile();
 
             batch.Connection = conn;
 

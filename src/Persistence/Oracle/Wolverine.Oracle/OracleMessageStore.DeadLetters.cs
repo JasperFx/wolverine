@@ -16,7 +16,7 @@ internal partial class OracleMessageStore
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT {DatabaseConstants.DeadLetterFields} FROM {SchemaName}.{DatabaseConstants.DeadLetterTable} WHERE id = :id");
         cmd.With("id", id);
 
@@ -60,7 +60,7 @@ internal partial class OracleMessageStore
         builder.Append(
             $" GROUP BY {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}");
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         var envelopes = new List<DeadLetterQueueCount>();
 
@@ -110,7 +110,7 @@ internal partial class OracleMessageStore
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
         cmd.Connection = conn;
 
         await using var reader = await cmd.ExecuteReaderAsync(token);
@@ -143,7 +143,7 @@ internal partial class OracleMessageStore
 
         writeDeadLetterWhereClause(query, builder);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try
@@ -167,7 +167,7 @@ internal partial class OracleMessageStore
         builder.Append(" WHERE 1 = 1");
         writeDeadLetterWhereClause(query, builder);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try
@@ -198,7 +198,7 @@ internal partial class OracleMessageStore
         builder.Append($" WHERE {DatabaseConstants.Id} = ");
         builder.AppendParameter(envelopeId);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await _dataSource.OpenConnectionAsync(token);
         try

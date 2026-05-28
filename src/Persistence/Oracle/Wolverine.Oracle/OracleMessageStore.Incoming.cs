@@ -19,7 +19,7 @@ internal partial class OracleMessageStore
             : EnvelopeSerializer.Serialize(envelope);
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
             "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
 
@@ -62,7 +62,7 @@ internal partial class OracleMessageStore
                 ? Array.Empty<byte>()
                 : EnvelopeSerializer.Serialize(envelope);
 
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
                 "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
             cmd.Transaction = tx;
@@ -136,7 +136,7 @@ internal partial class OracleMessageStore
         int rowsAffected;
         await using (var conn = await _dataSource.OpenConnectionAsync(_cancellation))
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
                 $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
                 $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
@@ -158,7 +158,7 @@ internal partial class OracleMessageStore
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.ExecutionTime} = :time, {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}', " +
             $"{DatabaseConstants.Attempts} = :attempts, {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} " +
@@ -177,7 +177,7 @@ internal partial class OracleMessageStore
         var tx = (OracleTransaction)await conn.BeginTransactionAsync(_cancellation);
 
         // Delete from incoming
-        var deleteCmd = conn.CreateCommand(
+        await using var deleteCmd = conn.CreateCommand(
             $"DELETE FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id");
         deleteCmd.Transaction = tx;
         deleteCmd.With("id", envelope.Id);
@@ -204,7 +204,7 @@ internal partial class OracleMessageStore
             deadLetterValues += ", :expires";
         }
 
-        var insertCmd = conn.CreateCommand(
+        await using var insertCmd = conn.CreateCommand(
             $"INSERT INTO {SchemaName}.{DatabaseConstants.DeadLetterTable} ({deadLetterFields}) " +
             $"VALUES ({deadLetterValues})");
         insertCmd.Transaction = tx;
@@ -235,7 +235,7 @@ internal partial class OracleMessageStore
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.Attempts} = :attempts " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
         cmd.With("attempts", envelope.Attempts);
@@ -248,7 +248,7 @@ internal partial class OracleMessageStore
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
             $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
@@ -268,7 +268,7 @@ internal partial class OracleMessageStore
 
         foreach (var envelope in envelopes)
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
                 $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
                 $"WHERE id = :id AND {DatabaseConstants.ReceivedAt} = :uri");
@@ -286,7 +286,7 @@ internal partial class OracleMessageStore
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
             $"{DatabaseConstants.OwnerId} = 0 " +
             $"WHERE {DatabaseConstants.OwnerId} = :ownerId AND {DatabaseConstants.ReceivedAt} = :uri");
@@ -299,7 +299,7 @@ internal partial class OracleMessageStore
     public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT {DatabaseConstants.IncomingFields} FROM {SchemaName}.{DatabaseConstants.IncomingTable} " +
             $"WHERE owner_id = {TransportConstants.AnyNode} AND status = '{EnvelopeStatus.Incoming}' AND {DatabaseConstants.ReceivedAt} = :address " +
             $"FETCH FIRST :limit ROWS ONLY");
@@ -320,7 +320,7 @@ internal partial class OracleMessageStore
 
         foreach (var envelope in incoming)
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = :owner " +
                 "WHERE id = :id");
             cmd.Transaction = tx;
@@ -344,7 +344,7 @@ internal partial class OracleMessageStore
                 ? Array.Empty<byte>()
                 : EnvelopeSerializer.Serialize(envelope);
 
-            var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
+            await using var cmd = ((OracleConnection)tx.Connection!).CreateCommand(
                 $"INSERT INTO {SchemaName}.{DatabaseConstants.IncomingTable} ({DatabaseConstants.IncomingFields}) " +
                 "VALUES (:body, :id, :status, :ownerId, :executionTime, :attempts, :messageType, :receivedAt, :keepUntil)");
             cmd.Transaction = (OracleTransaction)tx;

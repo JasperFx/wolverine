@@ -25,7 +25,7 @@ namespace Wolverine.Persistence.Sagas;
 /// at runtime, so any duplication here points at a duplicate
 /// <c>IPersistenceFrameProvider</c> registration upstream.
 /// </remarks>
-internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics
+internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics, IDisposable
 {
     private readonly IReadOnlyList<ISagaStoreDiagnostics> _children;
     private readonly SemaphoreSlim _routeLock = new(1, 1);
@@ -95,5 +95,10 @@ internal sealed class AggregateSagaStoreDiagnostics : ISagaStoreDiagnostics
         {
             _routeLock.Release();
         }
+    }
+
+    public void Dispose()
+    {
+        _routeLock.Dispose();
     }
 }

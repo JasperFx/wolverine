@@ -137,7 +137,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         await using var conn = await dataSource!.OpenConnectionAsync();
         try
         {
-            var raw = (DateTime)(await conn.CreateCommand("select (now())::timestamp").ExecuteScalarAsync())!;
+            await using var cmd = conn.CreateCommand("select (now())::timestamp");
+            var raw = (DateTime)(await cmd.ExecuteScalarAsync())!;
             return new DateTimeOffset(raw, 0.Hours());
         }
         finally

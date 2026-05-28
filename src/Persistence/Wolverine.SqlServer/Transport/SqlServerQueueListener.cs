@@ -199,7 +199,8 @@ select count(*) from #temp_move_{queue.Name}
     {
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync(cancellationToken);
-        await conn.CreateCommand(_deleteExpiredSql).ExecuteNonQueryAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand(_deleteExpiredSql);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }
 

@@ -81,7 +81,7 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             var conn = await _source.OpenConnectionAsync(token);
 
             // Ensure lock row exists
-            var ensureCmd = conn.CreateCommand(
+            await using var ensureCmd = conn.CreateCommand(
                 $"MERGE INTO {_schemaName}.{LockTable.TableName} t " +
                 "USING DUAL ON (t.lock_id = :lockId) " +
                 "WHEN NOT MATCHED THEN INSERT (lock_id) VALUES (:lockId)");
@@ -99,7 +99,7 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             // Start a transaction to hold the row lock
             var tx = (OracleTransaction)await conn.BeginTransactionAsync(token);
 
-            var lockCmd = conn.CreateCommand(
+            await using var lockCmd = conn.CreateCommand(
                 $"SELECT lock_id FROM {_schemaName}.{LockTable.TableName} WHERE lock_id = :lockId FOR UPDATE NOWAIT");
             lockCmd.Transaction = tx;
             lockCmd.With("lockId", lockId);
@@ -137,7 +137,7 @@ internal class OracleAdvisoryLock : IAdvisoryLock
             _heldLocks.Remove(lockId);
             try
             {
-                var cancellation = new CancellationTokenSource();
+                using var cancellation = new CancellationTokenSource();
                 cancellation.CancelAfter(1.Seconds());
 
                 await held.tx.RollbackAsync(cancellation.Token);

@@ -24,6 +24,7 @@ public class Subscription : BlockBase<Envelope>
         {
             await receiver.DisposeAsync();
         }
+        _semaphore.Dispose();
     }
 
     public override async Task WaitForCompletionAsync()

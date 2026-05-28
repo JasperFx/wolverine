@@ -168,8 +168,10 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                await conn.CreateCommand($"delete from {QueueTable.Identifier}").ExecuteNonQueryAsync();
-                await conn.CreateCommand($"delete from {ScheduledTable.Identifier}").ExecuteNonQueryAsync();
+                await using var cmd1 = conn.CreateCommand($"delete from {QueueTable.Identifier}");
+                await cmd1.ExecuteNonQueryAsync();
+                await using var cmd2 = conn.CreateCommand($"delete from {ScheduledTable.Identifier}");
+                await cmd2.ExecuteNonQueryAsync();
             }
             finally
             {
@@ -529,7 +531,8 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         buildTestSqlIfMissing();
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
-        await conn.CreateCommand(_deleteExpiredSql!).ExecuteNonQueryAsync(cancellationToken);
+        await using var cmd = conn.CreateCommand(_deleteExpiredSql!);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }
 

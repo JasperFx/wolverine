@@ -115,6 +115,8 @@ public class InMemoryScheduledJobProcessor : IScheduledJobProcessor
 
         public void Dispose()
         {
+            _cancellation.Cancel();
+            _cancellation.Dispose();
             _task.Dispose();
         }
 

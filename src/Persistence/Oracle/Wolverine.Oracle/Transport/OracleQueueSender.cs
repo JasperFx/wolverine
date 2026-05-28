@@ -63,7 +63,7 @@ internal class OracleQueueSender : IOracleQueueSender
         try
         {
             // Delete from incoming, write to scheduled
-            var deleteCmd = conn.CreateCommand(
+            await using var deleteCmd = conn.CreateCommand(
                 $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = :id");
             deleteCmd.With("id", envelope.Id);
             await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
@@ -104,7 +104,7 @@ internal class OracleQueueSender : IOracleQueueSender
             var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
             // Read from outgoing
-            var readCmd = conn.CreateCommand(
+            await using var readCmd = conn.CreateCommand(
                 $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id FOR UPDATE");
             readCmd.Transaction = tx;
             readCmd.With("id", envelope.Id);
@@ -120,7 +120,7 @@ internal class OracleQueueSender : IOracleQueueSender
                 await reader.CloseAsync();
 
                 // Insert into queue
-                var insertCmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
+                await using var insertCmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
                 insertCmd.Transaction = tx;
                 insertCmd.With("id", id);
                 insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = body });
@@ -129,7 +129,7 @@ internal class OracleQueueSender : IOracleQueueSender
                 await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
                 // Delete from outgoing
-                var deleteCmd = conn.CreateCommand(
+                await using var deleteCmd = conn.CreateCommand(
                     $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id");
                 deleteCmd.Transaction = tx;
                 deleteCmd.With("id", id);
@@ -165,7 +165,7 @@ internal class OracleQueueSender : IOracleQueueSender
             var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
             // Read from outgoing
-            var readCmd = conn.CreateCommand(
+            await using var readCmd = conn.CreateCommand(
                 $"SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy} FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id FOR UPDATE");
             readCmd.Transaction = tx;
             readCmd.With("id", envelope.Id);
@@ -181,7 +181,7 @@ internal class OracleQueueSender : IOracleQueueSender
                 await reader.CloseAsync();
 
                 // Insert into scheduled
-                var insertCmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
+                await using var insertCmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
                 insertCmd.Transaction = tx;
                 insertCmd.With("id", id);
                 insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = body });
@@ -191,7 +191,7 @@ internal class OracleQueueSender : IOracleQueueSender
                 await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
                 // Delete from outgoing
-                var deleteCmd = conn.CreateCommand(
+                await using var deleteCmd = conn.CreateCommand(
                     $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE {DatabaseConstants.Id} = :id");
                 deleteCmd.Transaction = tx;
                 deleteCmd.With("id", id);
@@ -210,7 +210,7 @@ internal class OracleQueueSender : IOracleQueueSender
             await using var cleanConn = await _dataSource.OpenConnectionAsync(cancellationToken);
             try
             {
-                var cleanCmd = cleanConn.CreateCommand(
+                await using var cleanCmd = cleanConn.CreateCommand(
                     $"DELETE FROM {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} WHERE id = :id");
                 cleanCmd.With("id", envelope.Id);
                 await cleanCmd.ExecuteNonQueryAsync(cancellationToken);
@@ -239,7 +239,7 @@ internal class OracleQueueSender : IOracleQueueSender
             {
                 try
                 {
-                    var cmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
+                    await using var cmd = conn.CreateCommand(_writeDirectlyToQueueTableSql);
                     cmd.With("id", envelope.Id);
                     cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
                     cmd.With("type", envelope.MessageType!);
@@ -261,7 +261,7 @@ internal class OracleQueueSender : IOracleQueueSender
 
     private async Task writeToScheduledTableAsync(Envelope envelope, CancellationToken cancellationToken, OracleConnection conn)
     {
-        var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
+        await using var cmd = conn.CreateCommand(_writeDirectlyToTheScheduledTable);
         cmd.With("id", envelope.Id);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = EnvelopeSerializer.Serialize(envelope) });
         cmd.With("type", envelope.MessageType!);

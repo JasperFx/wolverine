@@ -20,7 +20,7 @@ internal partial class OracleMessageStore
             var tx = (OracleTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
             // Try to attain a row-level lock for scheduled jobs
-            var lockCmd = conn.CreateCommand(
+            await using var lockCmd = conn.CreateCommand(
                 $"SELECT lock_id FROM {SchemaName}.{Schema.LockTable.TableName} WHERE lock_id = :lockId FOR UPDATE NOWAIT");
             lockCmd.Transaction = tx;
             lockCmd.With("lockId", _settings.ScheduledJobLockId);
@@ -44,7 +44,7 @@ internal partial class OracleMessageStore
                     $"SELECT {DatabaseConstants.IncomingFields} FROM {SchemaName}.{DatabaseConstants.IncomingTable} WHERE status = '{EnvelopeStatus.Scheduled}' AND execution_time <= ");
                 builder.AppendParameter(DateTimeOffset.UtcNow);
                 builder.Append($" ORDER BY execution_time FETCH FIRST {_durability.RecoveryBatchSize} ROWS ONLY");
-                var cmd = builder.Compile();
+                await using var cmd = builder.Compile();
                 cmd.Connection = conn;
                 cmd.Transaction = tx;
 
@@ -58,7 +58,7 @@ internal partial class OracleMessageStore
                 }
 
                 var ids = envelopes.Select(x => x.Id).ToArray();
-                var reassignCmd = conn.CreateCommand("");
+                await using var reassignCmd = conn.CreateCommand("");
                 reassignCmd.Transaction = tx;
                 var placeholders = OracleCommandExtensions.WithIdList(reassignCmd, "id", ids);
                 reassignCmd.CommandText =

@@ -46,7 +46,7 @@ internal sealed class OracleListenerStore : IListenerStore
         if (uri is null) throw new ArgumentNullException(nameof(uri));
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand(_insertSql);
+        await using var cmd = conn.CreateCommand(_insertSql);
         cmd.With("uri", uri.ToString());
 
         try
@@ -67,7 +67,7 @@ internal sealed class OracleListenerStore : IListenerStore
         if (uri is null) throw new ArgumentNullException(nameof(uri));
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand(_deleteSql);
+        await using var cmd = conn.CreateCommand(_deleteSql);
         cmd.With("uri", uri.ToString());
 
         // DELETE is naturally idempotent — removing a non-existent row affects 0 rows
@@ -79,7 +79,7 @@ internal sealed class OracleListenerStore : IListenerStore
     public async Task<IReadOnlyList<Uri>> AllListenersAsync(CancellationToken cancellationToken = default)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var cmd = conn.CreateCommand(_selectAllSql);
+        await using var cmd = conn.CreateCommand(_selectAllSql);
 
         var list = new List<Uri>();
         await using (var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))

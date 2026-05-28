@@ -82,6 +82,7 @@ public class BatchedAzureServiceBusListener : IListener, ISupportDeadLetterQueue
     public ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task.SafeDispose();
         _complete.SafeDispose();
         _defer.SafeDispose();

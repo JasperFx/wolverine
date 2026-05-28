@@ -115,7 +115,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             DatabasePersistence.BuildIncomingStorageCommand(_database, builder, envelope);
 
 
-            var command = builder.Compile();
+            await using var command = builder.Compile();
             command.Connection = conn;
             command.Transaction = tx;
             await command.ExecuteNonQueryAsync();
@@ -186,7 +186,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             {
                 var keepUntil =
                     DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
-                var cmd = conn.CreateCommand(
+                await using var cmd = conn.CreateCommand(
                         $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
                     .With("id", _messaging.Envelope.Id)
                     .With("keep", keepUntil);

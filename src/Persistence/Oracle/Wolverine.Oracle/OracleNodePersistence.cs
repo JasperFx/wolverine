@@ -40,7 +40,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        var cmd = conn.CreateCommand($"DELETE FROM {_nodeTable}");
+        await using var cmd = conn.CreateCommand($"DELETE FROM {_nodeTable}");
         await cmd.ExecuteNonQueryAsync(cancellationToken);
         await conn.CloseAsync();
     }
@@ -51,7 +51,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         var capabilities = string.Join(",", node.Capabilities.Select(x => x.ToString()));
 
-        var insertCmd = conn.CreateCommand(
+        await using var insertCmd = conn.CreateCommand(
             $"INSERT INTO {_nodeTable} (id, uri, capabilities, description, version) VALUES (:id, :uri, :capabilities, :description, :version)");
         insertCmd.With("id", node.NodeId);
         insertCmd.With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString());
@@ -62,7 +62,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         await insertCmd.ExecuteNonQueryAsync(cancellationToken);
 
         // Get the auto-generated node_number
-        var selectCmd = conn.CreateCommand($"SELECT node_number FROM {_nodeTable} WHERE id = :id");
+        await using var selectCmd = conn.CreateCommand($"SELECT node_number FROM {_nodeTable} WHERE id = :id");
         selectCmd.With("id", node.NodeId);
         var result = await selectCmd.ExecuteScalarAsync(cancellationToken);
 
@@ -77,16 +77,16 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync();
 
-        var cmd1 = conn.CreateCommand($"DELETE FROM {_nodeTable} WHERE id = :id");
+        await using var cmd1 = conn.CreateCommand($"DELETE FROM {_nodeTable} WHERE id = :id");
         cmd1.With("id", nodeId);
         await cmd1.ExecuteNonQueryAsync();
 
-        var cmd2 = conn.CreateCommand(
+        await using var cmd2 = conn.CreateCommand(
             $"UPDATE {_settings.SchemaName}.{IncomingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum");
         cmd2.With("nodeNum", assignedNodeNumber);
         await cmd2.ExecuteNonQueryAsync();
 
-        var cmd3 = conn.CreateCommand(
+        await using var cmd3 = conn.CreateCommand(
             $"UPDATE {_settings.SchemaName}.{OutgoingTable} SET {OwnerId} = 0 WHERE {OwnerId} = :nodeNum");
         cmd3.With("nodeNum", assignedNodeNumber);
         await cmd3.ExecuteNonQueryAsync();
@@ -100,7 +100,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
-        var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -111,7 +111,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         var dict = nodes.ToDictionary(x => x.NodeId);
 
-        var assignCmd = conn.CreateCommand($"SELECT {Id}, {NodeId}, {Started} FROM {_assignmentTable}");
+        await using var assignCmd = conn.CreateCommand($"SELECT {Id}, {NodeId}, {Started} FROM {_assignmentTable}");
         await using var assignReader = await assignCmd.ExecuteReaderAsync(cancellationToken);
         while (await assignReader.ReadAsync(cancellationToken))
         {
@@ -138,13 +138,13 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         {
             if (restriction.Type == AgentRestrictionType.None)
             {
-                var cmd = conn.CreateCommand($"DELETE FROM {_restrictionTable} WHERE id = :id");
+                await using var cmd = conn.CreateCommand($"DELETE FROM {_restrictionTable} WHERE id = :id");
                 cmd.With("id", restriction.Id);
                 await cmd.ExecuteNonQueryAsync(cancellationToken);
             }
             else
             {
-                var cmd = conn.CreateCommand(
+                await using var cmd = conn.CreateCommand(
                     $"MERGE INTO {_restrictionTable} t USING DUAL ON (t.id = :id) " +
                     "WHEN MATCHED THEN UPDATE SET t.node = :node " +
                     "WHEN NOT MATCHED THEN INSERT (id, uri, type, node) VALUES (:id, :uri, :type, :node)");
@@ -166,7 +166,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
 
-        var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable}");
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         while (await nodeReader.ReadAsync(cancellationToken))
         {
@@ -177,7 +177,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         var dict = nodes.ToDictionary(x => x.NodeId);
 
-        var assignCmd = conn.CreateCommand($"SELECT {Id}, {NodeId}, {Started} FROM {_assignmentTable}");
+        await using var assignCmd = conn.CreateCommand($"SELECT {Id}, {NodeId}, {Started} FROM {_assignmentTable}");
         await using var assignReader = await assignCmd.ExecuteReaderAsync(cancellationToken);
         while (await assignReader.ReadAsync(cancellationToken))
         {
@@ -191,7 +191,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         }
         await assignReader.CloseAsync();
 
-        var restrictCmd = conn.CreateCommand($"SELECT id, uri, type, node FROM {_restrictionTable}");
+        await using var restrictCmd = conn.CreateCommand($"SELECT id, uri, type, node FROM {_restrictionTable}");
         await using var restrictReader = await restrictCmd.ExecuteReaderAsync(cancellationToken);
         while (await restrictReader.ReadAsync(cancellationToken))
         {
@@ -217,7 +217,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         WolverineNode? returnValue = null;
 
-        var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable} WHERE id = :id");
+        await using var nodeCmd = conn.CreateCommand($"SELECT {NodeColumns} FROM {_nodeTable} WHERE id = :id");
         nodeCmd.With("id", nodeId);
         await using var nodeReader = await nodeCmd.ExecuteReaderAsync(cancellationToken);
         if (await nodeReader.ReadAsync(cancellationToken))
@@ -228,7 +228,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         if (returnValue != null)
         {
-            var assignCmd = conn.CreateCommand(
+            await using var assignCmd = conn.CreateCommand(
                 $"SELECT {Id}, {NodeId}, {Started} FROM {_assignmentTable} WHERE node_id = :id");
             assignCmd.With("id", nodeId);
             await using var assignReader = await assignCmd.ExecuteReaderAsync(cancellationToken);
@@ -250,7 +250,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         foreach (var agent in agents)
         {
-            var cmd = conn.CreateCommand(
+            await using var cmd = conn.CreateCommand(
                 $"MERGE INTO {_assignmentTable} t USING DUAL ON (t.id = :id) " +
                 "WHEN MATCHED THEN UPDATE SET t.node_id = :node " +
                 "WHEN NOT MATCHED THEN INSERT (id, node_id) VALUES (:id, :node)");
@@ -265,7 +265,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task RemoveAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        var cmd = conn.CreateCommand($"DELETE FROM {_assignmentTable} WHERE id = :id AND node_id = :node");
+        await using var cmd = conn.CreateCommand($"DELETE FROM {_assignmentTable} WHERE id = :id AND node_id = :node");
         cmd.With("id", agentUri.ToString());
         cmd.With("node", nodeId);
         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -275,7 +275,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task AddAssignmentAsync(Guid nodeId, Uri agentUri, CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"MERGE INTO {_assignmentTable} t USING DUAL ON (t.id = :id) " +
             "WHEN MATCHED THEN UPDATE SET t.node_id = :node " +
             "WHEN NOT MATCHED THEN INSERT (id, node_id) VALUES (:id, :node)");
@@ -288,7 +288,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)
     {
         await using var conn = await _dataSource.OpenConnectionAsync();
-        var cmd = conn.CreateCommand($"UPDATE {_nodeTable} SET health_check = :now WHERE id = :id");
+        await using var cmd = conn.CreateCommand($"UPDATE {_nodeTable} SET health_check = :now WHERE id = :id");
         cmd.With("id", nodeId);
         cmd.With("now", lastHeartbeatTime);
         await cmd.ExecuteNonQueryAsync();
@@ -298,7 +298,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(token);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"UPDATE {_nodeTable} SET health_check = SYSTIMESTAMP AT TIME ZONE 'UTC' WHERE id = :id");
         cmd.With("id", node.NodeId);
         var count = await cmd.ExecuteNonQueryAsync(token);
@@ -346,7 +346,7 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         if (count <= 0) throw new ArgumentOutOfRangeException(nameof(count), "Must be a positive number");
 
         await using var conn = await _dataSource.OpenConnectionAsync();
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT node_number, event_name, timestamp, description FROM {_settings.SchemaName}.{NodeRecordTableName} " +
             $"ORDER BY id DESC FETCH FIRST :limit ROWS ONLY");
         cmd.With("limit", count);

@@ -32,7 +32,7 @@ public abstract partial class MessageDatabase<T>
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
         cmd.Connection = conn;
 
         await using var reader = await cmd.ExecuteReaderAsync(token);
@@ -81,7 +81,7 @@ public abstract partial class MessageDatabase<T>
 
         writeScheduledMessageWhereClause(query, builder);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await DataSource.OpenConnectionAsync(token);
         try
@@ -106,7 +106,7 @@ public abstract partial class MessageDatabase<T>
         builder.AppendParameter(envelopeId);
         builder.Append($" and {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}'");
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await DataSource.OpenConnectionAsync(token);
         try
@@ -126,7 +126,7 @@ public abstract partial class MessageDatabase<T>
         builder.Append(
             $"select {DatabaseConstants.MessageType}, count(*) as total from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Scheduled}' group by {DatabaseConstants.MessageType}");
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         var results = new List<ScheduledMessageCount>();
 

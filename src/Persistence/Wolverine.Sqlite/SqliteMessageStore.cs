@@ -339,7 +339,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
             var builder = new DbCommandBuilder(conn);
             WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
-            var cmd = builder.Compile();
+            await using var cmd = builder.Compile();
             cmd.Connection = conn;
             cmd.Transaction = tx;
 
@@ -353,7 +353,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             }
 
             var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
-            var reassign = conn.CreateCommand(
+            await using var reassign = conn.CreateCommand(
                 $"update {DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where lower(id) IN ({ids})");
             reassign.Transaction = tx;
             await reassign.With("owner", durabilitySettings.AssignedNodeNumber)
@@ -598,7 +598,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         {
             while (deleted > 0)
             {
-                deleted = await conn.CreateCommand(sql).ExecuteNonQueryAsync();
+                await using var cmd = conn.CreateCommand(sql);
+                deleted = await cmd.ExecuteNonQueryAsync();
                 await Task.Delay(10);
             }
         }

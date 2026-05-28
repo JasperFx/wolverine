@@ -467,7 +467,7 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
             {
                 var builder = new DbCommandBuilder(conn);
                 WriteLoadScheduledEnvelopeSql(builder, DateTimeOffset.UtcNow);
-                var cmd = builder.Compile();
+                await using var cmd = builder.Compile();
                 cmd.Connection = conn;
                 cmd.Transaction = tx;
 
@@ -758,7 +758,8 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         {
             while (deleted > 0)
             {
-                deleted = await conn.CreateCommand(sql).ExecuteNonQueryAsync();
+                await using var cmd = conn.CreateCommand(sql);
+                deleted = await cmd.ExecuteNonQueryAsync();
                 await Task.Delay(10.Milliseconds());
             }
         }

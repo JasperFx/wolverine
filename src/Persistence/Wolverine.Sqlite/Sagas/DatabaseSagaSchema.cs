@@ -144,7 +144,7 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
     {
         await ensureStorageExistsAsync(tx, cancellationToken);
 
-        var cmd = tx.CreateCommand(_loadSql)
+        await using var cmd = tx.CreateCommand(_loadSql)
             .With("id", id?.ToString() ?? throw new InvalidOperationException("Saga id cannot be null"));
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);

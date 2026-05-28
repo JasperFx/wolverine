@@ -114,7 +114,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         await EnsureStorageExistsAsync(cancellationToken);
 
-        var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_insertSql, (OracleTransaction)transaction);
+        await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_insertSql, (OracleTransaction)transaction);
         addIdParameter(cmd, "id", id);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga) });
         await cmd.ExecuteNonQueryAsync(cancellationToken);
@@ -128,7 +128,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
 
         var id = IdSource(saga);
 
-        var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_updateSql, (OracleTransaction)transaction);
+        await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_updateSql, (OracleTransaction)transaction);
         cmd.Parameters.Add(new OracleParameter("body", OracleDbType.Clob) { Value = JsonSerializer.Serialize(saga) });
         addIdParameter(cmd, "id", id);
         cmd.With("version", saga.Version);
@@ -145,7 +145,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
     {
         await EnsureStorageExistsAsync(cancellationToken);
 
-        var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_deleteSql, (OracleTransaction)transaction);
+        await using var cmd = ((OracleConnection)transaction.Connection!).CreateCommand(_deleteSql, (OracleTransaction)transaction);
         addIdParameter(cmd, "id", IdSource(saga));
         await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -154,7 +154,7 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
     {
         await EnsureStorageExistsAsync(cancellationToken);
 
-        var cmd = ((OracleConnection)tx.Connection!).CreateCommand(_loadSql, (OracleTransaction)tx);
+        await using var cmd = ((OracleConnection)tx.Connection!).CreateCommand(_loadSql, (OracleTransaction)tx);
         addIdParameter(cmd, "id", id);
 
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);

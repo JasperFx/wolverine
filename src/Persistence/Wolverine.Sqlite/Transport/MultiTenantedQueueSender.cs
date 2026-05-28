@@ -89,5 +89,7 @@ internal class MultiTenantedQueueSender : ISqliteQueueSender, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
+        _cancellation.Dispose();
+        _lock.Dispose();
     }
 }

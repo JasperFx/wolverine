@@ -109,6 +109,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _receiver?.Dispose();
         _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();
+        _semaphore.Dispose();
     }
 
     public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
@@ -480,6 +481,7 @@ internal class Restarter : IDisposable
     public void Dispose()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task.SafeDispose();
     }
 }
@@ -525,6 +527,7 @@ internal class InboxHealthRestarter : IDisposable
     public void Dispose()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task.SafeDispose();
     }
 }

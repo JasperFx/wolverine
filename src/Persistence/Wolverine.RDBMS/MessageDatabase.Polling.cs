@@ -21,7 +21,7 @@ public abstract partial class MessageDatabase<T>
 
         if (await TryAttainLockAsync(externalTable.AdvisoryLock, conn, token))
         {
-            var command = buildFetchSql(conn, externalTable.TableName, externalTable.Columns().ToArray(),
+            await using var command = buildFetchSql(conn, externalTable.TableName, externalTable.Columns().ToArray(),
                 externalTable.MessageBatchSize);
 
             await using var reader = await command.ExecuteReaderAsync(token);

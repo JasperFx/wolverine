@@ -121,6 +121,8 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
     {
         await _cancellation.CancelAsync();
         _processingBlock.Complete();
+        await _batching.DisposeAsync();
+        _cancellation.Dispose();
     }
 
     public Task TagSuccessAsync()

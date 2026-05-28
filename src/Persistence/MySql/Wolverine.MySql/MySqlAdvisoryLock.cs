@@ -130,7 +130,7 @@ internal class MySqlAdvisoryLock : IAdvisoryLock
             return;
         }
 
-        var cancellation = new CancellationTokenSource();
+        using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(1.Seconds());
 
         var lockName = ToLockName(lockId);

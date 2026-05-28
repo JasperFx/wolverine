@@ -160,10 +160,10 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var cmd1 = conn.CreateCommand($"DELETE FROM {QueueTable.Identifier.QualifiedName}");
+                await using var cmd1 = conn.CreateCommand($"DELETE FROM {QueueTable.Identifier.QualifiedName}");
                 await cmd1.ExecuteNonQueryAsync();
 
-                var cmd2 = conn.CreateCommand($"DELETE FROM {ScheduledTable.Identifier.QualifiedName}");
+                await using var cmd2 = conn.CreateCommand($"DELETE FROM {ScheduledTable.Identifier.QualifiedName}");
                 await cmd2.ExecuteNonQueryAsync();
             }
             finally
@@ -267,7 +267,7 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                var cmd = conn.CreateCommand($"SELECT COUNT(*) FROM {QueueTable.Identifier.QualifiedName}");
+                await using var cmd = conn.CreateCommand($"SELECT COUNT(*) FROM {QueueTable.Identifier.QualifiedName}");
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
             finally
@@ -287,7 +287,7 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var cmd = conn.CreateCommand($"SELECT COUNT(*) FROM {ScheduledTable.Identifier.QualifiedName}");
+                await using var cmd = conn.CreateCommand($"SELECT COUNT(*) FROM {ScheduledTable.Identifier.QualifiedName}");
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
             finally

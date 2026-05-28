@@ -142,7 +142,7 @@ internal class OracleQueueListener : IListener
             }
 
             // Select scheduled messages that are ready and lock them
-            var selectCmd = CreateCmd(
+            await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_scheduledTableName} " +
                 $"WHERE {DatabaseConstants.ExecutionTime} <= SYSTIMESTAMP AT TIME ZONE 'UTC' " +
                 "FOR UPDATE SKIP LOCKED");
@@ -168,7 +168,7 @@ internal class OracleQueueListener : IListener
                 // Insert into queue (skip if already exists)
                 try
                 {
-                    var insertCmd = CreateCmd(
+                    await using var insertCmd = CreateCmd(
                         $"INSERT INTO {_queueTableName} (id, body, message_type, keep_until) VALUES (:id, :body, :type, :keepUntil)");
                     insertCmd.With("id", idsToMove[i]);
                     insertCmd.Parameters.Add(new OracleParameter("body", OracleDbType.Blob) { Value = bodies[i] });
@@ -182,7 +182,7 @@ internal class OracleQueueListener : IListener
                 }
 
                 // Delete from scheduled
-                var deleteCmd = CreateCmd(
+                await using var deleteCmd = CreateCmd(
                     $"DELETE FROM {_scheduledTableName} WHERE id = :id");
                 deleteCmd.With("id", idsToMove[i]);
                 await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
@@ -268,11 +268,11 @@ internal class OracleQueueListener : IListener
             }
 
             // First, delete any messages that are already in the incoming table (deduplication)
-            await CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable})")
-                .ExecuteNonQueryAsync(cancellationToken);
+            await using var dedupCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id IN (SELECT id FROM {_schemaName}.{DatabaseConstants.IncomingTable})");
+            await dedupCmd.ExecuteNonQueryAsync(cancellationToken);
 
             // Select messages to process with lock
-            var selectCmd = CreateCmd(
+            await using var selectCmd = CreateCmd(
                 $"SELECT id, body, message_type, keep_until FROM {_queueTableName} " +
                 "ORDER BY timestamp FETCH FIRST :count ROWS ONLY FOR UPDATE SKIP LOCKED");
             selectCmd.With("count", count);
@@ -304,12 +304,12 @@ internal class OracleQueueListener : IListener
             for (int i = 0; i < ids.Count; i++)
             {
                 // Delete from queue
-                var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
+                await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
                 deleteCmd.With("id", ids[i]);
                 await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
 
                 // Insert into incoming
-                var insertCmd = CreateCmd(
+                await using var insertCmd = CreateCmd(
                     $"INSERT INTO {_schemaName}.{DatabaseConstants.IncomingTable} (id, status, owner_id, body, message_type, received_at, keep_until) " +
                     "VALUES (:id, 'Incoming', :ownerId, :body, :messageType, :receivedAt, :keepUntil)");
                 insertCmd.With("id", ids[i]);
@@ -362,7 +362,7 @@ internal class OracleQueueListener : IListener
             var idsToDelete = new List<Guid>();
             var list = new List<Envelope>();
 
-            var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
+            await using var selectCmd = CreateCmd(_tryPopMessagesDirectlySql);
             selectCmd.With("count", count);
             await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
             {
@@ -390,7 +390,7 @@ internal class OracleQueueListener : IListener
             // Delete the messages we just read
             foreach (var id in idsToDelete)
             {
-                var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
+                await using var deleteCmd = CreateCmd($"DELETE FROM {_queueTableName} WHERE id = :id");
                 deleteCmd.With("id", id);
                 await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
             }
@@ -411,11 +411,11 @@ internal class OracleQueueListener : IListener
 
         try
         {
-            var cmd1 = conn.CreateCommand(
+            await using var cmd1 = conn.CreateCommand(
                 $"DELETE FROM {_queueTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYSTIMESTAMP AT TIME ZONE 'UTC'");
             await cmd1.ExecuteNonQueryAsync(cancellationToken);
 
-            var cmd2 = conn.CreateCommand(
+            await using var cmd2 = conn.CreateCommand(
                 $"DELETE FROM {_scheduledTableName} WHERE {DatabaseConstants.KeepUntil} IS NOT NULL AND {DatabaseConstants.KeepUntil} <= SYSTIMESTAMP AT TIME ZONE 'UTC'");
             await cmd2.ExecuteNonQueryAsync(cancellationToken);
         }

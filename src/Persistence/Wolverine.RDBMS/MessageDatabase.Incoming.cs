@@ -36,7 +36,7 @@ public abstract partial class MessageDatabase<T>
 
     public async Task StoreIncomingAsync(DbTransaction tx, Envelope[] envelopes)
     {
-        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
+        await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
 
         cmd.Transaction = tx;
         cmd.Connection = tx.Connection;
@@ -115,7 +115,7 @@ public abstract partial class MessageDatabase<T>
 
     private async Task executeCommandBatch(DbCommandBuilder builder, CancellationToken token)
     {
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         await using var conn = await DataSource.OpenConnectionAsync(token);
         try
@@ -146,7 +146,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
         DatabasePersistence.BuildIncomingStorageCommand(this, builder, envelope);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
         try
         {
             await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
@@ -175,7 +175,7 @@ public abstract partial class MessageDatabase<T>
     {
         if (envelopes.Count == 0) return;
 
-        var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
+        await using var cmd = DatabasePersistence.BuildIncomingStorageCommand(envelopes, this);
 
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
         try

@@ -31,6 +31,7 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
     {
         _monitor.Remove(this);
         await teardownChannel();
+        Locker.Dispose();
     }
 
     internal async Task EnsureInitiated()

@@ -160,11 +160,11 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var cmd1 = conn.CreateCommand();
+                await using var cmd1 = conn.CreateCommand();
                 cmd1.CommandText = $"DELETE FROM {QueueTable.Identifier.QualifiedName}";
                 await cmd1.ExecuteNonQueryAsync();
 
-                var cmd2 = conn.CreateCommand();
+                await using var cmd2 = conn.CreateCommand();
                 cmd2.CommandText = $"DELETE FROM {ScheduledTable.Identifier.QualifiedName}";
                 await cmd2.ExecuteNonQueryAsync();
             }
@@ -257,7 +257,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
             try
             {
-                var cmd = conn.CreateCommand();
+                await using var cmd = conn.CreateCommand();
                 cmd.CommandText = $"SELECT COUNT(*) FROM {QueueTable.Identifier.QualifiedName}";
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
@@ -278,7 +278,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var cmd = conn.CreateCommand();
+                await using var cmd = conn.CreateCommand();
                 cmd.CommandText = $"SELECT COUNT(*) FROM {ScheduledTable.Identifier.QualifiedName}";
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }

@@ -100,6 +100,7 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
     public ValueTask DisposeAsync()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task.SafeDispose();
         _requeue.SafeDispose();
         _deadLetter.SafeDispose();

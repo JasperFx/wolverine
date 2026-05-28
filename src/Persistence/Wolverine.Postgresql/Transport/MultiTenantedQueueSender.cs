@@ -91,5 +91,7 @@ internal class MultiTenantedQueueSender : IPostgresqlQueueSender, IAsyncDisposab
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
+        _cancellation.Dispose();
+        _lock.Dispose();
     }
 }

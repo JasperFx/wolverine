@@ -55,7 +55,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
                 $"insert into {_nodeTable} (id, uri, capabilities, description, version, node_number) values (@id, @uri, @capabilities, @description, @version, @node_number)")
             .With("id", node.NodeId.ToString())
             .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
@@ -67,7 +67,7 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         await cmd.ExecuteNonQueryAsync(cancellationToken);
 
         // Get the node_number that was assigned
-        var numberCmd = conn.CreateCommand($"select node_number from {_nodeTable} where id = @id")
+        await using var numberCmd = conn.CreateCommand($"select node_number from {_nodeTable} where id = @id")
             .With("id", node.NodeId.ToString());
         var raw = await numberCmd.ExecuteScalarAsync(cancellationToken);
 

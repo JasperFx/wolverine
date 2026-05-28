@@ -88,5 +88,7 @@ internal class MultiTenantedQueueSender : IOracleQueueSender, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
+        _cancellation.Dispose();
+        _lock.Dispose();
     }
 }

@@ -64,7 +64,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         {
             var qualified = qualifyTableName(definition.TableName);
             var sql = $"select {DatabaseConstants.Body}, {DatabaseConstants.Version} from {qualified} where {DatabaseConstants.Id} = @id";
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
             var p = cmd.CreateParameter();
             p.ParameterName = "id";
@@ -96,7 +96,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
         try
         {
             var sql = renderTopNQuery(conn, definition, clamped);
-            var cmd = conn.CreateCommand();
+            await using var cmd = conn.CreateCommand();
             cmd.CommandText = sql;
 
             var list = new List<SagaInstanceState>();

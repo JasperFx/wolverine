@@ -48,8 +48,8 @@ public class PersistenceRunner : IDisposable
 
         theEnvelopes = theDriver.Targets.Select(x =>
         {
-            var stream = new MemoryStream();
-            var writer = new JsonTextWriter(new StreamWriter(stream));
+            using var stream = new MemoryStream();
+            using var writer = new JsonTextWriter(new StreamWriter(stream));
             new JsonSerializer().Serialize(writer, x);
             var env = new Envelope(x);
             env.Destination = new Uri("fake://localhost:5000");

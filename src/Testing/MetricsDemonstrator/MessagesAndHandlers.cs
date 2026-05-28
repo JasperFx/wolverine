@@ -98,6 +98,7 @@ public class Publisher<T> : IDisposable where T : new()
     public void Dispose()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task.Dispose();
     }
 }

@@ -32,7 +32,7 @@ public abstract partial class MessageDatabase<T>
         
         builder.Append($" group by {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}");
         
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
 
         var envelopes = new List<DeadLetterQueueCount>();
         
@@ -89,7 +89,7 @@ public abstract partial class MessageDatabase<T>
         await using var conn = CreateConnection();
         await conn.OpenAsync(token);
 
-        var cmd = builder.Compile();
+        await using var cmd = builder.Compile();
         cmd.Connection = conn;
 
         await using var reader = await cmd.ExecuteReaderAsync(token);

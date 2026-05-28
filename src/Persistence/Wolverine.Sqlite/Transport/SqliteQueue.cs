@@ -166,8 +166,10 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         {
             await using var conn = await source.OpenConnectionAsync().ConfigureAwait(false);
 
-            await conn.CreateCommand($"delete from {QueueTable.Identifier}").ExecuteNonQueryAsync();
-            await conn.CreateCommand($"delete from {ScheduledTable.Identifier}").ExecuteNonQueryAsync();
+            await using var del1 = conn.CreateCommand($"delete from {QueueTable.Identifier}");
+            await del1.ExecuteNonQueryAsync();
+            await using var del2 = conn.CreateCommand($"delete from {ScheduledTable.Identifier}");
+            await del2.ExecuteNonQueryAsync();
         });
     }
 

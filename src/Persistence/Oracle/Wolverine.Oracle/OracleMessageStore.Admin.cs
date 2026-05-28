@@ -35,7 +35,7 @@ internal partial class OracleMessageStore
         {
             try
             {
-                var cmd = conn.CreateCommand($"DELETE FROM {SchemaName}.{tableName}");
+                await using var cmd = conn.CreateCommand($"DELETE FROM {SchemaName}.{tableName}");
                 await cmd.ExecuteNonQueryAsync(_cancellation);
             }
             catch (OracleException e) when (e.Number == 942)
@@ -57,7 +57,7 @@ internal partial class OracleMessageStore
         {
             try
             {
-                var dropCmd = conn.CreateCommand(
+                await using var dropCmd = conn.CreateCommand(
                     $"DROP TABLE {obj.Identifier.QualifiedName} CASCADE CONSTRAINTS");
                 await dropCmd.ExecuteNonQueryAsync(_cancellation);
             }
@@ -70,7 +70,7 @@ internal partial class OracleMessageStore
         // Also drop the lock table
         try
         {
-            var dropLocks = conn.CreateCommand(
+            await using var dropLocks = conn.CreateCommand(
                 $"DROP TABLE {SchemaName}.{Schema.LockTable.TableName} CASCADE CONSTRAINTS");
             await dropLocks.ExecuteNonQueryAsync(_cancellation);
         }
@@ -108,7 +108,7 @@ internal partial class OracleMessageStore
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
 
         // Incoming counts by status
-        var statusCmd = conn.CreateCommand(
+        await using var statusCmd = conn.CreateCommand(
             $"SELECT status, COUNT(*) FROM {SchemaName}.{DatabaseConstants.IncomingTable} GROUP BY status");
         await using (var reader = await statusCmd.ExecuteReaderAsync(_cancellation))
         {
@@ -124,13 +124,13 @@ internal partial class OracleMessageStore
         }
 
         // Outgoing count
-        var outCmd = conn.CreateCommand(
+        await using var outCmd = conn.CreateCommand(
             $"SELECT COUNT(*) FROM {SchemaName}.{DatabaseConstants.OutgoingTable}");
         var outCount = await outCmd.ExecuteScalarAsync(_cancellation);
         counts.Outgoing = Convert.ToInt32(outCount);
 
         // Dead letter count
-        var deadCmd = conn.CreateCommand(
+        await using var deadCmd = conn.CreateCommand(
             $"SELECT COUNT(*) FROM {SchemaName}.{DatabaseConstants.DeadLetterTable}");
         var deadCount = await deadCmd.ExecuteScalarAsync(_cancellation);
         counts.DeadLetter = Convert.ToInt32(deadCount);
@@ -168,7 +168,7 @@ internal partial class OracleMessageStore
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT {DatabaseConstants.IncomingFields} FROM {SchemaName}.{DatabaseConstants.IncomingTable}");
 
         var list = await cmd.FetchListAsync(
@@ -180,7 +180,7 @@ internal partial class OracleMessageStore
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
-        var cmd = conn.CreateCommand(
+        await using var cmd = conn.CreateCommand(
             $"SELECT {DatabaseConstants.OutgoingFields} FROM {SchemaName}.{DatabaseConstants.OutgoingTable}");
 
         var list = await cmd.FetchListAsync(
@@ -193,11 +193,11 @@ internal partial class OracleMessageStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
 
-        var inCmd = conn.CreateCommand(
+        await using var inCmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0");
         await inCmd.ExecuteNonQueryAsync(_cancellation);
 
-        var outCmd = conn.CreateCommand(
+        await using var outCmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET {DatabaseConstants.OwnerId} = 0");
         await outCmd.ExecuteNonQueryAsync(_cancellation);
 
@@ -208,12 +208,12 @@ internal partial class OracleMessageStore
     {
         await using var conn = await _dataSource.OpenConnectionAsync(_cancellation);
 
-        var inCmd = conn.CreateCommand(
+        await using var inCmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId");
         inCmd.With("ownerId", ownerId);
         await inCmd.ExecuteNonQueryAsync(_cancellation);
 
-        var outCmd = conn.CreateCommand(
+        await using var outCmd = conn.CreateCommand(
             $"UPDATE {SchemaName}.{DatabaseConstants.OutgoingTable} SET {DatabaseConstants.OwnerId} = 0 WHERE {DatabaseConstants.OwnerId} = :ownerId");
         outCmd.With("ownerId", ownerId);
         await outCmd.ExecuteNonQueryAsync(_cancellation);
@@ -224,7 +224,7 @@ internal partial class OracleMessageStore
     public async Task CheckConnectivityAsync(CancellationToken token)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(token);
-        var cmd = conn.CreateCommand("SELECT 1 FROM DUAL");
+        await using var cmd = conn.CreateCommand("SELECT 1 FROM DUAL");
         await cmd.ExecuteScalarAsync(token);
         await conn.CloseAsync();
     }
@@ -246,7 +246,7 @@ internal partial class OracleMessageStore
         {
             while (deleted > 0)
             {
-                var cmd = conn.CreateCommand(sql);
+                await using var cmd = conn.CreateCommand(sql);
                 deleted = await cmd.ExecuteNonQueryAsync();
                 await Task.Delay(10.Milliseconds());
             }

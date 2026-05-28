@@ -81,6 +81,7 @@ public class PersistenceMetrics : IDisposable
     public void Dispose()
     {
         _cancellation.Cancel();
+        _cancellation.Dispose();
         _task?.SafeDispose();
     }
 }
