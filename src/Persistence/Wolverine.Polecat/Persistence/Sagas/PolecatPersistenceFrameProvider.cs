@@ -63,6 +63,10 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
             return true;
         }
 
+        // DIAGNOSTIC: force true unconditionally to confirm whether the bug is in CanApply
+        // detection vs. something deeper in the Polecat outbox path.
+        return true;
+
         if (chain.ReturnVariablesOfType<IPolecatOp>().Any()) return true;
 
         // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame
