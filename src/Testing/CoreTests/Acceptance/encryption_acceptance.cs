@@ -432,7 +432,7 @@ public class encryption_acceptance : IDisposable
         }
         finally
         {
-            snifferCts.Cancel();
+            await snifferCts.CancelAsync();
             try { sniffer.Stop(); } catch { }
             try { await proxyTask.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
         }

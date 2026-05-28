@@ -23,11 +23,13 @@ public class QueryPlan_specs : IAsyncLifetime
 
         _db = new QueryPlanDbContext(options);
 
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
         _db.Items.AddRange(
-            new Item { Id = Guid.NewGuid(), Name = "Red Chair",   Approved = true  },
-            new Item { Id = Guid.NewGuid(), Name = "Red Table",   Approved = false },
-            new Item { Id = Guid.NewGuid(), Name = "Blue Sofa",   Approved = true  },
-            new Item { Id = Guid.NewGuid(), Name = "Green Lamp",  Approved = true  });
+            new Item { Id = Guid.NewGuid(), Name = "Red Chair", Approved = true },
+            new Item { Id = Guid.NewGuid(), Name = "Red Table", Approved = false },
+            new Item { Id = Guid.NewGuid(), Name = "Blue Sofa", Approved = true },
+            new Item { Id = Guid.NewGuid(), Name = "Green Lamp", Approved = true });
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
 
         await _db.SaveChangesAsync();
     }

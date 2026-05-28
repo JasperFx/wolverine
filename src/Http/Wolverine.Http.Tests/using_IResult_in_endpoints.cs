@@ -18,7 +18,8 @@ public class using_IResult_in_endpoints : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        result.ReadAsText().ShouldBe("Hello from result");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("Hello from result");
     }
 
     [Fact]
@@ -30,7 +31,8 @@ public class using_IResult_in_endpoints : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        result.ReadAsText().ShouldBe("Hello from async result");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("Hello from async result");
     }
 
     [Fact]
@@ -41,8 +43,9 @@ public class using_IResult_in_endpoints : IntegrationContext
             x.Delete.Json(new BlockUser2("one")).ToUrl("/optional/result");
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
-        
-        result.ReadAsText().ShouldBe("Ok - user blocked");
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("Ok - user blocked");
     }
     
     [Fact]

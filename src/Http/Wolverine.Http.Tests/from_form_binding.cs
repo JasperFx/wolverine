@@ -18,31 +18,37 @@ public class from_form_binding : IntegrationContext
                 {"name", "Mahomes"}
             })
             .ToUrl("/api/fromform1"));
-        result.ReadAsJson<Query1>().Name.ShouldBe("Mahomes");
-        
+        var query = await result.ReadAsJsonAsync<Query1>();
+        query.Name.ShouldBe("Mahomes");
+
         var result2 = await Host.Scenario(x => x.Post.FormData([]).ToUrl("/api/fromform1"));
-        result2.ReadAsJson<Query1>().Name.ShouldBeNull();
+        query = await result2.ReadAsJsonAsync<Query1>();
+        query.Name.ShouldBeNull();
     }
 
     [Fact]
     public async Task get_number_as_parameter()
     {
-        var result = await Host.Scenario(x => x.Post.FormData(new Dictionary<string,string>(){{"number", "15"}}).ToUrl("/api/fromform2"));
-        result.ReadAsJson<Query2>().Number.ShouldBe(15);
-        
+        var result = await Host.Scenario(x => x.Post.FormData(new Dictionary<string, string>() { { "number", "15" } }).ToUrl("/api/fromform2"));
+        var query = await result.ReadAsJsonAsync<Query2>();
+        query.Number.ShouldBe(15);
+
         var result2 = await Host.Scenario(x => x.Post.FormData([]).ToUrl("/api/fromform2"));
-        result2.ReadAsJson<Query2>().Number.ShouldBe(0);
+        query = await result2.ReadAsJsonAsync<Query2>();
+        query.Number.ShouldBe(0);
     }
 
     [Fact]
     public async Task get_guid_as_parameter()
     {
         var id = Guid.NewGuid();
-        var result = await Host.Scenario(x => x.Post.FormData(new Dictionary<string,string>(){{"Id", id.ToString()}}).ToUrl("/api/fromform3"));
-        result.ReadAsJson<Query3>().Id.ShouldBe(id);
-        
+        var result = await Host.Scenario(x => x.Post.FormData(new Dictionary<string, string>() { { "Id", id.ToString() } }).ToUrl("/api/fromform3"));
+        var query = await result.ReadAsJsonAsync<Query3>();
+        query.Id.ShouldBe(id);
+
         var result2 = await Host.Scenario(x => x.Post.FormData([]).ToUrl("/api/fromform3"));
-        result2.ReadAsJson<Query3>().Id.ShouldBe(Guid.Empty);
+        query = await result2.ReadAsJsonAsync<Query3>();
+        query.Id.ShouldBe(Guid.Empty);
     }
 
     [Fact]
@@ -53,7 +59,7 @@ public class from_form_binding : IntegrationContext
             {"number", "87"},
             {"direction", "north"}
         }).ToUrl("/api/fromform4"));
-        var query = result.ReadAsJson<Query4>();
+        var query = await result.ReadAsJsonAsync<Query4>();
         query.Name.ShouldBe("Kelce");
         query.Number.ShouldBe(87);
         query.Direction.ShouldBe(Direction.North);
@@ -64,7 +70,7 @@ public class from_form_binding : IntegrationContext
         var result = await Host.Scenario(x => x
             .Post.FormData(values.ToDictionary(x => x.Key, x => x.Value))
             .ToUrl("/api/fromformbigquery"));
-        return result.ReadAsJson<BigQuery>();
+        return await result.ReadAsJsonAsync<BigQuery>();
     }
 
     [Fact]
@@ -128,7 +134,8 @@ public class from_form_binding : IntegrationContext
                 { "form-custom-kebab", "hello" }
             })
             .ToUrl("/form/kebab-name"));
-        result.ReadAsText().ShouldBe("hello");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("hello");
     }
 
     [Fact]

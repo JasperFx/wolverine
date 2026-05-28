@@ -20,7 +20,7 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<CustomersResponse>();
+        var response = await result.ReadAsJsonAsync<CustomersResponse>();
         response!.Names.ShouldContain("alice");
     }
 
@@ -33,7 +33,7 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<CustomersResponse>();
+        var response = await result.ReadAsJsonAsync<CustomersResponse>();
         response!.Names.ShouldContain("alice");
     }
 
@@ -46,7 +46,7 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<CustomersResponse>();
+        var response = await result.ReadAsJsonAsync<CustomersResponse>();
         response!.Names.ShouldContain("alice");
     }
 
@@ -106,7 +106,7 @@ public class multi_version_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = v2.ReadAsJson<CustomersResponse>();
+        var response = await v2.ReadAsJsonAsync<CustomersResponse>();
         response!.Names.ShouldContain("v2-only-alice");
 
         // v1 and v3 routes for this endpoint must not exist.

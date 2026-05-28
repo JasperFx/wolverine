@@ -74,8 +74,8 @@ public class Bug_using_fromquery_with_aggregatehandler
 
         var body = await host.Scenario(x => x.Get.Url("/getusingfromqueryandaggregatehandler?id=" + aggregateId +"&something=Something2"));
 
-        body.ReadAsJson<FromQueryAggregateHandlerAggregate>().Something.ShouldBe("Something2");
-
+        var aggregate = await body.ReadAsJsonAsync<FromQueryAggregateHandlerAggregate>();
+        aggregate.Something.ShouldBe("Something2");
     }
 }
 

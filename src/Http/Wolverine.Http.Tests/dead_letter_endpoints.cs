@@ -33,9 +33,8 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // Expect
-        var deadletters = (result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>()).Single();
-        
-        
+        var deadletters = (await result.ReadAsJsonAsync<IReadOnlyList<DeadLetterEnvelopeResults>>()).Single();
+
         deadletters
             .ShouldNotBeNull().Envelopes.Count.ShouldBe(1);
         deadletters.Envelopes[0].ExceptionType.ShouldBe(typeof(AlwaysDeadLetterException).FullNameInCode());
@@ -73,7 +72,7 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // When & Expect
-        var all = result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>();
+        var all = await result.ReadAsJsonAsync<IReadOnlyList<DeadLetterEnvelopeResults>>();
         var id = all[0].Envelopes.Single().Id;
         
         await Scenario(x =>
@@ -109,7 +108,7 @@ public class dead_letter_endpoints(AppFixture fixture) : IntegrationContext(fixt
         });
 
         // When & Expect
-        var deadletters = result.ReadAsJson<IReadOnlyList<DeadLetterEnvelopeResults>>();
+        var deadletters = await result.ReadAsJsonAsync<IReadOnlyList<DeadLetterEnvelopeResults>>();
         var id = deadletters[0].Envelopes[0].Id;
         
         await Scenario(x =>

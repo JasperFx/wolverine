@@ -116,7 +116,7 @@ public class posting_json : IntegrationContext
     public async Task reading_json_from_canceled_request_gets_204()
     {
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         var response = await Scenario(x =>
         {

@@ -21,7 +21,7 @@ public class using_ancillary_stores : IntegrationContext
             s.StatusCodeShouldBe(201);
         });
 
-        var response = result.ReadAsJson<ThingEndpoints.ThingCreationResponse>();
+        var response = await result.ReadAsJsonAsync<ThingEndpoints.ThingCreationResponse>();
 
         var store = Host.DocumentStore<IThingStore>();
         using var session = store.LightweightSession();

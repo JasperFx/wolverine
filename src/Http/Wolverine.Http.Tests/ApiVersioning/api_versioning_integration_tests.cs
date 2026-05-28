@@ -23,7 +23,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<OrdersV1Response>();
+        var response = await result.ReadAsJsonAsync<OrdersV1Response>();
         response.ShouldNotBeNull();
         response.Orders.ShouldContain("v1-order-1");
         response.Orders.ShouldContain("v1-order-2");
@@ -38,7 +38,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<OrdersV2Response>();
+        var response = await result.ReadAsJsonAsync<OrdersV2Response>();
         response.ShouldNotBeNull();
         response.Status.ShouldBe("ok");
         response.Items.ShouldContain("v2-a");
@@ -132,7 +132,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var response = result.ReadAsJson<HealthCheckResponse>();
+        var response = await result.ReadAsJsonAsync<HealthCheckResponse>();
         response.ShouldNotBeNull();
         response.Status.ShouldBe("ok");
     }
@@ -163,7 +163,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.ShouldContain("/health");
     }
 
@@ -176,7 +176,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.ShouldContain("/v1/orders");
     }
 
@@ -189,7 +189,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.ShouldContain("/v1/orders");
         body.ShouldContain("/v2/orders");
         body.ShouldContain("/v3/orders");
@@ -205,7 +205,7 @@ public class api_versioning_integration_tests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
 
         // Parse JSON and navigate to the deprecated property
         using var doc = JsonDocument.Parse(body);

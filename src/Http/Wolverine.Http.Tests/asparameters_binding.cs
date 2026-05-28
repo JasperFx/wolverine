@@ -34,7 +34,7 @@ public class asparameters_binding : IntegrationContext
             .QueryString("IntegerNotUsed", "3")
             .ToUrl("/api/asparameters1")
         );
-        var response = result.ReadAsJson<AsParametersQuery>();
+        var response = await result.ReadAsJsonAsync<AsParametersQuery>();
         response.EnumFromForm.ShouldBe(Direction.East);
         response.StringFromForm.ShouldBe("string2");
         response.IntegerFromForm.ShouldBe(2);
@@ -75,7 +75,7 @@ public class asparameters_binding : IntegrationContext
             .QueryString("IntegerNotUsed", "3")
             .ToUrl("/api/asparameters1")
         );
-        var response = result.ReadAsJson<AsParametersQuery>();
+        var response = await result.ReadAsJsonAsync<AsParametersQuery>();
         response.StringHeader.ShouldBeNull();
         response.NumberHeader.ShouldBe(5);
         response.NullableHeader.ShouldBeNull();
@@ -109,7 +109,7 @@ public class asparameters_binding : IntegrationContext
                     .ToUrl("/api/asparameters1");
             }
         );
-        var response = result.ReadAsJson<AsParametersQuery>();
+        var response = await result.ReadAsJsonAsync<AsParametersQuery>();
         response.StringHeader.ShouldBe("Red");
         response.NumberHeader.ShouldBe(303);
         response.NullableHeader.ShouldBe(13);
@@ -126,7 +126,7 @@ public class asparameters_binding : IntegrationContext
             // x.Post.Url("/asp2/croaker/42");
         });
 
-        var response = result.ReadAsJson<AsParametersQuery2>();
+        var response = await result.ReadAsJsonAsync<AsParametersQuery2>();
 
         // Routes
         response.Id.ShouldBe("croaker");
@@ -156,7 +156,7 @@ public class asparameters_binding : IntegrationContext
             x.WithRequestHeader("x-direction", "East");
         });
 
-        var value = result.ReadAsJson<AsParameterRecord>();
+        var value = await result.ReadAsJsonAsync<AsParameterRecord>();
         value.Id.ShouldBe("idvalue");
         value.Number.ShouldBe(2);
         value.Direction.ShouldBe(Direction.East);

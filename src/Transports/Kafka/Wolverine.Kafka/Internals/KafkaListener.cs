@@ -119,7 +119,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     public Uri Address { get; }
     public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         await _runner;
     }
 

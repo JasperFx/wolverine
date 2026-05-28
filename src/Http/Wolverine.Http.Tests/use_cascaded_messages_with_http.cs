@@ -20,7 +20,8 @@ public class use_cascaded_messages_with_http : IntegrationContext
             x.Post.Json(new SpawnInput("Chris Jones")).ToUrl("/spawn");
         });
 
-        result.ReadAsText().ShouldBe("got it");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("got it");
 
         // "tracked" is a Wolverine ITrackedSession object that lets us interrogate
         // what messages were published, sent, and handled during the testing perioc

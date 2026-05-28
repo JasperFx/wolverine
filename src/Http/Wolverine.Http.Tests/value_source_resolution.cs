@@ -27,7 +27,8 @@ public class value_source_resolution : IntegrationContext
             x.WithRequestHeader("X-Custom-Value", "hello-world");
         });
 
-        result.ReadAsText().ShouldBe("hello-world");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("hello-world");
     }
 
     [Fact]
@@ -38,7 +39,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-header/string");
         });
 
-        result.ReadAsText().ShouldBe("no-value");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("no-value");
     }
 
     [Fact]
@@ -50,7 +52,8 @@ public class value_source_resolution : IntegrationContext
             x.WithRequestHeader("X-Count", "42");
         });
 
-        result.ReadAsText().ShouldBe("count:42");
+        var count = await result.ReadAsJsonAsync<int>();
+        count.ShouldBe(42);
     }
 
     [Fact]
@@ -63,7 +66,8 @@ public class value_source_resolution : IntegrationContext
             x.WithRequestHeader("X-Correlation-Id", id.ToString());
         });
 
-        result.ReadAsText().ShouldBe($"id:{id}");
+        var todoId = await result.ReadAsJsonAsync<Guid>();
+        todoId.ShouldBe(id);
     }
 
     [Fact]
@@ -74,7 +78,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-header/int");
         });
 
-        result.ReadAsText().ShouldBe("count:0");
+        var count = await result.ReadAsJsonAsync<int>();
+        count.ShouldBe(0);
     }
 
     #endregion
@@ -90,7 +95,8 @@ public class value_source_resolution : IntegrationContext
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("sub", "user-123")));
         });
 
-        result.ReadAsText().ShouldBe("user-123");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("user-123");
     }
 
     [Fact]
@@ -101,7 +107,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-claim/string");
         });
 
-        result.ReadAsText().ShouldBe("no-user");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("no-user");
     }
 
     [Fact]
@@ -113,7 +120,8 @@ public class value_source_resolution : IntegrationContext
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("tenant-id", "42")));
         });
 
-        result.ReadAsText().ShouldBe("tenant:42");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("tenant:42");
     }
 
     [Fact]
@@ -126,7 +134,8 @@ public class value_source_resolution : IntegrationContext
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("organization-id", id.ToString())));
         });
 
-        result.ReadAsText().ShouldBe($"org:{id}");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe($"org:{id}");
     }
 
     [Fact]
@@ -137,7 +146,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-claim/int");
         });
 
-        result.ReadAsText().ShouldBe("tenant:0");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("tenant:0");
     }
 
     #endregion
@@ -154,7 +164,8 @@ public class value_source_resolution : IntegrationContext
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("computed-id", id.ToString())));
         });
 
-        result.ReadAsText().ShouldBe($"resolved:{id}");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe($"resolved:{id}");
     }
 
     [Fact]
@@ -166,7 +177,8 @@ public class value_source_resolution : IntegrationContext
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("display-name", "Jeremy")));
         });
 
-        result.ReadAsText().ShouldBe("name:Jeremy");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("name:Jeremy");
     }
 
     [Fact]
@@ -177,7 +189,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-method/string");
         });
 
-        result.ReadAsText().ShouldBe("name:anonymous");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("name:anonymous");
     }
 
     #endregion

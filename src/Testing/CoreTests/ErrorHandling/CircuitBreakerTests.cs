@@ -34,9 +34,9 @@ public class CircuitBreakerTests
         }
     }
 
-    private void assertNoPause()
+    private ValueTask assertNoPause()
     {
-        theAgent.DidNotReceiveWithAnyArgs().PauseAsync(theOptions.PauseTime);
+        return theAgent.DidNotReceiveWithAnyArgs().PauseAsync(theOptions.PauseTime);
     }
 
     private ValueTask assertThatTheListenerWasPaused()
@@ -144,14 +144,14 @@ public class CircuitBreakerTests
     public async Task first_totals_update_with_failures_but_not_met_threshold()
     {
         await initialUpdateOfTotals(5, 9);
-        assertNoPause();
+        await assertNoPause();
     }
 
     [Fact]
     public async Task initial_totals_with_no_failures()
     {
         await initialUpdateOfTotals(0, 10);
-        assertNoPause();
+        await assertNoPause();
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class CircuitBreakerTests
             await subsequentUpdateOfTotals(time.Seconds(), 5, 100);
         }
 
-        assertNoPause();
+        await assertNoPause();
 
         time++;
         await subsequentUpdateOfTotals(time.Seconds(), 1000, 1000);
@@ -197,6 +197,6 @@ public class CircuitBreakerTests
             await subsequentUpdateOfTotals(time.Seconds(), 5, 100);
         }
 
-        assertNoPause();
+        await assertNoPause();
     }
 }

@@ -116,7 +116,7 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         await _runner;
     }
 

@@ -69,7 +69,7 @@ public class requirement_result_validation_in_http_endpoints : IntegrationContex
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var json = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var json = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         json!.Detail.ShouldBe("Invalid Request");
     }
 }

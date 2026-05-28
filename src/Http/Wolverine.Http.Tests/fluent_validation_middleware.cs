@@ -56,7 +56,7 @@ public class fluent_validation_middleware : IntegrationContext
 
         // Just proving that we have HttpValidationProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class fluent_validation_middleware : IntegrationContext
 
         // Just proving that we have HttpValidationProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
     
     [Fact]
@@ -107,7 +107,7 @@ public class fluent_validation_middleware : IntegrationContext
 
         // Just proving that we have HttpValidationProblemDetails content
         // in the request
-        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
 
     [Fact]
@@ -135,7 +135,7 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
 
     [Fact]
@@ -150,6 +150,6 @@ public class fluent_validation_middleware : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var problems = results.ReadAsJson<HttpValidationProblemDetails>();
+        var problems = await results.ReadAsJsonAsync<HttpValidationProblemDetails>();
     }
 }

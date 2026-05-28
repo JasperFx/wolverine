@@ -38,8 +38,8 @@ public class combo_handler_and_endpoint : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
 
-        var details = result.ReadAsJson<ProblemDetails>();
-        
+        var details = await result.ReadAsJsonAsync<ProblemDetails>();
+
         details.Detail.ShouldBe("Number is bigger than 5");
         
 
@@ -72,8 +72,9 @@ public class combo_handler_and_endpoint : IntegrationContext
         {
             x.Post.Json(new DoHybrid("go, go gadget")).ToUrl("/hybrid");
         });
-        
-        response.ReadAsText().ShouldBe("go, go gadget");
+
+        var text = await response.ReadAsTextAsync();
+        text.ShouldBe("go, go gadget");
 
         await Host.InvokeMessageAndWaitAsync(new DoHybrid("now as a handler"));
     }

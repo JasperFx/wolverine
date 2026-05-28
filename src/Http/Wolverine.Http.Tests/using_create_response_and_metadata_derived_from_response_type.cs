@@ -44,7 +44,7 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
             x.StatusCodeShouldBe(201);
         });
 
-        var created = result.ReadAsJson<IssueCreated>();
+        var created = await result.ReadAsJsonAsync<IssueCreated>();
         created.ShouldNotBeNull();
 
         using var session = Store.LightweightSession();

@@ -42,7 +42,7 @@ public class using_tenant_id_in_query_string
             x.Post.Json(new CreateIssue("One")).ToUrl("/issues/create").QueryString("tenantId", "foo");
         });
 
-        var response = result.ReadAsJson<IssueResponse>();
+        var response = await result.ReadAsJsonAsync<IssueResponse>();
         response.Name.ShouldBe("One");
     }
 }

@@ -25,7 +25,7 @@ public class OnExceptionTests : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var problem = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("Custom Error");
         problem.Detail.ShouldBe("Something went wrong");
@@ -41,7 +41,7 @@ public class OnExceptionTests : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var problem = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("Specific Error");
     }
@@ -56,7 +56,7 @@ public class OnExceptionTests : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var problem = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("General Error");
     }
@@ -71,7 +71,7 @@ public class OnExceptionTests : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var problem = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("Async Error");
     }
@@ -116,7 +116,8 @@ public class OnExceptionTests : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        result.ReadAsText().ShouldBe("All good");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("All good");
     }
 
     [Fact]
@@ -147,7 +148,7 @@ public class OnExceptionTests : IntegrationContext
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var problem = result.ReadAsJson<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("Global Error Handler");
     }

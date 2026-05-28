@@ -246,9 +246,10 @@ public class using_storage_actions_and_entity_attribute : IntegrationContext
         {
             x.Get.Url("/api/todo/" + todoId);
         });
-        
-        result.ReadAsJson<Todo2>().Id.ShouldBe(todoId);
-        
+
+        var todo = await result.ReadAsJsonAsync<Todo2>();
+        todo.Id.ShouldBe(todoId);
+
         // Miss, should be 404
         await Host.Scenario(x =>
         {

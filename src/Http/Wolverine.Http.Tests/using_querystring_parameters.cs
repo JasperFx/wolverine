@@ -22,7 +22,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is 8");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is 8");
     }
 
     [Fact]
@@ -34,7 +35,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("North");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("North");
     }
 
     [Fact]
@@ -45,7 +47,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Get.Url("/querystring/explicit?name=north");
         });
 
-        body.ReadAsText().ShouldBe("north");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("north");
     }
 
     [Fact]
@@ -56,7 +59,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Get.Url("/querystring/explicit");
         });
 
-        body.ReadAsText().ShouldBeEmpty();
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBeEmpty();
     }
 
     [Fact]
@@ -68,7 +72,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("North");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("North");
     }
 
     [Fact]
@@ -80,7 +85,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is ");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is ");
     }
 
     [Fact]
@@ -92,7 +98,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is ");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is ");
     }
 
     [Fact]
@@ -104,7 +111,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is 11");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is 11");
     }
 
     [Fact]
@@ -116,7 +124,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is missing");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is missing");
     }
 
     [Fact]
@@ -128,7 +137,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is missing");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is missing");
     }
 
     [Fact]
@@ -145,7 +155,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("foo,bar,baz");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("foo,bar,baz");
     }
 
     [Fact]
@@ -162,7 +173,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("5,8,13");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("5,8,13");
     }
 
     [Fact]
@@ -183,7 +195,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe($"{guid1},{guid2},{guid3}");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe($"{guid1},{guid2},{guid3}");
     }
 
     [Fact]
@@ -200,7 +213,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe($"North,East,South");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe($"North,East,South");
     }
 
     [Fact]
@@ -217,7 +231,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("foo,bar,baz");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("foo,bar,baz");
     }
     
     [Fact]
@@ -231,7 +246,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("none");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("none");
     }
     
     [Fact]
@@ -248,7 +264,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("1,2,4");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("1,2,4");
     }
     
     [Fact]
@@ -262,7 +279,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("none");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("none");
     }
 
     [Fact]
@@ -275,7 +293,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("0001-01-01T00:00:00.0000000");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("0001-01-01T00:00:00.0000000");
     }
 
     [Fact]
@@ -288,7 +307,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("0001-01-01T00:00:00.0000000");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("0001-01-01T00:00:00.0000000");
     }
 
     [Fact]
@@ -301,7 +321,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05T00:00:00.0000000");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05T00:00:00.0000000");
     }
 
     [Fact]
@@ -314,7 +335,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05T13:37:42.0123456");
     }
 
     [Fact]
@@ -327,7 +349,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05T13:37:42.0123456");
     }
     
     [Fact]
@@ -340,7 +363,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Value is missing");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Value is missing");
     }
 
     [Fact]
@@ -353,7 +377,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05T00:00:00.0000000");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05T00:00:00.0000000");
     }
 
     [Fact]
@@ -366,7 +391,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05T13:37:42.0123456");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05T13:37:42.0123456");
     }
 
     [Fact]
@@ -379,7 +405,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("0001-01-01");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("0001-01-01");
     }
 
     [Fact]
@@ -392,7 +419,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05");
     }
 
     [Fact]
@@ -405,7 +433,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("0001-01-01");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("0001-01-01");
     }
 
     [Fact]
@@ -418,7 +447,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Value is missing");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Value is missing");
     }
 
     [Fact]
@@ -431,7 +461,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("2025-04-05");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("2025-04-05");
     }
 
     [Fact]
@@ -444,7 +475,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("0001-01-01");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("0001-01-01");
     }
 
     #region sample_query_string_usage
@@ -457,7 +489,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Name is Magic");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Name is Magic");
     }
 
     [Fact]
@@ -469,7 +502,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Name is missing");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Name is missing");
     }
 
     [Fact]
@@ -482,7 +516,8 @@ public class using_querystring_parameters : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Amount is 42.1");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Amount is 42.1");
     }
 
     #endregion

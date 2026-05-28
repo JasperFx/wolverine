@@ -67,7 +67,8 @@ public class reacting_to_read_aggregate : IAsyncLifetime
             x.Get.Url("/letters2/" + Guid.NewGuid());
         });
         
-        result.ReadAsText().ShouldBe("No Letters");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("No Letters");
     }
 
     [Fact]
@@ -99,7 +100,8 @@ public class reacting_to_read_aggregate : IAsyncLifetime
             x.Post.Url("/letters5/" + Guid.NewGuid());
         });
         
-        result.ReadAsText().ShouldBe("No Letters");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("No Letters");
     }
 
     [Fact]

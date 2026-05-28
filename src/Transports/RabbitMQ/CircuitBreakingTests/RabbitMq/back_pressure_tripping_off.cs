@@ -51,7 +51,7 @@ public class back_pressure_tripping_off
 
         var completion = Recorder.WaitForMessagesToBeProcessed(_output, 1000, 1.Minutes());
 
-        var publishing = Task.Factory.StartNew(async () =>
+        var publishing = Task.Run(async () =>
         {
             var publisher = host.MessageBus();
 

@@ -1,3 +1,4 @@
+using ImTools;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.ErrorHandling;
@@ -79,15 +80,15 @@ public class ErrorHandlingContext : IDisposable
             return;
         }
 
-        var writer = new StringWriter();
+        await using var writer = new StringWriter();
 
-        writer.WriteLine($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
+        await writer.WriteLineAsync($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
-            writer.WriteLine(envelopeRecord);
+            await writer.WriteLineAsync(envelopeRecord.ToString());
             if (envelopeRecord.Exception != null)
             {
-                writer.WriteLine(envelopeRecord.Exception.Message);
+                await writer.WriteLineAsync(envelopeRecord.Exception.Message);
             }
         }
 
@@ -120,15 +121,15 @@ public class ErrorHandlingContext : IDisposable
             return;
         }
 
-        var writer = new StringWriter();
+        await using var writer = new StringWriter();
 
-        writer.WriteLine($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
+        await writer.WriteLineAsync($"Actual ending was '{record.MessageEventType}' on attempt {record.AttemptNumber}");
         foreach (var envelopeRecord in session.AllRecordsInOrder())
         {
-            writer.WriteLine(envelopeRecord);
+            await writer.WriteLineAsync(envelopeRecord.ToString());
             if (envelopeRecord.Exception != null)
             {
-                writer.WriteLine(envelopeRecord.Exception.Message);
+                await writer.WriteLineAsync(envelopeRecord.Exception.Message);
             }
         }
 

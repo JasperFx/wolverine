@@ -176,9 +176,9 @@ public partial class CosmosDbDurabilityAgent : IAgent
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         if (_metrics != null)
         {
@@ -194,8 +194,6 @@ public partial class CosmosDbDurabilityAgent : IAgent
         {
             _scheduledJob.SafeDispose();
         }
-
-        return Task.CompletedTask;
     }
 
     public Uri Uri { get; set; }

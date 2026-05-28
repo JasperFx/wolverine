@@ -46,7 +46,7 @@ public class Bug_1421_nullable_querystring
             s.Get.Url("/nullable-query-parameters");
         });
 
-        var response = result.ReadAsJson<NullableQueryParamsResult>();
+        var response = await result.ReadAsJsonAsync<NullableQueryParamsResult>();
 
         response.ShouldBeEquivalentTo(
             new NullableQueryParamsResult(

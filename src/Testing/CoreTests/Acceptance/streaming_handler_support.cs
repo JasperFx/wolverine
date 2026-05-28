@@ -148,7 +148,7 @@ public class streaming_handler_support
                 count++;
                 if (count >= 2)
                 {
-                    cts.Cancel();
+                    await cts.CancelAsync();
                 }
             }
         });
