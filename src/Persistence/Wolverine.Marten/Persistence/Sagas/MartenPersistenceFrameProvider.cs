@@ -11,6 +11,7 @@ using Marten.Events;
 using Marten.Storage.Metadata;
 using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
+using Wolverine.Marten.Requirements;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -85,9 +86,60 @@ internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 
         if (chain.ReturnVariablesOfType<IMartenOp>().Any()) return true;
 
+        // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame that
+        // depends on IDocumentSession. Chain.serviceDependencies() only walks
+        // Middleware.OfType<MethodCall>() so those dependencies are invisible, AND
+        // WolverineParameterAttribute.Modify() runs lazily inside HandlerChain.applyCustomizations
+        // - long AFTER AutoApplyTransactions has evaluated CanApply. Without this detection,
+        // AutoApplyTransactions skips the chain entirely, no SaveChangesAsync postprocessor is
+        // attached, and a scheduled cascade (e.g. DeliveryMessage<T>.DelayedFor(...)) is queued
+        // onto the session via StoreIncoming(...) but never flushed -> the scheduled envelope
+        // never lands in wolverine_incoming_envelopes and is lost.
+        //
+        // [WriteAggregate] and [BoundaryModel] don't need this branch - their Modify() paths
+        // explicitly call ApplyTransactionSupport themselves. The at-risk attributes are
+        // [ReadAggregate] (injects FetchLatestAggregateFrame) and DocumentExists/DoesNotExist
+        // (ModifyChainAttributes that inject DocumentExistenceCheckFrame).
+        if (ChainHasMartenSessionAttributes(chain)) return true;
+
         var serviceDependencies = chain
             .ServiceDependencies(container, new []{typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations)}).ToArray();
         return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
+    }
+
+    private static bool ChainHasMartenSessionAttributes(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            foreach (var parameter in call.Method.GetParameters())
+            {
+                if (parameter.GetCustomAttributes().Any(a => a is ReadAggregateAttribute)) return true;
+            }
+        }
+
+        // [DocumentExists<T>] / [DocumentDoesNotExist<T>] are ModifyChainAttribute-based and can
+        // sit on either the handler method or the message type. Walk both.
+        foreach (var call in chain.HandlerCalls())
+        {
+            if (call.Method.GetCustomAttributes().Any(IsDocumentExistsAttribute)) return true;
+            if (call.HandlerType.GetCustomAttributes(true).OfType<Attribute>().Any(IsDocumentExistsAttribute)) return true;
+        }
+
+        var messageType = chain.InputType();
+        if (messageType != null && messageType.GetCustomAttributes(true).OfType<Attribute>().Any(IsDocumentExistsAttribute))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsDocumentExistsAttribute(Attribute attribute)
+    {
+        var type = attribute.GetType();
+        if (!type.IsGenericType) return false;
+        var def = type.GetGenericTypeDefinition();
+        return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
