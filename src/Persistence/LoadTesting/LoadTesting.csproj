@@ -9,7 +9,6 @@
     <ItemGroup>
       <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
       <ProjectReference Include="..\Wolverine.Marten\Wolverine.Marten.csproj" />
-      <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>

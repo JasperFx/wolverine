@@ -21,7 +21,6 @@
         <PackageReference Include="Alba" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
-        <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
