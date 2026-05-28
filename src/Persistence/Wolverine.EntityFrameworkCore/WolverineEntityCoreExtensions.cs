@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 using Weasel.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.EntityFrameworkCore.Internals;
@@ -255,9 +256,9 @@ public static class WolverineEntityCoreExtensions
     ///     middleware using <see cref="TransactionMiddlewareMode.Eager"/> mode by default.
     /// </summary>
     /// <param name="options"></param>
-    public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options)
+    public static EFCoreTransactionConfiguration UseEntityFrameworkCoreTransactions(this WolverineOptions options)
     {
-        options.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Eager);
+        return options.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Eager);
     }
 
     /// <summary>
@@ -269,7 +270,7 @@ public static class WolverineEntityCoreExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="mode">The transaction middleware mode to use</param>
-    public static void UseEntityFrameworkCoreTransactions(this WolverineOptions options, TransactionMiddlewareMode mode)
+    public static EFCoreTransactionConfiguration UseEntityFrameworkCoreTransactions(this WolverineOptions options, TransactionMiddlewareMode mode)
     {
         try
         {
@@ -319,10 +320,12 @@ public static class WolverineEntityCoreExtensions
 
         var providers = options.CodeGeneration.PersistenceProviders();
         var efProvider = providers.OfType<EFCorePersistenceFrameProvider>().FirstOrDefault();
-        if (efProvider != null)
+        if (efProvider == null)
         {
-            efProvider.DefaultMode = mode;
+            throw new Exception($"Unable to find any ${typeof(EFCorePersistenceFrameProvider)}");
         }
+        efProvider.DefaultMode = mode;
+        return new EFCoreTransactionConfiguration(options, efProvider);
     }
 
     /// <summary>
