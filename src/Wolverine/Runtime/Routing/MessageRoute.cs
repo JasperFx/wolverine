@@ -115,15 +115,23 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             ?? throw new InvalidOperationException(
                 $"Endpoint {_endpoint.Uri} does not have an active sending agent. Message type: {MessageType.FullNameInCode()}");
 
-        var envelope = new Envelope(message, sender)
-        {
-            Serializer = Serializer,
-            ContentType = Serializer?.ContentType,
-            TopicName = topicName,
-            WireTap = _endpoint.WireTap,
-            TenantId = options?.TenantId,
-            GroupId = options?.GroupId
-        };
+        // Pool the outgoing envelope when the sender's lifecycle is bounded —
+        // i.e. inline-send agents that release the reference after the
+        // synchronous send call returns. See wolverine#2955; AcquireOutgoingEnvelope
+        // is a no-op (returns `new Envelope()`) for any other agent shape, so the
+        // semantics here are unchanged for buffered / durable / local-queue routes.
+        var envelope = runtime.AcquireOutgoingEnvelope(sender);
+        envelope.Message = message;
+        envelope.Sender = sender;
+        envelope.Serializer = Serializer
+            ?? (message is ISerializable ? IntrinsicSerializer.Instance : sender.Endpoint.DefaultSerializer);
+        envelope.ContentType = envelope.Serializer?.ContentType;
+        envelope.Destination = sender.Destination;
+        envelope.ReplyUri = sender.ReplyUri?.MaybeCorrectScheme(sender.Destination.Scheme);
+        envelope.TopicName = topicName;
+        envelope.WireTap = _endpoint.WireTap;
+        envelope.TenantId = options?.TenantId;
+        envelope.GroupId = options?.GroupId;
 
         if (sender.Endpoint is LocalQueue)
         {

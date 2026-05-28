@@ -85,6 +85,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
             //TODO: What about cancellationToken??
             await Sender.SendAsync(e);
             _messageLogger.Sent(e);
+            tryReturnToPool(e);
         }
         catch (NotSupportedException)
         {
@@ -109,6 +110,7 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
         {
             await Sender.SendAsync(e);
             _messageLogger.Sent(e);
+            tryReturnToPool(e);
         }
         catch (Exception ex)
         {
@@ -116,6 +118,20 @@ public class InlineSendingAgent : ISendingAgent, IDisposable
             {
                 throw;
             }
+        }
+    }
+
+    // wolverine#2955: outgoing-envelope pool release. Only fires for envelopes that
+    // were acquired from the pool at the MessageRoute.CreateForSending site, i.e.
+    // the envelope's FromPool flag is set. Lives in the success branch so a retried
+    // envelope (still owned by the retry block) is never returned out from under
+    // the retry.
+    private void tryReturnToPool(Envelope envelope)
+    {
+        if (!envelope.FromPool) return;
+        if (_runtime is WolverineRuntime runtime)
+        {
+            runtime.ReleaseInternalEnvelope(envelope, true);
         }
     }
 

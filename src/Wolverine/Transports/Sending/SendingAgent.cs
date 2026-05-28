@@ -276,6 +276,15 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
             await _sender.SendAsync(envelope);
 
             await MarkSuccessfulAsync(envelope);
+
+            // wolverine#2955: success branch only — a retried/failed envelope is
+            // re-queued by MarkProcessingFailureAsync and must not be released
+            // out from under the retry. _runtime is null in test paths that
+            // hand-construct a SendingAgent; pooling is opt-in for those.
+            if (envelope.FromPool && _runtime is Runtime.WolverineRuntime runtime)
+            {
+                runtime.ReleaseInternalEnvelope(envelope, true);
+            }
         }
         catch (NotSupportedException)
         {
