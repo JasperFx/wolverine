@@ -119,8 +119,22 @@
                    the explicit ref: Polecat 4.1.1 does not bundle the analyzer and
                    PolecatTests does not reference Marten, so its explicit ref is the
                    sole (single) generator instance there.
+
+          6.2.0: Bug-fix + feature release on top of 6.1.0:
+                     Polecat                               4.1.1 -> 4.2.1 (#2947)
+                     Marten / JasperFx families            unchanged (9.2.0 / 2.2.0)
+                   Notable additions: custom Result<T> handler-return-value support
+                   (Phases 0+1+2+3, #2952), DbContext abstractions for EF Core
+                   transaction middleware (#2919 + docs/tests follow-up #2954), and
+                   outgoing Envelope pooling at MessageRouter.RouteForPublish (#2956,
+                   ~-504 B/op on transport-bound sends). Plus bug fixes for the
+                   Marten/Polecat scheduled-cascade path (#2941, #2944), Postgres
+                   queue-name length (#2942), MySQL node-record quoting (#2940),
+                   Pulsar batched-partition acks (#2883/#2950), and the remote-node
+                   agent reply timeout (#2949). See the GitHub release notes for
+                   the full PR list.
         -->
-        <Version>6.1.0</Version>
+        <Version>6.2.0</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
