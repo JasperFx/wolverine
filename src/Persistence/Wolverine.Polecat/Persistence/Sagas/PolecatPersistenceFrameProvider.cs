@@ -58,9 +58,27 @@ internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 
     public bool CanApply(IChain chain, IServiceContainer container)
     {
-        // DIAGNOSTIC: force true unconditionally to confirm whether the bug is in CanApply
-        // detection vs. something deeper in the Polecat outbox path. GH-2941 follow-up.
-        return true;
+        if (chain is SagaChain)
+        {
+            return true;
+        }
+
+        if (chain.ReturnVariablesOfType<IPolecatOp>().Any()) return true;
+
+        // GH-2941: detect parameter attributes whose Modify() injects a non-MethodCall frame
+        // depending on IDocumentSession. See MartenPersistenceFrameProvider.CanApply for the full
+        // explanation; Polecat mirrors the Marten path structurally. NOTE: this is necessary but
+        // not sufficient on the Polecat side - Polecat 4.1.1's DocumentSessionBase.SaveChangesAsync
+        // early-returns when _workTracker has no outstanding work, which skips transaction
+        // participants entirely. A handler that only adds a StoreIncomingEnvelopeParticipant via
+        // PolecatEnvelopeTransaction.PersistIncomingAsync therefore never gets its participant
+        // executed, even after this fix attaches the SaveChangesAsync postprocessor. The full
+        // Polecat fix is upstream in Polecat's SaveChangesAsync guard.
+        if (ChainHasPolecatSessionAttributes(chain)) return true;
+
+        var serviceDependencies = chain
+            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations) }).ToArray();
+        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
     }
 
     private static bool ChainHasPolecatSessionAttributes(IChain chain)
