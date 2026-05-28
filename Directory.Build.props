@@ -100,8 +100,27 @@
                      JasperFx.SourceGenerator           2.0.1 -> 2.1.3
                      JasperFx.RuntimeCompiler          unchanged (own 5.x line)
                      Marten / Weasel.* / Polecat       unchanged
+
+          6.1.0: Marten family upgrade for the 6.1 minor release:
+                     Marten (+ .AspNetCore / .Newtonsoft)  9.0.1 -> 9.2.0
+                     Polecat                               unchanged (4.1.1, already latest)
+                     JasperFx.* (non-RuntimeCompiler)      2.1.3 -> 2.2.0 (#2938)
+                   Marten 9.2.0 now bundles JasperFx.Events.SourceGenerator as an
+                   analyzer (analyzers/dotnet/cs/), whereas 9.0.1 did not. Projects
+                   that reference Wolverine.Marten therefore receive the generator
+                   transitively, so the explicit
+                     <PackageReference Include="JasperFx.Events.SourceGenerator"
+                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+                   ref was redundant and ran the generator a SECOND time -> CS0111/
+                   CS0101 duplicate-Evolve/duplicate-*Evolver errors. Dropped that
+                   ref from the 8 Marten-referencing projects (MartenTests,
+                   WolverineWebApi, LoadTesting, Orders, TeleHealth.Common,
+                   Wolverine.{RabbitMQ,Kafka,AmazonSqs}.Tests). PolecatTests KEEPS
+                   the explicit ref: Polecat 4.1.1 does not bundle the analyzer and
+                   PolecatTests does not reference Marten, so its explicit ref is the
+                   sole (single) generator instance there.
         -->
-        <Version>6.0.3</Version>
+        <Version>6.1.0</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
