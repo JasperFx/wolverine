@@ -40,7 +40,7 @@ public class code_first_grpc_tests : IClassFixture<GrpcTestFixture>
     {
         var client = _fixture.CreateClient<IPingService>();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Should.ThrowAsync<Exception>(async () =>
             await client.Ping(new PingRequest { Message = "cancelled" }, cts.Token));
@@ -77,7 +77,7 @@ public class code_first_grpc_tests : IClassFixture<GrpcTestFixture>
                 received++;
                 if (received == 2)
                 {
-                    cts.Cancel();
+                    await cts.CancelAsync();
                 }
             }
         });

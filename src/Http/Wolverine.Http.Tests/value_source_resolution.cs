@@ -52,8 +52,8 @@ public class value_source_resolution : IntegrationContext
             x.WithRequestHeader("X-Count", "42");
         });
 
-        var count = await result.ReadAsJsonAsync<int>();
-        count.ShouldBe(42);
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("count:42");
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public class value_source_resolution : IntegrationContext
             x.WithRequestHeader("X-Correlation-Id", id.ToString());
         });
 
-        var todoId = await result.ReadAsJsonAsync<Guid>();
-        todoId.ShouldBe(id);
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe($"id:{id}");
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public class value_source_resolution : IntegrationContext
             x.Get.Url("/test/from-header/int");
         });
 
-        var count = await result.ReadAsJsonAsync<int>();
-        count.ShouldBe(0);
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("count:0");
     }
 
     #endregion

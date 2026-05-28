@@ -12,7 +12,9 @@ public static class AzureServiceBusTesting
         if (!_cleaned)
         {
             _cleaned = true;
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
             DeleteAllEmulatorObjectsAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         }
 
         var config = options.UseAzureServiceBus(Servers.AzureServiceBusConnectionString);

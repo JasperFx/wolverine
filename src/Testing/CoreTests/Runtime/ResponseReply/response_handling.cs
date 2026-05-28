@@ -84,7 +84,10 @@ public class response_handling : IDisposable
 
         waiter.Status.ShouldBe(TaskStatus.WaitingForActivation);
 
-        await Should.ThrowAsync<TimeoutException>(async () => { await waiter; });
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+        await Should.ThrowAsync<TimeoutException>(() => waiter);
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+
 
         _theListener.HasListener(envelope.Id).ShouldBeFalse();
     }

@@ -196,7 +196,9 @@ internal class JetStreamSubscriber : INatsSubscriber
         {
             try
             {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
                 await _consumerTask;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
             }
             catch (OperationCanceledException)
             {

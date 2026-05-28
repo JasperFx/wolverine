@@ -21,7 +21,10 @@ public static class MosquittoContainerFixture
             .WithWaitStrategy(Wait.ForUnixContainer().UntilMessageIsLogged("mosquitto version"))
             .Build();
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _container.StartAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
         Host = _container.Hostname;
         Port = _container.GetMappedPublicPort(1883);
     }

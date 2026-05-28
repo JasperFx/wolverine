@@ -45,7 +45,7 @@ public class code_first_codegen_integration_tests : IClassFixture<CodeFirstCodeg
     {
         var client = _fixture.CreateClient<ICodeFirstTestService>();
         using var cts = new CancellationTokenSource();
-        cts.Cancel();
+        await cts.CancelAsync();
 
         await Should.ThrowAsync<Exception>(async () =>
             await client.Echo(new CodeFirstRequest { Text = "cancelled" }, cts.Token));
@@ -64,7 +64,7 @@ public class code_first_codegen_integration_tests : IClassFixture<CodeFirstCodeg
                                new CodeFirstStreamRequest { Text = "cancel", Count = 500 }, cts.Token))
             {
                 received++;
-                if (received == 2) cts.Cancel();
+                if (received == 2) await cts.CancelAsync();
             }
         });
 

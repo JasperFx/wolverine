@@ -117,10 +117,13 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     }
 
     public Uri Address { get; }
+
     public async ValueTask StopAsync()
     {
         await _cancellation.CancelAsync();
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         await _runner;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
     }
 
     public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
@@ -172,7 +175,9 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     {
         _cancellation.Cancel();
         _cancellation.Dispose();
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _runner.Wait();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         _consumer.SafeDispose();
         _runner.Dispose();
     }
