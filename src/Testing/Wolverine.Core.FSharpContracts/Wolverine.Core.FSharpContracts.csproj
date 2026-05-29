@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Shared C# contract types for the F# code-generation foundation (issue GH-2969). Both the C#
+      driver (Wolverine.Core.FSharpTests, which builds the GeneratedAssembly) and the F# fixture
+      (Wolverine.Core.FSharpFixture, whose Generated.fs implements these contracts) reference this
+      library so the generated F# adapter has public types to bind against.
+    -->
+
+    <PropertyGroup>
+        <!-- Single target keeps the compile gate fast and matches the F# fixture's net9.0 / FSharp.Core 9 pin. -->
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>

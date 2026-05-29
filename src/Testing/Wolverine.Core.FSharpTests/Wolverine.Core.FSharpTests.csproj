@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      C# driver + compile-gate for the F# code-generation foundation (issue GH-2969). Builds a
+      GeneratedAssembly from real Wolverine frames, renders it as F# via GenerateFSharpCode(), writes
+      it into the checked-in Wolverine.Core.FSharpFixture project, and shells `dotnet build` on that
+      fixture to prove the emitted F# compiles. Mirrors the JasperFx#384 CodegenTests.FSharp pattern.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Core.FSharpContracts\Wolverine.Core.FSharpContracts.csproj" />
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+</Project>
