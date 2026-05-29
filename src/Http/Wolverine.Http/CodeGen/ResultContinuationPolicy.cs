@@ -73,4 +73,9 @@ public class MaybeEndWithResultFrame : AsyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    // NOTE: F# emit for MaybeEndWithResultFrame is deferred. The frame is added by ResultContinuationPolicy
+    // during a full endpoint compile (MapWolverineEndpoints); the no-host ChainFor harness used by the F#
+    // fixture doesn't apply continuation policies, so it can't exercise this frame yet. It will be done
+    // with the behavioural (host-based) harness (GH-2969).
 }

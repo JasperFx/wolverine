@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Wolverine.Configuration;
 
 namespace Wolverine.Http.CodeGen;
 
@@ -133,7 +134,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
             // A missing required route value 404s and aborts. F# has no early return, so the rest of
             // the chain renders inside the else branch.
             writer.Write($"BLOCK:if isNull {Variable.Usage} then");
-            writeStatusAbort(writer);
+            writeStatusAbort(method, writer);
             writer.FinishBlock();
             writer.Write("BLOCK:else");
             WriteNextOrUnit(method, writer);
@@ -167,7 +168,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
             // Required route value: null or parse-failure 404s + aborts; success binds the variable and
             // renders the rest of the chain in the success match arm (no F# early return).
             writer.Write($"BLOCK:if isNull {raw} then");
-            writeStatusAbort(writer);
+            writeStatusAbort(method, writer);
             writer.FinishBlock();
             writer.Write("BLOCK:else");
             writer.Write($"BLOCK:match {fsharpTryParse(raw)} with");
@@ -175,7 +176,7 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
             WriteNextOrUnit(method, writer);
             writer.FinishBlock();
             writer.Write("BLOCK:| _ ->");
-            writeStatusAbort(writer);
+            writeStatusAbort(method, writer);
             writer.FinishBlock();
             writer.FinishBlock(); // match
             writer.FinishBlock(); // else
@@ -197,14 +198,14 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         }
         else
         {
-            writer.Write("()");
+            writer.Write(FSharpEmitHelpers.AbortExpression(method));
         }
     }
 
-    private static void writeStatusAbort(ISourceWriter writer)
+    private static void writeStatusAbort(GeneratedMethod method, ISourceWriter writer)
     {
         writer.Write($"httpContext.Response.{nameof(HttpResponse.StatusCode)} <- 404");
-        writer.Write("()");
+        writer.Write(FSharpEmitHelpers.AbortExpression(method));
     }
 
     // The F# tuple form of the C# out-parameter TryParse (F# auto-tuples the out arg).

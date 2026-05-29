@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace Wolverine.Http.FSharpContracts;
 
 /// <summary>The JSON body bound by <see cref="ThingEndpoints.Create" />.</summary>
@@ -51,5 +53,14 @@ public class ThingEndpoints
     public string Paged(int page)
     {
         return $"page {page}";
+    }
+
+    // IResult return: a terminal IResult endpoint. The handler's IResult is executed directly as the
+    // returned Task (ReturnFromLastNode); combined with a route value it exercises the AsyncMode-aware
+    // abort (a missing route value yields Task.CompletedTask, not unit).
+    [WolverineGet("/fsharp/result/{id}")]
+    public IResult GetResult(string id)
+    {
+        return string.IsNullOrEmpty(id) ? Results.NotFound() : Results.Ok($"thing {id}");
     }
 }
