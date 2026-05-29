@@ -3,6 +3,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 
 namespace Wolverine.Persistence.Sagas;
@@ -40,5 +41,23 @@ internal class SetSagaIdFrame : SyncFrame
             writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\");");
         }
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var sagaId = FSharpEmitHelpers.FSharpUsage(_sagaId);
+        writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({sagaId})");
+
+        // F# has no null-conditional `?.`, and SetTag returns the Activity; guard once and pipe to ignore.
+        var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+        writer.Write($"BLOCK:if not (isNull {current}) then");
+        writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {sagaId}.ToString()) |> ignore");
+        if (_sagaType != null)
+        {
+            writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\") |> ignore");
+        }
+
+        writer.FinishBlock();
+        Next?.GenerateFSharpCode(method, writer);
     }
 }

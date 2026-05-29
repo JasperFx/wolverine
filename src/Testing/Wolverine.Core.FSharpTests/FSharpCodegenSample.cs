@@ -34,6 +34,7 @@ public static class FSharpCodegenSample
                     opts.Discovery.IncludeType<NameHandler>();
                     opts.Discovery.IncludeType<CheckThingHandler>();
                     opts.Discovery.IncludeType<GateHandler>();
+                    opts.Discovery.IncludeType<CountingSaga>();
 
                     // Inserts ApplyExecutionDiagnosticTagsFrame at the head of every chain.
                     opts.Tracking.HandlerExecutionDiagnosticsEnabled = true;

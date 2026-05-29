@@ -37,4 +37,17 @@ internal class SagaStoreOrDeleteFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Delete the saga if completed, otherwise update it");
+        writer.Write($"BLOCK:if {_saga.Usage}.{nameof(Saga.IsCompleted)}() then");
+        _delete.GenerateFSharpCode(method, writer);
+        writer.FinishBlock();
+        writer.Write("BLOCK:else");
+        _update.GenerateFSharpCode(method, writer);
+        writer.FinishBlock();
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

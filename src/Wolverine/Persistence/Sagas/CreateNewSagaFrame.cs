@@ -28,4 +28,10 @@ internal class CreateNewSagaFrame : SyncFrame
         writer.Write($"var {Saga.Usage} = new {Saga.VariableType.FullNameInCode()}();");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"{Saga.FSharpAssignmentUsage} = {Saga.VariableType.FSharpName()}()");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

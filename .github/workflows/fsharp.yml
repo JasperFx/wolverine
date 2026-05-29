@@ -51,7 +51,7 @@ jobs:
       - name: Build the F# solution
         run: dotnet build wolverine_fsharp.slnx -c "$config" --nologo
 
-      - name: Compile-gate + fsharp-coverage
-        # The gate test regenerates Generated.fs, recompiles the F# fixture (retrying once on the
+      - name: Compile-gate + fsharp-coverage (Core + Http surfaces)
+        # Each gate test regenerates its Generated.fs, recompiles the F# fixture (retrying once on the
         # transient FS0193 internal-compiler crash), and runs the fsharp-coverage report.
-        run: dotnet test src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj -c "$config" --nologo
+        run: dotnet test wolverine_fsharp.slnx -c "$config" --nologo
