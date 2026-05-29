@@ -34,4 +34,11 @@ internal class ResolveSagaFrame : Frame
         _loadFrame.GenerateCode(method, writer);
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        _findSagaIdFrame.GenerateFSharpCode(method, writer);
+        _loadFrame.GenerateFSharpCode(method, writer);
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

@@ -30,6 +30,17 @@ internal class ConditionalSagaInsertFrame : Frame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"BLOCK:if not ({_saga.Usage}.{nameof(Saga.IsCompleted)}()) then");
+        _insert.GenerateFSharpCode(method, writer);
+        writer.FinishBlock();
+
+        _commit.GenerateFSharpCode(method, writer);
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         yield return _saga;

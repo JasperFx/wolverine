@@ -37,6 +37,34 @@ internal class PullSagaIdFromEnvelopeFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var id = SagaChain.SagaIdVariableName;
+        var ex = typeof(IndeterminateSagaStateIdException).FSharpName();
+        var envSagaId = $"{_envelope!.Usage}.{nameof(Envelope.SagaId)}";
+
+        if (SagaId.VariableType == typeof(string))
+        {
+            writer.Write($"let {id} = {envSagaId}");
+            writer.Write($"BLOCK:if System.String.IsNullOrEmpty({id}) then");
+            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.FinishBlock();
+        }
+        else
+        {
+            // F# auto-tuples the out-parameter TryParse; bind the id from the match, raising on failure.
+            var clrType = SagaId.VariableType.FullName; // System.Guid / System.Int64 — valid static call target
+            writer.Write($"BLOCK:let {id} =");
+            writer.Write($"BLOCK:match {clrType}.TryParse({envSagaId}) with");
+            writer.Write("| true, parsed -> parsed");
+            writer.Write($"| _ -> raise ({ex}({_envelope.Usage}))");
+            writer.FinishBlock();
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _envelope = chain.FindVariable(typeof(Envelope));

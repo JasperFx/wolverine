@@ -47,4 +47,21 @@ internal class SetSagaIdFromSagaFrame : SyncFrame
         }
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var member = $"{_message.Usage}.{_sagaIdMember.Name}";
+        writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({member})");
+
+        var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+        writer.Write($"BLOCK:if not (isNull {current}) then");
+        writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaId}\", {member}.ToString()) |> ignore");
+        if (_sagaType != null)
+        {
+            writer.Write($"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.SagaType}\", \"{_sagaType.FullName}\") |> ignore");
+        }
+
+        writer.FinishBlock();
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

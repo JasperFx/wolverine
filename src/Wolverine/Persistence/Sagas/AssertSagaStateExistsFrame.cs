@@ -24,4 +24,11 @@ internal class AssertSagaStateExistsFrame : SyncFrame
             $"throw new {typeof(UnknownSagaException)}(typeof({_sagaState.VariableType.FullNameInCode()}), {_sagaId.Usage});");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"raise ({typeof(UnknownSagaException).FSharpName()}(typeof<{_sagaState.VariableType.FSharpName()}>, {_sagaId.Usage}))");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
