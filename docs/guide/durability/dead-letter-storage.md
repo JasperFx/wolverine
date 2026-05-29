@@ -91,78 +91,100 @@ app.MapDeadLettersEndpoints()
 - **Path**: `/dead-letters/`
 - **Method**: `POST`
 - **Request Body**: `DeadLetterEnvelopeGetRequest`
-  - `Limit` (uint): Number of records to return per page.
-  - `StartId` (Guid?): Start fetching records after the specified ID.
+  - `Limit` (uint, default `100`): Number of records to return per page.
+  - `PageNumber` (int): Page number for offset-based pagination — pass `0` (or omit) for the first page.
   - `MessageType` (string?): Filter by message type.
   - `ExceptionType` (string?): Filter by exception type.
   - `ExceptionMessage` (string?): Filter by exception message.
   - `From` (DateTimeOffset?): Start date for fetching records.
   - `Until` (DateTimeOffset?): End date for fetching records.
   - `TenantId` (string?): Tenant identifier for multi-tenancy support.
-- **Response**: `DeadLetterEnvelopesFoundResponse` containing a list of `DeadLetterEnvelopeResponse` objects and an optional `NextId` for pagination.
+  - `DatabaseUri` (Uri?): Scope the query to a single message store when the application has multiple (ancillary) stores configured. Omit to query every store.
+- **Response**: `IReadOnlyList<DeadLetterEnvelopeResults>` — one entry per matching message store. Each `DeadLetterEnvelopeResults` contains:
+  - `TotalCount` (int): Total matching records for the filter in that store.
+  - `Envelopes` (`List<DeadLetterEnvelope>`): The page of dead-letter envelopes.
+  - `PageNumber` (int): Echo of the requested page number.
+  - `DatabaseUri` (Uri?): The URI identifying which message store this result is from.
+
+::: tip Pagination
+The pagination model changed from cursor-based (`StartId` / `NextId`) to offset-based (`PageNumber`) in Wolverine 5. Pass `PageNumber` incrementing from `0` to walk through pages; `TotalCount` lets you compute how many pages exist as `ceil(TotalCount / Limit)`.
+:::
 
 **Request Example**:
 
 ```json
 {
   "Limit": 50,
+  "PageNumber": 0,
   "MessageType": "OrderPlacedEvent",
   "ExceptionType": "InvalidOrderException"
 }
 ```
 
-**Reponse Example**:
+**Response Example** (one store; multi-store apps return additional array entries with their own `DatabaseUri`):
 
 ```json
-{
-  "Messages": [
-    {
-      "Id": "4e3d5e88-e01f-4bcb-af25-6e4c14b0a867",
-      "ExecutionTime": "2024-04-06T12:00:00Z",
-      "Body": {
-        "OrderId": 123456,
-        "OrderStatus": "Failed",
-        "Reason": "Invalid Payment Method"
+[
+  {
+    "TotalCount": 247,
+    "PageNumber": 0,
+    "DatabaseUri": "postgresql://localhost:5432/orders",
+    "Envelopes": [
+      {
+        "Id": "4e3d5e88-e01f-4bcb-af25-6e4c14b0a867",
+        "ExecutionTime": "2026-04-06T12:00:00Z",
+        "MessageType": "OrderFailedEvent",
+        "ReceivedAt": "rabbitmq://exchange/orders",
+        "Source": "OrderService",
+        "ExceptionType": "PaymentException",
+        "ExceptionMessage": "The payment method provided is invalid.",
+        "SentAt": "2026-04-06T12:00:00Z",
+        "Replayable": true,
+        "Envelope": { /* the raw wire Envelope (headers, body, destination, etc.) */ },
+        "Message": {
+          "OrderId": 123456,
+          "OrderStatus": "Failed",
+          "Reason": "Invalid Payment Method"
+        }
       },
-      "MessageType": "OrderFailedEvent",
-      "ReceivedAt": "2024-04-06T12:05:00Z",
-      "Source": "OrderService",
-      "ExceptionType": "PaymentException",
-      "ExceptionMessage": "The payment method provided is invalid.",
-      "SentAt": "2024-04-06T12:00:00Z",
-      "Replayable": true
-    },
-    {
-      "Id": "5f2c3d1e-3f3d-46f9-ba29-dac8e0f9b078",
-      "ExecutionTime": null,
-      "Body": {
-        "CustomerId": 78910,
-        "AccountBalance": -150.75
-      },
-      "MessageType": "AccountOverdrawnEvent",
-      "ReceivedAt": "2024-04-06T15:20:00Z",
-      "Source": "AccountService",
-      "ExceptionType": "OverdrawnException",
-      "ExceptionMessage": "Account balance cannot be negative.",
-      "SentAt": "2024-04-06T15:15:00Z",
-      "Replayable": false
-    }
-  ],
-  "NextId": "8a1d77f2-f91b-4edb-8b51-466b5a8a3a6f"
-}
+      {
+        "Id": "5f2c3d1e-3f3d-46f9-ba29-dac8e0f9b078",
+        "ExecutionTime": null,
+        "MessageType": "AccountOverdrawnEvent",
+        "ReceivedAt": "rabbitmq://exchange/accounts",
+        "Source": "AccountService",
+        "ExceptionType": "OverdrawnException",
+        "ExceptionMessage": "Account balance cannot be negative.",
+        "SentAt": "2026-04-06T15:15:00Z",
+        "Replayable": false,
+        "Envelope": { /* … */ },
+        "Message": {
+          "CustomerId": 78910,
+          "AccountBalance": -150.75
+        }
+      }
+    ]
+  }
+]
 ```
+
+The `Message` property is the deserialized message body — populated when Wolverine's handler graph knows the message type and a matching serializer is registered. The full wire `Envelope` (headers, content type, destination, etc.) is also returned for inspection.
 
 #### Replay Dead Letters Endpoint
 
 - **Path**: `/dead-letters/replay`
 - **Method**: `POST`
 - **Description**: Marks specified dead letter messages as replayable. This operation signals the system to attempt reprocessing the messages, ideally after the cause of the initial failure has been resolved.
+- **Request Body**: `DeadLetterEnvelopeIdsRequest`
+  - `Ids` (Guid[]): Identifiers of the dead-letter envelopes to replay.
+  - `TenantId` (string?): If set, the replay is scoped to the tenant's message store.
 
 **Request Example**:
 
 ```json
 {
-  "Ids": ["d3b07384-d113-4ec8-98c4-b3bf34e2c572", "d3b07384-d113-4ec8-98c4-b3bf34e2c573"]
+  "Ids": ["d3b07384-d113-4ec8-98c4-b3bf34e2c572", "d3b07384-d113-4ec8-98c4-b3bf34e2c573"],
+  "TenantId": "tenant-a"
 }
 ```
 
@@ -171,12 +193,14 @@ app.MapDeadLettersEndpoints()
 - **Path**: `/dead-letters/`
 - **Method**: `DELETE`
 - **Description**: Permanently removes specified dead letter messages from the system. Use this operation to clear messages that are no longer needed or cannot be successfully reprocessed.
+- **Request Body**: `DeadLetterEnvelopeIdsRequest` (same shape as the replay endpoint above).
 
 **Request Example**:
 
 ```json
 {
-  "Ids": ["d3b07384-d113-4ec8-98c4-b3bf34e2c574", "d3b07384-d113-4ec8-98c4-b3bf34e2c575"]
+  "Ids": ["d3b07384-d113-4ec8-98c4-b3bf34e2c574", "d3b07384-d113-4ec8-98c4-b3bf34e2c575"],
+  "TenantId": "tenant-a"
 }
 ```
 
