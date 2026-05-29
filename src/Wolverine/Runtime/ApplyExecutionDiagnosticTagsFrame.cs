@@ -43,4 +43,14 @@ internal class ApplyExecutionDiagnosticTagsFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // A void static call; the helper short-circuits on a null activity so no guard is needed.
+        writer.Write(
+            $"{typeof(WolverineTracing).FSharpName()}.{nameof(WolverineTracing.ApplyExecutionDiagnosticTags)}(" +
+            $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}, {_envelope!.Usage})");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

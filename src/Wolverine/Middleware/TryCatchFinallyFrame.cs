@@ -5,6 +5,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Wolverine.Configuration;
 
 namespace Wolverine.Middleware;
 
@@ -13,6 +14,10 @@ namespace Wolverine.Middleware;
 /// Catch blocks are ordered by exception type specificity (most derived first).
 /// Finally blocks execute cleanup code regardless of exceptions.
 /// </summary>
+[FSharpEmit(Skip = true,
+    Reason = "Imperatively rewires child frames' Next pointers and renders multiple inheritance-ordered " +
+             "catch blocks; porting to F#'s try/with-as-an-expression model is deferred past Phase A. " +
+             "Unreachable in a minimal in-process F# handler chain.")]
 public class TryCatchFinallyFrame : Frame
 {
     private readonly List<CatchBlock> _catchBlocks = [];

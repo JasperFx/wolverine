@@ -133,4 +133,14 @@ internal class SimpleValidationHandlerFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F# has no early `return`; WriteAbortGuard renders the remainder of the chain inside the
+        // `else` branch so the abort path simply yields the method's result.
+        writer.WriteComment("Check for any simple validation messages and abort if any exist");
+        var condition =
+            $"{typeof(SimpleValidationContinuationPolicy).FSharpName()}.{nameof(SimpleValidationContinuationPolicy.LogValidationMessages)}({FSharpEmitHelpers.FSharpUsage(_logger!)}, {_variable.Usage})";
+        FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
+    }
 }

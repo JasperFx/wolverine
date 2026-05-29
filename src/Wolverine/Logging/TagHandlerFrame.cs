@@ -45,4 +45,24 @@ internal class TagHandlerFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_chain.HandlerCalls().Length == 1)
+        {
+            // F# has no null-conditional operator, and SetTag returns the Activity (which must be
+            // discarded), so guard Activity.Current explicitly and pipe each call to `ignore`.
+            var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+            var handlerTypeName = _chain.HandlerCalls()[0].HandlerType.FullNameInCode();
+
+            writer.Write($"BLOCK:if not (isNull {current}) then");
+            writer.Write(
+                $"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.MessageHandler}\", \"{handlerTypeName}\") |> ignore");
+            writer.Write(
+                $"{current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.HandlerType}\", \"{handlerTypeName}\") |> ignore");
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
