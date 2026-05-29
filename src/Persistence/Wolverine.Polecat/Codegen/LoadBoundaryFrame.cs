@@ -10,7 +10,6 @@ namespace Wolverine.Polecat.Codegen;
 
 internal class LoadBoundaryFrame : AsyncFrame
 {
-    private readonly Type _aggregateType;
     private Variable? _query;
     private Variable? _session;
     private Variable? _token;
@@ -18,11 +17,13 @@ internal class LoadBoundaryFrame : AsyncFrame
 
     public LoadBoundaryFrame(Type aggregateType, Variable? query = null)
     {
-        _aggregateType = aggregateType;
+        AggregateType = aggregateType;
         _query = query;
         _boundaryType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
         Boundary = new Variable(_boundaryType, this);
     }
+
+    public Type AggregateType { get; }
 
     public Variable Boundary { get; }
 
@@ -42,7 +43,7 @@ internal class LoadBoundaryFrame : AsyncFrame
     {
         writer.WriteComment("Loading DCB boundary model via FetchForWritingByTags");
         writer.WriteLine(
-            $"var {Boundary.Usage} = await {_session!.Usage}.Events.FetchForWritingByTags<{_aggregateType.FullNameInCode()}>({_query!.Usage}, {_token!.Usage});");
+            $"var {Boundary.Usage} = await {_session!.Usage}.Events.FetchForWritingByTags<{AggregateType.FullNameInCode()}>({_query!.Usage}, {_token!.Usage});");
 
         Next?.GenerateCode(method, writer);
     }
