@@ -105,6 +105,71 @@ internal class ReadHttpFrame : SyncFrame, IReadHttpFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F# emit currently covers string binding to a method argument. The parsed/out-var path and
+        // property binding (AsParameters) are deferred (GH-2969).
+        if (Mode != AssignMode.WriteToVariable)
+        {
+            throw new NotSupportedException(
+                "F# code generation for ReadHttpFrame supports method-argument binding only (not property/AsParameters binding) yet.");
+        }
+
+        if (_rawType != typeof(string))
+        {
+            throw new NotSupportedException(
+                $"F# code generation for ReadHttpFrame does not yet support parsed (non-string) binding (was {_rawType.FullNameInCode()}).");
+        }
+
+        writer.Write($"{Variable.FSharpAssignmentUsage} = {fsharpRawValueSource()}");
+
+        if (_source == BindingSource.RouteValue && !_isOptional)
+        {
+            // A missing required route value 404s and aborts. F# has no early return, so the rest of
+            // the chain renders inside the else branch.
+            writer.Write($"BLOCK:if isNull {Variable.Usage} then");
+            writer.Write($"httpContext.Response.{nameof(HttpResponse.StatusCode)} <- 404");
+            writer.Write("()");
+            writer.FinishBlock();
+            writer.Write("BLOCK:else");
+            if (Next != null)
+            {
+                Next.GenerateFSharpCode(method, writer);
+            }
+            else
+            {
+                writer.Write("()");
+            }
+
+            writer.FinishBlock();
+        }
+        else
+        {
+            Next?.GenerateFSharpCode(method, writer);
+        }
+    }
+
+    private string fsharpRawValueSource()
+    {
+        switch (_source)
+        {
+            case BindingSource.Form:
+                return $"httpContext.Request.Form.[\"{Key}\"].ToString()";
+
+            case BindingSource.Header:
+                return $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.ReadSingleHeaderValue)}(httpContext, \"{Key}\")";
+
+            case BindingSource.QueryString:
+                return $"httpContext.Request.Query.[\"{Key}\"].ToString()";
+
+            case BindingSource.RouteValue:
+                return $"(httpContext.GetRouteValue(\"{Key}\") :?> string)";
+
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
     private void writeStringValue(ISourceWriter writer, GeneratedMethod method)
     {
         var assignTo = Mode == AssignMode.WriteToVariable ? $"var {Variable.Usage}" : _property;

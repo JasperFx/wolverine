@@ -25,4 +25,24 @@ public class ThingEndpoints
     {
         return new ThingCreated(command.Name);
     }
+
+    // Route-value binding: {id} is bound from the route. {count} is a typed (int) route value.
+    [WolverineGet("/fsharp/things/{id}")]
+    public string GetById(string id)
+    {
+        return $"thing {id}";
+    }
+
+    [WolverineGet("/fsharp/things/{id}/items/{count}")]
+    public string GetItems(string id, int count)
+    {
+        return $"{count} items for {id}";
+    }
+
+    // Query-string binding: q has no matching route token, so it binds from the query string.
+    [WolverineGet("/fsharp/search")]
+    public string Search(string q)
+    {
+        return $"searching {q}";
+    }
 }
