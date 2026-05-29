@@ -45,4 +45,14 @@ internal class RecordMessageCausationFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // RecordCauseAndEffect is an inherited instance method on the generated MessageHandler subclass,
+        // so it must be qualified with the member's `this` self identifier (jasperfx#393).
+        writer.Write(
+            $"this.{nameof(MessageHandler.RecordCauseAndEffect)}({_context!.Usage}, {_context!.Usage}.Runtime.Observer)");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

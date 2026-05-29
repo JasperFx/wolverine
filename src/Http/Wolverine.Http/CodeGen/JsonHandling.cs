@@ -6,6 +6,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
@@ -39,6 +40,20 @@ internal class ReadJsonBody : AsyncFrame
             $"if (jsonContinue == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return;");
 
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Reading the request body via JSON deserialization");
+
+        // ReadJsonAsync is an inherited *instance* method on HttpHandler (qualified with the member's
+        // `this` self identifier, jasperfx#393) returning (body, continuation). F# has no early
+        // `return`, so the abort guard renders the rest of the chain inside its `else` branch.
+        writer.Write(
+            $"let! ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext)");
+
+        var condition = $"jsonContinue = {typeof(HandlerContinuation).FSharpName()}.{nameof(HandlerContinuation.Stop)}";
+        FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
     }
 }
 

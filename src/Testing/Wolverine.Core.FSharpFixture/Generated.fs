@@ -14,7 +14,7 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
 
-    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let checkThing = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.CheckThing
 
@@ -32,13 +32,14 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
             // The actual message execution
             checkThingHandler.Handle(checkThing)
 
+            this.RecordCauseAndEffect(context, context.Runtime.Observer)
         System.Threading.Tasks.Task.CompletedTask
 
 type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.ILogger<Wolverine.Core.FSharpContracts.CreateName>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
 
-    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         task {
             // The actual message body
             let createName = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.CreateName
@@ -64,11 +65,12 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
                 // Outgoing, cascaded message
                 do! context.EnqueueCascadingAsync(outgoing1)
 
+                this.RecordCauseAndEffect(context, context.Runtime.Observer)
         }
 
 type GateHandler1696712162() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
-    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let gate = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.Gate
 
@@ -86,13 +88,14 @@ type GateHandler1696712162() =
             // The actual message execution
             gateHandler.Handle(gate)
 
+            this.RecordCauseAndEffect(context, context.Runtime.Observer)
         System.Threading.Tasks.Task.CompletedTask
 
 type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
 
-    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let incrementCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.IncrementCount
 
@@ -126,7 +129,7 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
 
-    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let startCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.StartCount
 
