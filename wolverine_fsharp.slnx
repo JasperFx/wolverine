@@ -19,10 +19,14 @@
     <Project Path="src/Samples/WolverineFSharpSample/WolverineFSharpSample.fsproj" />
     <Project Path="src/Testing/Wolverine.EfCore.FSharpFixture/Wolverine.EfCore.FSharpFixture.fsproj" />
     <Project Path="src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj" />
+    <Project Path="src/Samples/WolverineMartenFSharpSample/WolverineMartenFSharpSample.fsproj" />
+    <Project Path="src/Testing/Wolverine.Marten.FSharpFixture/Wolverine.Marten.FSharpFixture.fsproj" />
+    <Project Path="src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj" />
   </Folder>
   <Folder Name="/Wolverine/">
     <Project Path="src/Wolverine/Wolverine.csproj" />
     <Project Path="src/Http/Wolverine.Http/Wolverine.Http.csproj" />
     <Project Path="src/Persistence/Wolverine.EntityFrameworkCore/Wolverine.EntityFrameworkCore.csproj" />
+    <Project Path="src/Persistence/Wolverine.Marten/Wolverine.Marten.csproj" />
   </Folder>
 </Solution>

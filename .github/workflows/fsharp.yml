@@ -23,7 +23,9 @@ on:
       - 'src/Testing/Wolverine.Core.FSharp*/**'
       - 'src/Testing/Wolverine.Http.FSharp*/**'
       - 'src/Testing/Wolverine.EfCore.FSharp*/**'
+      - 'src/Testing/Wolverine.Marten.FSharp*/**'
       - 'src/Samples/WolverineFSharpSample/**'
+      - 'src/Samples/WolverineMartenFSharpSample/**'
       - '.github/workflows/fsharp.yml'
   workflow_dispatch:
 
@@ -66,3 +68,6 @@ jobs:
 
       - name: Compile-gate (EF Core surface)
         run: dotnet test src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj -c "$config" --nologo
+
+      - name: Compile-gate (Marten document surface)
+        run: dotnet test src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj -c "$config" --nologo

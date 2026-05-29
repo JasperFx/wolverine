@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      A small F# Wolverine sample demonstrating the F# code-generation approach (issue GH-2969).
+      This slice exercises Marten document persistence: a [<Transactional>] message handler that stores
+      a document through an IDocumentSession and cascades an event. It runs today via dynamic codegen;
+      the F# compile-gate (src/Testing/Wolverine.Marten.FSharpTests) renders this handler's real chain
+      to F# and compiles it, proving the Marten document frames emit valid F#.
+    -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <!-- F# project: clear the C#-oriented props inherited from Directory.Build.props. -->
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <!-- Pin FSharp.Core to the centrally-managed version; see WolverineWebApiFSharp.fsproj. -->
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Domain.fs" />
+        <Compile Include="Handlers.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Marten as both the document store and the durable Wolverine message store
+             (IntegrateWithWolverine), backing the transactional outbox. -->
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <!-- Core Wolverine no longer ships the runtime (Roslyn) compiler (GH-2876); the runnable sample
+             uses dynamic codegen, so reference the runtime-compilation module + UseRuntimeCompilation(). -->
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>
