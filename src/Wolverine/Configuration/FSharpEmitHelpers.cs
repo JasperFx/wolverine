@@ -1,14 +1,12 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
 
 namespace Wolverine.Configuration;
 
 /// <summary>
-///     Small shared helpers for emitting F# from Wolverine frames (issue GH-2969). These cover gaps in
-///     the JasperFx-layer model where a value's C# rendering is not valid F#, plus the recurring
-///     "abort-or-continue" continuation shape.
+///     Small shared helper for emitting F# from Wolverine frames (issue GH-2969): the recurring
+///     "abort-or-continue" continuation shape. (The former CastVariable workaround was retired once
+///     JasperFx 2.2.5 added the built-in <c>Variable.FSharpUsage</c>; frames now use that directly.)
 /// </summary>
 internal static class FSharpEmitHelpers
 {
@@ -39,22 +37,5 @@ internal static class FSharpEmitHelpers
         }
 
         writer.FinishBlock();
-    }
-
-    /// <summary>
-    ///     The F# rendering of a variable's usage. F# has no C-style cast, but
-    ///     <see cref="CastVariable" /> bakes a C# <c>((Type)x)</c> cast into its <see cref="Variable.Usage" />
-    ///     (e.g. the injected <c>ILogger&lt;TMessage&gt;</c> handed to validation frames as <c>ILogger</c>).
-    ///     Rewrite that as an F# upcast <c>(x :&gt; Type)</c>; everything else uses its usage verbatim.
-    /// </summary>
-    /// <remarks>
-    ///     The proper fix is an F#-aware usage on JasperFx's <c>CastVariable</c> itself; tracked as an
-    ///     upstream JasperFx gap. Until then this keeps the audit moving without leaving Wolverine.
-    /// </remarks>
-    public static string FSharpUsage(Variable variable)
-    {
-        return variable is CastVariable cast
-            ? $"({cast.Inner.Usage} :> {cast.VariableType.FSharpName()})"
-            : variable.Usage;
     }
 }

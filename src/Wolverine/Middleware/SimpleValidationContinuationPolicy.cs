@@ -140,7 +140,7 @@ internal class SimpleValidationHandlerFrame : SyncFrame
         // `else` branch so the abort path simply yields the method's result.
         writer.WriteComment("Check for any simple validation messages and abort if any exist");
         var condition =
-            $"{typeof(SimpleValidationContinuationPolicy).FSharpName()}.{nameof(SimpleValidationContinuationPolicy.LogValidationMessages)}({FSharpEmitHelpers.FSharpUsage(_logger!)}, {_variable.Usage})";
+            $"{typeof(SimpleValidationContinuationPolicy).FSharpName()}.{nameof(SimpleValidationContinuationPolicy.LogValidationMessages)}({_logger!.FSharpUsage}, {_variable.Usage})";
         FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
     }
 }

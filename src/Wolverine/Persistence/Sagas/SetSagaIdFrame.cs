@@ -45,7 +45,7 @@ internal class SetSagaIdFrame : SyncFrame
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
-        var sagaId = FSharpEmitHelpers.FSharpUsage(_sagaId);
+        var sagaId = _sagaId.FSharpUsage;
         writer.Write($"{_context!.Usage}.{nameof(MessageContext.SetSagaId)}({sagaId})");
 
         // F# has no null-conditional `?.`, and SetTag returns the Activity; guard once and pipe to ignore.

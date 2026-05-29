@@ -51,7 +51,7 @@ public class AuditToActivityFrame : SyncFrame
             foreach (var member in _members)
             {
                 writer.Write(
-                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {FSharpEmitHelpers.FSharpUsage(_input!)}.{member.Member.Name}) |> ignore");
+                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {_input!.FSharpUsage}.{member.Member.Name}) |> ignore");
             }
 
             writer.FinishBlock();
