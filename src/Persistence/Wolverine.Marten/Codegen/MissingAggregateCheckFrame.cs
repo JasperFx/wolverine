@@ -37,4 +37,12 @@ internal class MissingAggregateCheckFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteLine(
+            $"if isNull {_eventStream.FSharpUsage}.{nameof(IEventStream<string>.Aggregate)} then raise({typeof(UnknownAggregateException).FSharpName()}(typeof<{_aggregateType.FSharpName()}>, {_identity.FSharpUsage}))");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

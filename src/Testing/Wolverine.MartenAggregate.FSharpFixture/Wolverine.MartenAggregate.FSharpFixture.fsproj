@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Checked-in F# fixture for the Marten event-sourced aggregate F# code-generation surface (issue
+      GH-2969). Generated.fs is the emitted MessageHandler adapter for the sample's aggregate handler
+      chain (open session -> FetchForWriting -> missing-aggregate guard -> Handle -> append events ->
+      SaveChanges). The compile-gate regenerates it and `dotnet build`s this project to prove the Marten
+      aggregate frames emit compiling F#. Mirrors the Core/Http/EfCore/Marten fixtures.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Generated.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Samples\WolverineMartenAggregateFSharpSample\WolverineMartenAggregateFSharpSample.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>
