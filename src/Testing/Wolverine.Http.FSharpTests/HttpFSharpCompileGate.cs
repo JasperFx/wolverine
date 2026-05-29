@@ -33,8 +33,11 @@ public class HttpFSharpCompileGate
         var fixtureProject = HttpFSharpCodegenSample.FixtureProjectPath();
         var (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
 
-        // Retry once on the transient FS0193 internal-compiler crash (see the Core surface gate).
-        if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")))
+        // Retry once on the transient FS0193 internal-compiler crash, or a concurrent-build file lock
+        // on a shared ref assembly (MSB3883 / "used by another process") if gates ever overlap.
+        if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")
+                                                        || output.Contains("being used by another process")
+                                                        || output.Contains("MSB3883")))
         {
             (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
         }

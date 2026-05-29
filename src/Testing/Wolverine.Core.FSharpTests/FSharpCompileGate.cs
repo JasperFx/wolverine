@@ -39,9 +39,12 @@ public class FSharpCompileGate
 
         // A nested `dotnet build` (build-inside-test) can occasionally trip an internal F# compiler
         // crash (e.g. FS0193 in the auto-generated AssemblyAttributes.fs) that has nothing to do with
-        // the generated source. Retry once on that specific signature only — a genuine F# error in
-        // Generated.fs is deterministic and would persist across the retry, so this can't mask it.
-        if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")))
+        // the generated source, or a concurrent-build file lock on a shared ref assembly (MSB3883 /
+        // "used by another process"). Retry once on those transient signatures only — a genuine F#
+        // error in Generated.fs is deterministic and would persist across the retry, so this can't mask it.
+        if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")
+                                                        || output.Contains("being used by another process")
+                                                        || output.Contains("MSB3883")))
         {
             (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
         }

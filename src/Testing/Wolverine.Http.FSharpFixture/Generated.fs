@@ -43,3 +43,82 @@ type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
                 do! this.WriteJsonAsync(httpContext, thingCreated_response)
         }
 
+type GET_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let id = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                let result_of_GetById = thingEndpoints.GetById(id)
+
+                do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetById)
+        }
+
+type GET_fsharp_search(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let q = httpContext.Request.Query.["q"].ToString()
+            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Search = thingEndpoints.Search(q)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Search)
+        }
+
+type GET_fsharp_things_id_items_count(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let id = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                let count_rawValue = (httpContext.GetRouteValue("count") :?> string)
+                if isNull count_rawValue then
+                    httpContext.Response.StatusCode <- 404
+                    ()
+                else
+                    match System.Int32.TryParse(count_rawValue, System.Globalization.CultureInfo.InvariantCulture) with
+                        | true, count ->
+                            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                            
+                            // The actual HTTP request handler execution
+                            let result_of_GetItems = thingEndpoints.GetItems(id, count)
+
+                            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetItems)
+                        | _ ->
+                            httpContext.Response.StatusCode <- 404
+                            ()
+        }
+
+type GET_fsharp_paged(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let page_rawValue = httpContext.Request.Query.["page"].ToString()
+            let page = match System.Int32.TryParse(page_rawValue, System.Globalization.CultureInfo.InvariantCulture) with | true, v -> v | _ -> Unchecked.defaultof<int>
+            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Paged = thingEndpoints.Paged(page)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Paged)
+        }
+
