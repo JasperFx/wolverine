@@ -1,6 +1,7 @@
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
+using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CommandLine;
 using JasperFx.Core;
@@ -18,7 +19,7 @@ namespace Wolverine.Diagnostics;
 
 public class WolverineDiagnosticsInput : NetCoreInput
 {
-    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing, describe-handlers")]
+    [Description("Diagnostics sub-command to execute. Valid values: codegen-preview, describe-routing, describe-handlers, fsharp-coverage")]
     public string Action { get; set; } = "codegen-preview";
 
     [Description("For describe-routing / describe-handlers: the type name to inspect. " +
@@ -109,9 +110,12 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             case "describe-handlers":
                 return await RunDescribeHandlersAsync(input);
 
+            case "fsharp-coverage":
+                return RunFSharpCoverage();
+
             default:
                 AnsiConsole.MarkupLine(
-                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing, describe-handlers[/]");
+                    $"[red]Unknown sub-command '{input.Action}'. Valid sub-commands: codegen-preview, describe-routing, describe-handlers, fsharp-coverage[/]");
                 return false;
         }
     }
@@ -1099,5 +1103,151 @@ public class WolverineDiagnosticsCommand : JasperFxAsyncCommand<WolverineDiagnos
             .Where(t => (t.FullName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
                         || t.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
             .ToArray();
+    }
+
+    // -------------------------------------------------------------------------
+    // fsharp-coverage implementation (issue GH-2969)
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    ///     Reflects over the currently-loaded <c>Wolverine.*</c> assemblies and buckets every
+    ///     <see cref="Frame" /> subclass into implemented / intentionally-skipped / remaining for the F#
+    ///     code-generation audit. Only frames in loaded assemblies are counted, so the totals reflect the
+    ///     surface area the host actually references (run it from an app that references the extensions you
+    ///     care about — e.g. Wolverine.Http, a persistence package — to widen coverage).
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    private static bool RunFSharpCoverage()
+    {
+        var frameTypes = LoadedWolverineFrameTypes()
+            .OrderBy(t => t.FullName, StringComparer.Ordinal)
+            .ToArray();
+
+        var implemented = new List<Type>();
+        var skipped = new List<(Type Type, string? Reason)>();
+        var remaining = new List<Type>();
+
+        foreach (var type in frameTypes)
+        {
+            var marker = type.GetCustomAttribute<FSharpEmitAttribute>();
+            if (marker is { Skip: true })
+            {
+                skipped.Add((type, marker.Reason));
+            }
+            else if (EmitsFSharp(type))
+            {
+                implemented.Add(type);
+            }
+            else
+            {
+                remaining.Add(type);
+            }
+        }
+
+        AnsiConsole.MarkupLine("[bold green]F# code-generation coverage[/] [grey](issue GH-2969)[/]");
+        AnsiConsole.MarkupLine($"  [green]Implemented:[/]              {implemented.Count}");
+        AnsiConsole.MarkupLine($"  [yellow]Skipped (not applicable):[/] {skipped.Count}");
+        AnsiConsole.MarkupLine($"  [red]Remaining:[/]                {remaining.Count}");
+        AnsiConsole.MarkupLine($"  [grey]Total Frame types loaded:[/]  {frameTypes.Length}");
+        AnsiConsole.WriteLine();
+
+        if (skipped.Count > 0)
+        {
+            AnsiConsole.MarkupLine("[bold yellow]Intentionally skipped[/]");
+            var table = new Table().AddColumn("Frame").AddColumn("Reason");
+            foreach (var (type, reason) in skipped)
+            {
+                table.AddRow(
+                    type.FullNameInCode().EscapeMarkup(),
+                    (reason ?? "(no reason recorded)").EscapeMarkup());
+            }
+
+            AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
+        }
+
+        if (remaining.Count > 0)
+        {
+            AnsiConsole.MarkupLine("[bold red]Remaining (still default-throws — open audit items)[/]");
+            foreach (var type in remaining)
+            {
+                AnsiConsole.MarkupLine($"  [red]{type.FullNameInCode().EscapeMarkup()}[/]");
+            }
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("[bold green]No remaining frames — F# coverage is complete for the loaded assemblies.[/]");
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    ///     True when the frame type emits valid F#. Two cases qualify:
+    ///     <list type="number">
+    ///         <item>The frame <b>declares its own</b> <c>GenerateFSharpCode</c> override.</item>
+    ///         <item>The frame is a thin subclass that overrides <b>neither</b> <c>GenerateCode</c> nor
+    ///         <c>GenerateFSharpCode</c> and inherits a real (non-throwing) F# emit from its base — e.g. a
+    ///         plain <see cref="MethodCall" /> subclass that customizes nothing about the emitted body.</item>
+    ///     </list>
+    ///     A frame that overrides <c>GenerateCode</c> (custom C#) but <b>not</b> <c>GenerateFSharpCode</c> is
+    ///     deliberately <i>not</i> counted: it would inherit a generic base rendering that ignores its custom
+    ///     C# logic, so it remains an open audit item.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    private static bool EmitsFSharp(Type type)
+    {
+        if (DeclaresOwn(type, nameof(Frame.GenerateFSharpCode)))
+        {
+            return true;
+        }
+
+        // Inherits its F# emit. Only trustworthy when the frame also inherits its C# emit from the same
+        // base (i.e. it customizes neither), and that inherited F# emit isn't the default-throwing seam.
+        return !DeclaresOwn(type, nameof(Frame.GenerateCode)) && InheritsRealFSharpEmit(type);
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    private static bool DeclaresOwn(Type type, string methodName)
+    {
+        var method = type.GetMethod(methodName,
+            BindingFlags.Public | BindingFlags.Instance,
+            binder: null,
+            types: new[] { typeof(GeneratedMethod), typeof(ISourceWriter) },
+            modifiers: null);
+
+        return method != null && method.DeclaringType == type;
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    private static bool InheritsRealFSharpEmit(Type type)
+    {
+        var method = type.GetMethod(nameof(Frame.GenerateFSharpCode),
+            BindingFlags.Public | BindingFlags.Instance,
+            binder: null,
+            types: new[] { typeof(GeneratedMethod), typeof(ISourceWriter) },
+            modifiers: null);
+
+        return method != null && method.DeclaringType != typeof(Frame);
+    }
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "Dev-time fsharp-coverage diagnostics CLI; reflection over loaded Frame types runs interactively, never on an AOT-published hot path.")]
+    private static IEnumerable<Type> LoadedWolverineFrameTypes()
+    {
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic)
+            .Where(a => (a.GetName().Name ?? string.Empty)
+                .StartsWith("Wolverine", StringComparison.OrdinalIgnoreCase))
+            .Distinct()
+            .SelectMany(SafeGetTypes)
+            .Where(t => t.IsClass && !t.IsAbstract && typeof(Frame).IsAssignableFrom(t))
+            .Distinct();
     }
 }

@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 
 namespace Wolverine.Runtime.Handlers;
 
@@ -9,6 +10,10 @@ namespace Wolverine.Runtime.Handlers;
 /// Code generation frame that reads a header value from the message Envelope.
 /// Supports string and typed values via TryParse.
 /// </summary>
+[FSharpEmit(Skip = true,
+    Reason = "Emits out-var TryGetHeader/TryParse and a reassigned `default` local — none of which map " +
+             "cleanly to F#. A tuple-return rework is deferred past Phase A; unreachable in a minimal " +
+             "in-process F# handler chain (only injected when binding a parameter from an envelope header).")]
 internal class ReadEnvelopeHeaderFrame : SyncFrame
 {
     private readonly string _headerKey;

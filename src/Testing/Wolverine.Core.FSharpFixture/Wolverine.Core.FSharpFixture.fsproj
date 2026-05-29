@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Checked-in F# fixture for Wolverine's F# code-generation foundation (issue GH-2969).
+      Generated.fs is produced by the C# driver (Wolverine.Core.FSharpTests) and committed so the
+      emitted F# is easy to eyeball and diff. The compile-gate test regenerates Generated.fs and runs
+      `dotnet build` against this project to prove the emitted F# actually compiles. Mirrors the
+      JasperFx#384 CodegenTests.FSharpFixture pattern.
+    -->
+
+    <PropertyGroup>
+        <!-- Single target keeps the compile gate fast; net9.0 matches the FSharp.Core 9 pin below. -->
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <!-- Clear / relax the C#-oriented props inherited from Directory.Build.props that an F#
+             project either rejects (LangVersion=12) or that would fail the build on generated-code
+             style warnings (TreatWarningsAsErrors). -->
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <!--
+          Pin FSharp.Core to the centrally-managed version (9.0.303) rather than the SDK-bundled one.
+          Without this, building with the .NET 10 SDK (which bundles FSharp.Core 10.x) makes this
+          assembly reference FSharp.Core 10.0.0.0 while the rest of the harness resolves 9.0.0.0,
+          and JasperFx's runtime codegen then fails with CS1705. See WolverineWebApiFSharp.fsproj.
+        -->
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Generated.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Core.FSharpContracts\Wolverine.Core.FSharpContracts.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>

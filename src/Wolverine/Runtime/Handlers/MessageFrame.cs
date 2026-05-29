@@ -24,4 +24,15 @@ internal class MessageFrame : Frame
         writer.BlankLine();
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F#: `envelope.Message` is `obj`, so the cast to the concrete message type is a dynamic
+        // downcast (`:?>`): `let message = envelope.Message :?> SomeMessage`.
+        writer.WriteComment("The actual message body");
+        writer.Write(
+            $"{_message.FSharpAssignmentUsage} = {_envelope.Usage}.{nameof(Envelope.Message)} :?> {_message.VariableType.FSharpName()}");
+        writer.BlankLine();
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

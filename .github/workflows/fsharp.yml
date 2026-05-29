@@ -1,0 +1,57 @@
+name: fsharp
+
+# F# code-generation audit gate (issue GH-2969). Proves that Wolverine's static codegen path emits
+# F# that actually compiles: the compile-gate test regenerates the fixture's Generated.fs from real
+# Wolverine frames and shells `dotnet build` against the checked-in F# fixture (with a one-time FS0193
+# retry for the transient F# internal-compiler crash). Also surfaces the `wolverine-diagnostics
+# fsharp-coverage` tally (implemented / skipped / remaining frames) in the test output.
+#
+# Path-filtered so it is only triggered by changes that can affect F# emit. Make this job required for
+# merge via branch protection on PRs touching those paths; it simply isn't triggered elsewhere.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/Wolverine/**'
+      - 'src/Http/**'
+      - 'src/Persistence/**'
+      - '**/*Frame.cs'
+      - 'wolverine_fsharp.slnx'
+      - 'src/Testing/Wolverine.Core.FSharp*/**'
+      - '.github/workflows/fsharp.yml'
+  workflow_dispatch:
+
+env:
+  config: Release
+
+jobs:
+  fsharp-codegen-compile-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build the F# solution
+        run: dotnet build wolverine_fsharp.slnx -c "$config" --nologo
+
+      - name: Compile-gate + fsharp-coverage
+        # The gate test regenerates Generated.fs, recompiles the F# fixture (retrying once on the
+        # transient FS0193 internal-compiler crash), and runs the fsharp-coverage report.
+        run: dotnet test src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj -c "$config" --nologo

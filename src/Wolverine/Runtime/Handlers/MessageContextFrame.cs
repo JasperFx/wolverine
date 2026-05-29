@@ -30,4 +30,11 @@ public class MessageContextFrame : SyncFrame
         writer.Write($"var {Variable.Usage} = new {typeof(MessageContext).FullNameInCode()}({_runtime!.Usage});");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F#: `let context = MessageContext(runtime)` — no `new`, and `let` rather than `var`.
+        writer.Write($"{Variable.FSharpAssignmentUsage} = {typeof(MessageContext).FSharpName()}({_runtime!.Usage})");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
