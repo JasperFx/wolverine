@@ -40,6 +40,8 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         set => _onMissing = value;
     }
 
+    [UnconditionalSuppressMessage("Trimming", "IL2062",
+        Justification = "aggregateType originates from parameter.ParameterType; AOT consumers preserve it via DynamicDependency / source-generator registration.")]
     [UnconditionalSuppressMessage("Trimming", "IL2065",
         Justification = "MakeGenericType closes IEventBoundary<TAggregate>; GetProperty(nameof(IEventBoundary.Aggregate)) is statically referenced via nameof and the closed-generic IEventBoundary<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
@@ -85,9 +87,16 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
 
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
 
-        // The EventTagQuery variable will be resolved lazily from the Load method's return value
-        var loader = new LoadBoundaryFrame(aggregateType);
-        chain.Middleware.Add(loader);
+        // One fetch per (chain, aggregate type). A second [BoundaryModel] of
+        // the same type (e.g. on Validate plus Handle) reuses the same frame,
+        // otherwise both emit identically-named "var" declarations -> CS0128.
+        var loader = chain.Middleware.OfType<LoadBoundaryFrame>()
+            .FirstOrDefault(f => f.AggregateType == aggregateType);
+        if (loader == null)
+        {
+            loader = new LoadBoundaryFrame(aggregateType);
+            chain.Middleware.Add(loader);
+        }
 
         var boundary = loader.Boundary;
 
