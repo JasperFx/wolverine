@@ -45,4 +45,11 @@ public class ThingEndpoints
     {
         return $"searching {q}";
     }
+
+    // Typed query-string binding: page is an int bound from the query string (default when absent/unparseable).
+    [WolverineGet("/fsharp/paged")]
+    public string Paged(int page)
+    {
+        return $"page {page}";
+    }
 }

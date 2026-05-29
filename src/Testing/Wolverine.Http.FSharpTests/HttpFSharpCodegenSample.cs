@@ -35,9 +35,9 @@ public static class HttpFSharpCodegenSample
             HttpChain.ChainFor<ThingEndpoints>(x => x.Hello(), httpGraph),
             HttpChain.ChainFor<ThingEndpoints>(x => x.Create(null!), httpGraph),
             HttpChain.ChainFor<ThingEndpoints>(x => x.GetById(null!), httpGraph),
-            HttpChain.ChainFor<ThingEndpoints>(x => x.Search(null!), httpGraph)
-            // GetItems (typed int route value) is deferred — ReadHttpFrame's parsed/out-var path
-            // isn't emitted to F# yet; only the string binding path is.
+            HttpChain.ChainFor<ThingEndpoints>(x => x.Search(null!), httpGraph),
+            HttpChain.ChainFor<ThingEndpoints>(x => x.GetItems(null!, 0), httpGraph), // typed int route value
+            HttpChain.ChainFor<ThingEndpoints>(x => x.Paged(0), httpGraph)            // typed int query value
         };
 
         var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);
