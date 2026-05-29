@@ -43,3 +43,37 @@ type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
                 do! this.WriteJsonAsync(httpContext, thingCreated_response)
         }
 
+type GET_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let id = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                let result_of_GetById = thingEndpoints.GetById(id)
+
+                do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_GetById)
+        }
+
+type GET_fsharp_search(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let q = httpContext.Request.Query.["q"].ToString()
+            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Search = thingEndpoints.Search(q)
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Search)
+        }
+
