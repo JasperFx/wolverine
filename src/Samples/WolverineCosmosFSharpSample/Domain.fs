@@ -15,9 +15,11 @@ type ThingCreated = { Id: string }
 /// FluentValidation validator for CreateThing. Wolverine's FluentValidation middleware runs this
 /// before the handler (and short-circuits with a failure result if invalid). F# auto-converts the
 /// property-selector lambdas to the LINQ expression trees RuleFor expects.
+// begin-snippet: sample_fsharp_fluentvalidation_validator
 type CreateThingValidator() as self =
     inherit AbstractValidator<CreateThing>()
 
     do
         self.RuleFor(fun x -> x.Id).NotEmpty() |> ignore
         self.RuleFor(fun x -> x.Name).NotEmpty() |> ignore
+// end-snippet

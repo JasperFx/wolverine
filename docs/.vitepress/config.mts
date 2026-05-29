@@ -111,6 +111,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
                         {text: 'Event Sourcing and CQRS with Polecat', link: '/tutorials/cqrs-with-polecat'},
+                        {text: 'Using Wolverine with F#', link: '/tutorials/fsharp'},
                         {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
                         {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'},
                         {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},

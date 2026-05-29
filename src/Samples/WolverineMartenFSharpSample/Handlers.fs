@@ -8,9 +8,11 @@ open Wolverine.Attributes
 /// an injected IDocumentSession: store a document and return an event that Wolverine sends as a
 /// cascading message. Wolverine's Marten middleware opens the outbox-enrolled session and saves
 /// changes around this call — both of which the F# codegen now emits.
+// begin-snippet: sample_fsharp_marten_document_handler
 type CreateProductHandler =
     [<Transactional>]
     static member Handle(command: CreateProductCommand, session: IDocumentSession) : ProductCreated =
         let product = { Id = Guid.NewGuid(); Name = command.Name }
         session.Store<Product>(product)
         { Id = product.Id }
+// end-snippet

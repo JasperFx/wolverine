@@ -16,6 +16,7 @@ type Counter = { Id: Guid; Count: int }
 /// A single-stream projection that folds the Counter events into the aggregate. It overrides Evolve
 /// directly (an explicit per-event fold) rather than using convention Create/Apply methods: those are
 /// dispatched by the C#-only JasperFx.Events source generator, which does not run for F# assemblies.
+// begin-snippet: sample_fsharp_aggregate_projection
 type CounterProjection() =
     inherit SingleStreamProjection<Counter, Guid>()
 
@@ -24,6 +25,7 @@ type CounterProjection() =
         | :? CounterStarted as started -> { Id = started.Id; Count = 0 }
         | :? Incremented as inc -> { snapshot with Count = snapshot.Count + inc.By }
         | _ -> snapshot
+// end-snippet
 
 /// The command handled by IncrementHandler. CounterId names the aggregate stream to load.
 type IncrementCounter = { CounterId: Guid; By: int }

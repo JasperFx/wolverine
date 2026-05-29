@@ -20,6 +20,7 @@ let connectionString =
 
 [<EntryPoint>]
 let main args =
+    // begin-snippet: sample_fsharp_efcore_bootstrap
     let host =
         Host
             .CreateDefaultBuilder(args)
@@ -42,6 +43,7 @@ let main args =
             // Provision the Wolverine message-store tables on startup.
             .UseResourceSetupOnStartup()
             .Build()
+    // end-snippet
 
     // Create the database + the DbContext's Item table BEFORE starting the host, so Wolverine's
     // message-store resource setup (on Start) finds an existing database to provision into.

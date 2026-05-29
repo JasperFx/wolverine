@@ -22,5 +22,7 @@ type BehaviouralPing = { Value: int }
 
 /// A minimal F# handler. The generated F# adapter (Generated.fs) calls this; the behavioural test
 /// boots a host in TypeLoadMode.Static, sends a BehaviouralPing, and asserts the sink recorded it.
+// begin-snippet: sample_fsharp_behavioural_handler
 type BehaviouralPingHandler =
     static member Handle(ping: BehaviouralPing) = BehaviouralSink.record ping.Value
+// end-snippet
