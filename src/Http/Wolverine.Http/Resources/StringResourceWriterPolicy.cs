@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 
 namespace Wolverine.Http.Resources;
 
@@ -35,6 +36,18 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
             writer.Write($"{prefix} {nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage});");
 
             Next?.GenerateCode(method, writer);
+        }
+
+        public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+        {
+            // HttpHandler.WriteString is static, so it resolves cleanly in F# (no `this`).
+            var call =
+                $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage})";
+
+            // Inside a `task { }` body await it; otherwise it IS the trailing Task expression.
+            writer.Write(method.AsyncMode == AsyncMode.AsyncTask ? $"do! {call}" : call);
+
+            Next?.GenerateFSharpCode(method, writer);
         }
     }
 }
