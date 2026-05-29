@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Shared C# HTTP endpoint contracts for the Wolverine.Http F# code-generation surface
+      (issue GH-2969, Phase C). The C# driver (Wolverine.Http.FSharpTests) builds HttpChains from
+      these endpoints and the F# fixture (Wolverine.Http.FSharpFixture) compiles the generated
+      adapters against them.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+    </ItemGroup>
+
+</Project>
