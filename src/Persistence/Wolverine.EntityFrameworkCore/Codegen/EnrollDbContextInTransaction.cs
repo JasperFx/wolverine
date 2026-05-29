@@ -63,6 +63,47 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
         writer.FinishBlock();
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // This middleware only ever runs inside an async handler/endpoint, so the body is a `task { }`
+        // computation expression: awaits are `do!` (or `let! _ =` when a result must be discarded),
+        // and `.ConfigureAwait(false)` is dropped (the CE controls scheduling).
+        writer.Write("");
+        writer.WriteComment(
+            "Enroll the DbContext & IMessagingContext in the outgoing Wolverine outbox transaction");
+        writer.Write($"{_envelopeTransaction.FSharpAssignmentUsage} = {typeof(EfCoreEnvelopeTransaction).FSharpName()}({_dbContext.FSharpUsage}, {_context!.FSharpUsage}, {_scrapers.FSharpUsage})");
+        writer.Write($"do! {_context.FSharpUsage}.{nameof(MessageContext.EnlistInOutboxAsync)}({_envelopeTransaction.FSharpUsage})");
+
+        writer.WriteComment("Start the actual database transaction if one does not already exist");
+        // F# has no `== null`; use `isNull`. BeginTransactionAsync returns Task<IDbContextTransaction>,
+        // so bind-and-discard with `let! _ =` (then `()` makes the then-branch unit, as `if/then` requires).
+        writer.Write($"BLOCK:if isNull {_dbContext.FSharpUsage}.Database.CurrentTransaction then");
+        writer.Write($"let! _ = {_dbContext.FSharpUsage}.Database.BeginTransactionAsync({_cancellation.FSharpUsage})");
+        writer.Write("()");
+        writer.FinishBlock();
+
+        writer.Write("BLOCK:try");
+
+        // EF Core can only do eager idempotent checks
+        if (_idempotencyStyle == IdempotencyStyle.Eager || _idempotencyStyle == IdempotencyStyle.Optimistic)
+        {
+            writer.Write($"do! {_context.FSharpUsage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation.FSharpUsage})");
+        }
+
+        // See the C# overload for why the commit/flush lives in Next (the CommitEfCoreEnvelopeTransaction
+        // postprocessor) rather than here. GH-2917.
+        Next?.GenerateFSharpCode(method, writer);
+
+        writer.FinishBlock();
+        // F# exception handler: roll back, then rethrow. `reraise()` is illegal inside a computation
+        // expression's try/with (FS0413), so use ExceptionDispatchInfo to preserve the original stack
+        // trace — the exact semantics of C# `throw;`.
+        writer.Write("BLOCK:with ex ->");
+        writer.Write($"do! {_envelopeTransaction.FSharpUsage}.RollbackAsync()");
+        writer.Write($"{typeof(System.Runtime.ExceptionServices.ExceptionDispatchInfo).FSharpName()}.Capture(ex).Throw()");
+        writer.FinishBlock();
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _scrapers = chain.FindVariable(typeof(IEnumerable<IDomainEventScraper>));
@@ -97,6 +138,14 @@ internal class CommitEfCoreEnvelopeTransaction : AsyncFrame
             "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
         writer.Write($"await {_envelopeTransaction.Usage}.CommitAsync({_cancellation.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment(
+            "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
+        writer.Write($"do! {_envelopeTransaction.FSharpUsage}.CommitAsync({_cancellation.FSharpUsage})");
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)

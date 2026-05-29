@@ -21,6 +21,9 @@ on:
       - '**/*Frame.cs'
       - 'wolverine_fsharp.slnx'
       - 'src/Testing/Wolverine.Core.FSharp*/**'
+      - 'src/Testing/Wolverine.Http.FSharp*/**'
+      - 'src/Testing/Wolverine.EfCore.FSharp*/**'
+      - 'src/Samples/WolverineFSharpSample/**'
       - '.github/workflows/fsharp.yml'
   workflow_dispatch:
 
@@ -60,3 +63,6 @@ jobs:
 
       - name: Compile-gate + fsharp-coverage (Http surface)
         run: dotnet test src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj -c "$config" --nologo
+
+      - name: Compile-gate (EF Core surface)
+        run: dotnet test src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj -c "$config" --nologo

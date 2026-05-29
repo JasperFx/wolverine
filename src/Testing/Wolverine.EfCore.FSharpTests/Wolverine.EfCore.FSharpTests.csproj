@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      C# driver + compile-gate for the EF Core F# code-generation surface (issue GH-2969). Builds the
+      sample's CreateItemCommand handler chain in an in-memory host, renders it as F# via
+      GenerateFSharpCode, writes it into Wolverine.EfCore.FSharpFixture, and shells `dotnet build` to
+      prove the emitted F# compiles. Mirrors the Core/Http test drivers.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Samples\WolverineFSharpSample\WolverineFSharpSample.fsproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+    </ItemGroup>
+
+</Project>
