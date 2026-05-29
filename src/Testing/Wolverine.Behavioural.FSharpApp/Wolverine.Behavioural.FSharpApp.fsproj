@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The "application assembly" for the F# behavioural run-step (issue GH-2969). It contains BOTH the
+      F# handler AND its pre-generated F# adapter (Generated.fs, emitted by the
+      Wolverine.Behavioural.FSharpTests generation step). The behavioural test boots a Wolverine host
+      in TypeLoadMode.Static with ApplicationAssembly = this assembly, so Wolverine loads the
+      pre-generated F# MessageHandler by name and runs it — proving the generated F# executes at
+      runtime, not merely that it compiles.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Domain.fs" />
+        <Compile Include="Generated.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>
