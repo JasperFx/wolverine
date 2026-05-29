@@ -140,8 +140,33 @@
                      JasperFx.RuntimeCompiler              unchanged (own 5.x line, stays 5.0.0)
                      Marten / Polecat                      unchanged (9.2.0 / 4.2.1)
                    No Wolverine code changes — pure dependency bump.
+
+          6.2.2: Patch release combining a JasperFx pin bump with two related
+                 codegen fixes for the EF Core transaction middleware + post-save
+                 cascade flush path (GH-536):
+                     JasperFx (+ .Events / .Events.SourceGenerator
+                                / .SourceGenerator)        2.2.1 -> 2.2.3 (#2963)
+                     JasperFx.RuntimeCompiler              unchanged (5.0.0)
+                     Marten / Polecat                      unchanged (9.2.0 / 4.2.1)
+                   Codegen fixes (both addressing handler compilation failures
+                   under the EF Core transaction middleware + outbox path):
+                     - CS0128 duplicate `var messageContext` declaration in the
+                       generated Wolverine.Http handler. Cherry-picked from
+                       #2959, originally authored by @kentcooper.
+                     - CS1061 'IMessageContext' missing EnqueueCascadingAsync.
+                       Latent since 020e79013e (2022-09-16); only surfaced once
+                       the variable-cache fix from #2959 made the source produce
+                       a concrete MessageContext-typed Variable. Fixed by
+                       re-targeting CaptureCascadingMessages' MethodCall to the
+                       concrete MessageContext type (matches the pre-existing
+                       FlushOutgoingMessages shape).
+                   Also rolls up #2960 (diagnostics docs from outofrange-consulting)
+                   and skips a long-broken Marten distribution test pending
+                   #2965 (SharedMemory transport cross-node AssignAgent
+                   serialization — bug predates this release line, was failing
+                   on every main commit through V6.2.0 and V6.2.1).
         -->
-        <Version>6.2.1</Version>
+        <Version>6.2.2</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
