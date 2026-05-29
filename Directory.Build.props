@@ -133,8 +133,15 @@
                    Pulsar batched-partition acks (#2883/#2950), and the remote-node
                    agent reply timeout (#2949). See the GitHub release notes for
                    the full PR list.
+
+          6.2.1: Patch release picking up upstream JasperFx 2.2.1 fixes:
+                     JasperFx (+ .Events / .Events.SourceGenerator
+                                / .SourceGenerator)        2.2.0 -> 2.2.1
+                     JasperFx.RuntimeCompiler              unchanged (own 5.x line, stays 5.0.0)
+                     Marten / Polecat                      unchanged (9.2.0 / 4.2.1)
+                   No Wolverine code changes — pure dependency bump.
         -->
-        <Version>6.2.0</Version>
+        <Version>6.2.1</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
