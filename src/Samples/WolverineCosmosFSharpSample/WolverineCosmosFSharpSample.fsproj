@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      A small F# Wolverine sample demonstrating the F# code-generation approach (issue GH-2969).
+      This slice combines two middleware surfaces: FluentValidation (a validator runs before the
+      handler) and CosmosDB persistence (the handler returns an ICosmosDbOp side effect applied inside
+      the CosmosDB outbox transaction). It runs today via dynamic codegen against the Cosmos emulator;
+      the F# compile-gate (src/Testing/Wolverine.Cosmos.FSharpTests) renders this handler's real chain
+      to F# and compiles it, proving the FluentValidation + CosmosDB frames emit valid F#.
+    -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <!-- F# project: clear the C#-oriented props inherited from Directory.Build.props. -->
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Domain.fs" />
+        <Compile Include="Handlers.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.CosmosDb\Wolverine.CosmosDb.csproj" />
+        <ProjectReference Include="..\..\Extensions\Wolverine.FluentValidation\Wolverine.FluentValidation.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>

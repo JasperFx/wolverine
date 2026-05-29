@@ -25,9 +25,12 @@ on:
       - 'src/Testing/Wolverine.EfCore.FSharp*/**'
       - 'src/Testing/Wolverine.Marten.FSharp*/**'
       - 'src/Testing/Wolverine.MartenAggregate.FSharp*/**'
+      - 'src/Testing/Wolverine.Cosmos.FSharp*/**'
       - 'src/Samples/WolverineFSharpSample/**'
       - 'src/Samples/WolverineMartenFSharpSample/**'
       - 'src/Samples/WolverineMartenAggregateFSharpSample/**'
+      - 'src/Samples/WolverineCosmosFSharpSample/**'
+      - 'src/Extensions/Wolverine.FluentValidation/**'
       - '.github/workflows/fsharp.yml'
   workflow_dispatch:
 
@@ -76,3 +79,6 @@ jobs:
 
       - name: Compile-gate (Marten aggregate surface)
         run: dotnet test src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj -c "$config" --nologo
+
+      - name: Compile-gate (FluentValidation + CosmosDB surface)
+        run: dotnet test src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj -c "$config" --nologo

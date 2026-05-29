@@ -1,6 +1,7 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core.Reflection;
 using Microsoft.Azure.Cosmos;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Sagas;
@@ -49,5 +50,20 @@ internal class TransactionalFrame : Frame
         }
 
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_context != null)
+        {
+            writer.BlankLine();
+            writer.WriteComment("Enlist in CosmosDB outbox transaction");
+            // EnlistInOutbox is synchronous (void); the envelope transaction is a public type so the
+            // generated F# in a separate assembly can construct it.
+            writer.Write(
+                $"{_context.FSharpUsage}.{nameof(MessageContext.EnlistInOutbox)}({typeof(CosmosDbEnvelopeTransaction).FSharpName()}({Container!.FSharpUsage}, {_context.FSharpUsage}))");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
     }
 }
