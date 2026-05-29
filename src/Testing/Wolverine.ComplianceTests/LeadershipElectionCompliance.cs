@@ -110,6 +110,32 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         _hosts.Remove(host);
     }
 
+    private static async Task<IHost> WaitForAnyLeaderAsync(IReadOnlyList<IHost> hosts, TimeSpan timeout)
+    {
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        try
+        {
+            while (!timeoutCts.IsCancellationRequested)
+            {
+                foreach (var host in hosts)
+                {
+                    if (host.GetRuntime().IsLeader()) return host;
+                }
+                await Task.Delay(25.Milliseconds(), timeoutCts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        foreach (var host in hosts)
+        {
+            if (host.GetRuntime().IsLeader()) return host;
+        }
+
+        throw new TimeoutException("Did not assume the leadership in the time allowed");
+    }
+
     [Fact]
     public async Task the_only_known_node_is_automatically_the_leader()
     {
@@ -161,23 +187,25 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         _hosts.SelectMany(x => x.RunningAgents()).Where(x => x == uri)
             .Count().ShouldBe(1);
     }
-    
+
     [Fact]
     public async Task leader_switchover_between_nodes()
     {
         await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
-        var host2 = await startHostAsync();
-        var host3 = await startHostAsync();
-        var host4 = await startHostAsync();
-
+        await startHostAsync();
+        await startHostAsync();
+        await startHostAsync();
         await shutdownHostAsync(_originalHost);
 
-        await host2.WaitUntilAssumesLeadershipAsync(30.Seconds());
+        // Any host can win the leadership lock race after the original leader shuts down
+        var firstSuccessor = await WaitForAnyLeaderAsync(_hosts, 30.Seconds());
+        firstSuccessor.ShouldNotBeSameAs(_originalHost);
+        await shutdownHostAsync(firstSuccessor);
 
-        await shutdownHostAsync(host2);
-
-        await host3.WaitUntilAssumesLeadershipAsync(30.Seconds());
+        // The remaining hosts now compete for the next leadership.
+        var secondSuccessor = await WaitForAnyLeaderAsync(_hosts, 30.Seconds());
+        secondSuccessor.ShouldNotBeOneOf([_originalHost, firstSuccessor]);
     }
 
     [Fact]
