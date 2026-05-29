@@ -28,6 +28,8 @@
     <Project Path="src/Samples/WolverineCosmosFSharpSample/WolverineCosmosFSharpSample.fsproj" />
     <Project Path="src/Testing/Wolverine.Cosmos.FSharpFixture/Wolverine.Cosmos.FSharpFixture.fsproj" />
     <Project Path="src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Behavioural.FSharpApp/Wolverine.Behavioural.FSharpApp.fsproj" />
+    <Project Path="src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj" />
   </Folder>
   <Folder Name="/Wolverine/">
     <Project Path="src/Wolverine/Wolverine.csproj" />

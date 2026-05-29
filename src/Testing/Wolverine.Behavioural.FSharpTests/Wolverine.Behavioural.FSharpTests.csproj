@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The F# behavioural run-step (issue GH-2969). Unlike the compile-gates (which only prove the
+      generated F# compiles), this project proves it RUNS: it boots a real Wolverine host in
+      TypeLoadMode.Static against the Wolverine.Behavioural.FSharpApp assembly (which carries the
+      pre-generated F# adapter), sends a message, and asserts the F# handler executed. A sibling
+      generation gate regenerates + dotnet-builds the app's Generated.fs so it can't silently drift.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Wolverine.Behavioural.FSharpApp\Wolverine.Behavioural.FSharpApp.fsproj" />
+    </ItemGroup>
+
+</Project>
