@@ -4,7 +4,7 @@ Wolverine can be configuration intensive, allows for quite a bit of customizatio
 quite a bit of external infrastructure. All of those things can be problematic, so Wolverine tries to provide diagnostic tools
 to unwind what's going on inside the application and the application's configuration. 
 
-Many of the diagnostics explained in this page are part of the [JasperFx command line integration](https://jasperfx.github.io/oakton) <== NOT SURE OF THE RIGHT URL. As a reminder,
+Many of the diagnostics explained in this page are part of the [JasperFx command line integration](/guide/command-line). As a reminder,
 to utilize this command line integration, you need to apply JasperFx as your command line parser as shown in the last line of the quickstart
 sample `Program.cs` file:
 
