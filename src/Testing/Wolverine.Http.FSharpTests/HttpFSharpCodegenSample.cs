@@ -27,14 +27,13 @@ public static class HttpFSharpCodegenSample
         var container = new ServiceContainer(registry, registry.BuildServiceProvider());
         var httpGraph = new HttpGraph(new WolverineOptions { ApplicationAssembly = typeof(ThingEndpoints).Assembly }, container);
 
-        // Phase C increment 1 renders the static-response GET endpoint. The JSON POST endpoint
-        // (ReadJsonBody / WriteJsonFrame) calls *instance* HttpHandler methods unqualified, which F#
-        // cannot resolve from a `member _.Handle` body — blocked on the JasperFx F# self-identifier
-        // gap (tracked upstream; same gap as RecordMessageCausationFrame). Add it back once JasperFx
-        // emits a named self for generated members.
+        // GET (static string response) + POST (JSON body bind + JSON response). The JSON path calls
+        // the inherited instance HttpHandler methods ReadJsonAsync/WriteJsonAsync, now qualified with
+        // the generated member's `this` self identifier (JasperFx 2.2.4 / jasperfx#393).
         var chains = new[]
         {
-            HttpChain.ChainFor<ThingEndpoints>(x => x.Hello(), httpGraph)
+            HttpChain.ChainFor<ThingEndpoints>(x => x.Hello(), httpGraph),
+            HttpChain.ChainFor<ThingEndpoints>(x => x.Create(null!), httpGraph)
         };
 
         var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);

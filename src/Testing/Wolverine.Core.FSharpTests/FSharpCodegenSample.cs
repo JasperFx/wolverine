@@ -38,6 +38,10 @@ public static class FSharpCodegenSample
 
                     // Inserts ApplyExecutionDiagnosticTagsFrame at the head of every chain.
                     opts.Tracking.HandlerExecutionDiagnosticsEnabled = true;
+
+                    // Inserts RecordMessageCausationFrame after the handler call (a `this.`-qualified
+                    // inherited instance call, now resolvable per JasperFx 2.2.4 / jasperfx#393).
+                    opts.Tracking.EnableMessageCausationTracking = true;
                 })
                 .Build();
 

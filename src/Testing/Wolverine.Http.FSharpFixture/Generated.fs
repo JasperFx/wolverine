@@ -13,7 +13,7 @@ type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
     let _wolverineHttpOptions = wolverineHttpOptions
 
-    override _.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
             
@@ -21,5 +21,25 @@ type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
             let result_of_Hello = thingEndpoints.Hello()
 
             do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Hello)
+        }
+
+type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            // Reading the request body via JSON deserialization
+            let! (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
+            if jsonContinue = Wolverine.HandlerContinuation.Stop then
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                let thingCreated_response = thingEndpoints.Create(command)
+
+                // Writing the response body to JSON because this was the first 'return variable' in the method signature
+                do! this.WriteJsonAsync(httpContext, thingCreated_response)
         }
 
