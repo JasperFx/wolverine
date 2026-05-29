@@ -1,5 +1,6 @@
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
+using JasperFx.CodeGeneration.Model;
 
 namespace Wolverine.Configuration;
 
@@ -22,8 +23,10 @@ internal static class FSharpEmitHelpers
     public static void WriteAbortGuard(ISourceWriter writer, GeneratedMethod method, string conditionExpression,
         Frame? next)
     {
+        var abort = AbortExpression(method);
+
         writer.Write($"BLOCK:if {conditionExpression} then");
-        writer.Write("()");
+        writer.Write(abort);
         writer.FinishBlock();
 
         writer.Write("BLOCK:else");
@@ -33,9 +36,23 @@ internal static class FSharpEmitHelpers
         }
         else
         {
-            writer.Write("()");
+            writer.Write(abort);
         }
 
         writer.FinishBlock();
+    }
+
+    /// <summary>
+    ///     The expression a branch yields when it does NOT continue the chain (abort / no-op). In a
+    ///     <c>task { }</c> body (AsyncMode.AsyncTask) or a synchronous-Task method (AsyncMode.None, where
+    ///     the machinery appends a trailing <c>Task.CompletedTask</c>) that's just <c>()</c>. But when the
+    ///     method body IS a bare trailing Task expression (AsyncMode.ReturnFromLastNode) every branch must
+    ///     itself be a <c>Task</c>, so the no-op branch yields <c>Task.CompletedTask</c>.
+    /// </summary>
+    public static string AbortExpression(GeneratedMethod method)
+    {
+        return method.AsyncMode == AsyncMode.ReturnFromLastNode
+            ? "System.Threading.Tasks.Task.CompletedTask"
+            : "()";
     }
 }

@@ -37,7 +37,8 @@ public static class HttpFSharpCodegenSample
             HttpChain.ChainFor<ThingEndpoints>(x => x.GetById(null!), httpGraph),
             HttpChain.ChainFor<ThingEndpoints>(x => x.Search(null!), httpGraph),
             HttpChain.ChainFor<ThingEndpoints>(x => x.GetItems(null!, 0), httpGraph), // typed int route value
-            HttpChain.ChainFor<ThingEndpoints>(x => x.Paged(0), httpGraph)            // typed int query value
+            HttpChain.ChainFor<ThingEndpoints>(x => x.Paged(0), httpGraph),           // typed int query value
+            HttpChain.ChainFor<ThingEndpoints>(x => x.GetResult(null!), httpGraph)    // terminal IResult + route value
         };
 
         var generatedAssembly = httpGraph.StartAssembly(httpGraph.Rules);

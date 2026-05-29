@@ -122,3 +122,20 @@ type GET_fsharp_paged(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
             do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Paged)
         }
 
+type GET_fsharp_result_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        let id = (httpContext.GetRouteValue("id") :?> string)
+        if isNull id then
+            httpContext.Response.StatusCode <- 404
+            System.Threading.Tasks.Task.CompletedTask
+        else
+            let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result = thingEndpoints.GetResult(id)
+
+            result.ExecuteAsync(httpContext)
+
