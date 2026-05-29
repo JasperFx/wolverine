@@ -36,4 +36,27 @@ public class AuditToActivityFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Application-specific Open Telemetry auditing");
+
+        // F# has no null-conditional operator, and SetTag returns the Activity (discarded), so guard
+        // Activity.Current once and pipe each tagging call to `ignore`. Skip the guard entirely when
+        // there are no audited members so the `if` body is never empty.
+        if (_members.Count > 0)
+        {
+            var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+            writer.Write($"BLOCK:if not (isNull {current}) then");
+            foreach (var member in _members)
+            {
+                writer.Write(
+                    $"{current}.{nameof(Activity.SetTag)}(\"{member.OpenTelemetryName}\", {FSharpEmitHelpers.FSharpUsage(_input!)}.{member.Member.Name}) |> ignore");
+            }
+
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

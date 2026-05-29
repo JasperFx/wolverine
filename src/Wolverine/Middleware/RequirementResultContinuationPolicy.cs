@@ -114,4 +114,13 @@ internal class RequirementResultHandlerFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F# has no early `return`; render the remainder of the chain inside the `else` branch.
+        writer.WriteComment("Check RequirementResult and abort if Branch == Stop");
+        var condition =
+            $"{typeof(RequirementResultContinuationPolicy).FSharpName()}.{nameof(RequirementResultContinuationPolicy.ShouldStop)}({FSharpEmitHelpers.FSharpUsage(_logger!)}, {_variable.Usage})";
+        FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
+    }
 }

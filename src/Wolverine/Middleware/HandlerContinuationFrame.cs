@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 
 namespace Wolverine.Middleware;
 
@@ -35,5 +36,14 @@ internal class HandlerContinuationFrame : SyncFrame
         }
 
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F# has no early `return`; render the remainder of the chain inside the `else` branch.
+        writer.WriteComment("Evaluate whether or not the execution should stop based on the HandlerContinuation value");
+        var condition =
+            $"{_variable.Usage} = {typeof(HandlerContinuation).FSharpName()}.{nameof(HandlerContinuation.Stop)}";
+        FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
     }
 }
