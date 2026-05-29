@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      A small F# Wolverine sample demonstrating the F# code-generation approach (issue GH-2969).
+      This slice exercises Marten event sourcing: an [<AggregateHandler>] that loads an aggregate via
+      FetchForWriting, runs a decision method, and appends the returned event back to the stream. It
+      runs today via dynamic codegen; the F# compile-gate (src/Testing/Wolverine.MartenAggregate.FSharpTests)
+      renders this handler's real chain to F# and compiles it, proving the Marten aggregate frames emit
+      valid F#.
+    -->
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <!-- F# project: clear the C#-oriented props inherited from Directory.Build.props. -->
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Domain.fs" />
+        <Compile Include="Handlers.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>

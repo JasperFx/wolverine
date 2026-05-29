@@ -173,4 +173,53 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    private string NaturalKeyFetchForWritingFSharp(string targetUsage, string cancellationTokenUsage)
+    {
+        var aggType = _att.AggregateType.FSharpName();
+        var nkType = _identity.VariableType.FSharpName();
+        return $"{targetUsage}.Events.FetchForWriting<{aggType}, {nkType}>({_identity.FSharpUsage}, {cancellationTokenUsage})";
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (BatchResolutionGenerated)
+        {
+            Next?.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        writer.WriteComment("Loading Marten aggregate as part of the aggregate handler workflow");
+        if (_batchQueryItem == null)
+        {
+            // `var x = await ...` -> F# `let! x = ...` inside the task { } CE (drop ConfigureAwait).
+            if (_att.IsNaturalKey)
+            {
+                writer.WriteLine($"let! {Stream.Usage} = {NaturalKeyFetchForWritingFSharp(_session!.FSharpUsage, _token!.FSharpUsage)}");
+            }
+            else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+            {
+                writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FSharpName()}>({_rawIdentity.FSharpUsage}, {_token!.FSharpUsage})");
+            }
+            else if (_version == null)
+            {
+                writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForWriting<{_att.AggregateType.FSharpName()}>({_rawIdentity.FSharpUsage}, {_token!.FSharpUsage})");
+            }
+            else
+            {
+                writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForWriting<{_att.AggregateType.FSharpName()}>({_rawIdentity.FSharpUsage}, {_version.FSharpUsage}, {_token!.FSharpUsage})");
+            }
+        }
+        else
+        {
+            writer.WriteLine($"let! {Stream.Usage} = {_batchQueryItem.FSharpUsage}");
+        }
+
+        if (_att.AlwaysEnforceConsistency)
+        {
+            writer.WriteLine($"{Stream.Usage}.{nameof(IEventStream<string>.AlwaysEnforceConsistency)} <- true");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

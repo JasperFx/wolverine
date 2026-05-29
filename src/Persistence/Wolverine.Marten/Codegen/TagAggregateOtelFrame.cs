@@ -29,4 +29,15 @@ internal class TagAggregateOtelFrame : SyncFrame
         writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\");");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // F# has no null-conditional operator; guard Activity.Current explicitly. SetTag returns the
+        // Activity for chaining, so pipe the result to ignore.
+        writer.WriteLine(
+            $"if not (isNull {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}) then {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.FSharpUsage}.ToString()) |> ignore");
+        writer.WriteLine(
+            $"if not (isNull {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}) then {typeof(Activity).FSharpName()}.{nameof(Activity.Current)}.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\") |> ignore");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
