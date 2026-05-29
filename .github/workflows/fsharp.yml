@@ -51,7 +51,12 @@ jobs:
       - name: Build the F# solution
         run: dotnet build wolverine_fsharp.slnx -c "$config" --nologo
 
-      - name: Compile-gate + fsharp-coverage (Core + Http surfaces)
-        # Each gate test regenerates its Generated.fs, recompiles the F# fixture (retrying once on the
-        # transient FS0193 internal-compiler crash), and runs the fsharp-coverage report.
-        run: dotnet test wolverine_fsharp.slnx -c "$config" --nologo
+      # Run the two surface gates SEQUENTIALLY (not `dotnet test wolverine_fsharp.slnx`, which runs the
+      # test assemblies in parallel). Each gate shells a nested `dotnet build` of its F# fixture, and
+      # both fixtures transitively build Debug Wolverine.dll — concurrent nested builds race on
+      # obj/Debug/.../refint/Wolverine.dll (IOException "used by another process"). Serializing avoids it.
+      - name: Compile-gate + fsharp-coverage (Core surface)
+        run: dotnet test src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj -c "$config" --nologo
+
+      - name: Compile-gate + fsharp-coverage (Http surface)
+        run: dotnet test src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj -c "$config" --nologo
