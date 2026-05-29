@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      Checked-in F# fixture for the Marten document F# code-generation surface (issue GH-2969).
+      Generated.fs is the emitted MessageHandler adapter for the sample's Marten document handler chain
+      (open outbox-enrolled session -> Store -> SaveChanges). The compile-gate regenerates it and
+      `dotnet build`s this project to prove the Marten document frames emit compiling F#. Mirrors the
+      Core/Http/EfCore fixtures.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+
+        <LangVersion></LangVersion>
+        <ImplicitUsings>false</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+        <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Compile Include="Generated.fs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The generated adapter references the sample's handler/domain types + Marten's IDocumentSession. -->
+        <ProjectReference Include="..\..\Samples\WolverineMartenFSharpSample\WolverineMartenFSharpSample.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+</Project>

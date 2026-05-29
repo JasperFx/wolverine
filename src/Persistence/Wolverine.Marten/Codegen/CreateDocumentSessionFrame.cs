@@ -74,4 +74,27 @@ internal class CreateDocumentSessionFrame : Frame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_createsSession)
+        {
+            writer.BlankLine();
+            writer.WriteComment("Open a new document session registered with the Wolverine");
+            writer.WriteComment("message context to support the outbox functionality");
+            // `using var` -> F# `use`: the session is disposed at the end of the task { } block.
+            writer.Write(
+                $"use {Session!.Usage} = {_factory!.FSharpUsage}.{nameof(OutboxedSessionFactory.OpenSession)}({_context!.FSharpUsage})");
+        }
+
+        if (_chain.Idempotency != IdempotencyStyle.None)
+        {
+            writer.BlankLine();
+            writer.WriteComment("This message handler is configured for Eager idempotency checks");
+            writer.Write(
+                $"do! {_context!.FSharpUsage}.{nameof(MessageContext.AssertEagerIdempotencyAsync)}({_cancellation!.FSharpUsage})");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

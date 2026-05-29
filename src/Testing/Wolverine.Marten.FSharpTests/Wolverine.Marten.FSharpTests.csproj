@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      C# driver + compile-gate for the Marten document F# code-generation surface (issue GH-2969).
+      Builds the sample's CreateProductCommand handler chain in an in-memory host, renders it as F# via
+      GenerateFSharpCode, writes it into Wolverine.Marten.FSharpFixture, and shells `dotnet build` to
+      prove the emitted F# compiles. Mirrors the Core/Http/EfCore test drivers.
+    -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Samples\WolverineMartenFSharpSample\WolverineMartenFSharpSample.fsproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj" />
+    </ItemGroup>
+
+</Project>

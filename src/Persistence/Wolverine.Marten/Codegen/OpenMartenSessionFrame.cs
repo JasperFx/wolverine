@@ -58,6 +58,38 @@ internal class OpenMartenSessionFrame : AsyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_justCast)
+        {
+            Next?.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        var methodName = ReturnVariable.VariableType == typeof(IQuerySession)
+            ? nameof(OutboxedSessionFactory.QuerySession)
+            : nameof(OutboxedSessionFactory.OpenSession);
+
+        // `await using var` -> F# `use`: inside the task { } computation expression `use` disposes an
+        // IAsyncDisposable (the session) via DisposeAsync at the end of the block.
+        if (_context == null)
+        {
+            writer.Write($"use {ReturnVariable.Usage} = {_martenFactory!.FSharpUsage}.{methodName}()");
+        }
+        else if (_tenantId == null)
+        {
+            writer.WriteComment("Building the Marten session");
+            writer.Write($"use {ReturnVariable.Usage} = {_factory!.FSharpUsage}.{methodName}({_context!.FSharpUsage})");
+        }
+        else
+        {
+            writer.WriteComment("Building the Marten session using the detected tenant id");
+            writer.Write($"use {ReturnVariable.Usage} = {_factory!.FSharpUsage}.{methodName}({_context!.FSharpUsage}, {_tenantId.FSharpUsage})");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         if (_sessionType == typeof(IQuerySession))
