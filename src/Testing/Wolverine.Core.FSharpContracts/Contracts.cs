@@ -1,3 +1,4 @@
+using Wolverine;
 using Wolverine.Attributes;
 using Wolverine.Runtime;
 
@@ -94,5 +95,39 @@ public class GateHandler
 
     public void Handle(Gate command)
     {
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Phase B (issue GH-2969): a minimal in-memory stateful saga. Start creates the
+// saga state; Handle continues it. Exercises the Wolverine.Persistence.Sagas
+// frame set (saga-id resolution, create-new, load/assert-exists, store-or-delete)
+// against the default in-memory saga store — no external persistence.
+// -----------------------------------------------------------------------------
+
+/// <summary>Starts a <see cref="CountingSaga" />.</summary>
+public record StartCount(string Id);
+
+/// <summary>Continues a <see cref="CountingSaga" />.</summary>
+public record IncrementCount(string Id);
+
+/// <summary>A minimal stateful saga over the in-memory store.</summary>
+public class CountingSaga : Saga
+{
+    public string? Id { get; set; }
+    public int Count { get; set; }
+
+    public static CountingSaga Start(StartCount command)
+    {
+        return new CountingSaga { Id = command.Id };
+    }
+
+    public void Handle(IncrementCount command)
+    {
+        Count++;
+        if (Count >= 3)
+        {
+            MarkCompleted();
+        }
     }
 }

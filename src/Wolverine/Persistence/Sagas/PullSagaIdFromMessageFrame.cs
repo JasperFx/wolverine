@@ -73,6 +73,51 @@ internal class PullSagaIdFromMessageFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var id = SagaChain.SagaIdVariableName;
+        var ex = typeof(IndeterminateSagaStateIdException).FSharpName();
+        var messageMember = $"{_message!.Usage}.{_sagaIdMember.Name}";
+        var envelopeSagaId = $"{_envelope!.Usage}.{nameof(Envelope.SagaId)}";
+
+        if (_isStrongTypedId)
+        {
+            // Read straight from the message and reject the default value.
+            writer.Write($"let {id} = {messageMember}");
+            writer.Write($"BLOCK:if {id}.Equals(Unchecked.defaultof<{_sagaIdType!.FSharpName()}>) then");
+            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.FinishBlock();
+        }
+        else if (_sagaIdType == typeof(string))
+        {
+            // F# has no `??`; fall back to the envelope's saga id when the message member is null.
+            writer.Write($"let {id} = if isNull {messageMember} then {envelopeSagaId} else {messageMember}");
+            writer.Write($"BLOCK:if System.String.IsNullOrEmpty({id}) then");
+            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.FinishBlock();
+        }
+        else
+        {
+            // Guid / numeric: read from the message, else parse the envelope's saga id. F# auto-tuples
+            // the out-parameter TryParse into a (bool * value) match. Unchecked.defaultof<T> is both the
+            // numeric/Guid zero and the "indeterminate" sentinel.
+            var clrType = _sagaIdType!.FullName; // e.g. System.Guid / System.Int64 — valid for a static call
+            var fsharpType = _sagaIdType.FSharpName();
+            writer.Write($"let mutable {id} = {messageMember}");
+            writer.Write($"BLOCK:if {id} = Unchecked.defaultof<{fsharpType}> then");
+            writer.Write($"BLOCK:match {clrType}.TryParse({envelopeSagaId}) with");
+            writer.Write($"| true, parsed -> {id} <- parsed");
+            writer.Write($"| _ -> {id} <- {messageMember}");
+            writer.FinishBlock();
+            writer.FinishBlock();
+            writer.Write($"BLOCK:if {id} = Unchecked.defaultof<{fsharpType}> then");
+            writer.Write($"raise ({ex}({_envelope.Usage}))");
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     private void generateStrongTypedIdCode(ISourceWriter writer)
     {
         var typeNameInCode = _sagaIdType!.FullNameInCode();

@@ -6,6 +6,7 @@ open Microsoft.Extensions.Logging
 open System
 open System.Threading
 open System.Threading.Tasks
+open Wolverine.Persistence.Sagas
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
@@ -85,5 +86,63 @@ type GateHandler1696712162() =
             // The actual message execution
             gateHandler.Handle(gate)
 
+        System.Threading.Tasks.Task.CompletedTask
+
+type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        // The actual message body
+        let incrementCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.IncrementCount
+
+        // Application-specific Open Telemetry auditing
+        if not (isNull System.Diagnostics.Activity.Current) then
+            System.Diagnostics.Activity.Current.SetTag("Id", incrementCount.Id) |> ignore
+        let sagaId = if isNull incrementCount.Id then context.Envelope.SagaId else incrementCount.Id
+        if System.String.IsNullOrEmpty(sagaId) then
+            raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope))
+        let countingSaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.CountingSaga>(sagaId)
+        if isNull countingSaga then
+            raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.CountingSaga>, sagaId))
+        else
+            context.SetSagaId(sagaId)
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+            
+            // The actual message execution
+            countingSaga.Handle(incrementCount)
+
+            // Delete the saga if completed, otherwise update it
+            if countingSaga.IsCompleted() then
+                _inMemorySagaPersistor.Delete<Wolverine.Core.FSharpContracts.CountingSaga>(sagaId)
+            else
+                _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(countingSaga)
+            // No unit of work
+        System.Threading.Tasks.Task.CompletedTask
+
+type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sagas.InMemorySagaPersistor) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _inMemorySagaPersistor = inMemorySagaPersistor
+
+    override _.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        // The actual message body
+        let startCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.StartCount
+
+        // Application-specific Open Telemetry auditing
+        if not (isNull System.Diagnostics.Activity.Current) then
+            System.Diagnostics.Activity.Current.SetTag("Id", startCount.Id) |> ignore
+        
+        // The actual message execution
+        let outgoing1 = Wolverine.Core.FSharpContracts.CountingSaga.Start(startCount)
+
+        context.SetSagaId(startCount.Id)
+        if not (isNull System.Diagnostics.Activity.Current) then
+            System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", startCount.Id.ToString()) |> ignore
+            System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "Wolverine.Core.FSharpContracts.CountingSaga") |> ignore
+        if not (outgoing1.IsCompleted()) then
+            _inMemorySagaPersistor.Store<Wolverine.Core.FSharpContracts.CountingSaga>(outgoing1)
+        // No unit of work
         System.Threading.Tasks.Task.CompletedTask
 
