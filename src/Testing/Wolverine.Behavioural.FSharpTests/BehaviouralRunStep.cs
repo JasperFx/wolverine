@@ -30,26 +30,29 @@ public class BehaviouralRunStep
     {
         BehaviouralSink.reset();
 
+        // begin-snippet: sample_fsharp_static_host
         var appAssembly = typeof(BehaviouralPingHandler).Assembly;
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // Shared with the generation step so the generated type-name hash matches:
+                // DisableConventionalDiscovery() + IncludeType<BehaviouralPingHandler>().
                 BehaviouralCodegen.Configure(opts);
 
                 // Load the pre-generated F# handler adapter out of the app assembly instead of
                 // compiling at runtime. Setting ApplicationAssembly (which cascades to
-                // CodeGeneration.ApplicationAssembly) BEFORE bootstrap pins the assembly Wolverine
-                // scans for pre-built types to the F# app — not this test assembly. If the committed
-                // Generated.fs has drifted from this config, the type name won't match and the host
-                // throws ExpectedTypeMissingException at startup — a loud, useful signal.
+                // CodeGeneration.ApplicationAssembly) pins the assembly Wolverine scans for pre-built
+                // types to the F# app, and TypeLoadMode.Static means no Roslyn at runtime.
                 opts.ApplicationAssembly = appAssembly;
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
             })
             .StartAsync();
 
+        // The pre-generated F# MessageHandler is loaded by name and executed — no runtime compilation.
         var bus = host.MessageBus();
         await bus.InvokeAsync(new BehaviouralPing(42));
+        // end-snippet
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var received = await BehaviouralSink.received().WaitAsync(timeout.Token);
