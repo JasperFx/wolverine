@@ -108,6 +108,8 @@ public class Program
         builder.Services.AddKeyedSingleton<IThing, RedThing>("Red");
         builder.Services.AddKeyedScoped<IThing, BlueThing>("Blue");
         builder.Services.AddKeyedTransient<IThing, GreenThing>("Green");
+        builder.Services.AddScoped<IRandomService>(_ => new RandomService());
+        builder.Services.AddScoped<IServiceWithDbContextReference, ServiceWithDbContextReference>();
 
         builder.Services.AddMarten(opts =>
         {
@@ -140,6 +142,8 @@ public class Program
 // Need this.
         builder.Host.UseWolverine(opts =>
         {
+            opts.ServiceLocationPolicy = JasperFx.CodeGeneration.Model.ServiceLocationPolicy.AllowedButWarn;
+
             opts.Durability.MessageStorageSchemaName = "wolverine";
 
             // I'm speeding this up a lot for faster tests
@@ -377,6 +381,8 @@ public class Program
             opts.AddParameterHandlingStrategy<NowParameterStrategy>();
 
             #endregion
+
+            opts.ServiceProviderSource = ServiceProviderSource.FromHttpContextRequestServices;
         });
 
         #region sample_mapwolverinehttptransportendpoints
