@@ -101,6 +101,11 @@ public class TestWolverineHttpTransportClient : IWolverineHttpTransportClient
 
         return Task.CompletedTask;
     }
+
+    public Task<InlineHttpReply> InvokeAsync(string uri, Envelope envelope, JsonSerializerOptions serializerOptions)
+    {
+        return Task.FromResult(new InlineHttpReply(200, Array.Empty<byte>()));
+    }
 }
 
 public record ScheduledTestCommand(string Id);

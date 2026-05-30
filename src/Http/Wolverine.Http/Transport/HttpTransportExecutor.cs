@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
@@ -175,9 +176,27 @@ internal class HttpTransportExecutor
         {
             await executor.InvokeInlineAsync(envelope, httpContext.RequestAborted);
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            return Results.Problem("Execution failed", statusCode: 500);
+            _logger.LogError(e, "Inline HTTP invoke failed for message type {MessageType}", envelope.MessageType);
+
+            // GH-2966: surface the handler failure as an envelope-shaped FailureAcknowledgement on a
+            // 500 so the inline-request/reply sender re-throws WolverineRequestReplyException — the
+            // same caller-visible semantics as the brokered request/reply path.
+            var failure = new FailureAcknowledgement { RequestId = envelope.Id, Message = e.Message };
+            var failureEnvelope = envelope.CreateForResponse(failure);
+            failureEnvelope.Serializer ??= IntrinsicSerializer.Instance;
+            // IntrinsicSerializer only implements Write(Envelope) (it reads envelope.Message);
+            // WriteMessage(object) intentionally throws. The Message was set by CreateForResponse.
+            failureEnvelope.Data = failureEnvelope.Serializer.Write(failureEnvelope);
+            failureEnvelope.ContentType = failureEnvelope.Serializer.ContentType;
+
+            httpContext.Response.StatusCode = 500;
+            httpContext.Response.ContentType = "binary/wolverine-envelope";
+            var failureData = EnvelopeSerializer.Serialize(failureEnvelope);
+            httpContext.Response.ContentLength = failureData.Length;
+            await httpContext.Response.Body.WriteAsync(failureData);
+            return Results.Empty;
         }
 
         if (envelope.Response != null)

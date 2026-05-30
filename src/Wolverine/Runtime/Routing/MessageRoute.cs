@@ -22,9 +22,16 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
     private static ImHashMap<Type, IList<IEnvelopeRule>> _rulesByMessageType =
         ImHashMap<Type, IList<IEnvelopeRule>>.Empty;
 
+    private static readonly string _failureAckTypeName = typeof(FailureAcknowledgement).ToMessageTypeName();
+
     private readonly IReplyTracker _replyTracker;
     private readonly MessagePartitioningRules _partitioning;
     private readonly Endpoint _endpoint;
+
+    // GH-2966: cached once at construction (routing-compile time), so InvokeAsync<T> on an
+    // inline-request/reply transport (e.g. HTTP) takes the protocol's response slot instead of the
+    // reply-tracker/listener round trip. Null for every other transport — no per-message branching.
+    private readonly IInlineRequestReplyEndpoint? _inlineRequestReply;
 
     // CloseAndBuildAs<IMessageSerializer> on typeof(IntrinsicSerializer<>) closes
     // over the runtime-resolved message type when the type implements
@@ -74,6 +81,7 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         MessageType = messageType;
 
         _endpoint = endpoint;
+        _inlineRequestReply = endpoint as IInlineRequestReplyEndpoint;
     }
 
     public Uri Uri => _endpoint.Uri;
@@ -248,11 +256,62 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
         // for proper tracking. See https://github.com/JasperFx/wolverine/issues/1176
         envelope.ConversationId = envelope.Id;
 
+        // GH-2966: HTTP (and other inline-request/reply transports) carry the reply in the same
+        // response slot, so skip the reply-tracker/listener round trip entirely — no ReplyListener<T>,
+        // no listening endpoint on the sender. The capability was resolved once at construction.
+        if (_inlineRequestReply != null)
+        {
+            envelope.Serializer ??= Serializer;
+            var reply = await _inlineRequestReply.InvokeRemoteAsync(envelope, bus.Runtime, cancellation)
+                .ConfigureAwait(false);
+            return CompleteInlineReply<T>(reply, bus.Runtime);
+        }
+
         var waiter = _replyTracker.RegisterListener<T>(envelope, cancellation, timeout.Value);
 
         await Sender.EnqueueOutgoingAsync(envelope);
 
         return await waiter;
+    }
+
+    // GH-2966: translate the reply envelope read straight off the HTTP response into the caller's T,
+    // preserving the existing broker request/reply semantics — a receiver handler failure comes back
+    // as a FailureAcknowledgement and is rethrown as WolverineRequestReplyException.
+    private T CompleteInlineReply<T>(Envelope reply, IWolverineRuntime runtime)
+    {
+        if (reply.Message is FailureAcknowledgement directAck)
+        {
+            throw new WolverineRequestReplyException(directAck.Message);
+        }
+
+        if (reply.MessageType == _failureAckTypeName)
+        {
+            var ack = (FailureAcknowledgement)IntrinsicSerializer.Instance.ReadFromData(typeof(FailureAcknowledgement), reply);
+            throw new WolverineRequestReplyException(ack.Message);
+        }
+
+        if (typeof(T) == typeof(Acknowledgement))
+        {
+            return (T)(object)new Acknowledgement { RequestId = reply.ConversationId };
+        }
+
+        if (reply.Message is T alreadyTyped)
+        {
+            return alreadyTyped;
+        }
+
+        var serializer = reply.ContentType.IsNotEmpty()
+            ? runtime.Options.FindSerializer(reply.ContentType)
+            : Serializer;
+
+        var message = serializer.ReadFromData(typeof(T), reply);
+        if (message is T typed)
+        {
+            return typed;
+        }
+
+        throw new WolverineRequestReplyException(
+            $"Inline request/reply to {_endpoint.Uri} returned a '{reply.MessageType}' reply that could not be read as {typeof(T).FullNameInCode()}");
     }
 
     public static IEnumerable<IEnvelopeRule> RulesForMessageType(Type type)
