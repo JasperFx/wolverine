@@ -2,9 +2,7 @@ using CoreTests.Transports;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
-using Shouldly;
 using Wolverine.Configuration;
-using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
@@ -162,5 +160,37 @@ public class leader_election_self_visibility_tests
         _controller.LastAssignments.ShouldNotBeNull();
         _controller.LastAssignments!.Nodes
             .ShouldContain(n => n.NodeId == _options.UniqueNodeId);
+    }
+
+    [Fact]
+    public async Task reentrancy_guard_prevents_concurrent_DoHealthChecksAsync()
+    {
+        // Regression coverage for the _lastLockIndex race in lease-based
+        // backends (RavenDB, CosmosDB). The heartbeat loop and 
+        // CheckAgentHealth message can call DoHealthChecksAsync concurrently.
+        // The Interlocked.CompareExchange guard must let only one execution
+        // through; the other calls must return AgentCommands.Empty
+        // immediately instead of racing on shared mutable state.
+
+        _persistence.HasLeadershipLock().Returns(false);
+        _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                // Yield so the other concurrent DoHealthChecksAsync calls
+                // start before this one completes, exercising the guard.
+                await Task.Yield();
+                return true;
+            });
+        _persistence.LoadNodeAgentStateAsync(Arg.Any<CancellationToken>())
+            .Returns(new NodeAgentState(
+                [SelfRow(DateTimeOffset.UtcNow)],
+                new AgentRestrictions()));
+
+        await Task.WhenAll(Enumerable.Repeat(1, 10)
+            .Select(_ => _controller.DoHealthChecksAsync()));
+
+        await _persistence.Received(1)
+            .TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>());
+        _controller.IsLeader.ShouldBeTrue();
     }
 }

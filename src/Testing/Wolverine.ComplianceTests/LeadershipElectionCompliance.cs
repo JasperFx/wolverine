@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -72,6 +71,11 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 
     protected async Task<IHost> startHostAsync()
     {
+        return await startHostAsync(null);
+    }
+
+    protected async Task<IHost> startHostAsync(Action<WolverineOptions>? configure)
+    {
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -83,6 +87,7 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
                 opts.Services.AddSingleton<IAgentFamily, FakeAgentFamily>();
 
                 configureNode(opts);
+                configure?.Invoke(opts);
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
 
                 opts.Services.AddResourceSetupOnStartup();
@@ -161,15 +166,20 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         _hosts.SelectMany(x => x.RunningAgents()).Where(x => x == uri)
             .Count().ShouldBe(1);
     }
-    
+
+    private static void ConfigureSlowHeartbeat(WolverineOptions o)
+    {
+        o.Durability.HealthCheckPollingTime = 10.Minutes();
+        o.Durability.StaleNodeTimeout = 15.Minutes();
+    }
+
     [Fact]
     public async Task leader_switchover_between_nodes()
     {
         await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
-
         var host2 = await startHostAsync();
-        var host3 = await startHostAsync();
-        var host4 = await startHostAsync();
+        var host3 = await startHostAsync(ConfigureSlowHeartbeat);
+        var host4 = await startHostAsync(ConfigureSlowHeartbeat);
 
         await shutdownHostAsync(_originalHost);
 
@@ -177,6 +187,9 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
 
         await shutdownHostAsync(host2);
 
+        // host3 has a 10-minute heartbeat, so trigger a health check
+        // explicitly to acquire the lock after host2 releases it.
+        await host3.InvokeMessageAndWaitAsync(new CheckAgentHealth());
         await host3.WaitUntilAssumesLeadershipAsync(30.Seconds());
     }
 
@@ -264,6 +277,48 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
     {
         await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
 
+        // All remaining nodes use a 10-minute heartbeat interval so no
+        // background loop races for the leadership lock after host1 is
+        // disabled. The sole trigger is the CheckAgentHealth message
+        // sent explicitly to host2 below.
+        var host2 = await startHostAsync(ConfigureSlowHeartbeat);
+        var host3 = await startHostAsync(ConfigureSlowHeartbeat);
+        var host4 = await startHostAsync(ConfigureSlowHeartbeat);
+
+        // This is just to eliminate some errors in test output
+        await _originalHost.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(_originalHost, 3);
+            w.ExpectRunningAgents(host2, 3);
+            w.ExpectRunningAgents(host3, 3);
+            w.ExpectRunningAgents(host4, 3);
+        }, 30.Seconds());
+
+        await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
+
+        // No background heartbeats can interfere - the triggered
+        // CheckAgentHealth is the only path acquiring the lock.
+        await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
+        await host2.WaitUntilAssumesLeadershipAsync(15.Seconds());
+
+        await host2.WaitUntilAssignmentsChangeTo(w =>
+        {
+            w.ExpectRunningAgents(host2, 4);
+            w.ExpectRunningAgents(host3, 4);
+            w.ExpectRunningAgents(host4, 4);
+        }, 30.Seconds());
+    }
+
+    [Fact]
+    public async Task take_over_leader_ship_if_leader_becomes_stale_with_racing_nodes()
+    {
+        // Realistic scenario: the leader is disabled and the remaining
+        // nodes compete for leadership through their natural 1-second
+        // heartbeat loops. No explicit CheckAgentHealth messages.
+        // Any node may win; we just verify one does and the cluster
+        // rebalances correctly.
+        await _originalHost.WaitUntilAssumesLeadershipAsync(5.Seconds());
+
         var host2 = await startHostAsync();
         var host3 = await startHostAsync();
         var host4 = await startHostAsync();
@@ -278,10 +333,11 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }, 30.Seconds());
 
         await _originalHost.GetRuntime().DisableAgentsAsync(DateTimeOffset.UtcNow.AddHours(-1));
-        
-        await host2.InvokeMessageAndWaitAsync(new CheckAgentHealth());
-        await host2.WaitUntilAssumesLeadershipAsync(15.Seconds());
 
+        // Wait for any of the remaining 3 nodes to assume leadership
+        // via their natural heartbeat loop. With all nodes on a 1s
+        // interval, at least one should grab the lock before timeout
+        await WaitForAnyLeadershipAsync([host2, host3, host4], 15.Seconds());
 
         await host2.WaitUntilAssignmentsChangeTo(w =>
         {
@@ -289,6 +345,17 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
             w.ExpectRunningAgents(host3, 4);
             w.ExpectRunningAgents(host4, 4);
         }, 30.Seconds());
+    }
+
+    private static async Task WaitForAnyLeadershipAsync(IHost[] hosts, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        while (!cts.IsCancellationRequested)
+        {
+            if (hosts.Any(h => h.GetRuntime().IsLeader())) return;
+            await Task.Delay(25.Milliseconds(), cts.Token);
+        }
+        throw new TimeoutException($"No node assumed leadership within {timeout}");
     }
 
     [Fact]
