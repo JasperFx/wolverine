@@ -160,25 +160,24 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (!_cancellation.IsCancellationRequested)
         {
-            _cancellation.Cancel();
+            await _cancellation.CancelAsync();
         }
 
         _cancellation.Dispose();
         _requeueBlock.Dispose();
         _deadLetterBlock?.Dispose();
         _task.SafeDispose();
-        return ValueTask.CompletedTask;
     }
 
     public Uri Address => _queue.Uri;
 
     public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         try
         {

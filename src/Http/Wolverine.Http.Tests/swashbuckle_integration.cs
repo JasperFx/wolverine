@@ -17,7 +17,7 @@ public class swashbuckle_integration : IntegrationContext
     {
         var results = await Scenario(x => { x.Get.Url("/swagger/default/swagger.json"); });
 
-        var doc = results.ReadAsText();
+        var doc = await results.ReadAsTextAsync();
 
         doc.ShouldContain("/fromservice");
 

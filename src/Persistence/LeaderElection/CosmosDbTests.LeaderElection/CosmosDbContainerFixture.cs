@@ -25,7 +25,9 @@ public static class CosmosDbContainerFixture
                 .UntilMessageIsLogged("Gateway=OK"))
             .Build();
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _container.StartAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
         var host = _container.Hostname;
         var port = _container.GetMappedPublicPort(8081);

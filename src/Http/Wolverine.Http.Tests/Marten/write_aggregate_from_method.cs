@@ -57,7 +57,7 @@ public class write_aggregate_from_method(AppFixture fixture) : IntegrationContex
             x.ConfigureHttpContext(c => c.User = UserWithClaims(new Claim("order-id", orderId.ToString())));
         });
 
-        var order = result.ReadAsJson<Order>();
+        var order = await result.ReadAsJsonAsync<Order>();
         order.ShouldNotBeNull();
         order!.Id.ShouldBe(orderId);
         order.Items.Keys.ShouldContain("Socks");

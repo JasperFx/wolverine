@@ -71,16 +71,13 @@ public record MessageBatch(int BatchSize, int Milliseconds)
 {
     public async Task PublishAsync(IMessageBus bus)
     {
-        var task = Task.Factory.StartNew(async () =>
-        {
-            var timer = new Stopwatch();
-            timer.Start();
+        var timer = new Stopwatch();
+        timer.Start();
 
-            while (timer.ElapsedMilliseconds < Milliseconds)
-            {
-                await bus.PublishAsync(new SendMessages(BatchSize));
-                await Task.Delay(100.Milliseconds());
-            }
-        });
+        while (timer.ElapsedMilliseconds < Milliseconds)
+        {
+            await bus.PublishAsync(new SendMessages(BatchSize));
+            await Task.Delay(100.Milliseconds());
+        }
     }
 }

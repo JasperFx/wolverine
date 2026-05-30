@@ -158,7 +158,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
         _logger.LogInformation("Stopping Redis stream listener for {StreamKey}", _endpoint.StreamKey);
 
         _status = ListeningStatus.Stopped;
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
 
         if (_consumerTask != null)
         {
@@ -378,7 +378,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
                     {
                         _logger.LogError(ex, "Redis stream/consumer group missing for {StreamKey}/{Group}, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create resources.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
                         _status = ListeningStatus.Stopped;
-                        _cancellation.Cancel();
+                        await _cancellation.CancelAsync();
                         break;
                     }
                 }
@@ -433,13 +433,12 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     }
 
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _consumerTask.SafeDispose();
         _scheduledTask.SafeDispose();
         _cancellation.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     private async Task LookForScheduledMessagesAsync()

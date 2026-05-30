@@ -134,7 +134,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
             x.ContentTypeShouldBe("application/json");
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.Trim().ShouldBe("[]");
     }
 
@@ -149,7 +149,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
             x.Post.Json(new StartOrder(["Socks", "Shoes"])).ToUrl("/orders/create");
         });
 
-        var status = created.ReadAsJson<OrderStatus>();
+        var status = await created.ReadAsJsonAsync<OrderStatus>();
 
         var body = await Host.GetAsJson<Order>($"/streaming/order/{status.OrderId}");
 

@@ -65,6 +65,7 @@ public class endpoint_discovery_and_construction : IntegrationContext
         // The point here is to find endpoint methods where it uses the attribute, but not the endpoint
         // nomenclature
         var response = await Scenario(x => x.Get.Url("/discovered"));
-        response.ReadAsText().ShouldBe("You found me!");
+        var text = await response.ReadAsTextAsync();
+        text.ShouldBe("You found me!");
     }
 }

@@ -19,5 +19,4 @@
       <PackageReference Include="AWSSDK.S3" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

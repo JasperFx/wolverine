@@ -66,7 +66,7 @@ public class BehaviouralRunStep
     ///     codegen output (mirrors the per-store compile-gates).
     /// </summary>
     [Fact]
-    public void generated_fsharp_regenerates_and_compiles()
+    public async Task generated_fsharp_regenerates_and_compiles()
     {
         var code = BehaviouralCodegen.GenerateCode();
         var generatedFile = BehaviouralCodegen.GeneratedFilePath();
@@ -74,20 +74,20 @@ public class BehaviouralRunStep
         _output.WriteLine(code);
 
         var appProject = BehaviouralCodegen.AppProjectPath();
-        var (exitCode, output) = RunDotnet($"build \"{appProject}\" -c Debug --nologo");
+        var (exitCode, output) = await RunDotnetAsync($"build \"{appProject}\" -c Debug --nologo");
 
         if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")
                                                         || output.Contains("being used by another process")
                                                         || output.Contains("MSB3883")))
         {
-            (exitCode, output) = RunDotnet($"build \"{appProject}\" -c Debug --nologo");
+            (exitCode, output) = await RunDotnetAsync($"build \"{appProject}\" -c Debug --nologo");
         }
 
         _output.WriteLine(output);
         exitCode.ShouldBe(0);
     }
 
-    private static (int ExitCode, string Output) RunDotnet(string arguments)
+    private static async Task<(int ExitCode, string Output)> RunDotnetAsync(string arguments)
     {
         var info = new ProcessStartInfo("dotnet", arguments)
         {
@@ -99,10 +99,10 @@ public class BehaviouralRunStep
         info.Environment["MSBUILDDISABLENODEREUSE"] = "1";
 
         using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
 
-        return (process.ExitCode, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());
+        return (process.ExitCode, stdout + stderr);
     }
 }

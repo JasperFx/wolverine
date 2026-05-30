@@ -20,7 +20,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl(createEndpoint);
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -45,7 +45,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         
         await Scenario(x =>
         {
@@ -69,7 +69,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         
         await Scenario(x =>
         {
@@ -93,7 +93,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.StatusCodeShouldBe(201);
         });
 
-        var response = result1.ReadAsJson<CreationResponse>();
+        var response = await result1.ReadAsJsonAsync<CreationResponse>();
         response.ShouldNotBeNull();
         var raw = response.Url.Split('/').Last();
         var id = Guid.Parse(raw);
@@ -119,7 +119,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -144,7 +144,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -170,7 +170,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -207,7 +207,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -233,7 +233,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         status1.ShouldNotBeNull();
 
         await Scenario(x =>
@@ -271,7 +271,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         // And let's verify that we got what we expected for the ProblemDetails
         // in the HTTP response body of the 2nd request
-        var details = result2.ReadAsJson<ProblemDetails>();
+        var details = await result2.ReadAsJsonAsync<ProblemDetails>();
         details.ShouldNotBeNull();
         var detailsId = details.Extensions["Id"]?.ToString();
         detailsId.ShouldNotBeEmpty();
@@ -288,7 +288,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status = result.ReadAsJson<OrderStatus>();
+        var status = await result.ReadAsJsonAsync<OrderStatus>();
         status.ShouldNotBeNull();
 
         result = await Scenario(x =>
@@ -311,7 +311,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status = result.ReadAsJson<OrderStatus>();
+        var status = await result.ReadAsJsonAsync<OrderStatus>();
         status.ShouldNotBeNull();
 
         result = await Scenario(x =>
@@ -334,7 +334,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status = result.ReadAsJson<OrderStatus>();
+        var status = await result.ReadAsJsonAsync<OrderStatus>();
         status.ShouldNotBeNull();
 
         result = await Scenario(x =>
@@ -362,7 +362,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
         
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         
         await Scenario(x =>
         {
@@ -387,7 +387,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
         
-        var status1 = result1.ReadAsJson<OrderStatus>();
+        var status1 = await result1.ReadAsJsonAsync<OrderStatus>();
         
         await Scenario(x =>
         {

@@ -25,7 +25,7 @@ public class content_negotiation_by_content_type : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var response = result.ReadAsJson<ContentItemCreated>();
+        var response = await result.ReadAsJsonAsync<ContentItemCreated>();
         response.ShouldNotBeNull();
         response.Name.ShouldBe("Test Item");
         response.Version.ShouldBe("v1");
@@ -45,7 +45,7 @@ public class content_negotiation_by_content_type : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var response = result.ReadAsJson<ContentItemCreated>();
+        var response = await result.ReadAsJsonAsync<ContentItemCreated>();
         response.ShouldNotBeNull();
         response.Name.ShouldBe("Test Item");
         response.Category.ShouldBe("Widgets");
@@ -66,7 +66,7 @@ public class content_negotiation_by_content_type : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var response = result.ReadAsJson<ContentItemCreated>();
+        var response = await result.ReadAsJsonAsync<ContentItemCreated>();
         response.ShouldNotBeNull();
         response.Version.ShouldBe("v1");
     }

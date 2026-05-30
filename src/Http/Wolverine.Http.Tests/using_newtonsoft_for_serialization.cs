@@ -53,7 +53,7 @@ public class using_newtonsoft_for_serialization
             x.Post.Json(new NumberRequest(3, 4)).ToUrl("/newtonsoft/numbers");
         });
 
-        var text = result.ReadAsText();
+        var text = await result.ReadAsTextAsync();
 
         text.ShouldBe("{\"$type\":\"Wolverine.Http.Tests.MathResponse, Wolverine.Http.Tests\",\"Sum\":7,\"Product\":12}");
 

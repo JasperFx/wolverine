@@ -48,11 +48,11 @@ public class MartenDurabilityCompliance : DurabilityComplianceContext<TriggerMes
         await outbox.Session!.SaveChangesAsync();
     }
 
-    protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)
+    protected override async Task<IReadOnlyList<Envelope>> loadAllOutgoingEnvelopes(IHost sender)
     {
         var admin = sender.Get<IMessageStore>().Admin;
 
-        return admin.AllOutgoingAsync().GetAwaiter().GetResult();
+        return await admin.AllOutgoingAsync();
     }
 }
 

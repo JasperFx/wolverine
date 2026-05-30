@@ -41,5 +41,4 @@
         <Folder Include="obj\Debug\netstandard2.1"/>
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props"/>
 </Project>

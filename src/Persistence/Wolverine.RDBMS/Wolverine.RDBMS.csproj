@@ -25,5 +25,4 @@
       <PackageReference Include="Weasel.Core" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

@@ -18,7 +18,7 @@ public class using_write_by_id : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var issue = result.ReadAsJson<IssueCreated>();
+        var issue = await result.ReadAsJsonAsync<IssueCreated>();
 
         // This will throw a silent error, unsure how to test
         result = await Scenario(x =>
@@ -27,7 +27,7 @@ public class using_write_by_id : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var entity = result.ReadAsJson<Issue>();
+        var entity = await result.ReadAsJsonAsync<Issue>();
         entity.Id.ShouldBe(issue.Id);
         entity.Title.ShouldBe("Some Title");
     }

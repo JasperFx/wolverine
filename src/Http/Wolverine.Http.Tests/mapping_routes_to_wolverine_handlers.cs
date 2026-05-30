@@ -51,7 +51,8 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
             x.Post.Json(new CustomRequest("Alan Alda")).ToUrl("/wolverine/request");
         });
 
-        result.ReadAsJson<CustomResponse>().Name.ShouldBe("Alan Alda");
+        var item = await result.ReadAsJsonAsync<CustomResponse>();
+        item.Name.ShouldBe("Alan Alda");
     }
 
     [Fact]
@@ -62,7 +63,8 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
             x.Put.Json(new CustomRequest("FDR")).ToUrl("/wolverine/request");
         });
 
-        result.ReadAsJson<CustomResponse>().Name.ShouldBe("FDR");
+        var item = await result.ReadAsJsonAsync<CustomResponse>();
+        item.Name.ShouldBe("FDR");
     }
 
     [Fact]
@@ -73,6 +75,7 @@ public class mapping_routes_to_wolverine_handlers : IntegrationContext
             x.Delete.Json(new CustomRequest("LBJ")).ToUrl("/wolverine/request");
         });
 
-        result.ReadAsJson<CustomResponse>().Name.ShouldBe("LBJ");
+        var item = await result.ReadAsJsonAsync<CustomResponse>();
+        item.Name.ShouldBe("LBJ");
     }
 }

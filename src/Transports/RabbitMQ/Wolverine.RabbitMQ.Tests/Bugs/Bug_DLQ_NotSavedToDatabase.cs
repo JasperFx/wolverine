@@ -38,7 +38,7 @@ using Xunit.Abstractions;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-public class Bug_DLQ_NotSavedToDatabase : IDisposable
+public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
 {
     private readonly ITestOutputHelper _output;
     private IHost _host = null!;
@@ -48,11 +48,13 @@ public class Bug_DLQ_NotSavedToDatabase : IDisposable
         _output = output;
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        // Try to eliminate queues to keep them from accumulating
-        _host?.TeardownResources();
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.TeardownResources();
+            _host.Dispose();
+        }
     }
 
     [Fact]

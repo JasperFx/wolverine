@@ -60,6 +60,32 @@ public class encryption_acceptance : IDisposable
         public static void Handle(SensitiveSubtype payload) => Received.Add(payload);
     }
 
+    private sealed class SinkStream : IDisposable
+    {
+        private readonly MemoryStream _stream = new();
+        private readonly SemaphoreSlim _lock = new(1, 1);
+
+        public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct)
+        {
+            await _lock.WaitAsync(ct).ConfigureAwait(false);
+            try { await _stream.WriteAsync(buffer, ct).ConfigureAwait(false); }
+            finally { _lock.Release(); }
+        }
+
+        public async Task<byte[]> ToArrayAsync()
+        {
+            await _lock.WaitAsync();
+            try { return _stream.ToArray(); }
+            finally { _lock.Release(); }
+        }
+
+        public void Dispose()
+        {
+            _stream.Dispose();
+            _lock.Dispose();
+        }
+    }
+
     [Fact]
     public async Task routing_assigns_encrypting_serializer_for_published_message()
     {
@@ -357,7 +383,7 @@ public class encryption_acceptance : IDisposable
         var receiverPort = PortFinder.GetAvailablePort();
         var canary       = "WIRE-CANARY-" + Guid.NewGuid().ToString("N");
 
-        using var captured = new MemoryStream();
+        using var captured = new SinkStream();
         using var snifferCts = new CancellationTokenSource();
         var sniffer = new TcpListener(IPAddress.Loopback, snifferPort);
         sniffer.Start();
@@ -419,8 +445,7 @@ public class encryption_acceptance : IDisposable
 
             EncryptedPayloadHandler.Received.ShouldContain(p => p.Secret == canary);
 
-            byte[] capturedBytes;
-            lock (captured) { capturedBytes = captured.ToArray(); }
+            byte[] capturedBytes = await captured.ToArrayAsync();
 
             capturedBytes.Length.ShouldBeGreaterThan(0);
             // UTF8.GetString never throws on invalid sequences — substrings of
@@ -432,7 +457,7 @@ public class encryption_acceptance : IDisposable
         }
         finally
         {
-            snifferCts.Cancel();
+            await snifferCts.CancelAsync();
             try { sniffer.Stop(); } catch { }
             try { await proxyTask.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
         }
@@ -501,7 +526,7 @@ public class encryption_acceptance : IDisposable
         asyncEnvelope.ContentType.ShouldBe(EncryptionHeaders.EncryptedContentType);
     }
 
-    private static async Task PumpAsync(NetworkStream src, NetworkStream dst, MemoryStream? sink, CancellationToken ct)
+    private static async Task PumpAsync(NetworkStream src, NetworkStream dst, SinkStream? sink, CancellationToken ct)
     {
         var buf = new byte[4096];
         try
@@ -513,7 +538,8 @@ public class encryption_acceptance : IDisposable
                 // Capture BEFORE forwarding: this guarantees that any byte the
                 // receiver could possibly have observed is already in 'sink'
                 // when the test asserts after WaitForMessageToBeReceivedAt.
-                if (sink is not null) lock (sink) { sink.Write(buf, 0, n); }
+                if (sink is not null)
+                    await sink.WriteAsync(buf, ct).ConfigureAwait(false);
                 await dst.WriteAsync(buf.AsMemory(0, n), ct).ConfigureAwait(false);
             }
         }

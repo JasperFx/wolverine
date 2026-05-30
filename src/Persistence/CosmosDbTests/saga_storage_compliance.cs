@@ -16,7 +16,10 @@ public class CosmosDbSagaHost : ISagaHost
     public CosmosDbSagaHost()
     {
         _fixture = new AppFixture();
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _fixture.InitializeAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
     }
 
     public Task<IHost> BuildHostAsync<TSaga>()

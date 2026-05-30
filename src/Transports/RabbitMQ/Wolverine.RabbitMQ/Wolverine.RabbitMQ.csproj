@@ -32,5 +32,4 @@
         <PackageReference Include="RabbitMQ.Client" />
 </ItemGroup>
 
-    <Import Project="../../../../Analysis.Build.props"/>
 </Project>

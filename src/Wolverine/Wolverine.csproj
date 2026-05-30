@@ -85,5 +85,4 @@
       <InternalsVisibleTo Include="Wolverine.Newtonsoft" />
     </ItemGroup>
 
-    <Import Project="../../Analysis.Build.props" />
 </Project>

@@ -32,5 +32,4 @@
       <PackageReference Include="Weasel.Sqlite" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

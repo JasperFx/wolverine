@@ -20,6 +20,7 @@ public class correlation_id_from_request_through_to_message_context : Integratio
             x.WithRequestHeader(RequestIdMiddleware.CorrelationIdHeaderKey, id);
         });
 
-        body.ReadAsText().ShouldBe(id);
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe(id);
     }
 }

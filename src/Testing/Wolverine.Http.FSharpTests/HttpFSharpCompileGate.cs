@@ -21,7 +21,7 @@ public class HttpFSharpCompileGate
     }
 
     [Fact]
-    public void generated_fsharp_compiles_via_dotnet_build()
+    public async Task generated_fsharp_compiles_via_dotnet_build()
     {
         var code = HttpFSharpCodegenSample.GenerateCode();
         var generatedFile = HttpFSharpCodegenSample.DefaultGeneratedFilePath();
@@ -31,7 +31,7 @@ public class HttpFSharpCompileGate
         _output.WriteLine(code);
 
         var fixtureProject = HttpFSharpCodegenSample.FixtureProjectPath();
-        var (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
+        var (exitCode, output) = await RunDotnetAsync($"build \"{fixtureProject}\" -c Debug --nologo");
 
         // Retry once on the transient FS0193 internal-compiler crash, or a concurrent-build file lock
         // on a shared ref assembly (MSB3883 / "used by another process") if gates ever overlap.
@@ -39,7 +39,7 @@ public class HttpFSharpCompileGate
                                                         || output.Contains("being used by another process")
                                                         || output.Contains("MSB3883")))
         {
-            (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
+            (exitCode, output) = await RunDotnetAsync($"build \"{fixtureProject}\" -c Debug --nologo");
         }
 
         _output.WriteLine(output);
@@ -56,7 +56,7 @@ public class HttpFSharpCompileGate
         result.ShouldBeTrue();
     }
 
-    private static (int ExitCode, string Output) RunDotnet(string arguments)
+    private static async Task<(int ExitCode, string Output)> RunDotnetAsync(string arguments)
     {
         var info = new ProcessStartInfo("dotnet", arguments)
         {
@@ -68,10 +68,10 @@ public class HttpFSharpCompileGate
         info.Environment["MSBUILDDISABLENODEREUSE"] = "1";
 
         using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
 
-        return (process.ExitCode, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());
+        return (process.ExitCode, stdout + stderr);
     }
 }

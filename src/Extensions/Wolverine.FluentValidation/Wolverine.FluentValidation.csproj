@@ -30,6 +30,5 @@
         <PackageReference Include="FluentValidation" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 
 </Project>

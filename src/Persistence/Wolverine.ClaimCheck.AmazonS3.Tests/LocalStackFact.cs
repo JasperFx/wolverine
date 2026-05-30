@@ -41,7 +41,9 @@ internal static class LocalStack
         {
             using var client = new TcpClient();
             var connect = client.ConnectAsync(Host, Port);
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
             return connect.Wait(TimeSpan.FromSeconds(2)) && client.Connected;
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         }
         catch
         {

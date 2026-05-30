@@ -10,7 +10,6 @@ using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
-using Timer = System.Timers.Timer;
 
 namespace Wolverine.MQTT.Internals;
 
@@ -22,7 +21,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     private ImHashMap<string, MqttListener> _topicListeners = ImHashMap<string, MqttListener>.Empty;
     private bool _subscribed;
     private ILogger<MqttTransport> _logger = null!;
-    private Timer? _jwtTokenRefreshTimer;
+    private CancellationTokenSource? _refreshCts;
 
     public static string TopicForUri(Uri uri)
     {
@@ -108,43 +107,57 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
             return Task.CompletedTask;
         }
     }
-    
-    private Task onClientConnected(MqttClientConnectedEventArgs arg)
+
+    private async Task onClientConnected(MqttClientConnectedEventArgs arg)
     {
-        if (arg.ConnectResult.ResultCode != MqttClientConnectResultCode.Success)
+        if (arg.ConnectResult.ResultCode != MqttClientConnectResultCode.Success
+            || JwtAuthenticationOptions == null)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        if (JwtAuthenticationOptions == null)
+        if (_refreshCts is not null)
         {
-            return Task.CompletedTask;
+            await _refreshCts.CancelAsync();
+            _refreshCts.Dispose();
         }
 
-        _jwtTokenRefreshTimer = new Timer(JwtAuthenticationOptions.RefreshPeriod);
-        _jwtTokenRefreshTimer.Elapsed += async (sender, args) => await RefreshToken(sender, args);
-        _jwtTokenRefreshTimer.Start();
-        return Task.CompletedTask;
-        
-        async Task RefreshToken(object? sender, System.Timers.ElapsedEventArgs e)
+        _refreshCts = new CancellationTokenSource();
+        var ct = _refreshCts.Token;
+        _ = Task.Run(async () =>
         {
-            if (Client.IsConnected)
+            using var periodicTimer = new PeriodicTimer(JwtAuthenticationOptions.RefreshPeriod);
+            try
             {
-                await Client.InternalClient.SendExtendedAuthenticationExchangeDataAsync(
-                    new MqttExtendedAuthenticationExchangeData()
-                    {
-                        AuthenticationData = await JwtAuthenticationOptions!.GetTokenCallBack(),
-                        ReasonCode = MQTTnet.Protocol.MqttAuthenticateReasonCode.ReAuthenticate
-                    });
+                while (await periodicTimer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+                {
+                    if (!Client.IsConnected) continue;
+
+                    await Client.InternalClient
+                        .SendExtendedAuthenticationExchangeDataAsync(
+                            new MqttExtendedAuthenticationExchangeData
+                            {
+                                AuthenticationData = await JwtAuthenticationOptions.GetTokenCallBack(),
+                                ReasonCode = MQTTnet.Protocol.MqttAuthenticateReasonCode.ReAuthenticate
+                            }, ct)
+                        .ConfigureAwait(false);
+                }
             }
-        }
+            catch (OperationCanceledException)
+            {
+                // Shutdown requested
+            }
+        }, ct);
     }
 
-    private Task onClientDisconnected(MqttClientDisconnectedEventArgs arg)
+    private async Task onClientDisconnected(MqttClientDisconnectedEventArgs arg)
     {
-        _jwtTokenRefreshTimer?.Stop();
-        _jwtTokenRefreshTimer?.Dispose();
-        return Task.CompletedTask;
+        if (_refreshCts is not null)
+        {
+            await _refreshCts.CancelAsync();
+            _refreshCts.Dispose();
+            _refreshCts = null;
+        }
     }
 
     internal bool tryFindListener(string topicName, out MqttListener listener)
@@ -163,7 +176,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         return listener is not null;
     }
 
-    internal IManagedMqttClient Client { get; private set; } = null!;
+    internal IManagedMqttClient Client { get; set; } = null!;
     internal MqttJwtAuthenticationOptions? JwtAuthenticationOptions { get; set; }
 
     [ChildDescription]
@@ -179,10 +192,13 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     {
         try
         {
-            // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+            if (_refreshCts is not null)
+            {
+                await _refreshCts.CancelAsync();
+                _refreshCts.Dispose();
+            }
             if (Client is not null)
                 await Client.StopAsync();
-            _jwtTokenRefreshTimer?.Dispose();
         }
         catch (ObjectDisposedException)
         {

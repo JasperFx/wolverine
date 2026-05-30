@@ -97,13 +97,8 @@ public class SqlServerBackedListenerContext : SqlServerContext
         return await thePersistence.Admin.AllIncomingAsync();
     }
 
-    protected void assertEnvelopeWasEnqueued(Envelope envelope)
+    protected Task assertEnvelopeWasEnqueued(Envelope envelope)
     {
-        thePipeline.Received().InvokeAsync(envelope, theReceiver);
-    }
-
-    protected void assertEnvelopeWasNotEnqueued(Envelope envelope)
-    {
-        thePipeline.DidNotReceive().InvokeAsync(envelope, theReceiver);
+        return thePipeline.Received().InvokeAsync(envelope, theReceiver);
     }
 }

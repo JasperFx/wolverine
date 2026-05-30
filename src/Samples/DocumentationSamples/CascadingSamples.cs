@@ -17,11 +17,11 @@ public class NoCascadingHandler
         _bus = bus;
     }
 
-    public void Consume(MyMessage message)
+    public ValueTask Consume(MyMessage message)
     {
         // do whatever work you need to for MyMessage,
         // then send out a new MyResponse
-        _bus.SendAsync(new MyResponse());
+        return _bus.SendAsync(new MyResponse());
     }
 }
 

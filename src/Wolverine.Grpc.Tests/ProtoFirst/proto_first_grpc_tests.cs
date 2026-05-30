@@ -89,7 +89,7 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
                 received++;
                 if (received == 2)
                 {
-                    cts.Cancel();
+                    await cts.CancelAsync();
                 }
             }
         });

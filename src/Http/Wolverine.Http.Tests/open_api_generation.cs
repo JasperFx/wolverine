@@ -17,7 +17,9 @@ public class open_api_generation : IntegrationContext
     public static object[][] Chains()
     {
         var fixture = new AppFixture();
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         fixture.InitializeAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
         var chains = fixture
             .Host!
@@ -28,7 +30,9 @@ public class open_api_generation : IntegrationContext
             .Where(x => x.Method.Method.HasAttribute<OpenApiExpectationAttribute>())
             .Select(x => new object[]{x}).ToArray();
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         fixture.DisposeAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
         return chains;
     }

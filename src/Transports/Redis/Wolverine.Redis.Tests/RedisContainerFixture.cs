@@ -16,7 +16,10 @@ public static class RedisContainerFixture
             .WithImage("redis:7-alpine")
             .Build();
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _container.StartAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
         ConnectionString = _container.GetConnectionString();
     }
 }

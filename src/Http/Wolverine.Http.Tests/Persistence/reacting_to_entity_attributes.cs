@@ -65,7 +65,8 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.StatusCodeShouldBe(404);
         });
         
-        tracked.ReadAsText().ShouldBeEmpty();
+        var text = await tracked.ReadAsTextAsync();
+        text.ShouldBeEmpty();
     }
 
     [Fact]
@@ -78,7 +79,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var details = tracked.ReadAsJson<ProblemDetails>();
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
         details.Detail.ShouldBe("Unknown Todo2 with identity nonexistent");
     }
     
@@ -92,7 +93,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var details = tracked.ReadAsJson<ProblemDetails>();
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
         details.Detail.ShouldBe("Unknown Todo2 with identity nonexistent");
     }
 
@@ -105,7 +106,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.StatusCodeShouldBe(500);
         });
 
-        var text = tracked.ReadAsText();
+        var text = await tracked.ReadAsTextAsync();
         text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
     }
 
@@ -119,7 +120,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var details = tracked.ReadAsJson<ProblemDetails>();
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
         details.Detail.ShouldBe("Wrong id man!");
     }
 
@@ -133,7 +134,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var details = tracked.ReadAsJson<ProblemDetails>();
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
         details.Detail.ShouldBe("Id 'nonexistent' is wrong!");
     }
     
@@ -146,7 +147,7 @@ public class reacting_to_entity_attributes : IAsyncLifetime
             x.StatusCodeShouldBe(500);
         });
 
-        var text = tracked.ReadAsText();
+        var text = await tracked.ReadAsTextAsync();
         text.ShouldContain(typeof(RequiredDataMissingException).FullName!);
         text.ShouldContain("Id 'nonexistent' is wrong!");
     }

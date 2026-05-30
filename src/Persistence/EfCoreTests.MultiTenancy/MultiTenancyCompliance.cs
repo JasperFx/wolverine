@@ -289,9 +289,10 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         {
             x.Get.Url("/item1/" + command.Id).QueryString("tenant", "red");
         });
-        
-        result.ReadAsJson<Item>().Name.ShouldBe(command.Name);
-        
+
+        var item = await result.ReadAsJsonAsync<Item>();
+        item.Name.ShouldBe(command.Name);
+
         // Not found in other tenants
         await theHost.Scenario(x =>
         {
@@ -324,9 +325,10 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         {
             x.Get.Url("/item2/" + command.Id).QueryString("tenant", "red");
         });
-        
-        result.ReadAsJson<Item>().Name.ShouldBe(command.Name);
-        
+
+        var item = await result.ReadAsJsonAsync<Item>();
+        item.Name.ShouldBe(command.Name);
+
         // Not found in other tenants
         await theHost.Scenario(x =>
         {
@@ -456,8 +458,9 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         {
             x.Get.Url("/orders/" + command.Id).QueryString("tenant", "red");
         });
-        
-        result.ReadAsJson<Order>().OrderStatus.ShouldBe(OrderStatus.CreditReserved);
+
+        var order = await result.ReadAsJsonAsync<Order>();
+        order.OrderStatus.ShouldBe(OrderStatus.CreditReserved);
 
     }
 

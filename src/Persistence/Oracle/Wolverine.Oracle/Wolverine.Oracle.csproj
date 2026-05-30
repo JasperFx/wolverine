@@ -33,5 +33,4 @@
         <PackageReference Include="Weasel.Oracle" />
     </ItemGroup>
 
-    <Import Project="../../../../Analysis.Build.props" />
 </Project>

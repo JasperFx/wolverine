@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using DotNet.Testcontainers.Containers;
 using Testcontainers.Pulsar;
 
 namespace Wolverine.Pulsar.Tests;
@@ -19,7 +18,10 @@ public static class PulsarContainerFixture
             .WithImage("apachepulsar/pulsar:latest")
             .Build();
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _container.StartAsync().GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
         ServiceUrl = new Uri(_container.GetBrokerAddress());
 
         var host = _container.Hostname;

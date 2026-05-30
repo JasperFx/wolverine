@@ -129,8 +129,9 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         
         // Run a web request end to end in memory
         var result = await theHost.Scenario(x => x.Get.Url("/tenant/route/chartreuse"));
-        
-        result.ReadAsText().ShouldBe("gambit");
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("gambit");
     }
 
     [Fact]
@@ -144,7 +145,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
         // Make sure it worked!
         // ZZ Top FTW! https://www.youtube.com/watch?v=uTjgZEapJb8
-        result.ReadAsText().ShouldBe("chartreuse");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("chartreuse");
     }
 
     [Fact]
@@ -154,7 +156,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
         var result = await theHost.Scenario(x => x.Get.Url("/tenant?t=bar"));
 
-        result.ReadAsText().ShouldBe("bar");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("bar");
     }
 
     [Fact]
@@ -171,7 +174,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.WithRequestHeader("tenant", "green");
         });
 
-        result.ReadAsText().ShouldBe("green");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("green");
     }
 
     [Fact]
@@ -187,7 +191,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.WithClaim(new Claim("tenant", "blue"));
         });
 
-        result.ReadAsText().ShouldBe("blue");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("blue");
     }
 
     [Fact]
@@ -200,33 +205,41 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             opts.TenantId.IsRequestHeaderValue("tenant");
         });
 
-        (await theHost.Scenario(x =>
+        var result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant?tenant=green");
             x.WithClaim(new Claim("tenant", "blue"));
             x.WithRequestHeader("tenant", "purple");
 
-        })).ReadAsText().ShouldBe("blue");
+        });
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("blue");
 
-        (await theHost.Scenario(x =>
+        result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant?tenant=green");
 
-        })).ReadAsText().ShouldBe("green");
+        });
+        text = await result.ReadAsTextAsync();
+        text.ShouldBe("green");
 
-        (await theHost.Scenario(x =>
+        result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant?tenant=green");
             x.WithRequestHeader("tenant", "purple");
 
-        })).ReadAsText().ShouldBe("green");
+        });
+        text = await result.ReadAsTextAsync();
+        text.ShouldBe("green");
 
-        (await theHost.Scenario(x =>
+        result = await theHost.Scenario(x =>
         {
             x.Get.Url("/tenant?tenant");
             x.WithRequestHeader("tenant", "purple");
 
-        })).ReadAsText().ShouldBe("purple");
+        });
+        text = await result.ReadAsTextAsync();
+        text.ShouldBe("purple");
     }
 
     [Fact]
@@ -265,7 +278,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         // Alba's helpers to deserialize JSON responses
         // to a strong typed object for easy
         // assertions
-        var details = results.ReadAsJson<ProblemDetails>();
+        var details = await results.ReadAsJsonAsync<ProblemDetails>();
 
         // I like to refer to constants in test assertions sometimes
         // so that you can tweak error messages later w/o breaking
@@ -312,7 +325,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.Get.Url("/todo/one");
             x.WithRequestHeader("tenant", "red");
         });
-        result1.ReadAsJson<TenantTodo>().Description.ShouldBe("red one");
+        var todo1 = await result1.ReadAsJsonAsync<TenantTodo>();
+        todo1.Description.ShouldBe("red one");
 
         // retrieve blue one
         var result2 = await theHost.Scenario(x =>
@@ -320,7 +334,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
             x.Get.Url("/todo/one");
             x.WithRequestHeader("tenant", "blue");
         });
-        result2.ReadAsJson<TenantTodo>().Description.ShouldBe("blue one");
+        var todo2 = await result2.ReadAsJsonAsync<TenantTodo>();
+        todo2.Description.ShouldBe("blue one");
     }
 
     [Fact]
@@ -384,7 +399,8 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
         {
             x.Post.FormData(formData).ContentType("application/x-www-form-urlencoded").ToUrl("/tenant/red/formdata");
         });
-        result.ReadAsText().ShouldBe("red");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("red");
     }
     
     [Fact]

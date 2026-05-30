@@ -18,7 +18,7 @@ public class output_cache : IntegrationContext
             s.Get.Url("/api/cached");
             s.StatusCodeShouldBeOk();
         });
-        var firstBody = first.ReadAsText();
+        var firstBody = await first.ReadAsTextAsync();
 
         // Second request should return cached response
         var second = await Scenario(s =>
@@ -26,7 +26,7 @@ public class output_cache : IntegrationContext
             s.Get.Url("/api/cached");
             s.StatusCodeShouldBeOk();
         });
-        var secondBody = second.ReadAsText();
+        var secondBody = await second.ReadAsTextAsync();
 
         // Should be the same cached response
         secondBody.ShouldBe(firstBody);
@@ -40,14 +40,14 @@ public class output_cache : IntegrationContext
             s.Get.Url("/api/not-cached");
             s.StatusCodeShouldBeOk();
         });
-        var firstBody = first.ReadAsText();
+        var firstBody = await first.ReadAsTextAsync();
 
         var second = await Scenario(s =>
         {
             s.Get.Url("/api/not-cached");
             s.StatusCodeShouldBeOk();
         });
-        var secondBody = second.ReadAsText();
+        var secondBody = await second.ReadAsTextAsync();
 
         // Should be different responses
         secondBody.ShouldNotBe(firstBody);
@@ -62,7 +62,7 @@ public class output_cache : IntegrationContext
             s.Get.Url("/api/cached-default");
             s.StatusCodeShouldBeOk();
         });
-        var firstBody = first.ReadAsText();
+        var firstBody = await first.ReadAsTextAsync();
 
         // Second request should return cached response
         var second = await Scenario(s =>
@@ -70,7 +70,7 @@ public class output_cache : IntegrationContext
             s.Get.Url("/api/cached-default");
             s.StatusCodeShouldBeOk();
         });
-        var secondBody = second.ReadAsText();
+        var secondBody = await second.ReadAsTextAsync();
 
         // Should be the same cached response
         secondBody.ShouldBe(firstBody);

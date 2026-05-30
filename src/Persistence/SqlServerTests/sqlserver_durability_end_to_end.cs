@@ -172,7 +172,9 @@ create table receiver.trace_doc
 
         for (var i = 0; i < 200; i++)
         {
-            var actual = (int)conn.CreateCommand("select count(*) from receiver.trace_doc").ExecuteScalar()!;
+            await using var cmd = conn.CreateCommand("select count(*) from receiver.trace_doc");
+            var countResult = await cmd.ExecuteScalarAsync();
+            var actual = Convert.ToInt32(countResult);
             var envelopeCount = PersistedIncomingCount();
 
             Trace.WriteLine($"waitForMessages: {actual} actual & {envelopeCount} incoming envelopes");
