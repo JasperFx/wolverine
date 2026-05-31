@@ -62,7 +62,7 @@ internal class AgentMessages : IMessageRouteSource
         if (messageType.CanBeCastTo<IAgentCommand>())
         {
             var queue = runtime.Endpoints.AgentForLocalQueue(TransportConstants.Agents);
-            yield return new MessageRoute(messageType, queue.Endpoint, runtime);
+            yield return MessageRoute.For(messageType, queue.Endpoint, runtime);
         }
     }
 
@@ -85,7 +85,7 @@ internal class ExplicitRouting : IMessageRouteSource
             .Transports
             .AllEndpoints()
             .Where(x => x.ShouldSendMessage(messageType))
-            .Select(x => new MessageRoute(messageType, x, runtime));
+            .Select(x => MessageRoute.For(messageType, x, runtime));
 
         foreach (var explicitRoute in explicitRoutes)
         {
@@ -129,7 +129,7 @@ internal class LocalRouting : IMessageRouteSource
         if (options.HandlerGraph.CanHandle(messageType))
         {
             var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToArray();
-            return endpoints.Select(e => new MessageRoute(messageType, e, runtime));
+            return endpoints.Select(e => MessageRoute.For(messageType, e, runtime));
         }
 
         var batching = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
@@ -141,7 +141,7 @@ internal class LocalRouting : IMessageRouteSource
         var endpoint = options.Transports.GetOrCreate<LocalTransport>()
             .QueueFor(batching.LocalExecutionQueueName!);
 
-        return [new MessageRoute(messageType, endpoint, runtime)];
+        return [MessageRoute.For(messageType, endpoint, runtime)];
 
     }
 
@@ -160,7 +160,7 @@ internal class MessageRoutingConventions : IMessageRouteSource
     public IEnumerable<IMessageRoute> FindRoutes(Type messageType, IWolverineRuntime runtime)
     {
         return runtime.Options.RoutingConventions.SelectMany(x => x.DiscoverSenders(messageType, runtime))
-            .Select(e => new MessageRoute(messageType, e, runtime));
+            .Select(e => MessageRoute.For(messageType, e, runtime));
     }
 
     public bool IsAdditive => true;

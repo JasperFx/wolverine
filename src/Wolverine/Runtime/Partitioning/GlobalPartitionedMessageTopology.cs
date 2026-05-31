@@ -208,11 +208,11 @@ public class GlobalPartitionedMessageTopology
         }
 
         var externalRoutes = _externalTopology.Slots
-            .Select(x => (IMessageRoute)new MessageRoute(messageType, x, runtime))
+            .Select(x => (IMessageRoute)MessageRoute.For(messageType, x, runtime))
             .ToArray();
 
         var localRoutes = _localTopology.Slots
-            .Select(x => (IMessageRoute)new MessageRoute(messageType, x, runtime))
+            .Select(x => (IMessageRoute)MessageRoute.For(messageType, x, runtime))
             .ToArray();
 
         var externalEndpoints = _externalTopology.Slots.ToArray();

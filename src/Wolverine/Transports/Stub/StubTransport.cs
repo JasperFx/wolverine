@@ -78,7 +78,7 @@ internal class StubTransport : TransportBase<StubEndpoint>, IStubHandlers, IMess
         {
             var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.LocalStubs, e => e.Mode = EndpointMode.BufferedInMemory);
             
-            yield return new MessageRoute(messageType, sendingAgent.Endpoint, runtime);
+            yield return MessageRoute.For(messageType, sendingAgent.Endpoint, runtime);
         }
     }
 
