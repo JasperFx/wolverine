@@ -14,20 +14,24 @@ public class from_query_binding : IntegrationContext
     public async Task get_string_as_parameter()
     {
         var result = await Host.Scenario(x => x.Get.Url("/api/fromquery1?name=Mahomes"));
-        result.ReadAsJson<Query1>().Name.ShouldBe("Mahomes");
-        
+        var query = await result.ReadAsJsonAsync<Query1>();
+        query.Name.ShouldBe("Mahomes");
+
         var result2 = await Host.Scenario(x => x.Get.Url("/api/fromquery1"));
-        result2.ReadAsJson<Query1>().Name.ShouldBeNull();
+        query = await result2.ReadAsJsonAsync<Query1>();
+        query.Name.ShouldBeNull();
     }
 
     [Fact]
     public async Task get_number_as_parameter()
     {
         var result = await Host.Scenario(x => x.Get.Url("/api/fromquery2?number=15"));
-        result.ReadAsJson<Query2>().Number.ShouldBe(15);
-        
+        var query = await result.ReadAsJsonAsync<Query2>();
+        query.Number.ShouldBe(15);
+
         var result2 = await Host.Scenario(x => x.Get.Url("/api/fromquery2"));
-        result2.ReadAsJson<Query2>().Number.ShouldBe(0);
+        query = await result2.ReadAsJsonAsync<Query2>();
+        query.Number.ShouldBe(0);
     }
 
     [Fact]
@@ -35,17 +39,19 @@ public class from_query_binding : IntegrationContext
     {
         var id = Guid.NewGuid();
         var result = await Host.Scenario(x => x.Get.Url("/api/fromquery3?Id=" + id));
-        result.ReadAsJson<Query3>().Id.ShouldBe(id);
-        
+        var query = await result.ReadAsJsonAsync<Query3>();
+        query.Id.ShouldBe(id);
+
         var result2 = await Host.Scenario(x => x.Get.Url("/api/fromquery3"));
-        result2.ReadAsJson<Query3>().Id.ShouldBe(Guid.Empty);
+        query = await result2.ReadAsJsonAsync<Query3>();
+        query.Id.ShouldBe(Guid.Empty);
     }
 
     [Fact]
     public async Task get_multiple_parameters()
     {
         var result = await Host.Scenario(x => x.Get.Url("/api/fromquery4?name=Kelce&number=87&direction=north"));
-        var query = result.ReadAsJson<Query4>();
+        var query = await result.ReadAsJsonAsync<Query4>();
         query.Name.ShouldBe("Kelce");
         query.Number.ShouldBe(87);
         query.Direction.ShouldBe(Direction.North);
@@ -54,7 +60,7 @@ public class from_query_binding : IntegrationContext
     private async Task<BigQuery> forQuerystring(string querystring)
     {
         var result = await Host.Scenario(x => x.Get.Url($"/api/bigquery?{querystring}"));
-        return result.ReadAsJson<BigQuery>();
+        return await result.ReadAsJsonAsync<BigQuery>();
     }
 
     [Fact]
@@ -107,8 +113,8 @@ public class from_query_binding : IntegrationContext
                 .QueryString("Values", "two")
                 .QueryString("values", "three");
         });
-    
-        var query = result.ReadAsJson<BigQuery>();
+
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.Values.ShouldBe(["one", "two", "three"]);
     }
 
@@ -123,8 +129,8 @@ public class from_query_binding : IntegrationContext
                 .QueryString("listValues", "two")
                 .QueryString("listValues", "three");
         });
-    
-        var query = result.ReadAsJson<BigQuery>();
+
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.ListValues.ShouldBe(["one", "two", "three"]);
     }
 
@@ -138,8 +144,8 @@ public class from_query_binding : IntegrationContext
                 .QueryString("EnumListValues", "North")
                 .QueryString("EnumListValues", "south");
         });
-    
-        var query = result.ReadAsJson<BigQuery>();
+
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.EnumListValues.ShouldBe([Direction.North, Direction.South]);
     }
 
@@ -153,8 +159,8 @@ public class from_query_binding : IntegrationContext
                 .QueryString("IntList", "-1")
                 .QueryString("IntList", "42");
         });
-    
-        var query = result.ReadAsJson<BigQuery>();
+
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.IntList.ShouldBe([-1,42]);
     }
     
@@ -172,8 +178,8 @@ public class from_query_binding : IntegrationContext
                 .QueryString("Numbers", "3")
                 .QueryString("Numbers", "4");
         });
-    
-        var query = result.ReadAsJson<BigQuery>();
+
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.Numbers.ShouldBe([1, 3, 4]);
     }
 
@@ -196,7 +202,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("v", "two");
         });
 
-        var query = result.ReadAsJson<BigQuery>();
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.AliasedValues.ShouldBe(["one", "two"]);
     }
 
@@ -211,7 +217,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("n", "20");
         });
 
-        var query = result.ReadAsJson<BigQuery>();
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.AliasedNumbers.ShouldBe([10, 20]);
     }
 
@@ -226,7 +232,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("d", "South");
         });
 
-        var query = result.ReadAsJson<BigQuery>();
+        var query = await result.ReadAsJsonAsync<BigQuery>();
         query.AliasedEnumList.ShouldBe([Direction.North, Direction.South]);
     }
 
@@ -241,7 +247,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("v", "two");
         });
 
-        var query = result.ReadAsJson<AliasedArrayQuery>();
+        var query = await result.ReadAsJsonAsync<AliasedArrayQuery>();
         query.Values.ShouldBe(["one", "two"]);
     }
 
@@ -256,7 +262,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("n", "10");
         });
 
-        var query = result.ReadAsJson<AliasedIntArrayQuery>();
+        var query = await result.ReadAsJsonAsync<AliasedIntArrayQuery>();
         query.Numbers.ShouldBe([5, 10]);
     }
 
@@ -271,7 +277,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("v", "two");
         });
 
-        var query = result.ReadAsJson<AliasedArrayQuery>();
+        var query = await result.ReadAsJsonAsync<AliasedArrayQuery>();
         query.Values.ShouldBe(["one", "two"]);
     }
 
@@ -286,7 +292,7 @@ public class from_query_binding : IntegrationContext
                 .QueryString("n", "10");
         });
 
-        var query = result.ReadAsJson<AliasedIntArrayQuery>();
+        var query = await result.ReadAsJsonAsync<AliasedIntArrayQuery>();
         query.Numbers.ShouldBe([5, 10]);
     }
 }

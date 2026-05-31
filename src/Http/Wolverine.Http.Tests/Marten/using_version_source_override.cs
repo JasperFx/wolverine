@@ -14,7 +14,7 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
             x.Post.Json(new StartOrder(["Socks", "Shoes", "Shirt"])).ToUrl("/orders/create");
         });
 
-        var status = result.ReadAsJson<OrderStatus>();
+        var status = await result.ReadAsJsonAsync<OrderStatus>();
         return status.OrderId;
     }
 

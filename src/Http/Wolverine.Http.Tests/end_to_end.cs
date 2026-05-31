@@ -44,7 +44,7 @@ public class end_to_end : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var result = body.ReadAsJson<bool>();
+        var result = await body.ReadAsJsonAsync<bool>();
         result.ShouldBeTrue();
     }
 
@@ -57,7 +57,7 @@ public class end_to_end : IntegrationContext
             x.StatusCodeShouldBeOk();
         });
 
-        var result = body.ReadAsJson<bool>();
+        var result = await body.ReadAsJsonAsync<bool>();
         result.ShouldBeTrue();
     }
 
@@ -72,7 +72,7 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("application/json; charset=utf-8");
         });
 
-        var results = body.ReadAsJson<ArithmeticResults>();
+        var results = await body.ReadAsJsonAsync<ArithmeticResults>();
         results.Product.ShouldBe(4);
         results.Sum.ShouldBe(3);
     }
@@ -86,7 +86,8 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Name is Lebron");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Name is Lebron");
     }
 
     [Fact]
@@ -97,7 +98,8 @@ public class end_to_end : IntegrationContext
             x.Get.Url("/enum/west");
         });
 
-        body.ReadAsText().ShouldBe("Direction is West");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Direction is West");
     }
 
     [Fact]
@@ -109,7 +111,8 @@ public class end_to_end : IntegrationContext
             x.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        body.ReadAsText().ShouldBe("Age is 49");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Age is 49");
     }
 
     [Fact]

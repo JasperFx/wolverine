@@ -53,15 +53,30 @@ public class AzureServiceBusEnvelope : Envelope
 
     public Task DeferAsync(CancellationToken token)
     {
-        return Args?.DeferMessageAsync(AzureMessage, cancellationToken: token) ?? ServiceBusReceiver?.DeferMessageAsync(AzureMessage, cancellationToken: token) ??
-            SessionReceiver?.DeferMessageAsync(AzureMessage, cancellationToken: token) ?? Task.CompletedTask;
+        if (Args != null)
+            return Args.DeferMessageAsync(AzureMessage, cancellationToken: token);
+
+        if (ServiceBusReceiver != null)
+            return ServiceBusReceiver.DeferMessageAsync(AzureMessage, cancellationToken: token);
+
+        if (SessionReceiver != null)
+            return SessionReceiver.DeferMessageAsync(AzureMessage, cancellationToken: token);
+
+        return Task.CompletedTask;
     }
 
     public Task DeadLetterAsync(CancellationToken token, string? deadLetterReason = null, string? deadLetterErrorDescription = null)
     {
-        return Args?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription)
-               ?? ServiceBusReceiver?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription)
-               ?? SessionReceiver?.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription:deadLetterErrorDescription) ?? Task.CompletedTask;
+        if (Args != null)
+            return Args.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+
+        if (ServiceBusReceiver != null)
+            return ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+
+        if (SessionReceiver != null)
+            return SessionReceiver.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+
+        return Task.CompletedTask;
     }
 
     private ProcessMessageEventArgs? Args { get; set; }

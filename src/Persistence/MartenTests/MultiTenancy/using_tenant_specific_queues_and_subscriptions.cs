@@ -258,7 +258,7 @@ public class ColorData
 
     public Task PublishNumbers(IDocumentStore store)
     {
-        return Task.Factory.StartNew(async () =>
+        return Task.Run(async () =>
         {
             await using var session = store.LightweightSession(TenantId);
 

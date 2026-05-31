@@ -16,6 +16,7 @@ public class route_wildcard : IntegrationContext
             x.Get.Url("/wildcard/one/two/three");
         });
 
-        body.ReadAsText().ShouldBe("one/two/three");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("one/two/three");
     }
 }

@@ -72,10 +72,14 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
         using (var scope = _host.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
+
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
             db.Items.AddRange(
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_list_0" },
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_list_1" },
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_list_2" });
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
+
             await db.SaveChangesAsync();
         }
 
@@ -101,9 +105,13 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
         using (var scope = _host.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
+
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
             db.Items.AddRange(
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_a" },
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_b" });
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
+
             await db.SaveChangesAsync();
         }
 

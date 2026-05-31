@@ -58,21 +58,19 @@ internal class AzureServiceBusSessionListener : IListener
         throw new NotSupportedException();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _cancellation.Dispose();
-        foreach (var task in _tasks) task.SafeDispose();
-
-        return ValueTask.CompletedTask;
+        foreach (var task in _tasks)
+            task.SafeDispose();
     }
 
     public Uri Address => _endpoint.Uri;
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
-        return ValueTask.CompletedTask;
+        await _cancellation.CancelAsync();
     }
 
     private async Task listenForMessages()

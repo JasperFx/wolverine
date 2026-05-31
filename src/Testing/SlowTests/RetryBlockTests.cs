@@ -34,7 +34,7 @@ public class RetryBlockTests
     [Fact]
     public async Task run_successfully()
     {
-        theBlock.Post(new SometimesFailingMessage(0, "Aubrey"));
+        await theBlock.PostAsync(new SometimesFailingMessage(0, "Aubrey"));
 
         await theBlock.DrainAsync();
 
@@ -46,7 +46,7 @@ public class RetryBlockTests
     public async Task retry_within_threshold()
     {
         var theMessage = new SometimesFailingMessage(2, "Aubrey");
-        theBlock.Post(theMessage);
+        await theBlock.PostAsync(theMessage);
         await theMessage.Completion;
 
         theLogger.Exceptions.Count.ShouldBe(2);
@@ -60,7 +60,7 @@ public class RetryBlockTests
     public async Task disregard_after_too_many_failures()
     {
         var theMessage = new SometimesFailingMessage(5, "Aubrey");
-        theBlock.Post(theMessage);
+        await theBlock.PostAsync(theMessage);
 
         theBlock.Pauses = [0.Milliseconds(), 50.Milliseconds()];
 

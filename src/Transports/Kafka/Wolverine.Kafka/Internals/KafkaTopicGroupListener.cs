@@ -116,8 +116,10 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         await _runner;
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
     }
 
     public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
@@ -169,7 +171,9 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     {
         _cancellation.Cancel();
         _cancellation.Dispose();
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _runner.Wait();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         _consumer.SafeDispose();
         _runner.Dispose();
     }

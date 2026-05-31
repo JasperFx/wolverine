@@ -41,7 +41,8 @@ public class SqlServerBackedMessageStoreTests : SqlServerContext, IAsyncLifetime
         theEnvelope.ConversationId = Guid.NewGuid();
         theEnvelope.ParentId = Guid.NewGuid().ToString();
 
-        theHost.Get<IMessageStore>().Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope).Wait(3.Seconds());
+        await theHost.Get<IMessageStore>().Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope)
+            .WaitAsync(3.Seconds());
 
         var persistor = theHost.GetRuntime().Storage.As<SqlServerMessageStore>();
 

@@ -37,7 +37,7 @@ public class building_a_saga_and_publishing_other_messages_from_http_endpoint : 
         var reservation = await session.LoadAsync<Reservation>("dinner");
         reservation.ShouldNotBeNull();
 
-        result.ReadAsJson<ReservationBooked>()
-            .ReservationId.ShouldBe("dinner");
+        var @event = await result.ReadAsJsonAsync<ReservationBooked>();
+        @event.ReservationId.ShouldBe("dinner");
     }
 }

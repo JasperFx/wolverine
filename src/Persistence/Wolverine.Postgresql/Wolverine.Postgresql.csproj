@@ -28,5 +28,4 @@
       <PackageReference Include="Weasel.Postgresql" />
     </ItemGroup>
 
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

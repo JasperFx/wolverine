@@ -34,8 +34,11 @@ public sealed class SchemaRegistryAvroSerializer : SchemaRegistrySerializer
             var context = new SerializationContext(
                 MessageComponentType.Value, topicName ?? string.Empty);
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
             return serializer.SerializeAsync((T)message, context)
                 .GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
         };
     }
 
@@ -48,9 +51,11 @@ public sealed class SchemaRegistryAvroSerializer : SchemaRegistrySerializer
             var context = new SerializationContext(
                 MessageComponentType.Value, topicName ?? string.Empty);
 
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
             return deserializer.DeserializeAsync(
                 new ReadOnlyMemory<byte>(data), isNull: false, context)
                 .GetAwaiter().GetResult()!;
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         };
     }
 }

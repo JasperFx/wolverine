@@ -18,7 +18,10 @@ public class SeedSampleItems : IInitialData<ItemsDbContext>
 
     public async Task Populate(ItemsDbContext context, CancellationToken cancellation)
     {
+#pragma warning disable VSTHRD103 // Call async methods when in an async method
         context.Items.AddRange(Items);
+#pragma warning restore VSTHRD103 // Call async methods when in an async method
+
         await context.SaveChangesAsync(cancellation);
     }
 }

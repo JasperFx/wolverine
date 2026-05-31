@@ -15,7 +15,8 @@ public class using_container_services_as_method_arguments : IntegrationContext
     {
         var body = await Scenario(x => { x.Get.Url("/message/hey"); });
 
-        body.ReadAsText().ShouldBe("Message was hey");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("Message was hey");
 
         Host.Services.GetRequiredService<Recorder>()
             .Actions.ShouldContain("Got: hey");

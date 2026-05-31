@@ -22,6 +22,5 @@
     <ProjectReference Include="..\..\Wolverine\Wolverine.csproj" />
   </ItemGroup>
 
-  <Import Project="../../../Analysis.Build.props" />
 
 </Project>

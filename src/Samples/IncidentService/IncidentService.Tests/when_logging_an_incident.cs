@@ -48,7 +48,7 @@ public class when_logging_an_incident : IntegrationContext
         });
 
         // Read the response body by deserialization
-        var response = initial.ReadAsJson<CreationResponse<Guid>>();
+        var response = await initial.ReadAsJsonAsync<CreationResponse<Guid>>();
 
         // Reaching into Marten to build the current state of the new Incident
         // just to check the expected outcome

@@ -63,6 +63,7 @@ public class using_http_context_elements_in_routes : IntegrationContext
             x.Get.Url("/http/identifier");
         });
 
-        body.ReadAsText().ShouldBe(identifier);
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe(identifier);
     }
 }

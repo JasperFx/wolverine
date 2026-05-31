@@ -16,7 +16,8 @@ public class Bug_2352_fromquery_name_with_dots : IntegrationContext
             x.Get.Url("/querystring/dotted?hub.mode=subscribe&hub.challenge=abc123&hub.verify_token=mytoken");
         });
 
-        body.ReadAsText().ShouldBe("subscribe|abc123|mytoken");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("subscribe|abc123|mytoken");
     }
 
     [Fact]
@@ -27,6 +28,7 @@ public class Bug_2352_fromquery_name_with_dots : IntegrationContext
             x.Get.Url("/querystring/dotted-int?page.number=42");
         });
 
-        body.ReadAsText().ShouldBe("page 42");
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("page 42");
     }
 }

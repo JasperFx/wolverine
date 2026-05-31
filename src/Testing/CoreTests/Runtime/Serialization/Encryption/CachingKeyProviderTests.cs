@@ -152,9 +152,11 @@ public class CachingKeyProviderTests
         var first = sut.GetKeyAsync("k1", firstCallerCts.Token).AsTask();
         var second = sut.GetKeyAsync("k1", secondCallerCts.Token).AsTask();
 
-        firstCallerCts.Cancel();
+        await firstCallerCts.CancelAsync();
 
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         await Should.ThrowAsync<OperationCanceledException>(() => first);
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
 
         var keyBytes = Key32(0x42);
         gate.SetResult(keyBytes);
@@ -171,9 +173,15 @@ public class CachingKeyProviderTests
             DefaultKeyId = defaultKeyId;
             _gate = gate;
         }
+
         public string DefaultKeyId { get; }
+
         public async ValueTask<byte[]> GetKeyAsync(string keyId, CancellationToken cancellationToken)
-            => await _gate.ConfigureAwait(false);
+        {
+#pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
+            return await _gate.ConfigureAwait(false);
+#pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+        }
     }
 
     [Fact]

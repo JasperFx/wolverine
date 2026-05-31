@@ -104,7 +104,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     {
         var messages = buildHundredMessages(failures);
         var publisher = new MessageBus(_runtime);
-        var task = Task.Factory.StartNew(async () =>
+        var task = Task.Run(async () =>
         {
             foreach (var message in messages) await publisher.PublishAsync(message);
 
@@ -118,7 +118,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
     {
         var messages = buildHundredMessages(failures);
         var publisher = new MessageBus(_runtime);
-        var task = Task.Factory.StartNew(async () =>
+        var task = Task.Run(async () =>
         {
             await Task.Delay(delay);
             _output.WriteLine($"Starting to publish a batch with {failures}% failures");
@@ -171,9 +171,7 @@ public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<
         publishHundredMessagesNow(25);
         publishHundredMessagesNow(25);
 
-#pragma warning disable CS4014
-        Task.Factory.StartNew(async () =>
-#pragma warning restore CS4014
+        var _ = Task.Run(async () =>
         {
             await Task.Delay(10.Seconds());
             Recorder.NeverFail = true;

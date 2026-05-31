@@ -50,7 +50,7 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
     protected override async Task<ItemCreated> loadItemAsync(IHost receiver, Guid id)
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        conn.Open();
+        await conn.OpenAsync();
 
         var name = (string?)(await conn
             .CreateCommand("select name from receiver.item_created where id = @id")
@@ -94,10 +94,10 @@ public class SqlServerDurabilityCompliance : DurabilityComplianceContext<Trigger
         #endregion
     }
 
-    protected override IReadOnlyList<Envelope> loadAllOutgoingEnvelopes(IHost sender)
+    protected override Task<IReadOnlyList<Envelope>> loadAllOutgoingEnvelopes(IHost sender)
     {
         return sender.Get<IMessageStore>().As<SqlServerMessageStore>()
-            .Admin.AllOutgoingAsync().GetAwaiter().GetResult();
+            .Admin.AllOutgoingAsync();
     }
 }
 

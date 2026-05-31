@@ -19,7 +19,7 @@ public class StreamingTests : IntegrationContext
             s.Header("content-type").SingleValueShouldEqual("text/event-stream");
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.ShouldContain("data: Event 0");
         body.ShouldContain("data: Event 2");
     }
@@ -34,7 +34,7 @@ public class StreamingTests : IntegrationContext
             s.Header("content-type").SingleValueShouldEqual("text/plain");
         });
 
-        var body = result.ReadAsText();
+        var body = await result.ReadAsTextAsync();
         body.ShouldContain("line 0");
         body.ShouldContain("line 4");
     }

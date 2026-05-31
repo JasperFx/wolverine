@@ -24,7 +24,8 @@ public class user_name_relay_from_http : IntegrationContext
             x.Get.Url("/user/name");
         });
 
-        result.ReadAsText().ShouldBe("testuser@example.com");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("testuser@example.com");
     }
 
     [Fact]
@@ -35,6 +36,7 @@ public class user_name_relay_from_http : IntegrationContext
             x.Get.Url("/user/name");
         });
 
-        result.ReadAsText().ShouldBe("NONE");
+        var text = await result.ReadAsTextAsync();
+        text.ShouldBe("NONE");
     }
 }

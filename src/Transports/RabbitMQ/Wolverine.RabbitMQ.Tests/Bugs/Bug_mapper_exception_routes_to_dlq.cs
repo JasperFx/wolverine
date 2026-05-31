@@ -9,15 +9,18 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
-public class Bug_mapper_exception_routes_to_dlq : IDisposable
+public class Bug_mapper_exception_routes_to_dlq : IAsyncDisposable
 {
     private readonly string _queueName = "mapper_explosion_" + Guid.NewGuid().ToString("N");
-    private IHost _host = null!;
+    private IHost? _host;
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        _host?.TeardownResources();
-        _host?.Dispose();
+        if (_host != null)
+        {
+            await _host.TeardownResources();
+            _host.Dispose();
+        }
     }
 
     [Fact]

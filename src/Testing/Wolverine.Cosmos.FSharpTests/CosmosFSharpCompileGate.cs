@@ -21,7 +21,7 @@ public class CosmosFSharpCompileGate
     }
 
     [Fact]
-    public void generated_fsharp_compiles_via_dotnet_build()
+    public async Task generated_fsharp_compiles_via_dotnet_build()
     {
         var code = CosmosFSharpCodegenSample.GenerateCode();
         var generatedFile = CosmosFSharpCodegenSample.DefaultGeneratedFilePath();
@@ -31,21 +31,21 @@ public class CosmosFSharpCompileGate
         _output.WriteLine(code);
 
         var fixtureProject = CosmosFSharpCodegenSample.FixtureProjectPath();
-        var (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
+        var (exitCode, output) = await RunDotnetAsync($"build \"{fixtureProject}\" -c Debug --nologo");
 
         // Retry once on the transient FS0193 internal-compiler crash or a concurrent-build file lock.
         if (exitCode != 0 && (output.Contains("FS0193") || output.Contains("internal error")
                                                         || output.Contains("being used by another process")
                                                         || output.Contains("MSB3883")))
         {
-            (exitCode, output) = RunDotnet($"build \"{fixtureProject}\" -c Debug --nologo");
+            (exitCode, output) = await RunDotnetAsync($"build \"{fixtureProject}\" -c Debug --nologo");
         }
 
         _output.WriteLine(output);
         exitCode.ShouldBe(0);
     }
 
-    private static (int ExitCode, string Output) RunDotnet(string arguments)
+    private static async Task<(int ExitCode, string Output)> RunDotnetAsync(string arguments)
     {
         var info = new ProcessStartInfo("dotnet", arguments)
         {
@@ -57,10 +57,10 @@ public class CosmosFSharpCompileGate
         info.Environment["MSBUILDDISABLENODEREUSE"] = "1";
 
         using var process = Process.Start(info)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        var stdout = await process.StandardOutput.ReadToEndAsync();
+        var stderr = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
 
-        return (process.ExitCode, stdout.GetAwaiter().GetResult() + stderr.GetAwaiter().GetResult());
+        return (process.ExitCode, stdout + stderr);
     }
 }

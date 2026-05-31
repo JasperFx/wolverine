@@ -96,7 +96,7 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
 
     public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+        await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _complete.SafeDispose();
         _defer.SafeDispose();

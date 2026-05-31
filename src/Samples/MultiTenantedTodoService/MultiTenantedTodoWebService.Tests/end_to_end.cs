@@ -78,7 +78,7 @@ public class end_to_end : IAsyncLifetime
             x.Get.Url("/todoitems/tenant2");
         });
 
-        var results = result.ReadAsJson<Todo[]>();
+        var results = await result.ReadAsJsonAsync<Todo[]>();
         results.ShouldBeEmpty();
     }
 

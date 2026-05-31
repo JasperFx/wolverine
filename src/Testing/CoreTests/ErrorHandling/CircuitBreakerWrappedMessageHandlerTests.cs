@@ -42,7 +42,9 @@ public class CircuitBreakerWrappedMessageHandlerTests
 
         theInnerHandler.HandleAsync(context, token).Throws(ex);
 
-        Should.Throw<InvalidOperationException>(async () => { await theHandler.HandleAsync(context, token); });
+        await Should.ThrowAsync<InvalidOperationException>(() =>
+            theHandler.HandleAsync(context, token)
+        );
 
         await theTracker.Received().TagFailureAsync(ex);
     }

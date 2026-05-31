@@ -21,7 +21,10 @@ public class SimpleRelayEventPublisher(IMessageBus Bus) : IEventPublisher
     public void Publish<T>(T @event)
     {
         // Just say no kids! This is a potential dead lock
+#pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         Bus.PublishAsync(@event).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+
     }
 }
 

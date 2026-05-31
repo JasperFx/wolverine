@@ -63,7 +63,7 @@ public class reacting_to_required_attribute : IAsyncLifetime
             x.ContentTypeShouldBe("application/problem+json");
         });
 
-        var details = tracked.ReadAsJson<ProblemDetails>();
+        var details = await tracked.ReadAsJsonAsync<ProblemDetails>();
         details.Detail.ShouldBe("Todo not found by id");
     }
 }

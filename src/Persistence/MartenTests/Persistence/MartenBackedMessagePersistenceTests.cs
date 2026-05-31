@@ -52,7 +52,8 @@ public class MartenBackedMessagePersistenceTests : PostgresqlContext, IDisposabl
         await persistence.Admin.RebuildAsync();
 
 
-        persistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope).Wait(3.Seconds());
+        await persistence.Inbox.RescheduleExistingEnvelopeForRetryAsync(theEnvelope)
+            .WaitAsync(3.Seconds());
 
         persisted = (await persistence.Admin
                 .AllIncomingAsync())

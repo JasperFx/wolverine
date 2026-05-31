@@ -31,7 +31,7 @@ public class soft_deleted_attribute_usage : IntegrationContext
             x.Get.Url("/frame-rearrange/" + invoice.Id);
         });
 
-        var invoice2 = response.ReadAsJson<Invoice>();
+        var invoice2 = await response.ReadAsJsonAsync<Invoice>();
         invoice2.Id.ShouldBe(invoice.Id);
     }
 }

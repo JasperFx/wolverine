@@ -22,5 +22,4 @@
     <ItemGroup>
       <PackageReference Include="Marten" />
     </ItemGroup>
-    <Import Project="../../../Analysis.Build.props" />
 </Project>

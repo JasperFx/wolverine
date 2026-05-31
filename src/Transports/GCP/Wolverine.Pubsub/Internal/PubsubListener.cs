@@ -90,22 +90,18 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         return true;
     }
 
-    public ValueTask StopAsync()
+    public async ValueTask StopAsync()
     {
-        _cancellation.Cancel();
-
-        return new ValueTask(_task);
+        await _cancellation.CancelAsync();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        _cancellation.Cancel();
+         await _cancellation.CancelAsync();
         _cancellation.Dispose();
         _task.SafeDispose();
         _requeue.SafeDispose();
         _deadLetter.SafeDispose();
-
-        return ValueTask.CompletedTask;
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }

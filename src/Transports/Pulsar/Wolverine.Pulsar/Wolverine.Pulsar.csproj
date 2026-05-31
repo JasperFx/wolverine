@@ -17,5 +17,4 @@
         <PackageReference Include="Microsoft.Extensions.ObjectPool" />
     </ItemGroup>
 
-    <Import Project="../../../../Analysis.Build.props" />
 </Project>

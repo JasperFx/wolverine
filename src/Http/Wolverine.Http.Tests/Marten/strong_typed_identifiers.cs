@@ -25,7 +25,7 @@ public class strong_typed_identifiers : IntegrationContext
             x.Get.Url("/sti/aggregate/" + streamId);
         });
 
-        var aggregate = result.ReadAsJson<StrongLetterAggregate>();
+        var aggregate = await result.ReadAsJsonAsync<StrongLetterAggregate>();
 
         aggregate.ACount.ShouldBe(1);
         aggregate.BCount.ShouldBe(1);
@@ -52,8 +52,8 @@ public class strong_typed_identifiers : IntegrationContext
             x.Get.Url("/sti/aggregate/" + streamId);
         });
 
-        var aggregate = result.ReadAsJson<StrongLetterAggregate>();
-        
+        var aggregate = await result.ReadAsJsonAsync<StrongLetterAggregate>();
+
         aggregate.ACount.ShouldBe(2);
         aggregate.BCount.ShouldBe(1);
         aggregate.CCount.ShouldBe(2);
@@ -125,7 +125,7 @@ public class strong_typed_identifiers : IntegrationContext
 
         var result = await Scenario(x => x.Get.Url("/toys/" + toy.Id.Value));
 
-        var thing2 = result.ReadAsJson<Toy>();
+        var thing2 = await result.ReadAsJsonAsync<Toy>();
         thing2.Name.ShouldBe(toy.Name);
     }
 }

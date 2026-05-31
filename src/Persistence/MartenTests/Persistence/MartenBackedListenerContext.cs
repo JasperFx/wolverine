@@ -26,7 +26,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
         persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
-        assertEnvelopeWasEnqueued(envelope);
+        await assertEnvelopeWasEnqueued(envelope);
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public class MartenBackedListenerTests : MartenBackedListenerContext
         persisted.Status.ShouldBe(EnvelopeStatus.Incoming);
         persisted.OwnerId.ShouldBe(theSettings.AssignedNodeNumber);
 
-        assertEnvelopeWasEnqueued(envelope);
+        await assertEnvelopeWasEnqueued(envelope);
     }
 }
 
@@ -122,8 +122,8 @@ public class MartenBackedListenerContext : PostgresqlContext, IAsyncLifetime
         return await _messageStore!.AllIncomingAsync();
     }
 
-    protected void assertEnvelopeWasEnqueued(Envelope envelope)
+    protected Task assertEnvelopeWasEnqueued(Envelope envelope)
     {
-        thePipeline.Received().InvokeAsync(envelope, _receiver);
+        return thePipeline.Received().InvokeAsync(envelope, _receiver);
     }
 }
