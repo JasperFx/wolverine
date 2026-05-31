@@ -110,7 +110,7 @@ public abstract class PartitionedMessageTopology
 
         if (Matches(messageType))
         {
-            var innerRoutes = _slots.Select(x => new MessageRoute(messageType, x, runtime)).ToArray();
+            var innerRoutes = _slots.Select(x => MessageRoute.For(messageType, x, runtime)).ToArray();
             
             route = new ShardedMessageRoute(Uri, runtime.Options.MessagePartitioning, innerRoutes);
             

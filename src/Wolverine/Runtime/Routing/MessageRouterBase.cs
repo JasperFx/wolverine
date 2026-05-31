@@ -52,7 +52,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         {
             if (endpoint.RoutingType == RoutingMode.ByTopic)
             {
-                topicRouteList.Add(new MessageRoute(typeof(T), endpoint, runtime));
+                topicRouteList.Add(MessageRoute.For(typeof(T), endpoint, runtime));
             }
         }
 
@@ -112,7 +112,7 @@ public abstract class MessageRouterBase<T> : IMessageRouter
         }
 
         var agent = Runtime.Endpoints.GetOrBuildSendingAgent(destination);
-        route = new MessageRoute(typeof(T), agent.Endpoint, Runtime);
+        route = MessageRoute.For(typeof(T), agent.Endpoint, Runtime);
         _specificRoutes = _specificRoutes.AddOrUpdate(destination, route);
 
         return route;

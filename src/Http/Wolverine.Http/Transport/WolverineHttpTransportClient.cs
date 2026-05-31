@@ -23,6 +23,16 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
         await client.PostAsync(client.BaseAddress, content);
     }
+
+    public async Task<InlineHttpReply> InvokeAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
+    {
+        var client = clientFactory.CreateClient(uri);
+        var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
+        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
+        var response = await client.PostAsync(client.BaseAddress, content);
+        var body = await response.Content.ReadAsByteArrayAsync();
+        return new InlineHttpReply((int)response.StatusCode, body);
+    }
 }
 
 public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFactory) : IWolverineHttpTransportClient
@@ -42,5 +52,17 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         var content = new StringContent(JsonSerializer.Serialize(ce, options));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.CloudEventsContentType);
         await client.PostAsync(client.BaseAddress, content);
+    }
+
+    public async Task<InlineHttpReply> InvokeAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
+    {
+        // The reply is always a binary Wolverine envelope regardless of the request encoding, so the
+        // inline request/reply send uses the binary envelope format both ways (see GH-2966).
+        var client = clientFactory.CreateClient(uri);
+        var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
+        content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
+        var response = await client.PostAsync(client.BaseAddress, content);
+        var body = await response.Content.ReadAsByteArrayAsync();
+        return new InlineHttpReply((int)response.StatusCode, body);
     }
 }

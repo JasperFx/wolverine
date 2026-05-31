@@ -159,6 +159,58 @@ When using `.UseDurableOutbox()`, messages are first persisted to your configure
 (PostgreSQL, SQL Server, etc.) and then delivered in the background. This guarantees that messages
 are never lost, even if the sending application crashes or the receiver is temporarily unavailable.
 
+## Inline Request/Reply
+
+When you call `IMessageBus.InvokeAsync<T>(message)` and the message is routed to an HTTP transport
+endpoint, Wolverine uses the HTTP response body **as** the reply. The request envelope is POSTed to the
+receiver's `/_wolverine/invoke` endpoint and the response envelope is read straight back off the HTTP
+response:
+
+```cs
+// Sender — route the request to the receiver's /_wolverine/invoke endpoint
+opts.PublishMessage<PriceQuoteRequest>()
+    .ToHttpEndpoint("https://pricing.example.com/_wolverine/invoke");
+```
+
+```cs
+// Anywhere with an IMessageBus
+var quote = await bus.InvokeAsync<PriceQuote>(new PriceQuoteRequest("SKU-123"));
+```
+
+This is materially cheaper than request/reply over a brokered transport (Rabbit MQ, SQS, Azure Service
+Bus): because HTTP already provides a response slot, there is
+
+- **no `ReplyListener` and no listener loop on the sender** — the reply is the HTTP response, not a
+  separate correlated message, so the sender does not need to run a listening endpoint just to receive
+  its own replies;
+- **no cross-loop `TaskCompletionSource`** allocated per call.
+
+The optimization is **structural and automatic** — there is no opt-in flag. Any `InvokeAsync<T>` routed
+to an HTTP endpoint takes this path; the decision is baked into the route when it is compiled, so there
+is no per-message branching. Fire-and-forget sends (`PublishAsync` / `SendAsync`) continue to use the
+batched/inline send path described above.
+
+### Failure semantics
+
+If the receiver's handler throws, the receiver responds with HTTP 500 and an envelope-shaped error
+body, and the sender re-throws a `WolverineRequestReplyException` — exactly the same caller-visible
+behavior as brokered request/reply:
+
+```cs
+try
+{
+    var quote = await bus.InvokeAsync<PriceQuote>(new PriceQuoteRequest("SKU-123"));
+}
+catch (WolverineRequestReplyException e)
+{
+    // The receiver's handler failed; e.Message carries the failure detail.
+}
+```
+
+When the receiver is configured with a transactional outbox, the HTTP response is held until the outbox
+commits, so any cascading messages emitted by the handler are part of the same transactional unit
+before the caller observes the reply.
+
 ## CloudEvents Support
 
 The HTTP transport supports the [CloudEvents](https://cloudevents.io/) specification for

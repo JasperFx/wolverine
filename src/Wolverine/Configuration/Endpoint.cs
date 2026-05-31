@@ -473,7 +473,7 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             return route;
         }
 
-        route = new MessageRoute(messageType, this, runtime);
+        route = MessageRoute.For(messageType, this, runtime);
 
         Routes = Routes.AddOrUpdate(messageType, route);
 
