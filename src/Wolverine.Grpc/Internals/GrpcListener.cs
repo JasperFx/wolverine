@@ -11,14 +11,16 @@ namespace Wolverine.Grpc.Internals;
 internal class GrpcListener : IListener
 {
     private readonly IReceiver _receiver;
+    private readonly IWolverineRuntime _runtime;
     private readonly ILogger<GrpcListener> _logger;
     private WebApplication? _app;
 
-    public GrpcListener(Uri address, int port, IReceiver receiver, ILogger<GrpcListener> logger)
+    public GrpcListener(Uri address, int port, IReceiver receiver, IWolverineRuntime runtime, ILogger<GrpcListener> logger)
     {
         Address = address;
         Port = port;
         _receiver = receiver;
+        _runtime = runtime;
         _logger = logger;
     }
 
@@ -41,6 +43,8 @@ internal class GrpcListener : IListener
         builder.Services.AddGrpc();
         builder.Services.AddSingleton(_receiver);
         builder.Services.AddSingleton<IListener>(this);
+        // GH-2967: the inline-request/reply Call handler executes against the main application's runtime.
+        builder.Services.AddSingleton(_runtime);
 
         _app = builder.Build();
         _app.MapGrpcService<WolverineGrpcTransportService>();

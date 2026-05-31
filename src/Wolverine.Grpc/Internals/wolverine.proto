@@ -6,6 +6,12 @@ service WolverineTransport {
     rpc Send(WolverineMessage) returns (Ack);
     rpc SendBatch(WolverineMessageBatch) returns (Ack);
     rpc Ping(PingRequest) returns (Ack);
+
+    // GH-2967 inline request/reply: the request WolverineMessage carries the serialized request
+    // envelope; the response WolverineMessage carries the serialized reply envelope (which may be a
+    // FailureAcknowledgement on a handler failure). Lets InvokeAsync<T> use gRPC's unary response slot
+    // instead of a separate brokered reply on a listening endpoint.
+    rpc Call(WolverineMessage) returns (WolverineMessage);
 }
 
 message WolverineMessage {
