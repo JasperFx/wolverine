@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Wolverine.Http;
 
 namespace WolverineWebApi;
@@ -197,6 +198,30 @@ public static class NoErrorEndpoints
 }
 
 #endregion
+
+// Probe (PR #3000 regression): does an HTTP-endpoint OnException support an *extra*
+// injected parameter alongside the exception (the author's literal ILogger example),
+// returning a ProblemDetails response?
+public static class InjectedParameterExceptionEndpoints
+{
+    [WolverineGet("/on-exception/injected-parameter")]
+    public static string EndpointThatThrowsForInjection()
+    {
+        throw new CustomHttpException("Injected parameter error");
+    }
+
+    public static ProblemDetails OnException(CustomHttpException ex,
+        ILogger<CustomHttpException> logger)
+    {
+        logger.LogError(ex, "Handled in OnException with an injected logger");
+        return new ProblemDetails
+        {
+            Status = 500,
+            Detail = ex.Message,
+            Title = "Injected Parameter Error"
+        };
+    }
+}
 
 #region sample_on_exception_void_return
 /// <summary>

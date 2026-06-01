@@ -152,4 +152,23 @@ public class OnExceptionTests : IntegrationContext
         problem.ShouldNotBeNull();
         problem!.Title.ShouldBe("Global Error Handler");
     }
+
+    // PR #3000 regression: an HTTP-endpoint OnException with an *extra* injected parameter
+    // (the author's literal ILogger example) alongside the exception still resolves the
+    // parameter and returns its ProblemDetails response.
+    [Fact]
+    public async Task on_exception_with_extra_injected_parameter()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Get.Url("/on-exception/injected-parameter");
+            x.StatusCodeShouldBe(500);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        var problem = await result.ReadAsJsonAsync<Microsoft.AspNetCore.Mvc.ProblemDetails>();
+        problem.ShouldNotBeNull();
+        problem!.Title.ShouldBe("Injected Parameter Error");
+        problem.Detail.ShouldBe("Injected parameter error");
+    }
 }

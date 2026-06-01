@@ -123,16 +123,22 @@ public class MiddlewarePolicy : IChainPolicy
         {
             var frames = new List<Frame> { call };
 
-            // Handle return values from OnException methods — same as Before methods
-            var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-            foreach (var outgoing in outgoings)
-            {
-                frames.Add(new CaptureCascadingMessages(outgoing));
-            }
-
+            // A continuation strategy (IResult, HandlerContinuation, HTTP ProblemDetails response, ...)
+            // gets first claim on the return value. If one claims it, that frame *is* the handling of
+            // the return value and we must not also cascade it as a message.
             if (rules.TryFindContinuationHandler(chain, call, out var continuation))
             {
                 frames.Add(continuation!);
+            }
+            else if (call.ReturnVariable != null)
+            {
+                // Otherwise a value returned from OnException is published as a cascading message,
+                // mirroring the return-value semantics of handler methods (GH-3000). void/Task returns
+                // have no ReturnVariable; EnqueueCascadingAsync unwraps OutgoingMessages/IEnumerable too.
+                // Must be the catch-safe frame: CaptureCascadingMessages is a MethodCall whose
+                // FindVariables would expose the dependency on the OnException call's return variable,
+                // making the arranger pre-link the catch frames and collide with TryCatchFinallyFrame.
+                frames.Add(new CaptureCascadingMessagesInCatch(call.ReturnVariable));
             }
 
             tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
