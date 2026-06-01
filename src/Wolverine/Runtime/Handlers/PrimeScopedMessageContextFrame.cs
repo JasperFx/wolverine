@@ -36,4 +36,12 @@ internal sealed class PrimeScopedMessageContextFrame : SyncFrame, IUsesServicePr
             $"{typeof(ServiceProviderServiceExtensions).FullNameInCode()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FullNameInCode()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} = {_context!.Usage};");
         Next?.GenerateCode(method, writer);
     }
+
+    // F#: mutable property assignment uses `<-` and no trailing semicolon.
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(ServiceProviderServiceExtensions).FSharpName()}.{nameof(ServiceProviderServiceExtensions.GetRequiredService)}<{typeof(ScopedMessageContextHolder).FSharpName()}>({_scopedProvider!.Usage}).{nameof(ScopedMessageContextHolder.Context)} <- {_context!.Usage}");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

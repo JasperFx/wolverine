@@ -47,4 +47,11 @@ internal sealed class ScopePrimingActivatorFrame : SyncFrame
         // No-op: the work is registering postprocessors on the scope during FindVariables.
         Next?.GenerateCode(method, writer);
     }
+
+    // No-op for F# too — this frame emits no code in either language (it only registers postprocessors
+    // during arrangement). Required so it doesn't hit the base Frame.GenerateFSharpCode which throws.
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
