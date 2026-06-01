@@ -134,11 +134,9 @@ public interface IChain
     /// <summary>
     /// <see langword="true"/> when this chain's compiled code resolves at least one
     /// dependency via service location rather than constructor / parameter injection.
-    /// Recorded at codegen time. Consumed by the executor factory to opt into the
-    /// AsyncLocal-based <see cref="Wolverine.Runtime.MessageContext.Current"/> handoff
-    /// that keeps service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/>
-    /// pointed at the same context the handler itself received. Chains where this is
-    /// <see langword="false"/> incur zero AsyncLocal overhead per invocation. See issue #2583.
+    /// Recorded at codegen time. When set, the generated code creates a child scope that
+    /// Wolverine primes so service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/>
+    /// resolve to the same context the handler received rather than a duplicate. See GH-3001.
     /// </summary>
     bool UsesServiceLocation { get; }
 

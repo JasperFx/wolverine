@@ -495,12 +495,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     /// rather than receiving the dependency through a constructor / handler-method parameter).
     /// Recorded at codegen time by <see cref="AssertServiceLocationsAreAllowed"/>.
     ///
-    /// At runtime, the executor factory consults this flag to decide whether to wrap the chain's
-    /// <see cref="Wolverine.Runtime.Handlers.IExecutor"/> with the <see cref="System.Threading.AsyncLocal{T}"/>-based
-    /// <see cref="Wolverine.Runtime.MessageContext.Current"/> handoff that keeps service-located
-    /// <see cref="IMessageContext"/> / <see cref="IMessageBus"/> instances pointed at the same
-    /// <see cref="Wolverine.Runtime.MessageContext"/> the handler itself received. Chains that don't
-    /// service-locate skip the wrap and pay zero AsyncLocal overhead per message. See issue #2583.
+    /// When a chain service-locates, the generated code creates a child scope, and Wolverine primes
+    /// that scope so a service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/>
+    /// (and <see cref="IRequireScopingFrame"/> contributors such as Marten's
+    /// <c>IDocumentSession</c>) resolves to the same instance the handler received rather than a
+    /// duplicate. See GH-3001 (which replaced the earlier AsyncLocal handoff from GH-2583).
     /// </summary>
     public bool UsesServiceLocation { get; private set; }
 

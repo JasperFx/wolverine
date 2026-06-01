@@ -213,17 +213,18 @@ public static class HostBuilderExtensions
         services.AddOptions();
         services.AddLogging();
 
-        // The scoped factories prefer MessageContext.Current when it has been set by the
-        // ServiceLocationAwareExecutor (chains compiled with service location in play). That
-        // routes any service-located IMessageContext / IMessageBus through the same instance
-        // the handler itself received, so writes through a service-located bus enrol with the
-        // active outbox instead of being silently lost. The fall-back to a fresh MessageContext
-        // preserves resolution for non-handler scopes (hosted services, admin tools, tests
-        // that resolve IMessageBus directly from the root provider). See issue #2583.
+        // GH-3001: structural scope priming. When a handler falls back to service location, the
+        // generated code creates a child scope and primes its ScopedMessageContextHolder with the
+        // handler's MessageContext (PrimeScopedMessageContextFrame). These factories prefer that
+        // primed instance, so a service-located IMessageContext / IMessageBus is the SAME context the
+        // handler uses (enrolled with the active outbox) rather than a duplicate. Non-handler scopes
+        // (hosted services, admin tools, raw resolution) leave the holder empty and fall back to a
+        // fresh MessageContext. Replaces the AsyncLocal MessageContext.Current handoff (GH-2583).
+        services.AddScoped<ScopedMessageContextHolder>();
         services.AddScoped<IMessageBus>(sp =>
-            Wolverine.Runtime.MessageContext.Current ?? sp.GetRequiredService<MessageContext>());
+            sp.GetRequiredService<ScopedMessageContextHolder>().Context ?? sp.GetRequiredService<MessageContext>());
         services.AddScoped<IMessageContext>(sp =>
-            Wolverine.Runtime.MessageContext.Current ?? sp.GetRequiredService<MessageContext>());
+            sp.GetRequiredService<ScopedMessageContextHolder>().Context ?? sp.GetRequiredService<MessageContext>());
         services.AddScoped<MessageContext>();
 
         services.AddSingleton<ObjectPoolProvider>(new DefaultObjectPoolProvider());
