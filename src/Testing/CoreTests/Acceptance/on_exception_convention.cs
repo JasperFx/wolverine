@@ -225,6 +225,57 @@ public class on_exception_convention
         // Before is visible in OnException. A fresh catch-block instance would record "<lost>".
         recorder.Actions.ShouldContain("SharedState:shared state");
     }
+
+    [Fact]
+    public async Task static_on_exception_return_value_is_cascaded()
+    {
+        var recorder = new OnExceptionRecorder();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton(recorder);
+                opts.Discovery.IncludeType(typeof(MessageForReturningOnExceptionHandler));
+                opts.Discovery.IncludeType(typeof(CascadedFromOnExceptionHandler));
+                opts.Policies.AddMiddleware(typeof(ReturningOnExceptionMiddleware));
+            }).StartAsync();
+
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .PublishMessageAndWaitAsync(new MessageForReturningOnException("ret"));
+
+        foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
+        await host.StopAsync();
+
+        recorder.Actions.ShouldContain("ReturningOnException:ret");
+        // The message RETURNED from OnException must be cascaded/published.
+        session.Sent.SingleEnvelope<CascadedFromOnException>().Message
+            .ShouldBeOfType<CascadedFromOnException>()
+            .Text.ShouldBe("cascaded:ret");
+    }
+
+    [Fact]
+    public async Task instance_on_exception_return_value_is_cascaded()
+    {
+        var recorder = new OnExceptionRecorder();
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton(recorder);
+                opts.Discovery.IncludeType(typeof(MessageForInstanceReturningOnExceptionHandler));
+                opts.Discovery.IncludeType(typeof(CascadedFromOnExceptionHandler));
+                opts.Policies.AddMiddleware(typeof(InstanceReturningOnExceptionMiddleware));
+            }).StartAsync();
+
+        var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
+            .PublishMessageAndWaitAsync(new MessageForInstanceReturningOnException("ret"));
+
+        foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
+        await host.StopAsync();
+
+        recorder.Actions.ShouldContain("InstanceReturningOnException:ret");
+        session.Sent.SingleEnvelope<CascadedFromOnException>().Message
+            .ShouldBeOfType<CascadedFromOnException>()
+            .Text.ShouldBe("instance-cascaded:ret");
+    }
 }
 
 // Support types
@@ -492,5 +543,59 @@ public class SharedInstanceStateMiddleware
     {
         // If a fresh instance was constructed for the catch block, _stateFromBefore is null.
         _recorder.Actions.Add($"SharedState:{_stateFromBefore ?? "<lost>"}");
+    }
+}
+
+// GH-3000 return-value probe: does an OnException that RETURNS a cascading message actually publish
+// it? (The author's goal returns a value from OnException.) Static + extra-param variant.
+public record MessageForReturningOnException(string Text);
+public record CascadedFromOnException(string Text);
+
+// Local handler so the cascaded message has a route and is tracked/delivered.
+public static class CascadedFromOnExceptionHandler
+{
+    public static void Handle(CascadedFromOnException message, OnExceptionRecorder recorder)
+    {
+        recorder.Actions.Add($"Handled:{message.Text}");
+    }
+}
+
+public static class MessageForReturningOnExceptionHandler
+{
+    public static void Handle(MessageForReturningOnException message, OnExceptionRecorder recorder)
+    {
+        throw new TestAppException(message.Text);
+    }
+}
+
+public static class ReturningOnExceptionMiddleware
+{
+    public static CascadedFromOnException OnException(TestAppException ex, OnExceptionRecorder recorder)
+    {
+        recorder.Actions.Add($"ReturningOnException:{ex.Message}");
+        return new CascadedFromOnException($"cascaded:{ex.Message}");
+    }
+}
+
+// Non-static + ctor-injected variant returning a cascading message.
+public record MessageForInstanceReturningOnException(string Text);
+
+public static class MessageForInstanceReturningOnExceptionHandler
+{
+    public static void Handle(MessageForInstanceReturningOnException message, OnExceptionRecorder recorder)
+    {
+        throw new TestAppException(message.Text);
+    }
+}
+
+public class InstanceReturningOnExceptionMiddleware
+{
+    private readonly OnExceptionRecorder _recorder;
+    public InstanceReturningOnExceptionMiddleware(OnExceptionRecorder recorder) => _recorder = recorder;
+
+    public CascadedFromOnException OnException(TestAppException ex)
+    {
+        _recorder.Actions.Add($"InstanceReturningOnException:{ex.Message}");
+        return new CascadedFromOnException($"instance-cascaded:{ex.Message}");
     }
 }
