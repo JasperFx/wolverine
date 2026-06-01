@@ -332,6 +332,17 @@ public sealed partial class WolverineOptions
     /// </summary>
     public List<IEnvelopeRule> MetadataRules { get; } = new();
 
+    /// <summary>
+    /// GH-3001 extension point. Factories for codegen frames that prime a handler's service-location
+    /// child scope with an already-resolved "singleton-per-message" instance (e.g. Marten's
+    /// outbox-enrolled IDocumentSession), so service-located dependencies resolve to that instance
+    /// rather than a duplicate. Each produced frame is emitted right after the scope is created and
+    /// must self-guard (no-op when its target variable is absent from the chain). Integrations
+    /// (Wolverine.Marten / Wolverine.Polecat) register a factory here; the MessageContext priming
+    /// frame is always added by the runtime in addition to these.
+    /// </summary>
+    public List<Func<JasperFx.CodeGeneration.Frames.SyncFrame>> ScopingFrameSources { get; } = new();
+
     
     /// For advanced usages, this gives you the ability to register pre-canned message handling
     /// that does not require any code generation. 

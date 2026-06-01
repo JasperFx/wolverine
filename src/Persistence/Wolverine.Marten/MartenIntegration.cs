@@ -63,6 +63,11 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         
         options.CodeGeneration.Sources.Add(new MartenBackedPersistenceMarker());
 
+        // GH-3001: prime the service-location child scope with the handler's outbox-enrolled
+        // IDocumentSession so a service-located IDocumentSession / IQuerySession resolves to that same
+        // session. The frame self-guards (no-op when the chain has no Marten session).
+        options.ScopingFrameSources.Add(() => new PrimeScopedDocumentSessionFrame());
+
         options.CodeGeneration.InsertFirstPersistenceStrategy<MartenPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new SessionVariableSource());
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());

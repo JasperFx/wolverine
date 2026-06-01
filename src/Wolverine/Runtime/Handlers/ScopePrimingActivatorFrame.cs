@@ -9,9 +9,10 @@ namespace Wolverine.Runtime.Handlers;
 /// Codegen-time activator (GH-3001). When a chain falls back to service location, the generated code
 /// creates a child <c>IServiceScope</c> off the root provider. This frame detects that scope at
 /// arrangement time and registers scoping postprocessors on it — always the
-/// <see cref="PrimeScopedMessageContextFrame"/>, plus one from every collected
-/// <see cref="Wolverine.Configuration.IRequireScopingFrame"/> — so they run immediately after the
-/// scope is created and prime it with the correct already-resolved instances. Emits no code itself.
+/// <see cref="PrimeScopedMessageContextFrame"/>, plus the frames produced by
+/// <c>WolverineOptions.ScopingFrameSources</c> (integration-contributed, e.g. Marten's session
+/// priming) — so they run immediately after the scope is created and prime it with the correct
+/// already-resolved instances. Emits no code itself.
 ///
 /// If no service-location scope is created for the chain (the IServiceProvider variable's Creator is
 /// not an <see cref="IScopedContainerCreation"/>), nothing is attached.
