@@ -16,6 +16,7 @@ namespace Wolverine.Behavioural.FSharpTests;
 ///     carries the committed, pre-generated F# handler adapter), sends a message, and asserts the F#
 ///     handler actually executed — run-verification, not just compilation.
 /// </summary>
+[Collection("BehaviouralFSharp")]
 public class BehaviouralRunStep
 {
     private readonly ITestOutputHelper _output;

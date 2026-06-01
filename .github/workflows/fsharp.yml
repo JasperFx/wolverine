@@ -85,6 +85,9 @@ jobs:
         run: dotnet test src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj -c "$config" --nologo
 
       # Run-verified: boots a host in TypeLoadMode.Static against the pre-generated F# adapter and
-      # asserts the handler actually executes (not just compiles).
-      - name: Behavioural run-step (TypeLoadMode.Static)
+      # asserts the handler actually executes (not just compiles). Also exercises the
+      # `dotnet run -- codegen write --language fsharp` CLI end to end against the F# app, asserting it
+      # exits 0 (every chain — including Wolverine's internal HandlerRegistry — emits F#) and that the
+      # generated adapter matches the committed, run-verified Generated.fs.
+      - name: Behavioural run-step + codegen write --language fsharp (TypeLoadMode.Static)
         run: dotnet test src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj -c "$config" --nologo

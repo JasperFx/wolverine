@@ -165,8 +165,18 @@
                    #2965 (SharedMemory transport cross-node AssignAgent
                    serialization — bug predates this release line, was failing
                    on every main commit through V6.2.0 and V6.2.1).
+          6.3.1: Completes the Wolverine-on-F# story by pinning JasperFx 2.4.1,
+                   which adds a "language fsharp" flag to the codegen write
+                   command so Wolverine's runtime code can be pre-generated as F#
+                   (.fs) instead of C#. Adds F# emit to the static HandlerRegistry
+                   frame (WriteTypeArrayFrame) so the F# codegen write succeeds for
+                   a real Wolverine app (every handler chain emits F#, not just the
+                   user handlers). The F# tutorial documents the CLI workflow, and
+                   the fsharp CI action runs the command end to end against the F#
+                   behavioural app and asserts the generated adapter matches the
+                   run-verified Generated.fs.
         -->
-        <Version>6.2.2</Version>
+        <Version>6.3.1</Version>
         <RepositoryUrl>$(PackageProjectUrl)</RepositoryUrl>
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>

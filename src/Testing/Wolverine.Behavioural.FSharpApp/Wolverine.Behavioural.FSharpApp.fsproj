@@ -13,6 +13,11 @@
         <TargetFrameworks>net9.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
 
+        <!-- An exe so the JasperFx codegen CLI verb works against it (dotnet run, codegen write,
+             language fsharp); it is also referenced as a library (the ApplicationAssembly) by the
+             behavioural run-step test. -->
+        <OutputType>Exe</OutputType>
+
         <LangVersion></LangVersion>
         <ImplicitUsings>false</ImplicitUsings>
         <Nullable>disable</Nullable>
@@ -25,6 +30,7 @@
     <ItemGroup>
         <Compile Include="Domain.fs" />
         <Compile Include="Generated.fs" />
+        <Compile Include="Program.fs" />
     </ItemGroup>
 
     <ItemGroup>
