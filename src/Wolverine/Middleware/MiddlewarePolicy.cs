@@ -103,39 +103,79 @@ public class MiddlewarePolicy : IChainPolicy
 
     internal static void ApplyExceptionHandling(List<Application> applications, GenerationRules rules, IChain chain)
     {
-        var exceptionHandlers = applications
-            .Where(x => x.HasOnExceptions)
-            .SelectMany(x => x.BuildOnExceptionCalls(chain, rules))
-            .ToArray();
+        var applicationsWithHandlers = applications.Where(x => x.HasOnExceptions).ToArray();
 
-        if (exceptionHandlers.Length == 0 && !applications.Any(x => x.HasFinally))
+        if (applicationsWithHandlers.Length == 0 && !applications.Any(x => x.HasFinally))
         {
             return;
         }
 
         // Only create TryCatchFinallyFrame if there are exception handlers
         // (TryFinallyWrapperFrame already handles finally-only cases)
-        if (exceptionHandlers.Length == 0) return;
+        if (applicationsWithHandlers.Length == 0) return;
 
         var tryCatchFinally = chain.GetOrCreateTryCatchFinallyFrame();
 
-        foreach (var (exceptionType, call) in exceptionHandlers)
+        // For non-static middleware, the ConstructorFrame must be placed BEFORE the
+        // TryCatchFinallyFrame in chain.Middleware so that the middleware instance variable
+        // is declared in outer scope and accessible inside catch blocks (C# scoping rules).
+        //
+        // • Exception-only middleware (no Before methods): no ConstructorFrame exists yet —
+        //   create one and insert it before TryCatchFinallyFrame.
+        // • Middleware with both Before and OnException: its ConstructorFrame was placed
+        //   inside the try block by BuildBeforeCalls; move it before TryCatchFinallyFrame
+        //   so the same instance is reachable in catch blocks.
+        var insertIndex = chain.Middleware.IndexOf(tryCatchFinally);
+        if (insertIndex < 0) insertIndex = 0; // defensive fallback
+
+        foreach (var application in applicationsWithHandlers)
         {
-            var frames = new List<Frame> { call };
+            var ctorFrame = application.BuildConstructorFrame();
+            if (ctorFrame == null) continue; // static middleware — no instance needed
 
-            // Handle return values from OnException methods — same as Before methods
-            var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
-            foreach (var outgoing in outgoings)
+            var existing = chain.Middleware.OfType<ConstructorFrame>()
+                .FirstOrDefault(x => x.Variable.VariableType == application.MiddlewareType);
+
+            if (existing != null)
             {
-                frames.Add(new CaptureCascadingMessages(outgoing));
+                // Move the existing ConstructorFrame to before the TryCatchFinallyFrame
+                // (it currently sits inside the try block at a higher index).
+                var existingIndex = chain.Middleware.IndexOf(existing);
+                if (existingIndex > insertIndex)
+                {
+                    chain.Middleware.RemoveAt(existingIndex);
+                    chain.Middleware.Insert(insertIndex, existing);
+                    insertIndex++;
+                }
             }
-
-            if (rules.TryFindContinuationHandler(chain, call, out var continuation))
+            else
             {
-                frames.Add(continuation!);
+                // No prior ConstructorFrame — insert one before the TryCatchFinallyFrame.
+                chain.Middleware.Insert(insertIndex, ctorFrame);
+                insertIndex++;
             }
+        }
 
-            tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
+        foreach (var application in applicationsWithHandlers)
+        {
+            foreach (var (exceptionType, call) in application.BuildOnExceptionCalls(chain, rules))
+            {
+                var frames = new List<Frame> { call };
+
+                // Handle return values from OnException methods — same as Before methods
+                var outgoings = call.Creates.Where(x => x.VariableType == typeof(OutgoingMessages)).ToArray();
+                foreach (var outgoing in outgoings)
+                {
+                    frames.Add(new CaptureCascadingMessages(outgoing));
+                }
+
+                if (rules.TryFindContinuationHandler(chain, call, out var continuation))
+                {
+                    frames.Add(continuation!);
+                }
+
+                tryCatchFinally.AddCatchBlock(exceptionType, frames.ToArray());
+            }
         }
     }
 
@@ -367,6 +407,26 @@ public class MiddlewarePolicy : IChainPolicy
 
         public bool HasOnExceptions => _onExceptions.Length > 0;
         public bool HasFinally => _finals.Length > 0;
+
+        /// <summary>
+        /// Returns a <see cref="ConstructorFrame"/> for non-static middleware types, or null for static types.
+        /// Used to instantiate the middleware inside a catch block so constructor-injected dependencies
+        /// (e.g. ILogger) are available to OnException handlers.
+        /// </summary>
+        /// <remarks>
+        /// The IDisposable/IAsyncDisposable handling mirrors <see cref="BuildBeforeCalls"/> —
+        /// keep both in sync when changing constructor frame creation logic.
+        /// </remarks>
+        internal Frame? BuildConstructorFrame()
+        {
+            if (MiddlewareType.IsStatic() || _constructor == null) return null;
+            var frame = new ConstructorFrame(MiddlewareType, _constructor);
+            if (MiddlewareType.CanBeCastTo<IDisposable>() || MiddlewareType.CanBeCastTo<IAsyncDisposable>())
+            {
+                frame.Mode = ConstructorCallMode.UsingNestedVariable;
+            }
+            return frame;
+        }
 
         private IEnumerable<Frame> buildAfters(IChain chain)
         {
