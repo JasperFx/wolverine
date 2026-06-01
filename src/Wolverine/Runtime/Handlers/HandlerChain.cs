@@ -674,11 +674,13 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             : Array.Empty<Frame>();
 
         // GH-3001: when this chain falls back to service location, prime the child scope so
-        // service-located IMessageContext / IMessageBus (and any IRequireScopingFrame contributor)
-        // resolve to the same instances the handler uses instead of duplicates. The activator emits
-        // nothing unless a service-location scope is actually created for the chain.
+        // service-located IMessageContext / IMessageBus (and integration-registered instances like
+        // Marten's outbox-enrolled IDocumentSession) resolve to the same instances the handler uses
+        // instead of duplicates. The MessageContext frame is always added; integrations contribute
+        // more via WolverineOptions.ScopingFrameSources. Every scoping frame self-guards, and the
+        // activator emits nothing unless a service-location scope is actually created for the chain.
         var scopingFrames = new List<SyncFrame> { new PrimeScopedMessageContextFrame() };
-        scopingFrames.AddRange(collectScopingFrames(handlerReturnValueFrames));
+        scopingFrames.AddRange(options?.ScopingFrameSources.Select(x => x()) ?? []);
         var scopeActivator = new ScopePrimingActivatorFrame(scopingFrames);
 
         // The Enqueue cascading needs to happen before the post processors because of the
@@ -696,28 +698,6 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             .ToList();
     }
 
-    // GH-3001: collect a scoping frame from every IRequireScopingFrame in the chain (persistence
-    // providers contribute IDocumentSession / IQuerySession priming), de-duplicated so two frames
-    // never prime the same type. The MessageContext priming frame is added unconditionally by the
-    // caller, so it is excluded here.
-    private IEnumerable<SyncFrame> collectScopingFrames(IEnumerable<Frame> handlerReturnValueFrames)
-    {
-        var candidates = Middleware
-            .Concat(Handlers)
-            .Concat(handlerReturnValueFrames)
-            .Concat(Postprocessors)
-            .OfType<IRequireScopingFrame>();
-
-        var seen = new HashSet<Type>();
-        foreach (var candidate in candidates)
-        {
-            var frame = candidate.BuildScopingFrame();
-            if (frame != null && seen.Add(candidate.GetType()))
-            {
-                yield return frame;
-            }
-        }
-    }
 
     protected void applyCustomizations(GenerationRules rules, IServiceContainer container)
     {

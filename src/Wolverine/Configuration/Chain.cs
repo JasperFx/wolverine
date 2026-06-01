@@ -497,9 +497,10 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
     ///
     /// When a chain service-locates, the generated code creates a child scope, and Wolverine primes
     /// that scope so a service-located <see cref="IMessageContext"/> / <see cref="IMessageBus"/>
-    /// (and <see cref="IRequireScopingFrame"/> contributors such as Marten's
-    /// <c>IDocumentSession</c>) resolves to the same instance the handler received rather than a
-    /// duplicate. See GH-3001 (which replaced the earlier AsyncLocal handoff from GH-2583).
+    /// (and integration-contributed instances such as Marten's <c>IDocumentSession</c>, via
+    /// <c>WolverineOptions.ScopingFrameSources</c>) resolves to the same instance the handler
+    /// received rather than a duplicate. See GH-3001 (which replaced the earlier AsyncLocal handoff
+    /// from GH-2583).
     /// </summary>
     public bool UsesServiceLocation { get; private set; }
 
