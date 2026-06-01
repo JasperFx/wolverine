@@ -1,9 +1,6 @@
 using System.Collections.Concurrent;
 using JasperFx;
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Wolverine.Persistence.Durability;
 using Wolverine.Transports;
 
 namespace Wolverine.Runtime.Agents;
@@ -27,6 +24,13 @@ public partial class NodeAgentController
     #pragma warning restore CS0169
     private readonly IWolverineObserver _observer;
     private DateTimeOffset? _lastNodeAssignmentHealthCheckTrace;
+
+    // 0=free, 1=busy; guards against concurrent DoHealthChecksAsync calls
+    // from the heartbeat loop and a CheckAgentHealth message arriving
+    // simultaneously. Prevents a race on _lastLockIndex / _lastLockETag in
+    // lease-based backends (RavenDb, CosmosDb) that would corrupt the
+    // leadership lock.
+    private int _healthCheckGuard;
 
     private bool ShouldTraceHealthCheck()
     {

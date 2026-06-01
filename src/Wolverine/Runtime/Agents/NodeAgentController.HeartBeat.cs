@@ -27,12 +27,31 @@ public partial class NodeAgentController
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
-        {
             return AgentCommands.Empty;
+
+        // Re-entrancy guard: the heartbeat loop and a CheckAgentHealth
+        // message handler can call DoHealthChecksAsync concurrently.
+        // Without this, two callers race on shared mutable state in
+        // TryAttainLeadershipLockAsync (_lastLockIndex / _lastLockETag),
+        // causing one renewal to fail and triggering a spurious stepdown.
+        // Non-blocking: if a health check is already in flight, skip.
+        if (Interlocked.CompareExchange(ref _healthCheckGuard, 1, 0) != 0)
+            return AgentCommands.Empty;
+
+        try
+        {
+            return await DoHealthChecksInternalAsync();
         }
-        
-        using var activity = ShouldTraceHealthCheck() 
-            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments") 
+        finally
+        {
+            Interlocked.Exchange(ref _healthCheckGuard, 0);
+        }
+    }
+
+    private async Task<AgentCommands> DoHealthChecksInternalAsync()
+    {
+        using var activity = ShouldTraceHealthCheck()
+            ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments")
             : null;
 
         // write health check regardless, and due to GH-1232, pass in the whole node so you can do an upsert
