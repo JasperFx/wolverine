@@ -57,6 +57,16 @@ public static class WolverineOptionsPolecatExtensions
 
         expression.Services.AddScoped<IPolecatOutbox, PolecatOutbox>();
 
+        // GH-3001: structural scope priming for Polecat sessions. When a handler falls back to service
+        // location, the generated code primes the child scope's ScopedDocumentSessionHolder with the
+        // handler's outbox-enrolled IDocumentSession (PrimeScopedDocumentSessionFrame). Decorate
+        // Polecat's own IDocumentSession / IQuerySession scoped registrations so service-located
+        // resolution prefers that primed session instead of a separate, un-enrolled one. Non-handler
+        // scopes (the holder is empty) fall back to Polecat's original session factory.
+        expression.Services.AddScoped<ScopedDocumentSessionHolder>();
+        preferScopedSession<IDocumentSession>(expression.Services);
+        preferScopedSession<IQuerySession>(expression.Services);
+
         expression.Services.AddSingleton<DatabaseSettings>(s =>
         {
             var store = s.GetRequiredService<IMessageStore>() as IMessageDatabase;
@@ -101,6 +111,48 @@ public static class WolverineOptionsPolecatExtensions
         }
 
         return expression;
+    }
+
+    // GH-3001: replace Polecat's scoped session registration with one that prefers a scope-primed
+    // session (the outbox-enrolled session the handler is using), falling back to Polecat's original
+    // factory when the holder is empty (non-handler scopes). Preserving the original factory keeps
+    // Polecat's exact session-building for the fall-back path.
+    private static void preferScopedSession<T>(IServiceCollection services) where T : class
+    {
+        var descriptor = services.LastOrDefault(x => x.ServiceType == typeof(T));
+        if (descriptor == null)
+        {
+            return;
+        }
+
+        Func<IServiceProvider, object> original;
+        if (descriptor.ImplementationFactory != null)
+        {
+            original = descriptor.ImplementationFactory;
+        }
+        else if (descriptor.ImplementationInstance != null)
+        {
+            original = _ => descriptor.ImplementationInstance;
+        }
+        else if (descriptor.ImplementationType != null)
+        {
+            original = sp => ActivatorUtilities.CreateInstance(sp, descriptor.ImplementationType);
+        }
+        else
+        {
+            return;
+        }
+
+        services.Remove(descriptor);
+        services.AddScoped<T>(sp =>
+        {
+            if (sp.GetRequiredService<ScopedDocumentSessionHolder>().Session is T primed)
+            {
+                return primed;
+            }
+
+            return (T)original(sp);
+        });
     }
 
     internal static IMessageStore BuildSqlServerMessageStore(
