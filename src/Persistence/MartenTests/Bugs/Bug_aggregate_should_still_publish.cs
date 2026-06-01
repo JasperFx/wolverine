@@ -112,7 +112,7 @@ public class Bug_aggregate_should_still_publish : PostgresqlContext, IClassFixtu
         // GH-2922 guardrail: bootstrapping should have logged a warning for AggregateHandler, which uses
         // [ReadAggregate] and is auto-promoted into the aggregate workflow purely by its name.
         _context.Warnings.ShouldContain(w =>
-            w.Contains(typeof(AggregateHandler).FullName!) && w.Contains("AggregateHandler"));
+            w.Contains(typeof(SomethingAggregateHandler).FullName!) && w.Contains("AggregateHandler"));
     }
 }
 
@@ -142,7 +142,7 @@ public class AggregatePublishContext : PostgresqlContext, IAsyncLifetime
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(typeof(AggregateHandler))
+                    .IncludeType(typeof(SomethingAggregateHandler))
                     .IncludeType(typeof(PublishReader))
                     .IncludeType(typeof(ScheduleReader))
                     .IncludeType(typeof(SomeOtherHandler));
@@ -216,7 +216,7 @@ public record SomethingWasScheduled(Guid Id);
 
 // Name ends with "AggregateHandler" -> auto-promoted into the Marten aggregate event-sourcing
 // workflow, so the return value is appended to the LetterAggregate stream as an event.
-public static class AggregateHandler
+public static class SomethingAggregateHandler
 {
     public static SomethingWasScheduled Handle(
         PublishSomethingUsingAggregate command,

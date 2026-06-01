@@ -1,4 +1,5 @@
-﻿using JasperFx.Core;
+﻿using System.Diagnostics;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using MassTransit;
@@ -42,6 +43,7 @@ public partial class Envelope : IHasTenantId
     
     public Envelope()
     {
+        Debug.WriteLine("Being created");
     }
 
     public Envelope(object message)
@@ -149,7 +151,7 @@ public partial class Envelope : IHasTenantId
         {
             return _data;
         }
-        AssertMessage();
+        assertMessage();
 
         if(Serializer is IAsyncMessageSerializer asyncMessaeSerializer)
         {
@@ -179,7 +181,7 @@ public partial class Envelope : IHasTenantId
                 return _data;
             }
 
-            AssertMessage();
+            assertMessage();
 
             if (Serializer == null)
             {
@@ -207,7 +209,7 @@ public partial class Envelope : IHasTenantId
         set => _data = value;
     }
 
-    private void AssertMessage()
+    private void assertMessage()
     {
         if (_message == null)
         {

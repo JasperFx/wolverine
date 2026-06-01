@@ -534,4 +534,9 @@ public partial class Envelope
         WireTap = null;
         Store = null;
     }
+
+    internal bool IsEmpty()
+    {
+        return (_message == null && (_data == null || (MessageType.IsEmpty()))) ;
+    }
 }
