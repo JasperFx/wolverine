@@ -13,10 +13,12 @@ using Xunit;
 namespace CoreTests.Runtime;
 
 /// <summary>
-/// Verifies the AsyncLocal-based handoff that keeps service-located <see cref="IMessageBus"/>
-/// / <see cref="IMessageContext"/> instances pointed at the same MessageContext the handler
-/// itself received. Without this, a bus pulled from a constructor on a service the user
-/// injects bypasses the active outbox. See issue #2583.
+/// Verifies the structural scope-priming (GH-3001) that keeps service-located <see cref="IMessageBus"/>
+/// / <see cref="IMessageContext"/> instances pointed at the same MessageContext the handler itself
+/// received. When a chain falls back to service location, the generated code primes the child scope's
+/// <c>ScopedMessageContextHolder</c> with the handler's context, so a bus/context pulled from a
+/// service-located dependency enrols with the active outbox instead of a duplicate. This replaced the
+/// earlier AsyncLocal <c>MessageContext.Current</c> handoff (GH-2583).
 /// </summary>
 public class service_location_message_context
 {
@@ -48,15 +50,15 @@ public class service_location_message_context
     }
 
     [Fact]
-    public async Task chain_without_service_location_does_not_set_message_context_current()
+    public async Task clean_chain_still_runs_and_does_not_force_service_location()
     {
-        // A chain that doesn't service-locate must not touch MessageContext.Current during
-        // invocation — that's how we keep AsyncLocal overhead off the hot path. Verified
-        // by capturing Current from inside the handler; it must be null.
+        // A chain that doesn't service-locate must still run normally — the scope-priming activator
+        // is non-forcing (it never injects an IServiceProvider that would flag the chain as using
+        // service location, which would otherwise fail under ServiceLocationPolicy.NotAllowed).
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.ServiceLocationPolicy = ServiceLocationPolicy.AllowedButWarn;
+                opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
             }).StartAsync();
 
         CleanCommandProbe.Reset();
@@ -64,16 +66,13 @@ public class service_location_message_context
         await host.InvokeMessageAndWaitAsync(new CleanCommand());
 
         CleanCommandProbe.WasInvoked.ShouldBeTrue();
-        CleanCommandProbe.CurrentDuringInvocation.ShouldBeNull();
     }
 
     [Fact]
-    public async Task message_context_current_is_null_outside_handler_invocation()
+    public async Task message_bus_resolves_outside_handler_invocation()
     {
-        // Sanity check: the AsyncLocal default is null, so service resolution outside any
-        // handler invocation must hit the fall-back factory branch.
-        MessageContext.Current.ShouldBeNull();
-
+        // Outside any handler invocation the scope holder is empty, so IMessageBus falls back to a
+        // fresh MessageContext — resolution must still succeed for hosted services / admin tools.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine().StartAsync();
 
@@ -152,12 +151,10 @@ public record CleanCommand;
 public static class CleanCommandProbe
 {
     public static bool WasInvoked;
-    public static MessageContext? CurrentDuringInvocation;
 
     public static void Reset()
     {
         WasInvoked = false;
-        CurrentDuringInvocation = null;
     }
 }
 
@@ -166,7 +163,6 @@ public static class CleanCommandHandler
     public static void Handle(CleanCommand cmd)
     {
         CleanCommandProbe.WasInvoked = true;
-        CleanCommandProbe.CurrentDuringInvocation = MessageContext.Current;
     }
 }
 

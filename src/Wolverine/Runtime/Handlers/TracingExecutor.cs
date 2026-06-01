@@ -35,13 +35,6 @@ internal class TracingExecutor : IExecutor
     private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
     private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
 
-    /// <summary>
-    /// Mirror of the same flag on <see cref="Executor"/>; see issue #2583.
-    /// </summary>
-    private bool _capturesContextForServiceLocation;
-
-    internal void EnableServiceLocationContextCapture() => _capturesContextForServiceLocation = true;
-
     public TracingExecutor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime,
         IMessageHandler handler, FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler,
@@ -171,12 +164,6 @@ internal class TracingExecutor : IExecutor
         using var timeout = new CancellationTokenSource(_timeout);
         using var combined = CancellationTokenSource.CreateLinkedTokenSource(timeout.Token, cancellation);
 
-        var previousAmbient = _capturesContextForServiceLocation ? MessageContext.Current : null;
-        if (_capturesContextForServiceLocation)
-        {
-            MessageContext.Current = context;
-        }
-
         try
         {
             await Handler.HandleAsync(context, combined.Token);
@@ -208,10 +195,6 @@ internal class TracingExecutor : IExecutor
         }
         finally
         {
-            if (_capturesContextForServiceLocation)
-            {
-                MessageContext.Current = previousAmbient;
-            }
             _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
         }
     }
@@ -221,12 +204,6 @@ internal class TracingExecutor : IExecutor
         if (context.Envelope == null)
         {
             throw new ArgumentOutOfRangeException(nameof(context.Envelope));
-        }
-
-        var previousAmbient = _capturesContextForServiceLocation ? MessageContext.Current : null;
-        if (_capturesContextForServiceLocation)
-        {
-            MessageContext.Current = context;
         }
 
         try
@@ -252,13 +229,6 @@ internal class TracingExecutor : IExecutor
             return await retry
                 .ExecuteInlineAsync(context, context.Runtime, DateTimeOffset.UtcNow, Activity.Current, cancellation)
                 .ConfigureAwait(false);
-        }
-        finally
-        {
-            if (_capturesContextForServiceLocation)
-            {
-                MessageContext.Current = previousAmbient;
-            }
         }
     }
 
