@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using JasperFx;
-using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
@@ -101,7 +100,7 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
         foreach (var group in collapsed.OrderBy(g => g.Key.RawText))
         {
             var primary = group.First();
-            var descriptor = buildChainDescriptor(primary, group.ToArray(), apiDescriptions, services);
+            var descriptor = buildChainDescriptor(primary, group.ToArray(), apiDescriptions);
             usage.Chains.Add(descriptor);
         }
 
@@ -131,8 +130,7 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
     private HttpChainDescriptor buildChainDescriptor(
         HttpChain chain,
         HttpChain[] versionGroup,
-        IApiDescriptionGroupCollectionProvider? apiDescriptions,
-        IServiceProvider services)
+        IApiDescriptionGroupCollectionProvider? apiDescriptions)
     {
         var route = chain.RoutePattern!.RawText ?? string.Empty;
         var methods = chain.HttpMethods.ToList();
@@ -184,11 +182,10 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
             .ToArray();
         descriptor.CascadingMessageTypes = cascading.Select(TypeDescriptor.For).ToList();
 
-        // Service dependencies — surface what the chain resolves at runtime.
-        descriptor.ServiceDependencies = readServiceDependencies(chain, services);
-
-        descriptor.Middleware = describeFrames(chain.Middleware, "Middleware");
-        descriptor.Postprocessors = describeFrames(chain.Postprocessors, "Postprocessor");
+        // Pipeline-introspection fields (Middleware / Postprocessors / ServiceDependencies) are no
+        // longer populated (GH-3008 / jasperfx#411) — they were removed from HttpChainDescriptor. The
+        // CritterWatch Pipeline tab now points at the RequestHandlerSourceCode lazy fetch, which
+        // returns the actual compiled pipeline, so no operator-facing information is lost.
 
         // API version info. When versionGroup has >1 entries, this is a
         // collapsed multi-version chain; collect every version + sunset.
@@ -201,53 +198,6 @@ internal sealed class HttpGraphUsageSource : IHttpGraphUsageSource
         }
 
         return descriptor;
-    }
-
-    private List<TypeDescriptor> readServiceDependencies(HttpChain chain, IServiceProvider services)
-    {
-        try
-        {
-            var container = services.GetService<IServiceContainer>();
-            if (container is null) return new List<TypeDescriptor>();
-
-            return chain
-                .ServiceDependencies(container, Type.EmptyTypes)
-                .Where(t => t != typeof(IServiceProvider))
-                .Distinct()
-                .Select(TypeDescriptor.For)
-                .ToList();
-        }
-        catch
-        {
-            return new List<TypeDescriptor>();
-        }
-    }
-
-    private static List<MiddlewareStepDescriptor> describeFrames(IEnumerable<Frame> frames, string kind)
-    {
-        var list = new List<MiddlewareStepDescriptor>();
-        foreach (var frame in frames)
-        {
-            var step = new MiddlewareStepDescriptor
-            {
-                Kind = kind,
-                Description = frame.ToString() ?? frame.GetType().FullNameInCode()
-            };
-
-            if (frame is MethodCall call)
-            {
-                step.TypeFullName = call.HandlerType.FullNameInCode();
-                step.MethodName = call.Method.Name;
-            }
-            else
-            {
-                step.TypeFullName = frame.GetType().FullNameInCode();
-            }
-
-            list.Add(step);
-        }
-
-        return list;
     }
 
     private static ApiVersionDescriptor? buildApiVersionDescriptor(HttpChain chain, HttpChain[] versionGroup)
