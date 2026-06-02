@@ -1,8 +1,5 @@
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Wolverine.Configuration.Capabilities;
-using Wolverine.Http.CodeGen;
 
 namespace Wolverine.Http;
 
@@ -31,28 +28,10 @@ public class HttpCapabilityDescriptor : ICapabilityDescriptor
         description.AddValue(nameof(_options.WarmUpRoutes), _options.WarmUpRoutes);
         description.AddValue(nameof(_options.ServiceProviderSource), _options.ServiceProviderSource);
 
-        var endpoints = _options.Endpoints;
-        if (endpoints != null)
-        {
-            var routeSet = description.AddChildSet("Routes");
-            routeSet.SummaryColumns = ["HttpMethods", "Route", "Endpoint"];
-
-            foreach (var chain in endpoints.Chains.OrderBy(c => c.RoutePattern?.RawText ?? string.Empty))
-            {
-                var routeDescription = new OptionsDescription
-                {
-                    Subject = chain.RoutePattern?.RawText ?? string.Empty,
-                    Title = chain.RoutePattern?.RawText ?? string.Empty
-                };
-
-                routeDescription.AddValue("HttpMethods", chain.HttpMethods.Join(", "));
-                routeDescription.AddValue("Route", chain.RoutePattern?.RawText ?? string.Empty);
-                routeDescription.AddValue("Endpoint",
-                    $"{chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}");
-
-                routeSet.Rows.Add(routeDescription);
-            }
-        }
+        // Intentionally no "Routes" child set (GH-3009): it summarized every route
+        // (~96 KB on a Topicus-scale graph) and was fully redundant with
+        // HttpGraphs[*].Chains, which the SPA already reads. The Sets collection on
+        // this capability has no other consumer.
 
         return description;
     }
