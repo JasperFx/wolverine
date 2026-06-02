@@ -40,6 +40,14 @@ public class EndpointDescriptor : OptionsDescription
                         || endpoint.Uri?.Scheme.Equals("local", StringComparison.OrdinalIgnoreCase) == true;
         EndpointRole = endpoint.Role;
         BrokerRole = endpoint.BrokerRole;
+        Mode = endpoint.Mode;
+        IsListener = endpoint.IsListener;
+
+        // Mode and IsListener are now first-class typed fields (GH-3009). Drop the generic
+        // OptionsDescription rows the base ctor reflected off the Endpoint so we don't ship
+        // them twice — CritterWatch reads the typed fields at the service-overview level, and
+        // Properties is becoming lazy-fetchable downstream.
+        Properties.RemoveAll(x => x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener));
     }
 
     public Uri Uri { get; set; } = null!;
@@ -95,6 +103,22 @@ public class EndpointDescriptor : OptionsDescription
     /// mapping. See GH-2601.
     /// </summary>
     public string? BrokerRole { get; init; }
+
+    /// <summary>
+    /// How this endpoint processes messages — <c>Durable</c> (persistence-backed inbox/outbox),
+    /// <c>BufferedInMemory</c>, or <c>Inline</c>. Lifted from <see cref="Endpoint.Mode"/> into a
+    /// first-class typed field (GH-3009) so CritterWatch and other UIs can read it at the
+    /// service-overview level without walking <see cref="OptionsDescription.Properties"/>.
+    /// </summary>
+    public EndpointMode Mode { get; init; }
+
+    /// <summary>
+    /// Whether this endpoint is actively listening for (receiving) messages. Lifted from
+    /// <see cref="Endpoint.IsListener"/> into a first-class typed field (GH-3009) so monitoring
+    /// tools can read it at the service-overview level without walking
+    /// <see cref="OptionsDescription.Properties"/>.
+    /// </summary>
+    public bool IsListener { get; init; }
 
     internal static string? ResolveInteropMode(Endpoint endpoint)
     {
