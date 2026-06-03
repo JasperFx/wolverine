@@ -21,8 +21,7 @@ internal class JetStreamPublisher : INatsPublisher
     {
         _connection = connection;
         _logger = logger;
-        // An empty suffix would make the schedule subject equal the target and re-trigger err 10190.
-        _scheduleSubjectSuffix = string.IsNullOrWhiteSpace(scheduleSubjectSuffix) ? ".scheduled" : scheduleSubjectSuffix;
+        _scheduleSubjectSuffix = scheduleSubjectSuffix;
         _jetStreamContext = connection.CreateJetStreamContext();
     }
 

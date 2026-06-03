@@ -32,6 +32,8 @@ public class NatsSubscriberConfiguration
     /// </summary>
     public NatsSubscriberConfiguration UseScheduleSubjectSuffix(string suffix)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(suffix, nameof(suffix));
+
         add(endpoint => endpoint.ScheduleSubjectSuffix = suffix);
         return this;
     }
