@@ -348,9 +348,31 @@ opts.UseNats("nats://localhost:4222")
 
 When conditions are met, scheduled messages use NATS headers:
 - `Nats-Schedule: @at <RFC3339 timestamp>`
-- `Nats-Schedule-Target: <subject>`
+- `Nats-Schedule-Target: <destination subject>`
 
 The transport automatically detects server version at startup.
+
+NATS requires the scheduling (control) message to be published to a subject that is **different** from
+`Nats-Schedule-Target` — publishing both to the same subject is rejected with
+`message schedules target is invalid` (err 10190). Wolverine therefore publishes the control message to a
+derived **schedule subject** — the destination subject plus a suffix (default `.scheduled`, e.g.
+`orders.created.scheduled`) — while `Nats-Schedule-Target` stays the real destination
+(`orders.created`). At the scheduled time the server materializes a new message onto the target subject,
+where your listener's consumer receives it; the control message itself is never delivered to consumers.
+
+Both the target and the derived schedule subject must be covered by the **same stream**. The schedule
+subject is the target plus an extra suffix token (`orders.created` → `orders.created.scheduled`), so it
+always has one more token than the target. Any filter that only matches the target's token count — an
+exact-subject filter, or a `*` pattern such as `orders.*` — therefore covers the target but **not**
+`<subject>.scheduled`. Cover both with a `>`-style prefix wildcard such as `orders.>`, or list the target
+and schedule subjects as explicit filters. Override the suffix per publishing endpoint when needed:
+
+```csharp
+opts.PublishMessage<OrderCreated>()
+    .ToNatsSubject("orders.created")
+    .UseJetStream("ORDERS")
+    .UseScheduleSubjectSuffix(".deferred");
+```
 
 ### Fallback Behavior
 
