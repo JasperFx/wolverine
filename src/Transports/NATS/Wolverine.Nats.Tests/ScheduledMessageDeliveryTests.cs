@@ -19,19 +19,21 @@ namespace Wolverine.Nats.Tests;
 [Trait("Category", "Integration")]
 public class ScheduledMessageDeliveryTests : IAsyncLifetime
 {
-    private static int _counter;
     private IHost? _sender;
     private IHost? _receiver;
     private string _receiverSubject = "";
+    private string _streamName = "";
 
     public async Task InitializeAsync()
     {
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
 
-        var n = ++_counter;
-        var streamName = $"SCHEDULED_{n}";
-        _receiverSubject = $"test.scheduled.{n}.receiver";
-        var streamSubjects = $"test.scheduled.{n}.>";
+        // Unique per run (GUID, not an in-process counter) so repeated runs against a persistent NATS
+        // instance never collide on stream name / subjects. The stream is torn down in DisposeAsync.
+        var id = Guid.NewGuid().ToString("N");
+        _streamName = $"SCHEDULED_{id}";
+        _receiverSubject = $"test.scheduled.{id}.receiver";
+        var streamSubjects = $"test.scheduled.{id}.>";
 
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -40,12 +42,12 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
                 opts.UseNats(natsUrl)
                     .AutoProvision()
                     .UseJetStream(js => js.MaxDeliver = 5)
-                    .DefineWorkQueueStream(streamName, s => s.EnableScheduledDelivery(), streamSubjects);
+                    .DefineWorkQueueStream(_streamName, s => s.EnableScheduledDelivery(), streamSubjects);
 
                 // .UseJetStream on the PUBLISHING endpoint is what forces the native scheduled-send path.
                 opts.PublishMessage<ScheduledPing>()
                     .ToNatsSubject(_receiverSubject)
-                    .UseJetStream(streamName);
+                    .UseJetStream(_streamName);
             })
             .StartAsync();
 
@@ -56,17 +58,34 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
                 opts.UseNats(natsUrl)
                     .AutoProvision()
                     .UseJetStream(js => js.MaxDeliver = 5)
-                    .DefineWorkQueueStream(streamName, s => s.EnableScheduledDelivery(), streamSubjects);
+                    .DefineWorkQueueStream(_streamName, s => s.EnableScheduledDelivery(), streamSubjects);
 
                 opts.ListenToNatsSubject(_receiverSubject)
                     .Named("receiver")
-                    .UseJetStream(streamName, $"receiver-consumer-{n}");
+                    .UseJetStream(_streamName, $"receiver-consumer-{id}");
             })
             .StartAsync();
     }
 
     public async Task DisposeAsync()
     {
+        // Delete the run's stream while a connection is still open so persistent NATS instances
+        // don't accumulate long-lived test artifacts. Best-effort: the stream may never have been
+        // provisioned (e.g. startup failed), so swallow any error.
+        if (_sender != null && _streamName.IsNotEmpty())
+        {
+            try
+            {
+                var runtime = _sender.Services.GetRequiredService<IWolverineRuntime>();
+                var transport = runtime.Options.Transports.GetOrCreate<NatsTransport>();
+                await transport.JetStreamContext.DeleteStreamAsync(_streamName);
+            }
+            catch
+            {
+                // ignore — best-effort cleanup
+            }
+        }
+
         if (_sender != null)
         {
             await _sender.StopAsync();
