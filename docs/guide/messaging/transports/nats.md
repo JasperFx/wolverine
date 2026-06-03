@@ -360,9 +360,12 @@ derived **schedule subject** — the destination subject plus a suffix (default 
 (`orders.created`). At the scheduled time the server materializes a new message onto the target subject,
 where your listener's consumer receives it; the control message itself is never delivered to consumers.
 
-Both the schedule subject and the target must be covered by the **same stream**, so use a wildcard subject
-filter such as `orders.>` (a single-token `*` filter or an exact-subject filter will **not** cover
-`<subject>.scheduled`). Override the suffix per publishing endpoint when needed:
+Both the target and the derived schedule subject must be covered by the **same stream**. The schedule
+subject is the target plus an extra suffix token (`orders.created` → `orders.created.scheduled`), so it
+always has one more token than the target. Any filter that only matches the target's token count — an
+exact-subject filter, or a `*` pattern such as `orders.*` — therefore covers the target but **not**
+`<subject>.scheduled`. Cover both with a `>`-style prefix wildcard such as `orders.>`, or list the target
+and schedule subjects as explicit filters. Override the suffix per publishing endpoint when needed:
 
 ```csharp
 opts.PublishMessage<OrderCreated>()
