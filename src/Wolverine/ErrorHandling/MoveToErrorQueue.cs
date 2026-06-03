@@ -30,8 +30,11 @@ internal class MoveToErrorQueue : IContinuation
         DateTimeOffset now, Activity? activity)
     {
         // TODO -- at some point, we need a more systematic way of doing this
-        var scheme = lifecycle.Envelope!.Destination!.Scheme;
-        if (runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
+        // Defensive: a malformed system envelope (no Destination) shouldn't NRE here before
+        // EnableAutomaticFailureAcks even gets a chance to short-circuit. The envelope itself is
+        // always present (the block below already relies on it); only Destination can be null. GH-3013.
+        var scheme = lifecycle.Envelope!.Destination?.Scheme;
+        if (scheme is not null && runtime.Options.EnableAutomaticFailureAcks && scheme != TransportConstants.Local && scheme != "external-table")
         {
             await lifecycle.SendFailureAcknowledgementAsync(
                 $"Moved message {lifecycle.Envelope!.Id} to the Error Queue.\n{Exception}");
