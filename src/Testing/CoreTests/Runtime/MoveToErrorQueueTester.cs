@@ -70,4 +70,21 @@ public class MoveToErrorQueueTester
         theRuntime.MessageTracking.Received().MessageFailed(theEnvelope, theException);
         theRuntime.MessageTracking.Received().MovedToErrorQueue(theEnvelope, theException);
     }
+
+    [Fact]
+    public async Task does_not_NRE_when_envelope_has_no_destination()
+    {
+        // GH-3013: a malformed system envelope (no Destination) must not NRE on the
+        // `lifecycle.Envelope!.Destination!.Scheme` read before EnableAutomaticFailureAcks
+        // even gets a chance to short-circuit. Enabling acks reproduces the pre-fix bug.
+        theRuntime.Options.EnableAutomaticFailureAcks = true;
+        theEnvelope.Destination = null;
+
+        // A throw here fails the test — pre-fix this NRE'd at the `scheme` variable init.
+        await theContinuation.ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
+
+        // No scheme → no failure ack attempted, and the move-to-DLQ still happens.
+        await theLifecycle.DidNotReceive().SendFailureAcknowledgementAsync(Arg.Any<string>());
+        await theLifecycle.Received().MoveToDeadLetterQueueAsync(theException);
+    }
 }

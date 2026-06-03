@@ -38,9 +38,14 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
 
         _scheduler = new InMemoryScheduledJobProcessor(this, _logger);
 
-        _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
+        // Guard against a listener-less envelope (e.g. the empty all-zero system/agent-handshake
+        // envelope produced during startup) reaching either retry block — env.Listener is null in
+        // that case, and an unguarded deref NREs into the retry loop. GH-3013.
+        _deferBlock = new RetryBlock<Envelope>(
+            (env, _) => env.Listener is { } l ? l.DeferAsync(env).AsTask() : Task.CompletedTask, runtime.Logger,
             runtime.Cancellation);
-        _completeBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.CompleteAsync(env).AsTask(), runtime.Logger,
+        _completeBlock = new RetryBlock<Envelope>(
+            (env, _) => env.Listener is { } l ? l.CompleteAsync(env).AsTask() : Task.CompletedTask, runtime.Logger,
             runtime.Cancellation);
 
         _receivingBlock = endpoint.GroupShardingSlotNumber == null  
