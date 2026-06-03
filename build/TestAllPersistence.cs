@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Nuke.Common;
 using Nuke.Common.IO;
+using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
@@ -21,25 +21,6 @@ partial class Build
         });
 
     /// <summary>
-    /// Files that are never test classes and should be skipped during discovery.
-    /// </summary>
-    static readonly HashSet<string> SkippedFileNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "NoParallelization",
-        "GlobalUsings",
-        "AssemblyInfo",
-        "Usings",
-        "ModuleInitializer",
-    };
-
-    /// <summary>
-    /// Regex patterns that indicate a file contains xUnit test methods.
-    /// </summary>
-    static readonly Regex TestAttributePattern = new(
-        @"\[\s*(Fact|Theory|InlineData|MemberData|ClassData)",
-        RegexOptions.Compiled);
-
-    /// <summary>
     /// Determines if a project is a leader election test project,
     /// which requires running each test method individually.
     /// </summary>
@@ -50,142 +31,83 @@ partial class Build
     }
 
     /// <summary>
-    /// Discovers test classes from source files by looking for [Fact] or [Theory] attributes.
-    /// Returns the class name (file name without extension) for files that contain tests.
+    /// Discovers test classes from a compiled test project by running <c>dotnet test --list-tests</c>.
+    /// Returns the set of fully-qualified class names that contain at least one test.
+    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
     /// </summary>
-    static List<string> DiscoverTestClasses(string projectDir)
+    static HashSet<string> DiscoverTestClassesFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
     {
-        var testFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .OrderBy(f => f)
-            .ToList();
+        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
+        if (!string.IsNullOrEmpty(frameworkOverride))
+            args += $" --framework {frameworkOverride}";
 
-        var testClasses = new List<string>();
-        foreach (var testFile in testFiles)
+        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
+        process.AssertWaitForExit();
+
+        var classes = new HashSet<string>();
+        // Test lines are indented (start with whitespace):
+        //   Namespace.ClassName.MethodName                          ([Fact])
+        //   Namespace.ClassName.MethodName(param: value)            ([Theory] + [InlineData])
+        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
+        // Class name = everything before the last dot BEFORE the first '('.
+        // Truncating at '(' first avoids dots in parameter values (e.g. "http://example").
+        foreach (var raw in process.Output.Select(line => line.Text))
         {
-            var className = Path.GetFileNameWithoutExtension(testFile);
+            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;  // skip header lines
+            var text = raw.Trim();
 
-            if (SkippedFileNames.Contains(className))
-                continue;
+            // Strip parameters before splitting: "method(param: val)" -> "method"
+            var paren = text.IndexOf('(');
+            var stripped = paren >= 0 ? text[..paren] : text;
 
-            try
-            {
-                var content = File.ReadAllText(testFile);
-                if (TestAttributePattern.IsMatch(content))
-                {
-                    testClasses.Add(className);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Could not read {File}: {Message}", testFile, ex.Message);
-            }
+            var lastDot = stripped.LastIndexOf('.');
+            if (lastDot > 0)
+                classes.Add(stripped[..lastDot]);
         }
 
-        return testClasses;
+        return classes;
     }
 
     /// <summary>
-    /// Discovers individual test method names from source files for leader election projects.
-    /// Returns tuples of (className, methodName). Also follows class inheritance into
-    /// compliance base classes in src/Testing/Wolverine.ComplianceTests/ so that inherited
-    /// [Fact]/[Theory] methods are attributed to the concrete class.
+    /// Discovers individual test methods from a compiled test project by running
+    /// <c>dotnet test --list-tests</c>. Returns tuples of (fully-qualified class name, method name).
+    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
+    /// Handles both [Fact] (simple method names) and [Theory] + [InlineData] (names with parameters).
     /// </summary>
-    static List<(string ClassName, string MethodName)> DiscoverTestMethods(string projectDir)
+    static List<(string ClassName, string MethodName)> DiscoverTestMethodsFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
     {
-        var methodPattern = new Regex(
-            @"\[\s*(?:Fact|Theory).*?\]\s*(?:\[.*?\]\s*)*public\s+(?:async\s+)?(?:Task|void)\s+(\w+)\s*\(",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
+        if (!string.IsNullOrEmpty(frameworkOverride))
+            args += $" --framework {frameworkOverride}";
 
-        var classDeclarationPattern = new Regex(
-            @"(?:public\s+|internal\s+|abstract\s+|sealed\s+)*class\s+(\w+)\s*(?::\s*([\w<>,\s\.]+?))?\s*(?:\{|where\b)",
-            RegexOptions.Compiled);
-
-        var complianceBaseDir = FindComplianceTestsDir(projectDir);
-
-        var testFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .ToList();
+        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
+        process.AssertWaitForExit();
 
         var results = new List<(string, string)>();
-        var seen = new HashSet<(string, string)>();
-
-        void AddMethod(string className, string methodName)
+        // Test lines are indented (start with whitespace):
+        //   Namespace.ClassName.MethodName                    ([Fact])
+        //   Namespace.ClassName.MethodName(param: value)      ([Theory] + [InlineData])
+        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
+        // First strip parameters to avoid dots in param values (e.g. "http://example").
+        foreach (var raw in process.Output.Select(line => line.Text))
         {
-            if (seen.Add((className, methodName)))
-            {
-                results.Add((className, methodName));
-            }
-        }
+            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;
+            var text = raw.Trim();
 
-        foreach (var testFile in testFiles)
-        {
-            var className = Path.GetFileNameWithoutExtension(testFile);
-            if (SkippedFileNames.Contains(className)) continue;
+            // Strip parameters: "method(param: val)" -> "method"
+            var paren = text.IndexOf('(');
+            var stripped = paren >= 0 ? text[..paren] : text;
 
-            try
-            {
-                var content = File.ReadAllText(testFile);
+            var lastDot = stripped.LastIndexOf('.');
+            if (lastDot <= 0) continue;
 
-                foreach (Match match in methodPattern.Matches(content))
-                {
-                    AddMethod(className, match.Groups[1].Value);
-                }
+            var className = stripped[..lastDot];
+            var methodName = stripped[(lastDot + 1)..];
 
-                if (complianceBaseDir == null) continue;
-
-                foreach (Match classMatch in classDeclarationPattern.Matches(content))
-                {
-                    var baseList = classMatch.Groups[2].Value;
-                    if (string.IsNullOrWhiteSpace(baseList)) continue;
-
-                    var concreteClassName = classMatch.Groups[1].Value;
-                    var baseTypeName = baseList.Split(',')[0].Trim().Split('<')[0].Trim();
-                    if (string.IsNullOrWhiteSpace(baseTypeName)) continue;
-
-                    var baseFile = Path.Combine(complianceBaseDir, baseTypeName + ".cs");
-                    if (!File.Exists(baseFile)) continue;
-
-                    try
-                    {
-                        var baseContent = File.ReadAllText(baseFile);
-                        foreach (Match baseMatch in methodPattern.Matches(baseContent))
-                        {
-                            AddMethod(concreteClassName, baseMatch.Groups[1].Value);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning("Could not read compliance base {File}: {Message}", baseFile, ex.Message);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Could not read {File}: {Message}", testFile, ex.Message);
-            }
+            results.Add((className, methodName));
         }
 
         return results;
-    }
-
-    /// <summary>
-    /// Walks up from the project directory to locate src/Testing/Wolverine.ComplianceTests/
-    /// so inherited compliance tests can be discovered.
-    /// </summary>
-    static string FindComplianceTestsDir(string projectDir)
-    {
-        var current = new DirectoryInfo(projectDir);
-        while (current != null)
-        {
-            var candidate = Path.Combine(current.FullName, "src", "Testing", "Wolverine.ComplianceTests");
-            if (Directory.Exists(candidate)) return candidate;
-            current = current.Parent;
-        }
-
-        return null;
     }
 
     /// <summary>
@@ -232,8 +154,10 @@ partial class Build
     }
 
     /// <summary>
-    /// Improved test runner that discovers actual test classes from source,
+    /// Improved test runner that discovers actual test classes from compiled assemblies,
     /// runs each class in isolation, and supports leader election one-test-at-a-time mode.
+    /// Uses <c>dotnet test --list-tests</c> instead of source regex so inherited tests
+    /// (e.g. TransportCompliance<>) are correctly discovered.
     /// </summary>
     void RunTestProjectsOneClassAtATime(AbsolutePath directory)
     {
@@ -247,20 +171,19 @@ partial class Build
 
         foreach (var projectPath in testProjects)
         {
-            var projectDir = Path.GetDirectoryName(projectPath)!;
             var projectName = Path.GetFileNameWithoutExtension(projectPath);
 
             if (IsLeaderElectionProject(projectPath))
             {
                 // Leader election: run each test method individually
-                var testMethods = DiscoverTestMethods(projectDir);
+                var testMethods = DiscoverTestMethodsFromAssembly(projectPath, Configuration);
                 Log.Information("Running leader election tests one method at a time for {Project} ({Count} tests)",
                     projectName, testMethods.Count);
 
                 foreach (var (className, methodName) in testMethods)
                 {
-                    var filter = $"FullyQualifiedName~{className}.{methodName}";
-                    var description = $"{projectName}/{className}.{methodName}";
+                    var filter = AppendCategoryFilter($"FullyQualifiedName~{className}.{methodName}");
+                    var description = $"{projectName}/{className.Split('.')[^1]}.{methodName}";
                     Log.Information("  Running {Description}...", description);
 
                     if (!RunTestWithRetry(projectPath, filter, description))
@@ -271,15 +194,17 @@ partial class Build
             }
             else
             {
-                // Normal: run one class at a time
-                var testClasses = DiscoverTestClasses(projectDir);
+                // Normal: run one class at a time, discovered from the compiled assembly
+                // so inherited tests (e.g. TransportCompliance<>) are not missed.
+                var testClasses = DiscoverTestClassesFromAssembly(projectPath, Configuration);
                 Log.Information("Running tests one class at a time for {Project} ({Count} classes)",
                     projectName, testClasses.Count);
 
-                foreach (var className in testClasses)
+                foreach (var fullClassName in testClasses)
                 {
-                    var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
-                    var description = $"{projectName}/{className}";
+                    var shortName = fullClassName.Split('.')[^1];
+                    var filter = AppendCategoryFilter($"FullyQualifiedName~{fullClassName}.");
+                    var description = $"{projectName}/{shortName}";
                     Log.Information("  Running {Description}...", description);
 
                     if (!RunTestWithRetry(projectPath, filter, description))
@@ -345,20 +270,19 @@ partial class Build
     /// </summary>
     void RunSingleProjectOneClassAtATime(string projectPath, string frameworkOverride = null)
     {
-        var projectDir = Path.GetDirectoryName(projectPath)!;
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var failedTests = new List<string>();
 
         if (IsLeaderElectionProject(projectPath))
         {
-            var testMethods = DiscoverTestMethods(projectDir);
+            var testMethods = DiscoverTestMethodsFromAssembly(projectPath, Configuration, frameworkOverride);
             Log.Information("Running leader election tests one method at a time for {Project} ({Count} tests)",
                 projectName, testMethods.Count);
 
             foreach (var (className, methodName) in testMethods)
             {
                 var filter = AppendCategoryFilter($"FullyQualifiedName~{className}.{methodName}");
-                var description = $"{projectName}/{className}.{methodName}";
+                var description = $"{projectName}/{className.Split('.')[^1]}.{methodName}";
                 Log.Information("  Running {Description}...", description);
 
                 if (!RunTestWithRetry(projectPath, filter, description, frameworkOverride: frameworkOverride))
@@ -369,14 +293,17 @@ partial class Build
         }
         else
         {
-            var testClasses = DiscoverTestClasses(projectDir);
+            // Normal: run one class at a time, discovered from the compiled assembly
+            // so inherited tests (e.g. TransportCompliance<>) are not missed.
+            var testClasses = DiscoverTestClassesFromAssembly(projectPath, Configuration, frameworkOverride);
             Log.Information("Running tests one class at a time for {Project} ({Count} classes)",
                 projectName, testClasses.Count);
 
-            foreach (var className in testClasses)
+            foreach (var fullClassName in testClasses)
             {
-                var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
-                var description = $"{projectName}/{className}";
+                var shortName = fullClassName.Split('.')[^1];
+                var filter = AppendCategoryFilter($"FullyQualifiedName~{fullClassName}.");
+                var description = $"{projectName}/{shortName}";
                 Log.Information("  Running {Description}...", description);
 
                 if (!RunTestWithRetry(projectPath, filter, description, frameworkOverride: frameworkOverride))
