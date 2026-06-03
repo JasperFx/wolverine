@@ -48,6 +48,13 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public int MaxDeliveryAttempts { get; set; } = 5;
 
     /// <summary>
+    /// Suffix appended to the destination subject to form the NATS JetStream scheduling subject for native
+    /// scheduled sends. Must keep the schedule subject covered by the stream (e.g. a <c>prefix.&gt;</c>
+    /// filter covers <c>{subject}.scheduled</c>). Defaults to <c>.scheduled</c>.
+    /// </summary>
+    public string ScheduleSubjectSuffix { get; set; } = ".scheduled";
+
+    /// <summary>
     /// Per-endpoint override for the JetStream consumer's <c>DeliverPolicy</c>.
     /// When non-null this wins over
     /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>; when null the

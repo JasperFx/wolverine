@@ -13,11 +13,16 @@ internal class JetStreamPublisher : INatsPublisher
     private readonly NatsConnection _connection;
     private readonly INatsJSContext _jetStreamContext;
     private readonly ILogger<NatsEndpoint> _logger;
+    private readonly string _scheduleSubjectSuffix;
 
-    public JetStreamPublisher(NatsConnection connection, ILogger<NatsEndpoint> logger)
+    public JetStreamPublisher(NatsConnection connection, 
+        ILogger<NatsEndpoint> logger,
+        string scheduleSubjectSuffix = ".scheduled")
     {
         _connection = connection;
         _logger = logger;
+        // An empty suffix would make the schedule subject equal the target and re-trigger err 10190.
+        _scheduleSubjectSuffix = string.IsNullOrWhiteSpace(scheduleSubjectSuffix) ? ".scheduled" : scheduleSubjectSuffix;
         _jetStreamContext = connection.CreateJetStreamContext();
     }
 
@@ -70,28 +75,33 @@ internal class JetStreamPublisher : INatsPublisher
         }
         else
         {
-            // Check if this is a scheduled message
+            var publishSubject = subject;
+
             if (envelope.ScheduledTime.HasValue)
             {
-                // Add NATS scheduling headers
-                // Format: @at <RFC3339 timestamp>
+                // NATS rejects a scheduled publish whose subject equals Nats-Schedule-Target ("message
+                // schedules target is invalid", err 10190). So the target stays the real destination
+                // (where the consumer listens and the server materializes the message), and the control
+                // message goes to a derived subject that must still be covered by the same stream.
                 var scheduledTime = envelope.ScheduledTime.Value.ToUniversalTime();
                 headers["Nats-Schedule"] = $"@at {scheduledTime:O}";
                 headers["Nats-Schedule-Target"] = subject;
-                
+                publishSubject = subject + _scheduleSubjectSuffix;
+
                 if (_logger.IsEnabled(LogLevel.Debug))
                 {
                     _logger.LogDebug(
-                        "Scheduling message {MessageId} for delivery at {ScheduledTime} to {Subject}",
+                        "Scheduling message {MessageId} for delivery at {ScheduledTime} to {Target} via schedule subject {ScheduleSubject}",
                         envelope.Id,
                         scheduledTime,
-                        subject
+                        subject,
+                        publishSubject
                     );
                 }
             }
-            
+
             var ack = await _jetStreamContext.PublishAsync(
-                subject,
+                publishSubject,
                 data,
                 headers: headers,
                 cancellationToken: cancellation

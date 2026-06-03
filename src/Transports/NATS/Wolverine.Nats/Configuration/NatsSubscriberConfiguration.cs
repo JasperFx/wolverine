@@ -25,4 +25,14 @@ public class NatsSubscriberConfiguration
 
         return this;
     }
+
+    /// <summary>
+    /// Override the suffix used to derive the NATS JetStream scheduling subject for native scheduled sends
+    /// (default <c>.scheduled</c>). The derived subject must stay covered by the destination's stream.
+    /// </summary>
+    public NatsSubscriberConfiguration UseScheduleSubjectSuffix(string suffix)
+    {
+        add(endpoint => endpoint.ScheduleSubjectSuffix = suffix);
+        return this;
+    }
 }
