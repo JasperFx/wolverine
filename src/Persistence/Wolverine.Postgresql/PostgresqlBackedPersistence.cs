@@ -401,6 +401,23 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         configure(source);
 
         TenantConnections = source;
+
+        // GH-3016: surface the MasterTenantSource through DI so store-agnostic admin consumers
+        // (e.g. CritterWatch's tenant-management handler set) can drive the Add/Disable/Enable/
+        // Remove lifecycle via GetServices<IDynamicTenantSource<string>>() without sniffing for
+        // the concrete MasterTenantSource type. This must be registered here — at config time,
+        // before the container is built — rather than in BuildMessageStore (which runs lazily off
+        // the IMessageStore factory, after the container is built) or in Configure() (which
+        // Include() invokes eagerly, before this fluent call sets UseMasterTableTenancy). The
+        // factory defers to IMessageStore resolution, which is what constructs the
+        // MasterTenantSource and assigns it to ConnectionStringTenancy. Mirrors the conditional
+        // shape Marten landed in JasperFx/marten#4605.
+        _options.Services.AddSingleton<IDynamicTenantSource<string>>(s =>
+        {
+            _ = s.GetRequiredService<IMessageStore>();
+            return (IDynamicTenantSource<string>)ConnectionStringTenancy!;
+        });
+
         return this;
     }
 
