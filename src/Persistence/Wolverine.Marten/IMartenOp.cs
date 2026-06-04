@@ -33,13 +33,25 @@ internal class MartenOpPolicy : IChainPolicy
     {
         foreach (var chain in chains)
         {
-            var candidates = chain.ReturnVariablesOfType<IEnumerable<IMartenOp>>().ToArray();
-            if (candidates.Any())
+            var collections = chain.ReturnVariablesOfType<IEnumerable<IMartenOp>>().ToArray();
+
+            // A single IMartenOp return is an ISideEffect — Wolverine already generates the Execute()
+            // call — but it still needs Marten transaction support so SaveChangesAsync actually runs.
+            // Without it the op is applied to the session and then silently dropped unless the app
+            // happens to have AutoApplyTransactions enabled. Collections were already handled below;
+            // single returns were not, so e.g. a handler returning MartenOps.StartStream(...) never
+            // persisted. ApplyTransactionSupport is idempotent, so this composes with aggregate
+            // handlers / AutoApplyTransactions. GH-3025.
+            var singles = chain.ReturnVariablesOfType<IMartenOp>().ToArray();
+
+            if (collections.Any() || singles.Any())
             {
                 new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
             }
-            
-            foreach (var collection in candidates)
+
+            // Only collections need the explicit foreach-Execute frame; single IMartenOp returns are
+            // executed by the ISideEffect machinery (adding a frame here would double-execute).
+            foreach (var collection in collections)
             {
                 collection.UseReturnAction(v => new ForEachMartenOpFrame(v));
             }
