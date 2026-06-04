@@ -158,4 +158,20 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         });
         return this;
     }
+    /// <summary>
+    /// Extends the Kafka consumer settings for this topic without replacing the
+    /// existing topic-level configuration. If no topic-specific configuration exists,
+    /// a new <see cref="ConsumerConfig"/> is created before applying the changes.
+    /// </summary>
+    /// <param name="configuration">An action that adds or updates consumer settings for this topic.</param>
+    /// <returns>The current <see cref="KafkaListenerConfiguration"/> for fluent chaining.</returns>
+    public KafkaListenerConfiguration ExtendConsumerConfiguration(Action<ConsumerConfig> configuration)
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            configuration(topic.ConsumerConfig);
+        });
+        return this;
+    }
 }

@@ -104,7 +104,18 @@ public class DocumentationSamples
 
                         // Other configuration
                     })
-                    
+                    // Extends the consumer configuration for this topic only.
+                    // Unlike ConfigureConsumer(), this preserves any existing topic-level
+                    // ConsumerConfig and only applies the changes below.
+                    .ExtendConsumerConfiguration(config =>
+                    {
+                        // This also sets Envelope.GroupId for any messages received
+                        // from this topic.
+                        config.GroupId = "foo";
+                        config.BootstrapServers = KafkaContainerFixture.ConnectionString;
+
+                        // Other additive configuration
+                    })
                     // Configure circuit breaker behavior for
                     // this specific Kafka listener
                     .CircuitBreaker(cb =>
@@ -112,7 +123,6 @@ public class DocumentationSamples
                         cb.MinimumThreshold = 10;
                         cb.PauseTime = TimeSpan.FromMinutes(1);
                     })
-                    
                     // Fine tune how the Kafka Topic is declared by Wolverine
                     .Specification(spec =>
                     {
