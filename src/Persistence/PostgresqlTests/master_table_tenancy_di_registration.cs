@@ -73,4 +73,38 @@ public class master_table_tenancy_di_registration : PostgresqlContext
         // Reaching a started host without throwing is the assertion; the registration still lights up.
         host.Services.GetServices<IDynamicTenantSource<string>>().ShouldNotBeEmpty();
     }
+
+    [Fact]
+    public async Task dynamic_tenant_lifecycle_round_trip()
+    {
+        // GH-3023: confirm the master-table tenant-registry write/read/disable paths still work on
+        // PostgreSQL after the shared SQL was made DB-agnostic (parameterized booleans +
+        // delete-then-insert instead of ON CONFLICT) to fix SqlServer.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "mt_lifecycle_3023")
+                    .UseMasterTableTenancy(_ => { });
+                opts.Services.AddResourceSetupOnStartup();
+            }).StartAsync();
+
+        var source = host.Services.GetServices<IDynamicTenantSource<string>>()
+            .OfType<MasterTenantSource>().Single();
+
+        var tenant = "life-" + Guid.NewGuid().ToString("N")[..8];
+        var conn = Servers.PostgresConnectionString;
+
+        await source.AddTenantAsync(tenant, conn);            // AddTenantRecordAsync (delete-then-insert)
+        await source.RefreshAsync();                          // LoadAllTenantConnectionStrings
+        source.AllActiveByTenant().ShouldContain(a => a.TenantId == tenant);
+
+        await source.DisableTenantAsync(tenant);
+        (await source.AllDisabledAsync()).ShouldContain(tenant);   // LoadDisabledTenantIdsAsync
+
+        await source.EnableTenantAsync(tenant);
+        (await source.AllDisabledAsync()).ShouldNotContain(tenant);
+
+        await source.AddTenantAsync(tenant, conn);            // upsert path again
+        await source.RemoveTenantAsync(tenant);
+    }
 }
