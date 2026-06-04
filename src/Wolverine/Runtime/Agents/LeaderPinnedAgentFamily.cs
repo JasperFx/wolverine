@@ -16,7 +16,10 @@ internal class LeaderPinnedListenerAgent : IAgent
         _endpoint = endpoint;
         _runtime = runtime;
 
-        Uri = new Uri($"{LeaderPinnedListenerFamily.SchemeName}://{_endpoint.EndpointName}");
+        // Include the endpoint's transport scheme so two endpoints that share the same logical
+        // EndpointName across different transports (e.g. a "critterwatch" queue on both Rabbit and
+        // SQS) don't collapse to the same agent Uri and collide in the family's ToDictionary. GH-3027.
+        Uri = new Uri($"{LeaderPinnedListenerFamily.SchemeName}://{_endpoint.Uri.Scheme}/{_endpoint.EndpointName}");
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
