@@ -13,9 +13,19 @@ public abstract partial class MessageDatabase<T>
         // Gotta make sure the database state is in good shape first...
         // TODO -- might have to latch this w/ AutoCreate
         await ApplyAllConfiguredChangesToDatabaseAsync(ct: _cancellation);
-        
+
+        var assignments = tenantConnectionStrings.AllActiveByTenant().ToArray();
+        if (assignments.Length == 0)
+        {
+            // Nothing to seed. An empty master tenant table is valid — tenants may be registered
+            // later at runtime (e.g. via the master-table tenancy source). Compiling/executing a
+            // command with no SQL appended throws "CommandText property has not been initialized".
+            // GH-3019.
+            return;
+        }
+
         var builder = ToCommandBuilder();
-        foreach (var assignment in tenantConnectionStrings.AllActiveByTenant())
+        foreach (var assignment in assignments)
         {
             builder.Append($"delete from  {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = ");
             builder.AppendParameter(assignment.TenantId);
