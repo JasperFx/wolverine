@@ -102,7 +102,8 @@ public abstract partial class MessageDatabase<T>
         {
             await using var reader =
                 await conn.CreateCommand(
-                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = false")
+                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = @disabled")
+                    .With("disabled", false)
                     .ExecuteReaderAsync(_cancellation);
 
             while (await reader.ReadAsync(_cancellation))
@@ -132,10 +133,15 @@ public abstract partial class MessageDatabase<T>
         await conn.OpenAsync(_cancellation);
         try
         {
+            // Upsert + (re-)enable. Uses a portable delete-then-insert rather than PostgreSQL's
+            // ON CONFLICT (which SqlServer rejects), and a bool parameter rather than a `false`
+            // literal (SqlServer has no boolean literal — it parses `false` as a column name). GH-3023.
             await conn.CreateCommand(
-                    $"insert into {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}, {DatabaseConstants.DisabledColumn}) values (@id, @connection, false) on conflict ({StorageConstants.TenantIdColumn}) do update set {StorageConstants.ConnectionStringColumn} = @connection, {DatabaseConstants.DisabledColumn} = false")
+                    $"delete from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = @id;" +
+                    $"insert into {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}, {DatabaseConstants.DisabledColumn}) values (@id, @connection, @disabled)")
                 .With("id", tenantId)
                 .With("connection", connectionString)
+                .With("disabled", false)
                 .ExecuteNonQueryAsync(_cancellation);
         }
         finally
@@ -187,7 +193,8 @@ public abstract partial class MessageDatabase<T>
         try
         {
             await using var reader = await conn.CreateCommand(
-                    $"select {StorageConstants.TenantIdColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = true")
+                    $"select {StorageConstants.TenantIdColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = @disabled")
+                .With("disabled", true)
                 .ExecuteReaderAsync(_cancellation);
 
             while (await reader.ReadAsync(_cancellation))

@@ -325,6 +325,18 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         configure(source);
 
         TenantConnections = source;
+
+        // GH-3023: surface the MasterTenantSource through DI as IDynamicTenantSource<string> so
+        // store-agnostic admin consumers can drive the dynamic-tenancy lifecycle through the
+        // abstraction — parity with the PostgreSQL provider (GH-3016). Registered at config time
+        // (before the container is built); the factory defers to IMessageStore resolution, which is
+        // what constructs the MasterTenantSource and assigns ConnectionStringTenancy.
+        _options.Services.AddSingleton<IDynamicTenantSource<string>>(s =>
+        {
+            _ = s.GetRequiredService<IMessageStore>();
+            return (IDynamicTenantSource<string>)ConnectionStringTenancy!;
+        });
+
         return this;
     }
 
