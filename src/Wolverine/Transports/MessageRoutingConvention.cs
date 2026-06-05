@@ -71,7 +71,7 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
                 continue;
             }
 
-            if (_namingSource == NamingSource.FromHandlerType && chain.Handlers.Any())
+            if (_namingSource == NamingSource.FromHandlerType && (chain.Handlers.Any() || chain.ByEndpoint.Any()))
             {
                 foreach (var handler in chain.Handlers)
                 {
@@ -79,6 +79,22 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
                     var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
                     if (endpoint != null)
                     {
+                        endpoint.StickyHandlers.Add(handlerType);
+                    }
+                }
+
+                // Separated handler chains live in ByEndpoint, NOT chain.Handlers. When a message is
+                // handled by more than one handler under MultipleHandlerBehavior.Separated (e.g. a saga
+                // plus a regular handler), only the saga stays in chain.Handlers - the sibling handlers
+                // are moved to ByEndpoint. They each still need their own handler-named listener, or the
+                // message never reaches them and only chain.Handlers (the saga) is invoked. GH-3041.
+                foreach (var handlerChain in chain.ByEndpoint)
+                {
+                    var handlerType = handlerChain.Handlers.First().HandlerType;
+                    var endpoint = maybeCreateListenerForMessageOrHandlerType(transport, handlerType, runtime, messageType);
+                    if (endpoint != null)
+                    {
+                        handlerChain.RegisterEndpoint(endpoint);
                         endpoint.StickyHandlers.Add(handlerType);
                     }
                 }
