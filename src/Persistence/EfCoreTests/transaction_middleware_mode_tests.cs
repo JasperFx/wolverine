@@ -1,4 +1,6 @@
 using IntegrationTests;
+using JasperFx;
+using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
@@ -6,9 +8,11 @@ using SharedPersistenceModels.Items;
 using Shouldly;
 using Wolverine;
 using Wolverine.Attributes;
+using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Codegen;
 using Wolverine.Persistence;
+using Wolverine.Runtime.Handlers;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 
@@ -242,6 +246,93 @@ public class transaction_middleware_mode_tests
 
         // Default should be Eager
         chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
+    }
+
+    [Fact]
+    public async Task handler_policy_eager_mode_is_honored_for_storage_action_saga_chains()
+    {
+        // GH-3039: global Lightweight, but a marker-interface IHandlerPolicy opts specific messages into
+        // Eager by setting chain.Tags["TransactionMiddlewareMode"]. A saga handler returning a storage
+        // action (Insert<T>) must honor that policy-set mode - previously it was silently ignored because
+        // SideEffectPolicy applied the (Lightweight) transaction support before the user policy ran.
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<EagerPolicySagaDbContext>(x =>
+                    x.UseSqlServer(Servers.SqlServerConnectionString));
+
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "txmode");
+                opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
+                opts.Policies.AutoApplyTransactions();
+
+                // Opt the marker-interface messages into Eager from a policy, the natural per-message way.
+                opts.Policies.Add<EagerTransactionForMessagePolicy<IRequiresEagerTransaction>>();
+
+                opts.Discovery.DisableConventionalDiscovery().IncludeType<EagerPolicySaga>();
+            }).StartAsync();
+
+        host.GetRuntime().Handlers.HandlerFor<StartEagerPolicySaga>();
+        var chain = host.GetRuntime().Handlers.ChainFor<StartEagerPolicySaga>()!;
+
+        // The policy set Eager, so the storage-action saga chain must get the eager transaction frames.
+        chain.Middleware.OfType<EnrollDbContextInTransaction>().ShouldNotBeEmpty();
+
+        chain.Postprocessors.OfType<MethodCall>()
+            .Any(x => x.Method.Name == nameof(DbContext.SaveChangesAsync))
+            .ShouldBeTrue();
+    }
+}
+
+public interface IRequiresEagerTransaction;
+
+// Mirrors the marker-interface policy from GH-3039: opt every message of a given type into eager
+// transactions from a single IHandlerPolicy rather than per-method [Transactional] attributes.
+public class EagerTransactionForMessagePolicy<TMessage> : IHandlerPolicy
+{
+    public void Apply(IReadOnlyList<HandlerChain> chains, GenerationRules rules, IServiceContainer container)
+    {
+        foreach (var chain in chains.Where(c => typeof(TMessage).IsAssignableFrom(c.MessageType)))
+        {
+            chain.Tags["TransactionMiddlewareMode"] = TransactionMiddlewareMode.Eager;
+        }
+    }
+}
+
+public record StartEagerPolicySaga(Guid Id) : IRequiresEagerTransaction;
+
+public class EagerPolicySaga : Saga
+{
+    public Guid Id { get; set; }
+
+    // Saga start whose return value is a storage action for another entity - the GH-3039 shape.
+    public Insert<Item> Start(StartEagerPolicySaga message)
+    {
+        return Storage.Insert(new Item { Id = Guid.NewGuid(), Name = "from-saga" });
+    }
+}
+
+public class EagerPolicySagaDbContext : DbContext
+{
+    public EagerPolicySagaDbContext(DbContextOptions<EagerPolicySagaDbContext> options) : base(options)
+    {
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Item>(map =>
+        {
+            map.ToTable("policy_items");
+            map.HasKey(x => x.Id);
+            map.Property(x => x.Name);
+        });
+
+        modelBuilder.Entity<EagerPolicySaga>(map =>
+        {
+            map.ToTable("policy_saga");
+            map.HasKey(x => x.Id);
+        });
     }
 }
 
