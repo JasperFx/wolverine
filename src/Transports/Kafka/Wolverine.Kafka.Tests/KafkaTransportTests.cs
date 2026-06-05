@@ -127,6 +127,45 @@ public class KafkaTransportTests
     }
 }
 
+public class KafkaListenerConfigurationTests
+{
+    private static KafkaTopic BuildTopic()
+    {
+        var transport = new KafkaTransport();
+        return new KafkaTopic(transport, "topic-a", EndpointRole.Application);
+    }
+
+    [Fact]
+    public void extend_consumer_configuration_creates_topic_consumer_configuration()
+    {
+        var topic = BuildTopic();
+
+        var config = new KafkaListenerConfiguration(topic)
+            .ExtendConsumerConfiguration(consumer => consumer.GroupId = "topic");
+
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        topic.ConsumerConfig.ShouldNotBeNull();
+        topic.ConsumerConfig.GroupId.ShouldBe("topic");
+    }
+
+    [Fact]
+    public void extend_consumer_configuration_preserves_existing_topic_consumer_configuration()
+    {
+        var topic = BuildTopic();
+
+        var config = new KafkaListenerConfiguration(topic)
+            .ConfigureConsumer(consumer => consumer.GroupId = "topic")
+            .ExtendConsumerConfiguration(consumer => consumer.ClientId = "topic-client");
+
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        topic.ConsumerConfig.ShouldNotBeNull();
+        topic.ConsumerConfig.GroupId.ShouldBe("topic");
+        topic.ConsumerConfig.ClientId.ShouldBe("topic-client");
+    }
+}
+
 public class UseKafkaUsingNamedConnectionTests
 {
     [Fact]
