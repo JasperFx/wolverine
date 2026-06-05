@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using Marten;
 using Marten.Events;
@@ -44,7 +45,17 @@ internal class MartenOpPolicy : IChainPolicy
             // handlers / AutoApplyTransactions. GH-3025.
             var singles = chain.ReturnVariablesOfType<IMartenOp>().ToArray();
 
-            if (collections.Any() || singles.Any())
+            // A compound handler that loads an IEventStream<T> (typically via FetchForWriting in a
+            // Load/LoadAsync method) and appends to it needs Marten transaction support so SaveChangesAsync
+            // flushes the appended events. Without it the append is silently dropped unless the app has
+            // AutoApplyTransactions enabled — inconsistent with single IMartenOp returns (above) and
+            // [AggregateHandler]. Detect by an IEventStream<T> handler parameter. ApplyTransactionSupport is
+            // idempotent, so this composes with the aggregate workflow (which also uses IEventStream<T>) and
+            // with AutoApplyTransactions. GH-3032.
+            var appendsToEventStream = chain.HandlerCalls()
+                .Any(call => call.Method.GetParameters().Any(p => p.ParameterType.Closes(typeof(IEventStream<>))));
+
+            if (collections.Any() || singles.Any() || appendsToEventStream)
             {
                 new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
             }
