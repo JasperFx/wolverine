@@ -317,6 +317,17 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
+        // GH-3039: For saga chains, defer to the saga's own transaction-support application at codegen
+        // time (SagaChain.DetermineFrames -> the no-entity ApplyTransactionSupport below). That runs
+        // AFTER every IHandlerPolicy, so a transaction mode set on the chain by a user policy
+        // (chain.Tags["TransactionMiddlewareMode"]) is honored. This entity overload is otherwise
+        // invoked by SideEffectPolicy when a handler returns a storage action (Insert<T>/Update<T>/
+        // UnitOfWork<T>/...), which happens DURING policy application - before a marker-interface
+        // IHandlerPolicy has had a chance to set the mode tag. Applying it here would lock in DefaultMode
+        // and the UsingEfCoreTransaction idempotency guard would then block the later, correctly-moded
+        // application - silently dropping the eager transaction for storage-action saga handlers.
+        if (chain is SagaChain) return;
+
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
 
