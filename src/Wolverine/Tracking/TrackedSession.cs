@@ -302,6 +302,17 @@ internal partial class TrackedSession : ITrackedSession
         }
     }
 
+    /// <summary>
+    /// Cap the diagnostic envelope-record grid at this many rows when reporting a timeout.
+    /// A noisy test (e.g. a chaos-monkey'd integration scenario emitting thousands of
+    /// alert / heartbeat / DLQ envelopes during the tracked window) can otherwise OOM
+    /// the StringBuilder.ToString() inside Grid.Write before the timeout message is
+    /// ever surfaced to the test — the OOM masks the real timeout cause.
+    /// Truncate to the last <see cref="ActivityGridRowLimit"/> records (most recent
+    /// = most useful for diagnosing where things hung), and surface the omitted count.
+    /// </summary>
+    internal const int ActivityGridRowLimit = 500;
+
     internal string BuildActivityMessage(string description)
     {
         var writer = new StringWriter();
@@ -318,6 +329,12 @@ internal partial class TrackedSession : ITrackedSession
         }
         else
         {
+            if (records.Length > ActivityGridRowLimit)
+            {
+                var skipped = records.Length - ActivityGridRowLimit;
+                writer.WriteLine($"(showing last {ActivityGridRowLimit} of {records.Length} envelope records — earlier {skipped} omitted for readability)");
+                records = records[^ActivityGridRowLimit..];
+            }
             writeGrid(grid, records, writer);
         }
 
