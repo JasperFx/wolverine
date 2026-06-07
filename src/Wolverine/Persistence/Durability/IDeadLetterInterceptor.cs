@@ -14,10 +14,22 @@ namespace Wolverine.Persistence.Durability;
 /// <c>services.AddSingleton&lt;IDeadLetterInterceptor, MyInterceptor&gt;()</c>.
 /// </para>
 /// <para>
-/// This hook is a transformation seam for durable dead letters - useful for redacting PII or secrets,
-/// encrypting dead-letter payloads at rest, or scrubbing sensitive exception text before it is stored.
-/// It is not invoked for broker-native dead-lettering, where the original payload bytes are handled by
-/// the broker rather than persisted by Wolverine.
+/// The distinctive use is scrubbing or replacing the <b>exception</b> recorded with a dead letter -
+/// handlers sometimes interpolate sensitive data into exception messages, and the exception type and
+/// message are stored outside the message serializer. Return a replacement exception (optionally one
+/// implementing <see cref="IDeadLetterExceptionInfo"/> to keep the original type while redacting the
+/// message) to control what is persisted.
+/// </para>
+/// <para>
+/// For encrypting or redacting the message <b>body</b> at rest, a custom <c>IMessageSerializer</c> is
+/// usually the better seam: it covers the wire and the durable inbox/outbox as well, not just dead
+/// letters, and avoids re-serialization here. This hook can still mutate the envelope body (edit
+/// <see cref="Envelope.Message"/> and set <see cref="Envelope.Data"/> to <c>null</c>) when a
+/// dead-letter-only transform is needed.
+/// </para>
+/// <para>
+/// Not invoked for broker-native dead-lettering, where the original payload bytes are handled by the
+/// broker rather than persisted by Wolverine.
 /// </para>
 /// </remarks>
 public interface IDeadLetterInterceptor
