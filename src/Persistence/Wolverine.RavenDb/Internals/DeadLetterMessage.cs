@@ -19,8 +19,8 @@ public class DeadLetterMessage
         SentAt = envelope.SentAt;
         ScheduledTime = envelope.ScheduledTime;
         Source = envelope.Source!;
-        ExceptionType = exception?.GetType().FullNameInCode()!;
-        ExceptionMessage = exception?.Message!;
+        ExceptionType = exception.DeadLetterExceptionType()!;
+        ExceptionMessage = exception.DeadLetterExceptionMessage()!;
 
         // TODO -- need to harden this one
         Body = EnvelopeSerializer.Serialize(envelope);
