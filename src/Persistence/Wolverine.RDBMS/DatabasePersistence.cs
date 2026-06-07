@@ -165,8 +165,8 @@ public static class DatabasePersistence
             builder.AddParameter(envelope.MessageType ?? "unknown"),
             builder.AddParameter(envelope.Destination?.ToString()),
             builder.AddParameter(envelope.Source ?? "unknown"),
-            builder.AddParameter(exception?.GetType().FullNameInCode()),
-            builder.AddParameter(exception?.Message),
+            builder.AddParameter(exception.DeadLetterExceptionType()),
+            builder.AddParameter(exception.DeadLetterExceptionMessage()),
             builder.AddParameter(envelope.SentAt.ToUniversalTime()),
             builder.AddParameter(false)
         };

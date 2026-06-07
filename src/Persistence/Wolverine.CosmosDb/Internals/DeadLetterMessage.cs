@@ -21,8 +21,8 @@ public class DeadLetterMessage
         SentAt = envelope.SentAt;
         ScheduledTime = envelope.ScheduledTime;
         Source = envelope.Source;
-        ExceptionType = exception?.GetType().FullNameInCode();
-        ExceptionMessage = exception?.Message;
+        ExceptionType = exception.DeadLetterExceptionType();
+        ExceptionMessage = exception.DeadLetterExceptionMessage();
         Body = EnvelopeSerializer.Serialize(envelope);
         PartitionKey = DocumentTypes.DeadLetterPartition;
     }

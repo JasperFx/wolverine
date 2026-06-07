@@ -215,8 +215,8 @@ internal partial class OracleMessageStore
         insertCmd.With("messageType", envelope.MessageType ?? string.Empty);
         insertCmd.With("receivedAt", envelope.Destination?.ToString() ?? string.Empty);
         insertCmd.With("source", envelope.Source ?? string.Empty);
-        insertCmd.With("exceptionType", exception?.GetType().FullNameInCode() ?? string.Empty);
-        insertCmd.With("exceptionMessage", exception?.Message ?? string.Empty);
+        insertCmd.With("exceptionType", exception.DeadLetterExceptionType() ?? string.Empty);
+        insertCmd.With("exceptionMessage", exception.DeadLetterExceptionMessage() ?? string.Empty);
         insertCmd.Parameters.Add(new OracleParameter("sentAt", OracleDbType.TimeStampTZ) { Value = envelope.SentAt.ToUniversalTime() });
         insertCmd.With("replayable", 0); // Oracle stores bool as NUMBER(1)
 
