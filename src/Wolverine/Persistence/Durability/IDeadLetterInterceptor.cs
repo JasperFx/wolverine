@@ -21,11 +21,9 @@ namespace Wolverine.Persistence.Durability;
 /// message) to control what is persisted.
 /// </para>
 /// <para>
-/// For encrypting or redacting the message <b>body</b> at rest, a custom <c>IMessageSerializer</c> is
-/// usually the better seam: it covers the wire and the durable inbox/outbox as well, not just dead
-/// letters, and avoids re-serialization here. This hook can still mutate the envelope body (edit
-/// <see cref="Envelope.Message"/> and set <see cref="Envelope.Data"/> to <c>null</c>) when a
-/// dead-letter-only transform is needed.
+/// The hook can also mutate the envelope body for dead-letter-only transforms: edit
+/// <see cref="Envelope.Message"/> and set <see cref="Envelope.Data"/> to <c>null</c> so the store
+/// re-serializes it.
 /// </para>
 /// <para>
 /// Not invoked for broker-native dead-lettering, where the original payload bytes are handled by the
