@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus.Administration;
+using JasperFx.Core;
 using Shouldly;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
@@ -6,9 +7,15 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-public class TopicsWithCustomRuleComplianceFixture()
-    : TransportComplianceFixture(new Uri("asb://topic/topic1"), 120), IAsyncLifetime
+public class TopicsWithCustomRuleComplianceFixture
+    : TransportComplianceFixture, IAsyncLifetime
 {
+    public TopicsWithCustomRuleComplianceFixture()
+        : base(new Uri("asb://topic/topic1"), 120)
+    {
+        MustReset = false;
+    }
+
     public async Task InitializeAsync()
     {
         await SenderIs(opts =>
@@ -43,19 +50,15 @@ public class TopicsWithCustomRuleComplianceFixture()
     }
 }
 
-public class TopicAndSubscriptionWithCustomRuleSendingAndReceivingCompliance : TransportCompliance<TopicsWithCustomRuleComplianceFixture>
+public class TopicAndSubscriptionWithCustomRuleSendingAndReceivingCompliance(
+    TopicsWithCustomRuleComplianceFixture fixture)
+    : TransportCompliance<TopicsWithCustomRuleComplianceFixture>(fixture),
+        IClassFixture<TopicsWithCustomRuleComplianceFixture>
 {
     [Fact]
     public async Task ignores_message_not_matching_the_filter()
     {
-        /*
-         * Please note that this test may take a while to run,
-         * as it will wait for a message to be processed by the receiver
-         * but there should none be incoming because of the subscription
-         * filter.
-         */
-
-        var session = await theSender.TrackActivity(Fixture.DefaultTimeout)
+        var session = await theSender.TrackActivity(15.Seconds())
             .AlsoTrack(theReceiver)
             .DoNotAssertOnExceptionsDetected()
             .ExecuteAndWaitAsync(

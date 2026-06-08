@@ -7,6 +7,7 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 {
     public TopicsComplianceFixture() : base(new Uri("asb://topic/topic1"), 120)
     {
+        MustReset = false;
     }
 
     public async Task InitializeAsync()
@@ -37,4 +38,6 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-public class TopicAndSubscriptionSendingAndReceivingCompliance : TransportCompliance<TopicsComplianceFixture>;
+public class TopicAndSubscriptionSendingAndReceivingCompliance(TopicsComplianceFixture fixture)
+    : TransportCompliance<TopicsComplianceFixture>(fixture),
+        IClassFixture<TopicsComplianceFixture>;

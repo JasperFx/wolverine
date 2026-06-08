@@ -8,6 +8,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 {
     public InlineComplianceFixture() : base(new Uri("asb://queue/inline-receiver"), 120)
     {
+        MustReset = false;
     }
 
     public async Task InitializeAsync()
@@ -46,4 +47,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
     }
 }
 
-public class InlineSendingAndReceivingCompliance : TransportCompliance<InlineComplianceFixture>;
+public class InlineSendingAndReceivingCompliance(InlineComplianceFixture fixture)
+    : TransportCompliance<InlineComplianceFixture>(fixture),
+        IClassFixture<InlineComplianceFixture>;

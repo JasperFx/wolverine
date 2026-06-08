@@ -229,7 +229,7 @@ partial class Build
     /// Flaky tests (pass on retry) are logged separately from hard failures.
     /// Returns true only if all tests pass (possibly after retries).
     /// </summary>
-    bool RunWithFlakyRetry(string projectPath, int maxAttempts = 3, string frameworkOverride = null)
+    bool RunWithFlakyRetry(string projectPath, int maxAttempts = 2, string frameworkOverride = null)
     {
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var framework = frameworkOverride ?? Framework;
