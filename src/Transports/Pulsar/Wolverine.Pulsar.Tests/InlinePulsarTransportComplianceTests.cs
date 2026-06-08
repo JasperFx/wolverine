@@ -44,4 +44,5 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 }
 
 [Collection("acceptance")]
+[Trait("Category", "Flaky")]
 public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>;

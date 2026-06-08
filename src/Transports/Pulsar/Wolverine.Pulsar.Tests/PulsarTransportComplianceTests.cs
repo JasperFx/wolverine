@@ -43,4 +43,5 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
 }
 
 [Collection("acceptance")]
+[Trait("Category", "Flaky")]
 public class PulsarTransportComplianceTests : TransportCompliance<PulsarTransportFixture>;
