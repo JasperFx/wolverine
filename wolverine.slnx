@@ -81,6 +81,7 @@
     <Project Path="src/Persistence/Wolverine.EntityFrameworkCore/Wolverine.EntityFrameworkCore.csproj" />
   </Folder>
   <Folder Name="/Persistence/LeaderElection/">
+    <Project Path="src/Persistence/LeaderElection/CosmosDbTests.LeaderElection/CosmosDbTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/MySqlTests.LeaderElection/MySqlTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/OracleTests.LeaderElection/OracleTests.LeaderElection.csproj" />
     <Project Path="src/Persistence/LeaderElection/PostgresqlTests.LeaderElection/PostgresqlTests.LeaderElection.csproj" />

@@ -9,14 +9,7 @@ using Wolverine.Runtime.Agents;
 
 namespace CosmosDbTests;
 
-// Companion guard for the CosmosDb side of #2623 and the #2845 scheme fix. The CosmosDb
-// durability agent is cluster-managed via the wolverinedb://cosmosdb/durability URI
-// (MessageStoreCollection.BuildAgentAsync), and NodeAgentController calls StartAsync on it
-// — that is the single poller. CosmosDbMessageStore.StartScheduledJobs must NOT also call
-// StartTimers(), or two pollers would share this store and race (the #2623 bug). This test
-// asserts exactly one polling agent across both sources and fails loudly if that regresses.
 [Collection("cosmosdb")]
-[Trait("Category", "Flaky")]
 public class durability_agent_lifecycle : IAsyncLifetime
 {
     private readonly AppFixture _fixture;

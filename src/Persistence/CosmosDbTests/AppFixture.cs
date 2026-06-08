@@ -1,25 +1,21 @@
-using System.Net;
-using DotNet.Testcontainers.Builders;
-using DotNet.Testcontainers.Containers;
 using Microsoft.Azure.Cosmos;
+using System.Net;
+using Testcontainers.CosmosDb;
 using Wolverine;
-using Wolverine.CosmosDb;
 using Wolverine.CosmosDb.Internals;
-using Wolverine.Persistence.Durability;
 
 namespace CosmosDbTests;
 
 public class AppFixture : IAsyncLifetime
 {
-    public const string AccountKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
     public const string DatabaseName = "wolverine_tests";
+    private const string CosmosDbImage = "mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-latest";
 
     // Static container shared across all AppFixture instances
-    private static IContainer? _sharedContainer;
+    private static CosmosDbContainer _sharedContainer = null!;
     private static string _sharedConnectionString = null!;
     private static readonly SemaphoreSlim _lock = new(1, 1);
-
-    public string ConnectionString => _sharedConnectionString;
+    public static string ConnectionString => _sharedConnectionString;
 
     public CosmosClient Client { get; private set; } = null!;
     public Container Container { get; private set; } = null!;
@@ -31,20 +27,11 @@ public class AppFixture : IAsyncLifetime
         {
             if (_sharedContainer != null) return;
 
-            _sharedContainer = new ContainerBuilder()
-                .WithImage("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:vnext-preview")
-                .WithPortBinding(8081, true)
-                .WithPortBinding(1234, true)
-                .WithEnvironment("PROTOCOL", "https")
-                .WithWaitStrategy(Wait.ForUnixContainer()
-                    .UntilMessageIsLogged("Gateway=OK"))
+            _sharedContainer = new CosmosDbBuilder(CosmosDbImage)
                 .Build();
 
             await _sharedContainer.StartAsync();
-
-            var host = _sharedContainer.Hostname;
-            var port = _sharedContainer.GetMappedPublicPort(8081);
-            _sharedConnectionString = $"AccountEndpoint=https://{host}:{port}/;AccountKey={AccountKey}";
+            _sharedConnectionString = _sharedContainer.GetConnectionString();
         }
         finally
         {
@@ -60,12 +47,9 @@ public class AppFixture : IAsyncLifetime
         {
             HttpClientFactory = () =>
             {
-                HttpMessageHandler httpMessageHandler = new HttpClientHandler
-                {
-                    ServerCertificateCustomValidationCallback =
-                        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-                };
-                return new HttpClient(httpMessageHandler);
+                var handler = new HttpClientHandler();
+                var port = _sharedContainer.GetMappedPublicPort(8081);
+                return new HttpClient(new FixRequestLocationHandler(port, handler));
             },
             ConnectionMode = ConnectionMode.Gateway,
             SerializerOptions = new CosmosSerializationOptions
@@ -76,23 +60,27 @@ public class AppFixture : IAsyncLifetime
 
         Client = new CosmosClient(ConnectionString, clientOptions);
 
-        // Retry database/container creation since the vnext emulator can be slow to initialize
-        for (var attempt = 1; attempt <= 10; attempt++)
+        // Retry database/container creation since the emulator can be slow to initialize
+        var maxRetries = 10;
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
                 var databaseResponse = await Client.CreateDatabaseIfNotExistsAsync(DatabaseName);
                 var containerProperties =
                     new ContainerProperties(DocumentTypes.ContainerName, DocumentTypes.PartitionKeyPath);
-                var containerResponse =
-                    await databaseResponse.Database.CreateContainerIfNotExistsAsync(containerProperties);
+                var containerResponse = await databaseResponse
+                    .Database.CreateContainerIfNotExistsAsync(containerProperties);
                 Container = containerResponse.Container;
                 return;
             }
-            catch (CosmosException e) when (e.StatusCode == HttpStatusCode.ServiceUnavailable ||
-                                            e.StatusCode == HttpStatusCode.InternalServerError)
+            catch (Exception ex) when (
+                (ex is CosmosException cosmosEx &&
+                    (cosmosEx.StatusCode == HttpStatusCode.ServiceUnavailable ||
+                    cosmosEx.StatusCode == HttpStatusCode.InternalServerError))
+                || ex is HttpRequestException)
             {
-                if (attempt == 10) throw;
+                if (attempt == maxRetries) throw;
                 await Task.Delay(TimeSpan.FromSeconds(3));
             }
         }
@@ -101,7 +89,6 @@ public class AppFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         Client?.Dispose();
-        // Container is shared - don't dispose it here; process exit handles cleanup
     }
 
     public CosmosDbMessageStore BuildMessageStore()
@@ -119,4 +106,24 @@ public class AppFixture : IAsyncLifetime
 [CollectionDefinition("cosmosdb")]
 public class CosmosDbCollection : ICollectionFixture<AppFixture>
 {
+}
+
+public class FixRequestLocationHandler(int portNumber, HttpMessageHandler innerHandler) 
+    : DelegatingHandler(innerHandler)
+{
+    // Workaround for dynamic port used instead of the default one.
+    // See https://stackoverflow.com/a/78729014
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        const int defaultPort = 8081;
+        if (request.RequestUri?.Port != defaultPort)
+            return await base.SendAsync(request, cancellationToken);
+
+        var builder = new UriBuilder(request.RequestUri)
+        {
+            Port = portNumber
+        };
+        request.RequestUri = builder.Uri;
+        return await base.SendAsync(request, cancellationToken);
+    }
 }

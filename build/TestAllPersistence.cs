@@ -106,7 +106,7 @@ partial class Build
     /// Returns Passed, Flaky (passed on retry), or Failed.
     /// </summary>
     TestOutcome RunTestWithRetry(string projectPath, 
-        string fullTestName, int maxAttempts = 3, string frameworkOverride = null)
+        string fullTestName, int maxAttempts = 2, string frameworkOverride = null)
     {
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var filter = $"FullyQualifiedName~{EscapeFilterValue(fullTestName)}";

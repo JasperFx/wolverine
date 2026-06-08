@@ -520,7 +520,8 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Azure" / "Wolverine.AzureServiceBus.Tests" / "Wolverine.AzureServiceBus.Tests.csproj";
 
             BuildTestProjects(tests);
-            StartDockerServices("asb-emulator");
+            // Postgres is needed for leader election tests
+            StartDockerServices("asb-emulator", "postgresql");
 
             RunTestProject(tests);
         });

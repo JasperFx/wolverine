@@ -33,7 +33,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
 
     public bool AllLocally { get; set; }
 
-    public bool MustReset { get; set; } = false;
+    public bool MustReset { get; set; } = true;
     
     public bool IsSenderOnlyTransport { get; set; }
 
@@ -176,17 +176,25 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     protected Uri theOutboundAddress = null!;
     protected IHost theReceiver = null!;
     protected IHost theSender = null!;
+    private readonly bool _ownFixture;
 
     protected TransportCompliance()
     {
         Fixture = new T();
+        _ownFixture = true;
+    }
+
+    protected TransportCompliance(T fixture)
+    {
+        Fixture = fixture;
+        _ownFixture = false;
     }
 
     public T Fixture { get; }
 
     public async Task InitializeAsync()
     {
-        if (Fixture is IAsyncLifetime lifetime)
+        if (_ownFixture && Fixture is IAsyncLifetime lifetime)
         {
             await lifetime.InitializeAsync();
         }
@@ -195,11 +203,14 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         theReceiver = Fixture.Receiver;
         theOutboundAddress = Fixture.OutboundAddress;
 
-        await Fixture.Sender.ResetResourceState();
-
-        if (Fixture.Receiver != null && !ReferenceEquals(Fixture.Sender, Fixture.Receiver))
+        if (Fixture.MustReset)
         {
-            await Fixture.Receiver.ResetResourceState();
+            await Fixture.Sender.ResetResourceState();
+
+            if (Fixture.Receiver != null && !ReferenceEquals(Fixture.Sender, Fixture.Receiver))
+            {
+                await Fixture.Receiver.ResetResourceState();
+            }
         }
 
         Fixture.BeforeEach();
@@ -207,14 +218,12 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
     public async Task DisposeAsync()
     {
+        if (!_ownFixture)
+            return;
         if (Fixture is IAsyncDisposable)
-        {
             await Fixture.DisposeAsync();
-        }
         else
-        {
             Fixture?.SafeDispose();
-        }
     }
 
     [Fact]
