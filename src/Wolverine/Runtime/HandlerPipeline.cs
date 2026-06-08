@@ -34,7 +34,7 @@ public class HandlerPipeline : IHandlerPipeline
 
         _executors = new LightweightCache<Type, IExecutor>(executorFactory.BuildFor);
     }
-    
+
     internal HandlerPipeline(WolverineRuntime runtime, IExecutorFactory executorFactory, Endpoint endpoint)
     {
         _graph = runtime.Handlers;
@@ -133,7 +133,7 @@ public class HandlerPipeline : IHandlerPipeline
                 return new MoveToErrorQueue(new EncryptionPolicyViolationException(envelope));
             }
 
-            var serializer = envelope.Serializer ?? _runtime.Options.DetermineSerializer(envelope);
+            var serializer = envelope.Serializer ?? serializerFor(envelope);
             serializer.UnwrapEnvelopeIfNecessary(envelope);
 
             if (envelope.Data == null)
@@ -190,6 +190,39 @@ public class HandlerPipeline : IHandlerPipeline
         }
     }
 
+    // Resolve the serializer for an envelope whose runtime-only Serializer reference
+    // is no longer set. This happens on replay paths (scheduled retry, durable
+    // recovery) where the envelope is rehydrated from storage: ContentType and
+    // Destination survive, but Serializer does not. Resolve from the originating
+    // endpoint first so endpoint-scoped serializers are honored on replay exactly
+    // as they are at first receipt. This matters most for the MassTransit and
+    // NServiceBus interop serializers wired by UseMassTransitInterop() /
+    // UseNServiceBusInterop(): they register only on the listener endpoint, never in
+    // the global content-type registry. Without this, DetermineSerializer falls back
+    // to the default JSON serializer, which deserializes the un-unwrapped interop
+    // envelope root and yields an all-default message. Mirrors DeadLetterEnvelope.TryReadData.
+    private IMessageSerializer serializerFor(Envelope envelope)
+    {
+        if (envelope.ContentType.IsNotEmpty())
+        {
+            // _endpoint is set on per-listener pipelines and is the most reliable
+            // source; fall back to the persisted Destination for the global pipeline.
+            var endpoint = _endpoint ?? endpointFor(envelope.Destination);
+            var serializer = endpoint?.TryFindSerializer(envelope.ContentType);
+            if (serializer != null)
+            {
+                return serializer;
+            }
+        }
+
+        return _runtime.Options.DetermineSerializer(envelope);
+    }
+
+    private Endpoint? endpointFor(Uri? destination)
+    {
+        return destination == null ? null : _runtime.Endpoints.EndpointFor(destination);
+    }
+
     private bool RequiresEncryption(Envelope envelope)
     {
         var options = _runtime.Options;
@@ -216,7 +249,7 @@ public class HandlerPipeline : IHandlerPipeline
         if (envelope.Message == null)
         {
             var deserializationResult = await TryDeserializeEnvelope(envelope).ConfigureAwait(false);
-            if(deserializationResult is not NullContinuation)
+            if (deserializationResult is not NullContinuation)
             {
                 activity?.SetStatus(ActivityStatusCode.Error, "Serialization Failure");
                 return deserializationResult;
