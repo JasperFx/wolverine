@@ -12,6 +12,7 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
     {
         _scrapers = scrapers.ToArray();
         DbContext = dbContext;
+        MultiFlushMode = MultiFlushMode.AllowMultiples;
 
         Transaction = new EfCoreEnvelopeTransaction(dbContext, this);
     }
@@ -42,6 +43,7 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
     public DbContextOutbox(IWolverineRuntime runtime, IEnumerable<IDomainEventScraper> scrapers) : base(runtime)
     {
         _scrapers = scrapers.ToArray();
+        MultiFlushMode = MultiFlushMode.AllowMultiples;
     }
 
     public void Enroll(DbContext dbContext)
