@@ -69,6 +69,12 @@ public class MainLocalQueueDbContext(DbContextOptions<MainLocalQueueDbContext> o
     }
 }
 
+/// <summary>
+/// Raw DbContext without Wolverine's envelope mappings. This forces
+/// EfCoreEnvelopeTransaction to use raw SQL against the active message database.
+/// </summary>
+public class RawAncillaryOutboxDbContext(DbContextOptions<RawAncillaryOutboxDbContext> options) : DbContext(options);
+
 public class AncillaryLocalQueueDoc
 {
     public Guid Id { get; set; }
@@ -124,16 +130,19 @@ public static class MainLocalQueueMessageHandler
 [Collection("postgresql")]
 public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
 {
+    private NpgsqlDataSource _dataSource = null!;
     private IHost _host = null!;
 
     public async Task InitializeAsync()
     {
+        _dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
+
         // Clean up schemas from previous runs
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await using (var cmd = conn.CreateCommand())
         {
-            cmd.CommandText = "DROP SCHEMA IF EXISTS dlq_main CASCADE; DROP SCHEMA IF EXISTS dlq_ancillary CASCADE;";
+            cmd.CommandText = "DROP SCHEMA IF EXISTS dlq_main CASCADE; DROP SCHEMA IF EXISTS dlq_ancillary CASCADE; DROP SCHEMA IF EXISTS raw_outbox_ancillary CASCADE;";
             await cmd.ExecuteNonQueryAsync();
         }
         await conn.CloseAsync();
@@ -145,18 +154,26 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
 
                 // Main EF Core DbContext + message store
                 opts.Services.AddDbContextWithWolverineIntegration<MainLocalQueueDbContext>(
-                    x => x.UseNpgsql(Servers.PostgresConnectionString));
+                    x => x.UseNpgsql(_dataSource));
 
-                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "dlq_main");
+                opts.PersistMessagesWithPostgresql(_dataSource, "dlq_main");
 
                 // Ancillary EF Core DbContext + message store (same server, different schema)
                 opts.Services.AddDbContextWithWolverineIntegration<AncillaryLocalQueueDbContext>(
-                    x => x.UseNpgsql(Servers.PostgresConnectionString));
+                    x => x.UseNpgsql(_dataSource));
 
                 opts.PersistMessagesWithPostgresql(
-                        Servers.PostgresConnectionString, "dlq_ancillary",
+                        _dataSource, "dlq_ancillary",
                         MessageStoreRole.Ancillary)
                     .Enroll<AncillaryLocalQueueDbContext>();
+
+                opts.Services.AddDbContext<RawAncillaryOutboxDbContext>(
+                    x => x.UseNpgsql(_dataSource));
+
+                opts.PersistMessagesWithPostgresql(
+                        _dataSource, "raw_outbox_ancillary",
+                        MessageStoreRole.Ancillary)
+                    .Enroll<RawAncillaryOutboxDbContext>();
 
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.Policies.AutoApplyTransactions();
@@ -201,6 +218,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
     {
         await _host.StopAsync();
         _host.Dispose();
+        await _dataSource.DisposeAsync();
         NpgsqlConnection.ClearAllPools();
     }
 
@@ -267,5 +285,39 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
         var doc = await db.Docs.FindAsync(message.Id);
         doc.ShouldNotBeNull();
         doc.Name.ShouldBe("test-entity");
+    }
+
+    [Fact]
+    public async Task dbcontext_outbox_should_persist_outgoing_to_overridden_ancillary_store()
+    {
+        var runtime = _host.GetRuntime();
+        var ancillaryStore = runtime.Stores.FindAncillaryStore(typeof(RawAncillaryOutboxDbContext));
+        var envelope = new Envelope
+        {
+            Id = Guid.NewGuid(),
+            Status = EnvelopeStatus.Outgoing,
+            OwnerId = 5,
+            Data = [1, 2, 3],
+            MessageType = "raw-ancillary-outbox",
+            ContentType = EnvelopeConstants.JsonContentType,
+            Destination = new Uri("rabbitmq://queue/raw-ancillary")
+        };
+
+        using (var scope = _host.Services.CreateScope())
+        {
+            var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<RawAncillaryOutboxDbContext>>()
+                .ShouldBeOfType<DbContextOutbox<RawAncillaryOutboxDbContext>>();
+
+            outbox.OverrideStorage(ancillaryStore);
+
+            await outbox.Transaction!.PersistOutgoingAsync(envelope);
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        }
+
+        var mainOutgoing = await runtime.Storage.Admin.AllOutgoingAsync();
+        mainOutgoing.Any(x => x.Id == envelope.Id).ShouldBeFalse();
+
+        var ancillaryOutgoing = await ancillaryStore.Admin.AllOutgoingAsync();
+        ancillaryOutgoing.Single(x => x.Id == envelope.Id).MessageType.ShouldBe("raw-ancillary-outbox");
     }
 }

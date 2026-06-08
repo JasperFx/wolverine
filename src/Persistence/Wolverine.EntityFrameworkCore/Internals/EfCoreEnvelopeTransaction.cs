@@ -47,6 +47,17 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public DbContext DbContext { get; }
 
+    private IMessageDatabase ResolveCurrentDatabase()
+    {
+        if (_messaging.TryFindMessageDatabase(out var database) && database != null &&
+            database.DataSource == _database.DataSource)
+        {
+            return database;
+        }
+
+        return _database;
+    }
+
     public async Task PersistOutgoingAsync(Envelope envelope)
     {
         if (DbContext.IsWolverineEnabled())
@@ -61,7 +72,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, _database);
+            var database = ResolveCurrentDatabase();
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelope, envelope.OwnerId, database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
@@ -88,7 +100,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             }
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, _database);
+            var database = ResolveCurrentDatabase();
+            var cmd = DatabasePersistence.BuildOutgoingStorageCommand(envelopes, envelopes[0].OwnerId, database);
             cmd.Transaction = tx;
             cmd.Connection = conn;
 
@@ -111,8 +124,9 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         {
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
-            var builder = _database.ToCommandBuilder();
-            DatabasePersistence.BuildIncomingStorageCommand(_database, builder, envelope);
+            var database = ResolveCurrentDatabase();
+            var builder = database.ToCommandBuilder();
+            DatabasePersistence.BuildIncomingStorageCommand(database, builder, envelope);
 
 
             await using var command = builder.Compile();
@@ -184,10 +198,11 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             // Are we marking an existing envelope as persisted?
             if (_messaging.Envelope.WasPersistedInInbox)
             {
+                var database = ResolveCurrentDatabase();
                 var keepUntil =
                     DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
                 await using var cmd = conn.CreateCommand(
-                        $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
+                        $"update {database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
                     .With("id", _messaging.Envelope.Id)
                     .With("keep", keepUntil);
                 cmd.Transaction = tx;
