@@ -240,8 +240,8 @@ partial class Build
             BuildTestProjectsWithFramework("net9.0", persistenceTests);
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-            RunSingleProjectOneClassAtATime(persistenceTests, frameworkOverride: "net9.0");
-            RunSingleProjectOneClassAtATime(postgresqlTests);
+            RunTestProject(persistenceTests, frameworkOverride: "net9.0");
+            RunTestProject(postgresqlTests);
         });
 
     Target CISqlite => _ => _
@@ -252,7 +252,7 @@ partial class Build
 
             BuildTestProjects(sqliteTests);
 
-            RunSingleProjectOneClassAtATime(sqliteTests);
+            RunTestProject(sqliteTests);
         });
 
     Target CISqlServer => _ => _
@@ -264,7 +264,7 @@ partial class Build
             BuildTestProjects(sqlServerTests);
             StartDockerServices("sqlserver");
 
-            RunSingleProjectOneClassAtATime(sqlServerTests);
+            RunTestProject(sqlServerTests);
         });
 
     Target CIMarten => _ => _
@@ -277,15 +277,7 @@ partial class Build
             BuildTestProjects(martenTests, martenSubscriptionTests);
             StartDockerServices("postgresql");
 
-            // #2810: run each project in a single invocation rather than one
-            // dotnet-test spawn per test class. MartenTests has 111 test files;
-            // the per-class spawn overhead (process start + assembly load +
-            // xUnit discovery + per-fixture Postgres/daemon warm-up) dominated
-            // the ~22 min wall clock. Execution stays serial via the project's
-            // CollectionPerAssembly attribute, so isolation between classes is
-            // unchanged at the concurrency level — see RunWholeProjectWithRetry.
-            RunWholeProjectWithRetry(martenTests);
-            RunWholeProjectWithRetry(martenSubscriptionTests);
+            RunTestProjects([martenTests, martenSubscriptionTests]);
         });
 
     Target CIMySql => _ => _
@@ -297,7 +289,7 @@ partial class Build
             BuildTestProjects(mySqlTests);
             StartDockerServices("mysql");
 
-            RunSingleProjectOneClassAtATime(mySqlTests);
+            RunTestProject(mySqlTests);
         });
 
     Target CIOracle => _ => _
@@ -309,7 +301,7 @@ partial class Build
             BuildTestProjects(oracleTests);
             StartDockerServices("oracle");
 
-            RunSingleProjectOneClassAtATime(oracleTests);
+            RunTestProject(oracleTests);
         });
 
     Target CIEfCore => _ => _
@@ -325,8 +317,7 @@ partial class Build
             // See GH-2588.
             StartDockerServices("postgresql", "sqlserver", "rabbitmq");
 
-            RunSingleProjectOneClassAtATime(efCoreTests);
-            RunSingleProjectOneClassAtATime(efCoreMultiTenancy);
+            RunTestProjects([efCoreTests, efCoreMultiTenancy]);
         });
 
     // ─── Transport CI Targets ──────────────────────────────────────────
@@ -341,8 +332,7 @@ partial class Build
             BuildTestProjects(sqsTests, snsTests);
             StartDockerServices("localstack", "postgresql");
 
-            RunSingleProjectOneClassAtATime(sqsTests);
-            RunSingleProjectOneClassAtATime(snsTests);
+            RunTestProjects([sqsTests, snsTests]);
         });
 
     Target CIKafka => _ => _
@@ -354,7 +344,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("kafka", "postgresql");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CIMQTT => _ => _
@@ -366,7 +356,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("postgresql", "sqlserver");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CINATS => _ => _
@@ -378,7 +368,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("postgresql");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CIPulsar => _ => _
@@ -389,7 +379,7 @@ partial class Build
 
             BuildTestProjects(tests);
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CIRedis => _ => _
@@ -401,7 +391,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("postgresql");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CIHttp => _ => _
@@ -430,8 +420,7 @@ partial class Build
             BuildTestProjects(rabbitTests, circuitTests);
             StartDockerServices("rabbitmq", "postgresql", "sqlserver");
 
-            RunSingleProjectOneClassAtATime(rabbitTests);
-            RunSingleProjectOneClassAtATime(circuitTests);
+            RunTestProjects([rabbitTests, circuitTests]);
         });
 
     /// <summary>
@@ -452,7 +441,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("rabbitmq");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CICosmosDb => _ => _
@@ -464,8 +453,7 @@ partial class Build
 
             BuildTestProjects(cosmosDbTests, leaderElectionTests);
 
-            RunSingleProjectOneClassAtATime(cosmosDbTests);
-            RunSingleProjectOneClassAtATime(leaderElectionTests);
+            RunTestProjects([cosmosDbTests, leaderElectionTests]);
         });
 
     Target CIRavenDb => _ => _
@@ -477,8 +465,7 @@ partial class Build
 
             BuildTestProjectsWithFramework("net9.0", ravenDbTests, leaderElectionTests);
 
-            RunSingleProjectOneClassAtATime(ravenDbTests, frameworkOverride: "net9.0");
-            RunSingleProjectOneClassAtATime(leaderElectionTests, frameworkOverride: "net9.0");
+            RunTestProjects([ravenDbTests, leaderElectionTests], frameworkOverride: "net9.0");
         });
 
     Target CIGrpc => _ => _
@@ -489,7 +476,7 @@ partial class Build
 
             BuildTestProjects(tests);
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     // ─── AOT Smoke ──────────────────────────────────────────────────────
@@ -535,7 +522,7 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("asb-emulator");
 
-            RunSingleProjectOneClassAtATime(tests);
+            RunTestProject(tests);
         });
 
     Target CIPolecat => _ => _
@@ -547,6 +534,6 @@ partial class Build
             BuildTestProjectsWithFramework("net10.0", polecatTests);
             StartDockerServices("sqlserver");
 
-            RunSingleProjectOneClassAtATime(polecatTests, frameworkOverride: "net10.0");
+            RunTestProject(polecatTests, frameworkOverride: "net10.0");
         });
 }
