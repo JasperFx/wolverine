@@ -259,6 +259,18 @@ public sealed partial class WolverineOptions : IPolicies
         return new MessageTypePolicies<T>(this);
     }
 
+    void IPolicies.RouteMessagesToAncillaryStore<TStore>(Type[] messageTypes)
+    {
+        if (messageTypes == null || messageTypes.Length == 0)
+        {
+            throw new ArgumentException("At least one message type is required", nameof(messageTypes));
+        }
+
+        var policy = new AncillaryStoreRoutingPolicy(typeof(TStore), messageTypes);
+        RegisteredPolicies.Insert(0, policy);
+        MetadataRules.Add(policy);
+    }
+
     /// <summary>
     /// Logger level for Wolverine to use to log the successful processing of a message. The
     /// default is Information

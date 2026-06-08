@@ -142,6 +142,44 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L52-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_make_all_subscribers_be_durable' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Routing Message Types to Ancillary Stores <Badge type="tip" text="6.0" />
+
+If one or more message types create a much higher volume of durable outgoing messages than the rest of your
+application, you can isolate those messages into a separate ancillary message store. This gives the selected message
+types their own `wolverine_outgoing_envelopes` table and durability agents instead of making every outgoing message
+compete for the main outbox table.
+
+First register the main message store, then register an ancillary store and enroll it with a marker type. Finally,
+route the high-volume message types to that marker type:
+
+```cs
+public interface BulkOutboxStore;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    opts.PersistMessagesWithPostgresql(
+            connectionString,
+            "bulk_outbox",
+            role: MessageStoreRole.Ancillary)
+        .Enroll<BulkOutboxStore>();
+
+    opts.Policies.RouteMessagesToAncillaryStore<BulkOutboxStore>(
+        typeof(BulkEvent),
+        typeof(AnotherHighVolumeMessage));
+});
+```
+
+The policy affects both sides of durable persistence:
+
+* Handler chains for the matching message types are assigned to the ancillary store for durable inbox persistence.
+* Outgoing envelopes for the matching message types are stamped with the ancillary store before durable outbox persistence.
+
+This works with normal Wolverine publishing APIs, including `IMessageBus`, `IMessageContext`, and transactional outbox
+services like `IDbContextOutbox<T>`, so handlers and application services do not need to manually call
+`MessageContext.OverrideStorage()`.
+
 ### Bumping out Stale Inbox/Outbox Messages <Badge type="tip" text="5.2" />
 
 ::: warning

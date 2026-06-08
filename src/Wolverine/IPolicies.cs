@@ -149,6 +149,15 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     MessageTypePolicies<T> ForMessagesOfType<T>();
 
     /// <summary>
+    /// Route the supplied message types to the ancillary message store enrolled
+    /// with marker type <typeparamref name="TStore"/> for both durable inbox
+    /// persistence and durable outbox persistence.
+    /// </summary>
+    /// <param name="messageTypes">The message types to route to the ancillary store</param>
+    /// <typeparam name="TStore">The ancillary store marker type used with Enroll&lt;TStore&gt;()</typeparam>
+    void RouteMessagesToAncillaryStore<TStore>(params Type[] messageTypes);
+
+    /// <summary>
     /// Override the log level for Wolverine's built in logging for messages
     /// being completed successfully. This is Information by default
     /// </summary>

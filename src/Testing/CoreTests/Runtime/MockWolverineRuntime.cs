@@ -49,13 +49,20 @@ public class NullAgentFamily : IAgentFamily
 
 public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent>
 {
+    private readonly MessageStoreCollection _stores;
+
     public List<IWolverineEvent> ReceivedEvents { get; } = new();
 
-    public MockWolverineRuntime()
+    public MockWolverineRuntime() : this([])
+    {
+    }
+
+    public MockWolverineRuntime(IEnumerable<AncillaryMessageStore> ancillaryStores)
     {
         Tracker.Subscribe(this);
         MetricsAccumulator = new MetricsAccumulator(this);
         Options.ServiceName = "Mock";
+        _stores = new MessageStoreCollection(this, [], ancillaryStores);
     }
 
     public MetricsAccumulator MetricsAccumulator { get; }
@@ -122,7 +129,7 @@ public class MockWolverineRuntime : IWolverineRuntime, IObserver<IWolverineEvent
     public ILogger Logger { get; } = Substitute.For<ILogger>();
 
 
-    public MessageStoreCollection Stores => new MessageStoreCollection(this, [], []);
+    public MessageStoreCollection Stores => _stores;
 
     public ISagaStoreDiagnostics SagaStorage { get; } = Substitute.For<ISagaStoreDiagnostics>();
 
