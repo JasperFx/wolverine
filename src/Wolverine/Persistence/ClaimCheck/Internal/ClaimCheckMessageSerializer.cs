@@ -35,58 +35,86 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     public byte[] Write(Envelope envelope)
     {
         var message = envelope.Message;
-        if (message is not null)
+        // The list is owned by the caller and lives outside the try so that a partial off-load —
+        // StoreBlobsAsync throwing after it has already cleared one or more properties — is still
+        // visible to the finally and gets restored. Otherwise a failed off-load would leak cleared
+        // properties into subsequent in-process handling of the same Envelope.
+        var offloaded = new List<OffloadedBlob>();
+        try
         {
-            var info = BlobTypeInfo.For(message.GetType());
-            if (info.HasBlobs)
+            if (message is not null)
             {
+                var info = BlobTypeInfo.For(message.GetType());
+                if (info.HasBlobs)
+                {
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
-                StoreBlobsAsync(envelope, message, info).GetAwaiter().GetResult();
+                    StoreBlobsAsync(envelope, message, info, offloaded).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
+                }
             }
-        }
 
-        return _inner.Write(envelope);
+            return _inner.Write(envelope);
+        }
+        finally
+        {
+            RestoreBlobs(message, offloaded);
+        }
     }
 
     public byte[] WriteMessage(object message)
     {
-        if (message is not null)
+        var offloaded = new List<OffloadedBlob>();
+        try
         {
-            var info = BlobTypeInfo.For(message.GetType());
-            if (info.HasBlobs)
+            if (message is not null)
             {
-                // No envelope is available here so the tokens cannot be smuggled
-                // back to the consumer. We still upload the payloads for symmetry,
-                // but nullify the properties so the inner serializer doesn't pull
-                // bytes through the wire under both paths.
+                var info = BlobTypeInfo.For(message.GetType());
+                if (info.HasBlobs)
+                {
+                    // No envelope is available here so the tokens cannot be smuggled
+                    // back to the consumer. We still upload the payloads for symmetry,
+                    // but nullify the properties so the inner serializer doesn't pull
+                    // bytes through the wire under both paths.
 #pragma warning disable VSTHRD002
-                StoreBlobsAsync(envelope: null, message, info).GetAwaiter().GetResult();
+                    StoreBlobsAsync(envelope: null, message, info, offloaded).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
+                }
             }
-        }
 
-        return _inner.WriteMessage(message!);
+            return _inner.WriteMessage(message!);
+        }
+        finally
+        {
+            RestoreBlobs(message, offloaded);
+        }
     }
 
     public async ValueTask<byte[]> WriteAsync(Envelope envelope)
     {
         var message = envelope.Message;
-        if (message is not null)
+        var offloaded = new List<OffloadedBlob>();
+        try
         {
-            var info = BlobTypeInfo.For(message.GetType());
-            if (info.HasBlobs)
+            if (message is not null)
             {
-                await StoreBlobsAsync(envelope, message, info).ConfigureAwait(false);
+                var info = BlobTypeInfo.For(message.GetType());
+                if (info.HasBlobs)
+                {
+                    await StoreBlobsAsync(envelope, message, info, offloaded).ConfigureAwait(false);
+                }
             }
-        }
 
-        if (_innerAsync is not null)
+            if (_innerAsync is not null)
+            {
+                return await _innerAsync.WriteAsync(envelope).ConfigureAwait(false);
+            }
+
+            return _inner.Write(envelope);
+        }
+        finally
         {
-            return await _innerAsync.WriteAsync(envelope).ConfigureAwait(false);
+            RestoreBlobs(message, offloaded);
         }
-
-        return _inner.Write(envelope);
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)
@@ -136,7 +164,21 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
         return message;
     }
 
-    private async Task StoreBlobsAsync(Envelope? envelope, object message, BlobTypeInfo info)
+    /// <summary>
+    /// Off-load each blob property to the store and stamp the claim-check header. The property is
+    /// nulled on the message only so the inner serializer does not pull the payload bytes into the
+    /// persisted/wire body; the original payload is appended to <paramref name="offloaded"/> as soon
+    /// as it is cleared so the caller can restore the live message after serialization. This mirrors
+    /// <c>EncryptingMessageSerializer</c>, which never leaves the in-memory message mutated — a local
+    /// (in-process) hand-off reuses the same object and skips deserialization, so a leaked Clear
+    /// would reach the handler as a null property (GH claim-check local-queue re-hydration bug).
+    ///
+    /// <paramref name="offloaded"/> is owned by the caller and recorded per-property *before* the
+    /// next store call, so if this method throws partway through (e.g. the store rejects the second
+    /// of two blobs) the caller's finally still restores every property cleared so far.
+    /// </summary>
+    private async Task StoreBlobsAsync(Envelope? envelope, object message, BlobTypeInfo info,
+        List<OffloadedBlob> offloaded)
     {
         foreach (var accessor in info.Properties)
         {
@@ -152,8 +194,30 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 envelope.Headers[accessor.HeaderName] = token.Serialize();
             }
             accessor.Clear(message);
+            offloaded.Add(new OffloadedBlob(accessor, bytes));
         }
     }
+
+    /// <summary>
+    /// Re-apply the off-loaded payloads to the live in-memory message after the inner serializer
+    /// has produced the body (or after an off-load failure). <see cref="BlobPropertyAccessor.ApplyLoaded"/>
+    /// is the same routine the receive path uses to re-hydrate from the store, so a restored Stream
+    /// property comes back as a fresh readable stream rather than the consumed original.
+    /// </summary>
+    private static void RestoreBlobs(object? message, List<OffloadedBlob> offloaded)
+    {
+        if (message is null)
+        {
+            return;
+        }
+
+        foreach (var blob in offloaded)
+        {
+            blob.Accessor.ApplyLoaded(message, blob.Payload);
+        }
+    }
+
+    private readonly record struct OffloadedBlob(BlobPropertyAccessor Accessor, ReadOnlyMemory<byte> Payload);
 
     private async Task LoadBlobsAsync(Envelope envelope, object message, BlobTypeInfo info)
     {
