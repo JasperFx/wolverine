@@ -17,6 +17,8 @@ When `opts.UseClaimCheck(...)` is configured (see below), every send and receive
 
 The handler sees a fully populated message — it never has to know that the bytes traveled out of band.
 
+Once the envelope body has been serialized, the decorator **restores** each off-loaded property back onto the in-memory message. The bytes already placed on the bus are unaffected — they still carry only the claim-check token — but the live message object is left intact rather than mutated. This matters for **in-process routing**: a local queue can hand the *same* message instance to the handler without a serialize → deserialize round trip, so restoring the off-loaded properties is what guarantees the handler still sees the full payload.
+
 `[Blob]` is supported on properties typed as `byte[]`, `ReadOnlyMemory<byte>`, `System.IO.Stream`, or `string`. Use the constructor argument to declare a MIME content type that the storage backend can preserve:
 
 ```csharp
@@ -24,6 +26,8 @@ public record CreateInvoice(
     [property: Blob("application/pdf")] byte[] Pdf,
     string Reference);
 ```
+
+A `[Blob]`-marked `System.IO.Stream` is read fully into memory to off-load it, and is re-materialized as a fresh, read-only `MemoryStream` on the receiving side (and on the in-process restore described above). Don't assume the handler receives the original stream implementation or that it is positioned anywhere other than the start.
 
 ## Core abstractions
 
@@ -139,7 +143,9 @@ Each payload is written as `{id}.bin`, with a sidecar `{id}.meta` file recording
 - **Synchronous serializer hot path.** `IMessageSerializer.Write` and `IMessageSerializer.ReadFromData` are synchronous. When the inner serializer is `IAsyncMessageSerializer` (most are), the pipeline preserves async end-to-end. If your inner serializer is sync-only, the upload/download will block on the hot path; pre-uploading payloads outside the serializer is an option for very high-throughput scenarios.
 - **Backend failures.** If the store is unreachable on send, the publish fails and Wolverine's normal retry/dead-letter machinery applies. If the store is unreachable on receive, the handler chain throws and the message is retried per its failure rules — the same behavior as if the original payload were corrupted in transport.
 - **Tokens are opaque.** Don't parse `ClaimCheckToken.Id`. Backends are free to use whatever id format makes sense (`Guid.ToString("N")` for the bundled stores).
+- **Local queues and in-process routing.** A *durable* local queue serializes the envelope when it persists it, so the off-load fires for it exactly as it would for an external transport. A *buffered* (in-memory) local queue never serializes the local hand-off, so no off-load happens there. Either way the handler receives a fully-populated message: the off-loaded properties are restored on the live message after serialization (see [How it works](#how-it-works)).
+- **Off-loading requires an envelope.** The claim-check token is carried in an envelope header, so the off-load only round-trips through Wolverine's normal `Write(envelope)` / `WriteAsync(envelope)` paths. Serializing a `[Blob]` message outside that path — for example a raw `IMessageSerializer.WriteMessage(object)` call with no envelope — cannot carry the token, so the payload would not be recoverable on the other side.
 
 ## Issue tracking
 
-This feature was originally tracked in [#2412](https://github.com/JasperFx/wolverine/issues/2412).
+This feature was originally tracked in [#2412](https://github.com/JasperFx/wolverine/issues/2412). The in-process / local-queue re-hydration behavior was fixed in [#3048](https://github.com/JasperFx/wolverine/pull/3048).
