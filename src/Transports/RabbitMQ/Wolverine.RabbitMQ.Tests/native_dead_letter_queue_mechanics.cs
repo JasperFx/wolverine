@@ -6,6 +6,7 @@ using RabbitMQ.Client;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
+using Wolverine.RabbitMQ;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
@@ -75,6 +76,85 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         var queue = theTransport.Queues[QueueName];
 
         queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(RabbitMqTransport.DeadLetterQueueName);
+    }
+
+    [Fact]
+    public async Task publish_side_queue_keeps_its_custom_dead_letter_exchange_during_auto_provision()
+    {
+        var queueName = QueueName + "-publish-override";
+        var defaultDeadLetterQueueName = "default-dlx";
+        var defaultDeadLetterExchangeName = "default-dlx-exchange";
+        var overrideDeadLetterExchangeName = "override-dlx-exchange";
+
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq()
+                    .AutoProvision()
+                    .AutoPurgeOnStartup()
+                    .CustomizeDeadLetterQueueing(new DeadLetterQueue(defaultDeadLetterQueueName)
+                    {
+                        ExchangeName = defaultDeadLetterExchangeName
+                    });
+
+                opts.PublishMessage<PublishOverrideMessage>()
+                    .ToRabbitQueue(queueName)
+                    .DeadLetterQueueing(new DeadLetterQueue(queueName + "-dlq")
+                    {
+                        ExchangeName = overrideDeadLetterExchangeName
+                    });
+
+                opts.LocalRoutingConventionDisabled = true;
+            }).StartAsync();
+
+        theTransport = _host
+            .Services
+            .GetRequiredService<IWolverineRuntime>()
+            .Options
+            .Transports
+            .GetOrCreate<RabbitMqTransport>();
+
+        var queue = theTransport.Queues[queueName];
+
+        queue.DeadLetterQueue!.QueueName.ShouldBe(queueName + "-dlq");
+        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldBe(overrideDeadLetterExchangeName);
+        queue.Arguments[RabbitMqTransport.DeadLetterQueueHeader].ShouldNotBe(defaultDeadLetterExchangeName);
+    }
+
+    [Fact]
+    public async Task publish_side_queue_can_disable_dead_letter_queueing_during_auto_provision()
+    {
+        var queueName = QueueName + "-publish-disabled";
+
+        _host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq()
+                    .AutoProvision()
+                    .AutoPurgeOnStartup()
+                    .CustomizeDeadLetterQueueing(new DeadLetterQueue("default-dlx")
+                    {
+                        ExchangeName = "default-dlx-exchange"
+                    });
+
+                opts.PublishMessage<PublishOverrideMessage>()
+                    .ToRabbitQueue(queueName)
+                    .DisableDeadLetterQueueing();
+
+                opts.LocalRoutingConventionDisabled = true;
+            }).StartAsync();
+
+        theTransport = _host
+            .Services
+            .GetRequiredService<IWolverineRuntime>()
+            .Options
+            .Transports
+            .GetOrCreate<RabbitMqTransport>();
+
+        var queue = theTransport.Queues[queueName];
+
+        queue.DeadLetterQueue.ShouldBeNull();
+        queue.Arguments.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader).ShouldBeFalse();
     }
 
     [Fact]
@@ -313,6 +393,8 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
 }
 
 public record AlwaysErrors;
+
+public record PublishOverrideMessage;
 
 public static class AlwaysErrorsHandler
 {

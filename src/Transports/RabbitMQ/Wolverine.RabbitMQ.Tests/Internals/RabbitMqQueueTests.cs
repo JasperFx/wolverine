@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using RabbitMQ.Client;
 using Shouldly;
+using Wolverine.Configuration;
 using Wolverine.RabbitMQ.Internal;
 using Xunit;
 
@@ -37,7 +38,85 @@ public class RabbitMqQueueTests
         queue.Uri.ShouldBe(new Uri("random://queue/foo"));
 
     }
-    
+
+    [Fact]
+    public async Task publish_queue_dead_letter_queueing_sets_a_specific_dlq()
+    {
+        var options = new WolverineOptions();
+        options.UseRabbitMq()
+            .CustomizeDeadLetterQueueing(new DeadLetterQueue("default-dlx")
+            {
+                ExchangeName = "default-dlx-exchange"
+            });
+
+        var config = options.PublishMessage<PublishOverrideMessage>()
+            .ToRabbitQueue("publish-queue");
+
+        config.DeadLetterQueueing(new DeadLetterQueue("publish-dlx")
+        {
+            ExchangeName = "publish-dlx-exchange"
+        });
+
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var transport = options.RabbitMqTransport();
+        var queue = transport.Queues[transport.MaybeCorrectName("publish-queue")];
+
+        queue.DeadLetterQueue!.QueueName.ShouldBe("publish-dlx");
+        queue.DeadLetterQueue.ExchangeName.ShouldBe("publish-dlx-exchange");
+
+        var channel = Substitute.For<IChannel>();
+        channel.QueueDeclareAsync(default!, default, default, default, default!)
+            .ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
+
+        await queue.DeclareAsync(channel, NullLogger.Instance);
+
+        await channel.Received().QueueDeclareAsync(
+            "publish-queue",
+            queue.IsDurable,
+            queue.IsExclusive,
+            queue.AutoDelete,
+            Arg.Is<IDictionary<string, object?>>(args =>
+                args.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader) &&
+                Equals(args[RabbitMqTransport.DeadLetterQueueHeader], "publish-dlx-exchange")));
+    }
+
+    [Fact]
+    public async Task publish_queue_disable_dead_letter_queueing_clears_the_dlq()
+    {
+        var options = new WolverineOptions();
+        options.UseRabbitMq()
+            .CustomizeDeadLetterQueueing(new DeadLetterQueue("default-dlx")
+            {
+                ExchangeName = "default-dlx-exchange"
+            });
+
+        var config = options.PublishMessage<PublishOverrideMessage>()
+            .ToRabbitQueue("publish-queue");
+
+        config.DisableDeadLetterQueueing();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var transport = options.RabbitMqTransport();
+        var queue = transport.Queues[transport.MaybeCorrectName("publish-queue")];
+
+        queue.DeadLetterQueue.ShouldBeNull();
+
+        var channel = Substitute.For<IChannel>();
+        channel.QueueDeclareAsync(default!, default, default, default, default!)
+            .ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
+
+        await queue.DeclareAsync(channel, NullLogger.Instance);
+
+        await channel.Received().QueueDeclareAsync(
+            "publish-queue",
+            queue.IsDurable,
+            queue.IsExclusive,
+            queue.AutoDelete,
+            Arg.Is<IDictionary<string, object?>>(args =>
+                !args.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader)));
+    }
+
     [Fact]
     public void set_time_to_live()
     {
@@ -91,6 +170,8 @@ public class RabbitMqQueueTests
         await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
         await theChannel.DidNotReceiveWithAnyArgs().QueuePurgeAsync("foo");
     }
+
+    public record PublishOverrideMessage;
 
     [Fact]
     public async Task initialize_with_no_auto_provision_but_auto_purge_on_endpoint_only()

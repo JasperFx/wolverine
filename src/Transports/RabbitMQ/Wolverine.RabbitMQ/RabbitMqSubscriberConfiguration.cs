@@ -31,6 +31,47 @@ public class
         add(e => e.UseNServiceBusInterop());
         return this;
     }
+
+    /// <summary>
+    /// Customize the dead letter queueing for this specific publish queue.
+    /// </summary>
+    /// <param name="dlq">The dead letter queue configuration to apply.</param>
+    /// <returns></returns>
+    public RabbitMqSubscriberConfiguration DeadLetterQueueing(DeadLetterQueue dlq)
+    {
+        add(e =>
+        {
+            if (e is not RabbitMqQueue queue)
+            {
+                throw new InvalidOperationException(
+                    "DeadLetterQueueing() is only supported for publish-to-queue endpoints.");
+            }
+
+            queue.DeadLetterQueue = dlq.Clone();
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Remove dead letter queueing from this specific publish queue.
+    /// </summary>
+    /// <returns></returns>
+    public RabbitMqSubscriberConfiguration DisableDeadLetterQueueing()
+    {
+        add(e =>
+        {
+            if (e is not RabbitMqQueue queue)
+            {
+                throw new InvalidOperationException(
+                    "DisableDeadLetterQueueing() is only supported for publish-to-queue endpoints.");
+            }
+
+            queue.DeadLetterQueue = null;
+        });
+
+        return this;
+    }
 }
 
 public class RabbitMqExchangeConfiguration : InteroperableSubscriberConfiguration<RabbitMqExchangeConfiguration, RabbitMqExchange, IRabbitMqEnvelopeMapper, RabbitMqEnvelopeMapper>
