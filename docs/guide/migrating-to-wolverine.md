@@ -109,7 +109,7 @@ minimal allocations and clean exception stack traces.
 
 ::: tip
 It's an imperfect world, and Wolverine's code generation strategy can easily be an issue in production resource utilization,
-but fear not! Wolverine has [some mechanisms to avoid that problem](http://localhost:5050/guide/codegen.html#generating-code-ahead-of-time) easily in real projection usage.
+but fear not! Wolverine has [some mechanisms to avoid that problem](/guide/codegen.html#generating-code-ahead-of-time) easily in real projection usage.
 :::
 
 ### Why Pure Functions Matter
