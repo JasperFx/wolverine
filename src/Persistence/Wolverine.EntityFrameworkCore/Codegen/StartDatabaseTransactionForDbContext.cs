@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 
@@ -83,12 +84,24 @@ internal class StartDatabaseTransactionForDbContext : AsyncFrame
 /// <see cref="IFlushesMessages" /> so the chain does not also add a standalone FlushOutgoingMessages
 /// postprocessor (which would flush after the response, and before the commit). See GH-2917.
 /// </summary>
+/// <remarks>
+/// Before committing, this frame runs any registered <see cref="IDomainEventScraper" />s against the
+/// tenant DbContext exactly as <see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction.CommitAsync" />
+/// does on the single-DbContext path (via <see cref="CommitEfCoreEnvelopeTransaction" />). Unlike that
+/// path, the multi-tenant DbContext is created at runtime inside
+/// <see cref="Wolverine.EntityFrameworkCore.Internals.IDbContextBuilder{T}.BuildAndEnrollAsync" />, so the
+/// enlisted <see cref="Wolverine.EntityFrameworkCore.Internals.EfCoreEnvelopeTransaction" /> is never
+/// surfaced as a codegen variable and its <c>CommitAsync</c> is not in the generated chain. The scrape
+/// loop is therefore inlined here so that <c>PublishDomainEventsFromEntityFrameworkCore</c> works under
+/// managed multi-tenancy too.
+/// </remarks>
 internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
 {
     private readonly Type _dbContextType;
     private Variable _dbContext = null!;
     private Variable _context = null!;
     private Variable _cancellation = null!;
+    private Variable _scrapers = null!;
 
     public CommitTenantedDbContextTransaction(Type dbContextType)
     {
@@ -98,6 +111,12 @@ internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment(
+            "Scrape any domain events out of the tenant DbContext before committing (mirrors EfCoreEnvelopeTransaction.CommitAsync)");
+        writer.Write($"BLOCK:foreach (var scraper in {_scrapers.Usage})");
+        writer.Write($"await scraper.{nameof(IDomainEventScraper.ScrapeEvents)}({_dbContext.Usage}, {_context.Usage}).ConfigureAwait(false);");
+        writer.FinishBlock();
+
+        writer.WriteComment(
             "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
         writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
         writer.Write($"await {_context.Usage}.{nameof(MessageContext.FlushOutgoingMessagesAsync)}().ConfigureAwait(false);");
@@ -106,6 +125,9 @@ internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
+        _scrapers = chain.FindVariable(typeof(IEnumerable<IDomainEventScraper>));
+        yield return _scrapers;
+
         _dbContext = chain.FindVariable(_dbContextType);
         yield return _dbContext;
 
