@@ -663,7 +663,7 @@ Use individual `ListenToKafkaTopic()` calls when:
 - Topics need different processing modes (inline vs buffered vs durable)
 - You want independent scaling or error handling per topic
 
-## Externally-Owned Topics
+## Externally-Owned Topics <Badge type="tip" text="6.7" />
 
 Some topics on the Kafka cluster may be owned by an external system where your service only has consume or produce ACLs — not `CreateTopics` or `DeleteTopics`. With `AutoProvision()` enabled, Wolverine attempts to create every declared topic at startup, which fails with `Authorization failed` on topics you don't own. Likewise, `dotnet run -- resources teardown` would attempt to delete those topics.
 
@@ -688,6 +688,12 @@ opts.ListenToKafkaTopic("our-orders");
 ```
 
 The flag is per-endpoint, so externally-owned and owned topics can coexist in the same `AutoProvision()` configuration. It applies symmetrically to both `SetupAsync` (startup, `resources setup`) and `TeardownAsync` (`resources teardown`).
+
+`ExternallyOwned()` and the [Topic Creation Options](#topic-creation-options) above are the two ends of a single spectrum: use `Specification()` / `TopicCreation()` to customize how Wolverine creates topics you *do* own, and `ExternallyOwned()` to bow out entirely for topics you don't. They compose freely — you can mix all three on listeners in the same host.
+
+::: tip
+`dotnet run -- resources check` is **not** skipped for externally-owned topics. The check sends a small "ping" probe to verify each topic is reachable, which requires `Produce` access on that topic (or `KafkaUsage.ConsumeOnly` at the transport level, which skips the probe entirely). If your externally-owned topics are consume-only at the topic level but the transport publishes to other topics, prefer running `resources check` against a limited configuration, or skip it for those topics.
+:::
 
 ## Disabling all Sending
 
