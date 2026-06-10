@@ -122,7 +122,7 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
             return;
         }
 
-        if (_parent.AutoProvision && !DisableAutoProvision)
+        if (_parent.AutoProvision && !DisableAutoProvision && !IsExternallyOwned)
         {
             await _parent.WithAdminChannelAsync(model => DeclareAsync(model, logger));
         }
@@ -142,7 +142,9 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     internal async Task DeclareAsync(IChannel channel, ILogger logger)
     {
-        if (DeclaredName == string.Empty)
+        // Externally-owned exchanges are declared/managed by another system; don't touch the broker
+        // here at all (neither the exchange nor its source-exchange bindings below). GH-3064.
+        if (DeclaredName == string.Empty || IsExternallyOwned)
         {
             return;
         }
@@ -195,6 +197,15 @@ public class RabbitMqExchange : RabbitMqEndpoint, IRabbitMqExchange
 
     public override async ValueTask TeardownAsync(ILogger logger)
     {
+        // Don't delete an exchange we don't own. IsExternallyOwned is the explicit flag for that;
+        // DeclarePassive is honored here too — it means "only verify existence, never create" at setup,
+        // so deleting on teardown would be asymmetric and would destroy a resource the caller chose not
+        // to create. Bindings are likewise left alone. GH-3064 (DeclarePassive teardown fix included).
+        if (IsExternallyOwned || DeclarePassive)
+        {
+            return;
+        }
+
         await _parent.WithAdminChannelAsync(async channel =>
         {
             foreach (var binding in _exchangeBindings)

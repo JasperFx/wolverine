@@ -112,8 +112,9 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     public override async ValueTask TeardownAsync(ILogger logger)
     {
-        // This is a reply uri owned by another node, so get out of here
-        if (isSystemQueue() || AutoDelete)
+        // This is a reply uri owned by another node, so get out of here. Externally-owned queues
+        // belong to another system and must not be deleted (nor their bindings torn down). GH-3064.
+        if (isSystemQueue() || AutoDelete || IsExternallyOwned)
         {
             return;
         }
@@ -133,7 +134,8 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
     public override async ValueTask SetupAsync(ILogger logger)
     {
-        if (isSystemQueue())
+        // Externally-owned queues are declared/managed by another system; don't try to create them. GH-3064.
+        if (isSystemQueue() || IsExternallyOwned)
         {
             return;
         }
@@ -270,7 +272,9 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
 
         if (_parent.AutoProvision || _parent.AutoPurgeAllQueues || PurgeOnStartup)
         {
-            if (_parent.AutoProvision)
+            // Externally-owned queues (and their bindings) are managed by another system; skip the
+            // declare even when AutoProvision is on so startup doesn't fail without configure ACLs. GH-3064.
+            if (_parent.AutoProvision && !IsExternallyOwned)
             {
                 await DeclareAsync(channel, logger);
             }
