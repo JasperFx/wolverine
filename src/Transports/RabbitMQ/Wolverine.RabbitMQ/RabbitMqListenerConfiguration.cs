@@ -113,6 +113,18 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     }
 
     /// <summary>
+    /// Mark this queue as owned by an external system. Wolverine will not declare (create) the queue
+    /// at startup or delete it during <c>resources teardown</c>, even when <c>AutoProvision()</c> is
+    /// enabled, and will not set up or tear down its bindings. Use this when the calling identity lacks
+    /// the <c>configure</c>/<c>delete</c> permissions for the queue. See https://github.com/JasperFx/wolverine/issues/3064.
+    /// </summary>
+    public RabbitMqListenerConfiguration ExternallyOwned()
+    {
+        add(e => e.IsExternallyOwned = true);
+        return this;
+    }
+
+    /// <summary>
     /// Use a custom interoperability strategy to map Wolverine messages to an upstream
     /// system's protocol
     /// </summary>

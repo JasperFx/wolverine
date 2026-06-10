@@ -33,6 +33,21 @@ public sealed class RabbitMqExchangeConfigurationExpression : IRabbitMqBindableE
         get => _exchange.DeclarePassive;
         set => _exchange.DeclarePassive = value;
     }
+
+    /// <summary>
+    /// When <c>true</c>, Wolverine treats this exchange as owned by an external system: it will not
+    /// declare (create) it at startup or delete it during <c>resources teardown</c>, even when
+    /// <c>AutoProvision()</c> is enabled, and will not set up or tear down its bindings. Use this when
+    /// the calling identity lacks the <c>configure</c>/<c>delete</c> permissions for the exchange.
+    /// Distinct from <see cref="DeclarePassive"/>, which still touches the broker to verify existence
+    /// at startup. See https://github.com/JasperFx/wolverine/issues/3064.
+    /// </summary>
+    public bool IsExternallyOwned
+    {
+        get => _exchange.IsExternallyOwned;
+        set => _exchange.IsExternallyOwned = value;
+    }
+
     public IDictionary<string, object?> Arguments => _exchange.Arguments;
     public TopicBindingExchange BindTopic(string topicPattern)
     {

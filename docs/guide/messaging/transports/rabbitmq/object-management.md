@@ -143,6 +143,51 @@ return await app.RunJasperFxCommands(args);
 Note that this stateful resource model is also available at the command line as well for deploy time
 management.
 
+## Externally-Owned Queues and Exchanges <Badge type="tip" text="6.6" />
+
+Sometimes a queue or exchange your application uses is owned and managed by a *different* system,
+and the identity your application connects with simply does not have the `configure` or `delete`
+permissions to create or remove it. In that case you want Wolverine to *use* the queue or exchange,
+but never try to declare it at startup (even with `AutoProvision()` turned on) and never delete it
+during a resource teardown. Mark the endpoint as `ExternallyOwned()` to get exactly that behavior:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRabbitMq()
+            // AutoProvision is on for the resources this app *does* own...
+            .AutoProvision();
+
+        // ...but this queue belongs to another team. Listen to it,
+        // but never declare it at startup or delete it on teardown,
+        // and don't try to set up or tear down its bindings.
+        opts.ListenToRabbitQueue("shared-orders")
+            .ExternallyOwned();
+
+        // Same idea for an exchange we publish to but do not own
+        opts.PublishMessage<OrderPlaced>()
+            .ToRabbitExchange("shared-events")
+            .ExternallyOwned();
+    }).StartAsync();
+```
+
+When an endpoint is marked `ExternallyOwned()`, Wolverine will:
+
+* Skip declaring the queue or exchange at startup, regardless of `AutoProvision()`
+* Skip deleting it during a `resources teardown` (or the Oakton/JasperFx resource commands)
+* Skip setting up or tearing down any bindings for that resource
+
+This applies to queue listeners, queue subscribers, and exchange subscribers alike.
+
+::: tip
+`ExternallyOwned()` is distinct from `DeclarePassive`. A `DeclarePassive` exchange still makes a
+*passive* declaration against the broker at startup to verify that the resource already exists
+(failing fast if it does not), whereas an externally-owned resource never touches the broker for
+declaration at all. As of Wolverine 6.6, a `DeclarePassive` exchange is also left alone during
+resource teardown — Wolverine will not delete a resource it only verified rather than created.
+:::
+
 ## Exchange-to-Exchange Bindings
 
 Wolverine supports [RabbitMQ exchange-to-exchange bindings](https://www.rabbitmq.com/docs/e2e), which allow you

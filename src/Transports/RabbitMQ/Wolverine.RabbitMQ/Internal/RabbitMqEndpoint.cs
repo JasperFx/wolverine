@@ -23,6 +23,16 @@ public abstract partial class RabbitMqEndpoint : Endpoint<IRabbitMqEnvelopeMappe
 
     public string ExchangeName { get; protected set; } = string.Empty;
 
+    /// <summary>
+    /// When <c>true</c>, Wolverine treats this queue or exchange as owned by an external system: it
+    /// will not declare (create) it during startup or delete it during <c>resources teardown</c>, even
+    /// when <c>AutoProvision()</c> is enabled on the parent transport. Bindings owned by an
+    /// externally-owned queue/exchange are likewise left untouched. Use this when the calling identity
+    /// lacks the <c>configure</c>/<c>delete</c> permissions for the resource. Default is <c>false</c>.
+    /// See https://github.com/JasperFx/wolverine/issues/3064.
+    /// </summary>
+    public bool IsExternallyOwned { get; set; }
+
     public abstract ValueTask<bool> CheckAsync();
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);
