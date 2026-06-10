@@ -31,7 +31,7 @@ internal class TracingExecutor : IExecutor
     private readonly string _messageTypeName;
 
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
-    private readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
+    private readonly Action<ILogger, string, string, Guid, long, Exception?> _executionFinished;
     private readonly Action<ILogger, string, Guid, string, Exception?> _messageSucceeded;
     private readonly Action<ILogger, string, Guid, string, Exception> _messageFailed;
 
@@ -65,9 +65,9 @@ internal class TracingExecutor : IExecutor
             ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel,
+        _executionFinished = LoggerMessage.Define<string, string, Guid, long>(handler.ProcessingLogLevel,
             ExecutionFinishedEventId,
-            "{CorrelationId}: Finished processing {Name}#{Id}");
+            "{CorrelationId}: Finished processing {Name}#{Id}, executed in {Duration} ms");
     }
 
     public IMessageHandler Handler { get; }
@@ -108,7 +108,8 @@ internal class TracingExecutor : IExecutor
         finally
         {
             _contextPool.Return(context);
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
             activity?.Stop();
         }
     }
@@ -195,7 +196,8 @@ internal class TracingExecutor : IExecutor
         }
         finally
         {
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
         }
     }
 
@@ -276,7 +278,8 @@ internal class TracingExecutor : IExecutor
             _messageFailed(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination?.ToString() ?? "local", e);
             _contextPool.Return(context);
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
             throw;
         }
 
@@ -287,7 +290,8 @@ internal class TracingExecutor : IExecutor
             _messageSucceeded(_logger, _messageTypeName, envelope.Id,
                 envelope.Destination?.ToString() ?? "local", null);
             _contextPool.Return(context);
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
             yield break;
         }
 
@@ -326,7 +330,8 @@ internal class TracingExecutor : IExecutor
         finally
         {
             _contextPool.Return(context);
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
         }
     }
 }

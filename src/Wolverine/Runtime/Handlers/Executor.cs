@@ -44,7 +44,7 @@ internal class Executor : IExecutor
     public const int ExecutionFinishedEventId = 103;
 
     private readonly ObjectPool<MessageContext> _contextPool;
-    private readonly Action<ILogger, string, string, Guid, Exception?> _executionFinished;
+    private readonly Action<ILogger, string, string, Guid, long, Exception?> _executionFinished;
     private readonly Action<ILogger, string, string, Guid, Exception?> _executionStarted;
     private readonly ILogger _logger;
 
@@ -87,8 +87,8 @@ internal class Executor : IExecutor
         _executionStarted = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionStartedEventId,
             "{CorrelationId}: Started processing {Name}#{Id}");
 
-        _executionFinished = LoggerMessage.Define<string, string, Guid>(handler.ProcessingLogLevel, ExecutionFinishedEventId,
-            "{CorrelationId}: Finished processing {Name}#{Id}");
+        _executionFinished = LoggerMessage.Define<string, string, Guid, long>(handler.ProcessingLogLevel, ExecutionFinishedEventId,
+            "{CorrelationId}: Finished processing {Name}#{Id}, executed in {Duration} ms");
     }
 
     public IMessageHandler Handler { get; }
@@ -259,7 +259,10 @@ internal class Executor : IExecutor
         }
         finally
         {
-            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id, null);
+            // StopTiming() has already been called via _tracker.ExecutionFinished in the
+            // try/catch above, so envelope.ExecutionTime is populated by this point. GH-3063.
+            _executionFinished(_logger, envelope.CorrelationId!, _messageTypeName, envelope.Id,
+                envelope.ExecutionTime, null);
         }
     }
 
