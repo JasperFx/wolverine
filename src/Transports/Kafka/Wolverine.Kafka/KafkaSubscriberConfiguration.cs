@@ -76,4 +76,18 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
         });
         return this;
     }
+
+    /// <summary>
+    /// Marks this topic as owned by an external system. Wolverine
+    /// will not attempt to create it during startup or delete it during resource
+    /// teardown, even when AutoProvision is enabled on the parent transport.
+    /// Use this when the calling identity lacks CreateTopics or DeleteTopics
+    /// ACLs on the target topic.
+    /// </summary>
+    /// <returns></returns>
+    public KafkaSubscriberConfiguration ExternallyOwned()
+    {
+        add(topic => topic.IsExternallyOwned = true);
+        return this;
+    }
 }

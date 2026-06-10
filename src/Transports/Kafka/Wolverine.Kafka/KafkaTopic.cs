@@ -72,6 +72,15 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public bool StampConsumerGroupIdOnEnvelope { get; set; } = true;
 
+    /// <summary>
+    /// When true, Wolverine will not attempt to create or delete this topic
+    /// during transport startup or resource teardown, even when AutoProvision
+    /// is enabled on the parent transport. Use this for topics owned by an
+    /// external system where the calling identity lacks CreateTopics or
+    /// DeleteTopics ACLs. Default is false.
+    /// </summary>
+    public bool IsExternallyOwned { get; set; }
+
     public static string TopicNameForUri(Uri uri)
     {
         return uri.Segments.Last().Trim('/');
@@ -170,6 +179,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public async ValueTask TeardownAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
+
+        if (IsExternallyOwned) return;
+
         using var adminClient = Parent.CreateAdminClient();
         await adminClient.DeleteTopicsAsync([TopicName]);
     }
@@ -177,6 +189,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public async ValueTask SetupAsync(ILogger logger)
     {
         if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
+
+        if (IsExternallyOwned) return;
 
         using var adminClient = Parent.CreateAdminClient();
         Specification.Name = TopicName;
@@ -197,11 +211,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// <summary>
     /// Called during transport startup. When AutoProvision is on for the parent
     /// transport, ensure the Kafka topic exists on the broker before listeners or
-    /// senders try to use it. See https://github.com/JasperFx/wolverine/issues/2537.
+    /// senders try to use it. Topics marked <see cref="IsExternallyOwned"/> are
+    /// skipped so externally-managed topics don't fail startup when the calling
+    /// identity lacks CreateTopics ACLs.
+    /// See https://github.com/JasperFx/wolverine/issues/2537.
     /// </summary>
     public override async ValueTask InitializeAsync(ILogger logger)
     {
-        if (Parent.AutoProvision)
+        if (Parent.AutoProvision && !IsExternallyOwned)
         {
             await SetupAsync(logger);
         }

@@ -663,6 +663,32 @@ Use individual `ListenToKafkaTopic()` calls when:
 - Topics need different processing modes (inline vs buffered vs durable)
 - You want independent scaling or error handling per topic
 
+## Externally-Owned Topics
+
+Some topics on the Kafka cluster may be owned by an external system where your service only has consume or produce ACLs — not `CreateTopics` or `DeleteTopics`. With `AutoProvision()` enabled, Wolverine attempts to create every declared topic at startup, which fails with `Authorization failed` on topics you don't own. Likewise, `dotnet run -- resources teardown` would attempt to delete those topics.
+
+Mark those endpoints with `ExternallyOwned()` so Wolverine leaves their lifecycle alone while still managing the topics you do own:
+
+```csharp
+opts.UseKafka("kafka.example.com:9092").AutoProvision();
+
+// External listener — Wolverine subscribes to it, but never creates or deletes it
+opts.ListenToKafkaTopic("vendor-feed-status").ExternallyOwned();
+
+// External publisher — Wolverine produces to it, but never creates or deletes it
+opts.PublishMessage<FeedAck>()
+    .ToKafkaTopic("vendor-acks")
+    .ExternallyOwned();
+
+// External multi-topic group — all topics in the group are skipped
+opts.ListenToKafkaTopics("vendor-a", "vendor-b").ExternallyOwned();
+
+// Owned by us — still auto-created on startup, and torn down by `resources teardown`
+opts.ListenToKafkaTopic("our-orders");
+```
+
+The flag is per-endpoint, so externally-owned and owned topics can coexist in the same `AutoProvision()` configuration. It applies symmetrically to both `SetupAsync` (startup, `resources setup`) and `TeardownAsync` (`resources teardown`).
+
 ## Disabling all Sending
 
 Hey, you might have an application that only consumes Kafka messages, but there are a *few* diagnostics in Wolverine that
