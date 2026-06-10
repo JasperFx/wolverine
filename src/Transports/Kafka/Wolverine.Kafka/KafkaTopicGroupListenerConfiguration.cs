@@ -89,4 +89,18 @@ public class KafkaTopicGroupListenerConfiguration : ListenerConfiguration<KafkaT
         add(group => group.CreateTopicFunc = creation);
         return this;
     }
+
+    /// <summary>
+    /// Marks every topic in this group as owned by an external system.
+    /// Wolverine will not attempt to create them during startup or delete them
+    /// during resource teardown, even when AutoProvision is enabled on the parent
+    /// transport. Use this when the calling identity lacks CreateTopics or
+    /// DeleteTopics ACLs on the target topics.
+    /// </summary>
+    /// <returns></returns>
+    public KafkaTopicGroupListenerConfiguration ExternallyOwned()
+    {
+        add(group => group.IsExternallyOwned = true);
+        return this;
+    }
 }
