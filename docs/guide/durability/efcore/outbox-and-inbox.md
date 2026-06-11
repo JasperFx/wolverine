@@ -103,6 +103,51 @@ public async Task Post(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/EFCoreSample/ItemService/CreateItemController.cs#L12-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dbcontext_outbox_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Multiple Flushes in Batching Loops
+
+`IDbContextOutbox<T>` and `IDbContextOutbox` use the same `MessageContext` mechanics as Wolverine's
+handler pipeline. By default, `MultiFlushMode` is `OnlyOnce`. That default prevents accidental duplicate
+outgoing messages when Wolverine's generated handler pipeline reaches the flush step more than once for
+the same incoming message.
+
+If you are using the EF Core outbox directly from application code and intentionally call
+`SaveChangesAndFlushMessagesAsync()` more than once on the same scoped outbox instance, opt into multiple
+flushes for those calls:
+
+```cs
+public async Task SendInBatches(
+    IDbContextOutbox<ItemsDbContext> outbox,
+    IReadOnlyList<CreateItemCommand> commands,
+    CancellationToken cancellation)
+{
+    foreach (var chunk in commands.Chunk(500))
+    {
+        foreach (var command in chunk)
+        {
+            var item = new Item { Name = command.Name };
+            outbox.DbContext.Items.Add(item);
+
+            await outbox.PublishAsync(new ItemCreated { Id = item.Id });
+        }
+
+        await outbox.SaveChangesAndFlushMessagesAsync(MultiFlushMode.AllowMultiples, cancellation);
+    }
+}
+```
+
+Without the explicit `AllowMultiples` setting, the first batch would flush normally, but later calls to
+`SaveChangesAndFlushMessagesAsync()` in the same scoped outbox instance would be ignored by the default
+`OnlyOnce` guard. For example, sending 2,000 messages in four batches of 500 would send the first 500,
+then skip the next three flushes. With `AllowMultiples`, each batch flush is honored.
+
+Passing the mode to `SaveChangesAndFlushMessagesAsync()` applies it only to that call and then restores the
+outbox's previous mode, so the setting does not leak into other code using the same scoped outbox instance.
+
+This setting only controls whether repeated EF Core outbox flushes are honored. It does not force a broker
+transport such as Kafka to send one native producer batch of 500 messages. For Kafka, Wolverine's non-inline
+sending path can group outgoing envelopes through its batching sender, but the Kafka sender still produces
+the envelopes individually within that Wolverine batch.
+
 Or use the `IDbContextOutbox` as shown below, but in this case you will need to explicitly call `Enroll()` on
 the `IDbContextOutbox` to connect the outbox sending to the `DbContext`:
 

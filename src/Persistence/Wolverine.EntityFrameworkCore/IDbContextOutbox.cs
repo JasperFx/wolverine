@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore;
 
@@ -20,6 +21,15 @@ public interface IDbContextOutbox<T> : IMessageBus where T : DbContext
     /// <param name="token"></param>
     /// <returns></returns>
     Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default);
+
+    /// <summary>
+    ///     Saves outstanding changes in the DbContext and flushes outbox messages to the
+    ///     sending agents with an explicit multi-flush mode for just this call
+    /// </summary>
+    /// <param name="multiFlushMode"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default);
 
     /// <summary>
     ///     Calling this
@@ -54,6 +64,15 @@ public interface IDbContextOutbox : IMessageBus
     /// <param name="token"></param>
     /// <returns></returns>
     Task SaveChangesAndFlushMessagesAsync(CancellationToken token = default);
+
+    /// <summary>
+    ///     Saves outstanding changes in the DbContext and flushes outbox messages to the
+    ///     sending agents with an explicit multi-flush mode for just this call
+    /// </summary>
+    /// <param name="multiFlushMode"></param>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default);
 
     /// <summary>
     ///     Calling this
