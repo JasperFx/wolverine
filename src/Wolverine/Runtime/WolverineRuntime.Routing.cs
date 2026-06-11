@@ -128,7 +128,25 @@ internal class LocalRouting : IMessageRouteSource
         
         if (options.HandlerGraph.CanHandle(messageType))
         {
-            var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToArray();
+            var endpoints = options.LocalRouting.DiscoverSenders(messageType, runtime).ToList();
+
+            // Under MultipleHandlerBehavior.Separated, an element type may have BOTH a direct
+            // handler (covered above) AND a BatchMessagesOf<T>() batch handler living on its own
+            // dedicated queue. Fan the element type out to the batch queue as well so the batch
+            // handler runs independently of the direct handler.
+            if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated)
+            {
+                var batchDefinition = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+                if (batchDefinition?.LocalExecutionQueueName is { } batchQueueName)
+                {
+                    var batchEndpoint = options.Transports.GetOrCreate<LocalTransport>().QueueFor(batchQueueName);
+                    if (endpoints.All(e => !Equals(e.Uri, batchEndpoint.Uri)))
+                    {
+                        endpoints.Add(batchEndpoint);
+                    }
+                }
+            }
+
             return endpoints.Select(e => MessageRoute.For(messageType, e, runtime));
         }
 

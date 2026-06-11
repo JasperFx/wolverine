@@ -299,8 +299,6 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
     // populate _handlers at HandlerGraph.Compile time so the steady-state
     // hot path is pure cache lookups. The pre-population work is tracked in
     // #2769 (CloseAndBuildAs elimination).
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "FanoutMessageHandler<> closed over runtime messageType; AOT consumers pre-populate _handlers via TypeLoadMode.Static. See AOT guide / #2769.")]
     private IMessageHandler getOrBuildFanoutHandler(Type messageType, HandlerChain chain)
     {
         if (_handlers.TryFind(messageType, out var cached) && cached != null)
@@ -315,11 +313,24 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
             .Distinct()
             .ToArray();
 
-        var handlerType = typeof(FanoutMessageHandler<>).MakeGenericType(messageType);
-        var handler = (IMessageHandler)Activator.CreateInstance(handlerType, localUris, chain)!;
+        var handler = BuildFanoutHandler(messageType, chain, localUris);
 
         _handlers = _handlers.AddOrUpdate(messageType, handler);
         return handler;
+    }
+
+    // Closes FanoutMessageHandler<> over the runtime-resolved messageType and
+    // Activator.CreateInstance's the result. Used both for sticky-handler fanout
+    // (getOrBuildFanoutHandler, cached in _handlers) and for relaying an externally-
+    // arriving element type to its direct + batch local queues (NOT cached — the
+    // _handlers[messageType] slot belongs to the direct handler). AOT-clean apps in
+    // TypeLoadMode.Static pre-populate handlers at Compile time. See #2769.
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "FanoutMessageHandler<> closed over runtime messageType; AOT consumers pre-populate handlers via TypeLoadMode.Static. See AOT guide / #2769.")]
+    internal IMessageHandler BuildFanoutHandler(Type messageType, HandlerChain chain, Uri[] localQueueUris)
+    {
+        var handlerType = typeof(FanoutMessageHandler<>).MakeGenericType(messageType);
+        return (IMessageHandler)Activator.CreateInstance(handlerType, localQueueUris, chain)!;
     }
 
     // Compile is the bootstrap-time handler-graph build. The remaining IL2026

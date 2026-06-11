@@ -131,8 +131,39 @@ public async Task send_end_to_end_with_batch()
 Alright, with all that being said, here's a few more facts about the batch messaging support:
 
 1. There is absolutely no need to create a specific message handler for the `Item` message, and in fact, you should
-   not do so
+   not do so -- *unless* you are running in `MultipleHandlerBehavior.Separated` mode and deliberately want both a
+   per-message handler and a batched handler (see [Combining a direct handler with batching](#combining-a-direct-handler-with-batching) below)
 2. The message batching is able to group the message batches by tenant id *if* your Wolverine system uses multi-tenancy
+
+## Combining a direct handler with batching
+
+By default Wolverine assumes the batch handler is the *only* consumer of the element type, so an incoming `Item`
+is always routed straight to the batch. If you *also* declare a direct `Handle(Item)` handler alongside
+`BatchMessagesOf<Item>()`, the direct handler wins and the batch is silently shadowed -- the batched handler never runs.
+
+The one exception is `MultipleHandlerBehavior.Separated`. Under that mode Wolverine treats the per-message handler and
+the batched handler as two independent consumers of `Item`, so **both** run for every `Item`:
+
+```csharp
+opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+opts.BatchMessagesOf<Item>();
+
+// Direct, per-message handler
+public static class ItemAuditHandler
+{
+    public static void Handle(Item item) { /* runs once per message */ }
+}
+
+// Batched handler
+public static class ItemHandler
+{
+    public static void Handle(Item[] items) { /* runs once per assembled batch */ }
+}
+```
+
+To make this work, Wolverine moves the batch onto its own dedicated local queue (the element type's queue name with a
+`-batch` suffix) so it no longer collides with the direct handler's queue, and fans every `Item` out to both queues.
+This applies to messages published in-process *and* to `Item` messages arriving from an external transport listener.
 
 ## What about durable messaging ("inbox")?
 
