@@ -60,7 +60,9 @@ internal class EventStoreAgents : IAsyncDisposable
             daemon = await _store.BuildProjectionDaemonAsync(databaseId);
             foreach (var observer in _observers)
             {
-                daemon.Tracker.Subscribe(observer);
+                // JasperFx/ProductSupport#5 — defer to the upstream stamping
+                // extension so the same shape lands on both Marten and Polecat.
+                daemon.SubscribeWithStoreUriStamp(observer);
             }
 
             _daemons = _daemons.AddOrUpdate(databaseId, daemon);

@@ -62,7 +62,14 @@ internal class EventStoreAgents : IAsyncDisposable
             foreach (var observer in _observers)
             {
                 // TODO -- do we need to care about un-subscribing?
-                daemon.Tracker.Subscribe(observer);
+                // JasperFx/ProductSupport#5 — wrap the observer so the owning
+                // store's URI rides through on every ShardState, then forward
+                // to the daemon's Tracker. The Tracker itself is shared across
+                // stores attached to the same database, so the stamping
+                // has to happen one level up where the store identity is
+                // known. Stamping lives in JasperFx.Events as a shared
+                // helper; Marten + Polecat call it the same way.
+                daemon.SubscribeWithStoreUriStamp(observer);
             }
             
             _daemons = _daemons.AddOrUpdate(databaseId, daemon);
