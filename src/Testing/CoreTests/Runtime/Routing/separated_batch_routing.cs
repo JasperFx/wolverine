@@ -1,55 +1,26 @@
-using JasperFx.Core;
+using CoreTests.Acceptance;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Hosting;
+using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Local;
 using Xunit;
 
-namespace CoreTests.Bugs;
+namespace CoreTests.Runtime.Routing;
 
-// Reproduction of the dom-order-api Funding scenario:
-//   - MultipleHandlerBehavior.Separated
-//   - BatchMessagesOf<LoadEvent>()
-//   - LoadPublisher: batch handler  Handle(LoadEvent[] messages)
-//   - LoadTelemetry: single handler Handle(LoadEvent e)
-// Under Separated mode, a LoadEvent must invoke BOTH the direct handler AND the batch
-// handler. Before the fix the direct handler silently shadowed the batch.
-public class Bug_separated_batch_and_single_handler
+// Routing and executor-resolution mechanics for the Separated-mode batching scenarios whose
+// end-to-end behavior is covered in CoreTests.Acceptance.batching_with_separated_handlers. These
+// assert how a conflicting element type is routed (fan-out to the dedicated -batch queue) and how
+// the dedicated batch queue / external listener / produced-batch queue resolve to the right handler.
+//
+// Shares the handler + message types (LoadEvent/InvoiceEvent ...) with the batching suite.
+public class separated_batch_routing
 {
-    [Fact]
-    public async Task separated_direct_and_batch_handler_both_run_on_local_publish()
-    {
-        using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
-            {
-                opts.Discovery.DisableConventionalDiscovery()
-                    .IncludeType(typeof(LoadPublisher))
-                    .IncludeType(typeof(LoadTelemetry));
-
-                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-                opts.BatchMessagesOf<LoadEvent>(b => b.TriggerTime = 250.Milliseconds());
-            })
-            .StartAsync();
-
-        LoadPublisher.BatchCalls.Clear();
-        LoadTelemetry.SingleCalls.Clear();
-
-        await host.TrackActivity()
-            .Timeout(10.Seconds())
-            .WaitForMessageToBeReceivedAt<LoadEvent[]>(host)
-            .ExecuteAndWaitAsync(c => c.PublishAsync(new LoadEvent(1)));
-
-        // The direct telemetry handler runs per-message...
-        LoadTelemetry.SingleCalls.Count.ShouldBe(1);
-        // ...and the batch publisher handler also runs on the batched array.
-        LoadPublisher.BatchCalls.Count.ShouldBe(1);
-        LoadPublisher.BatchCalls[0].Select(x => x.Id).ShouldBe([1]);
-    }
-
     [Fact]
     public async Task batch_lives_on_its_own_queue_and_message_fans_out_to_both()
     {
@@ -83,7 +54,7 @@ public class Bug_separated_batch_and_single_handler
         var batchQueue = runtime.Endpoints.EndpointFor(batchUri)!;
         var batchHandler = runtime.As<IExecutorFactory>().BuildFor(typeof(LoadEvent), batchQueue)
             .ShouldBeOfType<Executor>().Handler;
-        batchHandler.ShouldBeOfType<Wolverine.Runtime.Batching.BatchingProcessor<LoadEvent>>();
+        batchHandler.ShouldBeOfType<BatchingProcessor<LoadEvent>>();
     }
 
     [Fact]
@@ -115,26 +86,33 @@ public class Bug_separated_batch_and_single_handler
             .ShouldBeOfType<Executor>().Handler;
         handler.ShouldBeOfType<FanoutMessageHandler<LoadEvent>>();
     }
-}
 
-public record LoadEvent(int Id);
-
-public static class LoadPublisher
-{
-    public static readonly List<LoadEvent[]> BatchCalls = new();
-
-    public static void Handle(LoadEvent[] messages)
+    [Fact]
+    public async Task produced_array_fans_out_to_each_sticky_handler_queue()
     {
-        BatchCalls.Add(messages);
-    }
-}
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType(typeof(InvoicePublisher))
+                    .IncludeType(typeof(InvoiceArchiver));
 
-public static class LoadTelemetry
-{
-    public static readonly List<LoadEvent> SingleCalls = new();
+                opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+                opts.BatchMessagesOf<InvoiceEvent>();
+            })
+            .StartAsync();
 
-    public static void Handle(LoadEvent e)
-    {
-        SingleCalls.Add(e);
+        var runtime = host.GetRuntime();
+
+        // The batch's execution queue receives the produced InvoiceEvent[]...
+        var batch = runtime.Options.BatchDefinitions.Single();
+        var batchUri = new Uri("local://" + batch.LocalExecutionQueueName);
+        var batchQueue = runtime.Endpoints.EndpointFor(batchUri)!;
+
+        // ...but the two Handle(InvoiceEvent[]) handlers were separated onto their own sticky queues,
+        // so the array must fan out from the batch queue to each of them.
+        var handler = runtime.As<IExecutorFactory>().BuildFor(typeof(InvoiceEvent[]), batchQueue)
+            .ShouldBeOfType<Executor>().Handler;
+        handler.ShouldBeOfType<FanoutMessageHandler<InvoiceEvent[]>>();
     }
 }

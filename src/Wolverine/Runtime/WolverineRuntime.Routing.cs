@@ -134,17 +134,10 @@ internal class LocalRouting : IMessageRouteSource
             // handler (covered above) AND a BatchMessagesOf<T>() batch handler living on its own
             // dedicated queue. Fan the element type out to the batch queue as well so the batch
             // handler runs independently of the direct handler.
-            if (options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated)
+            var batchEndpoint = FindSeparatedBatchEndpoint(messageType, options);
+            if (batchEndpoint != null && endpoints.All(e => !Equals(e.Uri, batchEndpoint.Uri)))
             {
-                var batchDefinition = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
-                if (batchDefinition?.LocalExecutionQueueName is { } batchQueueName)
-                {
-                    var batchEndpoint = options.Transports.GetOrCreate<LocalTransport>().QueueFor(batchQueueName);
-                    if (endpoints.All(e => !Equals(e.Uri, batchEndpoint.Uri)))
-                    {
-                        endpoints.Add(batchEndpoint);
-                    }
-                }
+                endpoints.Add(batchEndpoint);
             }
 
             return endpoints.Select(e => MessageRoute.For(messageType, e, runtime));
@@ -161,6 +154,29 @@ internal class LocalRouting : IMessageRouteSource
 
         return [MessageRoute.For(messageType, endpoint, runtime)];
 
+    }
+
+    /// <summary>
+    /// Under <see cref="MultipleHandlerBehavior.Separated"/>, an element type that has a direct
+    /// handler may ALSO have a <c>BatchMessagesOf&lt;T&gt;()</c> batch handler living on its own
+    /// dedicated local queue. Returns that batch queue endpoint (if any) so the element type can be
+    /// fanned out to it in addition to the direct handler's queue. Returns null when not in
+    /// Separated mode or when the element type has no batch definition.
+    /// </summary>
+    private static LocalQueue? FindSeparatedBatchEndpoint(Type messageType, WolverineOptions options)
+    {
+        if (options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        {
+            return null;
+        }
+
+        var batchDefinition = options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
+        if (batchDefinition?.LocalExecutionQueueName is { } batchQueueName)
+        {
+            return options.Transports.GetOrCreate<LocalTransport>().QueueFor(batchQueueName);
+        }
+
+        return null;
     }
 
     public bool IsAdditive { get; set; }
