@@ -33,6 +33,21 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
 
         await FlushOutgoingMessagesAsync();
     }
+
+    public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)
+    {
+        var previous = MultiFlushMode;
+        MultiFlushMode = multiFlushMode;
+
+        try
+        {
+            await SaveChangesAndFlushMessagesAsync(token).ConfigureAwait(false);
+        }
+        finally
+        {
+            MultiFlushMode = previous;
+        }
+    }
 }
 
 public class DbContextOutbox : MessageContext, IDbContextOutbox
@@ -73,5 +88,20 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
         }
 
         await FlushOutgoingMessagesAsync();
+    }
+
+    public async Task SaveChangesAndFlushMessagesAsync(MultiFlushMode multiFlushMode, CancellationToken token = default)
+    {
+        var previous = MultiFlushMode;
+        MultiFlushMode = multiFlushMode;
+
+        try
+        {
+            await SaveChangesAndFlushMessagesAsync(token).ConfigureAwait(false);
+        }
+        finally
+        {
+            MultiFlushMode = previous;
+        }
     }
 }

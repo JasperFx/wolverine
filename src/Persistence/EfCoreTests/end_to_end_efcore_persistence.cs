@@ -371,6 +371,92 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     }
 
     [Fact]
+    public async Task DbContextOutbox_generic_can_opt_into_multiple_save_changes_and_flush_calls_in_one_scope()
+    {
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+
+        var waiter1 = OutboxedMessageHandler.WaitForNextMessage();
+
+        using (var nested = Host.Services.CreateScope())
+        {
+            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<ItemsDbContext>>();
+            var context = outbox.ShouldBeOfType<DbContextOutbox<ItemsDbContext>>();
+
+            context.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            outbox.DbContext.Items.Add(new Item { Id = id1, Name = "First" });
+            await outbox.SendAsync(new OutboxedMessage { Id = id1 });
+            await outbox.SaveChangesAndFlushMessagesAsync(MultiFlushMode.AllowMultiples);
+            context.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            var message1 = await waiter1;
+            message1.Id.ShouldBe(id1);
+
+            var waiter2 = OutboxedMessageHandler.WaitForNextMessage();
+
+            outbox.DbContext.Items.Add(new Item { Id = id2, Name = "Second" });
+            await outbox.SendAsync(new OutboxedMessage { Id = id2 });
+            await outbox.SaveChangesAndFlushMessagesAsync(MultiFlushMode.AllowMultiples);
+            context.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            var message2 = await waiter2;
+            message2.Id.ShouldBe(id2);
+        }
+
+        using (var nested = Host.Services.CreateScope())
+        {
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
+            (await context.Items.FindAsync(id1)).ShouldNotBeNull();
+            (await context.Items.FindAsync(id2)).ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
+    public async Task DbContextOutbox_non_generic_can_opt_into_multiple_save_changes_and_flush_calls_in_one_scope()
+    {
+        var id1 = Guid.NewGuid();
+        var id2 = Guid.NewGuid();
+
+        var waiter1 = OutboxedMessageHandler.WaitForNextMessage();
+
+        using (var nested = Host.Services.CreateScope())
+        {
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
+            var outbox = nested.ServiceProvider.GetRequiredService<IDbContextOutbox>();
+            var messageContext = outbox.ShouldBeOfType<DbContextOutbox>();
+
+            outbox.Enroll(context);
+            messageContext.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            context.Items.Add(new Item { Id = id1, Name = "First" });
+            await outbox.SendAsync(new OutboxedMessage { Id = id1 });
+            await outbox.SaveChangesAndFlushMessagesAsync(MultiFlushMode.AllowMultiples);
+            messageContext.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            var message1 = await waiter1;
+            message1.Id.ShouldBe(id1);
+
+            var waiter2 = OutboxedMessageHandler.WaitForNextMessage();
+
+            context.Items.Add(new Item { Id = id2, Name = "Second" });
+            await outbox.SendAsync(new OutboxedMessage { Id = id2 });
+            await outbox.SaveChangesAndFlushMessagesAsync(MultiFlushMode.AllowMultiples);
+            messageContext.MultiFlushMode.ShouldBe(MultiFlushMode.OnlyOnce);
+
+            var message2 = await waiter2;
+            message2.Id.ShouldBe(id2);
+        }
+
+        using (var nested = Host.Services.CreateScope())
+        {
+            var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
+            (await context.Items.FindAsync(id1)).ShouldNotBeNull();
+            (await context.Items.FindAsync(id2)).ShouldNotBeNull();
+        }
+    }
+
+    [Fact]
     public async Task use_generic_outbox_mapped()
     {
         var id = Guid.NewGuid();
