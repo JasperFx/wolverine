@@ -5,6 +5,10 @@ namespace Wolverine.Tracking;
 
 internal class EnvelopeHistory
 {
+    // Records arrive concurrently from parallel transport listener threads (e.g. multiple
+    // Rabbit MQ queues) when external transports are tracked, so every access to _records
+    // has to be synchronized
+    private readonly object _lock = new();
     private readonly List<EnvelopeRecord> _records = new();
 
     public EnvelopeHistory(Guid envelopeId)
@@ -18,12 +22,24 @@ internal class EnvelopeHistory
     {
         get
         {
-            return _records
-                .FirstOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
+            lock (_lock)
+            {
+                return _records
+                    .FirstOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
+            }
         }
     }
 
-    public IEnumerable<EnvelopeRecord> Records => _records;
+    public IEnumerable<EnvelopeRecord> Records
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _records.ToArray();
+            }
+        }
+    }
 
     private EnvelopeRecord? lastOf(MessageEventType eventType)
     {
@@ -51,141 +67,149 @@ internal class EnvelopeHistory
     // ReSharper disable once CyclomaticComplexity
     public void RecordLocally(EnvelopeRecord record)
     {
-        switch (record.MessageEventType)
+        lock (_lock)
         {
-            case MessageEventType.Sent:
-                // Not tracking anything outgoing
-                // when it's testing locally
-                if (record.Envelope!.Destination?.Scheme != TransportConstants.Local ||
-                    record.Envelope.MessageType == TransportConstants.ScheduledEnvelope)
-                {
+            switch (record.MessageEventType)
+            {
+                case MessageEventType.Sent:
+                    // Not tracking anything outgoing
+                    // when it's testing locally
+                    if (record.Envelope!.Destination?.Scheme != TransportConstants.Local ||
+                        record.Envelope.MessageType == TransportConstants.ScheduledEnvelope)
+                    {
+                        record.IsComplete = true;
+                        record.WasScheduled = true;
+                    }
+
+                    if (record.Envelope.Status == EnvelopeStatus.Scheduled)
+                    {
+                        record.WasScheduled = true;
+                        record.IsComplete = true;
+                    }
+
+                    break;
+
+                case MessageEventType.Received:
+                    if (record.Envelope!.Destination?.Scheme == TransportConstants.Local)
+                    {
+                        markLastCompleted(MessageEventType.Sent);
+                    }
+
+                    break;
+
+                case MessageEventType.ExecutionStarted:
+                    // Nothing special here
+                    break;
+
+
+                case MessageEventType.ExecutionFinished:
+                    markLastCompleted(MessageEventType.ExecutionStarted);
                     record.IsComplete = true;
-                    record.WasScheduled = true;
-                }
+                    break;
 
-                if (record.Envelope.Status == EnvelopeStatus.Scheduled)
-                {
-                    record.WasScheduled = true;
+                case MessageEventType.NoHandlers:
+                case MessageEventType.NoRoutes:
+                case MessageEventType.MessageFailed:
+                case MessageEventType.MessageSucceeded:
+                case MessageEventType.Discarded:
+                case MessageEventType.MovedToErrorQueue:
+                    // The message is complete
+                    foreach (var envelopeRecord in _records) envelopeRecord.IsComplete = true;
+
                     record.IsComplete = true;
-                }
 
-                break;
+                    break;
 
-            case MessageEventType.Received:
-                if (record.Envelope!.Destination?.Scheme == TransportConstants.Local)
-                {
-                    markLastCompleted(MessageEventType.Sent);
-                }
+                case MessageEventType.Requeued:
+                    // Do nothing, just informative
+                    break;
 
-                break;
+                case MessageEventType.AutoFaultPublished:
+                    // Informational marker derived from the outgoing Sent envelope; never blocks completion.
+                    record.IsComplete = true;
+                    break;
 
-            case MessageEventType.ExecutionStarted:
-                // Nothing special here
-                break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType,
+                        null);
+            }
 
-
-            case MessageEventType.ExecutionFinished:
-                markLastCompleted(MessageEventType.ExecutionStarted);
-                record.IsComplete = true;
-                break;
-
-            case MessageEventType.NoHandlers:
-            case MessageEventType.NoRoutes:
-            case MessageEventType.MessageFailed:
-            case MessageEventType.MessageSucceeded:
-            case MessageEventType.Discarded:
-            case MessageEventType.MovedToErrorQueue:
-                // The message is complete
-                foreach (var envelopeRecord in _records) envelopeRecord.IsComplete = true;
-
-                record.IsComplete = true;
-
-                break;
-
-            case MessageEventType.Requeued:
-                // Do nothing, just informative
-                break;
-
-            case MessageEventType.AutoFaultPublished:
-                // Informational marker derived from the outgoing Sent envelope; never blocks completion.
-                record.IsComplete = true;
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);
+            _records.Add(record);
         }
-
-        _records.Add(record);
     }
 
     public void RecordCrossApplication(EnvelopeRecord record)
     {
-        switch (record.MessageEventType)
+        lock (_lock)
         {
-            case MessageEventType.Sent:
-                if (record.Envelope!.Status == EnvelopeStatus.Scheduled)
-                {
-                    record.WasScheduled = true;
+            switch (record.MessageEventType)
+            {
+                case MessageEventType.Sent:
+                    if (record.Envelope!.Status == EnvelopeStatus.Scheduled)
+                    {
+                        record.WasScheduled = true;
+                        record.IsComplete = true;
+
+                        record.TryUseInnerFromScheduledEnvelope();
+                    }
+
+                    // This can be out of order with Rabbit MQ *somehow*, so:
+                    var received = _records.LastOrDefault(x => x.MessageEventType == MessageEventType.Received);
+                    if (received != null)
+                    {
+                        record.IsComplete = true;
+                    }
+
+                    break;
+
+                case MessageEventType.ExecutionStarted:
+                    break;
+
+                case MessageEventType.Received:
+                    markLastCompleted(MessageEventType.Sent);
+                    break;
+
+
+                case MessageEventType.ExecutionFinished:
+                    markLastCompleted(MessageEventType.ExecutionStarted, record.UniqueNodeId);
+                    record.IsComplete = true;
+                    break;
+
+                case MessageEventType.MovedToErrorQueue:
+                case MessageEventType.MessageFailed:
+                case MessageEventType.Discarded:
+                case MessageEventType.MessageSucceeded:
+                    // The message is complete
+                    for (var i = 0; i < _records.Count; i++)
+                    {
+                        if (_records[i].UniqueNodeId == record.UniqueNodeId)
+                            _records[i].IsComplete = true;
+                    }
+
                     record.IsComplete = true;
 
-                    record.TryUseInnerFromScheduledEnvelope();
-                }
+                    break;
 
-                // This can be out of order with Rabbit MQ *somehow*, so:
-                var received = _records.LastOrDefault(x => x.MessageEventType == MessageEventType.Received);
-                if (received != null)
-                {
+                case MessageEventType.NoHandlers:
+                case MessageEventType.NoRoutes:
                     record.IsComplete = true;
-                }
+                    break;
 
-                break;
+                case MessageEventType.Requeued:
+                    break;
 
-            case MessageEventType.ExecutionStarted:
-                break;
+                case MessageEventType.AutoFaultPublished:
+                    // Informational marker derived from the outgoing Sent envelope; never blocks completion.
+                    record.IsComplete = true;
+                    break;
 
-            case MessageEventType.Received:
-                markLastCompleted(MessageEventType.Sent);
-                break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType,
+                        null);
+            }
 
-
-            case MessageEventType.ExecutionFinished:
-                markLastCompleted(MessageEventType.ExecutionStarted, record.UniqueNodeId);
-                record.IsComplete = true;
-                break;
-
-            case MessageEventType.MovedToErrorQueue:
-            case MessageEventType.MessageFailed:
-            case MessageEventType.Discarded:
-            case MessageEventType.MessageSucceeded:
-                // The message is complete
-                for (var i = 0; i < _records.Count; i++)
-                {
-                    if (_records[i].UniqueNodeId == record.UniqueNodeId)
-                        _records[i].IsComplete = true;
-                }
-
-                record.IsComplete = true;
-
-                break;
-
-            case MessageEventType.NoHandlers:
-            case MessageEventType.NoRoutes:
-                record.IsComplete = true;
-                break;
-
-            case MessageEventType.Requeued:
-                break;
-
-            case MessageEventType.AutoFaultPublished:
-                // Informational marker derived from the outgoing Sent envelope; never blocks completion.
-                record.IsComplete = true;
-                break;
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(record.MessageEventType), record.MessageEventType, null);
+            _records.Add(record);
         }
-
-        _records.Add(record);
     }
 
     private void markLastCompleted(MessageEventType eventType, Guid uniqueNodeId)
@@ -199,28 +223,37 @@ internal class EnvelopeHistory
 
     public bool IsComplete()
     {
-        for (var i = 0; i < _records.Count; i++)
+        lock (_lock)
         {
-            if (!_records[i].IsComplete) return false;
-        }
+            for (var i = 0; i < _records.Count; i++)
+            {
+                if (!_records[i].IsComplete) return false;
+            }
 
-        return true;
+            return true;
+        }
     }
 
     public bool Has(MessageEventType eventType)
     {
-        for (var i = 0; i < _records.Count; i++)
+        lock (_lock)
         {
-            if (_records[i].MessageEventType == eventType) return true;
-        }
+            for (var i = 0; i < _records.Count; i++)
+            {
+                if (_records[i].MessageEventType == eventType) return true;
+            }
 
-        return false;
+            return false;
+        }
     }
 
     public object? MessageFor(MessageEventType eventType)
     {
-        return _records.Where(x => x.MessageEventType == eventType)
-            .LastOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
+        lock (_lock)
+        {
+            return _records.Where(x => x.MessageEventType == eventType)
+                .LastOrDefault(x => x.Envelope!.Message != null)?.Envelope!.Message;
+        }
     }
 
     public override string ToString()

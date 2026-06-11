@@ -17,6 +17,9 @@ internal partial class TrackedSession : ITrackedSession
     private readonly IList<ITrackedCondition> _conditions = new List<ITrackedCondition>();
 
     private Cache<Guid, EnvelopeHistory> _envelopes = new(id => new EnvelopeHistory(id));
+
+    // _statuses and _exceptions are appended from concurrent transport listener threads,
+    // so all access is synchronized by locking on the collection instance itself
     private readonly List<EnvelopeRecord> _statuses = new();
 
     private readonly IList<Exception> _exceptions = new List<Exception>();
@@ -143,14 +146,14 @@ internal partial class TrackedSession : ITrackedSession
 
     public EnvelopeRecord[] AllRecordsInOrder()
     {
-        return _envelopes.SelectMany(x => x.Records).Concat(_statuses).OrderBy(x => x.SessionTime).ToArray();
+        return _envelopes.SelectMany(x => x.Records).Concat(statusesSnapshot()).OrderBy(x => x.SessionTime).ToArray();
     }
 
     public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
     {
         return _envelopes
             .SelectMany(x => x.Records)
-            .Concat(_statuses)
+            .Concat(statusesSnapshot())
             .Where(x => x.MessageEventType == eventType)
             .OrderBy(x => x.SessionTime)
             .ToArray();
@@ -159,8 +162,24 @@ internal partial class TrackedSession : ITrackedSession
     public IReadOnlyList<Exception> AllExceptions()
     {
         return _envelopes.SelectMany(x => x.Records)
-            .Select(x => x.Exception).Where(x => x != null).Concat(_exceptions)
+            .Select(x => x.Exception).Where(x => x != null).Concat(exceptionsSnapshot())
             .Distinct().ToList()!;
+    }
+
+    private EnvelopeRecord[] statusesSnapshot()
+    {
+        lock (_statuses)
+        {
+            return _statuses.ToArray();
+        }
+    }
+
+    private Exception[] exceptionsSnapshot()
+    {
+        lock (_exceptions)
+        {
+            return _exceptions.ToArray();
+        }
     }
 
     public void AssertCondition(string message, Func<bool> condition)
@@ -280,9 +299,10 @@ internal partial class TrackedSession : ITrackedSession
     
     public void AssertNoExceptionsWereThrown()
     {
-        if (_exceptions.Count > 0)
+        var exceptions = exceptionsSnapshot();
+        if (exceptions.Length > 0)
         {
-            throw new AggregateException(_exceptions);
+            throw new AggregateException(exceptions);
         }
     }
 
@@ -345,11 +365,12 @@ internal partial class TrackedSession : ITrackedSession
             foreach (var condition in _conditions) writer.WriteLine($"{condition} ({condition.IsCompleted()})");
         }
 
-        if (_exceptions.Any())
+        var exceptions = exceptionsSnapshot();
+        if (exceptions.Any())
         {
             writer.WriteLine();
             writer.WriteLine("Exceptions detected: ");
-            foreach (var exception in _exceptions)
+            foreach (var exception in exceptions)
             {
                 writer.WriteLine(exception.ToString());
                 writer.WriteLine();
@@ -484,7 +505,10 @@ internal partial class TrackedSession : ITrackedSession
 
         if (ex != null)
         {
-            _exceptions.Add(ex);
+            lock (_exceptions)
+            {
+                _exceptions.Add(ex);
+            }
         }
 
         // Auto-fault detection: if this is a Sent event for an envelope that the failure
@@ -539,7 +563,10 @@ internal partial class TrackedSession : ITrackedSession
     public void LogException(Exception exception, string? serviceName)
     {
         Debug.WriteLine($"Exception Occurred in {serviceName}: {exception}");
-        _exceptions.Add(exception);
+        lock (_exceptions)
+        {
+            _exceptions.Add(exception);
+        }
     }
 
     public void AddCondition(ITrackedCondition condition)
@@ -552,7 +579,7 @@ internal partial class TrackedSession : ITrackedSession
     {
         var conditions = $"Conditions:\n{_conditions.Select(x => x.ToString())!.Join("\n")}";
         var activity = $"Activity:\n{AllRecordsInOrder().Select(x => x.ToString()).Join("\n")}";
-        var exceptions = $"Exceptions:\n{_exceptions.Select(x => x.ToString()).Join("\n")}";
+        var exceptions = $"Exceptions:\n{exceptionsSnapshot().Select(x => x.ToString()).Join("\n")}";
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
     }
@@ -565,7 +592,10 @@ internal partial class TrackedSession : ITrackedSession
     public void LogStatus(string message)
     {
         var record = new EnvelopeRecord(MessageEventType.Status, null, _stopwatch.ElapsedMilliseconds, null);
-        _statuses.Add(record);
+        lock (_statuses)
+        {
+            _statuses.Add(record);
+        }
     }
 }
 
