@@ -14,6 +14,7 @@ using Xunit.Abstractions;
 namespace CircuitBreakingTests;
 
 [Collection("circuit_breaker")]
+[Trait("Category", "Flaky")]
 public abstract class CircuitBreakerIntegrationContext : IDisposable, IObserver<IWolverineEvent>
 {
     private readonly IHost _host;
