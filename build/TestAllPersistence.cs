@@ -22,86 +22,6 @@ partial class Build
         });
 
     /// <summary>
-    /// Discovers test classes from a compiled test project by running <c>dotnet test --list-tests</c>.
-    /// Returns the set of fully-qualified class names that contain at least one test.
-    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
-    /// </summary>
-    static string[] DiscoverTestClassesFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
-    {
-        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
-        if (!string.IsNullOrEmpty(frameworkOverride))
-            args += $" --framework {frameworkOverride}";
-
-        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
-        process.AssertWaitForExit();
-
-        var classes = new HashSet<string>();
-        // Test lines are indented (start with whitespace):
-        //   Namespace.ClassName.MethodName                          ([Fact])
-        //   Namespace.ClassName.MethodName(param: value)            ([Theory] + [InlineData])
-        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
-        // Class name = everything before the last dot BEFORE the first '('.
-        // Truncating at '(' first avoids dots in parameter values (e.g. "http://example").
-        foreach (var raw in process.Output.Select(line => line.Text))
-        {
-            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;  // skip header lines
-            var text = raw.Trim();
-
-            // Strip parameters before splitting: "method(param: val)" -> "method"
-            var paren = text.IndexOf('(');
-            var stripped = paren >= 0 ? text[..paren] : text;
-
-            var lastDot = stripped.LastIndexOf('.');
-            if (lastDot > 0)
-                classes.Add(stripped[..lastDot]);
-        }
-
-        return [.. classes];
-    }
-
-    /// <summary>
-    /// Discovers individual test methods from a compiled test project by running
-    /// <c>dotnet test --list-tests</c>. Returns tuples of (fully-qualified class name, method name).
-    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
-    /// Handles both [Fact] (simple method names) and [Theory] + [InlineData] (names with parameters).
-    /// </summary>
-    static List<(string ClassName, string MethodName)> DiscoverTestMethodsFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
-    {
-        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
-        if (!string.IsNullOrEmpty(frameworkOverride))
-            args += $" --framework {frameworkOverride}";
-
-        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
-        process.AssertWaitForExit();
-
-        var results = new List<(string, string)>();
-        // Test lines are indented (start with whitespace):
-        //   Namespace.ClassName.MethodName                    ([Fact])
-        //   Namespace.ClassName.MethodName(param: value)      ([Theory] + [InlineData])
-        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
-        // First strip parameters to avoid dots in param values (e.g. "http://example").
-        foreach (var raw in process.Output.Select(line => line.Text))
-        {
-            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;
-            var text = raw.Trim();
-
-            // Strip parameters: "method(param: val)" -> "method"
-            var paren = text.IndexOf('(');
-            var stripped = paren >= 0 ? text[..paren] : text;
-
-            var lastDot = stripped.LastIndexOf('.');
-            if (lastDot <= 0) continue;
-
-            var className = stripped[..lastDot];
-            var methodName = stripped[(lastDot + 1)..];
-
-            results.Add((className, methodName));
-        }
-
-        return results;
-    }
-
-    /// <summary>
     /// Runs a single dotnet test invocation with retry logic.
     /// Returns Passed, Flaky (passed on retry), or Failed.
     /// </summary>
@@ -211,10 +131,15 @@ partial class Build
 
     /// <summary>
     /// Escapes special characters in a test filter value for dotnet test --filter.
-    /// Replaces '&amp;' and '|' which are filter operators.
+    /// Also strips everything after the first '(' since theory parameters are not
+    /// needed for substring matching (FullyQualifiedName~ is a prefix/substring match).
     /// </summary>
     static string EscapeFilterValue(string value)
     {
+        var paren = value.IndexOf('(');
+        if (paren >= 0)
+            value = value[..paren];
+
         return value
             .Replace("&", "%26")
             .Replace("|", "%7C")
