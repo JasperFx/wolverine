@@ -12,6 +12,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 {
     public PrefixedComplianceFixture() : base(new Uri("asb://queue/foo.buffered-receiver"), 120)
     {
+        MustReset = false;
     }
 
     public async Task InitializeAsync()
@@ -48,7 +49,9 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     }
 }
 
-public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
+public class PrefixedSendingAndReceivingCompliance(PrefixedComplianceFixture fixture) : 
+    TransportCompliance<PrefixedComplianceFixture>(fixture), 
+    IClassFixture<PrefixedComplianceFixture>
 {
     [Fact]
     public void prefix_was_applied_to_queues_for_the_receiver()

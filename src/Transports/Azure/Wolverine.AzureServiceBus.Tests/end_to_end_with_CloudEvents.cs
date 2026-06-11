@@ -1,8 +1,6 @@
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.AzureServiceBus.Internal;
-using Wolverine.Configuration;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -62,7 +60,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
 
         var session = await _host.TrackActivity()
             .IncludeExternalTransports()
-            .Timeout(5.Minutes())
+            .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(message);
 
         session.Received.SingleMessage<AsbMessage1>()

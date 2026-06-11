@@ -48,6 +48,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
 }
 
 [Collection("acceptance")]
+[Trait("Category", "Flaky")]
 public class with_cloud_events : TransportCompliance<PulsarWithCloudEventsFixture>
 {
     // This test uses ErrorCausingMessage which contains a Dictionary<int, Exception>.

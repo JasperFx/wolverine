@@ -1,4 +1,3 @@
-using Azure.Messaging.ServiceBus.Administration;
 using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
@@ -28,26 +27,12 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 
         try
         {
-            await DeleteTenantEmulatorObjectsAsync();
+            await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync(
+                Servers.AzureServiceBusConnectionString);
         }
         catch
         {
             // Tenant emulator cleanup is best-effort
-        }
-    }
-
-    private static async Task DeleteTenantEmulatorObjectsAsync()
-    {
-        var client = new ServiceBusAdministrationClient(Servers.AzureServiceBusConnectionString);
-
-        await foreach (var topic in client.GetTopicsAsync())
-        {
-            await client.DeleteTopicAsync(topic.Name);
-        }
-
-        await foreach (var queue in client.GetQueuesAsync())
-        {
-            await client.DeleteQueueAsync(queue.Name);
         }
     }
 

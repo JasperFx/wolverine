@@ -8,6 +8,6 @@ partial class Build
         .Executes(() =>
         {
             var transportsDir = RootDirectory / "src" / "Transports";
-            RunTestProjectsOneClassAtATime(transportsDir);
+            RunAllTestsProjects(transportsDir);
         });
 }

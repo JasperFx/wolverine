@@ -1,16 +1,13 @@
-using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.CosmosDb;
-using Wolverine.CosmosDb.Internals;
 using Wolverine.Tracking;
 
 namespace CosmosDbTests;
 
 [Collection("cosmosdb")]
-[Trait("Category", "Flaky")]
 public class using_storage_return_types_and_entity_attributes
 {
     private readonly AppFixture _fixture;

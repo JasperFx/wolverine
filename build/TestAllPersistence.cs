@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Nuke.Common;
 using Nuke.Common.IO;
+using Nuke.Common.Tooling;
 using Nuke.Common.Tools.DotNet;
 using Serilog;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
@@ -17,192 +18,106 @@ partial class Build
         .Executes(() =>
         {
             var persistenceDir = RootDirectory / "src" / "Persistence";
-            RunTestProjectsOneClassAtATime(persistenceDir);
+            RunAllTestsProjects(persistenceDir);
         });
 
     /// <summary>
-    /// Files that are never test classes and should be skipped during discovery.
+    /// Discovers test classes from a compiled test project by running <c>dotnet test --list-tests</c>.
+    /// Returns the set of fully-qualified class names that contain at least one test.
+    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
     /// </summary>
-    static readonly HashSet<string> SkippedFileNames = new(StringComparer.OrdinalIgnoreCase)
+    static string[] DiscoverTestClassesFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
     {
-        "NoParallelization",
-        "GlobalUsings",
-        "AssemblyInfo",
-        "Usings",
-        "ModuleInitializer",
-    };
+        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
+        if (!string.IsNullOrEmpty(frameworkOverride))
+            args += $" --framework {frameworkOverride}";
 
-    /// <summary>
-    /// Regex patterns that indicate a file contains xUnit test methods.
-    /// </summary>
-    static readonly Regex TestAttributePattern = new(
-        @"\[\s*(Fact|Theory|InlineData|MemberData|ClassData)",
-        RegexOptions.Compiled);
+        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
+        process.AssertWaitForExit();
 
-    /// <summary>
-    /// Determines if a project is a leader election test project,
-    /// which requires running each test method individually.
-    /// </summary>
-    static bool IsLeaderElectionProject(string projectPath)
-    {
-        var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        return projectName.Contains("LeaderElection", StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Discovers test classes from source files by looking for [Fact] or [Theory] attributes.
-    /// Returns the class name (file name without extension) for files that contain tests.
-    /// </summary>
-    static List<string> DiscoverTestClasses(string projectDir)
-    {
-        var testFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .OrderBy(f => f)
-            .ToList();
-
-        var testClasses = new List<string>();
-        foreach (var testFile in testFiles)
+        var classes = new HashSet<string>();
+        // Test lines are indented (start with whitespace):
+        //   Namespace.ClassName.MethodName                          ([Fact])
+        //   Namespace.ClassName.MethodName(param: value)            ([Theory] + [InlineData])
+        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
+        // Class name = everything before the last dot BEFORE the first '('.
+        // Truncating at '(' first avoids dots in parameter values (e.g. "http://example").
+        foreach (var raw in process.Output.Select(line => line.Text))
         {
-            var className = Path.GetFileNameWithoutExtension(testFile);
+            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;  // skip header lines
+            var text = raw.Trim();
 
-            if (SkippedFileNames.Contains(className))
-                continue;
+            // Strip parameters before splitting: "method(param: val)" -> "method"
+            var paren = text.IndexOf('(');
+            var stripped = paren >= 0 ? text[..paren] : text;
 
-            try
-            {
-                var content = File.ReadAllText(testFile);
-                if (TestAttributePattern.IsMatch(content))
-                {
-                    testClasses.Add(className);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Could not read {File}: {Message}", testFile, ex.Message);
-            }
+            var lastDot = stripped.LastIndexOf('.');
+            if (lastDot > 0)
+                classes.Add(stripped[..lastDot]);
         }
 
-        return testClasses;
+        return [.. classes];
     }
 
     /// <summary>
-    /// Discovers individual test method names from source files for leader election projects.
-    /// Returns tuples of (className, methodName). Also follows class inheritance into
-    /// compliance base classes in src/Testing/Wolverine.ComplianceTests/ so that inherited
-    /// [Fact]/[Theory] methods are attributed to the concrete class.
+    /// Discovers individual test methods from a compiled test project by running
+    /// <c>dotnet test --list-tests</c>. Returns tuples of (fully-qualified class name, method name).
+    /// This discovers inherited tests (e.g. TransportCompliance<>) that source-level regex misses.
+    /// Handles both [Fact] (simple method names) and [Theory] + [InlineData] (names with parameters).
     /// </summary>
-    static List<(string ClassName, string MethodName)> DiscoverTestMethods(string projectDir)
+    static List<(string ClassName, string MethodName)> DiscoverTestMethodsFromAssembly(string projectPath, string configuration, string frameworkOverride = null)
     {
-        var methodPattern = new Regex(
-            @"\[\s*(?:Fact|Theory).*?\]\s*(?:\[.*?\]\s*)*public\s+(?:async\s+)?(?:Task|void)\s+(\w+)\s*\(",
-            RegexOptions.Compiled | RegexOptions.Singleline);
+        var args = $"test \"{projectPath}\" --no-build --list-tests --configuration {configuration}";
+        if (!string.IsNullOrEmpty(frameworkOverride))
+            args += $" --framework {frameworkOverride}";
 
-        var classDeclarationPattern = new Regex(
-            @"(?:public\s+|internal\s+|abstract\s+|sealed\s+)*class\s+(\w+)\s*(?::\s*([\w<>,\s\.]+?))?\s*(?:\{|where\b)",
-            RegexOptions.Compiled);
-
-        var complianceBaseDir = FindComplianceTestsDir(projectDir);
-
-        var testFiles = Directory.GetFiles(projectDir, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
-            .ToList();
+        var process = ProcessTasks.StartProcess("dotnet", args, logOutput: false, logInvocation: false);
+        process.AssertWaitForExit();
 
         var results = new List<(string, string)>();
-        var seen = new HashSet<(string, string)>();
-
-        void AddMethod(string className, string methodName)
+        // Test lines are indented (start with whitespace):
+        //   Namespace.ClassName.MethodName                    ([Fact])
+        //   Namespace.ClassName.MethodName(param: value)      ([Theory] + [InlineData])
+        // Header lines (e.g. "Test run for ...", "The following...") are not indented.
+        // First strip parameters to avoid dots in param values (e.g. "http://example").
+        foreach (var raw in process.Output.Select(line => line.Text))
         {
-            if (seen.Add((className, methodName)))
-            {
-                results.Add((className, methodName));
-            }
-        }
+            if (raw.Length == 0 || !char.IsWhiteSpace(raw[0])) continue;
+            var text = raw.Trim();
 
-        foreach (var testFile in testFiles)
-        {
-            var className = Path.GetFileNameWithoutExtension(testFile);
-            if (SkippedFileNames.Contains(className)) continue;
+            // Strip parameters: "method(param: val)" -> "method"
+            var paren = text.IndexOf('(');
+            var stripped = paren >= 0 ? text[..paren] : text;
 
-            try
-            {
-                var content = File.ReadAllText(testFile);
+            var lastDot = stripped.LastIndexOf('.');
+            if (lastDot <= 0) continue;
 
-                foreach (Match match in methodPattern.Matches(content))
-                {
-                    AddMethod(className, match.Groups[1].Value);
-                }
+            var className = stripped[..lastDot];
+            var methodName = stripped[(lastDot + 1)..];
 
-                if (complianceBaseDir == null) continue;
-
-                foreach (Match classMatch in classDeclarationPattern.Matches(content))
-                {
-                    var baseList = classMatch.Groups[2].Value;
-                    if (string.IsNullOrWhiteSpace(baseList)) continue;
-
-                    var concreteClassName = classMatch.Groups[1].Value;
-                    var baseTypeName = baseList.Split(',')[0].Trim().Split('<')[0].Trim();
-                    if (string.IsNullOrWhiteSpace(baseTypeName)) continue;
-
-                    var baseFile = Path.Combine(complianceBaseDir, baseTypeName + ".cs");
-                    if (!File.Exists(baseFile)) continue;
-
-                    try
-                    {
-                        var baseContent = File.ReadAllText(baseFile);
-                        foreach (Match baseMatch in methodPattern.Matches(baseContent))
-                        {
-                            AddMethod(concreteClassName, baseMatch.Groups[1].Value);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Warning("Could not read compliance base {File}: {Message}", baseFile, ex.Message);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Warning("Could not read {File}: {Message}", testFile, ex.Message);
-            }
+            results.Add((className, methodName));
         }
 
         return results;
     }
 
     /// <summary>
-    /// Walks up from the project directory to locate src/Testing/Wolverine.ComplianceTests/
-    /// so inherited compliance tests can be discovered.
-    /// </summary>
-    static string FindComplianceTestsDir(string projectDir)
-    {
-        var current = new DirectoryInfo(projectDir);
-        while (current != null)
-        {
-            var candidate = Path.Combine(current.FullName, "src", "Testing", "Wolverine.ComplianceTests");
-            if (Directory.Exists(candidate)) return candidate;
-            current = current.Parent;
-        }
-
-        return null;
-    }
-
-    /// <summary>
     /// Runs a single dotnet test invocation with retry logic.
-    /// Returns true if the test passed (on first attempt or retry).
+    /// Returns Passed, Flaky (passed on retry), or Failed.
     /// </summary>
-    bool RunTestWithRetry(string projectPath, string filter, string description, int maxAttempts = 2, string frameworkOverride = null)
+    TestOutcome RunTestWithRetry(string projectPath, 
+        string fullTestName, int maxAttempts = 2, string frameworkOverride = null)
     {
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        var filter = $"FullyQualifiedName~{EscapeFilterValue(fullTestName)}";
+        var description = $"{projectName}/{fullTestName}";
         var framework = frameworkOverride ?? Framework;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
             {
                 if (attempt > 1)
-                {
-                    Log.Warning("  Retry attempt {Attempt} for {Description}", attempt, description);
-                }
+                    Log.Warning("  Retry attempt {Attempt}/{MaxAttempts} for {Description}", attempt, maxAttempts, description);
 
                 DotNetTest(c => c
                     .SetProjectFile(projectPath)
@@ -210,9 +125,10 @@ partial class Build
                     .EnableNoBuild()
                     .EnableNoRestore()
                     .SetFramework(framework)
-                    .SetFilter(filter));
+                    .SetFilter(filter)
+                    .AddLoggers($"trx;LogFilePrefix={projectName}-{attempt}.trx"));
 
-                return true;
+                return attempt > 1 ? TestOutcome.Flaky : TestOutcome.Passed;
             }
             catch (Exception ex)
             {
@@ -220,22 +136,21 @@ partial class Build
                 {
                     Log.Error("  {Description} failed after {Attempts} attempts: {Message}",
                         description, maxAttempts, ex.Message);
-                    return false;
+                    return TestOutcome.Failed;
                 }
 
-                Log.Warning("  {Description} failed on attempt {Attempt}, will retry: {Message}",
-                    description, attempt, ex.Message);
+                Log.Warning("  {Description} failed on attempt {Attempt}/{MaxAttempts}, will retry: {Message}",
+                    description, attempt, maxAttempts, ex.Message);
             }
         }
 
-        return false;
+        return TestOutcome.Failed;
     }
 
     /// <summary>
-    /// Improved test runner that discovers actual test classes from source,
-    /// runs each class in isolation, and supports leader election one-test-at-a-time mode.
+    /// Runs all test projects under a directory.
     /// </summary>
-    void RunTestProjectsOneClassAtATime(AbsolutePath directory)
+    void RunAllTestsProjects(AbsolutePath directory)
     {
         var testProjects = directory.GlobFiles("**/*Tests.csproj", "**/*Tests/*.csproj")
             .Select(p => p.ToString())
@@ -243,158 +158,175 @@ partial class Build
             .OrderBy(p => p)
             .ToList();
 
+        RunTestProjects([..testProjects]);
+    }
+
+    /// <summary>
+    /// Runs multiple test project with flaky retry.
+    /// </summary>
+    void RunTestProjects(string[] projectPaths, string frameworkOverride = null)
+    {
+        var failedProjects = new List<string>();
+        foreach (var projectPath in projectPaths)
+        {
+            if (!RunWithFlakyRetry(projectPath, frameworkOverride: frameworkOverride))
+                failedProjects.Add(projectPath);
+        }
+
+        if (failedProjects.Count > 0)
+            throw new InvalidOperationException($"Tests failed: {string.Join(", ", failedProjects)}");
+    }
+
+    /// <summary>
+    /// Runs single test project with flaky retry.
+    /// </summary>
+    void RunTestProject(string projectPath, string frameworkOverride = null)
+    {
+        RunTestProjects([projectPath], frameworkOverride: frameworkOverride);
+    }
+
+    /// <summary>
+    /// Parses a TRX result file and returns the fully-qualified names of failed tests.
+    /// </summary>
+    static List<string> ParseFailedTestNamesFromTrx(AbsolutePath trxPath)
+    {
+        var doc = XDocument.Load(trxPath.ToString());
+        var ns = doc.Root?.GetDefaultNamespace() ?? XNamespace.None;
+
         var failedTests = new List<string>();
 
-        foreach (var projectPath in testProjects)
+        // <UnitTestResult outcome="Failed" testName="Namespace.Class.Method" .../>
+        foreach (var result in doc.Descendants(ns + "UnitTestResult"))
         {
-            var projectDir = Path.GetDirectoryName(projectPath)!;
-            var projectName = Path.GetFileNameWithoutExtension(projectPath);
+            var outcome = (string)result.Attribute("outcome");
+            if (outcome != "Failed") continue;
 
-            if (IsLeaderElectionProject(projectPath))
-            {
-                // Leader election: run each test method individually
-                var testMethods = DiscoverTestMethods(projectDir);
-                Log.Information("Running leader election tests one method at a time for {Project} ({Count} tests)",
-                    projectName, testMethods.Count);
-
-                foreach (var (className, methodName) in testMethods)
-                {
-                    var filter = $"FullyQualifiedName~{className}.{methodName}";
-                    var description = $"{projectName}/{className}.{methodName}";
-                    Log.Information("  Running {Description}...", description);
-
-                    if (!RunTestWithRetry(projectPath, filter, description))
-                    {
-                        failedTests.Add(description);
-                    }
-                }
-            }
-            else
-            {
-                // Normal: run one class at a time
-                var testClasses = DiscoverTestClasses(projectDir);
-                Log.Information("Running tests one class at a time for {Project} ({Count} classes)",
-                    projectName, testClasses.Count);
-
-                foreach (var className in testClasses)
-                {
-                    var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
-                    var description = $"{projectName}/{className}";
-                    Log.Information("  Running {Description}...", description);
-
-                    if (!RunTestWithRetry(projectPath, filter, description))
-                    {
-                        failedTests.Add(description);
-                    }
-                }
-            }
+            var testName = (string)result.Attribute("testName");
+            if (!string.IsNullOrEmpty(testName))
+                failedTests.Add(testName);
         }
 
-        if (failedTests.Any())
-        {
-            Log.Error("The following tests failed after retries:");
-            foreach (var test in failedTests)
-            {
-                Log.Error("  - {Test}", test);
-            }
-        }
+        return failedTests;
     }
 
     /// <summary>
-    /// Appends Category!=Flaky to a test filter when running in CI.
+    /// Escapes special characters in a test filter value for dotnet test --filter.
+    /// Replaces '&amp;' and '|' which are filter operators.
     /// </summary>
-    static string AppendCategoryFilter(string filter)
+    static string EscapeFilterValue(string value)
     {
-        return filter + "&Category!=Flaky";
+        return value
+            .Replace("&", "%26")
+            .Replace("|", "%7C")
+            .Replace("=", "%3D")
+            .Replace("!", "%21")
+            .Replace("~", "%7E");
     }
 
     /// <summary>
-    /// Runs an entire test project in a single <c>dotnet test</c> invocation,
-    /// retrying the whole project once on failure. Execution stays serial — the
-    /// project's <c>[assembly: CollectionBehavior(CollectionPerAssembly)]</c>
-    /// (e.g. MartenTests/NoParallelization.cs) keeps every test class in one
-    /// collection, so there's no concurrency and therefore no shared-schema /
-    /// shared-database collision risk. The win over
-    /// <see cref="RunSingleProjectOneClassAtATime"/> is process count: one
-    /// <c>dotnet test</c> spawn instead of one-per-class (111 for MartenTests),
-    /// eliminating the per-class process-start + assembly-load + xUnit-discovery
-    /// overhead that dominates the wall clock on the slow persistence jobs.
-    ///
-    /// Tradeoff vs. one-class-at-a-time: per-class retry granularity is lost
-    /// (a failure re-runs the whole project), and all classes share one process
-    /// (a hung daemon / leaked connection in one class can affect another rather
-    /// than being isolated to its own process). Used where the spawn overhead
-    /// outweighs those — see #2810.
+    /// Runs all tests in a project at once, then retries individual failures.
+    /// Uses TRX output to discover which tests failed on the first pass.
+    /// Flaky tests (pass on retry) are logged separately from hard failures.
+    /// Returns true only if all tests pass (possibly after retries).
     /// </summary>
-    void RunWholeProjectWithRetry(string projectPath, string frameworkOverride = null)
+    bool RunWithFlakyRetry(string projectPath, int maxAttempts = 2, string frameworkOverride = null)
     {
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        Log.Information("Running entire project {Project} in a single invocation (see #2810)", projectName);
+        var framework = frameworkOverride ?? Framework;
 
-        // No FullyQualifiedName filter — run the whole assembly. Still exclude
-        // Flaky-tagged tests, matching the one-class-at-a-time path's filter.
-        if (!RunTestWithRetry(projectPath, "Category!=Flaky", projectName, frameworkOverride: frameworkOverride))
+        Log.Information("=== {Project}: Running all tests ===", projectName);
+        try
         {
-            throw new Exception($"Tests failed in {projectName}");
+            DotNetTest(c => c
+                .SetProjectFile(projectPath)
+                .SetConfiguration(Configuration)
+                .EnableNoBuild()
+                .EnableNoRestore()
+                .SetFramework(framework)
+                .SetFilter("Category!=Flaky")
+                .AddLoggers($"trx;LogFilePrefix={projectName}"));
+
+            Log.Information("=== {Project}: All tests passed ===", projectName);
+            return true;
         }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "=== {Project} First round failed ===", projectName);
+        }
+
+        // Parse TRX for failed test names
+        var projectDir = (AbsolutePath)Path.GetDirectoryName(projectPath);
+        var trxDir = projectDir / "TestResults";
+        var trxFiles = trxDir.GlobFiles($"{projectName}*.trx")
+            .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc)
+            .ToList();
+        if (trxFiles.Count == 0)
+        {
+            Log.Error("No TRX file found in {ResultsDir}. Can't retry individual tests.", trxDir);
+            return false;
+        }
+
+        var failedTests = ParseFailedTestNamesFromTrx(trxFiles[0]);
+
+        if (failedTests.Count == 0)
+        {
+            Log.Warning("=== {Project}: Build failed and no test failures found in TRX. ===", projectName);
+            return false;
+        }
+
+        Log.Warning("=== {Project}: Second round. Retrying {Count} test(s) ===", projectName, failedTests.Count);
+
+        // Retry each failed test individually
+        var result = new RunResult();
+        foreach (var fullTestName in failedTests)
+        {
+            var outcome = RunTestWithRetry(
+                projectPath,
+                fullTestName,
+                maxAttempts,
+                framework);
+
+            if (outcome == TestOutcome.Flaky)
+                result.FlakyTests.Add(fullTestName);
+            else if (outcome == TestOutcome.Failed)
+                result.FailedTests.Add(fullTestName);
+        }
+
+        result.Print(projectName);
+
+        if (result.FailedTests.Count > 0)
+            return false;
+
+        Log.Information("=== {Project}: All tests passed (with flaky retries) ===", projectName);
+        return true;
     }
 
     /// <summary>
-    /// Runs a single test project one class at a time with retry logic.
-    /// Used by individual Nuke targets for specific test projects.
+    /// Result of a test run: passed first try, passed on retry (flaky), or failed.
     /// </summary>
-    void RunSingleProjectOneClassAtATime(string projectPath, string frameworkOverride = null)
+    enum TestOutcome { Passed, Flaky, Failed }
+
+    class RunResult
     {
-        var projectDir = Path.GetDirectoryName(projectPath)!;
-        var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        var failedTests = new List<string>();
+        public List<string> FailedTests { get; private set; } = [];
+        public List<string> FlakyTests { get; private set; } = [];
 
-        if (IsLeaderElectionProject(projectPath))
+        public void Print(string projectName)
         {
-            var testMethods = DiscoverTestMethods(projectDir);
-            Log.Information("Running leader election tests one method at a time for {Project} ({Count} tests)",
-                projectName, testMethods.Count);
-
-            foreach (var (className, methodName) in testMethods)
+            if (FlakyTests.Count != 0)
             {
-                var filter = AppendCategoryFilter($"FullyQualifiedName~{className}.{methodName}");
-                var description = $"{projectName}/{className}.{methodName}";
-                Log.Information("  Running {Description}...", description);
-
-                if (!RunTestWithRetry(projectPath, filter, description, frameworkOverride: frameworkOverride))
-                {
-                    failedTests.Add(description);
-                }
-            }
-        }
-        else
-        {
-            var testClasses = DiscoverTestClasses(projectDir);
-            Log.Information("Running tests one class at a time for {Project} ({Count} classes)",
-                projectName, testClasses.Count);
-
-            foreach (var className in testClasses)
-            {
-                var filter = AppendCategoryFilter($"FullyQualifiedName~{className}");
-                var description = $"{projectName}/{className}";
-                Log.Information("  Running {Description}...", description);
-
-                if (!RunTestWithRetry(projectPath, filter, description, frameworkOverride: frameworkOverride))
-                {
-                    failedTests.Add(description);
-                }
-            }
-        }
-
-        if (failedTests.Any())
-        {
-            Log.Error("The following tests failed after retries:");
-            foreach (var test in failedTests)
-            {
-                Log.Error("  - {Test}", test);
+                var tests = string.Join("\n  ", FlakyTests.Select(t => $"[FLAKY] {t}"));
+                Log.Warning("=== {Project} Flaky tests ===\n{Tests}",
+                    projectName, tests);
             }
 
-            throw new Exception($"{failedTests.Count} test(s) failed in {projectName}");
+            if (FailedTests.Count != 0)
+            {
+                var tests = string.Join("\n  ", FailedTests.Select(t => $"[FAILED] {t}"));
+                
+                Log.Error("=== {Project} Consistently failing tests ===\n{Tests}",
+                    projectName, tests);
+            }
         }
     }
 }
