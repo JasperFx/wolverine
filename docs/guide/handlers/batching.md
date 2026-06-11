@@ -165,6 +165,30 @@ To make this work, Wolverine moves the batch onto its own dedicated local queue 
 `-batch` suffix) so it no longer collides with the direct handler's queue, and fans every `Item` out to both queues.
 This applies to messages published in-process *and* to `Item` messages arriving from an external transport listener.
 
+### Multiple batched handlers
+
+`MultipleHandlerBehavior.Separated` also lets you register **more than one** batched handler for the same element type --
+for example one handler that publishes an integration event for the batch and another that archives it:
+
+```csharp
+opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
+opts.BatchMessagesOf<Item>();
+
+public static class ItemPublisher
+{
+    public static void Handle(Item[] items) { /* publish an integration event */ }
+}
+
+public static class ItemArchiver
+{
+    public static void Handle(Item[] items) { /* archive the batch */ }
+}
+```
+
+Under `Separated` mode each `Handle(Item[])` handler is given its own sticky queue, so Wolverine fans the assembled
+batch out to every one of them and each runs independently. (Under the default `Classic` behavior the multiple
+`Handle(Item[])` handlers are instead combined into a single logical handler that invokes each one in turn.)
+
 ## What about durable messaging ("inbox")?
 
 The durable inbox behaves just a little bit differently for message batching. Wolverine will technically

@@ -51,6 +51,36 @@ public partial class WolverineRuntime : IExecutorFactory
             }
         }
 
+        // Multiple Separated batch handlers: when the produced batch-message type (T[] or a custom
+        // batch type) has MORE THAN ONE Handle handler, Separated mode splits them onto per-handler
+        // sticky queues. The BatchingProcessor re-enqueues a single produced batch onto the batch's
+        // own execution queue — which is none of those sticky queues — so HandlerFor would throw.
+        // Relay the produced batch from that queue to every sticky handler queue via a fan-out.
+        if (handler == null && endpoint is LocalQueue &&
+            Options.MultipleHandlerBehavior == MultipleHandlerBehavior.Separated)
+        {
+            var thisQueueProducesTheBatch = Options.BatchDefinitions.Any(x =>
+                x.Batcher.BatchMessageType == messageType &&
+                string.Equals(endpoint.EndpointName, x.LocalExecutionQueueName, StringComparison.OrdinalIgnoreCase));
+            if (thisQueueProducesTheBatch)
+            {
+                var batchChain = Handlers.ChainFor(messageType);
+                if (batchChain != null && batchChain.ByEndpoint.Any() && !batchChain.HasDefaultNonStickyHandlers())
+                {
+                    var stickyLocalUris = batchChain.ByEndpoint
+                        .SelectMany(c => c.Endpoints)
+                        .OfType<LocalQueue>()
+                        .Select(e => e.Uri)
+                        .Distinct()
+                        .ToArray();
+                    if (stickyLocalUris.Length != 0)
+                    {
+                        handler = Handlers.BuildFanoutHandler(messageType, batchChain, stickyLocalUris);
+                    }
+                }
+            }
+        }
+
         if (handler == null && Options.MessagePartitioning.TryFindTopology(messageType, out var topology))
         {
             if (!topology!.Slots.Contains(endpoint))
@@ -60,7 +90,7 @@ public partial class WolverineRuntime : IExecutorFactory
         }
 
         handler ??= (IMessageHandler?)Handlers.HandlerFor(messageType, endpoint);
-        if (handler == null )
+        if (handler == null)
         {
             var batching = Options.BatchDefinitions.FirstOrDefault(x => x.ElementType == messageType);
             if (batching != null)
@@ -80,7 +110,7 @@ public partial class WolverineRuntime : IExecutorFactory
             var accumulator = MetricsAccumulator.FindAccumulator(messageType.ToMessageTypeName(), endpoint);
             tracker = new HybridMetricsPublishingMessageTracker(this, accumulator.EntryPoint);
         }
-        
+
         var executor = handler == null
             ? new NoHandlerExecutor(messageType, this)
             : Executor.Build(this, ExecutionPool, Handlers, handler, tracker);
