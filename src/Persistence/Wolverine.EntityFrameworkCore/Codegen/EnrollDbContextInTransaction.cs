@@ -26,6 +26,8 @@ internal class EnrollDbContextInTransaction : AsyncFrame, IFlushesMessages
         _envelopeTransaction = new Variable(typeof(EfCoreEnvelopeTransaction), this);
     }
 
+    public Type DbContextType => _dbContextType;
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteLine("");

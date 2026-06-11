@@ -46,6 +46,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     private ImHashMap<Type, Type> _abstractions = ImHashMap<Type, Type>.Empty;
 
     public TransactionMiddlewareMode DefaultMode { get; set; } = TransactionMiddlewareMode.Eager;
+    public Type? MainDbContextType { get; set; }
 
     public void RegisterAbstraction(Type abstractionType, Type dbContextType)
     {
@@ -496,6 +497,11 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         if (contextTypes.Length > 1)
         {
+            if (MainDbContextType != null && contextTypes.Contains(MainDbContextType))
+            {
+                return MainDbContextType;
+            }
+
             throw new InvalidOperationException(
                 $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}");
         }

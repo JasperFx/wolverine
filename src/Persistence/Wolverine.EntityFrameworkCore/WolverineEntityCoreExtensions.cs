@@ -463,4 +463,21 @@ public static class WolverineEntityCoreExtensions
         options.Services.AddSingleton<IDomainEventScraper>(scraper);
         return options;
     }
+
+    /// <summary>
+    /// Configures the default or main DbContext type to resolve conflicts when multiple DbContext types
+    /// are detected in a message handler chain.
+    /// </summary>
+    /// <typeparam name="TDbContext">The main DbContext type</typeparam>
+    public static WolverineOptions UseMainDbContext<TDbContext>(this WolverineOptions options) where TDbContext : DbContext
+    {
+        var providers = options.CodeGeneration.PersistenceProviders();
+        var efProvider = providers.OfType<EFCorePersistenceFrameProvider>().FirstOrDefault();
+        if (efProvider == null)
+        {
+            throw new InvalidOperationException($"Unable to find the {nameof(EFCorePersistenceFrameProvider)}. Please call {nameof(UseEntityFrameworkCoreTransactions)} first.");
+        }
+        efProvider.MainDbContextType = typeof(TDbContext);
+        return options;
+    }
 }

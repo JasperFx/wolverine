@@ -283,6 +283,87 @@ public class transaction_middleware_mode_tests
             .Any(x => x.Method.Name == nameof(DbContext.SaveChangesAsync))
             .ShouldBeTrue();
     }
+
+    [Fact]
+    public async Task multiple_dbContexts_without_main_dbContext_should_throw_exception()
+    {
+        var builder = Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictAppDbContext>(x => x.UseInMemoryDatabase("app"));
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictCommunDbContext>(x => x.UseInMemoryDatabase("commun"));
+
+                opts.UseEntityFrameworkCoreTransactions();
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<MultipleDbContextsHandler>();
+            });
+
+        var exception = await Should.ThrowAsync<InvalidOperationException>(async () =>
+        {
+            using var host = await builder.StartAsync();
+        });
+
+        exception.Message.ShouldContain("Cannot determine the DbContext type");
+        exception.Message.ShouldContain("multiple DbContext types detected: ConflictAppDbContext, ConflictCommunDbContext");
+    }
+
+    [Fact]
+    public async Task multiple_dbContexts_with_main_dbContext_via_fluent_api_should_resolve_conflict()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictAppDbContext>(x => x.UseInMemoryDatabase("app"));
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictCommunDbContext>(x => x.UseInMemoryDatabase("commun"));
+
+                opts.UseEntityFrameworkCoreTransactions()
+                    .UseMainDbContext<ConflictAppDbContext>();
+                
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<MultipleDbContextsHandler>();
+            }).StartAsync();
+
+        var chain = host.GetRuntime().Handlers.ChainFor<MultipleDbContextsMessage>()!;
+        
+        chain.Middleware.OfType<EnrollDbContextInTransaction>()
+            .Any(x => x.DbContextType == typeof(ConflictAppDbContext))
+            .ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task multiple_dbContexts_with_main_dbContext_via_options_should_resolve_conflict()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictAppDbContext>(x => x.UseInMemoryDatabase("app"));
+                opts.Services.AddDbContextWithWolverineIntegration<ConflictCommunDbContext>(x => x.UseInMemoryDatabase("commun"));
+
+                opts.UseEntityFrameworkCoreTransactions();
+                opts.UseMainDbContext<ConflictAppDbContext>();
+                
+                opts.Policies.AutoApplyTransactions();
+
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<MultipleDbContextsHandler>();
+            }).StartAsync();
+
+        var chain = host.GetRuntime().Handlers.ChainFor<MultipleDbContextsMessage>()!;
+        
+        chain.Middleware.OfType<EnrollDbContextInTransaction>()
+            .Any(x => x.DbContextType == typeof(ConflictAppDbContext))
+            .ShouldBeTrue();
+    }
 }
 
 public interface IRequiresEagerTransaction;
@@ -425,6 +506,25 @@ public class EagerStorageSideEffectHandler
     public static Insert<Item> Handle(EagerStorageSideEffectMessage message)
     {
         return Storage.Insert(new Item { Id = Guid.NewGuid(), Name = "test" });
+    }
+}
+
+public class ConflictAppDbContext : DbContext
+{
+    public ConflictAppDbContext(DbContextOptions<ConflictAppDbContext> options) : base(options) {}
+}
+
+public class ConflictCommunDbContext : DbContext
+{
+    public ConflictCommunDbContext(DbContextOptions<ConflictCommunDbContext> options) : base(options) {}
+}
+
+public record MultipleDbContextsMessage;
+
+public class MultipleDbContextsHandler
+{
+    public static void Handle(MultipleDbContextsMessage message, ConflictAppDbContext db1, ConflictCommunDbContext db2)
+    {
     }
 }
 

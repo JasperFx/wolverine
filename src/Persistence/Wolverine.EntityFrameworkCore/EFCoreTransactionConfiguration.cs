@@ -26,4 +26,15 @@ public class EFCoreTransactionConfiguration
 
         return this;
     }
+
+    /// <summary>
+    /// Configures the default or main DbContext type to resolve conflicts when multiple DbContext types
+    /// are detected in a message handler chain.
+    /// </summary>
+    /// <typeparam name="TDbContext">The main DbContext type</typeparam>
+    public EFCoreTransactionConfiguration UseMainDbContext<TDbContext>() where TDbContext : Microsoft.EntityFrameworkCore.DbContext
+    {
+        _provider.MainDbContextType = typeof(TDbContext);
+        return this;
+    }
 }
