@@ -1,3 +1,4 @@
+using Lamar.Microsoft.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine;
@@ -13,12 +14,27 @@ namespace CoreTests.Acceptance;
 //
 // Companion to using_with_keyed_services, which covers keyed services on Handle METHOD parameters
 // (that path always worked because MethodCall already used the attribute-aware overload).
+//
+// Covered against both the default container and Lamar (the issue was reported on Lamar). The fix
+// is in the shared codegen layer, so both containers must resolve the keyed constructor parameters
+// correctly.
 public class keyed_services_on_handler_constructor
 {
     [Fact]
-    public async Task each_keyed_constructor_parameter_resolves_to_its_own_registration()
+    public Task each_keyed_constructor_parameter_resolves_to_its_own_registration()
     {
-        using var host = await Host.CreateDefaultBuilder()
+        return assertKeyedConstructorInjectionResolvesByKey(Host.CreateDefaultBuilder());
+    }
+
+    [Fact]
+    public Task each_keyed_constructor_parameter_resolves_to_its_own_registration_on_lamar()
+    {
+        return assertKeyedConstructorInjectionResolvesByKey(Host.CreateDefaultBuilder().UseLamar());
+    }
+
+    private static async Task assertKeyedConstructorInjectionResolvesByKey(IHostBuilder builder)
+    {
+        using var host = await builder
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<KeyedCtorHandler>();
