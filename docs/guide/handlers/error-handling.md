@@ -290,8 +290,6 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L30-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_globalerrorhandlingconfiguration' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-TODO -- link to chain policies, after that exists:)
-
 Lastly, you can use chain policies to add error handling policies to a selected subset of message handlers. First, here's
 a sample policy that applies an error handling policy based on `SqlException` errors for all message types from a certain namespace:
 
@@ -326,7 +324,26 @@ are transient versus failures that imply the message could never be processed.
 The attributes are limited to exception type, but the fluent interface has quite a few options to filter exception further with additional
 filters, inner exception tests, and compound filters:
 
-sample_filtering_by_exception_type
+<!-- snippet: sample_filtering_by_exception_type -->
+<a id='snippet-sample_filtering_by_exception_type'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.Policies
+            .OnException<SqlException>()
+            .Or<InvalidOperationException>(ex => ex.Message.Contains("Intermittent message of some kind"))
+            .OrInner<BadImageFormatException>()
+
+            // And apply the "continuation" action to take if the filters match
+            .Requeue();
+
+        // Use different actions for different exception types
+        opts.Policies.OnException<InvalidOperationException>().RetryTimes(3);
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Runtime/Samples/error_handling.cs#L49-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_filtering_by_exception_type' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 
 ## Custom Actions

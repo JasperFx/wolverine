@@ -76,12 +76,9 @@ but you don't want to inject the Wolverine `IMessageContext` or `Envelope` into 
 an easy way to just "push" the current tenant id into your handler methods. Maybe this is for ease of writing unit tests,
 or conditional logic, or some other reason.
 
-To that end, you can inject the `Wolverine.Persistence.TenantId` into any Wolverine message handler or HTTP endpoint method
-to get easy access to the tenant id:
-
-TODO/FIX: snippet: sample_TenantId
-
-There's really nothing to it other than just pulling that type in as a parameter argument to a message handler:
+To that end, you can inject the `JasperFx.MultiTenancy.TenantId` into any Wolverine message handler or HTTP endpoint method
+to get easy access to the tenant id. There's really nothing to it other than just pulling that type in as a parameter
+argument to a message handler:
 
 <!-- snippet: sample_injecting_tenant_id -->
 <a id='snippet-sample_injecting_tenant_id'></a>
