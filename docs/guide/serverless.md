@@ -14,7 +14,7 @@ main suggestions about making Wolverine be more successful:
 
 1. Make any outgoing [message endpoints](/guide/runtime.html#endpoint-types) be *Inline* so that messages are sent immediately
 2. Utilize the new *Serverless* optimized mode
-3. Absolutely take advantage of [pre-generated types]() to cut down the all important cold start problem with serverless functions
+3. Absolutely take advantage of [pre-generated types](/guide/codegen.html#generating-code-ahead-of-time) to cut down the all important cold start problem with serverless functions
 
 ## Serverless Mode
 

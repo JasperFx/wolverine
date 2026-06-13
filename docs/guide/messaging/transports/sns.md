@@ -1,7 +1,7 @@
 # Using Amazon SNS
 
 ::: warning
-At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`) with SNS~~~~.
+At this moment, Wolverine cannot support request/reply mechanics (`IMessageBus.InvokeAsync<T>()`) with SNS.
 :::
 
 :::tip

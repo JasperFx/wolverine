@@ -64,7 +64,7 @@ opts.RegisterEncryptionSerializer(provider);
 opts.Policies.ForMessagesOfType<PaymentDetails>().Encrypt();
 ```
 
-`Encrypt<T>()` is symmetric: outgoing messages of type `T` are encrypted, and
+`Encrypt()` is symmetric: outgoing messages of type `T` are encrypted, and
 inbound messages of type `T` MUST arrive encrypted (see
 [Receive-side enforcement](#receive-side-enforcement) below).
 

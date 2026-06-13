@@ -73,7 +73,7 @@ public static class PingHandler
 {
     public static Pong Handle(Ping command, TextWriter writer)
     {
-        _writer.WriteLine($"--- Handled Ping: {request.Message}");
+        writer.WriteLine($"--- Handled Ping: {command.Message}");
         return new Pong(command.Message);
     }
 }

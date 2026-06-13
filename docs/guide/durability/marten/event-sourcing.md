@@ -295,8 +295,9 @@ in Wolverine.Http.Marten is now just a subclass of `[WriteAggregate]`.
 
 ## Validation on Stream Existence <Badge type="tip" text="4.8" />
 
-By default, the "aggregate handler workflow" does no validation on whether or not the identified event stream actually 
-exists at runtime, and it's possible to receive a null for the aggregate in this example if the aggregate does not exist:
+By default, the "aggregate handler workflow" _requires_ the identified event stream to exist at runtime. If the stream is
+missing, an HTTP endpoint returns a 404 status code and a message handler logs that the aggregate was not found and stops
+processing (effectively discarding the message). The `[WriteAggregate]` parameter in this example is required by default:
 
 <!-- snippet: sample_markitemreadyhandler_with_writeaggregate -->
 <a id='snippet-sample_markitemreadyhandler_with_writeaggregate'></a>
@@ -333,13 +334,11 @@ public static IEnumerable<object> Handle(
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/OrderEventSourcingSample/Order.cs#L282-L312' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_markitemreadyhandler_with_writeaggregate' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-As long as you handle the case where the requested is null, you can even effectively start a new stream by emitting events
-from your handler or HTTP endpoint. 
+If you instead mark the aggregate as `Required = false`, the parameter can be null when the stream does not exist. As long
+as you handle the null case, you can even effectively start a new stream by emitting events from your handler or HTTP endpoint.
 
-If you do want to protect message handlers or HTTP endpoints from acting on missing streams because of bad user inputs
-(or who knows what, it's a chaotic world and you should never trust your system is receiving valid input), you now have 
-some options to mark the aggregate itself as required and even control how Wolverine deals with the aggregate being missing 
-as shown in these sample signatures below:
+You can also control how Wolverine deals with the aggregate being missing — explicitly marking the aggregate as required (the
+default) or customizing the missing-stream behavior — as shown in these sample signatures below:
 
 <!-- snippet: sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow -->
 <a id='snippet-sample_validation_on_aggregate_being_missing_in_aggregate_handler_workflow'></a>

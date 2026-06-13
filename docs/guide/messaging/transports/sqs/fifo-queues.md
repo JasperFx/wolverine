@@ -65,8 +65,8 @@ opts.ListenToSqsQueue("orders.fifo", queue =>
     queue.Configuration.Attributes[QueueAttributeName.ContentBasedDeduplication] = "true";
 }).ConfigureDeadLetterQueue("orders-errors.fifo", dlq =>
 {
-    dlq.Attributes[QueueAttributeName.FifoQueue] = "true";
-    dlq.Attributes[QueueAttributeName.ContentBasedDeduplication] = "true";
+    dlq.Configuration.Attributes[QueueAttributeName.FifoQueue] = "true";
+    dlq.Configuration.Attributes[QueueAttributeName.ContentBasedDeduplication] = "true";
 });
 ```
 

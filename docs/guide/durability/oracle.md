@@ -267,8 +267,8 @@ and the default schema name for transport queues is `WOLVERINE_QUEUES`.
 
 ### Advisory Locks
 
-Wolverine uses Oracle's `DBMS_LOCK` package for distributed locking to coordinate scheduled message processing across
-nodes. Lock names are derived from a deterministic hash of the schema name.
+Wolverine uses row-level locks (`SELECT ... FOR UPDATE NOWAIT`) against a `wolverine_locks` table for distributed locking
+to coordinate scheduled message processing across nodes. Each lock is keyed by an integer lock id.
 
 ### Data Types
 

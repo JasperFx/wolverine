@@ -235,8 +235,7 @@ While it is possible to access the IoC Services via `ValidationContext`, we reco
 more explicit `Validate` or `ValidateAsync()` method directly in your message handler class for the data input.
 :::
 
-Wolverine.Http has a separate package called `WolverineFx.Http.DataAnnotationsValidation` that provides a simple middleware
-to use  [Data Annotation Attributes](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations?view=net-10.0)
+Wolverine.Http ships with built-in middleware to use [Data Annotation Attributes](https://learn.microsoft.com/en-us/dotnet/api/system.componentmodel.dataannotations?view=net-10.0)
 in your endpoints.
 
 To get started, add this one line of code to your Wolverine.HTTP configuration:

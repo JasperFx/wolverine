@@ -10,7 +10,7 @@ by Jasper/Wolverine, but for whatever reason, wasn't officially released until W
 To use [Apache Pulsar](https://pulsar.apache.org/) as a messaging transport with Wolverine, first install the `WolverineFx.Pulsar` library via nuget to your project. Behind the scenes, this package uses the [DotPulsar client library](https://pulsar.apache.org/docs/next/client-libraries-dotnet/) managed library for accessing Pulsar brokers.
 
 ```bash
-dotnet add WolverineFx.Pulsar
+dotnet add package WolverineFx.Pulsar
 ```
 
 To connect to Pulsar and configure senders and listeners, use this syntax:

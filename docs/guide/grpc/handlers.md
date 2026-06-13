@@ -222,7 +222,7 @@ public class IdempotentOrdersPolicy : IGrpcChainPolicy
         IServiceContainer container)
     {
         foreach (var chain in protoFirstChains.Where(c => c.ProtoServiceName == "Orders"))
-            chain.Idempotency = IdempotencyStyle.GetOrPost;
+            chain.Idempotency = IdempotencyStyle.Eager;
     }
 }
 

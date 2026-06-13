@@ -105,7 +105,7 @@ dotnet run -- check-env
 Or even at startup, you can use:
 
 ```bash
-dotnet run -- check-env
+dotnet run -- run --check
 ```
 
 to have the environment checks executed at application startup, but just realize that the application will shutdown if any

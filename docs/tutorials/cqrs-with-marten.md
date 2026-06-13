@@ -71,13 +71,13 @@ Next, let's add support for [Wolverine.HTTP]() endpoints:
 ```csharp
 app.MapWolverineEndpoints();
 ```
-And *lastly*, let's add the extended command line support through [Oakton](https://jasperfx.github.io/oakton) (don't worry, that's a 
+And *lastly*, let's add the extended command line support through [JasperFx](https://github.com/JasperFx/jasperfx) (don't worry, that's a 
 transitive dependency of Wolverine and you're good to go):
 
 ```csharp
 // Using the expanded command line options for the Critter Stack
 // that are helpful for code generation, database migrations, and diagnostics
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 
 ## Event Types and a Projected Aggregate

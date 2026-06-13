@@ -7,7 +7,7 @@ first install the `WolverineFx.Redis` Nuget package to your application. Behind 
 is using the [StackExchange.Redis](https://github.com/StackExchange/StackExchange.Redis) library. 
 
 ```bash
-dotnet add WolverineFx.Redis
+dotnet add package WolverineFx.Redis
 ```
 
 ## Using as Message Transport
