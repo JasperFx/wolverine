@@ -8,21 +8,21 @@ For inline endpoints, Wolverine uses native [Azure Service Bus dead letter queue
 
 To configure an endpoint for inline processing:
 
-<!-- snippet-todo: sample_asb_inline_dlq -->
+<!-- snippet: sample_asb_inline_dlq -->
+<a id='snippet-sample_asb_inline_dlq'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    // One way or another, you're probably pulling the Azure Service Bus
-    // connection string out of configuration
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
-    // Connect to the broker
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // Use inline processing with native Azure Service Bus DLQ
+    // Inline endpoints use Azure Service Bus's *native* dead letter
+    // subqueue of the source queue. There's no Wolverine inbox, so
+    // dead lettering is handled entirely by Azure Service Bus.
     opts.ListenToAzureServiceBusQueue("inline-queue")
         .ProcessInline();
 });
@@ -30,6 +30,8 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L528-L549' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_inline_dlq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### Buffered Endpoints
 
@@ -37,18 +39,21 @@ For buffered endpoints, Wolverine sends failed messages to a designated dead let
 
 To customize the dead letter queue for buffered endpoints:
 
-<!-- snippet-todo: sample_asb_buffered_dlq -->
+<!-- snippet: sample_asb_buffered_dlq -->
+<a id='snippet-sample_asb_buffered_dlq'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // Customize the dead letter queue name for buffered endpoint
+    // Buffered endpoints move failed messages to a Wolverine-managed
+    // dead letter queue. The default name is "wolverine-dead-letter-queue",
+    // but you can override it per endpoint.
     opts.ListenToAzureServiceBusQueue("buffered-queue")
         .BufferedInMemory()
         .ConfigureDeadLetterQueue("my-custom-dlq");
@@ -57,6 +62,8 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L554-L576' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_buffered_dlq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ### Durable Endpoints
 
@@ -64,18 +71,20 @@ Durable endpoints behave similarly to buffered endpoints, with dead lettering to
 
 To customize the dead letter queue for durable endpoints:
 
-<!-- snippet-todo: sample_asb_durable_dlq -->
+<!-- snippet: sample_asb_durable_dlq -->
+<a id='snippet-sample_asb_durable_dlq'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // Customize the dead letter queue name for durable endpoint
+    // Durable endpoints behave like buffered endpoints for dead lettering,
+    // but add Wolverine's durable inbox persistence for reliability.
     opts.ListenToAzureServiceBusQueue("durable-queue")
         .UseDurableInbox()
         .ConfigureDeadLetterQueue("my-custom-dlq");
@@ -84,23 +93,27 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L581-L602' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_asb_durable_dlq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Disabling Dead Letter Queues
 
 You can disable dead letter queuing for specific endpoints if needed:
 
-<!-- snippet-todo: sample_disable_asb_dlq -->
+<!-- snippet: sample_disable_asb_dlq -->
+<a id='snippet-sample_disable_asb_dlq'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
     var azureServiceBusConnectionString = builder
         .Configuration
-        .GetConnectionString("azure-service-bus");
+        .GetConnectionString("azure-service-bus")!;
 
     opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
 
-    // Disable dead letter queuing for this endpoint
+    // Disable Wolverine-managed dead letter queueing for this endpoint.
+    // Failed messages fall back to Wolverine's regular error handling.
     opts.ListenToAzureServiceBusQueue("no-dlq")
         .DisableDeadLetterQueueing();
 });
@@ -108,3 +121,5 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L607-L627' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_asb_dlq' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

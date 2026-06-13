@@ -483,7 +483,30 @@ public static (Order, OrderTimeout) Start(StartOrder order, ILogger<Order> logge
 
 ## Customizing Message Delivery
 
-TODO -- more text here. NEW PAGE???
+When you publish or send a message you can optionally pass a `DeliveryOptions` object to override how — and
+when — that particular message is delivered. Every overload of `IMessageBus.PublishAsync()` and
+`IMessageBus.SendAsync()` accepts an optional `DeliveryOptions` argument, so you can tailor a single message
+without changing any endpoint-wide configuration.
+
+`DeliveryOptions` lets you control things like:
+
+* **Custom headers** — add arbitrary string metadata that travels with the message, either through the
+  `Headers` dictionary or the fluent `WithHeader(key, value)` method.
+* **Expiration** — `DeliverBy` (an absolute time) or the `DeliverWithin` convenience setter (a `TimeSpan` from
+  now) tell Wolverine to discard the message if it hasn't been delivered and processed in time. See
+  [Message Expiration](/guide/messaging/expiration).
+* **Scheduled delivery** — `ScheduledTime` (an absolute time) or `ScheduleDelay` (a `TimeSpan` from now) defer
+  processing until later.
+* **Request/response** — set `ResponseType` (or use the static `DeliveryOptions.RequireResponse<T>()` helper) to
+  ask the receiver to send a reply message of that type back to you.
+* **Tenancy and tracing** — override the `TenantId`, `CorrelationId`, or `CausationId` stamped onto the outgoing
+  envelope for just this message.
+* **Acknowledgements** — set `AckRequested` to request an acknowledgement from the receiver.
+* **Transport-specific routing** — `GroupId` (AMQP 1.0 group id / Azure Service Bus session id / Amazon SQS FIFO
+  `MessageGroupId`), `DeduplicationId` (Amazon SQS FIFO), and `PartitionKey` (Kafka) map onto the corresponding
+  native broker concepts.
+
+Here's an example exercising several of these options at once:
 
 <!-- snippet: sample_sendmessageswithdeliveryoptions -->
 <a id='snippet-sample_sendmessageswithdeliveryoptions'></a>

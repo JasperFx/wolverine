@@ -64,11 +64,21 @@ builder.Host.UseWolverine(opts =>
 
 ## Listening Endpoint Configuration
 
+Once you've connected Wolverine to your external infrastructure, you'll want to configure listening endpoints so
+that Wolverine can receive and process incoming messages. Listening endpoints control which queues, topics, or
+subscriptions Wolverine reads from, how many messages are processed in parallel, and how received messages are
+buffered or made durable.
+
+See [Listener Configuration](/guide/messaging/listeners) for the full set of options, including parallelism,
+durability, and endpoint-level error handling.
 
 ## Sending Endpoint Configuration
 
+To publish messages out through external infrastructure, you'll configure sending endpoints and the routing
+rules that teach Wolverine where each message type should be sent.
 
-
-
+See [Subscriptions and Message Routing](/guide/messaging/subscriptions) for how to declare those rules, and
+[The Message Bus](/guide/messaging/message-bus) for the `IMessageBus` API you use to publish, send, and invoke
+messages from your application code.
 
 
