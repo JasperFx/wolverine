@@ -257,9 +257,36 @@ the EF Core transactional middleware, the domain events published to that interf
 
 Likewise, if you are using `IDbContextOutbox<T>`, the domain events published to `IEventPublisher` will be correctly piped to Wolverine if you:
 
-1. Pull both `IEventPublisher` and `IDbContextOutbox<T>` from the same scoped service provider
-2. Call `IDbContextOutbox<T>.SaveChangesAndFlushMessagesAsync()`
+1. Pull both `IEventPublisher` and `IDbContextOutbox<T>` from the same scoped service provider, so that the `IEventPublisher` and the `OutgoingDomainEvents` buffer it writes to share a scope
+2. Call `IDbContextOutbox<T>.SaveChangesAndFlushMessagesAsync()` to commit the `DbContext` changes and flush the scraped domain events through Wolverine in one transactional step
 
-3. So, we’re going to have to do some sleight of hand to keep your domain entities synchronous
+The trick that makes all of this work is that publishing a domain event from *inside* an entity is necessarily synchronous — your domain methods almost certainly aren’t `async`, and you really don’t want sync-over-async waits like `Bus.PublishAsync(@event).GetAwaiter().GetResult()` that can deadlock. So we have to do some sleight of hand to keep your domain entities synchronous: the `IEventPublisher` implementation never talks to Wolverine directly. It just appends each event to the scoped `OutgoingDomainEvents` buffer (an `OutgoingMessages` list), and Wolverine’s EF Core transactional middleware — or the `IDbContextOutbox<T>` flush — scrapes that buffer and enqueues the events as part of the transaction. No async, no deadlocks.
 
 Last note, in unit testing you might use a stand in “Spy” like this:
+
+```csharp
+// A synchronous, in-memory "spy" you can inject in unit tests to
+// assert on the domain events your entities raise without spinning
+// up Wolverine or a database
+public class EventPublisherSpy : IEventPublisher
+{
+    public List<IDomainEvent> Published { get; } = new();
+
+    public void Publish<T>(T e) where T : IDomainEvent
+    {
+        Published.Add(e);
+    }
+}
+```
+
+In a unit test you’d hand this `EventPublisherSpy` to your entity through whatever mechanism you use in production (here, the entity’s `Publisher` property), exercise the domain method, and then assert against `Published`:
+
+```csharp
+var spy = new EventPublisherSpy();
+var item = new BacklogItem { Publisher = spy };
+
+item.CommitTo(new Sprint());
+
+// The domain event was captured synchronously, no Wolverine required
+spy.Published.OfType<BackLotItemCommitted>().ShouldHaveSingleItem();
+```
