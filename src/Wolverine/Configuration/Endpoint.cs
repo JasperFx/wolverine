@@ -679,6 +679,18 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
         return false;
     }
 
+    /// <summary>
+    /// A transport-agnostic declaration of where this endpoint's dead letters effectively go —
+    /// Wolverine's durable store (<see cref="DeadLetterStorageMode.Durable"/>), a native broker dead
+    /// letter queue (<see cref="DeadLetterStorageMode.Native"/>), or a native queue bridged back into
+    /// durable storage (<see cref="DeadLetterStorageMode.NativeWithRecovery"/>). Monitoring tools read
+    /// this through <see cref="Capabilities.EndpointDescriptor.DeadLetterStorage"/> to detect
+    /// endpoints whose dead letters are native and un-bridged. The default is
+    /// <see cref="DeadLetterStorageMode.Durable"/>; transports with a native dead letter queue
+    /// override this.
+    /// </summary>
+    public virtual DeadLetterStorageMode DeadLetterStorage => DeadLetterStorageMode.Durable;
+
     internal bool ShouldAutoStartAsListener(DurabilitySettings durability)
     {
         if (!IsListener) return false;

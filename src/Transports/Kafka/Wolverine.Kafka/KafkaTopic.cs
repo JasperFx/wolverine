@@ -64,6 +64,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     /// </summary>
     public bool NativeDeadLetterQueueEnabled { get; set; }
 
+    // Inherited by KafkaTopicGroup, which shares the same NativeDeadLetterQueueEnabled flag.
+    public override DeadLetterStorageMode DeadLetterStorage => NativeDeadLetterQueueEnabled
+        ? DeadLetterStorageMode.Native
+        : DeadLetterStorageMode.Durable;
+
     /// <summary>
     /// When true, the Kafka consumer group ID will be stamped onto the incoming
     /// envelope's GroupId property. Useful when you want the consumer group name

@@ -54,7 +54,11 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     /// Enable native dead letter queue support for this endpoint
     /// </summary>
     public bool NativeDeadLetterQueueEnabled { get; set; } = true;
-    
+
+    public override DeadLetterStorageMode DeadLetterStorage => NativeDeadLetterQueueEnabled
+        ? DeadLetterStorageMode.Native
+        : DeadLetterStorageMode.Durable;
+
     /// <summary>
     /// The consumer group name for this endpoint (if listening)
     /// </summary>

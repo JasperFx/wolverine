@@ -467,4 +467,9 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         deadLetterSender = default;
         return false;
     }
+
+    public override DeadLetterStorageMode DeadLetterStorage =>
+        DeadLetterQueueName.IsNotEmpty() && !_parent.DisableDeadLetterQueues
+            ? DeadLetterStorageMode.Native
+            : DeadLetterStorageMode.Durable;
 }
