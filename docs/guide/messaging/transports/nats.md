@@ -65,7 +65,7 @@ using var host = await Host.CreateDefaultBuilder()
     {
         opts.UseNats("nats://localhost:4222")
             .AutoProvision()
-            .UseJetStream()
+            .UseJetStream(js => { })
             .DefineWorkQueueStream("ORDERS", "orders.>");
 
         // Listen with JetStream consumer
@@ -338,7 +338,7 @@ NATS Server 2.12+ supports native scheduled message delivery. When enabled, Wolv
 
 ```csharp
 opts.UseNats("nats://localhost:4222")
-    .UseJetStream()
+    .UseJetStream(js => { })
     .DefineWorkQueueStream("ORDERS", 
         s => s.EnableScheduledDelivery(), 
         "orders.>");
@@ -386,14 +386,14 @@ NATS transport supports subject-based tenant isolation.
 
 ```csharp
 opts.UseNats("nats://localhost:4222")
-    .ConfigureMultiTenancy(TenantedIdBehavior.RequireTenantId)
+    .ConfigureMultiTenancy(TenantedIdBehavior.TenantIdRequired)
     .AddTenant("tenant-a")
     .AddTenant("tenant-b");
 ```
 
 ### Tenant Behavior Options
 
-- `RequireTenantId`: Throws if tenant ID is missing
+- `TenantIdRequired`: Throws if tenant ID is missing
 - `FallbackToDefault`: Uses base subject if tenant ID is missing
 
 ### Custom Subject Mapper
@@ -401,7 +401,7 @@ opts.UseNats("nats://localhost:4222")
 ```csharp
 public class MyTenantMapper : ITenantSubjectMapper
 {
-    public string MapSubjectForTenant(string baseSubject, string tenantId)
+    public string MapSubject(string baseSubject, string tenantId)
         => $"{tenantId}.{baseSubject}";
     
     public string? ExtractTenantId(string subject)

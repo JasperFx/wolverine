@@ -283,6 +283,7 @@ are decorated with one of Wolverine's HTTP method attributes:
 - `[WolverinePut]`
 - `[WolverinePost]`
 - `[WolverineDelete]`
+- `[WolverinePatch]`
 - `[WolverineOptions]`
 - `[WolverineHead]`
 

@@ -84,7 +84,7 @@ Some notes about the middleware:
 
 ## Customizing the Validation Failure Behavior
 
-Out of the box, the Fluent Validation middleware will throw a `DataAnnotationsValidation.ValidationException`
+Out of the box, the Data Annotations middleware will throw a `DataAnnotationsValidation.ValidationException`
 with all the validation failures if the validation fails. To customize that behavior, you can plug
 in a custom implementation of the `IFailureAction<T>` interface. This behaves exactly the same as 
 the [Fluent Validation Customisation](/guide/handlers/fluent-validation).

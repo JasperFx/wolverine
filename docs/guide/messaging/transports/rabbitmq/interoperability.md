@@ -156,7 +156,7 @@ Wolverine is the new kid on the block, and it's quite likely that many folks wil
 Fortunately, Wolverine has some ability to exchange messages with NServiceBus applications, so both tools can live and
 work together.
 
-At this point, the interoperability is only built and tested for the [Rabbit MQ transport](./transports/rabbitmq.md).
+At this point, the interoperability is only built and tested for the [Rabbit MQ transport](./index.md).
 
 Here's a sample:
 

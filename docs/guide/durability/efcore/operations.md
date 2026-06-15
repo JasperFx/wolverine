@@ -139,7 +139,7 @@ public static class TodoHandler
 
 ::: warning
 When a handler returns an `IStorageAction`, Wolverine automatically
-applies [transactional middleware](/guide/durability/marten/transactional-middleware) for that handler — even if the
+applies [transactional middleware](/guide/durability/efcore/transactional-middleware) for that handler — even if the
 handler is not explicitly decorated with `[Transactional]` or `AutoApplyTransactions()` is not configured.
 
 This behavior is required because Wolverine needs to automatically call `SaveChangesAsync()` on the EF Core `DbContext`

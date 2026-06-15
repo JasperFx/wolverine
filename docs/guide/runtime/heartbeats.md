@@ -26,7 +26,7 @@ await Host.CreateDefaultBuilder()
         opts.PublishMessage<Wolverine.Runtime.Heartbeat.WolverineHeartbeat>()
             .ToRabbitExchange("monitoring");
     })
-    .RunOasisAsync();
+    .RunJasperFxCommands(args);
 ```
 
 ## What gets sent

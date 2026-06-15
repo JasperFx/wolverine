@@ -294,7 +294,7 @@ Here's some more important background on the multi-tenancy support:
 * The lightweight saga support for MySQL absolutely works with this model of multi-tenancy
 * Wolverine is able to manage all of its database tables including the tenant table itself (`wolverine_tenants`) across both the
   main database and all the tenant databases including schema migrations
-* Wolverine's transactional middleware is aware of the multi-tenancy and can connect to the correct database based on the `IMesageContext.TenantId`
+* Wolverine's transactional middleware is aware of the multi-tenancy and can connect to the correct database based on the `IMessageContext.TenantId`
   or utilize the tenant id detection in Wolverine.HTTP as well
 * You can "plug in" a custom implementation of `ITenantSource<string>` to manage tenant id to connection string assignments in whatever way works for your deployed system
 

@@ -16,7 +16,7 @@ to note that while you can use [Wolverine as "just" a mediator tool](/tutorials/
 we feel that you'll achieve better results, more testable code, and far simpler code over all by instead leaning into Wolverine capabilities.
 
 ::: tip
-See [Wolverine for MediatR User](/tutorials/from-mediatr) for more information about moving from MediatR to Wolverine. 
+See [Wolverine for MediatR User](/introduction/from-mediatr) for more information about moving from MediatR to Wolverine. 
 :::
 
 ## Wolverine's Philosophy toward Vertical Slice Architecture

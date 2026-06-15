@@ -6,10 +6,9 @@ For more context on this feature, see the blog post [Message Broker per Tenant w
 :::
 
 Let's take a trip to the world of IoT where you might very well build a single cloud hosted service that needs
-to communicate via Rabbit MQ with devices at your customers sites. You'd preferably like to keep traffic separate
+to communicate via Azure Service Bus with devices at your customers sites. You'd preferably like to keep traffic separate
 so that one customer never accidentally receives information from another customer. In this case, Wolverine now
-lets you register separate Rabbit MQ brokers -- or at least separate virtual hosts within a single Rabbit MQ broker --
-for each tenant.
+lets you register separate Azure Service Bus namespaces for each tenant.
 
 ::: info
 Definitely see [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for more information about how
@@ -109,9 +108,9 @@ public static async Task send_message_to_specific_tenant(IMessageBus bus)
 
 In the case above, in the Wolverine internals, it:
 
-1. Routes the message to a Azure Service Bus queue named "outgoing"
-2. Within the sender for that queue, Wolverine sees that `TenantId == "two"`, so it sends the message to the "outgoing" queue
-   on the Azure Service Bus connection that we specified for the "two" tenant id.
+1. Routes the message to the Azure Service Bus queue that `Message1` is mapped to
+2. Within the sender for that queue, Wolverine sees that `TenantId == "two"`, so it sends the message
+   on the Azure Service Bus namespace that we specified for the "two" tenant id.
 
 Likewise, see the listening set up against the "incoming" queue above. At runtime, this Wolverine application will be
 listening to a queue named "incoming" on the default Azure Service Bus namespace and a separate queue named "incoming" on the separate

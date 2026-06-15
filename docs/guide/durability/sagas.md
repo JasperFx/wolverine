@@ -274,7 +274,7 @@ public class ToyOnTray
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/HappyMealSaga.cs#L251-L261' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_toyontray' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-After that, you can also use a new `[SagaIdentityFrom]` (as of 5.9) attribute on~~~~ a handler parameter:
+After that, you can also use a new `[SagaIdentityFrom]` (as of 5.9) attribute on a handler parameter:
 
 <!-- snippet: sample_using_sagaidentityfrom -->
 <a id='snippet-sample_using_sagaidentityfrom'></a>
@@ -294,6 +294,12 @@ saga type, that would be a public member named `OrderId` as shown in this code:
 
 ```csharp
 public record StartOrder(string OrderId);
+```
+
+After that, Wolverine looks for a public member named `SagaId`:
+
+```csharp
+public record UpdateOrder(string SagaId);
 ```
 
 And lastly, Wolverine looks for a public member named `Id` like this one:

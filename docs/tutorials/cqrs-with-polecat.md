@@ -41,10 +41,10 @@ Next, add support for Wolverine.HTTP endpoints:
 app.MapWolverineEndpoints();
 ```
 
-And lastly, add the extended command line support through Oakton:
+And lastly, add the extended command line support through JasperFx:
 
 ```csharp
-return await app.RunOaktonCommands(args);
+return await app.RunJasperFxCommands(args);
 ```
 
 ## Event Types and a Projected Aggregate

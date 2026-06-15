@@ -8,10 +8,10 @@ The Wolverine 1.9 release added a new transport option for the [MQTT standard](h
 
 ## Installing
 
-To use [MQTT](https://mqtt.org/) as a transport with Wolverine, first install the `Wolverine.MQTT` library via nuget to your project. Behind the scenes, this package uses the [MQTTnet](https://github.com/dotnet/MQTTnet) managed library for accessing MQTT brokers and also for its own testing.
+To use [MQTT](https://mqtt.org/) as a transport with Wolverine, first install the `WolverineFx.Mqtt` library via nuget to your project. Behind the scenes, this package uses the [MQTTnet](https://github.com/dotnet/MQTTnet) managed library for accessing MQTT brokers and also for its own testing.
 
 ```bash
-dotnet add WolverineFx.Mqtt
+dotnet add package WolverineFx.Mqtt
 ```
 
 In its most simplistic usage you enable the MQTT transport through calling the `WolverineOptions.UseMqtt()` extension method

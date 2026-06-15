@@ -15,7 +15,7 @@ There is also an HTTP specific middleware for WolverineFx.Http that uses the `Pr
 ::: warning
 If you need to use IoC services in a Fluent Validation `IValidator` that might force Wolverine to use a service locator
 pattern in the generated code (basically from `AddScoped<T>(s => build it at runtime)`), we recommend instead using a
-more explicit `Validate` or `ValidateAsync()` method directly in your message handler~~~~ class for the data input.
+more explicit `Validate` or `ValidateAsync()` method directly in your message handler class for the data input.
 :::
 
 You will frequently want or need to validate the messages coming into your Wolverine system for correctness

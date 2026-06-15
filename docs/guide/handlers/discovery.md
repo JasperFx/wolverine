@@ -194,7 +194,7 @@ The valid method names are:
 And also specific to sagas: 
 
 1. Start / StartAsync
-2. Starts / StartAsync
+2. Starts / StartsAsync
 3. Orchestrate / OrchestrateAsync
 4. Orchestrates / OrchestratesAsync
 5. StartOrHandle / StartOrHandleAsync

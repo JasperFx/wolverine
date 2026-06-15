@@ -468,7 +468,7 @@ The rule will not override an explicitly set `PartitionKey` on an outgoing envel
 
 ## Global Partitioning
 
-Global partitioning extends the [sharded publishing](#sharded-publishing) concept to support multi-node deployments where messages must be processed sequentially by group id across the entire cluster, not just within a single node.
+Global partitioning extends the [partitioned publishing](#partitioned-publishing-to-external-transports) concept to support multi-node deployments where messages must be processed sequentially by group id across the entire cluster, not just within a single node.
 
 ### How It Works
 

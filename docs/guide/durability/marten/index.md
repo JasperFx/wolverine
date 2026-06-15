@@ -23,7 +23,7 @@ within its own `IHostedService` service that is registered **after** Wolverine i
 
 ## Getting Started
 
-To use the Wolverine integration with Marten, just install the Wolverine.Persistence.Marten Nuget into your application. Assuming that you've [configured Marten](https://martendb.io/configuration/)
+To use the Wolverine integration with Marten, just install the WolverineFx.Marten Nuget into your application. Assuming that you've [configured Marten](https://martendb.io/configuration/)
 in your application (and Wolverine itself!), you next need to add the Wolverine integration to Marten as shown in this sample application bootstrapping:
 
 <!-- snippet: sample_integrating_wolverine_with_marten -->

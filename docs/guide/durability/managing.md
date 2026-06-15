@@ -106,6 +106,7 @@ The available commands are:
   db-apply    Applies all outstanding changes to the database(s) based on the current configuration
   db-assert   Assert that the existing database(s) matches the current configuration
   db-dump     Dumps the entire DDL for the configured Marten database
+  db-list     List all the databases as configured for this application
   db-patch    Evaluates the current configuration against the database and writes a patch and drop file if there are
               any differences
   describe    Writes out a description of your running application to either the console or a file
@@ -115,7 +116,7 @@ The available commands are:
   storage     Administer the envelope storage
 ```
 
-There's admittedly some duplication here with different options coming from [Oakton](https://jasperfx.github.io/oakton) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,
+There's admittedly some duplication here with different options coming from [JasperFx](https://github.com/JasperFx/jasperfx) itself, the [Weasel.CommandLine](https://weasel.jasperfx.net/cli/) library,
 and the `storage` command from Wolverine itself. To build out the schema objects for [message persistence](/guide/durability/), you
 can use this command to apply any outstanding database changes necessary to bring the database schema to the Wolverine configuration:
 

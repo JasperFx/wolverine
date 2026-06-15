@@ -6,7 +6,6 @@ Customers with a [JasperFx Support Plan](https://jasperfx.net/support-plans/) ar
 
 | Wolverine Version | End-of-Life |    Status     |  Support Options   |
 | ----------------- | :---------: | :-----------: | :----------------: |
-| 4                 |   Current   |    Current    | Community/JasperFx |
-| 3                 |  Dec 2025   | P1 Fixes Only | Community/JasperFx |
-| 2                 |  May 2025   |      EoL      |      JasperFx      |
-| 1                 |  Sep 2024   |      EoL      |      JasperFx      |
+| 6                 |   Current   |    Current    | Community/JasperFx |
+| 5                 |  Oct 2026   | P1 Fixes Only | Community/JasperFx |
+| 4 and earlier     |      —      |      EoL      |      JasperFx      |
