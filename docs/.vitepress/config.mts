@@ -333,6 +333,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Subscription/Projection Distribution', link: '/guide/durability/polecat/distribution'},
                                 {text: 'Sagas', link: '/guide/durability/polecat/sagas'},
                                 {text: 'Multi-Tenancy and Polecat', link: '/guide/durability/polecat/multi-tenancy'},
+                                {text: 'Ancillary Polecat Stores', link: '/guide/durability/polecat/ancillary-stores'},
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},

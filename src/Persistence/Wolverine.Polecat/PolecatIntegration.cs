@@ -9,6 +9,7 @@ using Wolverine.Middleware;
 using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Polecat.Publishing;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -67,6 +68,12 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
         // SQL Server transport will be configured when the message store is built
 
         options.Policies.Add<PolecatOpPolicy>();
+
+        // GH-3109: pre-populate chain.AncillaryStoreType for [PolecatStore]-attributed handlers so the
+        // message-type-to-ancillary-store map built later in WolverineRuntime.HostService sees it.
+        // Mirrors Marten's MartenStoreEagerPolicy; see PolecatStoreEagerPolicy for the Phase-A vs
+        // Phase-B ordering trap this addresses.
+        options.Policies.Add<PolecatStoreEagerPolicy>();
 
         options.CodeGeneration.AddContinuationStrategy<Wolverine.Polecat.Requirements.PolecatDataRequirementContinuationStrategy>();
 

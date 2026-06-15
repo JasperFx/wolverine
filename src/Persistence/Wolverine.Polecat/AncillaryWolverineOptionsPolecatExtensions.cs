@@ -1,6 +1,3 @@
-// NOTE: This file requires Polecat 1.1+ (AddPolecatStore<T>, IConfigurePolecat<T>, PolecatStoreExpression<T>)
-// Uncomment #if POLECAT_1_1 / #endif when ready, or remove the guards after upgrading the Polecat NuGet
-#if POLECAT_1_1
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -317,7 +314,14 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
     public void Configure(IServiceProvider services, StoreOptions options)
     {
         // Polecat's DocumentMapping automatically detects IRevisioned types
-        // and enables numeric revisions
+        // and enables numeric revisions.
+
+        // GH-3109: replace this ancillary store's default NulloMessageOutbox with the Wolverine
+        // bridge so a projection author who calls slice.PublishMessage(...) from a RaiseSideEffects
+        // override on THIS store has the message delivered through the Wolverine outbox after the
+        // projection batch commits — parity with the primary store (PolecatOverrides above) and the
+        // Marten ancillary side. Without this the ancillary store silently drops projection-published
+        // messages.
+        options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
     }
 }
-#endif

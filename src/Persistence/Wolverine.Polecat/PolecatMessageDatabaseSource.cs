@@ -1,6 +1,3 @@
-// NOTE: This file requires Polecat 1.1+ (public ITenancy, ConnectionFactory, PolecatDatabase.ConnectionString)
-// Uncomment #if POLECAT_1_1 / #endif when ready, or remove the guards after upgrading the Polecat NuGet
-#if POLECAT_1_1
 using ImTools;
 using JasperFx;
 using JasperFx.Core.Reflection;
@@ -183,4 +180,3 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
         return store;
     }
 }
-#endif

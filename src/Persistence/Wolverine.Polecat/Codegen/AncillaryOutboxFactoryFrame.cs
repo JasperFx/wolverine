@@ -1,6 +1,3 @@
-// NOTE: This file requires Polecat 1.1+ (OutboxedSessionFactory<T>)
-// Uncomment #if POLECAT_1_1 / #endif when ready, or remove the guards after upgrading the Polecat NuGet
-#if POLECAT_1_1
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -14,7 +11,7 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
 {
     private readonly Type _storeType;
     private readonly Type _factoryType;
-    private Variable _outerFactory;
+    private Variable _outerFactory = null!;
 
     public AncillaryOutboxFactoryFrame(Type storeType)
     {
@@ -48,4 +45,3 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 }
-#endif

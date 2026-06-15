@@ -9,6 +9,7 @@ using Marten;
 using Marten.Events.Daemon.Coordination;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core;
@@ -153,6 +154,14 @@ public static class WolverineOptionsMartenExtensions
         expression.Services.AddSingleton<IConfigureMarten, MartenOverrides>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Marten ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in MartenIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when multiple Marten stores integrate.
+        expression.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, MartenAncillaryStoreFrameProvider>());
 
         // CritterWatch / saga-explorer diagnostic surface — Marten owns
         // every saga whose state class is a Marten document, so register

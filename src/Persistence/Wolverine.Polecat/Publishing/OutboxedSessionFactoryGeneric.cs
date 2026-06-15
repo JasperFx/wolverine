@@ -1,6 +1,3 @@
-// NOTE: This file requires Polecat 1.1+ (AddPolecatStore<T>)
-// Uncomment #if POLECAT_1_1 / #endif when ready, or remove the guards after upgrading the Polecat NuGet
-#if POLECAT_1_1
 using JasperFx.Core.Reflection;
 using Polecat;
 using Wolverine.Persistence.Durability;
@@ -40,4 +37,3 @@ internal class DefaultSessionFactory : ISessionFactory
         return _store.QuerySession();
     }
 }
-#endif

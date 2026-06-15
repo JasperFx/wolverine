@@ -243,6 +243,11 @@ public sealed partial class WolverineOptions
         Policies.Add<ResponsePolicy>();
         Policies.Add<OutgoingMessagesPolicy>();
 
+        // Phase-A pre-population of IChain.AncillaryStoreType for [Storage]-attributed handlers so the
+        // ancillary-store inbox routing map sees them eagerly at startup. Mirrors the per-provider
+        // eager policies (e.g. Marten's MartenStoreEagerPolicy). See StorageAttributeEagerPolicy.
+        Policies.Add<StorageAttributeEagerPolicy>();
+
         this.OnException<DuplicateIncomingEnvelopeException>().Discard();
 
         MessagePartitioning = new MessagePartitioningRules(this);
