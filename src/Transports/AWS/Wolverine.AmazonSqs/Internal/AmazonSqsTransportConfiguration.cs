@@ -1,4 +1,5 @@
 using Amazon.Runtime;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -145,6 +146,66 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
         Transport.DefaultDeadLetterQueueName =
             AmazonSqsTransport.SanitizeSqsName(deadLetterQueueName);
         return this;
+    }
+
+    /// <summary>
+    /// Enable a background listener that drains the native Amazon SQS dead letter queue(s) and
+    /// recovers the messages into Wolverine's durable dead letter storage (the
+    /// <c>wolverine_dead_letters</c> table), making natively dead-lettered messages queryable and
+    /// replayable through <c>IDeadLetters</c> and tools like CritterWatch. This is the SQS analogue
+    /// of RabbitMQ's <c>EnableDeadLetterQueueRecovery()</c>.
+    ///
+    /// With no arguments, every distinct dead letter queue used by a listening SQS queue is drained.
+    /// Requires Wolverine's durable message storage (a database) to be configured.
+    /// </summary>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration EnableDeadLetterQueueRecovery()
+    {
+        ensureRecoveryServicesRegistered();
+        return this;
+    }
+
+    /// <summary>
+    /// Enable a background listener that drains the named Amazon SQS dead letter queue(s) and
+    /// recovers the messages into Wolverine's durable dead letter storage. Use this overload when
+    /// the dead letter queues you want to recover from are not directly attached to a Wolverine
+    /// listener (for example, queues fed by an SQS native redrive policy you manage yourself).
+    /// </summary>
+    /// <param name="deadLetterQueueNames">The names of the SQS dead letter queues to drain.</param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration EnableDeadLetterQueueRecovery(params string[] deadLetterQueueNames)
+    {
+        var settings = ensureRecoveryServicesRegistered();
+        foreach (var name in deadLetterQueueNames)
+        {
+            var sanitized = AmazonSqsTransport.SanitizeSqsName(name);
+            if (!settings.QueueNames.Contains(sanitized))
+            {
+                settings.QueueNames.Add(sanitized);
+            }
+        }
+
+        return this;
+    }
+
+    private AmazonSqsDeadLetterQueueRecoverySettings ensureRecoveryServicesRegistered()
+    {
+        var existing = Options.Services
+            .Where(s => s.ServiceType == typeof(AmazonSqsDeadLetterQueueRecoverySettings))
+            .Select(s => s.ImplementationInstance)
+            .OfType<AmazonSqsDeadLetterQueueRecoverySettings>()
+            .FirstOrDefault();
+
+        if (existing != null)
+        {
+            return existing;
+        }
+
+        var settings = new AmazonSqsDeadLetterQueueRecoverySettings();
+        Options.Services.AddSingleton(settings);
+        Options.Services.AddSingleton(Transport);
+        Options.Services.AddHostedService<SqsDeadLetterQueueListener>();
+        return settings;
     }
 
     /// <summary>

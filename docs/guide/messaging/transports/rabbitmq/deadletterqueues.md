@@ -126,6 +126,53 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L469-L489' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_rabbit_mq_dead_letter_queue' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Recovering Native Dead Letters to Durable Storage <Badge type="tip" text="6.9" />
+
+With native dead lettering, failed messages land in a RabbitMQ dead letter queue and are only visible
+through RabbitMQ tooling. Tools that manage Wolverine's *durable* dead letters (for example
+[CritterWatch](https://github.com/JasperFx/CritterWatch)) can't see or replay them.
+
+`EnableDeadLetterQueueRecovery()` starts a background listener that consumes the native dead letter
+queue(s) and copies each message into Wolverine's durable dead letter storage (the
+`wolverine_dead_letters` table), where it becomes queryable and replayable through `IDeadLetters`:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Durable message storage is required — the recovered dead letters
+        // are written to the wolverine_dead_letters table.
+        opts.PersistMessagesWithPostgresql(connectionString);
+
+        opts.UseRabbitMq()
+            .AutoProvision()
+            // Consume the native dead letter queue and copy the messages into
+            // Wolverine's durable dead letter storage.
+            .EnableDeadLetterQueueRecovery();
+
+        opts.ListenToRabbitQueue("orders");
+    }).StartAsync();
+```
+
+With no arguments, the default `wolverine-dead-letter-queue` is consumed. Pass explicit queue names
+to recover from custom-named dead letter queues:
+
+```csharp
+opts.UseRabbitMq()
+    .EnableDeadLetterQueueRecovery("orders-errors", "shipments-errors");
+```
+
+The original exception type and message are reconstructed from the RabbitMQ `x-death` metadata (and
+from the [enhanced dead lettering](#enhanced-dead-lettering-with-exception-metadata) headers when
+those are present).
+
+::: tip
+The same `EnableDeadLetterQueueRecovery()` syntax is available on the
+[Amazon SQS](../sqs/deadletterqueues.html) and
+[Azure Service Bus](../azureservicebus/deadletterqueues.html) transports, so "bridge my native dead
+letters into durable storage" is a one-call decision on every native-dead-letter transport.
+:::
+
 
 
 
