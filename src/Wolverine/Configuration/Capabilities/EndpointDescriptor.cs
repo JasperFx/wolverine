@@ -42,12 +42,14 @@ public class EndpointDescriptor : OptionsDescription
         BrokerRole = endpoint.BrokerRole;
         Mode = endpoint.Mode;
         IsListener = endpoint.IsListener;
+        DeadLetterStorage = endpoint.DeadLetterStorage;
 
-        // Mode and IsListener are now first-class typed fields (GH-3009). Drop the generic
-        // OptionsDescription rows the base ctor reflected off the Endpoint so we don't ship
-        // them twice — CritterWatch reads the typed fields at the service-overview level, and
-        // Properties is becoming lazy-fetchable downstream.
-        Properties.RemoveAll(x => x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener));
+        // Mode and IsListener are now first-class typed fields (GH-3009); DeadLetterStorage is
+        // likewise a typed field (GH-3104). Drop the generic OptionsDescription rows the base ctor
+        // reflected off the Endpoint so we don't ship them twice — CritterWatch reads the typed
+        // fields at the service-overview level, and Properties is becoming lazy-fetchable downstream.
+        Properties.RemoveAll(x =>
+            x.Name is nameof(Endpoint.Mode) or nameof(Endpoint.IsListener) or nameof(Endpoint.DeadLetterStorage));
     }
 
     public Uri Uri { get; set; } = null!;
@@ -119,6 +121,17 @@ public class EndpointDescriptor : OptionsDescription
     /// <see cref="OptionsDescription.Properties"/>.
     /// </summary>
     public bool IsListener { get; init; }
+
+    /// <summary>
+    /// Where this endpoint's dead letters effectively go — <see cref="DeadLetterStorageMode.Durable"/>
+    /// (Wolverine's durable, queryable store), <see cref="DeadLetterStorageMode.Native"/> (a native
+    /// broker dead letter queue, un-bridged), or <see cref="DeadLetterStorageMode.NativeWithRecovery"/>
+    /// (native, but bridged back into durable storage). A transport-agnostic contract (GH-3104) so
+    /// monitoring tools like CritterWatch can detect endpoints that dead-letter natively without
+    /// recovery — and recommend enabling it — without transport-specific knowledge. Lifted from
+    /// <see cref="Endpoint.DeadLetterStorage"/>.
+    /// </summary>
+    public DeadLetterStorageMode DeadLetterStorage { get; init; }
 
     internal static string? ResolveInteropMode(Endpoint endpoint)
     {

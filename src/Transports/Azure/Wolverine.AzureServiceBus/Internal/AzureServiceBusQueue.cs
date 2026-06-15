@@ -219,6 +219,14 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         deadLetterSender = default;
         return false;
     }
+
+    // Buffered/durable queues move failures to the managed dead letter queue; inline queues use the
+    // native $DeadLetterQueue sub-queue. Either way it's a native broker destination unless dead
+    // lettering was explicitly disabled (DeadLetterQueueName set to null), which falls back to
+    // Wolverine's durable storage.
+    public override DeadLetterStorageMode DeadLetterStorage => DeadLetterQueueName.IsNotEmpty()
+        ? DeadLetterStorageMode.Native
+        : DeadLetterStorageMode.Durable;
     
     // NServiceBus interop: NSB writes the .NET assembly-qualified type name
     // to the message header; we resolve it via Type.GetType(string). Type

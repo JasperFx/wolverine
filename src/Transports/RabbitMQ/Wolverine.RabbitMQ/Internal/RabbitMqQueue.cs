@@ -391,4 +391,22 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         deadLetterSender = default;
         return false;
     }
+
+    // Native and InteropFriendly modes route to a native RabbitMQ dead letter queue; WolverineStorage
+    // (and no DLQ) uses Wolverine's durable storage. EnableDeadLetterQueueRecovery() bridges the
+    // native queue back into durable storage.
+    public override DeadLetterStorageMode DeadLetterStorage
+    {
+        get
+        {
+            if (DeadLetterQueue is null || DeadLetterQueue.Mode == DeadLetterQueueMode.WolverineStorage)
+            {
+                return DeadLetterStorageMode.Durable;
+            }
+
+            return _parent.EnableDeadLetterQueueRecovery
+                ? DeadLetterStorageMode.NativeWithRecovery
+                : DeadLetterStorageMode.Native;
+        }
+    }
 }

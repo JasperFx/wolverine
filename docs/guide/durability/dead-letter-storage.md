@@ -23,6 +23,31 @@ To replay dead lettered messages back to the incoming table, you also have a com
 dotnet run -- storage replay
 ```
 
+## Introspecting an Endpoint's Dead Letter Destination <Badge type="tip" text="6.9" />
+
+Where an endpoint's dead letters actually go varies by transport and configuration: some endpoints
+move failures to Wolverine's durable `wolverine_dead_letters` storage, while others use a **native
+broker dead letter queue** (RabbitMQ DLX, an SQS dead letter queue, the Azure Service Bus
+`$DeadLetterQueue`, etc.) that a tool managing the durable store can't see.
+
+Every endpoint declares its effective destination through a single transport-agnostic enum,
+`DeadLetterStorageMode`, so monitoring tools can introspect it without transport-specific knowledge:
+
+| Value | Meaning |
+|-------|---------|
+| `Durable` | Dead letters go to Wolverine's durable store (`wolverine_dead_letters`) — queryable and replayable through `IDeadLetters`. |
+| `Native` | Dead letters go to a native broker dead letter queue and are **not** bridged into durable storage. |
+| `NativeWithRecovery` | Dead letters go to a native broker dead letter queue **and** are bridged back into durable storage via [`EnableDeadLetterQueueRecovery()`](/guide/messaging/transports/rabbitmq/deadletterqueues.html#recovering-native-dead-letters-to-durable-storage). |
+
+It is exposed two ways:
+
+- `Endpoint.DeadLetterStorage` on the endpoint model.
+- `EndpointDescriptor.DeadLetterStorage` on the diagnostic descriptor surface that monitoring tools
+  (for example [CritterWatch](https://github.com/JasperFx/CritterWatch)) read.
+
+This lets a monitor detect endpoints that dead-letter **natively without recovery** (`Native`) and
+recommend enabling recovery so those dead letters become visible and replayable in the durable store.
+
 ## Dead Letter Expiration <Badge type="tip" text="3.9" />
 
 ::: tip

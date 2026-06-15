@@ -320,6 +320,10 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         ));
     }
 
+    public override DeadLetterStorageMode DeadLetterStorage => DeadLetterName.IsNotEmpty()
+        ? DeadLetterStorageMode.Native
+        : DeadLetterStorageMode.Durable;
+
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
         EnvelopeMapper ??= BuildMapper(runtime);

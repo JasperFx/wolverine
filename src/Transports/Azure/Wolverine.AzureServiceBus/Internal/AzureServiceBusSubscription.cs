@@ -56,6 +56,9 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
     // so this property renders as the topic name string (per audit decision).
     public AzureServiceBusTopic Topic { get; }
 
+    // Subscriptions dead-letter to their native $DeadLetterQueue sub-queue.
+    public override DeadLetterStorageMode DeadLetterStorage => DeadLetterStorageMode.Native;
+
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         return Parent.BuildListenerForSubscription(runtime, receiver, this);
