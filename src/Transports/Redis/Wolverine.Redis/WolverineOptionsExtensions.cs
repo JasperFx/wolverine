@@ -1,5 +1,6 @@
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Redis.Internal;
@@ -37,9 +38,46 @@ public static class WolverineOptionsExtensions
     public static RedisTransportExpression UseRedisTransport(this WolverineOptions options, string connectionString)
     {
         var transport = new RedisTransport(connectionString);
-        
+
         options.Transports.Add(transport);
-        
+
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Adds the Redis Streams transport to Wolverine using caller-supplied StackExchange.Redis
+    /// <see cref="ConfigurationOptions"/> instead of a connection string. Wolverine builds and owns the
+    /// underlying <c>ConnectionMultiplexer</c>. Use this to wire up StackExchange.Redis extensions — for
+    /// example <a href="https://github.com/Azure/Microsoft.Azure.StackExchangeRedis">Microsoft.Azure.StackExchangeRedis</a>
+    /// for Azure Managed Redis with Entra ID / Managed Identity token refresh. GH-3110.
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="configurationOptions">Pre-configured StackExchange.Redis connection options</param>
+    /// <returns>RedisTransport for fluent configuration</returns>
+    public static RedisTransportExpression UseRedisTransport(this WolverineOptions options, ConfigurationOptions configurationOptions)
+    {
+        var transport = new RedisTransport(configurationOptions);
+
+        options.Transports.Add(transport);
+
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Adds the Redis Streams transport to Wolverine using a caller-managed
+    /// <see cref="IConnectionMultiplexer"/>. Wolverine uses the supplied multiplexer as-is and does NOT
+    /// dispose it — the caller owns its lifetime and any custom authentication, reconnect policy, or token
+    /// refresh wired into it (e.g. via Microsoft.Azure.StackExchangeRedis). GH-3110.
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="connectionMultiplexer">A connected, caller-managed multiplexer</param>
+    /// <returns>RedisTransport for fluent configuration</returns>
+    public static RedisTransportExpression UseRedisTransport(this WolverineOptions options, IConnectionMultiplexer connectionMultiplexer)
+    {
+        var transport = new RedisTransport(connectionMultiplexer);
+
+        options.Transports.Add(transport);
+
         return new RedisTransportExpression(transport, options);
     }
 

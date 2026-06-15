@@ -79,6 +79,58 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/DocumentationSamples.cs#L19-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Connection Options <Badge type="tip" text="6.9" />
+
+`UseRedisTransport()` accepts three different connection sources. The connection string overload above
+is the simplest, but you can also pass StackExchange.Redis [`ConfigurationOptions`](https://stackexchange.github.io/StackExchange.Redis/Configuration)
+or a fully caller-managed [`IConnectionMultiplexer`](https://stackexchange.github.io/StackExchange.Redis/Basics):
+
+```csharp
+// 1. Connection string — Wolverine owns the ConnectionMultiplexer
+opts.UseRedisTransport("localhost:6379");
+
+// 2. ConfigurationOptions — Wolverine builds and owns the ConnectionMultiplexer,
+//    but you control every StackExchange.Redis setting
+var configuration = ConfigurationOptions.Parse("localhost:6379");
+configuration.ConnectRetry = 5;
+opts.UseRedisTransport(configuration);
+
+// 3. A caller-managed IConnectionMultiplexer — you own its lifetime; Wolverine never disposes it
+IConnectionMultiplexer multiplexer = await ConnectionMultiplexer.ConnectAsync("localhost:6379");
+opts.UseRedisTransport(multiplexer);
+```
+
+With options (2) and (3) Wolverine never has to recreate the connection from a static connection string,
+which is what makes token-based authentication possible.
+
+### Azure Managed Redis with Entra ID / Managed Identity
+
+Azure Managed Redis access tokens expire and must be refreshed. The
+[`Microsoft.Azure.StackExchangeRedis`](https://github.com/Azure/Microsoft.Azure.StackExchangeRedis) package
+handles that refresh by augmenting a `ConfigurationOptions` (or the multiplexer it builds). Because Wolverine
+can take that `ConfigurationOptions` (or the resulting `IConnectionMultiplexer`) directly, the connection
+re-authenticates in place and the application no longer has to restart when a token expires:
+
+```csharp
+// Requires the Microsoft.Azure.StackExchangeRedis package
+var configuration = await ConfigurationOptions
+    .Parse("your-cache.region.redis.azure.net:10000")
+    .ConfigureForAzureWithTokenCredentialAsync(new DefaultAzureCredential());
+
+opts.UseRedisTransport(configuration);
+
+// — or — build the multiplexer yourself and hand it to Wolverine:
+// var multiplexer = await ConnectionMultiplexer.ConnectAsync(configuration);
+// opts.UseRedisTransport(multiplexer);
+```
+
+::: tip
+When you pass an `IConnectionMultiplexer`, Wolverine uses it as-is and does **not** dispose it on shutdown —
+the multiplexer (and any token-refresh background work wired into it) is owned by your application. With the
+connection-string and `ConfigurationOptions` overloads Wolverine owns the multiplexer it builds and disposes
+it for you.
+:::
+
 If you need to control the database id within Redis, you have these options:
 
 <!-- snippet: sample_redis_database_configuration -->
