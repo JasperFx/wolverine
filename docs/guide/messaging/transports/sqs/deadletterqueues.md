@@ -85,5 +85,57 @@ using var host = await Host.CreateDefaultBuilder()
 
 This would force Wolverine to use any persistent envelope storage for dead letter queueing.
 
+## Recovering Native Dead Letters to Durable Storage <Badge type="tip" text="6.9" />
+
+By default an Amazon SQS dead letter queue is just another SQS queue — its messages are only visible
+through the AWS console or SDK, and tools that manage Wolverine's *durable* dead letters (for example
+[CritterWatch](https://github.com/JasperFx/CritterWatch)) can't see or replay them.
+
+`EnableDeadLetterQueueRecovery()` starts a background listener that drains the native SQS dead letter
+queue(s) and copies each message into Wolverine's durable dead letter storage (the
+`wolverine_dead_letters` table), where it becomes queryable and replayable through `IDeadLetters`:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Durable message storage is required — the recovered dead letters
+        // are written to the wolverine_dead_letters table.
+        opts.PersistMessagesWithPostgresql(connectionString);
+
+        opts.UseAmazonSqsTransport()
+            .AutoProvision()
+            // Drain every dead letter queue used by a listener and copy the
+            // messages into Wolverine's durable dead letter storage.
+            .EnableDeadLetterQueueRecovery();
+
+        opts.ListenToSqsQueue("orders");
+    }).StartAsync();
+```
+
+With no arguments, every distinct dead letter queue used by a listening SQS queue is drained. Pass
+explicit names when the dead letter queues you want to recover from aren't directly attached to a
+Wolverine listener — for example, queues fed by an SQS [native redrive policy](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
+that you manage yourself:
+
+```csharp
+opts.UseAmazonSqsTransport()
+    .EnableDeadLetterQueueRecovery("orders-dlq", "payments-dlq");
+```
+
+The names are sanitized with the same `SanitizeSqsName` normalization used everywhere else, so dots
+become hyphens consistently.
+
+Each recovered message is reconstructed back into a Wolverine `Envelope`. When Wolverine itself moved
+the message to the dead letter queue, the original exception type and message are preserved (stamped
+on the envelope when it failed). A message is only deleted from the SQS dead letter queue *after* it
+has been safely written to durable storage, so a transient database outage never loses a dead letter.
+
+::: tip
+This is the SQS equivalent of the [RabbitMQ dead letter recovery](../rabbitmq/deadletterqueues.html)
+feature, and uses the same `EnableDeadLetterQueueRecovery()` syntax across every native-dead-letter
+transport.
+:::
+
 
 

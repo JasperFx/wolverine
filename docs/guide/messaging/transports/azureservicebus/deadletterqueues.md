@@ -123,3 +123,58 @@ await host.StartAsync();
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L607-L627' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_asb_dlq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Recovering Native Dead Letters to Durable Storage <Badge type="tip" text="6.9" />
+
+Azure Service Bus dead letters land in one of two places depending on the endpoint mode: buffered and
+durable endpoints move failures to a Wolverine-managed dead letter **queue** (default
+`wolverine-dead-letter-queue`), while inline endpoints — and Azure Service Bus itself, on TTL or
+max-delivery — use the native
+[`$DeadLetterQueue` sub-queue](https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues)
+of the source entity. Either way, those messages are only visible through Azure tooling. Tools that
+manage Wolverine's *durable* dead letters (for example [CritterWatch](https://github.com/JasperFx/CritterWatch))
+can't see or replay them.
+
+`EnableDeadLetterQueueRecovery()` starts a background listener that drains **both** kinds of source —
+the Wolverine-managed dead letter queue(s) and the native `$DeadLetterQueue` sub-queue of every
+listening queue and subscription — copying each message into Wolverine's durable dead letter storage
+(the `wolverine_dead_letters` table), where it becomes queryable and replayable through
+`IDeadLetters`:
+
+```csharp
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // Durable message storage is required — the recovered dead letters
+        // are written to the wolverine_dead_letters table.
+        opts.PersistMessagesWithPostgresql(connectionString);
+
+        opts.UseAzureServiceBus(connectionString)
+            .AutoProvision()
+            // Drain the native $DeadLetterQueue sub-queue of every listening
+            // queue and subscription into Wolverine's durable storage.
+            .EnableDeadLetterQueueRecovery();
+
+        opts.ListenToAzureServiceBusQueue("orders");
+    }).StartAsync();
+```
+
+With no arguments, every managed dead letter queue and every listening queue/subscription's native
+sub-queue is drained. Pass explicit names (a managed dead letter queue name, a listening queue name,
+or a subscription endpoint name) to restrict recovery to a subset:
+
+```csharp
+opts.UseAzureServiceBus(connectionString)
+    .EnableDeadLetterQueueRecovery("orders", "shipments");
+```
+
+The original exception type and message are preserved: from the stamped failure metadata for messages
+in the managed dead letter queue, or from the native `DeadLetterReason`/`DeadLetterErrorDescription`
+for messages in a native sub-queue. A message is only completed off its source *after* it has been
+safely written to durable storage, so a transient database outage never loses a dead letter.
+
+::: tip
+This is the Azure Service Bus equivalent of the
+[RabbitMQ dead letter recovery](../rabbitmq/deadletterqueues.html) feature, and uses the same
+`EnableDeadLetterQueueRecovery()` syntax across every native-dead-letter transport.
+:::
