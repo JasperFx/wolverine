@@ -81,9 +81,10 @@ using var host = await Host.CreateDefaultBuilder()
 
 ## Connection Options <Badge type="tip" text="6.9" />
 
-`UseRedisTransport()` accepts three different connection sources. The connection string overload above
-is the simplest, but you can also pass StackExchange.Redis [`ConfigurationOptions`](https://stackexchange.github.io/StackExchange.Redis/Configuration)
-or a fully caller-managed [`IConnectionMultiplexer`](https://stackexchange.github.io/StackExchange.Redis/Basics):
+`UseRedisTransport()` accepts four different connection sources. The connection string overload above
+is the simplest, but you can also pass StackExchange.Redis [`ConfigurationOptions`](https://stackexchange.github.io/StackExchange.Redis/Configuration),
+a fully caller-managed [`IConnectionMultiplexer`](https://stackexchange.github.io/StackExchange.Redis/Basics),
+or a factory that resolves one from your IoC container:
 
 ```csharp
 // 1. Connection string — Wolverine owns the ConnectionMultiplexer
@@ -98,10 +99,14 @@ opts.UseRedisTransport(configuration);
 // 3. A caller-managed IConnectionMultiplexer — you own its lifetime; Wolverine never disposes it
 IConnectionMultiplexer multiplexer = await ConnectionMultiplexer.ConnectAsync("localhost:6379");
 opts.UseRedisTransport(multiplexer);
+
+// 4. A factory resolved from the IoC container — share one multiplexer between Wolverine and
+//    the rest of your application. The container owns it; Wolverine never disposes it.
+opts.UseRedisTransport(sp => sp.GetRequiredService<IConnectionMultiplexer>());
 ```
 
-With options (2) and (3) Wolverine never has to recreate the connection from a static connection string,
-which is what makes token-based authentication possible.
+With options (2), (3), and (4) Wolverine never has to recreate the connection from a static connection
+string, which is what makes token-based authentication possible.
 
 ### Azure Managed Redis with Entra ID / Managed Identity
 
@@ -125,10 +130,10 @@ opts.UseRedisTransport(configuration);
 ```
 
 ::: tip
-When you pass an `IConnectionMultiplexer`, Wolverine uses it as-is and does **not** dispose it on shutdown —
-the multiplexer (and any token-refresh background work wired into it) is owned by your application. With the
-connection-string and `ConfigurationOptions` overloads Wolverine owns the multiplexer it builds and disposes
-it for you.
+When you pass an `IConnectionMultiplexer` (option 3) or a factory that resolves one (option 4), Wolverine uses
+it as-is and does **not** dispose it on shutdown — the multiplexer (and any token-refresh background work wired
+into it) is owned by your application / IoC container. With the connection-string and `ConfigurationOptions`
+overloads Wolverine owns the multiplexer it builds and disposes it for you.
 :::
 
 If you need to control the database id within Redis, you have these options:

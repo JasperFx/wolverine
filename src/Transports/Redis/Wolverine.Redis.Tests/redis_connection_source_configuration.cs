@@ -6,6 +6,7 @@ using NSubstitute;
 using Shouldly;
 using StackExchange.Redis;
 using Wolverine.Redis.Internal;
+using Wolverine.Runtime;
 using Xunit;
 
 namespace Wolverine.Redis.Tests;
@@ -119,6 +120,80 @@ public class redis_connection_source_configuration
         // After the host that used it is disposed, the caller-managed multiplexer is still alive.
         mux.IsConnected.ShouldBeTrue();
         (await mux.GetDatabase().PingAsync()).ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void connection_summary_reports_a_caller_managed_multiplexer_factory()
+    {
+        var transport = new RedisTransport(_ => Substitute.For<IConnectionMultiplexer>());
+
+        transport.ConnectionSummary.ShouldBe("caller-managed IConnectionMultiplexer factory");
+    }
+
+    [Fact]
+    public async Task connection_factory_overload_round_trips_and_is_not_disposed_by_wolverine()
+    {
+        var streamKey = $"wolverine-tests-factory-mux-{Guid.NewGuid():N}";
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // The multiplexer is owned by the application here (not registered for disposal in the
+        // container), so if it is still alive after the host is gone, Wolverine did not dispose it.
+        await using var mux = await ConnectionMultiplexer.ConnectAsync(RedisContainerFixture.ConnectionString);
+
+        using (var host = await Host.CreateDefaultBuilder()
+                   .UseWolverine(opts =>
+                   {
+                       opts.UseRedisTransport(_ => mux).AutoProvision();
+
+                       opts.ListenToRedisStream(streamKey, "g1")
+                           .DefaultIncomingMessage<ByoMuxMessage>();
+
+                       opts.PublishAllMessages().ToRedisStream(streamKey);
+                       opts.Services.AddSingleton(tcs);
+                   })
+                   .StartAsync())
+        {
+            // The transport resolved its connection from the factory.
+            var transport = host.Services.GetRequiredService<IWolverineRuntime>()
+                .Options.Transports.GetOrCreate<RedisTransport>();
+            transport.GetConnection().ShouldBeSameAs(mux);
+
+            var bus = host.MessageBus();
+            await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}"))
+                .SendAsync(new ByoMuxMessage("123"));
+
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            completed.ShouldBe(tcs.Task);
+        }
+
+        mux.IsConnected.ShouldBeTrue();
+        (await mux.GetDatabase().PingAsync()).ShouldBeGreaterThanOrEqualTo(TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task connection_factory_resolves_the_multiplexer_from_the_ioc_container()
+    {
+        var streamKey = $"wolverine-tests-factory-di-{Guid.NewGuid():N}";
+
+        await using var mux = await ConnectionMultiplexer.ConnectAsync(RedisContainerFixture.ConnectionString);
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Services.AddSingleton<IConnectionMultiplexer>(mux);
+
+                // Share the application's container-registered multiplexer with the transport.
+                opts.UseRedisTransport(sp => sp.GetRequiredService<IConnectionMultiplexer>())
+                    .AutoProvision();
+
+                opts.ListenToRedisStream(streamKey, "g1").DefaultIncomingMessage<ByoMuxMessage>();
+            })
+            .StartAsync();
+
+        var transport = host.Services.GetRequiredService<IWolverineRuntime>()
+            .Options.Transports.GetOrCreate<RedisTransport>();
+
+        transport.GetConnection().ShouldBeSameAs(mux);
     }
 
     public record ByoMuxMessage(string Id);

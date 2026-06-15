@@ -82,6 +82,25 @@ public static class WolverineOptionsExtensions
     }
 
     /// <summary>
+    /// Adds the Redis Streams transport to Wolverine using an <see cref="IConnectionMultiplexer"/> resolved
+    /// from the application's IoC container at runtime. Use this to share one multiplexer (for example a
+    /// singleton registered with Microsoft.Azure.StackExchangeRedis token refresh) between Wolverine and the
+    /// rest of the application. The resolved multiplexer is assumed to be container-owned — Wolverine uses it
+    /// as-is and does NOT dispose it. GH-3110.
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="connectionFactory">Resolves the multiplexer from the built service provider</param>
+    /// <returns>RedisTransport for fluent configuration</returns>
+    public static RedisTransportExpression UseRedisTransport(this WolverineOptions options, Func<IServiceProvider, IConnectionMultiplexer> connectionFactory)
+    {
+        var transport = new RedisTransport(connectionFactory);
+
+        options.Transports.Add(transport);
+
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
     /// Configure Wolverine to publish messages to the specified Redis stream (uses database 0)
     /// </summary>
     /// <param name="publishing">Publishing configuration</param>

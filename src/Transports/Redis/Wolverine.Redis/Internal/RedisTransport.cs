@@ -19,11 +19,15 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     private readonly ConcurrentDictionary<string, IConnectionMultiplexer> _connections = new();
     private readonly Lazy<IConnectionMultiplexer> _defaultConnection;
 
-    // Exactly one of these three connection sources is populated, used in precedence order:
-    // a caller-managed multiplexer, caller-supplied ConfigurationOptions, or a connection string.
-    // GH-3110 — the first two let callers wire up StackExchange.Redis extensions such as
-    // Microsoft.Azure.StackExchangeRedis for Entra ID / Managed Identity token refresh.
+    // Exactly one of these four connection sources is populated, used in precedence order: a
+    // caller-managed multiplexer, a factory that resolves one from the IoC container, caller-supplied
+    // ConfigurationOptions, or a connection string. GH-3110 — the first three let callers wire up
+    // StackExchange.Redis extensions such as Microsoft.Azure.StackExchangeRedis for Entra ID /
+    // Managed Identity token refresh. Wolverine owns (and disposes) only the multiplexers it builds
+    // itself from ConfigurationOptions / a connection string.
     private readonly IConnectionMultiplexer? _externalConnection;
+    private readonly Func<IServiceProvider, IConnectionMultiplexer>? _connectionFactory;
+    private IServiceProvider? _services;
     private readonly ConfigurationOptions? _configurationOptions;
     private readonly string? _connectionString;
 
@@ -90,6 +94,20 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         _defaultConnection = new Lazy<IConnectionMultiplexer>(createDefaultConnection);
     }
 
+    /// <summary>
+    /// Connect to Redis with an <see cref="IConnectionMultiplexer"/> resolved from the application's IoC
+    /// container at runtime. Use this to share a single multiplexer (e.g. one registered as a singleton,
+    /// possibly with Microsoft.Azure.StackExchangeRedis token refresh) between Wolverine and the rest of
+    /// the application. The resolved multiplexer is assumed to be owned by the container — Wolverine uses
+    /// it as-is and does NOT dispose it. GH-3110.
+    /// </summary>
+    public RedisTransport(Func<IServiceProvider, IConnectionMultiplexer> connectionFactory) : base(ProtocolName, "Redis Streams Transport", ["redis"])
+    {
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+        _streams = buildStreamCache();
+        _defaultConnection = new Lazy<IConnectionMultiplexer>(createDefaultConnection);
+    }
+
     private LightweightCache<string, RedisStreamEndpoint> buildStreamCache()
     {
         return new LightweightCache<string, RedisStreamEndpoint>(
@@ -112,9 +130,25 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     private IConnectionMultiplexer createDefaultConnection()
     {
         if (_externalConnection != null) return _externalConnection;
+
+        if (_connectionFactory != null)
+        {
+            var services = _services ?? throw new InvalidOperationException(
+                "The Redis transport's IConnectionMultiplexer factory cannot be resolved before the Wolverine host has started. " +
+                "This usually means a Redis connection was requested before ConnectAsync ran.");
+            return _connectionFactory(services);
+        }
+
         if (_configurationOptions != null) return ConnectionMultiplexer.Connect(_configurationOptions);
         return ConnectionMultiplexer.Connect(_connectionString!);
     }
+
+    /// <summary>
+    /// True when Wolverine built the default connection itself (from a connection string or
+    /// ConfigurationOptions) and is therefore responsible for disposing it. A caller-managed multiplexer
+    /// or one resolved from the IoC container is owned elsewhere and must not be disposed here.
+    /// </summary>
+    private bool OwnsDefaultConnection => _externalConnection == null && _connectionFactory == null;
 
     public override Uri ResourceUri
     {
@@ -135,6 +169,11 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     private System.Net.EndPoint? primaryEndPoint()
     {
         if (_externalConnection != null) return _externalConnection.GetEndPoints().FirstOrDefault();
+        if (_connectionFactory != null)
+        {
+            // Only known once the factory has resolved a multiplexer (after the host has started).
+            return _defaultConnection.IsValueCreated ? _defaultConnection.Value.GetEndPoints().FirstOrDefault() : null;
+        }
         if (_configurationOptions != null) return _configurationOptions.EndPoints.FirstOrDefault();
         return ConfigurationOptions.Parse(_connectionString!).EndPoints.FirstOrDefault();
     }
@@ -146,6 +185,7 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     /// </summary>
     public string ConnectionSummary =>
         _externalConnection != null ? "caller-managed IConnectionMultiplexer"
+        : _connectionFactory != null ? "caller-managed IConnectionMultiplexer factory"
         : _configurationOptions != null ? SanitizeConfigurationOptionsForLogging(_configurationOptions)
         : SanitizeConnectionStringForLogging(_connectionString!);
 
@@ -171,6 +211,10 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
+        // Capture the IoC container so a factory-based connection can be resolved. ConnectAsync runs
+        // before any endpoint forces a connection (BrokerTransport.startupAsync), so this is set in time.
+        _services ??= runtime.Services;
+
         runtime.Logger.LogInformation("Connecting to Redis at {ConnectionString}", ConnectionSummary);
         
         try
@@ -296,8 +340,9 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
             var owned = _connections.Values.ToList();
 
             // Dispose the default connection only if Wolverine created it. A caller-managed
-            // IConnectionMultiplexer is owned by the caller and must never be disposed here. GH-3110.
-            if (_defaultConnection.IsValueCreated && !ReferenceEquals(_defaultConnection.Value, _externalConnection))
+            // IConnectionMultiplexer, or one resolved from the IoC container via a factory, is owned
+            // elsewhere and must never be disposed here. GH-3110.
+            if (_defaultConnection.IsValueCreated && OwnsDefaultConnection)
             {
                 owned.Add(_defaultConnection.Value);
             }
