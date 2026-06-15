@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using JasperFx.Core;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -93,13 +94,12 @@ public class HandlerPipeline : IHandlerPipeline
             }
             catch (Exception e)
             {
-                await channel.CompleteAsync(envelope).ConfigureAwait(false);
-
-                // Gotta get the message out of here because it's something that
-                // could never be handled
-                Logger.LogException(e, envelope.Id);
-
-                activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+                // The pipeline's last line of defense. Containment lives in a guarded helper so a
+                // failure in the recovery path itself (e.g. an OutOfMemoryException re-thrown by the
+                // allocating CompleteAsync / logging calls) can never escape InvokeAsync, fault the
+                // receiver loop, and silently stop the listener. See GH-3111.
+                await RecoverFromFailedProcessingAsync(channel, envelope, e, Logger, _runtime.Logger, activity)
+                    .ConfigureAwait(false);
             }
             finally
             {
@@ -109,6 +109,66 @@ public class HandlerPipeline : IHandlerPipeline
         finally
         {
             activity?.Stop();
+        }
+    }
+
+    /// <summary>
+    /// The pipeline's final, allocation-safe recovery step. Normal failures are acked out of the way
+    /// and logged exactly as before; the difference is that if that recovery work itself throws — which
+    /// happens when the original failure is resource exhaustion, because <see cref="IChannelCallback.CompleteAsync"/>
+    /// and structured logging both allocate at the memory ceiling — the failure is contained here instead of
+    /// escaping <c>InvokeAsync</c>. An exception escaping the pipeline faults the receiver loop, stops the
+    /// listener, and lets the host exit cleanly (exit code 0), which an orchestrator reads as success and
+    /// restarts straight back into the same un-acked poison message → permanent crash loop. A single
+    /// un-recoverable envelope must never take the whole host down. See GH-3111.
+    /// </summary>
+    internal static async ValueTask RecoverFromFailedProcessingAsync(
+        IChannelCallback channel,
+        Envelope envelope,
+        Exception exception,
+        IMessageTracker tracker,
+        ILogger logger,
+        Activity? activity)
+    {
+        try
+        {
+            // Gotta get the message out of here because it's something that
+            // could never be handled
+            await channel.CompleteAsync(envelope).ConfigureAwait(false);
+
+            tracker.LogException(exception, envelope.Id);
+
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+        }
+        catch (Exception recoveryFailure)
+        {
+            // The recovery path itself failed — almost always because the original failure was an
+            // OutOfMemoryException and CompleteAsync / structured logging also allocate. Swallow it so
+            // it cannot escape InvokeAsync and stop the listener; the broker will redeliver the
+            // still-un-acked envelope, but the host stays up and keeps processing other messages.
+            TryLogContainedFailure(logger, envelope, exception, recoveryFailure, activity);
+        }
+    }
+
+    private static void TryLogContainedFailure(ILogger logger, Envelope envelope, Exception original,
+        Exception recoveryFailure, Activity? activity)
+    {
+        try
+        {
+            var fatal = original is OutOfMemoryException || recoveryFailure is OutOfMemoryException;
+
+            logger.LogError(recoveryFailure,
+                "Wolverine could not recover from a {Severity} failure while processing envelope {Id} " +
+                "(original failure: {Original}). The message was not acknowledged or dead-lettered and may be " +
+                "redelivered by the broker; the listener is being kept alive to avoid a poison-message crash loop. See GH-3111.",
+                fatal ? "fatal resource-exhaustion" : "cascading", envelope.Id, original.GetType().Name);
+
+            activity?.SetStatus(ActivityStatusCode.Error, original.GetType().Name);
+        }
+        catch
+        {
+            // Even minimal structured logging allocates and can itself fail at the memory ceiling.
+            // There is nothing more we can safely do here; never let the containment path throw.
         }
     }
 
