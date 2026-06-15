@@ -143,6 +143,7 @@ public static class WolverineOptionsMartenExtensions
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
             expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
             expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
         }
 

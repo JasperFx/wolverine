@@ -153,6 +153,16 @@ public class TrackingOptions
     public bool EnableMessageCausationTracking { get; set; }
 
     /// <summary>
+    /// When enabled, the Wolverine event-store integrations (Wolverine.Marten / Wolverine.Polecat)
+    /// report events appended during an outbox-enrolled message/endpoint execution to
+    /// <c>IWolverineObserver.EventsAppended</c>, so the executing-handler→appended-event-type
+    /// relationship (invisible to message causation, since appended events never hit the outbox)
+    /// can be reconstructed. Default is <c>false</c>; <c>Wolverine.CritterWatch</c> enables this
+    /// automatically.
+    /// </summary>
+    public bool EnableEventAppendTracking { get; set; }
+
+    /// <summary>
     /// When enabled, Wolverine emits structured diagnostics around each handler
     /// invocation: <c>wolverine.handler.started</c> / <c>wolverine.handler.finished</c>
     /// <see cref="System.Diagnostics.ActivityEvent"/>s wrapping the actual user

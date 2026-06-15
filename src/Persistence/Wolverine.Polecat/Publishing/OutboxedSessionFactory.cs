@@ -13,6 +13,7 @@ public class OutboxedSessionFactory
     private readonly ISessionFactory _factory;
     private readonly IDocumentStore _store;
     private readonly bool _shouldPublishEvents;
+    private readonly bool _shouldTrackAppends;
 
     public OutboxedSessionFactory(ISessionFactory factory, IWolverineRuntime runtime, IDocumentStore store)
     {
@@ -20,6 +21,7 @@ public class OutboxedSessionFactory
         _store = store;
 
         _shouldPublishEvents = runtime.TryFindExtension<PolecatIntegration>()?.UseFastEventForwarding ?? false;
+        _shouldTrackAppends = runtime.Options.Tracking.EnableEventAppendTracking;
 
         MessageStore = runtime.Storage;
     }
@@ -88,6 +90,11 @@ public class OutboxedSessionFactory
         if (_shouldPublishEvents)
         {
             options.Listeners.Add(new PublishIncomingEventsBeforeCommit(context));
+        }
+
+        if (_shouldTrackAppends)
+        {
+            options.Listeners.Add(new NotifyObserverOfAppendedEvents(context));
         }
 
         // The FlushOutgoingMessagesOnCommit listener needs the SQL Server

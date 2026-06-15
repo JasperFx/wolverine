@@ -17,7 +17,9 @@ public class event_subscription_agent_rebuild
 
         await agent.RebuildAsync(CancellationToken.None);
 
-        await daemon.Received(1).RebuildProjectionAsync("Trip", CancellationToken.None);
+        // RebuildAsync uses the tenant-aware overload so per-tenant agents rebuild only their
+        // partition; shardName.TenantId is null for store-global shards.
+        await daemon.Received(1).RebuildProjectionAsync("Trip", shardName.TenantId, CancellationToken.None);
     }
 
     [Fact]
@@ -31,6 +33,6 @@ public class event_subscription_agent_rebuild
         using var cts = new CancellationTokenSource();
         await agent.RebuildAsync(cts.Token);
 
-        await daemon.Received(1).RebuildProjectionAsync("Distance", cts.Token);
+        await daemon.Received(1).RebuildProjectionAsync("Distance", shardName.TenantId, cts.Token);
     }
 }

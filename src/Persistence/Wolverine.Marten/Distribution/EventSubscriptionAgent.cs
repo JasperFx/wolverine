@@ -63,7 +63,19 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
     public async Task RebuildAsync(CancellationToken cancellationToken)
     {
-        await _daemon.RebuildProjectionAsync(_shardName.Name, cancellationToken);
+        // Pass the shard's tenant so a per-tenant agent rebuilds ONLY its tenant's partition under
+        // single-database per-tenant partitioning. _shardName.TenantId is null for store-global /
+        // database-per-tenant shards, where the tenant-less behavior is correct.
+        await _daemon.RebuildProjectionAsync(_shardName.Name, _shardName.TenantId, cancellationToken);
+    }
+
+    public async Task RewindAsync(long? sequenceFloor, DateTimeOffset? timestamp, CancellationToken cancellationToken)
+    {
+        // The per-tenant overload delegates to the store-global path when TenantId is null, so this
+        // covers both store-global and per-tenant rewinds. This is the agent-level rewind path
+        // CritterWatch needs because DaemonForDatabase() throws under Wolverine-managed distribution.
+        await _daemon.RewindSubscriptionAsync(_shardName.Name, _shardName.TenantId, cancellationToken,
+            sequenceFloor, timestamp);
     }
 
     public Uri Uri { get; }

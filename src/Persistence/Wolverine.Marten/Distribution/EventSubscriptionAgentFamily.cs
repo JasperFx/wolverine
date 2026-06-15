@@ -8,7 +8,7 @@ using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Marten.Distribution;
 
-public class EventSubscriptionAgentFamily : IStaticAgentFamily, IAsyncDisposable
+public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscriptionAgentFamily, IAsyncDisposable
 {
     public const string SchemeName = "event-subscriptions";
     private ImHashMap<string, EventStoreAgents> _stores = ImHashMap<string, EventStoreAgents>.Empty;
@@ -19,6 +19,43 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IAsyncDisposable
     {
         return new Uri($"{SchemeName}://{storeIdentity.Type}/{storeIdentity.Name}/{databaseId}/{name.RelativeUrl}");
     }
+
+    /// <summary>
+    /// Resolve the live agent <see cref="Uri" /> for a projection/subscription shard identified by its
+    /// <paramref name="shardIdentity" /> (the JasperFx <c>ShardName.Identity</c>, e.g. <c>"Trip:All"</c>)
+    /// and optional <paramref name="tenantId" />, across every store this family manages.
+    ///
+    /// <para>Tooling such as CritterWatch uses this instead of composing agent URIs by hand — the URI
+    /// grammar lives here, not in the consumer. Returns <c>null</c> when no matching live agent is
+    /// found.</para>
+    ///
+    /// <para>Handles store-global shards and single-database per-tenant partitioning (where the tenant
+    /// is part of the shard's <c>RelativeUrl</c>). Database-per-tenant resolution (tenant in the
+    /// database segment) is matched only for the store-global case here; a per-tenant lookup in that
+    /// model needs a tenant→database resolution and is handled separately.</para>
+    /// </summary>
+    public async ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+    {
+        if (!ShardName.TryParse(shardIdentity, out var baseName) || baseName is null)
+        {
+            return null;
+        }
+
+        var known = await SupportedAgentsAsync().ConfigureAwait(false);
+
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            return known.FirstOrDefault(u => MatchesShard(u, baseName.RelativeUrl));
+        }
+
+        // Single-database per-tenant partitioning: the tenant rides in the shard RelativeUrl.
+        var perTenant = ShardName.Compose(baseName.Name, baseName.ShardKey, tenantId);
+        return known.FirstOrDefault(u => MatchesShard(u, perTenant.RelativeUrl));
+    }
+
+    private static bool MatchesShard(Uri agentUri, string relativeUrl)
+        => agentUri.AbsolutePath.TrimEnd('/').EndsWith("/" + relativeUrl, StringComparison.OrdinalIgnoreCase);
     
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
     {
