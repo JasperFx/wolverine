@@ -522,6 +522,110 @@ opts.ListenToAzureServiceBusQueue("incoming")
         using var host = builder.Build();
         await host.StartAsync();
     }
+
+    public async Task configure_inline_dlq()
+    {
+        #region sample_asb_inline_dlq
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // Inline endpoints use Azure Service Bus's *native* dead letter
+            // subqueue of the source queue. There's no Wolverine inbox, so
+            // dead lettering is handled entirely by Azure Service Bus.
+            opts.ListenToAzureServiceBusQueue("inline-queue")
+                .ProcessInline();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task configure_buffered_dlq()
+    {
+        #region sample_asb_buffered_dlq
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // Buffered endpoints move failed messages to a Wolverine-managed
+            // dead letter queue. The default name is "wolverine-dead-letter-queue",
+            // but you can override it per endpoint.
+            opts.ListenToAzureServiceBusQueue("buffered-queue")
+                .BufferedInMemory()
+                .ConfigureDeadLetterQueue("my-custom-dlq");
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task configure_durable_dlq()
+    {
+        #region sample_asb_durable_dlq
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // Durable endpoints behave like buffered endpoints for dead lettering,
+            // but add Wolverine's durable inbox persistence for reliability.
+            opts.ListenToAzureServiceBusQueue("durable-queue")
+                .UseDurableInbox()
+                .ConfigureDeadLetterQueue("my-custom-dlq");
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task disable_dlq()
+    {
+        #region sample_disable_asb_dlq
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            // Disable Wolverine-managed dead letter queueing for this endpoint.
+            // Failed messages fall back to Wolverine's regular error handling.
+            opts.ListenToAzureServiceBusQueue("no-dlq")
+                .DisableDeadLetterQueueing();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
 }
 
 public interface IInterfaceMessage;
