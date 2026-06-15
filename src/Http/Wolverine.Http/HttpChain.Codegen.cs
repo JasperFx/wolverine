@@ -183,6 +183,17 @@ public partial class HttpChain
             Postprocessors.Add(flush);
         }
         
+        // CritterWatch #396 Phase 4 item 5: attribute endpoint-originated publishes to the route+verb.
+        // HTTP endpoints aren't MessageHandler subclasses, so MessageHandler.RecordCauseAndEffect never
+        // runs for them; this emits the parallel EndpointCausation call between the method/return-value
+        // frames (which enqueue cascading messages) and the postprocessor flush. Codegen-only gating,
+        // mirroring HandlerChain — off ⇒ no frame, no runtime cost.
+        if (_parent.Options.Tracking.EnableMessageCausationTracking)
+        {
+            var origin = $"{_httpMethods.Select(x => x.ToUpper()).Join("/")} {RoutePattern!.RawText}";
+            yield return new RecordEndpointCausationFrame(origin, Method.HandlerType.FullNameInCode());
+        }
+
         foreach (var frame in Postprocessors) yield return frame;
     }
 

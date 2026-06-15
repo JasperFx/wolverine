@@ -253,7 +253,18 @@ public partial class WolverineRuntime
         // Skip framework-internal types (IAgentCommand, INotToBeRouted, IInternalMessage,
         // and types from assemblies marked [ExcludeFromServiceCapabilities]) so they
         // never reach observers like CritterWatch. See GH-2520.
-        if (!messageType.IsSystemMessageType())
+        //
+        // Also skip the observer call during "description" mode. WolverineSystemPart.
+        // FindResources() walks every discovered message type through RoutingFor to
+        // surface IStatefulResource instances for transports; while that pass runs,
+        // WithinDescription is true and MessageRoute is allowed to take a null Sender
+        // and a null Serializer (the endpoint may not have a DefaultSerializer assigned
+        // until transports finish initializing). Routes in that degraded state are not
+        // safe to hand to observers — calling MessageRoute.Describe() on them NREs on
+        // Serializer.ContentType, killing the host at resource-setup-on-startup.
+        // Observers re-fire from the real RoutingFor calls once the runtime is live,
+        // so suppressing during description loses no signal. See GH-3088.
+        if (!messageType.IsSystemMessageType() && !WolverineSystemPart.WithinDescription)
         {
             Observer.MessageRouted(messageType, router);
         }

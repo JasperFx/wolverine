@@ -45,6 +45,10 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     internal IServiceContainer Container { get; }
 
+    // CritterWatch #396 Phase 4 item 5: HTTP chains need the WolverineOptions to read
+    // Tracking.EnableMessageCausationTracking when deciding whether to emit the endpoint-causation frame.
+    internal WolverineOptions Options => _options;
+
     // Types registered via WolverineHttpOptions.SourceServiceFromHttpContext<T>().
     // Stored on the HTTP graph so the RequestServicesVariableSource is only added to
     // HTTP chains' per-method sources, never to the shared WolverineOptions.CodeGeneration.Sources
