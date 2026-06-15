@@ -6,6 +6,7 @@ using JasperFx.Events.Projections;
 using JasperFx.Events.Subscriptions;
 using Polecat;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Wolverine.Polecat.Distribution;
 using Wolverine.Polecat.Publishing;
@@ -81,6 +82,14 @@ public static class WolverineOptionsPolecatExtensions
         expression.Services.AddSingleton<IConfigurePolecat, PolecatOverrides>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Polecat ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in PolecatIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when multiple Polecat stores integrate.
+        expression.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, PolecatAncillaryStoreFrameProvider>());
 
         // CritterWatch / saga-explorer diagnostic surface — Polecat
         // builds a SqlServerMessageStore underneath, so the lightweight

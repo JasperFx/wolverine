@@ -127,6 +127,29 @@ At this point the "Critter Stack" team is voting to make the attribute an explic
 any kind of conventional application of what handlers/messages/HTTP routes are covered by what Marten document store
 :::
 
+## Provider-agnostic `[Storage]` attribute <Badge type="tip" text="6.9" />
+
+If you'd rather not couple your handler code to Marten specifically, you can use the provider-agnostic
+`[Storage(store type)]` attribute from the `Wolverine.Persistence` namespace in place of `[MartenStore]`. Wolverine
+resolves the owning integration (Marten, [Polecat](/guide/durability/polecat/ancillary-stores), ...) from the store
+marker type, so the same attribute works whether that store is backed by Marten or Polecat:
+
+```cs
+using Wolverine.Persistence;
+
+[Storage(typeof(IPlayerStore))]
+public static class PlayerMessageHandler
+{
+    public static IMartenOp Handle(PlayerMessage message)
+    {
+        return MartenOps.Store(new Player { Id = message.Id });
+    }
+}
+```
+
+To route a whole assembly of handlers to one ancillary store from an `IChainPolicy` without per-handler attributes,
+call `chain.UseMartenStore(storeType)` (or the provider-agnostic `chain.UseAncillaryStorage(storeType, container)`).
+
 So what's possible so far?
 
 * The transactional inbox support is available in all configured Marten stores
