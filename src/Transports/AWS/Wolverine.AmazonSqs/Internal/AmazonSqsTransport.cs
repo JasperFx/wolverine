@@ -36,7 +36,35 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
 
     }
 
-    public override Uri ResourceUri => new Uri(Config.ServiceURL);
+    public override Uri ResourceUri
+    {
+        get
+        {
+            // An explicitly set ServiceURL (e.g. LocalStack) wins
+            if (Config.ServiceURL.IsNotEmpty())
+            {
+                return new Uri(Config.ServiceURL);
+            }
+
+            // Otherwise fall back to the configured region so that this purely
+            // diagnostic Uri doesn't throw when only RegionEndpoint was set
+            try
+            {
+                var region = Config.RegionEndpoint?.SystemName;
+                if (region.IsNotEmpty())
+                {
+                    return new Uri($"https://sqs.{region}.amazonaws.com");
+                }
+            }
+            catch (Exception)
+            {
+                // RegionEndpoint resolution can probe ambient configuration; ignore and
+                // use the generic fallback below
+            }
+
+            return new Uri("sqs://amazon");
+        }
+    }
 
     internal AmazonSqsTransport(IAmazonSQS client) : this()
     {
