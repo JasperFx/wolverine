@@ -1,8 +1,8 @@
+using IntegrationTests;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using JasperFx.Core;
 using Wolverine.Nats.Internal;
-using Wolverine.Nats.Tests.Helpers;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;

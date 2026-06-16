@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 
-namespace Wolverine.Nats.Tests.Helpers;
+namespace IntegrationTests;
 
 /// <summary>
 /// Logger provider that writes to xUnit test output
