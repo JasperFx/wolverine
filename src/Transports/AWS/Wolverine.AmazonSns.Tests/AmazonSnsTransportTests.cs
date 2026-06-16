@@ -1,10 +1,40 @@
- using Shouldly;
+ using Amazon;
+using Shouldly;
 using Wolverine.AmazonSns.Internal;
 
 namespace Wolverine.AmazonSns.Tests;
 
 public class AmazonSnsTransportTests
 {
+    [Fact]
+    public void resource_uri_uses_explicit_service_url_when_set()
+    {
+        var transport = new AmazonSnsTransport();
+        transport.SnsConfig.ServiceURL = "http://localhost:4566";
+
+        transport.ResourceUri.ShouldBe(new Uri("http://localhost:4566"));
+    }
+
+    [Fact]
+    public void resource_uri_falls_back_to_region_when_service_url_not_set()
+    {
+        // Reproduces #3115 -- setting only RegionEndpoint used to throw
+        // ArgumentNullException from new Uri(SnsConfig.ServiceURL)
+        var transport = new AmazonSnsTransport();
+        transport.SnsConfig.RegionEndpoint = RegionEndpoint.USWest2;
+
+        transport.ResourceUri.ShouldBe(new Uri("https://sns.us-west-2.amazonaws.com"));
+    }
+
+    [Fact]
+    public void resource_uri_does_not_throw_when_neither_service_url_nor_region_set()
+    {
+        var transport = new AmazonSnsTransport();
+
+        // Should not throw an ArgumentNullException
+        Should.NotThrow(() => transport.ResourceUri);
+    }
+
     [Theory]
     [InlineData("good.fifo", "good.fifo")]
     [InlineData("good", "good")]
