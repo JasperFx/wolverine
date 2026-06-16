@@ -263,6 +263,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public abstract DbCommandBuilder ToCommandBuilder();
 
+    /// <summary>
+    /// Default implementation returns null, meaning "this provider cannot bound the
+    /// expired-handled-envelope delete". PostgreSQL and SQL Server override this to enable
+    /// batched cleanup. See <see cref="IMessageDatabase.BatchedDeleteExpiredHandledEnvelopesSql"/>.
+    /// </summary>
+    public virtual string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize) => null;
+
     public abstract Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)

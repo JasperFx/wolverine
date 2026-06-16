@@ -371,6 +371,9 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         return new Weasel.Oracle.CommandBuilder();
     }
 
+    // Oracle falls back to an unbounded delete for expired handled envelope cleanup
+    public string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize) => null;
+
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
         // For Oracle, we execute operations directly since we can't batch

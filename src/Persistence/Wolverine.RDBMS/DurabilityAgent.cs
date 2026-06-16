@@ -29,6 +29,7 @@ internal class DurabilityAgent : IAgent
     private PersistenceMetrics _metrics = null!;
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
+    private Timer? _handledCleanupTimer;
 
     private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
@@ -122,6 +123,12 @@ internal class DurabilityAgent : IAgent
             }, _settings, 1.Minutes(), 1.Hours());
         }
 
+        _handledCleanupTimer = new Timer(_ =>
+        {
+            var command = new DeleteExpiredHandledEnvelopesCommand(_database, _settings, _logger);
+            _runningBlock.Post(command);
+        }, _settings, 5.Seconds(), _settings.HandledMessageCleanupPollingTime);
+
         if (AutoStartScheduledJobPolling)
         {
             StartScheduledJobPolling();
@@ -148,6 +155,11 @@ internal class DurabilityAgent : IAgent
         if (_expirationTimer != null)
         {
             await _expirationTimer.DisposeAsync();
+        }
+
+        if (_handledCleanupTimer != null)
+        {
+            await _handledCleanupTimer.DisposeAsync();
         }
 
         Status = AgentStatus.Stopped;
@@ -202,8 +214,9 @@ internal class DurabilityAgent : IAgent
         [
             new CheckRecoverableIncomingMessagesOperation(_database, _runtime.Endpoints, _settings, _logger),
             new CheckRecoverableOutgoingMessagesOperation(_database, _runtime, _logger),
-            new DeleteExpiredEnvelopesOperation(
-                incomingTable, now),
+            // Expired, handled inbox envelopes are cleaned up on a separate, slower timer
+            // (see _handledCleanupTimer / DeleteExpiredHandledEnvelopesCommand) so a large
+            // cleanup delete can't block recovery work in this shared transaction (issue #3116).
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 

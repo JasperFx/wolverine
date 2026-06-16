@@ -138,6 +138,29 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan KeepAfterMessageHandling { get; set; } = 5.Minutes();
 
     /// <summary>
+    ///     Polling interval for the background cleanup of expired, successfully handled incoming
+    ///     envelopes (the idempotency records). This cleanup runs on its own timer in a dedicated
+    ///     transaction, separate from the main recovery loop, so a slow cleanup cannot block inbox
+    ///     recovery work. Default is 1 minute.
+    /// </summary>
+    public TimeSpan HandledMessageCleanupPollingTime { get; set; } = 1.Minutes();
+
+    /// <summary>
+    ///     The maximum number of expired, handled incoming envelopes deleted in a single bounded
+    ///     DELETE statement for providers that support batching (currently PostgreSQL and SQL Server).
+    ///     Smaller batches hold locks for less time and reduce contention with live inbox traffic
+    ///     under heavy load. Default is 5000.
+    /// </summary>
+    public int HandledMessageCleanupBatchSize { get; set; } = 5000;
+
+    /// <summary>
+    ///     Safety cap on how many delete batches the handled-envelope cleanup runs in a single
+    ///     polling cycle before yielding. Any remaining expired rows are cleaned up on the next
+    ///     cycle. Default is 20.
+    /// </summary>
+    public int HandledMessageCleanupMaxBatchesPerCycle { get; set; } = 20;
+
+    /// <summary>
     ///     Governs the page size for how many persisted incoming or outgoing messages
     ///     will be loaded at one time for attempted retries or scheduled jobs
     /// </summary>

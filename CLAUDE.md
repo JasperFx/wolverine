@@ -135,6 +135,15 @@ var bus = host.Services.GetRequiredService<IMessageBus>();
 var bus = host.MessageBus();
 ```
 
+### Database connection strings come from `Servers`
+
+Always obtain database connection strings from the `Servers` type (`src/Servers.cs`,
+e.g. `Servers.PostgresConnectionString`, `Servers.SqlServerConnectionString`). **Never
+hardcode a connection string literal in a test.** This keeps host/port/credentials
+centralized and CI-portable — e.g. Wolverine's own docker-compose Postgres runs on port
+**5433** (`docker compose up -d postgresql`), distinct from Marten's `5432`, and only
+`Servers` knows that.
+
 ## Configuration Organization
 
 WolverineOptions uses partial classes to organize concerns:
