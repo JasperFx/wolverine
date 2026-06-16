@@ -1,3 +1,4 @@
+using Amazon;
 using Shouldly;
 using Wolverine.AmazonSqs.Internal;
 
@@ -5,6 +6,35 @@ namespace Wolverine.AmazonSqs.Tests;
 
 public class AmazonSqsTransportTests
 {
+    [Fact]
+    public void resource_uri_uses_explicit_service_url_when_set()
+    {
+        var transport = new AmazonSqsTransport();
+        transport.Config.ServiceURL = "http://localhost:4566";
+
+        transport.ResourceUri.ShouldBe(new Uri("http://localhost:4566"));
+    }
+
+    [Fact]
+    public void resource_uri_falls_back_to_region_when_service_url_not_set()
+    {
+        // Reproduces #3115 -- setting only RegionEndpoint used to throw
+        // ArgumentNullException from new Uri(Config.ServiceURL)
+        var transport = new AmazonSqsTransport();
+        transport.Config.RegionEndpoint = RegionEndpoint.USWest2;
+
+        transport.ResourceUri.ShouldBe(new Uri("https://sqs.us-west-2.amazonaws.com"));
+    }
+
+    [Fact]
+    public void resource_uri_does_not_throw_when_neither_service_url_nor_region_set()
+    {
+        var transport = new AmazonSqsTransport();
+
+        // Should not throw an ArgumentNullException
+        Should.NotThrow(() => transport.ResourceUri);
+    }
+
     [Theory]
     [InlineData("good.fifo", "good.fifo")]
     [InlineData("good", "good")]
