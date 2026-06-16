@@ -100,10 +100,14 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
     {
         if (DbContext.IsWolverineEnabled())
         {
-            // For a Wolverine-mapped DbContext the envelope is just tracked and flushed inside
-            // SaveChangesAsync's own implicit transaction, so don't force an explicit transaction.
-            // This mirrors PersistOutgoingAsync and keeps ScheduleAsync from starting a transaction
-            // the caller never asked for (see #3121).
+            // For a Wolverine-mapped DbContext the envelope is just tracked and flushed by
+            // SaveChangesAsync, so don't force an explicit transaction here. We defer to whatever
+            // the ambient transaction mode established: in Eager middleware mode a transaction was
+            // already begun (EnrollDbContextInTransaction / StartDatabaseTransactionForDbContext) and
+            // the tracked entity enrolls into it at SaveChanges; in Lightweight/lazy mode there is no
+            // transaction and SaveChanges provides its own implicit one. This mirrors
+            // PersistOutgoingAsync and keeps ScheduleAsync from starting a transaction the caller
+            // never asked for (see #3121).
             DbContext.Add(new IncomingMessage(envelope));
         }
         else
