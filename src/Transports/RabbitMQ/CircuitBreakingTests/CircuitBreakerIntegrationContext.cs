@@ -4,26 +4,22 @@ using JasperFx.Core.Reflection;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Shouldly;
-using System.Collections.Concurrent;
 using Wolverine;
-using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Xunit.Abstractions;
 
 namespace CircuitBreakingTests;
 
-//[Collection("circuit_breaker")]
 public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
     : IAsyncLifetime
 {
     private readonly List<Task> _tasks = [];
     private IHost _host = null!;
-    private Recorder _recorder = null!;
+    private MessageRecorder _recorder = null!;
     private WolverineRuntime _runtime = null!;
-    private WolverineObserver _observer = null!;
+    private ListenerObserver _observer = null!;
     private IDisposable _trackerSubscription = null!;
     protected string _queueName = null!;
 
@@ -37,14 +33,14 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
             .ConfigureServices(services =>
             {
                 services.AddLogging(x => x.AddXunitLogging(output));
-                services.AddSingleton<Recorder>();
-                services.AddSingleton<WolverineObserver>();
+                services.AddSingleton<MessageRecorder>();
+                services.AddSingleton<ListenerObserver>();
             })
             .StartAsync();
 
-        _recorder = _host.Services.GetRequiredService<Recorder>();
+        _recorder = _host.Services.GetRequiredService<MessageRecorder>();
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>();
-        _observer = _host.Services.GetRequiredService<WolverineObserver>();
+        _observer = _host.Services.GetRequiredService<ListenerObserver>();
         _trackerSubscription = _runtime.Tracker.Subscribe(_observer);
     }
 
@@ -125,7 +121,7 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
     [Fact]
     public async Task everything_is_wonderful_even_though_there_are_some_failures_so_do_not_ever_trip()
     {
-        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 2.Minutes());
+        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 1.Minutes());
 
         publishHundredMessagesNow(5);
         publishHundredMessagesNow(5);
@@ -144,13 +140,13 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
 
         await messageWaiter;
 
-        _observer.AssertTheCircuitBreakerNeverTripped();
+        _observer.RecordedStates.ShouldNotContain(ListeningStatus.Stopped);
     }
 
     [Fact]
     public async Task the_circuit_breaker_should_trip_and_restart()
     {
-        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 2.Minutes());
+        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 1.Minutes());
 
         publishHundredMessagesNow(10);
         publishHundredMessagesNow(80);
@@ -176,8 +172,8 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
 
         await messageWaiter;
 
-        _observer.AssertTheCircuitBreakerTripped();
-        _observer.AssertTheCircuitBreakerWasReset();
+        _observer.RecordedStates.ShouldContain(ListeningStatus.Stopped);
+        _observer.RecordedStates.Last().ShouldBe(ListeningStatus.Accepting);
     }
 }
 
@@ -189,41 +185,3 @@ public enum MessageResult
 }
 
 public record SometimesFails(Guid Id, MessageResult First, MessageResult Second, MessageResult Third);
-
-
-public class WolverineObserver(Recorder recorder, ILogger<WolverineObserver> logger)
-    : IObserver<IWolverineEvent>
-{
-    private readonly ConcurrentQueue<ListenerState> _recordedStates = [];
-
-    public void OnCompleted() { }
-
-    public void OnError(Exception error) { }
-
-    void IObserver<IWolverineEvent>.OnNext(IWolverineEvent value)
-    {
-        if (value is ListenerState state)
-        {
-            logger.LogDebug("CB status: {Status} (unique: {Count})",
-                state.Status, recorder.GetProcessedCount());
-            _recordedStates.Enqueue(state);
-        }
-    }
-
-    public void AssertTheCircuitBreakerNeverTripped()
-    {
-        _recordedStates.Any(x => x.Status == ListeningStatus.Stopped).ShouldBeFalse();
-    }
-
-    public void AssertTheCircuitBreakerTripped()
-    {
-        _recordedStates.Any(x => x.Status == ListeningStatus.Stopped).ShouldBeTrue();
-    }
-
-    public void AssertTheCircuitBreakerWasReset()
-    {
-        AssertTheCircuitBreakerTripped();
-
-        _recordedStates.Last().Status.ShouldBe(ListeningStatus.Accepting);
-    }
-}

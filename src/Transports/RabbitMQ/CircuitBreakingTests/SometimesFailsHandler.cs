@@ -4,7 +4,7 @@ namespace CircuitBreakingTests;
 
 public class SometimesFailsHandler
 {
-    public void Handle(SometimesFails message, Envelope envelope, Recorder recorder)
+    public void Handle(SometimesFails message, Envelope envelope, MessageRecorder recorder)
     {
         var result = determineResult(message, envelope, recorder);
         switch (result)
@@ -14,12 +14,12 @@ public class SometimesFailsHandler
             case MessageResult.DivideByZero:
                 throw new DivideByZeroException();
             default:
-                recorder.Increment(message.Id, envelope.Attempts);
+                recorder.Increment(message.Id);
                 break;
         }
     }
 
-    private MessageResult determineResult(SometimesFails message, Envelope envelope, Recorder recorder)
+    private MessageResult determineResult(SometimesFails message, Envelope envelope, MessageRecorder recorder)
     {
         if (recorder.NeverFail)
             return MessageResult.Success;
