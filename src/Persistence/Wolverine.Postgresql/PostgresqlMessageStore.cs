@@ -150,6 +150,18 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
         }
     }
 
+    public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
+    {
+        var table = $"{QuotedSchemaName}.{DatabaseConstants.IncomingTable}";
+
+        // Bound the delete via ctid so each statement holds locks for a short time. The status
+        // filter on both the inner select and the outer delete keeps partition pruning (and thus
+        // ctid uniqueness) scoped to the _handled partition when inbox partitioning is enabled.
+        return
+            $"delete from {table} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and ctid in " +
+            $"(select ctid from {table} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= :now limit {batchSize});";
+    }
+
     public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);

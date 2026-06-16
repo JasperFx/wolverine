@@ -71,6 +71,14 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
 
     DbCommandBuilder ToCommandBuilder();
 
+    /// <summary>
+    /// Builds a provider-specific SQL statement that deletes at most <paramref name="batchSize"/>
+    /// expired, successfully handled incoming envelopes in a single statement. The SQL should
+    /// expose a single "now" parameter for the cutoff timestamp. Return null if this provider
+    /// cannot bound the delete, in which case the cleanup falls back to a single unbounded delete.
+    /// </summary>
+    string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize);
+
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
     Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger runtimeLogger,

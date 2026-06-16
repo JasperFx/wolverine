@@ -146,6 +146,15 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         return false;
     }
 
+    public override string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize)
+    {
+        // DELETE TOP bounds each statement so locks are held only briefly, reducing contention
+        // with live inbox traffic under heavy load.
+        return
+            $"delete top ({batchSize}) from {SchemaName}.{DatabaseConstants.IncomingTable} " +
+            $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now;";
+    }
+
     protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
     {
         if (offset == 0) return;

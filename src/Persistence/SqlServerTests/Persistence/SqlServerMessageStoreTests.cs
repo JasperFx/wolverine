@@ -65,6 +65,35 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
     }
 
     [Fact]
+    public async Task delete_expired_handled_envelopes_in_batches()
+    {
+        // Regression for #3116 -- batched DELETE TOP cleanup on SQL Server
+        for (var i = 0; i < 5; i++)
+        {
+            var envelope = ObjectMother.Envelope();
+            await thePersistence.Inbox.StoreIncomingAsync(envelope);
+            await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
+        }
+
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        {
+            await conn.OpenAsync();
+            await conn.CreateCommand(
+                    $"update receiver.{DatabaseConstants.IncomingTable} set {DatabaseConstants.KeepUntil} = @cutoff where status = 'Handled'")
+                .With("cutoff", DateTimeOffset.UtcNow.Subtract(1.Hours()))
+                .ExecuteNonQueryAsync();
+            await conn.CloseAsync();
+        }
+
+        var command = new DeleteExpiredHandledEnvelopesCommand((IMessageDatabase)thePersistence,
+            new DurabilitySettings(), NullLogger.Instance);
+        await theHost.InvokeAsync(command);
+
+        var counts = await thePersistence.Admin.FetchCountsAsync();
+        counts.Handled.ShouldBe(0);
+    }
+
+    [Fact]
     public async Task move_replayable_error_messages_to_incoming()
     {
         /*
