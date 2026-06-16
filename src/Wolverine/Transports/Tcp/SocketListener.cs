@@ -18,6 +18,7 @@ public class SocketListener : IListener, IDisposable
     private CancellationTokenSource? _listenerCancellation;
     private Task? _receivingLoop;
     private Block<Socket>? _socketHandling;
+    private bool _disposed;
 
     public SocketListener(TcpEndpoint endpoint, IReceiver receiver, ILogger logger, IPAddress ipaddr, int port,
         CancellationToken cancellationToken)
@@ -36,6 +37,10 @@ public class SocketListener : IListener, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _socketHandling?.Complete();
         _listener?.Stop();
         _listener?.Server.Dispose();
@@ -54,10 +59,15 @@ public class SocketListener : IListener, IDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         if (_listenerCancellation is not null)
         {
             await _listenerCancellation.CancelAsync();
             _listenerCancellation.Dispose();
+            _listenerCancellation = null;
         }
 
         _listener?.Stop();

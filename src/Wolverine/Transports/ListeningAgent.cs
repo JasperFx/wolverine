@@ -48,6 +48,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private IDisposable? _restarter;
     private int _lastObservedQueueCount;
     private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
+    private bool _disposed;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -85,6 +86,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _restarter?.SafeDispose();
         _backPressureAgent?.SafeDispose();
 
@@ -106,6 +111,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _receiver?.Dispose();
         _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();

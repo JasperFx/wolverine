@@ -10,7 +10,8 @@ namespace Wolverine.RabbitMQ.Internal;
 internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 {
     private readonly ConnectionMonitor _monitor;
-    protected readonly SemaphoreSlim Locker = new(1, 1);
+    private readonly SemaphoreSlim Locker = new(1, 1);
+    private bool _disposed;
 
     protected RabbitMqChannelAgent(ConnectionMonitor monitor,
         ILogger logger)
@@ -29,9 +30,12 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 
     public virtual async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _monitor.Remove(this);
         await teardownChannel();
-        Locker.Dispose();
     }
 
     internal async Task EnsureInitiated()
