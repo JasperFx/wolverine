@@ -272,6 +272,15 @@ public class MarkItemReady
 }
 ```
 
+::: tip
+The Polecat integration recognizes both its own `Wolverine.Polecat.IdentityAttribute` and the
+shared `JasperFx.IdentityAttribute` used elsewhere in the Critter Stack (and by the
+[Marten integration](../marten/event-sourcing)). If you maintain a single, store-agnostic
+command/aggregate source that is compiled against both Marten and Polecat, decorate the identity
+member with the shared `JasperFx.IdentityAttribute` (i.e. `using JasperFx;`) and it will be honored
+by both stores — no per-store attribute alias is required.
+:::
+
 ## Forwarding Events
 
 See [Event Forwarding](./event-forwarding) for more information.
