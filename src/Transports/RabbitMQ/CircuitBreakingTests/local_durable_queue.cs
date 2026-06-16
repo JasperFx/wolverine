@@ -10,30 +10,28 @@ using Xunit.Abstractions;
 
 namespace CircuitBreakingTests;
 
-public class local_durable_queue : CircuitBreakerIntegrationContext
+public class local_durable_queue(ITestOutputHelper output)
+    : CircuitBreakerIntegrationContext(output)
 {
-    public local_durable_queue(ITestOutputHelper output) : base(output)
-    {
-    }
-
     protected override void configureListener(WolverineOptions opts)
     {
-        opts.PublishAllMessages().ToLocalQueue("durable").UseDurableInbox(new BufferingLimits(5000, 1))
+        opts.PublishAllMessages()
+            .ToLocalQueue(_queueName)
+            .UseDurableInbox(new BufferingLimits(5000, 1))
             .CircuitBreaker(cb =>
             {
                 cb.MinimumThreshold = 250;
                 cb.PauseTime = 10.Seconds();
                 cb.TrackingPeriod = 1.Minutes();
                 cb.FailurePercentageThreshold = 20;
-            })
-            ;
+            });
 
         opts.Policies.OnAnyException().Requeue();
 
         opts.Services.AddMarten(opts =>
         {
             opts.Connection(Servers.PostgresConnectionString);
-            opts.DatabaseSchemaName = "circuit_breaker";
+            opts.DatabaseSchemaName = _queueName;
         }).IntegrateWithWolverine().ApplyAllDatabaseChangesOnStartup();
 
         opts.Services.AddResourceSetupOnStartup();
