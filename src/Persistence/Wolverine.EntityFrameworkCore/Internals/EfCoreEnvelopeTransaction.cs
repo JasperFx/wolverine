@@ -98,17 +98,23 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public async Task PersistIncomingAsync(Envelope envelope)
     {
-        if (DbContext.Database.CurrentTransaction == null)
-        {
-            await DbContext.Database.BeginTransactionAsync();
-        }
-
         if (DbContext.IsWolverineEnabled())
         {
+            // For a Wolverine-mapped DbContext the envelope is just tracked and flushed inside
+            // SaveChangesAsync's own implicit transaction, so don't force an explicit transaction.
+            // This mirrors PersistOutgoingAsync and keeps ScheduleAsync from starting a transaction
+            // the caller never asked for (see #3121).
             DbContext.Add(new IncomingMessage(envelope));
         }
         else
         {
+            // The raw branch issues an ADO command that has to share the caller's transaction, so
+            // here we do need an explicit one when none is already in flight.
+            if (DbContext.Database.CurrentTransaction == null)
+            {
+                await DbContext.Database.BeginTransactionAsync();
+            }
+
             var conn = DbContext.Database.GetDbConnection();
             var tx = DbContext.Database.CurrentTransaction!.GetDbTransaction();
             var builder = _database.ToCommandBuilder();
