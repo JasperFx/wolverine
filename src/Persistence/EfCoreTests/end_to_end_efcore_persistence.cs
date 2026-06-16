@@ -194,6 +194,37 @@ public class end_to_end_efcore_persistence : IClassFixture<EFCorePersistenceCont
     }
 
     [Fact]
+    public async Task persisting_against_mapped_dbcontext_does_not_start_an_explicit_transaction()
+    {
+        await Host.ResetResourceState();
+
+        var envelope = new Envelope
+        {
+            Data = [1, 2, 3, 4],
+            OwnerId = 5,
+            Destination = TransportConstants.RepliesUri,
+            MessageType = "foo",
+            ContentType = EnvelopeConstants.JsonContentType,
+            Status = EnvelopeStatus.Scheduled,
+            ScheduledTime = DateTimeOffset.UtcNow.AddMinutes(1)
+        };
+
+        using var nested = Host.Services.CreateScope();
+        var messaging = nested.ServiceProvider.GetRequiredService<IDbContextOutbox<SampleMappedDbContext>>()
+            .ShouldBeOfType<DbContextOutbox<SampleMappedDbContext>>();
+
+        // Regression for #3121 -- scheduling/incoming persistence against a Wolverine-mapped
+        // DbContext must NOT begin an explicit EF Core transaction. SaveChanges provides its
+        // own implicit transaction, and the outgoing path already behaves this way.
+        await messaging.Transaction!.PersistIncomingAsync(envelope);
+        messaging.DbContext.Database.CurrentTransaction.ShouldBeNull();
+
+        // Symmetry check: the outgoing path likewise leaves the transaction alone
+        await messaging.Transaction!.PersistOutgoingAsync(envelope);
+        messaging.DbContext.Database.CurrentTransaction.ShouldBeNull();
+    }
+
+    [Fact]
     public async Task persist_an_outgoing_envelope_raw()
     {
         await Host.ResetResourceState();
