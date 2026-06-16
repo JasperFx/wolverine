@@ -68,7 +68,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
 
         var waiter =
             new ConditionalWaiter<IWolverineEvent, ListenerState>(
-                state => state.EndpointName == endpointName || state.Status == status, this, timeout);
+                state => state.EndpointName == endpointName && state.Status == status, this, timeout);
         Subscribe(waiter);
 
         return waiter.Completion;
@@ -83,7 +83,7 @@ public class WolverineTracker : WatchedObservable<IWolverineEvent>, IObserver<IW
         }
 
         var waiter =
-            new ConditionalWaiter<IWolverineEvent, ListenerState>(state => state.Uri == uri || state.Status == status,
+            new ConditionalWaiter<IWolverineEvent, ListenerState>(state => state.Uri == uri && state.Status == status,
                 this, timeout);
         Subscribe(waiter);
 
