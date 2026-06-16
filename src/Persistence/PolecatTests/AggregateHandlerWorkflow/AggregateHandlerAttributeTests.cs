@@ -89,6 +89,15 @@ public class AggregateHandlerAttributeTests
     }
 
     [Fact]
+    public void determine_aggregate_id_with_shared_jasperfx_identity_attribute()
+    {
+        // Regression for #3117 -- Polecat should honor the shared JasperFx.IdentityAttribute
+        // used across the rest of the Critter Stack (and Marten), not just its own [Identity].
+        AggregateHandling.DetermineAggregateIdMember(typeof(PcInvoice), typeof(RejectPcInvoiceShared))
+            .Name.ShouldBe(nameof(RejectPcInvoiceShared.Something));
+    }
+
+    [Fact]
     public void determine_aggregate_id_with_identity_attribute_bypass()
     {
         AggregateHandling.DetermineAggregateIdMember(typeof(PcInvoice), typeof(PcAggregateIdConventionBypassingCommand))
@@ -154,6 +163,10 @@ public record CreatePcInvoice(Guid Id);
 public record PcInvoiceCreated;
 
 public record RejectPcInvoice([property: Identity] Guid Something);
+
+// Uses the shared JasperFx.IdentityAttribute (fully qualified to bypass the
+// file-level alias pinning [Identity] to Wolverine.Polecat.IdentityAttribute).
+public record RejectPcInvoiceShared([property: JasperFx.Identity] Guid Something);
 
 public class PcInvoiceHandler
 {

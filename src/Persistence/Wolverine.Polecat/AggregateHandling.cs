@@ -185,7 +185,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
     internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
-        var member = commandType.GetMembers().FirstOrDefault(x => x.HasAttribute<IdentityAttribute>())
+
+        // Honor both the Polecat-specific [Identity] and the shared JasperFx.IdentityAttribute
+        // used across the rest of the Critter Stack (and Marten) so a single store-agnostic
+        // command/aggregate source can codegen against both stores.
+        var member = commandType.GetMembers().FirstOrDefault(x =>
+                         x.HasAttribute<IdentityAttribute>() || x.HasAttribute<JasperFx.IdentityAttribute>())
                      ?? commandType.GetMembers().FirstOrDefault(x =>
                          x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
 
@@ -197,7 +202,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         if (member == null)
         {
             throw new InvalidOperationException(
-                $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} attribute");
+                $"Unable to determine the aggregate id for aggregate type {aggregateType.FullNameInCode()} on command type {commandType.FullNameInCode()}. Either make a property or field named '{conventionalMemberName}', or decorate a member with the {typeof(IdentityAttribute).FullNameInCode()} or {typeof(JasperFx.IdentityAttribute).FullNameInCode()} attribute");
         }
 
         return member;
