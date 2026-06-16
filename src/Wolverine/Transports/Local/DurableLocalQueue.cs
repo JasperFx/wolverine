@@ -248,9 +248,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
+        var isLatched = Latched;
+
         try
         {
-            envelope.OwnerId = _settings.AssignedNodeNumber;
+            // Use AnyNode when latched so the durability agent can recover the message.
+            envelope.OwnerId = isLatched
+                ? TransportConstants.AnyNode
+                : _settings.AssignedNodeNumber;
+
             assignAncillaryStoreIfNeeded(envelope);
             await _inbox.StoreIncomingAsync(envelope);
             envelope.WasPersistedInInbox = true;
@@ -261,7 +267,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             return;
         }
 
-        if (Latched)
+        if (isLatched)
         {
             return;
         }
