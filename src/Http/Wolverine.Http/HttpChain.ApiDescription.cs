@@ -207,6 +207,27 @@ public partial class HttpChain
 
     public override bool TryFindVariable(string valueName, ValueSource source, Type valueType, out Variable variable)
     {
+        // When the endpoint binds a parameter object via [AsParameters], a value that lives on that
+        // object must be read off it rather than via the route/query read frames that
+        // AsParametersBindingFrame owns and generates inline. Resolving to one of those owned frames
+        // (e.g. Marten's [ReadAggregate]/[WriteAggregate] aggregate-id resolution, which searches with
+        // ValueSource.Anything) makes the frame get pulled into the method's frame chain a second time,
+        // producing a cyclic Next reference and a StackOverflow during code generation. Scoped to
+        // ValueSource.Anything so specific-source bindings are unaffected.
+        if (source == ValueSource.Anything && AsParametersVariable != null && AsParametersType != null)
+        {
+            var asParameterMember = (MemberInfo?)AsParametersType.GetProperties()
+                    .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.PropertyType == valueType && x.CanRead)
+                ?? AsParametersType.GetFields()
+                    .FirstOrDefault(x => x.Name.EqualsIgnoreCase(valueName) && x.FieldType == valueType);
+
+            if (asParameterMember != null)
+            {
+                variable = new MemberAccessVariable(AsParametersVariable, asParameterMember);
+                return true;
+            }
+        }
+
         if ((source == ValueSource.RouteValue || source == ValueSource.Anything) && FindRouteVariable(valueType, valueName, out variable!))
         {
             return true;

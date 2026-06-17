@@ -35,7 +35,9 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
             chain.RequestType = parameter.ParameterType;
             chain.AsParametersType = parameter.ParameterType;
             chain.IsFormData = true;
-            variable = new AsParametersBindingFrame(parameter.ParameterType, chain, container).Variable;
+            var bindingFrame = new AsParametersBindingFrame(parameter.ParameterType, chain, container);
+            chain.AsParametersVariable = bindingFrame.Variable;
+            variable = bindingFrame.Variable;
             return true;
         }
 
