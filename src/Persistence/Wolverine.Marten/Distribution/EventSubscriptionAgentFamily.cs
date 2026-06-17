@@ -21,12 +21,15 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     }
 
     /// <summary>
-    /// Resolve the live agent <see cref="Uri" /> for a projection/subscription shard identified by its
+    /// Resolve the agent <see cref="Uri" /> for a projection/subscription shard identified by its
     /// <paramref name="shardIdentity" /> (the JasperFx <c>ShardName.Identity</c>, e.g. <c>"Trip:All"</c>)
     /// and optional <paramref name="tenantId" />, across every store this family manages.
     ///
-    /// <para>Tooling such as CritterWatch uses this instead of composing agent URIs by hand — the URI
-    /// grammar lives here, not in the consumer. Returns <c>null</c> when no matching live agent is
+    /// <para>Resolution consults the <em>registered</em> subscription set, so it is independent of the
+    /// shard's current run state — a paused, stopped, crashed, or not-yet-started projection still
+    /// resolves (this is what makes restart/rebuild of a non-running projection possible; see GH-3124).
+    /// Tooling such as CritterWatch uses this instead of composing agent URIs by hand — the URI grammar
+    /// lives here, not in the consumer. Returns <c>null</c> when no matching registered shard is
     /// found.</para>
     ///
     /// <para>Handles store-global shards and single-database per-tenant partitioning (where the tenant
