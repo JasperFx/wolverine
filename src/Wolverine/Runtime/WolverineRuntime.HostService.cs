@@ -244,7 +244,17 @@ public partial class WolverineRuntime
         
         if (Options.AutoBuildMessageStorageOnStartup != AutoCreate.None && Storage is not NullMessageStore)
         {
-            await _stores.Value.MigrateAsync();
+            try
+            {
+                await _stores.Value.MigrateAsync();
+            }
+            catch (Exception e) when (Options.ResourceMigrationFailureMode == ResourceMigrationFailureMode.ContinueOnFailures)
+            {
+                // e.g. a replica that lost the migration lock during a rolling deploy. Log and keep
+                // starting up rather than crash-looping. See GH-3130.
+                Logger.LogError(e,
+                    "Failed to migrate Wolverine message storage on startup. Continuing startup anyway because ResourceMigrationFailureMode is ContinueOnFailures.");
+            }
         }
 
         _hasMigratedStorage = true;
@@ -466,11 +476,24 @@ public partial class WolverineRuntime
             Options.Transports.RemoveLocal();
         }
 
+        var failedTransports = new List<ITransport>();
         foreach (var transport in Options.Transports)
         {
             if (!Options.ExternalTransportsAreStubbed)
             {
-                await transport.InitializeAsync(this).ConfigureAwait(false);
+                try
+                {
+                    await transport.InitializeAsync(this).ConfigureAwait(false);
+                }
+                catch (Exception e) when (Options.ResourceMigrationFailureMode == ResourceMigrationFailureMode.ContinueOnFailures)
+                {
+                    // e.g. a transient broker-provisioning failure during a rolling deploy. Log, skip this
+                    // transport's endpoint startup below, and keep the application starting. See GH-3130.
+                    failedTransports.Add(transport);
+                    Logger.LogError(e,
+                        "Failed to initialize Wolverine transport {Transport} on startup. Continuing startup anyway because ResourceMigrationFailureMode is ContinueOnFailures.",
+                        transport);
+                }
             }
             else
             {
@@ -480,6 +503,9 @@ public partial class WolverineRuntime
 
         foreach (var transport in Options.Transports)
         {
+            // A transport that failed to initialize under ContinueOnFailures has no usable endpoints
+            if (failedTransports.Contains(transport)) continue;
+
             var replyUri = transport.ReplyEndpoint()?.Uri;
 
             foreach (var endpoint in transport.Endpoints().Where(x => x.AutoStartSendingAgent()))
