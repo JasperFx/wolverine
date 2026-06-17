@@ -114,6 +114,29 @@ internal class EventStoreAgents : IAsyncDisposable
         return list;
     }
 
+    /// <summary>
+    /// Resolve the <see cref="DatabaseId" /> backing <paramref name="tenantId" /> under database-per-tenant
+    /// multi-tenancy, using the store-agnostic tenant→database mapping carried on the usage descriptor.
+    /// Returns null when the tenant isn't found (e.g. single-database tenancy, or an unknown tenant). See GH-3128.
+    /// </summary>
+    public async ValueTask<DatabaseId?> TryResolveTenantDatabaseIdAsync(string tenantId, CancellationToken cancellation)
+    {
+        var usage = await _store.TryCreateUsage(cancellation);
+        if (usage?.Database == null)
+        {
+            return null;
+        }
+
+        var candidates = usage.Database.Databases.ToList();
+        if (usage.Database.MainDatabase != null)
+        {
+            candidates.Add(usage.Database.MainDatabase);
+        }
+
+        var match = candidates.FirstOrDefault(db => db.TenantIds.Contains(tenantId, StringComparer.OrdinalIgnoreCase));
+        return match == null ? null : new DatabaseId(match.ServerName, match.DatabaseName);
+    }
+
     public async Task<EventSubscriptionAgent> BuildAgentAsync(Uri uri, DatabaseId databaseId, string shardPath)
     {
         var shardName = _shardNames.FirstOrDefault(x => x.RelativeUrl == shardPath);
