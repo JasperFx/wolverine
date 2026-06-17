@@ -498,6 +498,25 @@ public sealed partial class WolverineOptions
         set => _autoBuildMessageStorageOnStartup = value;
     }
 
+    private ResourceMigrationFailureMode? _resourceMigrationFailureMode;
+
+    /// <summary>
+    ///     Controls what happens when Wolverine's own startup work — message store migration and
+    ///     messaging transport initialization / auto-provisioning — fails. Defaults (when not set here)
+    ///     to the active JasperFx profile's value, i.e. <see cref="ResourceMigrationFailureMode.FailFast"/>
+    ///     (abort startup). Set to <see cref="ResourceMigrationFailureMode.ContinueOnFailures"/> — typically
+    ///     only on the <c>Production</c> profile via <c>JasperFxOptions.Production.ResourceMigrationFailureMode</c> —
+    ///     so that, e.g., a replica that loses the migration lock during a rolling deploy logs the failure
+    ///     and continues starting up instead of crash-looping. Mirrors JasperFx's resource-setup hosted
+    ///     service for resources outside that service's reach (GH-3130). An explicit value set here wins
+    ///     over the profile.
+    /// </summary>
+    public ResourceMigrationFailureMode ResourceMigrationFailureMode
+    {
+        get => _resourceMigrationFailureMode ?? ResourceMigrationFailureMode.FailFast;
+        set => _resourceMigrationFailureMode = value;
+    }
+
     /// <summary>
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
@@ -668,6 +687,11 @@ public sealed partial class WolverineOptions
         if (_autoBuildMessageStorageOnStartup == null)
         {
             _autoBuildMessageStorageOnStartup = jasperfx.ActiveProfile.ResourceAutoCreate;
+        }
+
+        if (_resourceMigrationFailureMode == null)
+        {
+            _resourceMigrationFailureMode = jasperfx.ActiveProfile.ResourceMigrationFailureMode;
         }
 
         // Propagate GeneratedCodeOutputPath from JasperFxOptions if not explicitly set
