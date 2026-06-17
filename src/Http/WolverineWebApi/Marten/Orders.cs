@@ -328,7 +328,15 @@ public static class MarkItemEndpoint
     
     [WolverineGet("/orders/latest/from-query")]
     public static Order GetLatestFromQuery([FromQuery] Guid id, [ReadAggregate] Order order) => order;
+
+    // Repro for the [AsParameters] + [ReadAggregate] + route-id combination (codegen infinite loop)
+    [WolverineGet("/orders/latest/asparameters/{id}")]
+    public static Order GetLatestViaAsParameters(
+        [Microsoft.AspNetCore.Http.AsParameters] GetLatestOrderQuery query,
+        [ReadAggregate] Order order) => order;
 }
+
+public record GetLatestOrderQuery([FromRoute] Guid Id);
 
 #region sample_write_aggregate_from_method
 public record ConfirmOrderFromMethod;
