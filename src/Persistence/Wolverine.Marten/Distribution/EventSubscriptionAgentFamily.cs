@@ -32,10 +32,10 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     /// lives here, not in the consumer. Returns <c>null</c> when no matching registered shard is
     /// found.</para>
     ///
-    /// <para>Handles store-global shards and single-database per-tenant partitioning (where the tenant
-    /// is part of the shard's <c>RelativeUrl</c>). Database-per-tenant resolution (tenant in the
-    /// database segment) is matched only for the store-global case here; a per-tenant lookup in that
-    /// model needs a tenant→database resolution and is handled separately.</para>
+    /// <para>Handles store-global shards, single-database per-tenant partitioning (where the tenant is
+    /// part of the shard's <c>RelativeUrl</c>), and database-per-tenant (sharded databases) — for the
+    /// latter, a non-null <paramref name="tenantId" /> is resolved to its <c>DatabaseId</c> via the
+    /// store's tenant→database mapping and matched by the database segment of the agent URI (GH-3128).</para>
     /// </summary>
     public async ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId,
         CancellationToken token = default)
@@ -54,7 +54,31 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
         // Single-database per-tenant partitioning: the tenant rides in the shard RelativeUrl.
         var perTenant = ShardName.Compose(baseName.Name, baseName.ShardKey, tenantId);
-        return known.FirstOrDefault(u => MatchesShard(u, perTenant.RelativeUrl));
+        var partitioned = known.FirstOrDefault(u => MatchesShard(u, perTenant.RelativeUrl));
+        if (partitioned != null)
+        {
+            return partitioned;
+        }
+
+        // Database-per-tenant (sharded databases): the shard RelativeUrl is identical across tenant
+        // databases, so resolve the tenant's database and match the base-shard agent URI in it. See GH-3128.
+        foreach (var entry in _stores.Enumerate())
+        {
+            var agents = entry.Value;
+            var databaseId = await agents.TryResolveTenantDatabaseIdAsync(tenantId, token).ConfigureAwait(false);
+            if (databaseId == null)
+            {
+                continue;
+            }
+
+            var candidate = UriFor(agents.Identity, databaseId, baseName);
+            if (known.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static bool MatchesShard(Uri agentUri, string relativeUrl)
