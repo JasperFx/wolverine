@@ -183,7 +183,7 @@ internal class CircuitBreaker : IAsyncDisposable, IMessageSuccessTracker
 
         if (failures > 0 && ShouldStopProcessing())
         {
-            await _circuit.PauseAsync(Options.PauseTime);
+            await _circuit.PauseWithDrainAsync(Options.PauseTime);
 
             if (_observer != null)
             {

@@ -122,6 +122,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _restarter = new Restarter(this, pauseTime);
     }
 
+    public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
+    {
+        // DurableLocalQueue.PauseAsync already fully drains. The behavioral split
+        // between PauseAsync and PauseWithDrainAsync is important for BufferedReceiver
+        // (which skips the drain in PauseAsync to avoid deadlocking when called from
+        // within the handler pipeline). For the durable local queue, both are identical.
+        await PauseAsync(pauseTime);
+    }
+
     public ValueTask StartAsync()
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
