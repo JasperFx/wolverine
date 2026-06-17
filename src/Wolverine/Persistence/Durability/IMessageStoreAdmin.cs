@@ -60,6 +60,14 @@ public interface IMessageStoreAdmin
     public Task CheckConnectivityAsync(CancellationToken token);
 
     /// <summary>
+    ///     Verify that the durable envelope storage objects (schema/tables) actually exist and match the
+    ///     configured schema, throwing when they do not. Used by <c>resources check</c> so a missing or
+    ///     un-provisioned schema is reported as unhealthy rather than passing on connectivity alone.
+    ///     The default is a no-op for stores that don't support schema introspection.
+    /// </summary>
+    Task AssertStorageExistsAsync(CancellationToken token) => Task.CompletedTask;
+
+    /// <summary>
     ///     Apply any necessary database migrations to bring the underlying envelope
     ///     storage to the configured requirements of the Wolverine system
     /// </summary>

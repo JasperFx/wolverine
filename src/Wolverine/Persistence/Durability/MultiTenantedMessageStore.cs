@@ -474,6 +474,11 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return executeOnAllAsync(d => d.Admin.CheckConnectivityAsync(token));
     }
 
+    Task IMessageStoreAdmin.AssertStorageExistsAsync(CancellationToken token)
+    {
+        return executeOnAllAsync(d => d.Admin.AssertStorageExistsAsync(token));
+    }
+
     async Task IMessageStoreAdmin.MigrateAsync()
     {
         if (!_initialized)
