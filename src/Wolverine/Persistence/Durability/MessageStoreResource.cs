@@ -18,9 +18,13 @@ internal class MessageStoreResource : IStatefulResource
     public Uri SubjectUri { get; }
     public Uri ResourceUri { get; }
 
-    public Task Check(CancellationToken token)
+    public async Task Check(CancellationToken token)
     {
-        return _persistence.Admin.CheckConnectivityAsync(token);
+        await _persistence.Admin.CheckConnectivityAsync(token);
+
+        // Connectivity alone isn't enough for "resources check" — verify the schema/tables actually
+        // exist so a missing or un-provisioned storage schema is reported as unhealthy.
+        await _persistence.Admin.AssertStorageExistsAsync(token);
     }
 
     public Task ClearState(CancellationToken token)

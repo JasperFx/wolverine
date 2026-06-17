@@ -181,6 +181,27 @@ public abstract partial class MessageDatabase<T>
         await conn.CloseAsync();
     }
 
+    public async Task AssertStorageExistsAsync(CancellationToken token)
+    {
+        await using var conn = await DataSource.OpenConnectionAsync(token);
+        try
+        {
+            // A reachable database is not enough — the schema/tables can be missing (e.g. never
+            // provisioned, or dropped). Reuse the same Weasel diff the migration path uses so that
+            // 'resources check' reports an un-provisioned schema as unhealthy.
+            var migration = await SchemaMigration.DetermineAsync(conn, token, Objects);
+            if (migration.Difference != SchemaPatchDifference.None)
+            {
+                throw new InvalidOperationException(
+                    $"The Wolverine message storage for database '{Name}' is missing or out of date (schema difference: {migration.Difference}). Run 'resources setup' or enable auto-provisioning.");
+            }
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
     private async Task migrateAsync(DbConnection conn)
     {
         var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, Objects);
