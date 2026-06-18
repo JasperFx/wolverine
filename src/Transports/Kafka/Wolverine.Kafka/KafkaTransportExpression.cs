@@ -74,6 +74,43 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Opt every Kafka consumer on this node into cooperative-sticky rebalancing
+    /// (<c>partition.assignment.strategy = CooperativeSticky</c>) so a rebalance keeps each consumer's
+    /// unaffected partitions instead of a stop-the-world revoke-everything rebalance. Opt-in: do not
+    /// switch an existing group between eager and cooperative assignors during a live rolling upgrade.
+    /// See GH-3139 and the Kafka "Scaling out" docs.
+    /// </summary>
+    public KafkaTransportExpression UseCooperativeStickyAssignment()
+    {
+        _transport.ConsumerConfig.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Kafka static group membership (<c>group.instance.id</c>) so rolling restarts/deploys of the
+    /// same node don't trigger partition churn. The id is resolved from <paramref name="instanceId"/> if
+    /// supplied, otherwise from <c>POD_NAME</c>, then <c>HOSTNAME</c>, then the machine name. The id MUST
+    /// be unique per node and stable across restarts of that node — Wolverine logs the resolved value at
+    /// startup so you can verify. See GH-3139.
+    /// </summary>
+    public KafkaTransportExpression UseStaticMembership(Func<string?>? instanceId = null)
+    {
+        _transport.StaticMembershipRequested = true;
+        _transport.ConsumerConfig.GroupInstanceId = KafkaStaticMembership.Resolve(instanceId);
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Kafka static group membership with an explicit <c>group.instance.id</c>. Discouraged unless
+    /// the caller guarantees the value is unique per node (a single literal applied to every node makes
+    /// Kafka fence all but one out and silently lose messages). See GH-3139.
+    /// </summary>
+    public KafkaTransportExpression UseStaticMembership(string instanceId)
+    {
+        return UseStaticMembership(() => instanceId);
+    }
+
+    /// <summary>
     /// Create newly used Kafka topics on endpoint activation if the topic is missing
     /// </summary>
     /// <param name="configure"></param>

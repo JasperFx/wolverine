@@ -298,6 +298,57 @@ opts.ListenToKafkaTopic("events")
 You can always override any consumer setting per-topic using `ConfigureConsumer()`. Note that this
 **completely replaces** the parent-level consumer configuration -- it is not combinatorial.
 
+## Scaling Out / Concurrency <Badge type="tip" text="6.8" />
+
+The Kafka-native way to scale out message processing is to **run more nodes in the same consumer group**.
+Kafka's own group coordinator assigns the topic's partitions across the live consumers in the group and
+guarantees that only one consumer processes a given partition at a time, so you get safe, ordered,
+horizontally-scaled processing for free. This is the recommended approach for Kafka — reach for it before
+in-process parallelism.
+
+The ceiling is the **partition count**: a topic with _N_ partitions can be processed by at most _N_ nodes
+concurrently (extra nodes sit idle as hot standbys). Size your partition count for your target throughput
+and node count.
+
+Two consumer settings make that native assignment stable and production-grade. Both are **opt-in** —
+Wolverine does not change the defaults, because silently switching an existing group's assignment strategy
+breaks live rolling upgrades.
+
+```csharp
+opts.UseKafka(connectionString)
+    // Incremental rebalancing: a rebalance keeps each consumer's unaffected partitions instead of a
+    // stop-the-world revoke-everything cycle.
+    .UseCooperativeStickyAssignment()
+
+    // Static membership: rolling restarts/deploys of the same node don't trigger partition churn.
+    // The group.instance.id defaults to POD_NAME, then HOSTNAME, then the machine name.
+    .UseStaticMembership();
+```
+
+Both are also available per-listener on `ListenToKafkaTopic(...)` (`UseCooperativeStickyAssignment()` /
+`UseStaticMembership(...)`).
+
+::: warning group.instance.id must be unique per node and stable across restarts
+Static membership only works when each node uses a **distinct** `group.instance.id` that **stays the same**
+across restarts of that node. Two nodes sharing one id makes Kafka treat them as a single member and fence
+one out — silently losing messages. The default resolution (`POD_NAME` → `HOSTNAME` → machine name) matches
+the k8s `StatefulSet` idiom; supply your own when those aren't suitable:
+
+```csharp
+.UseStaticMembership(() => Environment.GetEnvironmentVariable("MY_INSTANCE"))
+```
+
+Wolverine logs the resolved `group.instance.id` at startup so you can verify per-node uniqueness, and warns
+if no stable value could be resolved. Avoid a single hard-coded literal applied to every node.
+:::
+
+::: tip Rolling-upgrade path onto cooperative-sticky
+Don't flip an existing, running group straight from the default (eager) assignor to cooperative-sticky — a
+group must not mix eager and cooperative members. Do a two-step deploy: first roll out a build that lists
+**both** strategies (`[CooperativeSticky, Range]`) so every member supports cooperative, then a second
+deploy that drops the eager strategy.
+:::
+
 ## Publishing by Partition Key
 
 To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the

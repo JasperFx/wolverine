@@ -76,6 +76,12 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public TimeSpan CommitBatchInterval { get; set; } = TimeSpan.FromSeconds(5);
 
     /// <summary>
+    /// True when static group membership was requested for this specific listener (GH-3139).
+    /// Inherited by <see cref="KafkaTopicGroup"/>.
+    /// </summary>
+    internal bool StaticMembershipRequested { get; set; }
+
+    /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.

@@ -71,7 +71,49 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         });
         return this;
     }
-    
+
+    /// <summary>
+    /// Opt this listener's consumer into cooperative-sticky rebalancing
+    /// (<c>partition.assignment.strategy = CooperativeSticky</c>) so a rebalance keeps unaffected
+    /// partitions instead of revoking everything. Opt-in. See GH-3139. Call after
+    /// <see cref="ConfigureConsumer"/> if you also use that (it replaces the whole consumer config).
+    /// </summary>
+    public KafkaListenerConfiguration UseCooperativeStickyAssignment()
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Kafka static group membership (<c>group.instance.id</c>) for this listener so rolling
+    /// restarts of the same node don't churn partitions. The id is resolved from
+    /// <paramref name="instanceId"/> if supplied, otherwise from <c>POD_NAME</c>, then <c>HOSTNAME</c>,
+    /// then the machine name. Must be unique per node and stable across restarts. See GH-3139.
+    /// </summary>
+    public KafkaListenerConfiguration UseStaticMembership(Func<string?>? instanceId = null)
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.GroupInstanceId = KafkaStaticMembership.Resolve(instanceId);
+            topic.StaticMembershipRequested = true;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Kafka static group membership with an explicit <c>group.instance.id</c>. Discouraged unless
+    /// the value is guaranteed unique per node. See GH-3139.
+    /// </summary>
+    public KafkaListenerConfiguration UseStaticMembership(string instanceId)
+    {
+        return UseStaticMembership(() => instanceId);
+    }
+
     /// <summary>
     /// Configures circuit breaker behavior for this Kafka listener.
     /// </summary>
