@@ -379,7 +379,8 @@ public partial class HttpChain
                 ModelMetadata = new EndpointModelMetadata(RequestType),
                 Source = BindingSource.Body,
                 Type = RequestType,
-                IsRequired = true
+                // A nullable [FromBody] member inside an [AsParameters] type is an optional body. See GH-3135.
+                IsRequired = !RequestBodyIsOptional
             };
 
             apiDescription.ParameterDescriptions.Add(parameterDescription);

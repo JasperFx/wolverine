@@ -20,6 +20,20 @@ public class ExpectRequestBodyAttribute : OpenApiExpectationAttribute
     /// <summary>Property names that must NOT be present on the body schema.</summary>
     public string[] ForbiddenProperties { get; set; } = [];
 
+    /// <summary>When set, asserts <c>requestBody.required</c> equals this value. Unset = don't assert.</summary>
+    public bool RequiredSet { get; private set; }
+    private bool _required;
+
+    public bool Required
+    {
+        get => _required;
+        set
+        {
+            _required = value;
+            RequiredSet = true;
+        }
+    }
+
     public ExpectRequestBodyAttribute(string contentType, params string[] properties)
     {
         ContentType = contentType;
@@ -31,6 +45,11 @@ public class ExpectRequestBodyAttribute : OpenApiExpectationAttribute
         op.RequestBody.ShouldNotBeNull("Expected a request body, but the operation has none");
         op.RequestBody.Content.Keys.ShouldContain(ContentType,
             $"Expected request body content type '{ContentType}'. Actual: {string.Join(", ", op.RequestBody.Content.Keys)}");
+
+        if (RequiredSet)
+        {
+            op.RequestBody.Required.ShouldBe(Required, $"requestBody.required for '{ContentType}'");
+        }
 
         var schema = OpenApiSchemaResolver.Resolve(op.RequestBody.Content[ContentType].Schema, openApi.GetOpenApiDocument());
         schema.ShouldNotBeNull($"Request body for '{ContentType}' has no schema");

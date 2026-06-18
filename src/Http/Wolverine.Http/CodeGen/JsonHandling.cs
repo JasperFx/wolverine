@@ -31,11 +31,18 @@ internal class ReadJsonBody : AsyncFrame
 
     public Variable Variable { get; }
 
+    /// <summary>
+    /// When true the body is optional: an empty request body binds null and continues rather than
+    /// returning 400. Set for a nullable [FromBody] member inside an [AsParameters] type. See GH-3135.
+    /// </summary>
+    public bool Optional { get; init; }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Reading the request body via JSON deserialization");
+        var optionalArg = Optional ? ", true" : "";
         writer.Write(
-            $"var ({Variable.Usage}, jsonContinue) = await ReadJsonAsync<{Variable.VariableType.FullNameInCode()}>(httpContext);");
+            $"var ({Variable.Usage}, jsonContinue) = await ReadJsonAsync<{Variable.VariableType.FullNameInCode()}>(httpContext{optionalArg});");
         writer.Write(
             $"if (jsonContinue == {typeof(HandlerContinuation).FullNameInCode()}.{nameof(HandlerContinuation.Stop)}) return;");
 
@@ -49,8 +56,9 @@ internal class ReadJsonBody : AsyncFrame
         // ReadJsonAsync is an inherited *instance* method on HttpHandler (qualified with the member's
         // `this` self identifier, jasperfx#393) returning (body, continuation). F# has no early
         // `return`, so the abort guard renders the rest of the chain inside its `else` branch.
+        var optionalArg = Optional ? ", true" : "";
         writer.Write(
-            $"let! ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext)");
+            $"let! ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext{optionalArg})");
 
         var condition = $"jsonContinue = {typeof(HandlerContinuation).FSharpName()}.{nameof(HandlerContinuation.Stop)}";
         FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);
@@ -114,7 +122,7 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
         {
             // It *could* be used twice, so let's watch out for this!
             chain.RequestBodyVariable ??= Usage == JsonUsage.SystemTextJson
-                ? new ReadJsonBody(chain.RequestType!).Variable
+                ? new ReadJsonBody(chain.RequestType!) { Optional = chain.RequestBodyIsOptional }.Variable
                 : RequireNewtonsoftCodeGen().CreateReadJsonBodyVariable(chain.RequestType!);
 
             variable = chain.RequestBodyVariable;

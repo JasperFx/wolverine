@@ -63,6 +63,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     internal Variable? RequestBodyVariable { get; set; }
 
+    /// <summary>
+    /// True when the request body is optional — i.e. a nullable [FromBody] member inside an
+    /// [AsParameters] type. Drives both the runtime read (an empty body binds null instead of 400)
+    /// and the generated OpenAPI (requestBody.required = false). See GH-3135.
+    /// </summary>
+    internal bool RequestBodyIsOptional { get; set; }
+
     private string? _fileName;
     private readonly List<string> _httpMethods = [];
 

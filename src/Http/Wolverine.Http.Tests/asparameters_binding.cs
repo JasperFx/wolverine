@@ -224,4 +224,43 @@ public class asparameters_binding : IntegrationContext
             x.StatusCodeShouldBe(400);
         });
     }
+
+    // GH-3135 WS3: a nullable [FromBody] member is optional — a missing body binds null and the
+    // endpoint runs (200) instead of returning 400 ("input does not contain any JSON tokens").
+    [Fact]
+    public async Task nullable_from_body_missing_binds_null()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Url("/api/3135/optional-body?Name=Jeremy");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("no-body");
+    }
+
+    [Fact]
+    public async Task nullable_from_body_present_binds_value()
+    {
+        var result = await Scenario(x =>
+        {
+            x.Post.Json(new WolverineWebApi.AddPassengerPayload("Bob"))
+                .ToUrl("/api/3135/optional-body")
+                .QueryString("Name", "Jeremy");
+            x.StatusCodeShouldBe(200);
+        });
+
+        (await result.ReadAsTextAsync()).ShouldBe("body:Bob");
+    }
+
+    // Regression guard: a NON-nullable [FromBody] member is still required — a missing body 400s.
+    [Fact]
+    public async Task non_nullable_from_body_missing_still_fails()
+    {
+        await Scenario(x =>
+        {
+            x.Post.Url($"/api/3135/journey/{Guid.NewGuid()}/passenger");
+            x.StatusCodeShouldBe(400);
+        });
+    }
 }

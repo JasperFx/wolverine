@@ -22,9 +22,30 @@ public static class AsParametersSplitEndpoint
 {
     [WolverinePost("/api/3135/journey/{journeyId:guid}/passenger")]
     [ExpectParameter("journeyId", ParameterLocation.Path, Type = "string", Format = "uuid")]
-    [ExpectRequestBody("application/json", "passengerName", ForbiddenProperties = ["journeyId", "body"])]
+    // Non-nullable [FromBody] member -> required body.
+    [ExpectRequestBody("application/json", "passengerName", ForbiddenProperties = ["journeyId", "body"], Required = true)]
     public static string Post([AsParameters] AddPassengerCommand command)
         => $"{command.JourneyId}:{command.Body.PassengerName}";
+}
+
+// GH-3135 WS2/WS3: a nullable [FromBody] member is an OPTIONAL body — requestBody.required is false
+// and an empty request body binds null at runtime (200) instead of 400.
+public class OptionalBodyQuery
+{
+    [FromQuery]
+    public string? Name { get; set; }
+
+    [FromBody]
+    public AddPassengerPayload? Body { get; set; }
+}
+
+public static class OptionalBodyEndpoint
+{
+    [WolverinePost("/api/3135/optional-body")]
+    [ExpectParameter("Name", ParameterLocation.Query, Type = "string")]
+    [ExpectRequestBody("application/json", "passengerName", Required = false)]
+    public static string Post([AsParameters] OptionalBodyQuery query)
+        => query.Body is null ? "no-body" : $"body:{query.Body.PassengerName}";
 }
 
 // uniquelau's "Alternative" workaround (issue CASE A): a plain complex body whose property overlaps a
