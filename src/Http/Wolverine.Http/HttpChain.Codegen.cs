@@ -135,7 +135,18 @@ public partial class HttpChain
         
         if (AuditedMembers.Count != 0)
         {
-            Middleware.Insert(0, new AuditToActivityFrame(this));
+            // When the endpoint binds via [AsParameters], an audited member (e.g. an inferred aggregate
+            // id) lives on the container type, not on InputType() — which a [FromBody] member may have
+            // overwritten to the body type. Resolve the audit variable from the container in that case
+            // so the member access is valid and the codegen doesn't fail to resolve a body-typed
+            // variable that has no standalone binding. See GH-3135.
+            Type? auditInputType = null;
+            if (AsParametersType != null && AuditedMembers.All(x => x.Member.DeclaringType == AsParametersType))
+            {
+                auditInputType = AsParametersType;
+            }
+
+            Middleware.Insert(0, new AuditToActivityFrame(this, auditInputType));
         }
 
         var index = 0;

@@ -23,5 +23,9 @@
 
     <ItemGroup>
       <ProjectReference Include="..\PolecatIncidentService\PolecatIncidentService.csproj" />
+      <!-- Registers the Roslyn runtime compiler so the Wolverine host can run in TypeLoadMode.Dynamic
+           under test (core WolverineFx no longer ships it; GH-2876). Matches every other Dynamic-mode
+           test project in the repo. -->
+      <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>
 </Project>

@@ -10,6 +10,10 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
         <PackageReference Include="JasperFx" />
+        <!-- Polecat (unlike Marten) does not bundle the event source generator, so projects that
+             define self-aggregating event types need it explicitly to emit the compile-time
+             Apply/Create dispatchers. Matches PolecatTests. -->
+        <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
