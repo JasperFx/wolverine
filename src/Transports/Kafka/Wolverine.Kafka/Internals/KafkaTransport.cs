@@ -140,8 +140,75 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         }
 
         warnOnStaticMembership(runtime);
+        registerRetryTopicListeners(runtime);
 
         return ValueTask.CompletedTask;
+    }
+
+    // GH-3148: discover the non-blocking retry-topic policy (MoveToKafkaRetryTopic) in the global failure
+    // rules and auto-register a delayed listener per source topic × tier, plus a startup validation warning
+    // if the policy could apply to non-Kafka endpoints (where it degrades to an inline retry).
+    private void registerRetryTopicListeners(IWolverineRuntime runtime)
+    {
+        var delays = new HashSet<TimeSpan>();
+        foreach (var rule in runtime.Options.HandlerGraph.Failures)
+        {
+            if (rule.InfiniteSource is MoveToKafkaRetryTopicContinuation continuation)
+            {
+                foreach (var delay in continuation.Delays)
+                {
+                    delays.Add(delay);
+                }
+            }
+        }
+
+        if (delays.Count == 0)
+        {
+            return;
+        }
+
+        var logger = runtime.LoggerFactory.CreateLogger<KafkaTransport>();
+
+        // Validation: this policy only routes Kafka messages (the continuation self-guards), so warn if
+        // any non-Kafka listener exists where it will silently degrade to an inline retry.
+        var hasNonKafkaListener = runtime.Options.Transports
+            .Where(t => t is not KafkaTransport)
+            .SelectMany(t => t.Endpoints())
+            .Any(e => e.IsListener);
+        if (hasNonKafkaListener)
+        {
+            logger.LogWarning(
+                "MoveToKafkaRetryTopic is configured but non-Kafka listeners are present. The Kafka retry topics only apply to messages received over Kafka; failures on other transports will fall back to an inline retry.");
+        }
+
+        // Source application listener topics (exclude the DLQ, system, and existing retry-tier topics).
+        var sources = Topics
+            .Where(t => t.IsListener && t.RetryTierDelay == null && t.TopicName != DeadLetterQueueTopicName
+                        && t.TopicName != KafkaTopic.WolverineTopicsName && !t.TopicName.Contains(".retry."))
+            .Select(t => t.TopicName)
+            .ToList();
+
+        foreach (var source in sources)
+        {
+            foreach (var delay in delays)
+            {
+                var tierTopic = Topics[KafkaRetryNaming.RetryTopicName(source, delay)];
+                tierTopic.IsListener = true;
+                tierTopic.RetryTierDelay = delay;
+                tierTopic.Mode = EndpointMode.Inline;
+                // Stable group + earliest so a tier consumer never misses a just-produced retry record
+                // (a Latest consumer races the producer). Reads + commits its own retry-topic offsets.
+                tierTopic.ConsumerConfig = new ConsumerConfig
+                {
+                    GroupId = $"{runtime.Options.ServiceName}-retry",
+                    AutoOffsetReset = AutoOffsetReset.Earliest
+                };
+                tierTopic.Compile(runtime);
+
+                logger.LogInformation("Registered Kafka retry-tier listener {Topic} (delay {Delay})",
+                    tierTopic.TopicName, delay);
+            }
+        }
     }
 
     // GH-3139: surface the resolved group.instance.id so operators can verify per-node uniqueness, and

@@ -229,6 +229,17 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
+    public IAdditionalActions ContinueWith(IContinuationSource source)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+
+        var slot = _rule.AddSlot(source);
+        _slots.Add(slot);
+        _rule.InfiniteSource = source;
+
+        return this;
+    }
+
     public IAdditionalActions MoveToErrorQueue()
     {
         var slot = _rule.AddSlot(new MoveToErrorQueueSource());
@@ -579,6 +590,12 @@ public interface IFailureActions
     /// <param name="description">Diagnostic description of the failure action</param>
     /// <param name="invokeUsage">If specified, this error action will be executed for inline message execution through IMessageBus.InvokeAsync()</param>
     /// <returns></returns>
+    /// <summary>
+    /// Handle matching failures with a custom <see cref="IContinuationSource"/>, applied on every attempt.
+    /// The plug-in point for custom or transport-specific continuations in the error-handling DSL.
+    /// </summary>
+    IAdditionalActions ContinueWith(IContinuationSource source);
+
     IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action,
         string description, InvokeResult? invokeUsage = null);
 
@@ -610,6 +627,16 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions CustomActionIndefinitely(Func<IWolverineRuntime, IEnvelopeLifecycle, Exception, ValueTask> action, string description, InvokeResult? invokeUsage = null)
     {
         return new FailureActions(_match, _parent).CustomActionIndefinitely(action, description, invokeUsage);
+    }
+
+    /// <summary>
+    /// Handle matching failures with a custom <see cref="IContinuationSource"/>, applied on every attempt.
+    /// This is the extension point for plugging your own (or a transport-specific) continuation into the
+    /// error-handling DSL, e.g. <c>OnException&lt;T&gt;().ContinueWith(mySource)</c>.
+    /// </summary>
+    public IAdditionalActions ContinueWith(IContinuationSource source)
+    {
+        return new FailureActions(_match, _parent).ContinueWith(source);
     }
 
     /// <summary>
