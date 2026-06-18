@@ -135,8 +135,16 @@ public abstract class HttpHandler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public async ValueTask<(T?, HandlerContinuation)> ReadJsonAsync<T>(HttpContext context)
+    public async ValueTask<(T?, HandlerContinuation)> ReadJsonAsync<T>(HttpContext context, bool optional = false)
     {
+        // An optional body (a nullable [FromBody] member) with no content binds null and continues
+        // instead of failing content-type/JSON validation. Mirrors minimal-API optional-body
+        // semantics. See GH-3135.
+        if (optional && context.Request.ContentLength is null or 0)
+        {
+            return (default, HandlerContinuation.Continue);
+        }
+
         if (!isRequestJson(context))
         {
             context.Response.StatusCode = 415;

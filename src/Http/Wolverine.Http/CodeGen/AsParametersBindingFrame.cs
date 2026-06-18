@@ -196,8 +196,11 @@ internal class AsParametersBindingFrame : SyncFrame
             _hasJsonBody = true;
             _jsonBodyCount++;
             chain.RequestType = memberType;
+            // A nullable [FromBody] member is an optional body: an empty request body binds null at
+            // runtime (instead of 400) and renders requestBody.required = false. See GH-3135.
+            chain.RequestBodyIsOptional = IsNullableMember(parameter);
             variable = chain.BuildJsonDeserializationVariable();
-            
+
             chain.IsFormData = false;
             return true;
         }
@@ -256,9 +259,13 @@ internal class AsParametersBindingFrame : SyncFrame
         if (propertyInfo.TryGetAttribute<FromBodyAttribute>(out var batt))
         {
             _hasJsonBody = true;
+            _jsonBodyCount++;
             chain.RequestType = memberType;
+            // A nullable [FromBody] member is an optional body: an empty request body binds null at
+            // runtime (instead of 400) and renders requestBody.required = false. See GH-3135.
+            chain.RequestBodyIsOptional = IsNullableMember(propertyInfo);
             variable = chain.BuildJsonDeserializationVariable();
-            
+
             chain.IsFormData = false;
             return true;
         }
@@ -295,5 +302,28 @@ internal class AsParametersBindingFrame : SyncFrame
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         foreach (var parameter in _dependencies) yield return parameter;
+    }
+
+    // A member is nullable when it's a Nullable<T> value type or a reference type whose nullable
+    // annotation context marks it nullable. A fresh NullabilityInfoContext per call keeps this
+    // thread-safe across concurrent chain compilation.
+    private static bool IsNullableMember(ParameterInfo parameter)
+    {
+        if (parameter.ParameterType.IsValueType)
+        {
+            return parameter.ParameterType.IsNullable();
+        }
+
+        return new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
+    }
+
+    private static bool IsNullableMember(PropertyInfo property)
+    {
+        if (property.PropertyType.IsValueType)
+        {
+            return property.PropertyType.IsNullable();
+        }
+
+        return new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable;
     }
 }
