@@ -155,6 +155,47 @@ public static class AsParametersEndpoints2{
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Forms/FormEndpoints.cs#L180-L214' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_as_parameter_for_services_and_body' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Splitting a Route Value from the Request Body
+
+A common shape is an endpoint whose route carries the identity (say, an aggregate id) while the JSON
+body carries the rest of the command. If you bind the body to a single plain type that *also* has a
+property matching the route token, that property is duplicated — it shows up **both** as a route
+parameter and as a property of the request body in the generated OpenAPI:
+
+```cs
+// {journeyId} is in the route AND JourneyId is a property of the body type,
+// so journeyId appears twice in the OpenAPI document (in: path and in the body schema)
+public record AddPassengerCommand(Guid JourneyId, string PassengerName);
+
+[WolverinePost("/journey/{journeyId:guid}/passenger")]
+public static string Post(AddPassengerCommand command) => "ok";
+```
+
+This is the same behavior as ASP.NET Core's own minimal APIs — neither framework strips a
+body property just because its name happens to match a route token. The idiomatic way to avoid the
+duplication is to bind with `[AsParameters]` and explicitly source the id from the route and the rest
+from the body:
+
+```cs
+public record AddPassengerCommand(
+    [FromRoute] Guid JourneyId,
+    [FromBody] AddPassengerCommand.Payload Body)
+{
+    public record Payload(string PassengerName);
+}
+
+[WolverinePost("/journey/{journeyId:guid}/passenger")]
+public static string Post([AsParameters] AddPassengerCommand command)
+    => $"{command.JourneyId}: {command.Body.PassengerName}";
+```
+
+Now `journeyId` is described only as a route parameter (with its real type/format, e.g. `uuid`), and
+the request body schema is just the `Payload` type — the route id is not duplicated in the body. This
+works the same way when the route id also feeds a Marten/Polecat `[WriteAggregate]`/`[Aggregate]`
+parameter on the same endpoint.
+
+## Using Records
+
 And lastly, you can use C# records or really just any constructor function as well
 and decorate parameters like so:
 
