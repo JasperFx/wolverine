@@ -149,6 +149,15 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         return ProducerConfig ?? Parent.ProducerConfig;
     }
 
+    /// <summary>
+    /// Ensure the envelope mapper has been built (e.g. for a one-shot replay of a topic that isn't a
+    /// configured live listener). See GH-3147.
+    /// </summary>
+    internal IKafkaEnvelopeMapper EnsureEnvelopeMapper(IWolverineRuntime runtime)
+    {
+        return EnvelopeMapper ??= BuildMapper(runtime);
+    }
+
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
