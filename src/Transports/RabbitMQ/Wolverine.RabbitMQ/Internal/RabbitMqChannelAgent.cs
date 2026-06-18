@@ -36,6 +36,11 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 
         _monitor.Remove(this);
         await teardownChannel();
+
+        // Intentionally NOT calling Locker.Dispose() — rapid pause/restart cycles
+        // can have an in-flight WaitAsync/Release race with disposal, which would
+        // throw ObjectDisposedException. The kernel handle is reclaimed by the
+        // SemaphoreSlim finalizer. See #3132.
     }
 
     internal async Task EnsureInitiated()
