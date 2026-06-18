@@ -5,9 +5,9 @@ using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 
-namespace Wolverine.Marten.Distribution;
+namespace Wolverine.Runtime.Agents;
 
-internal class EventStoreAgents : IAsyncDisposable
+public class EventStoreAgents : IAsyncDisposable
 {
     private readonly IEventStore _store;
     private readonly IObserver<ShardState>[] _observers;
@@ -214,6 +214,13 @@ internal class EventStoreAgents : IAsyncDisposable
     }
 
     public IProjectionDaemon DaemonForMainDatabase()
+    {
+        throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
+    }
+
+    // Async sibling for store coordinators (e.g. Polecat's IProjectionCoordinator) whose interface
+    // exposes the async signature. Same managed-distribution semantics as DaemonForMainDatabase().
+    public ValueTask<IProjectionDaemon> DaemonForMainDatabaseAsync()
     {
         throw new NotSupportedException("This method is not supported with the Wolverine managed projection/subscription distribution");
     }

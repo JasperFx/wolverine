@@ -3,6 +3,7 @@ using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using Marten;
 using Marten.Events.Daemon.Coordination;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Marten.Distribution;
 

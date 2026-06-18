@@ -10,6 +10,7 @@ using PolecatTests.Distribution.TripDomain;
 using Shouldly;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Polecat.Distribution;
+using Wolverine.Runtime.Agents;
 
 namespace PolecatTests.Distribution;
 

@@ -103,9 +103,19 @@ public static class WolverineOptionsPolecatExtensions
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
+            // GH-3133, Gap 2: Polecat's AddPolecat registers IDocumentStore but not the store-agnostic
+            // JasperFx.Events.IEventStore that EventSubscriptionAgentFamily(IEnumerable<IEventStore>)
+            // resolves — without it the family sees no stores and no projection shards distribute.
+            // Marten registers IEventStore in its own AddMarten; bridge it here for Polecat. The
+            // Polecat DocumentStore implements IEventStore<IDocumentSession, IQuerySession>.
+            expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<IDocumentStore>());
+
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
             expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
             expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
+            // GH-3133, Gap 1: mirror Marten so tooling resolving GetServices<IEventSubscriptionAgentFamily>()
+            // can map a shard identity to an agent URI for Polecat too.
+            expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
         }
 

@@ -17,6 +17,7 @@ using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Marten.Distribution;
 using Wolverine.Marten.Publishing;
+using Wolverine.Runtime.Agents;
 using Wolverine.Marten.Subscriptions;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
