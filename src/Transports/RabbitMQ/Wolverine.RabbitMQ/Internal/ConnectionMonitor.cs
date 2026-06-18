@@ -115,11 +115,11 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         IsConnected = true;
         _transport.RecordReconnection();
 
-        RabbitMqChannelAgent[] agentsSnaphot;
+        RabbitMqChannelAgent[] agentsSnapshot;
         lock(_agentsLock)
-            agentsSnaphot = [.. _agents];
+            agentsSnapshot = [.. _agents];
 
-        foreach (var agent in agentsSnaphot)
+        foreach (var agent in agentsSnapshot)
             await agent.ReconnectedAsync();
 
         _logger.LogInformation("RabbitMQ connection is recovered successfully");
