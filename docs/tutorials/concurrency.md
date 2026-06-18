@@ -140,3 +140,8 @@ More likely though, to both protect against concurrent access against resources 
 * [Session Identifier and FIFO queue support for Azure Service Bus](/guide/messaging/transports/azureservicebus/session-identifiers)
 * Wolverine's [Partitioned Sequential Messaging](/guide/messaging/partitioning) feature introduced in Wolverine 5.0 that was designed specifically to alleviate problems with concurrency within
   Wolverine systems.
+
+If you are on **Kafka**, the idiomatic way to scale out concurrency is to run more nodes in the same
+consumer group and let Kafka assign partitions across them (one consumer per partition at a time), rather
+than reaching for in-process parallelism. See [Kafka — Scaling Out / Concurrency](/guide/messaging/transports/kafka#scaling-out-concurrency)
+for the recommended cooperative-sticky + static-membership configuration.

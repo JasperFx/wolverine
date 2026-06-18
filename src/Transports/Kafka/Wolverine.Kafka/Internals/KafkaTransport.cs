@@ -2,6 +2,7 @@ using Confluent.Kafka;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
@@ -61,6 +62,12 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
     public string DeadLetterQueueTopicName { get; set; } = DeadLetterQueueConstants.DefaultQueueName;
 
     public KafkaUsage Usage { get; set; } = KafkaUsage.ProduceAndConsume;
+
+    /// <summary>
+    /// True when static group membership was requested at the transport level (GH-3139). Used to emit a
+    /// startup diagnostic about the resolved group.instance.id.
+    /// </summary>
+    internal bool StaticMembershipRequested { get; set; }
 
     public override Uri ResourceUri
     {
@@ -132,7 +139,41 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             dlqTopic.Compile(runtime);
         }
 
+        warnOnStaticMembership(runtime);
+
         return ValueTask.CompletedTask;
+    }
+
+    // GH-3139: surface the resolved group.instance.id so operators can verify per-node uniqueness, and
+    // warn loudly if static membership was requested but no stable id could be resolved.
+    private void warnOnStaticMembership(IWolverineRuntime runtime)
+    {
+        var logger = runtime.LoggerFactory.CreateLogger<KafkaTransport>();
+
+        void Check(bool requested, string? instanceId, string scope)
+        {
+            if (!requested) return;
+
+            if (string.IsNullOrWhiteSpace(instanceId))
+            {
+                logger.LogWarning(
+                    "Kafka static membership was requested ({Scope}) but no stable group.instance.id could be resolved (checked the supplied source, POD_NAME, HOSTNAME, and machine name). Static membership will not take effect and rolling restarts may trigger partition rebalancing. Provide an explicit per-node id via UseStaticMembership(...).",
+                    scope);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Kafka static membership enabled ({Scope}) with group.instance.id '{InstanceId}'. Ensure this value is unique per node and stable across restarts of the same node.",
+                    scope, instanceId);
+            }
+        }
+
+        Check(StaticMembershipRequested, ConsumerConfig.GroupInstanceId, "transport");
+
+        foreach (var topic in Topics.Where(x => x.StaticMembershipRequested))
+        {
+            Check(true, topic.GetEffectiveConsumerConfig().GroupInstanceId, $"topic '{topic.TopicName}'");
+        }
     }
 
     public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)
