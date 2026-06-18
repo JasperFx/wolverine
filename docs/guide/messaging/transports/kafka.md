@@ -390,6 +390,45 @@ A few things to know:
 - Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal
   shared-group listener (the default) when you want each message processed **once** across the cluster.
 
+## Replaying a Topic <Badge type="tip" text="6.8" />
+
+When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream
+state, replaying after a bug fix — Wolverine offers a **bounded, one-shot replay** that reads a range of a
+topic back through the **normal handler pipeline**. It uses a throwaway `Assign()`-based consumer with a
+unique group id and **never commits to the live consumer group**, so steady-state consumption is
+completely untouched.
+
+```csharp
+// Programmatic API on IHost
+await host.ReplayKafkaTopicAsync(new KafkaReplayRequest
+{
+    Topic = "orders",
+    FromTimestamp = DateTimeOffset.UtcNow.AddHours(-1),  // or FromOffset = 1500
+    // ToTimestamp / ToOffset optional — defaults to "now" (the current high-water mark)
+    // Partitions = [0, 1]                                // optional subset; defaults to all
+});
+```
+
+Start defaults to the beginning of each partition and end defaults to the current high-water mark, so
+omitting the bounds replays the whole topic as it stands. Timestamps are resolved to offsets per partition
+via Kafka's `OffsetsForTimes`.
+
+There is also a CLI verb wrapping the same API:
+
+```bash
+dotnet run -- kafka-replay orders --from-timestamp 2026-06-18T12:00:00Z
+dotnet run -- kafka-replay orders --from-offset 1500 --to-offset 2000 --partitions 0,1
+```
+
+::: warning Replayed messages are re-handled
+Each replayed record flows through your handlers again, exactly like live consumption. Handlers should be
+**idempotent** (the same expectation as any at-least-once reprocessing). If you use the durable inbox,
+replayed envelopes pass through the same inbox + de-duplication path.
+:::
+
+Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
+a running listener, or a CritterWatch control-pane, see the follow-up issues.
+
 ## Publishing by Partition Key
 
 To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the
