@@ -143,17 +143,32 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
     public (OpenApiPathItem, OpenApiOperation) FindOpenApiDocument(OperationType httpMethod, string path)
     {
-        var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
-        var document = swagger.GetSwagger("default");
+        var document = GetOpenApiDocument();
 
-        if (document.Paths.TryGetValue(path, out var item))
+        if (!document.Paths.TryGetValue(path, out var item))
         {
-            if (item.Operations.TryGetValue(httpMethod, out var operation))
-            {
-                return (item, operation);
-            }
+            // Generated document path keys drop inline route constraints (e.g. {id:guid} -> {id}),
+            // while the harness looks up by the raw route pattern. Fall back to a constraint-stripped
+            // comparison so constrained routes resolve. See GH-3135.
+            var normalized = StripRouteConstraints(path);
+            item = document.Paths
+                .FirstOrDefault(kv => StripRouteConstraints(kv.Key) == normalized).Value;
+        }
+
+        if (item != null && item.Operations.TryGetValue(httpMethod, out var operation))
+        {
+            return (item, operation);
         }
 
         throw new Exception($"Unable to find {httpMethod} {path}");
+    }
+
+    private static string StripRouteConstraints(string path)
+        => System.Text.RegularExpressions.Regex.Replace(path, "\\{([^:}?*]+)[^}]*\\}", "{$1}");
+
+    public OpenApiDocument GetOpenApiDocument()
+    {
+        var swagger = Host.Services.GetRequiredService<ISwaggerProvider>();
+        return swagger.GetSwagger("default");
     }
 }
