@@ -221,15 +221,45 @@ at the cost of potential message loss during an ungraceful shutdown.
 
 ### Offset Commit Behavior in the Listener
 
-Regardless of endpoint mode, the `KafkaListener` calls `_consumer.Commit()` in these situations:
+The `KafkaListener` advances the consumer offset (commits the *specific* `TopicPartitionOffset` of the
+message, never the consumer's global position) in these situations:
 
-- **On successful processing** -- `CompleteAsync()` explicitly commits the consumer offset after a message
-  finishes processing. In durable mode this is the *only* path that advances the offset.
+- **On successful processing** -- `CompleteAsync()` stores/commits the message's offset after it finishes
+  processing. In durable mode this is the path that advances the offset.
 - **On poison pill messages** -- If an incoming Kafka message cannot be deserialized into a Wolverine envelope
-  at all (a true poison pill), the listener commits the offset to skip past the bad message and avoid blocking
-  the consumer.
+  at all (a true poison pill), the listener advances past that message's offset to skip the bad message and
+  avoid blocking the consumer.
 - **On dead letter queue routing** -- When a message exhausts all retries and is moved to the native dead letter
-  queue topic, the offset is committed after the DLQ produce succeeds.
+  queue topic, its offset is advanced after the DLQ produce succeeds.
+
+### Commit Strategy <Badge type="tip" text="6.8" />
+
+How and when those offsets are flushed to the broker is controlled by `CommitMode`. The default,
+`StoreThenAutoFlush`, is the idiomatic high-throughput Kafka model: each processed offset is *stored*
+locally (`EnableAutoOffsetStore = false` + `StoreOffset`) and Kafka's background committer flushes them on
+`AutoCommitIntervalMs`. There is **no** synchronous broker round trip per message.
+
+```csharp
+opts.ListenToKafkaTopic("orders")
+    // The default — non-blocking, at-least-once, idiomatic high throughput
+    .CommitOffsets(CommitMode.StoreThenAutoFlush);
+
+opts.ListenToKafkaTopic("strict")
+    // Synchronously commit each message as it completes (strict at-least-once, lowest throughput)
+    .CommitOffsets(CommitMode.PerMessage);
+
+opts.ListenToKafkaTopic("bulk")
+    // Wolverine commits the contiguous offset watermark every N messages...
+    .CommitOffsetsAfterCount(500);
+
+opts.ListenToKafkaTopic("bulk2")
+    // ...or every elapsed interval. Neither commits ahead of the lowest in-flight offset.
+    .CommitOffsetsAfterInterval(TimeSpan.FromSeconds(2));
+```
+
+If you explicitly set `EnableAutoCommit = true` via `ConfigureConsumer`, Wolverine suppresses its own manual
+commits and leaves offset management entirely to the Kafka client. Pending/stored offsets are flushed on a
+graceful shutdown so progress is not lost.
 
 ### Recommended Configuration by Use Case
 
