@@ -13,9 +13,19 @@ public class AuditToActivityFrame : SyncFrame
     private readonly List<AuditedMember> _members;
     private Variable? _input;
 
-    public AuditToActivityFrame(IChain chain)
+    public AuditToActivityFrame(IChain chain) : this(chain, null)
     {
-        _inputType = chain.InputType()!;
+    }
+
+    /// <param name="inputType">
+    /// The type of the variable the audited members are read from. Defaults to <see cref="IChain.InputType"/>,
+    /// but callers can override it when the audited members live on a different bound variable than the
+    /// chain's request body — e.g. an [AsParameters] container whose [FromBody] member has overwritten
+    /// the request type. See GH-3135.
+    /// </param>
+    public AuditToActivityFrame(IChain chain, Type? inputType)
+    {
+        _inputType = inputType ?? chain.InputType()!;
         _members = chain.AuditedMembers;
     }
 
