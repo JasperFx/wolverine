@@ -429,6 +429,68 @@ replayed envelopes pass through the same inbox + de-duplication path.
 Replay reads forward to the end boundary and stops cleanly. It is a discrete operation — for *live* seek of
 a running listener, or a CritterWatch control-pane, see the follow-up issues.
 
+## Idempotency & Exactly-Once with Kafka <Badge type="tip" text="6.8" />
+
+Kafka delivery is **at-least-once** by default: a consumer can see a message more than once (after a
+rebalance, a crash before the offset is committed, or a [replay](#replaying-a-topic)). There are two very
+different ways to get "exactly-once-ish" behavior, and for most Wolverine users the first one is the answer.
+
+### Recommended for database-backed apps: Wolverine's durable inbox/outbox
+
+If your handlers touch a database, use Wolverine's [durable inbox/outbox](/guide/durability/). The incoming
+message and its side effects commit in **one database transaction** (inbox), and outgoing messages commit in
+the **same transaction** as your business state (outbox) before being forwarded. The inbox **de-duplicates**
+redelivered messages, so your handlers are safe under at-least-once delivery:
+
+```csharp
+opts.ListenToKafkaTopic("orders").UseDurableInbox();
+```
+
+This gives you effectively-once processing that **spans your database and Kafka** — something Kafka
+transactions alone cannot do, because they can't enlist an external database. This is how most Wolverine
+applications should get exactly-once-style guarantees; you do **not** need Kafka transactions for it.
+
+### Idempotent producer
+
+Opt into the idempotent producer so producer-side retries can't write duplicates to the broker:
+
+```csharp
+opts.UseKafka(connectionString).UseIdempotentProducer();       // node-wide
+opts.PublishMessage<T>().ToKafkaTopic("t").UseIdempotentProducer();  // per topic
+```
+
+This sets `enable.idempotence = true` (which implies `acks=all` and bounded in-flight requests). It is
+**producer→broker** de-duplication only — it does not make consume-process-produce atomic, and it has a
+slight throughput cost. Opt-in; the default is unchanged.
+
+### `read_committed` isolation
+
+When you consume a topic that is written by Kafka transactions, set the consumer to skip records from
+aborted transactions:
+
+```csharp
+opts.UseKafka(connectionString).UseReadCommitted();             // node-wide
+opts.ListenToKafkaTopic("orders").UseReadCommitted();           // per listener
+```
+
+The default is `read_uncommitted`.
+
+### Handler idempotency
+
+Because delivery is at-least-once, **design your handlers to tolerate redelivery** — especially if you
+don't use the durable inbox, and always when using [retry topics](#) or [replay](#replaying-a-topic). Make
+writes idempotent (upserts keyed by a business id, conditional updates, dedupe tables), so reprocessing the
+same message is harmless.
+
+### Non-goal: a transactional read-process-write EOS engine
+
+Wolverine does **not** implement a Kafka transactional read-process-write engine (`transactional.id` +
+`Begin/Commit/AbortTransaction` + `SendOffsetsToTransaction` to make consume→transform→produce→commit-offset
+atomic inside Kafka). That mode bypasses both the durable inbox and Wolverine's commit strategy, and only
+adds value for **DB-free Kafka→Kafka** pipelines — which are better served by Kafka Streams. Wolverine stays
+in the message-bus + database-outbox lane; if you need pure in-Kafka transactional exactly-once, reach for
+Kafka Streams.
+
 ## Publishing by Partition Key
 
 To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the
