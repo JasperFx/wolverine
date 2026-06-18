@@ -54,8 +54,15 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         envelope.PartitionId = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
 
-                        if (topic.StampConsumerGroupIdOnEnvelope)
+                        if (topic.GroupByMessageKey)
+                        {
+                            // GH-3140: shard by-key processing on the Kafka message key.
+                            envelope.GroupId = message.Key;
+                        }
+                        else if (topic.StampConsumerGroupIdOnEnvelope)
+                        {
                             envelope.GroupId = config.GroupId;
+                        }
 
                         await receiver.ReceivedAsync(this, envelope);
                     }

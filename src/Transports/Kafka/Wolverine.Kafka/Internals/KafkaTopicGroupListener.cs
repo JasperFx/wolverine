@@ -52,8 +52,15 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
                         envelope.Offset = result.Offset.Value;
                         envelope.PartitionId = result.Partition.Value;
 
-                        if (endpoint.StampConsumerGroupIdOnEnvelope)
+                        if (endpoint.GroupByMessageKey)
+                        {
+                            // GH-3140: shard by-key processing on the Kafka message key.
+                            envelope.GroupId = message.Key;
+                        }
+                        else if (endpoint.StampConsumerGroupIdOnEnvelope)
+                        {
                             envelope.GroupId = config.GroupId;
+                        }
 
                         await receiver.ReceivedAsync(this, envelope);
                     }
