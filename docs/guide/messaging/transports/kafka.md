@@ -766,6 +766,42 @@ using var host = await Host.CreateDefaultBuilder()
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
 
+## Non-Blocking Retry Topics <Badge type="tip" text="6.8" />
+
+For pure-Kafka apps that can't lean on a database, Wolverine offers **Spring/Uber-style non-blocking retry
+topics**. On a matching failure the message is produced to a **tiered fixed-delay retry topic**, the source
+partition's offset is committed (so the partition keeps flowing — **no head-of-line blocking**), and a
+delayed consumer reprocesses the message through the normal handler pipeline once the tier delay elapses.
+After the last tier is exhausted, the message lands in the existing Kafka [dead letter queue](#native-dead-letter-queue).
+
+It's wired through the standard error-handling DSL, keyed off **exception matching** like any other policy:
+
+```csharp
+opts.OnException<TransientException>()
+    .MoveToKafkaRetryTopic(1.Seconds(), 30.Seconds(), 5.Minutes());
+```
+
+Each delay defines a tier. Wolverine auto-derives one retry topic per delay, named off the source topic
+(`orders.retry.1s`, `orders.retry.30s`, `orders.retry.5m`), auto-provisions them (when `AutoProvision()` is
+on), and runs a delayed consumer for each. Retry/exception metadata (source topic, tier, attempt count,
+first-failure time, exception) travels in headers.
+
+::: tip Prefer the durable inbox when you have a database
+This is the **DB-free** retry path. If your app uses a database, Wolverine's `ScheduleRetry(...)` (→ the
+durable scheduler) is already non-blocking and is the recommended choice — it survives restarts without
+extra topics. Retry topics are for pure-Kafka shops, or orgs whose tooling/observability is built around
+`-retry`/`-dlt` topics.
+:::
+
+::: warning Trade-offs
+- This policy **only applies to messages received over Kafka**. The same rule on a non-Kafka endpoint falls
+  back to a normal inline retry (Wolverine logs a startup warning if it detects this).
+- **Ordering is not preserved** for a retried flow — a message that goes to a retry topic is reprocessed
+  later than messages that succeeded after it.
+- The delays are **floors, not exact** — they're enforced by consumer-side waiting plus poll granularity.
+- Reprocessing re-runs your handler, so make handlers **idempotent**.
+:::
+
 ## Native Dead Letter Queue
 
 Wolverine supports routing failed Kafka messages to a designated dead letter queue (DLQ) Kafka topic instead of relying on database-backed dead letter storage. This is opt-in on a per-listener basis.

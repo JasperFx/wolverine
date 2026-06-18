@@ -48,6 +48,19 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         result = _consumer.Consume(_cancellation.Token);
                         var message = result.Message;
 
+                        // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to
+                        // when the record was produced before reprocessing. Records in a tier are
+                        // time-ordered, so the head record gates the rest.
+                        if (topic.RetryTierDelay is { } retryDelay)
+                        {
+                            var due = message.Timestamp.UtcDateTime + retryDelay;
+                            var wait = due - DateTime.UtcNow;
+                            if (wait > TimeSpan.Zero)
+                            {
+                                await Task.Delay(wait, _cancellation.Token);
+                            }
+                        }
+
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.TopicName = result.Topic;
                         envelope.Offset = result.Offset.Value;
