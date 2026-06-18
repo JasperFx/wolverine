@@ -89,6 +89,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     internal bool IsHotTail { get; set; }
 
     /// <summary>
+    /// True when intra-partition by-key concurrency is enabled (GH-3140): the incoming Kafka message key
+    /// is stamped as the envelope's grouping key so same-key messages process sequentially and different
+    /// keys process concurrently across the sharded execution slots. Inherited by <see cref="KafkaTopicGroup"/>.
+    /// </summary>
+    internal bool GroupByMessageKey { get; set; }
+
+    /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.

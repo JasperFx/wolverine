@@ -349,6 +349,32 @@ group must not mix eager and cooperative members. Do a two-step deploy: first ro
 deploy that drops the eager strategy.
 :::
 
+### By-Key Concurrency Within a Partition <Badge type="tip" text="6.8" />
+
+This is the **second** concurrency lever, not the first.
+
+1. **First, scale out natively** — add partitions and run more nodes in the same consumer group (above).
+   Kafka routes same-key messages to the same partition, so ordering is free up to the partition count.
+   Reaching for in-partition concurrency *before* adding partitions is usually a smell.
+2. **Then**, when you have a hot partition or can't add more partitions, process **different keys
+   concurrently within a single partition** while keeping strict ordering per key:
+
+```csharp
+opts.ListenToKafkaTopic("orders")
+    .ProcessConcurrentlyByKey(PartitionSlots.Five);
+```
+
+Within each partition assigned to this node, messages are sharded across the configured number of slots by
+their **Kafka message key** — same key → same slot (strictly ordered), different keys → different slots
+(concurrent). To group by a business field instead of the raw Kafka key, configure
+[message partitioning rules](/guide/messaging/partitioning).
+
+This runs in **durable** mode: the Kafka offset is committed as each message is persisted to the inbox in
+consumption order, and the inbox processing is then sharded by key. That **decouples offset commit from
+out-of-order completion** — if key A (offset 5) is still running when key B (offset 6) finishes, the inbox
+owns both, so a crash or rebalance can't lose A. Pairs naturally with cooperative-sticky (above), which
+keeps a rebalance from disrupting unaffected partitions.
+
 ### Cold Start vs. Live Tail <Badge type="tip" text="6.8" />
 
 `auto.offset.reset` controls where a consumer **starts** when its group has **no committed offset** for a

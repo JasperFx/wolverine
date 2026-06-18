@@ -162,6 +162,37 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// Opt into intra-partition concurrency by key (GH-3140): within each Kafka partition assigned to
+    /// this node, messages with <em>different</em> keys are processed concurrently across
+    /// <paramref name="numberOfSlots"/> slots while messages sharing the <em>same</em> key stay strictly
+    /// ordered. This is the *second* concurrency lever — prefer scaling out (more partitions + nodes,
+    /// see <see cref="UseCooperativeStickyAssignment"/>) first; reach for this for hot partitions or a
+    /// capped partition count.
+    ///
+    /// Runs in durable mode: the Kafka offset is committed as each message is persisted to the inbox (in
+    /// consumption order), and the inbox processing is sharded by key — so offset commit is decoupled
+    /// from out-of-order completion and a crash/rebalance can't lose in-flight work. The grouping key is
+    /// the Kafka message key by default; supply a custom grouping via
+    /// <c>opts.Policies.PartitionMessagesByGroupId(...)</c> / message partitioning rules instead.
+    /// </summary>
+    public KafkaListenerConfiguration ProcessConcurrentlyByKey(PartitionSlots numberOfSlots)
+    {
+        add(topic =>
+        {
+            topic.GroupShardingSlotNumber = numberOfSlots;
+            topic.GroupByMessageKey = true;
+            // The grouping key must be the Kafka *message* key, not the consumer group, or every message
+            // would hash to the same slot.
+            topic.StampConsumerGroupIdOnEnvelope = false;
+        });
+
+        // The inbox is the reliability boundary for by-key concurrency (offset commit decoupled from
+        // processing-completion order). See GH-3140.
+        UseDurableInbox();
+        return this;
+    }
+
+    /// <summary>
     /// Set this listener's consumer isolation level to <c>read_committed</c>, so records from aborted
     /// Kafka transactions are skipped when reading transactionally-written topics. Default is
     /// <c>read_uncommitted</c>. See GH-3149.
