@@ -162,6 +162,21 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// Set this listener's consumer isolation level to <c>read_committed</c>, so records from aborted
+    /// Kafka transactions are skipped when reading transactionally-written topics. Default is
+    /// <c>read_uncommitted</c>. See GH-3149.
+    /// </summary>
+    public KafkaListenerConfiguration UseReadCommitted()
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.IsolationLevel = IsolationLevel.ReadCommitted;
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Configures circuit breaker behavior for this Kafka listener.
     /// </summary>
     /// <param name="configure">

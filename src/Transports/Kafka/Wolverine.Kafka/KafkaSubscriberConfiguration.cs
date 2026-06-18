@@ -78,6 +78,22 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     }
 
     /// <summary>
+    /// Opt this topic's producer into the idempotent producer (<c>enable.idempotence = true</c>, which
+    /// implies <c>acks=all</c> and bounded in-flight requests) so producer-side retries can't write
+    /// duplicates to the broker. Opt-in; producer→broker de-duplication only (not transactional
+    /// exactly-once). See GH-3149. Call after <see cref="ConfigureProducer"/> if you also use that.
+    /// </summary>
+    public KafkaSubscriberConfiguration UseIdempotentProducer()
+    {
+        add(topic =>
+        {
+            topic.ProducerConfig ??= new ProducerConfig();
+            topic.ProducerConfig.EnableIdempotence = true;
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Marks this topic as owned by an external system. Wolverine
     /// will not attempt to create it during startup or delete it during resource
     /// teardown, even when AutoProvision is enabled on the parent transport.

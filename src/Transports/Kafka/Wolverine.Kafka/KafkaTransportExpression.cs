@@ -133,6 +133,29 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Opt every Kafka producer on this node into the idempotent producer
+    /// (<c>enable.idempotence = true</c>, which implies <c>acks=all</c> and bounded in-flight requests),
+    /// so producer-side retries can't write duplicates to the broker. Opt-in; slight throughput cost.
+    /// This is producer→broker de-duplication only — it is not transactional exactly-once. See GH-3149.
+    /// </summary>
+    public KafkaTransportExpression UseIdempotentProducer()
+    {
+        _transport.ProducerConfig.EnableIdempotence = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Set the consumer isolation level for every consumer on this node to <c>read_committed</c>, so
+    /// records from aborted Kafka transactions are skipped when reading transactionally-written topics.
+    /// Default is <c>read_uncommitted</c>. See GH-3149.
+    /// </summary>
+    public KafkaTransportExpression UseReadCommitted()
+    {
+        _transport.ConsumerConfig.IsolationLevel = IsolationLevel.ReadCommitted;
+        return this;
+    }
+
+    /// <summary>
     /// Create newly used Kafka topics on endpoint activation if the topic is missing
     /// </summary>
     /// <param name="configure"></param>
