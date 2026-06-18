@@ -90,6 +90,7 @@ internal class AsParametersBindingFrame : SyncFrame
     
     private bool _hasForms = false;
     private bool _hasJsonBody = false;
+    private int _jsonBodyCount = 0;
 
     public AsParametersBindingFrame([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.PublicProperties)] Type queryType, HttpChain chain, IServiceContainer container)
     {
@@ -135,6 +136,16 @@ internal class AsParametersBindingFrame : SyncFrame
         {
             throw new InvalidOperationException(
                 $"{queryType.FullNameInCode()} cannot be decorated with [AsParameters] because it uses both [FromForm] and [FromBody] binding. You can only use one or the other option");
+        }
+
+        // The request body is read once (chain.RequestBodyVariable is single-shot), so a second
+        // [FromBody] member would silently reuse the first member's deserialization variable and
+        // produce a wrong-typed assignment. Fail fast with a clear message, mirroring the
+        // FromForm+FromBody guard above. ASP.NET likewise rejects more than one body. See GH-3135.
+        if (_jsonBodyCount > 1)
+        {
+            throw new InvalidOperationException(
+                $"{queryType.FullNameInCode()} cannot be decorated with [AsParameters] because it has more than one [FromBody] member. Only a single request body is supported");
         }
     }
     
@@ -183,6 +194,7 @@ internal class AsParametersBindingFrame : SyncFrame
         if (parameter.TryGetAttribute<FromBodyAttribute>(out var batt))
         {
             _hasJsonBody = true;
+            _jsonBodyCount++;
             chain.RequestType = memberType;
             variable = chain.BuildJsonDeserializationVariable();
             
