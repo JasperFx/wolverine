@@ -1,0 +1,171 @@
+using Confluent.Kafka;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
+using Shouldly;
+using Wolverine.Kafka;
+using Wolverine.Kafka.Internals;
+
+namespace Wolverine.Kafka.Tests;
+
+// GH-3150: unit coverage for the commit-strategy resolution, specific-offset commits, the contiguous
+// watermark, and shutdown flush — all without a broker (mocked IConsumer).
+public class kafka_offset_committer
+{
+    private readonly IConsumer<string, byte[]> theConsumer = Substitute.For<IConsumer<string, byte[]>>();
+
+    private KafkaOffsetCommitter committerFor(CommitMode mode, ConsumerConfig? config = null, int batchCount = 100,
+        TimeSpan? interval = null)
+    {
+        config ??= new ConsumerConfig();
+        KafkaOffsetCommitter.ApplyTo(config, mode);
+        return new KafkaOffsetCommitter(theConsumer, config, mode, batchCount,
+            interval ?? TimeSpan.FromSeconds(5), NullLogger.Instance);
+    }
+
+    [Fact]
+    public void apply_to_store_then_auto_flush_sets_autocommit_and_disables_offset_store()
+    {
+        var config = new ConsumerConfig();
+        KafkaOffsetCommitter.ApplyTo(config, CommitMode.StoreThenAutoFlush);
+
+        config.EnableAutoCommit.ShouldBe(true);
+        config.EnableAutoOffsetStore.ShouldBe(false);
+    }
+
+    [Fact]
+    public void apply_to_per_message_disables_autocommit()
+    {
+        var config = new ConsumerConfig();
+        KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
+        config.EnableAutoCommit.ShouldBe(false);
+    }
+
+    [Fact]
+    public void apply_to_respects_explicit_user_autocommit()
+    {
+        var config = new ConsumerConfig { EnableAutoCommit = true };
+        KafkaOffsetCommitter.ApplyTo(config, CommitMode.PerMessage);
+        // user's choice is untouched
+        config.EnableAutoCommit.ShouldBe(true);
+    }
+
+    [Fact]
+    public void resolve_strategy_matrix()
+    {
+        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = true },
+            CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
+
+        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = true, EnableAutoOffsetStore = false },
+            CommitMode.StoreThenAutoFlush).ShouldBe(KafkaOffsetCommitter.Strategy.Store);
+
+        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = false },
+            CommitMode.PerMessage).ShouldBe(KafkaOffsetCommitter.Strategy.PerMessage);
+
+        KafkaOffsetCommitter.ResolveStrategy(new ConsumerConfig { EnableAutoCommit = false },
+            CommitMode.BatchCount).ShouldBe(KafkaOffsetCommitter.Strategy.Batch);
+    }
+
+    [Fact]
+    public void store_mode_stores_specific_offset_plus_one_and_never_commits()
+    {
+        var committer = committerFor(CommitMode.StoreThenAutoFlush);
+
+        committer.Complete("topic-a", 2, 41);
+
+        // Kafka convention: committed/stored offset is last-processed + 1
+        theConsumer.Received(1).StoreOffset(
+            Arg.Is<TopicPartitionOffset>(t => t.Topic == "topic-a" && t.Partition.Value == 2 && t.Offset.Value == 42));
+        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+    }
+
+    [Fact]
+    public void per_message_commits_specific_offset_plus_one()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        committer.Complete("topic-a", 0, 9);
+
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Topic == "topic-a" && list.Single().Partition.Value == 0 && list.Single().Offset.Value == 10));
+    }
+
+    [Fact]
+    public void automatic_mode_neither_stores_nor_commits()
+    {
+        var committer = committerFor(CommitMode.StoreThenAutoFlush, new ConsumerConfig { EnableAutoCommit = true });
+        committer.ResolvedStrategy.ShouldBe(KafkaOffsetCommitter.Strategy.Automatic);
+
+        committer.Complete("topic-a", 0, 5);
+
+        theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
+        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+    }
+
+    [Fact]
+    public void batch_count_commits_watermark_after_threshold()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
+
+        committer.Complete("t", 0, 100);
+        committer.Complete("t", 0, 101);
+        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+
+        committer.Complete("t", 0, 102); // hits batch size 3
+
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 103)); // watermark = last contiguous (102) + 1
+    }
+
+    [Fact]
+    public void batch_count_never_commits_ahead_of_a_gap()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
+
+        // Out-of-order completion: 100, 102, 103 — 101 is still in flight.
+        committer.Complete("t", 0, 100);
+        committer.Complete("t", 0, 102);
+        committer.Complete("t", 0, 103); // threshold reached, but 101 is missing
+
+        // Watermark may only advance to 100+1 = 101 (everything below the gap), never past it.
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 101));
+
+        theConsumer.ClearReceivedCalls();
+
+        // Now 101 completes -> the gap fills and the watermark jumps to 103+1 = 104 on flush.
+        committer.Complete("t", 0, 101);
+        committer.Flush();
+
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 104));
+    }
+
+    [Fact]
+    public void flush_commits_pending_batch_watermark()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
+
+        committer.Complete("t", 1, 7);
+        committer.Complete("t", 1, 8);
+        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+
+        committer.Flush();
+
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Topic == "t" && list.Single().Partition.Value == 1 && list.Single().Offset.Value == 9));
+    }
+
+    [Fact]
+    public void watermark_handles_independent_partitions()
+    {
+        var committer = committerFor(CommitMode.BatchCount, batchCount: 1000);
+
+        committer.Complete("t", 0, 50);
+        committer.Complete("t", 1, 200);
+        committer.Flush();
+
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Any(x => x.Partition.Value == 0 && x.Offset.Value == 51) &&
+            list.Any(x => x.Partition.Value == 1 && x.Offset.Value == 201)));
+    }
+}

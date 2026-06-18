@@ -17,6 +17,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
     private readonly IReceiver _receiver;
     private readonly string? _messageTypeName;
     private readonly ILogger _logger;
+    private readonly KafkaOffsetCommitter _committer;
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
         ILogger<KafkaListener> logger)
@@ -31,6 +32,8 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
         Config = config;
         _receiver = receiver;
+        _committer = new KafkaOffsetCommitter(consumer, config, topic.CommitMode, topic.CommitBatchCount,
+            topic.CommitBatchInterval, logger);
 
         _runner = Task.Run(async () =>
         {
@@ -39,12 +42,14 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
             {
                 while (!_cancellation.IsCancellationRequested)
                 {
+                    ConsumeResult<string, byte[]>? result = null;
                     try
                     {
-                        var result = _consumer.Consume(_cancellation.Token);
+                        result = _consumer.Consume(_cancellation.Token);
                         var message = result.Message;
 
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
+                        envelope.TopicName = result.Topic;
                         envelope.Offset = result.Offset.Value;
                         envelope.PartitionId = result.Partition.Value;
                         envelope.MessageType ??= _messageTypeName;
@@ -60,14 +65,11 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                     }
                     catch (Exception e)
                     {
-                        // Might be a poison pill message, try to get out of here
-                        try
+                        // Might be a poison pill message, advance past its specific offset so we don't
+                        // get stuck re-consuming it (only possible when the consume itself succeeded).
+                        if (result != null)
                         {
-                            _consumer.Commit();
-                        }
-                        // ReSharper disable once EmptyGeneralCatchClause
-                        catch (Exception)
-                        {
+                            _committer.Complete(result.Topic, result.Partition.Value, result.Offset.Value);
                         }
 
                         logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
@@ -78,10 +80,9 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
             {
                 // Shutting down
             }
-            finally
-            {
-                _consumer.Close();
-            }
+            // The consumer is intentionally NOT closed here. StopAsync/Dispose flush pending offsets
+            // first and then close the consumer, so a batch-mode commit isn't issued against an
+            // already-closed consumer. See GH-3150.
         }, _cancellation.Token);
     }
 
@@ -91,14 +92,11 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
-        try
+        if (envelope.TopicName != null && envelope.PartitionId.HasValue)
         {
-            _consumer.Commit();
+            _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
         }
-        catch (Exception)
-        {
 
-        }
         return ValueTask.CompletedTask;
     }
 
@@ -124,6 +122,18 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 #pragma warning disable VSTHRD003 // Avoid awaiting foreign Tasks
         await _runner;
 #pragma warning restore VSTHRD003 // Avoid awaiting foreign Tasks
+
+        // The consume loop has exited, so single-threaded access to the consumer is guaranteed: flush
+        // pending/stored offsets first (GH-3150), then close cleanly.
+        _committer.Flush();
+        try
+        {
+            _consumer.Close();
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error closing Kafka consumer on shutdown");
+        }
     }
 
     public bool NativeDeadLetterQueueEnabled => _endpoint.NativeDeadLetterQueueEnabled;
@@ -151,15 +161,10 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                 "Moved envelope {EnvelopeId} to dead letter queue topic {DlqTopic}. Exception: {ExceptionType}: {ExceptionMessage}",
                 envelope.Id, dlqTopicName, exception.GetType().Name, exception.Message);
 
-            try
+            // Advance past the failed message's specific offset now that it's safely in the DLQ.
+            if (envelope.TopicName != null && envelope.PartitionId.HasValue)
             {
-                _consumer.Commit();
-            }
-            catch (Exception commitEx)
-            {
-                _logger.LogWarning(commitEx,
-                    "Error committing offset after moving envelope {EnvelopeId} to dead letter queue",
-                    envelope.Id);
+                _committer.Complete(envelope.TopicName, envelope.PartitionId.Value, envelope.Offset);
             }
         }
         catch (Exception ex)
@@ -178,6 +183,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
         _runner.Wait();
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
+        _committer.Flush();
         _consumer.SafeDispose();
         _runner.Dispose();
     }

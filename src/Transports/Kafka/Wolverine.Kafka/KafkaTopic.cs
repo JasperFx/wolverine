@@ -57,6 +57,25 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public ProducerConfig? ProducerConfig { get; internal set; }
 
     /// <summary>
+    /// How this listener commits consumer offsets back to Kafka. Defaults to
+    /// <see cref="Kafka.CommitMode.StoreThenAutoFlush"/> — the non-blocking, idiomatic high-throughput
+    /// model. See GH-3150. Inherited by <see cref="KafkaTopicGroup"/>.
+    /// </summary>
+    public CommitMode CommitMode { get; set; } = CommitMode.StoreThenAutoFlush;
+
+    /// <summary>
+    /// Number of completed messages between commits when <see cref="CommitMode"/> is
+    /// <see cref="Kafka.CommitMode.BatchCount"/>. Default 100.
+    /// </summary>
+    public int CommitBatchCount { get; set; } = 100;
+
+    /// <summary>
+    /// Minimum elapsed time between commits when <see cref="CommitMode"/> is
+    /// <see cref="Kafka.CommitMode.BatchInterval"/>. Default 5 seconds.
+    /// </summary>
+    public TimeSpan CommitBatchInterval { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.
@@ -123,10 +142,10 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         var config = GetEffectiveConsumerConfig();
 
-        if (Mode == EndpointMode.Durable)
-        {
-            config.EnableAutoCommit = false;
-        }
+        // Wire the Kafka client for the configured commit strategy (GH-3150). Replaces the previous
+        // blanket EnableAutoCommit=false for Durable mode — the default StoreThenAutoFlush mode relies
+        // on Kafka's background committer flushing manually stored offsets.
+        KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());

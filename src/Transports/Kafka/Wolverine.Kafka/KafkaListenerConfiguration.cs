@@ -33,6 +33,44 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
         add(topic => configure(topic.Specification));
         return this;
     }
+
+    /// <summary>
+    /// Choose how this listener commits consumer offsets back to Kafka. Defaults to
+    /// <see cref="CommitMode.StoreThenAutoFlush"/> (non-blocking, idiomatic high throughput). See GH-3150.
+    /// </summary>
+    public KafkaListenerConfiguration CommitOffsets(CommitMode mode)
+    {
+        add(topic => topic.CommitMode = mode);
+        return this;
+    }
+
+    /// <summary>
+    /// Have Wolverine commit the contiguous offset watermark after every <paramref name="count"/>
+    /// successfully processed messages. Never commits ahead of the lowest in-flight offset.
+    /// </summary>
+    public KafkaListenerConfiguration CommitOffsetsAfterCount(int count)
+    {
+        add(topic =>
+        {
+            topic.CommitMode = CommitMode.BatchCount;
+            topic.CommitBatchCount = count;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Have Wolverine commit the contiguous offset watermark once at least <paramref name="interval"/>
+    /// has elapsed since the previous commit. Never commits ahead of the lowest in-flight offset.
+    /// </summary>
+    public KafkaListenerConfiguration CommitOffsetsAfterInterval(TimeSpan interval)
+    {
+        add(topic =>
+        {
+            topic.CommitMode = CommitMode.BatchInterval;
+            topic.CommitBatchInterval = interval;
+        });
+        return this;
+    }
     
     /// <summary>
     /// Configures circuit breaker behavior for this Kafka listener.

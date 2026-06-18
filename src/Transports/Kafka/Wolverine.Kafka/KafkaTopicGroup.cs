@@ -43,10 +43,8 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
         var config = GetEffectiveConsumerConfig();
 
-        if (Mode == EndpointMode.Durable)
-        {
-            config.EnableAutoCommit = false;
-        }
+        // Wire the Kafka client for the configured commit strategy (GH-3150).
+        KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
         var listener = new KafkaTopicGroupListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>());
