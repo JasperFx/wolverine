@@ -34,14 +34,15 @@ public class CircuitBreakerTests
         }
     }
 
-    private ValueTask assertNoPause()
+    private async ValueTask assertNoPause()
     {
-        return theAgent.DidNotReceiveWithAnyArgs().PauseAsync(theOptions.PauseTime);
+        await theAgent.DidNotReceiveWithAnyArgs().PauseAsync(theOptions.PauseTime);
+        await theAgent.DidNotReceiveWithAnyArgs().PauseWithDrainAsync(theOptions.PauseTime);
     }
 
     private ValueTask assertThatTheListenerWasPaused()
     {
-        return theAgent.Received().PauseAsync(theOptions.PauseTime);
+        return theAgent.Received().PauseWithDrainAsync(theOptions.PauseTime);
     }
 
     internal ValueTask initialUpdateOfTotals(int failures, int total)

@@ -15,6 +15,15 @@ public interface IListenerCircuit
     Endpoint Endpoint { get; }
     int QueueCount { get; }
     ValueTask PauseAsync(TimeSpan pauseTime);
+    
+    /// <summary>
+    /// Pause the listener and fully drain any buffered messages before returning.
+    /// Unlike PauseAsync (which may skip the drain to avoid deadlocks when called from
+    /// within the handler pipeline), this method guarantees all queued messages are
+    /// processed before returning. Safe to call from background threads.
+    /// </summary>
+    ValueTask PauseWithDrainAsync(TimeSpan pauseTime);
+    
     ValueTask StartAsync();
 
     Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes);
@@ -48,6 +57,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private IDisposable? _restarter;
     private int _lastObservedQueueCount;
     private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
+    private bool _disposed;
 
     public ListeningAgent(Endpoint endpoint, WolverineRuntime runtime)
     {
@@ -85,6 +95,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask DisposeAsync()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _restarter?.SafeDispose();
         _backPressureAgent?.SafeDispose();
 
@@ -106,6 +120,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         _receiver?.Dispose();
         _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();
@@ -345,13 +363,25 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
+        // Do NOT pre-latch the receiver here. PauseAsync may be called from within the
+        // handler pipeline (e.g. via RateLimitContinuation → PauseListenerContinuation).
+        // Pre-latching causes DrainAsync to wait for the ActionBlock to drain, which
+        // deadlocks because the current message's execute frame is still on the call stack.
+        await PauseCoreAsync(pauseTime, latchBeforeDrain: false);
+    }
+
+    public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
+    {
+        // Safe to fully drain here: this method is called from background threads
+        // (circuit breaker), never from within the handler pipeline call stack.
+        await PauseCoreAsync(pauseTime, latchBeforeDrain: true);
+    }
+
+    private async ValueTask PauseCoreAsync(TimeSpan pauseTime, bool latchBeforeDrain)
+    {
         try
         {
-            // Do NOT pre-latch the receiver here. PauseAsync may be called from within the
-            // handler pipeline (e.g. via RateLimitContinuation → PauseListenerContinuation).
-            // Pre-latching causes DrainAsync to wait for the ActionBlock to drain, which
-            // deadlocks because the current message's execute frame is still on the call stack.
-            await StopAndDrainCoreAsync(latchBeforeDrain: false);
+            await StopAndDrainCoreAsync(latchBeforeDrain);
         }
         catch (Exception e)
         {

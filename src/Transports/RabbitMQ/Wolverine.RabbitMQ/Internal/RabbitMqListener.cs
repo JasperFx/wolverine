@@ -115,11 +115,9 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         _consumer = null;
 
         await base.DisposeAsync();
-
-        if (_sender.IsValueCreated && _sender.Value is IAsyncDisposable ad)
-        {
-            await ad.DisposeAsync();
-        }
+        
+        // Don't dispose _sender.Value — it's a shared sender cached on
+        // RabbitMqQueue and reused across listener pause/restart cycles.
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)

@@ -1,7 +1,7 @@
+using IntegrationTests;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
-using Wolverine.Nats.Tests.Helpers;
 using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Xunit;

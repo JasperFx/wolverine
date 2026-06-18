@@ -122,6 +122,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         _restarter = new Restarter(this, pauseTime);
     }
 
+    public async ValueTask PauseWithDrainAsync(TimeSpan pauseTime)
+    {
+        // DurableLocalQueue.PauseAsync already fully drains. The behavioral split
+        // between PauseAsync and PauseWithDrainAsync is important for BufferedReceiver
+        // (which skips the drain in PauseAsync to avoid deadlocking when called from
+        // within the handler pipeline). For the durable local queue, both are identical.
+        await PauseAsync(pauseTime);
+    }
+
     public ValueTask StartAsync()
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
@@ -159,9 +168,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     async ValueTask IReceiver.DrainAsync()
     {
-        _receiver!.Latch();
+        var receiver = _receiver;
+
+        receiver?.Latch();
         await _storeAndEnqueue.DrainAsync();
-        await _receiver!.DrainAsync();
+
+        if (receiver != null)
+            await receiver.DrainAsync();
     }
 
     void ILocalReceiver.Enqueue(Envelope envelope)
@@ -244,9 +257,15 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     private async Task storeAndEnqueueAsync(Envelope envelope)
     {
+        var isLatched = Latched;
+
         try
         {
-            envelope.OwnerId = _settings.AssignedNodeNumber;
+            // Use AnyNode when latched so the durability agent can recover the message.
+            envelope.OwnerId = isLatched
+                ? TransportConstants.AnyNode
+                : _settings.AssignedNodeNumber;
+
             assignAncillaryStoreIfNeeded(envelope);
             await _inbox.StoreIncomingAsync(envelope);
             envelope.WasPersistedInInbox = true;
@@ -257,7 +276,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
             return;
         }
 
-        if (Latched)
+        if (isLatched)
         {
             return;
         }

@@ -22,7 +22,8 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 {
     private readonly RabbitMqTransport _transport;
     private readonly ILogger<RabbitMqTransport> _logger;
-    private readonly List<RabbitMqChannelAgent> _agents = new();
+    private readonly object _agentsLock = new();
+    private readonly List<RabbitMqChannelAgent> _agents = [];
     private IConnection? _connection;
 
     public ConnectionMonitor(RabbitMqTransport transport, ConnectionRole role)
@@ -34,17 +35,18 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     
     public async Task ConnectAsync()
     {
-        _connection = await _transport.CreateConnectionAsync();
+        var connection = await _transport.CreateConnectionAsync();
+        _connection = connection;
         IsConnected = true;
         // Initial connection -- record the timestamp but don't bump the
         // reconnect counter (that's reserved for genuine recoveries).
         _transport.RecordInitialConnection();
 
-        _connection.ConnectionShutdownAsync += connectionOnConnectionShutdownAsync;
-        _connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
-        _connection.ConnectionBlockedAsync += connectionOnConnectionBlockedAsync;
-        _connection.CallbackExceptionAsync += connectionOnCallbackExceptionAsync;
-        _connection.RecoverySucceededAsync += connectionOnRecoverySucceededAsync;
+        connection.ConnectionShutdownAsync += connectionOnConnectionShutdownAsync;
+        connection.ConnectionUnblockedAsync += connectionOnConnectionUnblockedAsync;
+        connection.ConnectionBlockedAsync += connectionOnConnectionBlockedAsync;
+        connection.CallbackExceptionAsync += connectionOnCallbackExceptionAsync;
+        connection.RecoverySucceededAsync += connectionOnRecoverySucceededAsync;
     }
 
     /// <summary>
@@ -54,14 +56,15 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     /// <returns>A task that resolves to an <see cref="IChannel"/> instance for RabbitMQ communication.</returns>
     public Task<IChannel> CreateChannelAsync()
     {
-        if (_connection == null) throw new InvalidOperationException("The connection is not initialized");
+        var connection = _connection 
+            ?? throw new InvalidOperationException("The connection is not initialized");
 
         var wolverineOptions = new WolverineRabbitMqChannelOptions();
         _transport.ChannelCreationOptions?.Invoke(wolverineOptions);
 
         var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled, wolverineOptions.PublisherConfirmationTrackingEnabled, consumerDispatchConcurrency: wolverineOptions.ConsumerDispatchConcurrency);
 
-        return _connection!.CreateChannelAsync(options);
+        return connection.CreateChannelAsync(options);
     }
 
     public ConnectionRole Role { get; }
@@ -79,23 +82,32 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 
     public async ValueTask DisposeAsync()
     {
+        var connection = _connection;
+        if (connection is null)
+            return;
+        _connection = null;
+
         try
         {
-            if(_connection is not null)
-            {
-                await _connection.CloseAsync();
-            }
+            connection.ConnectionShutdownAsync -= connectionOnConnectionShutdownAsync;
+            connection.ConnectionUnblockedAsync -= connectionOnConnectionUnblockedAsync;
+            connection.ConnectionBlockedAsync -= connectionOnConnectionBlockedAsync;
+            connection.CallbackExceptionAsync -= connectionOnCallbackExceptionAsync;
+            connection.RecoverySucceededAsync -= connectionOnRecoverySucceededAsync;
+
+            await connection.CloseAsync();
         }
         catch (ObjectDisposedException)
         {
         }
 
-        _connection?.SafeDispose();
+        connection.SafeDispose();
     }
 
     public void Track(RabbitMqChannelAgent agent)
     {
-        _agents.Add(agent);
+        lock (_agentsLock)
+            _agents.Add(agent);
     }
 
     private async Task connectionOnRecoverySucceededAsync(object sender, AsyncEventArgs @event)
@@ -103,10 +115,12 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
         IsConnected = true;
         _transport.RecordReconnection();
 
-        foreach (var agent in _agents)
-        {
+        RabbitMqChannelAgent[] agentsSnaphot;
+        lock(_agentsLock)
+            agentsSnaphot = [.. _agents];
+
+        foreach (var agent in agentsSnaphot)
             await agent.ReconnectedAsync();
-        }
 
         _logger.LogInformation("RabbitMQ connection is recovered successfully");
     }
@@ -160,6 +174,7 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
 
     public void Remove(RabbitMqChannelAgent agent)
     {
-        _agents.Remove(agent);
+        lock (_agentsLock)
+            _agents.Remove(agent);
     }
 }

@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <IsPackable>false</IsPackable>
@@ -9,7 +9,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="Shouldly" />
         <PackageReference Include="FluentAssertions" />
-        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit" />
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
@@ -26,13 +26,12 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
-        <ProjectReference Include="..\Wolverine.Nats\Wolverine.Nats.csproj"/>
+        <ProjectReference Include="..\Wolverine.Nats\Wolverine.Nats.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Include="..\..\..\Servers.cs">
-            <Link>Servers.cs</Link>
-        </Compile>
+        <Compile Include="..\..\..\Servers.cs" Link="Servers.cs"/>
+        <Compile Include="..\..\..\XunitLogger.cs" Link="XunitLogger.cs" />
     </ItemGroup>
 
 </Project>

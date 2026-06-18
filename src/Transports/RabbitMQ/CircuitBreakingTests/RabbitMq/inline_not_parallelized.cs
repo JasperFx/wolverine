@@ -6,20 +6,18 @@ using Xunit.Abstractions;
 
 namespace CircuitBreakingTests.RabbitMq;
 
-public class inline_not_parallelized : CircuitBreakerIntegrationContext
+public class inline_not_parallelized(ITestOutputHelper output)
+    : CircuitBreakerIntegrationContext(output)
 {
-    public inline_not_parallelized(ITestOutputHelper output) : base(output)
-    {
-    }
-
     protected override void configureListener(WolverineOptions opts)
     {
         // Requeue failed messages.
-        opts.Policies.OnException<BadImageFormatException>().Or<DivideByZeroException>()
+        opts.Policies.OnException<BadImageFormatException>()
+            .Or<DivideByZeroException>()
             .Requeue();
 
-        opts.PublishAllMessages().ToRabbitQueue("circuit1");
-        opts.ListenToRabbitQueue("circuit1").CircuitBreaker(cb =>
+        opts.PublishAllMessages().ToRabbitQueue(_queueName);
+        opts.ListenToRabbitQueue(_queueName).CircuitBreaker(cb =>
         {
             cb.MinimumThreshold = 250;
             cb.PauseTime = 10.Seconds();

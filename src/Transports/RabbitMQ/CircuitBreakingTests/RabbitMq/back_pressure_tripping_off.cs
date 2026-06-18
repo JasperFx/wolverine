@@ -1,10 +1,10 @@
+using IntegrationTests;
 using JasperFx.Core;
+using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using JasperFx.Resources;
 using Shouldly;
 using Wolverine;
-using Wolverine.Logging;
 using Wolverine.RabbitMQ;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -12,26 +12,28 @@ using Xunit.Abstractions;
 
 namespace CircuitBreakingTests.RabbitMq;
 
-public class back_pressure_tripping_off
+public class back_pressure_tripping_off(ITestOutputHelper output) : IAsyncLifetime
 {
-    private readonly ITestOutputHelper _output;
+    private IHost _host = null!;
+    private ListenerObserver _listenerObserver = null!;
+    private IWolverineRuntime _runtime = null!;
+    private IDisposable _trackSubscription = null!;
 
-    public back_pressure_tripping_off(ITestOutputHelper output)
+    public async Task InitializeAsync()
     {
-        _output = output;
-    }
+        var queueName = $"{GetType().Name}_{DateTime.UtcNow:yyyyMMddHHmmss}";
 
-    [Fact]
-    public async Task back_pressure_trips_with_buffered_receiver()
-    {
-        using var host = await Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.ListenToRabbitQueue("pressure").Named("incoming")
-
+                opts.ListenToRabbitQueue(queueName).Named("incoming")
                     // Setting it so that the endpoint should trip off with back
                     // pressure pretty easily
                     .BufferedInMemory(new BufferingLimits(100, 50));
+
+                opts.Services.AddLogging(x => x.AddXunitLogging(output));
+                opts.Services.AddSingleton<ListenerObserver>();
+                opts.Services.AddSingleton<MessageRecorder>();
             })
 
             // This builds any missing Rabbit MQ objects if they don't exist,
@@ -39,25 +41,41 @@ public class back_pressure_tripping_off
             .UseResourceSetupOnStartup(StartupAction.ResetState)
             .StartAsync();
 
+        _listenerObserver = _host.Services.GetRequiredService<ListenerObserver>();
+        _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
+        _trackSubscription = _runtime.Tracker.Subscribe(_listenerObserver);
+    }
+
+    public async Task DisposeAsync()
+    {
+        _trackSubscription.Dispose();
+        await _host.TeardownResources();
+        await _host.StopAsync();
+        _host.Dispose();
+    }
+
+    [Fact]
+    public async Task back_pressure_trips_with_buffered_receiver()
+    {
+        var recorder = _host.Services.GetRequiredService<MessageRecorder>();
         // Make the tests run slow so they'll back up very easily
         SometimesSlowMessageHandler.RunSlow = true;
 
-        var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
-        var statusRecorder = new StatusRecorder(_output);
-        runtime.Tracker.Subscribe(statusRecorder);
+        var waitForTooBusy = _runtime.Tracker.WaitForListenerStatusAsync(
+            "incoming", ListeningStatus.TooBusy, 1.Minutes());
 
-        var waitForTooBusy =
-            runtime.Tracker.WaitForListenerStatusAsync("incoming", ListeningStatus.TooBusy, 1.Minutes());
-
-        var completion = Recorder.WaitForMessagesToBeProcessed(_output, 1000, 1.Minutes());
+        var completion = recorder.WaitForMessagesToBeProcessed(1000, 1.Minutes());
 
         var publishing = Task.Run(async () =>
         {
-            var publisher = host.MessageBus();
+            var publisher = _host.MessageBus();
 
             for (var i = 0; i < 1000; i++)
             {
-                await publisher.EndpointFor("incoming").SendAsync( new SometimesSlowMessage());
+                var message = new SometimesSlowMessage();
+                await publisher.EndpointFor("incoming")
+                    .SendAsync(message);
+                recorder.TrackPublished(message.Id);
             }
         });
 
@@ -71,37 +89,7 @@ public class back_pressure_tripping_off
         // Got all the messages in the end
         await completion;
 
-        statusRecorder.StateChanges.ShouldContain(x => x.Status == ListeningStatus.TooBusy);
-    }
-
-    public class StatusRecorder : IObserver<IWolverineEvent>
-    {
-        private readonly ITestOutputHelper _output;
-        public readonly List<ListenerState> StateChanges = new();
-
-        public StatusRecorder(ITestOutputHelper output)
-        {
-            _output = output;
-        }
-
-        public void OnCompleted()
-        {
-            // nothing
-        }
-
-        public void OnError(Exception error)
-        {
-            // nothing
-        }
-
-        public void OnNext(IWolverineEvent value)
-        {
-            if (value is ListenerState state)
-            {
-                _output.WriteLine("Changed to " + state.Status);
-                StateChanges.Add(state);
-            }
-        }
+        _listenerObserver.RecordedStates.ShouldContain(ListeningStatus.TooBusy);
     }
 }
 
@@ -114,13 +102,13 @@ public class SometimesSlowMessageHandler
 {
     public static bool RunSlow;
 
-    public static async Task Handle(SometimesSlowMessage message)
+    public static async Task Handle(SometimesSlowMessage message, MessageRecorder recorder)
     {
         if (RunSlow)
         {
             await Task.Delay(2.Seconds());
         }
 
-        Recorder.Increment();
+        recorder.Increment(message.Id);
     }
 }

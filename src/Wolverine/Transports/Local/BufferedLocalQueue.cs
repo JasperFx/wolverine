@@ -29,6 +29,11 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
         return ValueTask.CompletedTask;
     }
 
+    ValueTask IListenerCircuit.PauseWithDrainAsync(TimeSpan pauseTime)
+    {
+        return ValueTask.CompletedTask;
+    }
+
     ValueTask IListenerCircuit.StartAsync()
     {
         return ValueTask.CompletedTask;

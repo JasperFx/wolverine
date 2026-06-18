@@ -415,12 +415,23 @@ partial class Build
         .Executes(() =>
         {
             var rabbitTests = RootDirectory / "src" / "Transports" / "RabbitMQ" / "Wolverine.RabbitMQ.Tests" / "Wolverine.RabbitMQ.Tests.csproj";
-            var circuitTests = RootDirectory / "src" / "Transports" / "RabbitMQ" / "CircuitBreakingTests" / "CircuitBreakingTests.csproj";
 
-            BuildTestProjects(rabbitTests, circuitTests);
+            BuildTestProjects(rabbitTests);
             StartDockerServices("rabbitmq", "postgresql", "sqlserver");
 
-            RunTestProjects([rabbitTests, circuitTests]);
+            RunTestProject(rabbitTests);
+        });
+
+    Target CICircuitBreaking => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var circuitTests = RootDirectory / "src" / "Transports" / "RabbitMQ" / "CircuitBreakingTests" / "CircuitBreakingTests.csproj";
+
+            BuildTestProjects(circuitTests);
+            StartDockerServices("rabbitmq", "postgresql");
+
+            RunTestProject(circuitTests);
         });
 
     /// <summary>
