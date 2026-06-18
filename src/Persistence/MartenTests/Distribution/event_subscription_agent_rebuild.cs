@@ -2,6 +2,7 @@ using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using NSubstitute;
 using Wolverine.Marten.Distribution;
+using Wolverine.Runtime.Agents;
 
 namespace MartenTests.Distribution;
 

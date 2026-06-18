@@ -4,9 +4,8 @@ using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Projections;
 using Wolverine.Runtime;
-using Wolverine.Runtime.Agents;
 
-namespace Wolverine.Marten.Distribution;
+namespace Wolverine.Runtime.Agents;
 
 public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscriptionAgentFamily, IAsyncDisposable
 {

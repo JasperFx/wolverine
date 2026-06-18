@@ -9,6 +9,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Marten.Distribution;
+using Wolverine.Runtime.Agents;
 
 namespace MartenTests.Distribution;
 

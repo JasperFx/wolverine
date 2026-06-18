@@ -3,6 +3,7 @@ using MartenTests.Distribution.Support;
 using Shouldly;
 using Wolverine;
 using Wolverine.Marten.Distribution;
+using Wolverine.Runtime.Agents;
 using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;

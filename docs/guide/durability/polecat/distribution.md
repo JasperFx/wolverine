@@ -31,6 +31,11 @@ With this option, Wolverine is going to ensure that every single known asynchron
 subscription is running on exactly one running node within your application cluster. Moreover, Wolverine will purposely stop and
 restart projections or subscriptions to spread the running load across your entire cluster of running nodes.
 
+In the case of using multi-tenancy through separate databases per tenant with Polecat, this Wolverine "agent distribution"
+will assign the work by tenant databases, meaning that all the running projections and subscriptions for a single tenant
+database will always be running on a single application node. This was done with the theory that this affinity would hopefully
+reduce the number of used database connections over all.
+
 If a node is taken offline, Wolverine will detect that the node is no longer accessible and try to start the missing
 projection/subscription agents on another active node.
 

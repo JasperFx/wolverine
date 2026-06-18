@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Polecat.Distribution;
+using Wolverine.Runtime.Agents;
 using Wolverine.Polecat.Publishing;
 using Wolverine.Polecat.Subscriptions;
 using Wolverine.Persistence;

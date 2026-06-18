@@ -3,6 +3,7 @@ using JasperFx.Events.Projections;
 using NSubstitute;
 using Shouldly;
 using Wolverine.Polecat.Distribution;
+using Wolverine.Runtime.Agents;
 
 namespace PolecatTests.Distribution;
 
@@ -18,7 +19,9 @@ public class event_subscription_agent_rebuild
 
         await agent.RebuildAsync(CancellationToken.None);
 
-        await daemon.Received(1).RebuildProjectionAsync("Trip", CancellationToken.None);
+        // The shared EventSubscriptionAgent passes the shard's tenant (null for store-global) so a
+        // per-tenant agent rebuilds only its partition; store-global shards rebuild tenant-less.
+        await daemon.Received(1).RebuildProjectionAsync("Trip", null, CancellationToken.None);
     }
 
     [Fact]
@@ -32,6 +35,6 @@ public class event_subscription_agent_rebuild
         using var cts = new CancellationTokenSource();
         await agent.RebuildAsync(cts.Token);
 
-        await daemon.Received(1).RebuildProjectionAsync("Distance", cts.Token);
+        await daemon.Received(1).RebuildProjectionAsync("Distance", null, cts.Token);
     }
 }

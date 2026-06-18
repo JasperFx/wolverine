@@ -2,6 +2,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
 using Polecat;
+using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Polecat.Distribution;
 

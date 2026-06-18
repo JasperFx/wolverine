@@ -3,17 +3,16 @@ using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
-using Wolverine.Runtime.Agents;
-using ISubscriptionAgent = JasperFx.Events.Daemon.ISubscriptionAgent;
+using JasperFxSubscriptionAgent = JasperFx.Events.Daemon.ISubscriptionAgent;
 
-namespace Wolverine.Polecat.Distribution;
+namespace Wolverine.Runtime.Agents;
 
 public class EventSubscriptionAgent : IEventSubscriptionAgent
 {
     private readonly ShardName _shardName;
     private readonly IProjectionDaemon _daemon;
     private readonly ILogger _logger;
-    private ISubscriptionAgent? _innerAgent;
+    private JasperFxSubscriptionAgent? _innerAgent;
 
     // Health check stall tracking
     private long _lastKnownSequence;
@@ -63,11 +62,24 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
     public async Task RebuildAsync(CancellationToken cancellationToken)
     {
-        await _daemon.RebuildProjectionAsync(_shardName.Name, cancellationToken);
+        // Pass the shard's tenant so a per-tenant agent rebuilds ONLY its tenant's partition under
+        // single-database per-tenant partitioning. _shardName.TenantId is null for store-global /
+        // database-per-tenant shards, where the tenant-less behavior is correct.
+        await _daemon.RebuildProjectionAsync(_shardName.Name, _shardName.TenantId, cancellationToken);
+    }
+
+    public async Task RewindAsync(long? sequenceFloor, DateTimeOffset? timestamp, CancellationToken cancellationToken)
+    {
+        // The per-tenant overload delegates to the store-global path when TenantId is null, so this
+        // covers both store-global and per-tenant rewinds. This is the agent-level rewind path
+        // CritterWatch needs because DaemonForDatabase() throws under Wolverine-managed distribution.
+        await _daemon.RewindSubscriptionAsync(_shardName.Name, _shardName.TenantId, cancellationToken,
+            sequenceFloor, timestamp);
     }
 
     public Uri Uri { get; }
 
+    // Be nice for this to get the Paused too
     public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
