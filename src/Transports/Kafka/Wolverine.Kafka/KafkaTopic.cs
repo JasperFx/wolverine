@@ -82,6 +82,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     internal bool StaticMembershipRequested { get; set; }
 
     /// <summary>
+    /// True for an ephemeral "hot-tail" listener (GH-3146): a unique per-process consumer group +
+    /// AutoOffsetReset.Latest so every node tails live and receives all messages, never committing or
+    /// replaying. Inherited by <see cref="KafkaTopicGroup"/>.
+    /// </summary>
+    internal bool IsHotTail { get; set; }
+
+    /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.
@@ -148,6 +155,8 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         var config = GetEffectiveConsumerConfig();
 
+        ApplyHotTailConfig(config, runtime);
+
         // Wire the Kafka client for the configured commit strategy (GH-3150). Replaces the previous
         // blanket EnableAutoCommit=false for Durable mode — the default StoreThenAutoFlush mode relies
         // on Kafka's background committer flushing manually stored offsets.
@@ -156,6 +165,22 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
         return ValueTask.FromResult((IListener)listener);
+    }
+
+    /// <summary>
+    /// For an ephemeral hot-tail listener (GH-3146), assign a unique per-process consumer group so every
+    /// node receives all messages and never replays, and disable Wolverine-managed commits (the
+    /// position is throwaway). Setting EnableAutoCommit=true makes the commit strategy hands-off.
+    /// </summary>
+    private protected void ApplyHotTailConfig(ConsumerConfig config, IWolverineRuntime runtime)
+    {
+        if (!IsHotTail)
+        {
+            return;
+        }
+
+        config.GroupId = $"{runtime.Options.ServiceName}-hot-tail-{Guid.NewGuid():N}";
+        config.EnableAutoCommit = true;
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)

@@ -349,6 +349,47 @@ group must not mix eager and cooperative members. Do a two-step deploy: first ro
 deploy that drops the eager strategy.
 :::
 
+### Cold Start vs. Live Tail <Badge type="tip" text="6.8" />
+
+`auto.offset.reset` controls where a consumer **starts** when its group has **no committed offset** for a
+partition — i.e. a cold start. Once the group has committed an offset, it resumes from there and this
+setting is ignored. It is *not* a replay switch.
+
+```csharp
+opts.ListenToKafkaTopic("orders").BeginAtEarliest();   // cold start from the beginning of the topic
+opts.ListenToKafkaTopic("orders").BeginAtLatest();     // cold start from the tail (skip the backlog)
+```
+
+Both are also available as a transport-wide default (`opts.UseKafka(...).BeginAtEarliest()`).
+
+::: warning This only affects the *first* read of a partition by a group
+If the consumer group already has a committed offset, `BeginAtEarliest()`/`BeginAtLatest()` do nothing —
+the group resumes from its committed position. To genuinely re-read old data you need a new group id or an
+explicit seek/replay (a separate, bounded operation).
+:::
+
+#### Hot-tail / broadcast consume
+
+Sometimes you want **every node** to see **every message** as it arrives — live dashboards, cache
+invalidation, fan-out-to-all-instances — rather than the competing-consumer model where each message goes
+to exactly one node in the group. Use `TailFromLatest()`:
+
+```csharp
+opts.ListenToKafkaTopic("live-events").TailFromLatest();
+```
+
+Each process joins a **unique, ephemeral consumer group** and starts at the tail, so every node receives all
+messages, never replays old data, and commits nothing. This is the idiomatic Kafka pattern for broadcast.
+
+A few things to know:
+
+- Because it starts at the tail, only messages published **after** a node has joined and been assigned its
+  partitions are delivered — there is no backlog replay.
+- Each process creates a transient consumer-group entry on the broker; Kafka expires these automatically via
+  `offsets.retention.minutes`. Harmless, but worth knowing for cluster operators.
+- Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal
+  shared-group listener (the default) when you want each message processed **once** across the cluster.
+
 ## Publishing by Partition Key
 
 To publish messages with Kafka using a designated [partition key](https://developer.confluent.io/courses/apache-kafka/partitions/), use the

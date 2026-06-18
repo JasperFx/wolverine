@@ -111,6 +111,28 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Default consumers on this node to begin from the *earliest* available offset on a cold start
+    /// (<c>auto.offset.reset = earliest</c>). This only applies the first time a consumer group reads a
+    /// partition — once the group has a committed offset, it resumes there and this is ignored. See GH-3146.
+    /// </summary>
+    public KafkaTransportExpression BeginAtEarliest()
+    {
+        _transport.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Earliest;
+        return this;
+    }
+
+    /// <summary>
+    /// Default consumers on this node to begin from the *latest* offset (the tail) on a cold start
+    /// (<c>auto.offset.reset = latest</c>). Only applies when the group has no committed offset for a
+    /// partition. See GH-3146.
+    /// </summary>
+    public KafkaTransportExpression BeginAtLatest()
+    {
+        _transport.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Latest;
+        return this;
+    }
+
+    /// <summary>
     /// Create newly used Kafka topics on endpoint activation if the topic is missing
     /// </summary>
     /// <param name="configure"></param>

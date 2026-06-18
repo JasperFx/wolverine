@@ -115,6 +115,53 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// On a cold start (no committed offset for the group), begin reading from the *earliest* available
+    /// offset (<c>auto.offset.reset = earliest</c>). Once the group has committed, it resumes from the
+    /// committed position and this is ignored. See GH-3146.
+    /// </summary>
+    public KafkaListenerConfiguration BeginAtEarliest()
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Earliest;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// On a cold start (no committed offset for the group), begin reading from the *latest* offset (the
+    /// tail). Only applies when the group has no committed offset for a partition. See GH-3146.
+    /// </summary>
+    public KafkaListenerConfiguration BeginAtLatest()
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Latest;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Ephemeral "hot-tail" / broadcast consume (GH-3146): this listener joins a *unique per-process*
+    /// consumer group and starts at the tail (<c>AutoOffsetReset.Latest</c>), so every node receives all
+    /// messages and never replays — the idiomatic Kafka pattern for live dashboards and fan-out-to-all.
+    /// No offsets are committed. Note: each process creates a transient consumer-group entry on the broker
+    /// (Kafka expires these via <c>offsets.retention.minutes</c>).
+    /// </summary>
+    public KafkaListenerConfiguration TailFromLatest()
+    {
+        add(topic =>
+        {
+            topic.IsHotTail = true;
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.AutoOffsetReset = AutoOffsetReset.Latest;
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Configures circuit breaker behavior for this Kafka listener.
     /// </summary>
     /// <param name="configure">

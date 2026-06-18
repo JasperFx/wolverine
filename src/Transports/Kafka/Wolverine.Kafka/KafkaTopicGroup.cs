@@ -43,6 +43,8 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
         var config = GetEffectiveConsumerConfig();
 
+        ApplyHotTailConfig(config, runtime);
+
         // Wire the Kafka client for the configured commit strategy (GH-3150).
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
