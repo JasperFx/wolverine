@@ -261,6 +261,16 @@ If you explicitly set `EnableAutoCommit = true` via `ConfigureConsumer`, Wolveri
 commits and leaves offset management entirely to the Kafka client. Pending/stored offsets are flushed on a
 graceful shutdown so progress is not lost.
 
+::: tip In-flight–safe under concurrency
+All three manual commit strategies (`StoreThenAutoFlush`, `PerMessage`, and the batch modes) route through a
+per-partition watermark, so when a listener processes messages concurrently (the default buffered mode runs
+up to `MaxDegreeOfParallelism` handlers at once) and a later offset finishes before an earlier one, the
+committed/stored position **never advances past a message that is still in flight**. The watermark also makes
+no assumption that offsets are contiguous, so it behaves correctly on compacted topics and on transactional
+topics read with `read_committed`, where the broker hands out offset gaps. As always, the strongest
+crash-safety still comes from the durable inbox (see _Idempotency &amp; Exactly-Once_ below).
+:::
+
 ### Recommended Configuration by Use Case
 
 **At-least-once delivery** (recommended for most use cases):

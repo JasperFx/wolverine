@@ -47,6 +47,10 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
                         result = _consumer.Consume(_cancellation.Token);
                         var message = result.Message;
 
+                        // Seed the offset watermark in consume (in-order) order so out-of-order handler
+                        // completion can never commit past this still-in-flight offset (GH-3161).
+                        _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
+
                         var envelope = mapper!.CreateEnvelope(result.Topic, message);
                         envelope.TopicName = result.Topic;
                         envelope.Offset = result.Offset.Value;
