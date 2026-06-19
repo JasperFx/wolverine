@@ -1,3 +1,4 @@
+using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -136,23 +137,29 @@ public class KafkaListenerConfigurationTests
     }
 
     [Fact]
-    public void extend_consumer_configuration_creates_topic_consumer_configuration()
+    public void extend_consumer_configuration_preserves_parent_consumer_configuration()
     {
         var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.BootstrapServers = "localhost:9092";
+        topic.Parent.ConsumerConfig.ClientId = "global-client";
 
         var config = new KafkaListenerConfiguration(topic)
-            .ExtendConsumerConfiguration(consumer => consumer.GroupId = "topic");
+            .ExtendConsumerConfiguration(consumer => consumer.GroupId = "topic-group");
 
         ((IDelayedEndpointConfiguration)config).Apply();
 
         topic.ConsumerConfig.ShouldNotBeNull();
-        topic.ConsumerConfig.GroupId.ShouldBe("topic");
+        topic.ConsumerConfig.BootstrapServers.ShouldBe("localhost:9092");
+        topic.ConsumerConfig.ClientId.ShouldBe("global-client");
+        topic.ConsumerConfig.GroupId.ShouldBe("topic-group");
     }
 
     [Fact]
     public void extend_consumer_configuration_preserves_existing_topic_consumer_configuration()
     {
         var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.BootstrapServers = "localhost:9092";
+        topic.Parent.ConsumerConfig.ClientId = "global-client";
 
         var config = new KafkaListenerConfiguration(topic)
             .ConfigureConsumer(consumer => consumer.GroupId = "topic")
@@ -161,8 +168,33 @@ public class KafkaListenerConfigurationTests
         ((IDelayedEndpointConfiguration)config).Apply();
 
         topic.ConsumerConfig.ShouldNotBeNull();
+        topic.ConsumerConfig.BootstrapServers.ShouldBe("localhost:9092");
         topic.ConsumerConfig.GroupId.ShouldBe("topic");
         topic.ConsumerConfig.ClientId.ShouldBe("topic-client");
+    }
+
+    [Fact]
+    public void extend_consumer_configuration_applies_new_configuration_last()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.GroupId = "parent-group";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .ConfigureConsumer(consumer => consumer.GroupId = "topic-group")
+            .ExtendConsumerConfiguration(consumer => consumer.GroupId = "extended-group");
+
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        topic.ConsumerConfig.ShouldNotBeNull();
+        topic.ConsumerConfig.GroupId.ShouldBe("extended-group");
+    }
+
+    [Fact]
+    public void extend_consumer_configuration_null_throws()
+    {
+        Should.Throw<ArgumentNullException>(() =>
+            new KafkaListenerConfiguration(BuildTopic())
+                .ExtendConsumerConfiguration(null!));
     }
 }
 
