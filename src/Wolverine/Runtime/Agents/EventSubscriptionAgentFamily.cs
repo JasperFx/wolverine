@@ -82,6 +82,22 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     private static bool MatchesShard(Uri agentUri, string relativeUrl)
         => agentUri.AbsolutePath.TrimEnd('/').EndsWith("/" + relativeUrl, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public async ValueTask<bool> TryRebuildRegisteredProjectionAsync(string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+    {
+        foreach (var entry in _stores.Enumerate())
+        {
+            if (await entry.Value.TryRebuildRegisteredProjectionAsync(shardIdentity, tenantId, token)
+                    .ConfigureAwait(false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
     
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
     {

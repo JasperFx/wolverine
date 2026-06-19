@@ -19,4 +19,19 @@ public interface IEventSubscriptionAgentFamily
     /// the first non-null hit.
     /// </summary>
     ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId, CancellationToken token = default);
+
+    /// <summary>
+    /// Rebuild a REGISTERED projection addressed by its <paramref name="shardIdentity" /> (the JasperFx
+    /// <c>ShardName.Identity</c>, e.g. <c>"Trip:All"</c>) regardless of its lifecycle (Inline / Live /
+    /// Async) or whether it is currently distributed as a continuous agent. This is the path for rebuilding
+    /// a projection that has <em>no live agent</em> to route a rebuild through — an Inline or Live
+    /// projection, or an async projection not presently distributed to any node. Wolverine resolves the
+    /// projection from the registered subscription set, spins up a transient rebuild agent for it on the
+    /// handling node, replays to the high-water mark, then stops it. A non-null <paramref name="tenantId" />
+    /// scopes a per-tenant rebuild. Returns <c>true</c> when a registered projection matched and the rebuild
+    /// ran; <c>false</c> when no registered shard matches (so the caller can try the next family). See
+    /// GH-3163.
+    /// </summary>
+    ValueTask<bool> TryRebuildRegisteredProjectionAsync(string shardIdentity, string? tenantId,
+        CancellationToken token = default);
 }
