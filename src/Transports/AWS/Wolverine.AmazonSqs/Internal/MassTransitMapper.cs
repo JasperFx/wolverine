@@ -12,10 +12,11 @@ internal class MassTransitMapper : ISqsEnvelopeMapper
     private readonly IMassTransitInteropEndpoint _endpoint;
     private MassTransitJsonSerializer _serializer;
 
-    public MassTransitMapper(IMassTransitInteropEndpoint endpoint)
+    public MassTransitMapper(IMassTransitInteropEndpoint endpoint, Action<IMassTransitInterop>? configure = null)
     {
         _endpoint = endpoint;
         _serializer = new MassTransitJsonSerializer(endpoint);
+        configure?.Invoke(_serializer);
     }
 
     public override string ToString() => "MassTransit Interop";
