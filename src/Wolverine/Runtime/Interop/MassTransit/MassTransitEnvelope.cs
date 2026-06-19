@@ -10,7 +10,39 @@ internal interface IMassTransitEnvelope
     void TransferData(Envelope envelope);
 }
 
-internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
+/// <summary>
+///     Read-only, strongly-typed view over an incoming MassTransit "envelope" message. Exposed to
+///     user code through hooks such as <see cref="IMassTransitInterop.MapTenantIdFrom{T}" /> so that
+///     Wolverine metadata (e.g. the tenant id) can be derived either from the deserialized message
+///     body or from the surrounding MassTransit transport metadata (headers, addresses, ids).
+/// </summary>
+/// <typeparam name="T">The Wolverine message type carried by the MassTransit envelope.</typeparam>
+public interface IMassTransitEnvelope<T> where T : class
+{
+    /// <summary>The deserialized message body.</summary>
+    T? Message { get; }
+
+    string? MessageId { get; }
+    string? RequestId { get; }
+    string? CorrelationId { get; }
+    string? ConversationId { get; }
+    string? InitiatorId { get; }
+
+    string? SourceAddress { get; }
+    string? ResponseAddress { get; }
+    string? DestinationAddress { get; }
+    string? FaultAddress { get; }
+
+    string[]? MessageType { get; }
+
+    DateTime? SentTime { get; }
+    DateTime? ExpirationTime { get; }
+
+    /// <summary>The MassTransit message headers, as deserialized from the envelope.</summary>
+    IReadOnlyDictionary<string, object?> Headers { get; }
+}
+
+internal class MassTransitEnvelope<T> : IMassTransitEnvelope, IMassTransitEnvelope<T> where T : class
 {
     public MassTransitEnvelope()
     {
@@ -67,6 +99,8 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     public DateTime? SentTime { get; set; }
 
     public Dictionary<string, object?> Headers { get; set; } = new();
+
+    IReadOnlyDictionary<string, object?> IMassTransitEnvelope<T>.Headers => Headers;
 
     // Wolverine doesn't care about this, so don't bother deserializing it
     // ReSharper disable once UnusedMember.Global
