@@ -207,9 +207,13 @@ public class EventStoreAgents : IAsyncDisposable
 
         var daemon = await FindDaemonAsync(databaseId);
 
-        // RebuildProjectionAsync builds a rebuild-mode agent for the projection, replays to the high-water
-        // mark, then stops it. The tenant overload scopes a per-tenant rebuild (and no-ops the tenant for a
-        // store-global projection).
+        // Rebuild scope: today an event store can only rebuild an ENTIRE projection — every shard of the
+        // projection at once — so we rebuild by the projection name. The "All" shard key (the canonical
+        // identity, e.g. "Trip:All") denotes exactly that whole-projection rebuild. The ONE exception is
+        // per-tenant partitioning, where an individual shard IS a single tenant's partition: a non-null
+        // tenantId flows to the daemon's tenant overload to rebuild just that partition, leaving the other
+        // tenants untouched. For a store-global projection the tenant is a no-op. RebuildProjectionAsync
+        // builds a rebuild-mode agent, replays to the high-water mark, then stops it.
         await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
         return true;
     }
