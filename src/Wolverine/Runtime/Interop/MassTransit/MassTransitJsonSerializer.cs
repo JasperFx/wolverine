@@ -17,6 +17,8 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 
     private ImHashMap<string, Uri?> _uriMap = ImHashMap<string, Uri?>.Empty;
 
+    private Func<IMassTransitEnvelope, string?>? _tenantIdSource;
+
     public MassTransitJsonSerializer(IMassTransitInteropEndpoint endpoint)
     {
         _endpoint = endpoint;
@@ -35,6 +37,20 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
         configuration?.Invoke(options);
 
         _inner = new SystemTextJsonSerializer(options);
+    }
+
+    public IMassTransitInterop MapTenantIdFrom<T>(Func<IMassTransitEnvelope<T>, string?> tenantIdSource)
+        where T : class
+    {
+        ArgumentNullException.ThrowIfNull(tenantIdSource);
+
+        // Compose with any previously registered mapper so multiple message types can each
+        // contribute their own tenant id extraction. A mapper only fires for its own T.
+        var previous = _tenantIdSource;
+        _tenantIdSource = mtEnvelope =>
+            mtEnvelope is IMassTransitEnvelope<T> typed ? tenantIdSource(typed) : previous?.Invoke(mtEnvelope);
+
+        return this;
     }
 
     /// <summary>
@@ -74,6 +90,15 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
         var mtEnvelope = (IMassTransitEnvelope)_inner.ReadFromData(wrappedType, envelope);
         mtEnvelope.TransferData(envelope);
         envelope.ReplyUri = mapResponseUri(mtEnvelope.ResponseAddress ?? mtEnvelope.SourceAddress);
+
+        if (_tenantIdSource != null)
+        {
+            var tenantId = _tenantIdSource(mtEnvelope);
+            if (tenantId.IsNotEmpty())
+            {
+                envelope.TenantId = tenantId;
+            }
+        }
 
         return mtEnvelope.Body!;
     }
