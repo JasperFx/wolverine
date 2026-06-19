@@ -7,9 +7,17 @@ namespace Wolverine.Kafka.Internals;
 /// <summary>
 /// Encapsulates the offset-commit strategy for a single Kafka consumer (GH-3150). Shared by the
 /// single-topic and grouped listeners. Commits the *specific* TopicPartitionOffset of each completed
-/// message (never the consumer's global position), batches with a contiguous per-partition watermark
-/// so it never commits ahead of the lowest in-flight offset, and respects the user's
+/// message (never the consumer's global position) and respects the user's
 /// EnableAutoCommit/EnableAutoOffsetStore configuration.
+///
+/// All three manual strategies (PerMessage, Store, Batch) route through a per-partition
+/// <see cref="OffsetWatermark"/> so that under concurrent, out-of-order handler completion the
+/// committed/stored position can never move past an offset that is still in flight (GH-3161). The
+/// watermark is seeded by <see cref="Track"/> at consume time (offsets arrive in order per partition)
+/// and advanced by <see cref="Complete"/> as each message finishes; the committable position is the
+/// lowest still-in-flight delivered offset, or the high-water consumed offset + 1 when nothing is in
+/// flight — which also tolerates the offset gaps a compacted or transactional (read_committed) topic
+/// produces.
 /// </summary>
 internal sealed class KafkaOffsetCommitter
 {
@@ -107,9 +115,30 @@ internal sealed class KafkaOffsetCommitter
     }
 
     /// <summary>
+    /// Record that a message has been *delivered* to a handler (read off the partition, in order) so the
+    /// watermark knows it is in flight. Called from the consume loop before dispatch so the committable
+    /// position can never advance past a delivered-but-incomplete offset, even when an earlier message
+    /// finishes after a later one (GH-3161).
+    /// </summary>
+    public void Track(string topic, int partition, long offset)
+    {
+        if (_strategy == Strategy.Automatic)
+        {
+            return;
+        }
+
+        var tp = new TopicPartition(topic, new Partition(partition));
+        lock (_lock)
+        {
+            WatermarkFor(tp).Track(offset);
+        }
+    }
+
+    /// <summary>
     /// Record successful processing of a message at the given coordinates and commit/store as the
-    /// strategy dictates. The committed offset is always <paramref name="offset"/> + 1 (the next
-    /// offset to resume from), per Kafka convention.
+    /// strategy dictates. The committed offset is the lowest still-in-flight delivered offset (or the
+    /// high-water consumed offset + 1 when nothing is in flight) — the next offset to resume from, per
+    /// Kafka convention — so out-of-order completion never advances the position past in-flight work.
     /// </summary>
     public void Complete(string topic, int partition, long offset)
     {
@@ -120,36 +149,41 @@ internal sealed class KafkaOffsetCommitter
 
         var tp = new TopicPartition(topic, new Partition(partition));
 
-        if (_strategy == Strategy.PerMessage)
-        {
-            CommitOffsets([new TopicPartitionOffset(tp, new Offset(offset + 1))]);
-            return;
-        }
-
-        if (_strategy == Strategy.Store)
-        {
-            StoreOffsets([new TopicPartitionOffset(tp, new Offset(offset + 1))]);
-            return;
-        }
-
-        // Strategy.Batch — advance the per-partition contiguous watermark and commit on threshold.
         List<TopicPartitionOffset>? toCommit = null;
+        List<TopicPartitionOffset>? toStore = null;
         lock (_lock)
         {
-            if (!_watermarks.TryGetValue(tp, out var watermark))
-            {
-                watermark = new OffsetWatermark();
-                _watermarks[tp] = watermark;
-            }
+            var watermark = WatermarkFor(tp);
+            watermark.Complete(offset);
 
-            watermark.Register(offset);
-            _sinceLastCommit++;
-
-            if (ShouldCommitBatch())
+            switch (_strategy)
             {
-                toCommit = PendingWatermarkOffsets();
-                _sinceLastCommit = 0;
-                _lastCommitTimestamp = Stopwatch.GetTimestamp();
+                case Strategy.PerMessage:
+                    if (watermark.TryTakeCommittable(out var perMessage))
+                    {
+                        toCommit = [new TopicPartitionOffset(tp, new Offset(perMessage))];
+                    }
+
+                    break;
+
+                case Strategy.Store:
+                    if (watermark.TryTakeCommittable(out var store))
+                    {
+                        toStore = [new TopicPartitionOffset(tp, new Offset(store))];
+                    }
+
+                    break;
+
+                case Strategy.Batch:
+                    _sinceLastCommit++;
+                    if (ShouldCommitBatch())
+                    {
+                        toCommit = PendingWatermarkOffsets();
+                        _sinceLastCommit = 0;
+                        _lastCommitTimestamp = Stopwatch.GetTimestamp();
+                    }
+
+                    break;
             }
         }
 
@@ -157,6 +191,22 @@ internal sealed class KafkaOffsetCommitter
         {
             CommitOffsets(toCommit);
         }
+
+        if (toStore is { Count: > 0 })
+        {
+            StoreOffsets(toStore);
+        }
+    }
+
+    private OffsetWatermark WatermarkFor(TopicPartition tp)
+    {
+        if (!_watermarks.TryGetValue(tp, out var watermark))
+        {
+            watermark = new OffsetWatermark();
+            _watermarks[tp] = watermark;
+        }
+
+        return watermark;
     }
 
     private bool ShouldCommitBatch()
@@ -261,50 +311,74 @@ internal sealed class KafkaOffsetCommitter
     }
 
     /// <summary>
-    /// Tracks the highest contiguous (gap-free) completed offset for a single partition so a batch
-    /// commit never moves the committed position past an offset whose predecessors are still in
-    /// flight. Offsets within a Kafka partition are contiguous, so a simple "advance while the next
-    /// offset is present" loop yields the correct watermark even under out-of-order completion.
+    /// Tracks the safe commit position for a single partition so the committed offset never moves past
+    /// an offset that is still in flight, even under concurrent out-of-order completion (GH-3161).
+    ///
+    /// <para><see cref="Track"/> records each delivered offset (consume order) as in-flight;
+    /// <see cref="Complete"/> clears it on success. The committable position is the lowest still
+    /// in-flight delivered offset, or the high-water consumed offset + 1 once nothing is in flight. This
+    /// makes no assumption that offsets are gap-free, so it also behaves correctly on compacted or
+    /// transactional (read_committed) topics where the broker hands out non-contiguous offsets, and it
+    /// self-heals across a rebalance because the in-flight set drains as handlers finish.</para>
+    ///
+    /// <para>The reported position is monotonic: a re-seek that re-delivers an already-passed offset
+    /// will not move the committed position backwards.</para>
     /// </summary>
     internal sealed class OffsetWatermark
     {
-        private long _contiguous = -1; // highest contiguous completed offset, or -1 before seeding
-        private bool _seeded;
-        private bool _dirty;
-        private readonly SortedSet<long> _ahead = new();
+        private readonly SortedSet<long> _inflight = new(); // delivered but not yet completed
+        private long _highWater = -1; // highest delivered offset seen, or -1 before anything is seen
+        private bool _seen;
+        private long _lastCommittable = -1; // last next-offset reported, to keep the position monotonic
 
-        public void Register(long offset)
+        public void Track(long offset)
         {
-            if (!_seeded)
+            _inflight.Add(offset);
+            Observe(offset);
+        }
+
+        public void Complete(long offset)
+        {
+            _inflight.Remove(offset);
+            // Tolerate a Complete without a prior Track (defensive) by still advancing the high water mark.
+            Observe(offset);
+        }
+
+        private void Observe(long offset)
+        {
+            if (!_seen)
             {
-                _contiguous = offset - 1;
-                _seeded = true;
+                _highWater = offset;
+                // Seed the baseline resume position at the first delivered offset so we only ever
+                // commit/store once progress advances past it — never a redundant baseline write.
+                _lastCommittable = offset;
+                _seen = true;
+                return;
             }
 
-            if (offset <= _contiguous)
+            if (offset > _highWater)
             {
-                return; // already covered
-            }
-
-            _ahead.Add(offset);
-
-            while (_ahead.Remove(_contiguous + 1))
-            {
-                _contiguous++;
-                _dirty = true;
+                _highWater = offset;
             }
         }
 
         /// <summary>
-        /// If new contiguous progress has been made since the last take, return the offset to commit
-        /// (contiguous + 1, i.e. the next offset to resume from) and reset the dirty flag.
+        /// If the safe commit position has advanced since the last take, return the next offset to
+        /// commit/store (the lowest in-flight offset, or high-water + 1 when nothing is in flight).
         /// </summary>
         public bool TryTakeCommittable(out long nextOffset)
         {
-            if (_dirty)
+            if (!_seen)
             {
-                nextOffset = _contiguous + 1;
-                _dirty = false;
+                nextOffset = default;
+                return false;
+            }
+
+            var candidate = _inflight.Count == 0 ? _highWater + 1 : _inflight.Min;
+            if (candidate > _lastCommittable)
+            {
+                _lastCommittable = candidate;
+                nextOffset = candidate;
                 return true;
             }
 

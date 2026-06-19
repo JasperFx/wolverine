@@ -48,6 +48,10 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue
                         result = _consumer.Consume(_cancellation.Token);
                         var message = result.Message;
 
+                        // Seed the offset watermark in consume (in-order) order so out-of-order handler
+                        // completion can never commit past this still-in-flight offset (GH-3161).
+                        _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
+
                         // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to
                         // when the record was produced before reprocessing. Records in a tier are
                         // time-ordered, so the head record gates the rest.

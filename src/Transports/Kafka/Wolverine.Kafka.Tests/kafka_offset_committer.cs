@@ -117,27 +117,106 @@ public class kafka_offset_committer
     }
 
     [Fact]
-    public void batch_count_never_commits_ahead_of_a_gap()
+    public void batch_count_never_commits_ahead_of_an_in_flight_offset()
     {
         var committer = committerFor(CommitMode.BatchCount, batchCount: 3);
+
+        // Delivered in consume order; 101 will stay in flight while later offsets finish first.
+        committer.Track("t", 0, 100);
+        committer.Track("t", 0, 101);
+        committer.Track("t", 0, 102);
+        committer.Track("t", 0, 103);
 
         // Out-of-order completion: 100, 102, 103 — 101 is still in flight.
         committer.Complete("t", 0, 100);
         committer.Complete("t", 0, 102);
-        committer.Complete("t", 0, 103); // threshold reached, but 101 is missing
+        committer.Complete("t", 0, 103); // threshold reached, but 101 is still in flight
 
-        // Watermark may only advance to 100+1 = 101 (everything below the gap), never past it.
+        // The committed position may only advance to the lowest in-flight offset (101), never past it.
         theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset.Value == 101));
 
         theConsumer.ClearReceivedCalls();
 
-        // Now 101 completes -> the gap fills and the watermark jumps to 103+1 = 104 on flush.
+        // Now 101 completes -> nothing in flight -> the position jumps to the high-water 103 + 1 = 104.
         committer.Complete("t", 0, 101);
         committer.Flush();
 
         theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
             list.Single().Offset.Value == 104));
+    }
+
+    [Fact]
+    public void per_message_never_commits_ahead_of_an_in_flight_offset()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        // Delivered in order 0,1,2; a later message completes first under concurrency.
+        committer.Track("t", 0, 0);
+        committer.Track("t", 0, 1);
+        committer.Track("t", 0, 2);
+
+        // 2 finishes while 0 and 1 are still in flight -> nothing may be committed yet.
+        committer.Complete("t", 0, 2);
+        theConsumer.DidNotReceive().Commit(Arg.Any<IEnumerable<TopicPartitionOffset>>());
+
+        // 0 finishes -> safe to resume from the next in-flight offset (1).
+        committer.Complete("t", 0, 0);
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 1));
+
+        theConsumer.ClearReceivedCalls();
+
+        // 1 finishes -> nothing in flight -> resume past the highest delivered (2 + 1 = 3).
+        committer.Complete("t", 0, 1);
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 3));
+    }
+
+    [Fact]
+    public void store_never_stores_ahead_of_an_in_flight_offset()
+    {
+        var committer = committerFor(CommitMode.StoreThenAutoFlush);
+
+        // Delivered in order 0,1,2; out-of-order completion under concurrency.
+        committer.Track("t", 0, 0);
+        committer.Track("t", 0, 1);
+        committer.Track("t", 0, 2);
+
+        // 2 finishes while 0 and 1 are still in flight -> nothing may be stored yet.
+        committer.Complete("t", 0, 2);
+        theConsumer.DidNotReceive().StoreOffset(Arg.Any<TopicPartitionOffset>());
+
+        // 0 finishes -> safe to store the next in-flight offset (1).
+        committer.Complete("t", 0, 0);
+        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset.Value == 1));
+
+        theConsumer.ClearReceivedCalls();
+
+        // 1 finishes -> nothing in flight -> store past the highest delivered (2 + 1 = 3).
+        committer.Complete("t", 0, 1);
+        theConsumer.Received(1).StoreOffset(Arg.Is<TopicPartitionOffset>(t => t.Offset.Value == 3));
+    }
+
+    [Fact]
+    public void per_message_tolerates_non_contiguous_offsets_from_a_compacted_topic()
+    {
+        var committer = committerFor(CommitMode.PerMessage);
+
+        // A compacted / transactional topic hands out gaps (1 and 2 were compacted or were control
+        // records) — the watermark must not stall waiting for offsets that will never be delivered.
+        committer.Track("t", 0, 0);
+        committer.Track("t", 0, 3);
+
+        committer.Complete("t", 0, 0);
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 3)); // resume from the next in-flight delivered offset
+
+        theConsumer.ClearReceivedCalls();
+
+        committer.Complete("t", 0, 3);
+        theConsumer.Received(1).Commit(Arg.Is<IEnumerable<TopicPartitionOffset>>(list =>
+            list.Single().Offset.Value == 4)); // high-water + 1, gaps skipped
     }
 
     [Fact]
