@@ -1,4 +1,6 @@
 using Google.Api.Gax;
+using Google.Apis.Auth.OAuth2;
+using Google.Cloud.PubSub.V1;
 using Wolverine.Transports;
 
 namespace Wolverine.Pubsub;
@@ -98,6 +100,48 @@ public class PubsubConfiguration : BrokerExpression<
 
         configure?.Invoke(Transport.DeadLetter);
 
+        return this;
+    }
+
+    /// <summary>
+    ///     Configure the <see cref="PublisherServiceApiClientBuilder" /> used to create the publisher API client.
+    ///     Called after <see cref="EmulatorDetection" /> is applied, so this callback may override transport-level
+    ///     defaults. Multiple calls compose in order.
+    /// </summary>
+    public PubsubConfiguration ConfigurePublisherApiClient(Action<PublisherServiceApiClientBuilder> configure)
+    {
+        var existing = Transport.ConfigurePublisherApiBuilder;
+        Transport.ConfigurePublisherApiBuilder = existing == null
+            ? configure
+            : b => { existing(b); configure(b); };
+        return this;
+    }
+
+    /// <summary>
+    ///     Configure the <see cref="SubscriberServiceApiClientBuilder" /> used to create the subscriber API client.
+    ///     Called after <see cref="EmulatorDetection" /> is applied, so this callback may override transport-level
+    ///     defaults. Multiple calls compose in order.
+    /// </summary>
+    public PubsubConfiguration ConfigureSubscriberApiClient(Action<SubscriberServiceApiClientBuilder> configure)
+    {
+        var existing = Transport.ConfigureSubscriberApiBuilder;
+        Transport.ConfigureSubscriberApiBuilder = existing == null
+            ? configure
+            : b => { existing(b); configure(b); };
+        return this;
+    }
+
+    /// <summary>
+    ///     Configure the <see cref="SubscriberClientBuilder" /> used to create subscriber clients for each listener.
+    ///     Called after <see cref="EmulatorDetection" /> is applied, so this callback may override transport-level
+    ///     defaults. Multiple calls compose in order.
+    /// </summary>
+    public PubsubConfiguration ConfigureSubscriberClient(Action<SubscriberClientBuilder> configure)
+    {
+        var existing = Transport.ConfigureSubscriberClientBuilder;
+        Transport.ConfigureSubscriberClientBuilder = existing == null
+            ? configure
+            : b => { existing(b); configure(b); };
         return this;
     }
 

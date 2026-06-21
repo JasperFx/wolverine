@@ -21,11 +21,13 @@ public class InlinePubsubListener : PubsubListener
         await listenForMessagesAsync(async () =>
         {
             var subscriptionName = _endpoint.Server.Subscription.Name;
-            await using SubscriberClient subscriber = await new SubscriberClientBuilder
+            var subscriberBuilder = new SubscriberClientBuilder
             {
                 SubscriptionName = subscriptionName,
                 EmulatorDetection = _transport.EmulatorDetection,
-            }.BuildAsync();
+            };
+            _transport.ConfigureSubscriberClientBuilder?.Invoke(subscriberBuilder);
+            await using SubscriberClient subscriber = await subscriberBuilder.BuildAsync();
             var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
             try
             {
