@@ -145,6 +145,20 @@ public class PubsubConfiguration : BrokerExpression<
         return this;
     }
 
+    /// <summary>
+    ///     Provide a <see cref="GoogleCredential" /> for authenticating with Google Cloud Platform Pub/Sub.
+    ///     The credential manages its own token refresh lifecycle, including Workload Identity Federation scenarios.
+    ///     This is a convenience shorthand for calling <see cref="ConfigurePublisherApiClient" />,
+    ///     <see cref="ConfigureSubscriberApiClient" />, and <see cref="ConfigureSubscriberClient" /> individually.
+    /// </summary>
+    public PubsubConfiguration UseCredential(GoogleCredential credential)
+    {
+        ConfigurePublisherApiClient(b => b.GoogleCredential = credential);
+        ConfigureSubscriberApiClient(b => b.GoogleCredential = credential);
+        ConfigureSubscriberClient(b => b.GoogleCredential = credential);
+        return this;
+    }
+
     protected override PubsubTopicListenerConfiguration createListenerExpression(PubsubEndpoint listenerEndpoint)
     {
         return new PubsubTopicListenerConfiguration(listenerEndpoint);
