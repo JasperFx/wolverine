@@ -32,25 +32,26 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public bool SystemEndpointsEnabled = false;
 
     /// <summary>
-    ///     Optional callback to configure the <see cref="PublisherServiceApiClientBuilder" /> before it is built.
+    ///     Optional async callback to configure the <see cref="PublisherServiceApiClientBuilder" /> before it is built.
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
-    ///     Multiple calls compose in order.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O
+    ///     (e.g. fetching a token from Azure Key Vault or Azure IMDS).
     /// </summary>
-    public Action<PublisherServiceApiClientBuilder>? ConfigurePublisherApiBuilder { get; set; }
+    public Func<PublisherServiceApiClientBuilder, ValueTask>? ConfigurePublisherApiBuilder { get; set; }
 
     /// <summary>
-    ///     Optional callback to configure the <see cref="SubscriberServiceApiClientBuilder" /> before it is built.
+    ///     Optional async callback to configure the <see cref="SubscriberServiceApiClientBuilder" /> before it is built.
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
-    ///     Multiple calls compose in order.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
     /// </summary>
-    public Action<SubscriberServiceApiClientBuilder>? ConfigureSubscriberApiBuilder { get; set; }
+    public Func<SubscriberServiceApiClientBuilder, ValueTask>? ConfigureSubscriberApiBuilder { get; set; }
 
     /// <summary>
-    ///     Optional callback to configure the <see cref="SubscriberClientBuilder" /> before it is built.
+    ///     Optional async callback to configure the <see cref="SubscriberClientBuilder" /> before it is built.
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
-    ///     Multiple calls compose in order.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
     /// </summary>
-    public Action<SubscriberClientBuilder>? ConfigureSubscriberClientBuilder { get; set; }
+    public Func<SubscriberClientBuilder, ValueTask>? ConfigureSubscriberClientBuilder { get; set; }
 
     public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub", ["gcp", ProtocolName])
     {
@@ -82,13 +83,15 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         {
             EmulatorDetection = EmulatorDetection
         };
-        ConfigurePublisherApiBuilder?.Invoke(pubBuilder);
+        if (ConfigurePublisherApiBuilder != null)
+            await ConfigurePublisherApiBuilder(pubBuilder);
 
         var subApiBuilder = new SubscriberServiceApiClientBuilder
         {
             EmulatorDetection = EmulatorDetection
         };
-        ConfigureSubscriberApiBuilder?.Invoke(subApiBuilder);
+        if (ConfigureSubscriberApiBuilder != null)
+            await ConfigureSubscriberApiBuilder(subApiBuilder);
 
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
         PublisherApiClient = await pubBuilder.BuildAsync();

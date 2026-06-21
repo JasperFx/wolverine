@@ -26,7 +26,8 @@ public class InlinePubsubListener : PubsubListener
                 SubscriptionName = subscriptionName,
                 EmulatorDetection = _transport.EmulatorDetection,
             };
-            _transport.ConfigureSubscriberClientBuilder?.Invoke(subscriberBuilder);
+            if (_transport.ConfigureSubscriberClientBuilder != null)
+                await _transport.ConfigureSubscriberClientBuilder(subscriberBuilder);
             await using SubscriberClient subscriber = await subscriberBuilder.BuildAsync();
             var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
             try
