@@ -52,6 +52,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _consumer = transport.Client!.NewConsumer()
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
+            .InitialPosition(endpoint.SubscriptionInitialPosition)
             .Topic(endpoint.PulsarTopic())
             .Create();
 
@@ -131,6 +132,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         return transport.Client!.NewConsumer()
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
+            .InitialPosition(endpoint.SubscriptionInitialPosition)
             .Topic(topicRetry!.ToString())
             .Create();
     }

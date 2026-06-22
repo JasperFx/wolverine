@@ -209,6 +209,44 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Set where a brand-new subscription starts consuming. Only affects the first read of a
+    /// not-yet-existing subscription; once the subscription exists, Pulsar resumes from its
+    /// committed position regardless of this setting.
+    /// </summary>
+    /// <param name="initialPosition"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionInitialPosition(SubscriptionInitialPosition initialPosition)
+    {
+        add(e => { e.SubscriptionInitialPosition = initialPosition; });
+        return this;
+    }
+
+    /// <summary>
+    /// Start a brand-new subscription at the earliest retained message in the topic (replay the
+    /// existing backlog). Pulsar analogue of the Kafka transport's <c>BeginAtEarliest()</c>. Only
+    /// applies on the first read of a not-yet-existing subscription.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration BeginAtEarliest()
+    {
+        add(e => { e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Earliest; });
+        return this;
+    }
+
+    /// <summary>
+    /// Start a brand-new subscription at the latest position so only messages published after the
+    /// subscription is created are consumed (DotPulsar's default). Pulsar analogue of the Kafka
+    /// transport's <c>BeginAtLatest()</c>. Only applies on the first read of a not-yet-existing
+    /// subscription.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration BeginAtLatest()
+    {
+        add(e => { e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Latest; });
+        return this;
+    }
+
+    /// <summary>
     /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
