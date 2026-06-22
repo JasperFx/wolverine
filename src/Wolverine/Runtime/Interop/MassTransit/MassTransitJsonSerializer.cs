@@ -17,7 +17,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 
     private ImHashMap<string, Uri?> _uriMap = ImHashMap<string, Uri?>.Empty;
 
-    private Func<IMassTransitEnvelope, string?>? _tenantIdSource;
+    private Func<MassTransitEnvelope, string?>? _tenantIdSource;
 
     public MassTransitJsonSerializer(IMassTransitInteropEndpoint endpoint)
     {
@@ -39,7 +39,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
         _inner = new SystemTextJsonSerializer(options);
     }
 
-    public IMassTransitInterop MapTenantIdFrom<T>(Func<IMassTransitEnvelope<T>, string?> tenantIdSource)
+    public IMassTransitInterop MapTenantIdFrom<T>(Func<MassTransitEnvelope<T>, string?> tenantIdSource)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(tenantIdSource);
@@ -48,7 +48,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
         // contribute their own tenant id extraction. A mapper only fires for its own T.
         var previous = _tenantIdSource;
         _tenantIdSource = mtEnvelope =>
-            mtEnvelope is IMassTransitEnvelope<T> typed ? tenantIdSource(typed) : previous?.Invoke(mtEnvelope);
+            mtEnvelope is MassTransitEnvelope<T> typed ? tenantIdSource(typed) : previous?.Invoke(mtEnvelope);
 
         return this;
     }
@@ -74,7 +74,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 
     public byte[] Write(Envelope envelope)
     {
-        var message = new MassTransitEnvelope(envelope)
+        var message = new MassTransitEnvelope<object>(envelope)
         {
             DestinationAddress = _destination,
             ResponseAddress = _reply.Value
@@ -87,7 +87,7 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
     {
         var wrappedType = typeof(MassTransitEnvelope<>).MakeGenericType(messageType);
 
-        var mtEnvelope = (IMassTransitEnvelope)_inner.ReadFromData(wrappedType, envelope);
+        var mtEnvelope = (MassTransitEnvelope)_inner.ReadFromData(wrappedType, envelope);
         mtEnvelope.TransferData(envelope);
         envelope.ReplyUri = mapResponseUri(mtEnvelope.ResponseAddress ?? mtEnvelope.SourceAddress);
 

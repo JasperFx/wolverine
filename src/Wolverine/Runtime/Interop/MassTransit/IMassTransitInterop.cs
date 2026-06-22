@@ -25,7 +25,7 @@ public interface IMassTransitInterop
     ///     <c>env =&gt; env.Headers.TryGetValue("tenant-id", out var v) ? v?.ToString() : null</c>.
     /// </param>
     /// <typeparam name="T">The Wolverine message type to extract the tenant id from.</typeparam>
-    IMassTransitInterop MapTenantIdFrom<T>(Func<IMassTransitEnvelope<T>, string?> tenantIdSource) where T : class;
+    IMassTransitInterop MapTenantIdFrom<T>(Func<MassTransitEnvelope<T>, string?> tenantIdSource) where T : class;
 
     // Newtonsoft.Json variant moved to WolverineFx.Newtonsoft as the
     // UseNewtonsoftForSerialization(this IMassTransitInterop, ...)

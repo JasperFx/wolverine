@@ -247,7 +247,7 @@ opts.ListenToRabbitQueue("orders")
     });
 ```
 
-The lambda receives the strongly-typed MassTransit envelope (`IMassTransitEnvelope<T>`), which exposes
+The lambda receives the strongly-typed MassTransit envelope (`MassTransitEnvelope<T>`), which exposes
 the deserialized `Message` alongside the MassTransit metadata. Each registration applies only to its own
 message type, and returning `null` or an empty string leaves the tenant id untouched. Tenant mapping
 affects only the inbound (deserialization) path, and works on any MassTransit-interop listener
