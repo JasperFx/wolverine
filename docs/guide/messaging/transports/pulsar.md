@@ -87,6 +87,62 @@ resumes from its committed cursor on every restart regardless of this setting, a
 messages that are still retained on the topic. The default is `SubscriptionInitialPosition.Latest`, matching
 DotPulsar's own default.
 
+### Hot-tail / broadcast consume <Badge type="tip" text="6.8" />
+
+Sometimes you want **every node** to see **every message** as it arrives — live dashboards, cache
+invalidation, fan-out-to-all-instances — rather than the competing-consumer model where each message goes to
+exactly one node on a shared subscription. Use `TailFromLatest()`:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/live-events").TailFromLatest();
+```
+
+Each process consumes through its own **ephemeral, non-durable [Reader](https://pulsar.apache.org/docs/concepts-clients/#reader-interface)**
+cursor starting at the tail, so every node receives all messages, never replays old data, and commits no
+subscription cursor. This is the idiomatic Pulsar pattern for broadcast — the analogue of the Kafka
+transport's `TailFromLatest()`.
+
+A few things to know:
+
+- Because the reader starts at the tail, only messages published **after** a node has attached its reader are
+  delivered — there is no backlog replay.
+- The reader cursor is throwaway and unacknowledged, so dead-letter / retry-letter queueing, native
+  redelivery, and acknowledgment strategies do not apply to a hot-tail listener.
+- Reach for `TailFromLatest()` when you want **all** nodes to process each message; use a normal `Shared` /
+  `KeyShared` subscription when you want each message processed **once** across the cluster.
+
+## Replaying a Topic <Badge type="tip" text="6.8" />
+
+When you need to **reprocess** a window of a topic's history — error recovery, rebuilding downstream state,
+replaying after a bug fix — Wolverine offers a **bounded, one-shot replay** that reads a range of a topic back
+through the **normal handler pipeline**. It uses a throwaway, non-durable Pulsar `Reader` cursor and **never
+touches any live durable subscription**, so steady-state consumption is completely untouched.
+
+```csharp
+// Programmatic API on IHost
+await host.ReplayPulsarTopicAsync(new PulsarReplayRequest
+{
+    Topic = "persistent://public/default/orders",
+    FromTimestamp = DateTimeOffset.UtcNow.AddHours(-1),  // or FromMessageId = someMessageId
+    // ToTimestamp / ToMessageId optional — defaults to "now" (the topic's last message at start)
+});
+```
+
+Start defaults to the earliest retained message and end defaults to the topic's last message at the moment the
+replay begins, so omitting the bounds replays the whole topic as it stands and never tails live traffic
+published after the replay started. Both `From`/`To` accept either a publish-time `DateTimeOffset` or a Pulsar
+`MessageId` (the two are mutually exclusive on each end).
+
+::: warning Replayed messages are re-handled
+Each replayed message flows through your handlers again, exactly like live consumption. Handlers should be
+**idempotent** (the same expectation as any at-least-once reprocessing). If you use the durable inbox, replayed
+envelopes pass through the same inbox + de-duplication path.
+:::
+
+Replay reads forward to the end boundary and stops cleanly. It is a discrete operation that runs on its own
+non-durable reader cursor, so it can safely run on a node that is also listening to the same topic on a durable
+subscription.
+
 ## Multi-Topic & Pattern Subscriptions
 
 A single Pulsar listener can consume from more than one topic, or from every topic matching a
