@@ -130,12 +130,27 @@ internal class PersistenceWolverineObserver : IWolverineObserver
 
     public async Task NodeStarted()
     {
-        await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStarted));
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence; a storeless Solo node still
+            // fires this bookend (via SoloHeartbeatService) but has nowhere to log it. See #3188.
+        }
     }
 
     public async Task NodeStopped()
     {
-        await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(NodeRecord.For(_runtime.Options, NodeRecordType.NodeStopped));
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence; nothing to log.
+        }
     }
 
     public async Task AgentStarted(Uri agentUri)
