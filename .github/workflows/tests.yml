@@ -33,6 +33,7 @@ jobs:
           - CIOracle
           - CIPersistence
           - CIPolecat
+          - CIPubsub
           - CIPulsar
           - CIRabbitMQ
           - CIRavenDb
