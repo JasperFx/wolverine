@@ -100,6 +100,18 @@ Valid handler method names: `Handle`, `HandleAsync`, `Consume`, `ConsumeAsync` (
 
 Handlers are discovered by scanning assemblies. Use attributes like `[WolverineHandler]`, `[WolverineMessage]`, `[WolverineIgnore]` to control discovery.
 
+## Naming conventions
+
+Member casing is driven by **accessibility**, not by member kind:
+
+- **`internal` and `public` members** (methods, properties, events, constants) use **PascalCase**.
+- **`private` and `protected` members** (methods, properties) use **camelCase** — e.g. `buildSenderIfMissing()`,
+  `writeOutgoingHeader()`, `tableExistsAsync()`. This includes `private static` helper methods.
+- Private/protected **fields** keep the conventional leading underscore + camelCase (`_sender`, `_queueTable`).
+
+When in doubt, match the surrounding file. Examples: `EnvelopeMapper` (`buildIncoming`/`buildOutgoing` private vs
+`MapProperty`/`ReceivesMessage` public), `SqlServerQueue` (`buildSenderIfMissing` private vs `SendAsync` public).
+
 ## Performance conventions
 
 ### Use `ImHashMap` for hot-path dictionary lookups

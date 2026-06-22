@@ -89,7 +89,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
 
         if (envelope.Message != null)
         {
-            headers[EnclosedMessageTypesHeader] = ToEnclosedMessageType(envelope.Message.GetType());
+            headers[EnclosedMessageTypesHeader] = toEnclosedMessageType(envelope.Message.GetType());
         }
         else if (envelope.MessageType.IsNotEmpty())
         {
@@ -109,16 +109,16 @@ internal class NServiceBusSqlServerEnvelopeMapper
         // NServiceBus' JSON serializer prefixes the body with a UTF-8 BOM, which
         // System.Text.Json rejects ('0xEF' is an invalid start of a value). Strip it so
         // the configured serializer can read the payload.
-        var envelope = new Envelope { Data = StripUtf8Bom(body) };
+        var envelope = new Envelope { Data = stripUtf8Bom(body) };
 
         var headers = headersJson.IsNotEmpty()
             ? JsonSerializer.Deserialize(headersJson!, NServiceBusSqlJsonContext.Default.DictionaryStringString) ?? new()
             : new Dictionary<string, string>();
 
-        envelope.Id = ReadGuid(headers, MessageIdHeader) ?? id;
+        envelope.Id = readGuid(headers, MessageIdHeader) ?? id;
         if (envelope.Id == Guid.Empty) envelope.Id = id;
 
-        var conversationId = ReadGuid(headers, ConversationIdHeader);
+        var conversationId = readGuid(headers, ConversationIdHeader);
         if (conversationId.HasValue) envelope.ConversationId = conversationId.Value;
 
         if (headers.TryGetValue(CorrelationIdHeader, out var correlationId))
@@ -128,7 +128,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
 
         if (headers.TryGetValue(ReplyToAddressHeader, out var replyTo) && replyTo.IsNotEmpty())
         {
-            envelope.ReplyUri = NServiceBusSqlServerQueue.ToUri(NormalizeAddress(replyTo));
+            envelope.ReplyUri = NServiceBusSqlServerQueue.ToUri(normalizeAddress(replyTo));
         }
 
         if (headers.TryGetValue(ContentTypeHeader, out var contentType) && contentType.IsNotEmpty())
@@ -144,7 +144,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
 
         if (headers.TryGetValue(EnclosedMessageTypesHeader, out var enclosed) && enclosed.IsNotEmpty())
         {
-            envelope.MessageType = ResolveMessageType(enclosed);
+            envelope.MessageType = resolveMessageType(enclosed);
         }
 
         envelope.Serializer = _endpoint.TryFindSerializer(envelope.ContentType) ?? _endpoint.DefaultSerializer;
@@ -153,7 +153,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
     }
 
     // NServiceBus addresses take the form "table@schema@catalog"; we only care about the table/queue name.
-    private static string NormalizeAddress(string address)
+    private static string normalizeAddress(string address)
     {
         var at = address.IndexOf('@');
         return at >= 0 ? address[..at] : address;
@@ -162,24 +162,24 @@ internal class NServiceBusSqlServerEnvelopeMapper
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification =
             "Reflecting over the interfaces of a live message instance's runtime type for NServiceBus interop; the type and its interfaces are present at runtime.")]
-    private static string ToEnclosedMessageType(Type type)
+    private static string toEnclosedMessageType(Type type)
     {
         // NServiceBus keys handler dispatch off NServiceBus.EnclosedMessageTypes, a
         // ';'-separated, most-derived-first list of the message's type hierarchy. Emit the
         // concrete type plus its implemented interfaces so that a Wolverine message defined
         // in one assembly can still bind to an NServiceBus handler registered against a
         // shared interface (e.g. IHandleMessages<ISomeInterface>) living in another.
-        var names = new List<string> { Format(type) };
-        names.AddRange(type.GetInterfaces().Select(Format));
+        var names = new List<string> { format(type) };
+        names.AddRange(type.GetInterfaces().Select(format));
         return string.Join(";", names);
 
-        static string Format(Type t) => $"{t.FullName}, {t.Assembly.GetName().Name}";
+        static string format(Type t) => $"{t.FullName}, {t.Assembly.GetName().Name}";
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2057",
         Justification =
             "The enclosed message type name comes from a foreign NServiceBus endpoint at runtime; a failed resolution falls back to the bare type name which Wolverine binds via RegisterInteropMessageAssembly.")]
-    private static string ResolveMessageType(string enclosed)
+    private static string resolveMessageType(string enclosed)
     {
         // NServiceBus lists several types separated by ';' (concrete + interfaces),
         // most-derived first. Use the first entry that resolves to a type loadable in this
@@ -201,14 +201,14 @@ internal class NServiceBusSqlServerEnvelopeMapper
         return entries.First().Split(',', StringSplitOptions.TrimEntries).First();
     }
 
-    private static byte[] StripUtf8Bom(byte[] body)
+    private static byte[] stripUtf8Bom(byte[] body)
     {
         return body.Length >= 3 && body[0] == 0xEF && body[1] == 0xBB && body[2] == 0xBF
             ? body[3..]
             : body;
     }
 
-    private static Guid? ReadGuid(IReadOnlyDictionary<string, string> headers, string key)
+    private static Guid? readGuid(IReadOnlyDictionary<string, string> headers, string key)
     {
         return headers.TryGetValue(key, out var raw) && Guid.TryParse(raw, out var value) ? value : null;
     }

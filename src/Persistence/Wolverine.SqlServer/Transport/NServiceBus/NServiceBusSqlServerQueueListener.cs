@@ -84,7 +84,7 @@ OUTPUT deleted.Id, deleted.Headers, deleted.Body;";
         {
             try
             {
-                var messages = await TryPopAsync(_queue.MaximumMessagesToReceive, _cancellation.Token);
+                var messages = await tryPopAsync(_queue.MaximumMessagesToReceive, _cancellation.Token);
                 failedCount = 0;
 
                 if (messages.Count > 0)
@@ -112,7 +112,7 @@ OUTPUT deleted.Id, deleted.Headers, deleted.Body;";
         }
     }
 
-    private async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, CancellationToken token)
+    private async Task<IReadOnlyList<Envelope>> tryPopAsync(int count, CancellationToken token)
     {
         await using var conn = new SqlConnection(_connectionString);
         await conn.OpenAsync(token);
