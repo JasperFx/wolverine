@@ -443,3 +443,46 @@ With CloudEvents interoperability:
 * Wolverine is again depending on [message type aliases](/guide/messages.html#message-type-name-or-alias) to "know" what message type the CloudEvents envelopes are referring to, and you might very well
   have to explicitly register message type aliases to bridge the gap between CloudEvents and your Wolverine application.
 
+
+## Interop with NServiceBus over Database Transports
+
+Besides the broker transports above, Wolverine can interoperate with NServiceBus over its
+[SQL Server transport](https://docs.particular.net/transports/sql/) by reading and writing the NServiceBus queue
+tables directly. Rather than a custom envelope mapper layered onto a shared broker, this is a dedicated transport that
+speaks Particular's documented [native integration](https://docs.particular.net/transports/sql/native-integration)
+contract — one table per queue with a JSON `Headers` column and a raw `Body` column.
+
+```cs
+using Wolverine.SqlServer.Transport.NServiceBus;
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine's own durable inbox/outbox still lives in SQL Server
+    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
+
+    opts.UseNServiceBusSqlServerInterop();
+
+    // Publish to an NServiceBus endpoint's queue table
+    opts.PublishMessage<OrderPlaced>().ToNServiceBusSqlServerQueue("nsb");
+
+    // Listen to Wolverine's own queue table and use it for replies
+    opts.ListenToNServiceBusSqlServerQueue("wolverine").UseForReplies();
+
+    // Bind NServiceBus interface-typed messages to Wolverine's concrete types
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+});
+```
+
+A few things to note about NServiceBus database interop:
+
+* NServiceBus normally owns and provisions its own queue tables, so `AutoProvision` is **off by default** for these
+  endpoints. Pass `UseNServiceBusSqlServerInterop(autoProvision: true)` only when you want Wolverine to create them.
+* Message-type identity is mapped two ways. Outgoing messages carry the `NServiceBus.EnclosedMessageTypes` hierarchy
+  (concrete type *plus* implemented interfaces) so an NServiceBus handler registered against a shared interface still
+  binds. Incoming `EnclosedMessageTypes` are resolved against the assemblies you register with
+  `RegisterInteropMessageAssembly`.
+* Request/reply works: Wolverine stamps `NServiceBus.ReplyToAddress` from the endpoint you mark `UseForReplies()`.
+
+See the [SQL Server transport guide](/guide/durability/sqlserver.html#nservicebus-interoperability) for the full set of
+options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable,
+bidirectional sample with both frameworks hosted side by side.
