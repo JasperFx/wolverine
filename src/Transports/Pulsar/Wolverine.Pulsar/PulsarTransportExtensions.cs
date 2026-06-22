@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -310,6 +311,31 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Customize the DotPulsar consumer for this listener (consumer name, receive-queue size,
+    /// priority level, read-compacted, properties, etc.) immediately before it is created. Runs
+    /// against the same <see cref="IConsumerBuilder{TMessage}"/> Wolverine uses internally.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration ConfigureConsumer(Action<IConsumerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureConsumer = configure; });
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the DotPulsar producer used by this listener for requeue/redelivery sends
+    /// immediately before it is created.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration ConfigureProducer(Action<IProducerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureProducer = configure; });
+        return this;
+    }
+
+    /// <summary>
     /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
@@ -581,5 +607,18 @@ public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguratio
 {
     public PulsarSubscriberConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {
+    }
+
+    /// <summary>
+    /// Customize the DotPulsar producer for this sending endpoint (compression, batching, producer
+    /// name, routing mode, etc.) immediately before it is created. Runs against the same
+    /// <see cref="IProducerBuilder{TMessage}"/> Wolverine uses internally.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarSubscriberConfiguration ConfigureProducer(Action<IProducerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureProducer = configure; });
+        return this;
     }
 }

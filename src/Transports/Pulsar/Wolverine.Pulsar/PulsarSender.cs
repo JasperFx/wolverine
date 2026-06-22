@@ -19,7 +19,9 @@ public class PulsarSender : ISender, IAsyncDisposable
         var endpoint1 = endpoint;
         _cancellation = cancellation;
 
-        _producer = transport.Client!.NewProducer().Topic(endpoint1.PulsarTopic()).Create();
+        var producerBuilder = transport.Client!.NewProducer().Topic(endpoint1.PulsarTopic());
+        endpoint.ConfigureProducer?.Invoke(producerBuilder);
+        _producer = producerBuilder.Create();
 
         Destination = endpoint1.Uri;
         _mapper = endpoint.BuildMapper(runtime);

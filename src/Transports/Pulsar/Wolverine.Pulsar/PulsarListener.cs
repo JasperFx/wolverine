@@ -71,6 +71,8 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             consumerBuilder = consumerBuilder.Topic(endpoint.PulsarTopic());
         }
 
+        endpoint.ConfigureConsumer?.Invoke(consumerBuilder);
+
         _consumer = consumerBuilder.Create();
 
         // Per-endpoint-override-wins resolution (endpoint override, else transport default).
@@ -146,12 +148,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         var topicRetry = getRetryLetterTopicUri(endpoint);
 
-        return transport.Client!.NewConsumer()
+        var retryBuilder = transport.Client!.NewConsumer()
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
             .InitialPosition(endpoint.SubscriptionInitialPosition)
-            .Topic(topicRetry!.ToString())
-            .Create();
+            .Topic(topicRetry!.ToString());
+
+        endpoint.ConfigureConsumer?.Invoke(retryBuilder);
+
+        return retryBuilder.Create();
     }
 
     private Uri? getRetryLetterTopicUri(PulsarEndpoint endpoint)
