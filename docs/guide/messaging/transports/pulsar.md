@@ -114,6 +114,25 @@ When a pattern is configured it takes precedence, and the topic the listener was
 used only as the Wolverine endpoint identity. Pattern subscriptions match topics that exist at
 subscription time and pick up newly created matching topics as Pulsar discovers them.
 
+## Per-Message Redelivery
+
+By default, when a message fails and is requeued, the Pulsar listener acknowledges it and
+re-publishes a fresh copy to the source topic. You can instead opt into Pulsar's native
+per-message redelivery, where the message is left **unacknowledged** and Pulsar redelivers just
+that one message (preserving its redelivery count) rather than creating a duplicate:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .UseNativeRedelivery();
+
+// Combine with a retry policy that requeues on failure:
+opts.Policies.OnException<TransientException>().Requeue(3);
+```
+
+For delayed / backoff redelivery (growing the delay between attempts), use the Pulsar
+retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
+or ack-timeout settings.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender

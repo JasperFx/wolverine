@@ -74,6 +74,15 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public bool UnsubscribeOnClose { get; internal set; } = true;
 
     /// <summary>
+    ///     When true, a requeue/defer of a single message uses Pulsar's native per-message
+    ///     redelivery (<c>RedeliverUnacknowledgedMessages([messageId])</c>) — the message is left
+    ///     unacknowledged and Pulsar redelivers that one message, preserving its redelivery count —
+    ///     instead of the default behavior of acknowledging and re-publishing a fresh copy to the
+    ///     source topic. Delayed/backoff redelivery is handled by the retry-letter topics (#3182).
+    /// </summary>
+    public bool UseNativeRedelivery { get; internal set; }
+
+    /// <summary>
     ///     Use to override the dead letter topic for this endpoint
     /// </summary>
     public DeadLetterTopic? DeadLetterTopic { get; set; }
