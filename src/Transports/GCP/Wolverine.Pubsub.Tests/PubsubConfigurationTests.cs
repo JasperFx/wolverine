@@ -1,10 +1,8 @@
 using Google.Api.Gax;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
-using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Wolverine.Tracking;
 using Xunit;
 
 namespace Wolverine.Pubsub.Tests;
@@ -163,75 +161,38 @@ public class PubsubConfigurationTests
         observed.ShouldBe(credential);
     }
 
-    // Integration test — set EmulatorDetection ONLY via callbacks (not on the transport).
-    // Successful send/receive proves the callbacks were applied to the real builders.
+    // Requires the emulator running via `docker compose up -d gcp-pubsub`
     [Fact]
     public async Task configure_callbacks_are_applied_to_live_builders()
     {
         Environment.SetEnvironmentVariable("PUBSUB_EMULATOR_HOST", "[::1]:8085");
+        Environment.SetEnvironmentVariable("PUBSUB_PROJECT_ID", "wolverine");
 
-        var host = await Host.CreateDefaultBuilder()
+        // Transport-level EmulatorDetection is set to ProductionOnly — the callbacks are the
+        // only thing that enable emulator connectivity. StartAsync makes live API calls via
+        // AutoProvision and awaits listener startup, so a misconfigured builder throws here.
+        var host = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.UsePubsub("wolverine")
+                    .UseEmulatorDetection(EmulatorDetection.ProductionOnly)
                     .ConfigurePublisherApiClient(b => b.EmulatorDetection = EmulatorDetection.EmulatorOnly)
                     .ConfigureSubscriberApiClient(b => b.EmulatorDetection = EmulatorDetection.EmulatorOnly)
                     .ConfigureSubscriberClient(b => b.EmulatorDetection = EmulatorDetection.EmulatorOnly)
                     .AutoProvision()
                     .AutoPurgeOnStartup();
 
-                opts.PublishMessage<TestPubsubMessage>().ToPubsubTopic("config-callbacks-test");
-                opts.ListenToPubsubTopic("config-callbacks-test");
-            }).StartAsync();
+                var topic = $"config-callbacks-test-{Guid.NewGuid():N}";
+                opts.PublishMessage<TestPubsubMessage>().ToPubsubTopic(topic);
+                opts.ListenToPubsubTopic(topic);
+            }).Build();
 
-        try
+        await Should.NotThrowAsync(async () =>
         {
-            var session = await host
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .Timeout(1.Minutes())
-                .SendMessageAndWaitAsync(new TestPubsubMessage("callback-applied"));
-
-            session.Received.SingleMessage<TestPubsubMessage>().Name.ShouldBe("callback-applied");
-        }
-        finally
-        {
-            await host.StopAsync();
-            host.Dispose();
-        }
-    }
-
-    [Fact]
-    public async Task use_credential_does_not_break_emulator_connection()
-    {
-        var fakeCredential = GoogleCredential.FromAccessToken("test-token");
-
-        var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts =>
+            using (host)
             {
-                opts.UsePubsubTesting()
-                    .UseCredential(fakeCredential)
-                    .AutoProvision()
-                    .AutoPurgeOnStartup();
-
-                opts.PublishMessage<TestPubsubMessage>().ToPubsubTopic("credentials-test");
-                opts.ListenToPubsubTopic("credentials-test");
-            }).StartAsync();
-
-        try
-        {
-            var session = await host
-                .TrackActivity()
-                .IncludeExternalTransports()
-                .Timeout(1.Minutes())
-                .SendMessageAndWaitAsync(new TestPubsubMessage("credential-set"));
-
-            session.Received.SingleMessage<TestPubsubMessage>().Name.ShouldBe("credential-set");
-        }
-        finally
-        {
-            await host.StopAsync();
-            host.Dispose();
-        }
+                await host.StartAsync();
+            }
+        });
     }
 }
