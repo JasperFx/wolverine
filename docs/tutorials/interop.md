@@ -447,10 +447,13 @@ With CloudEvents interoperability:
 ## Interop with NServiceBus over Database Transports
 
 Besides the broker transports above, Wolverine can interoperate with NServiceBus over its
-[SQL Server transport](https://docs.particular.net/transports/sql/) by reading and writing the NServiceBus queue
-tables directly. Rather than a custom envelope mapper layered onto a shared broker, this is a dedicated transport that
-speaks Particular's documented [native integration](https://docs.particular.net/transports/sql/native-integration)
-contract — one table per queue with a JSON `Headers` column and a raw `Body` column.
+[SQL Server **and** PostgreSQL transports](https://docs.particular.net/transports/sql/) by reading and writing the
+NServiceBus queue tables directly. Rather than a custom envelope mapper layered onto a shared broker, these are
+dedicated transports that speak Particular's documented
+[native integration](https://docs.particular.net/transports/sql/native-integration) contract — one table per queue
+with a JSON `Headers` column and a raw `Body` column. The SQL Server flavor is shown below; PostgreSQL is identical
+with `UseNServiceBusPostgresqlInterop()` / `ListenToNServiceBusPostgresqlQueue()` / `ToNServiceBusPostgresqlQueue()`
+from `Wolverine.Postgresql.Transport.NServiceBus`.
 
 ```cs
 using Wolverine.SqlServer.Transport.NServiceBus;
@@ -483,6 +486,7 @@ A few things to note about NServiceBus database interop:
   `RegisterInteropMessageAssembly`.
 * Request/reply works: Wolverine stamps `NServiceBus.ReplyToAddress` from the endpoint you mark `UseForReplies()`.
 
-See the [SQL Server transport guide](/guide/durability/sqlserver.html#nservicebus-interoperability) for the full set of
-options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable,
-bidirectional sample with both frameworks hosted side by side.
+See the [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability) and
+[PostgreSQL](/guide/durability/postgresql.html#nservicebus-interoperability) transport guides for the full set of
+options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for runnable,
+bidirectional samples with both frameworks hosted side by side.

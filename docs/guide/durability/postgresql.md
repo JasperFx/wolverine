@@ -249,6 +249,49 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+## NServiceBus Interoperability <Badge type="tip" text="6.0" />
+
+Wolverine can exchange messages with an [NServiceBus](https://particular.net/nservicebus) endpoint that uses the
+[PostgreSQL transport](https://docs.particular.net/transports/sql/) by reading and writing the NServiceBus queue
+tables directly — the same database-backed interop available for [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability).
+One table per queue with a JSON `Headers` column and a raw `Body` column; Wolverine's own durable inbox/outbox still
+lives in its PostgreSQL message store, only the *queue* tables belong to NServiceBus.
+
+Because NServiceBus normally owns and provisions its own tables, `AutoProvision` is **off by default** for these endpoints.
+
+```cs
+using Wolverine.Postgresql.Transport.NServiceBus;
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine's durable inbox/outbox lives in PostgreSQL
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    // Opt into the NServiceBus PostgreSQL interop transport (autoProvision: true only if you
+    // want Wolverine to create the queue tables itself; NServiceBus usually owns them).
+    opts.UseNServiceBusPostgresqlInterop(autoProvision: false);
+
+    // Send Wolverine messages to the "nsb" NServiceBus endpoint table
+    opts.PublishMessage<OrderPlaced>().ToNServiceBusPostgresqlQueue("nsb");
+
+    // Listen for messages NServiceBus sends to Wolverine's own "wolverine" table,
+    // and use it as the reply address Wolverine stamps onto outgoing messages
+    opts.ListenToNServiceBusPostgresqlQueue("wolverine").UseForReplies();
+
+    // Let NServiceBus send interface-typed messages that Wolverine binds to concrete types
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+});
+```
+
+The queue tables are modeled and migrated through Weasel like every other Wolverine transport table, and the destructive
+receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A few PostgreSQL-specific notes:
+
+* NServiceBus uses lowercase column names; Wolverine's send/receive SQL matches them with unquoted identifiers.
+* NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
+  bare queue name so request/reply works in both directions.
+
+See the [interop tutorial](/tutorials/interop) for the bigger picture and the
+[wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable, bidirectional sample.
 
 ## Multi-Tenancy
 
