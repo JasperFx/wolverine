@@ -214,7 +214,13 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
-        _mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
+
+        // SQS only returns MessageAttributes when they were explicitly requested, and
+        // brokers/SDKs may hand back a null collection when a message carries none (as is
+        // the case for MassTransit/NServiceBus messages that keep their metadata in the body).
+        // Guarantee a non-null dictionary so ISqsEnvelopeMapper implementations can read freely.
+        var attributes = message.MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
+        _mapper.ReadEnvelopeData(envelope, message.Body, attributes);
 
         return envelope;
     }

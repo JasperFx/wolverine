@@ -244,7 +244,7 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
 
         if (sqs.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var replyQueue))
         {
-            envelope.ReplyUri = new Uri($"sqs://queue/{replyQueue}");
+            envelope.ReplyUri = new Uri($"sqs://{replyQueue}");
         }
 
         if (sqs.Headers.TryGetValue("NServiceBus.ContentType", out var contentType))
