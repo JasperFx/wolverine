@@ -106,7 +106,10 @@ internal class NServiceBusSqlServerEnvelopeMapper
     /// </summary>
     public Envelope MapIncoming(Guid id, string? headersJson, byte[] body)
     {
-        var envelope = new Envelope { Data = body };
+        // NServiceBus' JSON serializer prefixes the body with a UTF-8 BOM, which
+        // System.Text.Json rejects ('0xEF' is an invalid start of a value). Strip it so
+        // the configured serializer can read the payload.
+        var envelope = new Envelope { Data = StripUtf8Bom(body) };
 
         var headers = headersJson.IsNotEmpty()
             ? JsonSerializer.Deserialize(headersJson!, NServiceBusSqlJsonContext.Default.DictionaryStringString) ?? new()
@@ -181,6 +184,13 @@ internal class NServiceBusSqlServerEnvelopeMapper
         // Fall back to the bare type name; Wolverine's interop assembly registration
         // (RegisterInteropMessageAssembly) can still bind it to a concrete handler.
         return first.Split(',', StringSplitOptions.TrimEntries).First();
+    }
+
+    private static byte[] StripUtf8Bom(byte[] body)
+    {
+        return body.Length >= 3 && body[0] == 0xEF && body[1] == 0xBB && body[2] == 0xBF
+            ? body[3..]
+            : body;
     }
 
     private static Guid? ReadGuid(IReadOnlyDictionary<string, string> headers, string key)
