@@ -88,6 +88,32 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
 
     internal SqlServerMessageStore Storage { get; set; } = null!;
 
+    /// <summary>
+    /// Resolve the SQL Server connection string used for the NServiceBus queue tables. Works
+    /// before <see cref="ConnectAsync"/> has run (e.g. from the Weasel command line) by falling
+    /// back to the SQL Server message store registered for Wolverine's own persistence.
+    /// </summary>
+    internal string ResolveConnectionString(IWolverineRuntime runtime)
+    {
+        if (Settings is not null)
+        {
+            return Settings.ConnectionString!;
+        }
+
+        if (runtime.Storage is SqlServerMessageStore store)
+        {
+            return store.Settings.ConnectionString!;
+        }
+
+        if (runtime.Storage is MultiTenantedMessageStore mt && mt.Main is SqlServerMessageStore s)
+        {
+            return s.Settings.ConnectionString!;
+        }
+
+        throw new InvalidOperationException(
+            "The NServiceBus Sql Server interop transport requires Sql Server backed message persistence");
+    }
+
     public override IEnumerable<PropertyColumn> DiagnosticColumns()
     {
         yield return new PropertyColumn("NServiceBus Queue");

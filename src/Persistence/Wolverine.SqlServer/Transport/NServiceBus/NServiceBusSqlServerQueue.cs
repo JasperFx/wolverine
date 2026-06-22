@@ -1,7 +1,9 @@
 using JasperFx.Core;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Weasel.SqlServer;
+using Weasel.SqlServer.Tables;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -18,6 +20,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     private NServiceBusSqlServerEnvelopeMapper? _mapper;
     private NServiceBusSqlServerQueueSender? _sender;
+    private readonly Lazy<NServiceBusQueueTable> _queueTable;
 
     public NServiceBusSqlServerQueue(string name, NServiceBusSqlServerTransport parent,
         EndpointRole role = EndpointRole.Application) : base(ToUri(name), role)
@@ -31,6 +34,10 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
         // Wolverine's durable inbox/outbox table layout, so run buffered like the broker
         // interop transports do.
         Mode = EndpointMode.BufferedInMemory;
+
+        // Lazy so the transport schema name is settled before the table identifier is built.
+        _queueTable = new Lazy<NServiceBusQueueTable>(
+            () => new NServiceBusQueueTable(new DbObjectName(Parent.SchemaName, Name)));
     }
 
     public string Name { get; }
@@ -55,7 +62,13 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
     /// </summary>
     public TimeSpan? PollingInterval { get; set; }
 
-    internal string TableIdentifier => $"[{Parent.SchemaName}].[{Name}]";
+    /// <summary>
+    /// The Weasel model of the NServiceBus queue table. Used for all schema management and as
+    /// the single source of truth for the table name in the send/receive DML.
+    /// </summary>
+    internal Table QueueTable => _queueTable.Value;
+
+    internal DbObjectName TableIdentifier => QueueTable.Identifier;
 
     protected override bool supportsMode(EndpointMode mode)
     {
@@ -108,16 +121,16 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
         }
     }
 
+    // IBrokerQueue.CheckAsync compares the live table against the Weasel model. Used by the
+    // resource model / db-assert; not on the message hot path.
     public async ValueTask<bool> CheckAsync()
     {
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
         try
         {
-            await using var cmd = conn.CreateCommand(
-                $"SELECT CASE WHEN OBJECT_ID(N'{Parent.SchemaName}.{Name}', N'U') IS NULL THEN 0 ELSE 1 END");
-            var exists = (int)(await cmd.ExecuteScalarAsync())!;
-            return exists == 1;
+            var delta = await QueueTable.FindDeltaAsync(conn);
+            return !delta.HasChanges();
         }
         finally
         {
@@ -131,12 +144,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
         await conn.OpenAsync();
         try
         {
-            await using var schemaCmd = conn.CreateCommand(
-                $"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{Parent.SchemaName}') EXEC('CREATE SCHEMA [{Parent.SchemaName}]')");
-            await schemaCmd.ExecuteNonQueryAsync();
-
-            await using var cmd = conn.CreateCommand(CreateTableSql());
-            await cmd.ExecuteNonQueryAsync();
+            await QueueTable.ApplyChangesAsync(conn);
         }
         finally
         {
@@ -150,8 +158,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
         await conn.OpenAsync();
         try
         {
-            await using var cmd = conn.CreateCommand($"DROP TABLE IF EXISTS {TableIdentifier}");
-            await cmd.ExecuteNonQueryAsync();
+            await QueueTable.Drop(conn);
         }
         finally
         {
@@ -161,12 +168,12 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public async ValueTask PurgeAsync(ILogger logger)
     {
-        if (!await CheckAsync()) return;
-
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
         try
         {
+            if (!await tableExistsAsync(conn)) return;
+
             await using var cmd = conn.CreateCommand($"DELETE FROM {TableIdentifier}");
             await cmd.ExecuteNonQueryAsync();
         }
@@ -184,12 +191,12 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
 
     public async Task<long> CountAsync()
     {
-        if (!await CheckAsync()) return 0;
-
         await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
         await conn.OpenAsync();
         try
         {
+            if (!await tableExistsAsync(conn)) return 0;
+
             await using var cmd = conn.CreateCommand($"SELECT COUNT(*) FROM {TableIdentifier}");
             return (int)(await cmd.ExecuteScalarAsync())!;
         }
@@ -199,25 +206,28 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
         }
     }
 
-    // Matches the NServiceBus SQL Server transport queue table layout, including the
-    // legacy CorrelationId/ReplyToAddress/Recoverable columns the transport still probes.
-    private string CreateTableSql()
+    /// <summary>
+    /// Lightweight existence probe (a read, not a schema change) used to guard runtime DML and
+    /// the sender ping. Schema creation/migration goes through <see cref="SetupAsync"/> / Weasel.
+    /// </summary>
+    internal async Task<bool> ExistsAsync()
     {
-        return $@"
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'{Parent.SchemaName}.{Name}') AND type = 'U')
-BEGIN
-    CREATE TABLE {TableIdentifier} (
-        Id uniqueidentifier NOT NULL,
-        CorrelationId varchar(255),
-        ReplyToAddress varchar(255),
-        Recoverable bit NOT NULL,
-        Expires datetime,
-        Headers nvarchar(max) NOT NULL,
-        Body varbinary(max),
-        RowVersion bigint IDENTITY(1,1) NOT NULL
-    );
-    CREATE CLUSTERED INDEX [Index_RowVersion] ON {TableIdentifier} (RowVersion);
-    CREATE NONCLUSTERED INDEX [Index_Expires] ON {TableIdentifier} (Expires) WHERE Expires IS NOT NULL;
-END";
+        await using var conn = new SqlConnection(Parent.Settings.ConnectionString);
+        await conn.OpenAsync();
+        try
+        {
+            return await tableExistsAsync(conn);
+        }
+        finally
+        {
+            await conn.CloseAsync();
+        }
+    }
+
+    private async Task<bool> tableExistsAsync(SqlConnection conn)
+    {
+        await using var cmd = conn.CreateCommand("SELECT CASE WHEN OBJECT_ID(@name, N'U') IS NULL THEN 0 ELSE 1 END")
+            .With("name", TableIdentifier.QualifiedName);
+        return (int)(await cmd.ExecuteScalarAsync())! == 1;
     }
 }

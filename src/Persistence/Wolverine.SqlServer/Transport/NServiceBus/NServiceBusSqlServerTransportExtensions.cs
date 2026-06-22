@@ -1,5 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.DependencyInjection;
+using Weasel.Core.Migrations;
 using Wolverine.Configuration;
 
 namespace Wolverine.SqlServer.Transport.NServiceBus;
@@ -18,6 +20,9 @@ public static class NServiceBusSqlServerTransportExtensions
         {
             transport = new NServiceBusSqlServerTransport();
             options.Transports.Add(transport);
+
+            // Expose the NServiceBus queue tables to the Weasel resource model / command line.
+            options.Services.AddTransient<IDatabase, NServiceBusSqlServerTransportDatabase>();
         }
 
         if (schema.IsNotEmpty())

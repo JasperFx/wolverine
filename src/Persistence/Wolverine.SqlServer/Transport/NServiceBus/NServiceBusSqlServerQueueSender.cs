@@ -34,7 +34,7 @@ internal class NServiceBusSqlServerQueueSender : ISender
     {
         try
         {
-            return await _queue.CheckAsync();
+            return await _queue.ExistsAsync();
         }
         catch (Exception)
         {
