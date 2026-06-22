@@ -328,6 +328,44 @@ using var host = await Host.CreateDefaultBuilder()
 
 This creates Pulsar topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
+## Schema Support <Badge type="tip" text="6.8" />
+
+Schema is one of Pulsar's defining features: the broker stores a schema per topic and enforces schema
+**compatibility / evolution** rules when producers and consumers connect. Wolverine can register a **JSON
+schema** for a topic so you get that broker-side registration and compatibility checking, while Wolverine
+continues to own the message body (its normal `System.Text.Json` serialization):
+
+```csharp
+// Producing endpoint
+opts.PublishMessage<OrderPlaced>()
+    .ToPulsarTopic("persistent://public/default/orders")
+    .UseJsonSchema<OrderPlaced>();
+
+// Listening endpoint — register a compatible schema
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .UseJsonSchema<OrderPlaced>();
+```
+
+`UseJsonSchema<T>()` generates the Avro-format JSON schema Pulsar uses for `SchemaType.Json` from the CLR
+type's public properties and registers it with the broker when the producer/consumer connects. The schema
+covers the common POCO shapes (primitives, strings, enums and `Guid`/`DateTime` as strings, nullable value
+types as `["null", T]` unions, arrays, and nested records) and falls back to `string` for anything it
+can't map, so registration never fails on an exotic property.
+
+::: info The body stays Wolverine-serialized
+The schema is a **pass-through** over the bytes Wolverine already serializes — it declares the schema the
+broker stores and checks for compatibility, but does not change how the body is encoded. Existing
+raw-bytes and CloudEvents endpoints are unaffected (no schema is registered unless you opt in).
+:::
+
+For full control — a custom schema definition, a different `SchemaType`, or your own codec — supply an
+`ISchema<ReadOnlySequence<byte>>` directly:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .UsePulsarSchema(myCustomSchema);
+```
+
 ## Interoperability
 
 ::: tip

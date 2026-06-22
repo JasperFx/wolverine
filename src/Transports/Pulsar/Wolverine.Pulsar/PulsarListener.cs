@@ -59,7 +59,13 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
-        var consumerBuilder = transport.Client!.NewConsumer()
+        // GH-3183: when an endpoint schema is configured, create the consumer with it so the broker
+        // registers/enforces the schema for the topic. The schema is a pass-through over Wolverine's
+        // bytes, so the builder is still IConsumerBuilder<ReadOnlySequence<byte>> and the receive path is
+        // unchanged.
+        var consumerBuilder = (endpoint.Schema != null
+                ? transport.Client!.NewConsumer(endpoint.Schema)
+                : transport.Client!.NewConsumer())
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
             .InitialPosition(endpoint.SubscriptionInitialPosition);

@@ -9,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Pulsar.ErrorHandling;
 using Wolverine.Pulsar.Internal;
+using Wolverine.Pulsar.Schemas;
 using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Pulsar;
@@ -327,6 +328,29 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     public PulsarListenerConfiguration UseNativeRedelivery()
     {
         add(e => { e.UseNativeRedelivery = true; });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar JSON schema for <typeparamref name="T"/> on this listener (GH-3183). The broker
+    /// registers the topic's JSON schema (enabling schema compatibility checks + evolution); the message
+    /// body remains Wolverine's normal JSON serialization. The producing endpoint must register a
+    /// compatible schema.
+    /// </summary>
+    public PulsarListenerConfiguration UseJsonSchema<T>()
+    {
+        add(e => e.Schema = PulsarSchema.ForJson(typeof(T)));
+        return this;
+    }
+
+    /// <summary>
+    /// Register a custom Pulsar schema on this listener (GH-3183). The schema's <c>SchemaInfo</c> is what
+    /// the broker stores for the topic; <c>Encode</c>/<c>Decode</c> operate over the bytes Wolverine
+    /// serializes, so use a pass-through schema unless you are also replacing Wolverine's body serializer.
+    /// </summary>
+    public PulsarListenerConfiguration UsePulsarSchema(ISchema<ReadOnlySequence<byte>> schema)
+    {
+        add(e => e.Schema = schema);
         return this;
     }
 
@@ -684,6 +708,27 @@ public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguratio
     public PulsarSubscriberConfiguration ConfigureProducer(Action<IProducerBuilder<ReadOnlySequence<byte>>> configure)
     {
         add(e => { e.ConfigureProducer = configure; });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar JSON schema for <typeparamref name="T"/> on this sending endpoint (GH-3183). The
+    /// broker registers the topic's JSON schema; the message body remains Wolverine's normal JSON
+    /// serialization. The consuming endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarSubscriberConfiguration UseJsonSchema<T>()
+    {
+        add(e => e.Schema = PulsarSchema.ForJson(typeof(T)));
+        return this;
+    }
+
+    /// <summary>
+    /// Register a custom Pulsar schema on this sending endpoint (GH-3183). See
+    /// <see cref="PulsarListenerConfiguration.UsePulsarSchema"/>.
+    /// </summary>
+    public PulsarSubscriberConfiguration UsePulsarSchema(ISchema<ReadOnlySequence<byte>> schema)
+    {
+        add(e => e.Schema = schema);
         return this;
     }
 }
