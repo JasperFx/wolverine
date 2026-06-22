@@ -187,7 +187,22 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public async ValueTask DeferAsync(Envelope envelope)
     {
-        if (_enableRequeue && _sender is not null && envelope is PulsarEnvelope e)
+        if (envelope is not PulsarEnvelope e)
+        {
+            return;
+        }
+
+        if (_endpoint.UseNativeRedelivery)
+        {
+            var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+            // Native per-message redelivery: leave the message unacknowledged and ask Pulsar to
+            // redeliver just this one message (preserves its redelivery count) — #3177.
+            await consumer!.RedeliverUnacknowledgedMessages(
+                [FixMessageId(e.MessageData.MessageId, consumer.Topic)], _cancellation);
+            return;
+        }
+
+        if (_enableRequeue && _sender is not null)
         {
             var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
             await consumer!.Acknowledge(FixMessageId(e.MessageData.MessageId, consumer.Topic), _cancellation);
@@ -262,16 +277,34 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             throw new InvalidOperationException("Requeue is not enabled for this endpoint");
         }
 
-        if (_sender is not null && envelope is PulsarEnvelope)
+        if (envelope is PulsarEnvelope e)
         {
-            await _sender.SendAsync(envelope);
-            return true;
+            if (_endpoint.UseNativeRedelivery)
+            {
+                var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
+                await consumer!.RedeliverUnacknowledgedMessages(
+                    [FixMessageId(e.MessageData.MessageId, consumer.Topic)], _cancellation);
+                return true;
+            }
+
+            if (_sender is not null)
+            {
+                await _sender.SendAsync(envelope);
+                return true;
+            }
         }
 
         return false;
     }
 
     public bool NativeDeadLetterQueueEnabled { get; }
+
+    /// <summary>
+    /// Whether this listener should use Pulsar's native per-message redelivery for failed messages
+    /// when no retry-letter / dead-letter topic is configured. See #3177.
+    /// </summary>
+    internal bool UsesNativeRedelivery => _endpoint.UseNativeRedelivery;
+
     public RetryLetterTopic? RetryLetterTopic => _endpoint.RetryLetterTopic;
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)

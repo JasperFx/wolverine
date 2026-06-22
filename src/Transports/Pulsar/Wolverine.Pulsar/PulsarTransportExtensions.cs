@@ -296,6 +296,20 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Requeue/defer a failed message using Pulsar's native per-message redelivery
+    /// (<c>RedeliverUnacknowledgedMessages</c>) instead of acknowledging it and re-publishing a
+    /// fresh copy to the source topic. The original message is left unacknowledged and Pulsar
+    /// redelivers just that one message, preserving its redelivery count. For delayed/backoff
+    /// redelivery use the retry-letter topics instead.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration UseNativeRedelivery()
+    {
+        add(e => { e.UseNativeRedelivery = true; });
+        return this;
+    }
+
+    /// <summary>
     /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
