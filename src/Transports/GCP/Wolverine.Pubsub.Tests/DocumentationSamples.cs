@@ -343,6 +343,27 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task use_credential_rolling()
+    {
+        #region sample_pubsub_use_credential_rolling
+        // A holder that vends a short-lived GoogleCredential and refreshes it as it nears expiry.
+        // Short-lived access tokens minted via GoogleCredential.FromAccessToken cannot refresh
+        // themselves, so something has to hand out a new one over time.
+        var credentials = new RollingCredentialSource();
+
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+
+                    // The async factory is invoked again on every listener (re)connect, so each
+                    // reconnect picks up the freshest credential without restarting the host.
+                    .UseCredential(() => credentials.GetAsync());
+            }).StartAsync();
+
+        #endregion
+    }
+
     public async Task customize_mappers()
     {
         #region sample_configuring_custom_envelope_mapper_for_pubsub
@@ -399,6 +420,54 @@ public class CustomPubsubMapper : EnvelopeMapper<PubsubMessage, PubsubMessage>, 
 
         return false;
     }
+}
+
+#endregion
+
+#region sample_pubsub_rolling_credential_source
+// A thread-safe source of short-lived credentials. The cached credential is reused until it
+// nears expiry, then refreshed once (other callers wait on the same refresh). Because Wolverine
+// rebuilds the streaming subscriber client on every listener (re)connect — for example after a
+// DEADLINE_EXCEEDED restart — GetAsync runs again each time and the listener transparently
+// adopts the latest credential.
+public class RollingCredentialSource
+{
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly TimeSpan _refreshMargin = TimeSpan.FromMinutes(5);
+    private GoogleCredential? _current;
+    private DateTimeOffset _expiresAt = DateTimeOffset.MinValue;
+
+    public async ValueTask<GoogleCredential> GetAsync()
+    {
+        // Fast path: the cached credential is still comfortably valid
+        if (_current is not null && DateTimeOffset.UtcNow < _expiresAt - _refreshMargin)
+        {
+            return _current;
+        }
+
+        await _lock.WaitAsync();
+        try
+        {
+            // Double-check inside the lock in case another connect already refreshed it
+            if (_current is null || DateTimeOffset.UtcNow >= _expiresAt - _refreshMargin)
+            {
+                var (token, lifetime) = await FetchAccessTokenAsync();
+                _current = GoogleCredential.FromAccessToken(token);
+                _expiresAt = DateTimeOffset.UtcNow + lifetime;
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return _current;
+    }
+
+    // Replace with a real call to your token-vending source — e.g. Azure Key Vault, AWS Secrets
+    // Manager, GCP STS, or an internal token broker. Return the access token and how long it lives.
+    private Task<(string token, TimeSpan lifetime)> FetchAccessTokenAsync()
+        => throw new NotImplementedException();
 }
 
 #endregion
