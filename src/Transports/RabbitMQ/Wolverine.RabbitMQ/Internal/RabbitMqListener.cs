@@ -219,9 +219,54 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         }
     }
 
+    /// <summary>
+    /// Eagerly rebuild the listener after an unexpected channel-only shutdown where the
+    /// connection is still alive (#3171). A listener sits blocked on the broker and never
+    /// calls EnsureInitiated again on its own, so unlike a sender it cannot heal lazily —
+    /// we re-declare and re-consume here. If the whole connection dropped, we let the
+    /// ConnectionMonitor recovery path own the rebuild to avoid a double restart.
+    /// </summary>
+    protected override void HandleUnexpectedChannelShutdown()
+    {
+        if (!ConnectionIsLive)
+        {
+            return;
+        }
+
+#pragma warning disable VSTHRD110
+        Task.Run(async () =>
+#pragma warning restore VSTHRD110
+        {
+            try
+            {
+                await ReconnectedAsync();
+                Logger.LogInformation(
+                    "Rebuilt the Rabbit MQ listener at {Uri} after an unexpected channel shutdown", Address);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e,
+                    "Error trying to rebuild the Rabbit MQ listener at {Uri} after an unexpected channel shutdown",
+                    Address);
+            }
+        });
+    }
+
     internal override async Task ReconnectedAsync()
     {
-        await StopAsync();
+        try
+        {
+            await StopAsync();
+        }
+        catch (Exception e)
+        {
+            // The channel may already be dead, in which case cancelling the consumers throws.
+            // That's fine — we're about to tear it down and rebuild anyway.
+            Logger.LogDebug(e,
+                "Error cancelling consumers on a dead channel for {Uri} during reconnect; continuing with rebuild",
+                Address);
+        }
+
         await teardownChannel();
         await CreateAsync();
 
