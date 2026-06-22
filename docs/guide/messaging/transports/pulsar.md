@@ -412,6 +412,37 @@ opts.ListenToPulsarTopic("persistent://public/default/orders")
     .UsePulsarSchema(myCustomSchema);
 ```
 
+## Producer Deduplication <Badge type="tip" text="6.8" />
+
+Pulsar can deduplicate messages **at the broker** using a per-producer sequence id, so a message that is
+sent more than once — most commonly an outbox **resend** of the same envelope after a transient failure —
+is stored only once. Opt in on a sending endpoint with `EnableDeduplication()`:
+
+```csharp
+opts.PublishMessage<OrderPlaced>()
+    .ToPulsarTopic("persistent://public/default/orders")
+    .EnableDeduplication();
+```
+
+Wolverine creates the producer with a **stable producer name** and stamps a monotonic sequence id per
+message, reusing the same sequence id when the *same envelope* is sent again so the broker discards the
+duplicate. A brand-new message always gets a new id and is delivered normally.
+
+You must also enable deduplication on the broker side (it is off by default), e.g.:
+
+```bash
+pulsar-admin namespaces set-deduplication public/default --enable
+# or per topic:
+pulsar-admin topics set-deduplication-status persistent://public/default/orders --enable
+```
+
+::: warning Producer→broker only — not end-to-end exactly-once
+This suppresses duplicates on the **produce** side; it is not a transactional read-process-write
+exactly-once engine (a deliberate non-goal for the transport — and Pulsar transactions are not exposed by
+the DotPulsar client). Deduplication keys on `(producer name, sequence id)`, so pass a fixed
+`EnableDeduplication("my-producer")` name if you need it to hold across process restarts.
+:::
+
 ## Interoperability
 
 ::: tip
