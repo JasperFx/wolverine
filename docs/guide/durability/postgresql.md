@@ -293,6 +293,44 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 See the [interop tutorial](/tutorials/interop) for the bigger picture and the
 [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable, bidirectional sample.
 
+## MassTransit Interoperability <Badge type="tip" text="6.0" />
+
+Wolverine can also interoperate with a [MassTransit](https://masstransit.io) application that uses the
+[PostgreSQL SQL transport](https://masstransit.io/documentation/transports/sql). Unlike NServiceBus' documented
+table contract, MassTransit's SQL transport is a function-driven, two-table model
+(`transport.message` + `transport.message_delivery`) that MassTransit **owns and migrates itself**, so Wolverine
+interoperates by calling MassTransit's stored functions — `send_message` to publish, `fetch_messages` to lease, and
+`delete_message`/`unlock_message` to ack/nack — rather than reading and writing a table directly. MassTransit must be
+running (or have run) to migrate the `transport` schema; Wolverine never provisions it (beyond optionally calling
+`create_queue_v2` for a queue it listens to).
+
+```cs
+using Wolverine.Postgresql.Transport.MassTransit;
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine's durable inbox/outbox lives in PostgreSQL
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    // Opt into the MassTransit PostgreSQL interop transport. autoProvision: true makes Wolverine
+    // call create_queue_v2 for its own listening queues.
+    opts.UseMassTransitPostgresqlInterop(autoProvision: true);
+
+    // Send Wolverine messages to a MassTransit queue
+    opts.PublishMessage<OrderPlaced>().ToMassTransitPostgresqlQueue("masstransit");
+
+    // Listen to the queue MassTransit sends to, and use it for replies
+    opts.ListenToMassTransitPostgresqlQueue("wolverine").UseForReplies();
+
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+});
+```
+
+Wolverine writes the bare message JSON into the `body` column and the envelope fields into the message columns,
+emitting the MassTransit `urn:message:{Namespace}:{TypeName}` message type. Incoming messages are leased through
+`fetch_messages` and acked/nacked with the `(message_delivery_id, lock_id)` pair MassTransit hands back. Message
+types are resolved against the assemblies you register with `RegisterInteropMessageAssembly`.
+
 ## Multi-Tenancy
 
 As of Wolverine 4.0, you have two ways to use multi-tenancy through separate databases per tenant with PostgreSQL:

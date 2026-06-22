@@ -490,3 +490,43 @@ See the [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperabili
 [PostgreSQL](/guide/durability/postgresql.html#nservicebus-interoperability) transport guides for the full set of
 options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for runnable,
 bidirectional samples with both frameworks hosted side by side.
+
+## Interop with MassTransit over Database Transports
+
+Wolverine can also interoperate with MassTransit over its
+[PostgreSQL SQL transport](https://masstransit.io/documentation/transports/sql). This is quite different from the
+NServiceBus database interop above: MassTransit's SQL transport is a function-driven, two-table model
+(`transport.message` + `transport.message_delivery`) that MassTransit owns and migrates itself. Rather than reading and
+writing a table, Wolverine calls MassTransit's stored functions — `send_message` to publish, `fetch_messages` to lease
+a batch, and `delete_message` / `unlock_message` to ack / nack.
+
+```cs
+using Wolverine.Postgresql.Transport.MassTransit;
+
+builder.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    opts.UseMassTransitPostgresqlInterop(autoProvision: true);
+
+    opts.PublishMessage<OrderPlaced>().ToMassTransitPostgresqlQueue("masstransit");
+
+    opts.ListenToMassTransitPostgresqlQueue("wolverine").UseForReplies();
+
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+});
+```
+
+A few things to note:
+
+* MassTransit owns and migrates its `transport` schema, so it must be running (or have run) to create it. Wolverine
+  never provisions that schema — `autoProvision: true` only calls `create_queue_v2` for the queues Wolverine listens to.
+* Wolverine writes the **bare** message JSON to the `body` column plus the envelope fields as columns, and emits the
+  MassTransit `urn:message:{Namespace}:{TypeName}` message type. This is *not* the wrapped
+  `application/vnd.masstransit+json` envelope used by the broker transports above.
+* Receive is lease-based: each fetched message carries a `(message_delivery_id, lock_id)` pair that Wolverine uses to
+  ack (`delete_message`) on success or nack (`unlock_message`) on failure.
+
+See the [PostgreSQL transport guide](/guide/durability/postgresql.html#masstransit-interoperability) for the full set of
+options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable,
+bidirectional sample.
