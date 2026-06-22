@@ -196,6 +196,56 @@ public class KafkaListenerConfigurationTests
             new KafkaListenerConfiguration(BuildTopic())
                 .ExtendConsumerConfiguration(null!));
     }
+
+    [Fact]
+    public void begin_at_earliest_inherits_group_id_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.GroupId = "my-group";
+        topic.Parent.ConsumerConfig.BootstrapServers = "localhost:9092";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .BeginAtEarliest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.GroupId.ShouldBe("my-group");
+        effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
+        effective.BootstrapServers.ShouldBe("localhost:9092");
+    }
+
+    [Fact]
+    public void begin_at_latest_inherits_group_id_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.GroupId = "my-group";
+        topic.Parent.ConsumerConfig.BootstrapServers = "localhost:9092";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .BeginAtLatest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.GroupId.ShouldBe("my-group");
+        effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Latest);
+        effective.BootstrapServers.ShouldBe("localhost:9092");
+    }
+
+    [Fact]
+    public void begin_at_earliest_does_not_override_explicitly_set_group_id()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.GroupId = "parent-group";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .ConfigureConsumer(c => c.GroupId = "topic-group")
+            .BeginAtEarliest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.GroupId.ShouldBe("topic-group");
+        effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
+    }
 }
 
 public class UseKafkaUsingNamedConnectionTests

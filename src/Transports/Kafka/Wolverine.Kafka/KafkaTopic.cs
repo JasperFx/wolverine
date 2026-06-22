@@ -147,6 +147,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             ConsumerConfig.BootstrapServers = Parent.ConsumerConfig.BootstrapServers;
         }
 
+        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.GroupId))
+        {
+            ConsumerConfig.GroupId = Parent.ConsumerConfig.GroupId;
+        }
+
         return ConsumerConfig ?? Parent.ConsumerConfig;
     }
 
