@@ -412,8 +412,15 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     {
         if (!SystemQueuesEnabled) return;
 
-        // Create a per-node reply stream endpoint similar to other transports (using database 0)
-        var replyStreamKey = $"wolverine.response.{runtime.Options.ServiceName}.{runtime.DurabilitySettings.AssignedNodeNumber}".ToLowerInvariant();
+        // Create a per-node reply stream endpoint similar to other transports (using database 0).
+        // In Solo mode the assigned node number is always 1 (#3188) and the service name is not
+        // unique per host, so multiple Solo hosts on one Redis would share a reply stream and
+        // cross-deliver replies — key on the always-unique UniqueNodeId instead. Balanced gets a
+        // unique AssignedNodeNumber via election. See #3189.
+        var replyNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
+        var replyStreamKey = $"wolverine.response.{runtime.Options.ServiceName}.{replyNode}".ToLowerInvariant();
         var cacheKey = $"{ReplyDatabaseId}:{replyStreamKey}";
         var replyEndpoint = new RedisStreamEndpoint(
             new Uri($"{ProtocolName}://stream/{ReplyDatabaseId}/{replyStreamKey}?consumerGroup=wolverine-replies"),

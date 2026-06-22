@@ -149,6 +149,18 @@ public partial class WolverineRuntime : IAgentRuntime
     {
         if (Storage is NullMessageStore)
         {
+            // A Solo host is always logically node 1, even with no durable store to coordinate
+            // through. StartSoloModeAsync() — the only place a stored Solo node gets its number —
+            // sits past this early return, so without this a storeless Solo host keeps its random
+            // per-process default and leaks a churning id into heartbeats / envelope ownership.
+            // Identity must be set here, before the messaging transports start; the matching
+            // NodeStarted()/NodeStopped() lifecycle bookends are owned by SoloHeartbeatService so
+            // they fire while transports are up. See #3188.
+            if (Options.Durability.Mode == DurabilityMode.Solo)
+            {
+                Options.Durability.AssignedNodeNumber = 1;
+            }
+
             return;
         }
 

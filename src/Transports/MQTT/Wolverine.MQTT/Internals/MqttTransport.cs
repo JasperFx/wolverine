@@ -49,7 +49,15 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
     public override async ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
-        ResponseTopic = "wolverine/response/" + runtime.Options.Durability.AssignedNodeNumber;
+        // The per-node reply topic must be unique to this running node. In Solo mode the assigned
+        // node number is always 1 (#3188), so several Solo services on one broker would collide on
+        // the same topic and cross-deliver each other's replies — use the always unique
+        // UniqueNodeId instead. Balanced nodes get a unique AssignedNodeNumber via election, so they
+        // keep the existing, more readable topic. See #3189.
+        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : runtime.Options.Durability.AssignedNodeNumber.ToString();
+        ResponseTopic = "wolverine/response/" + responseNode;
         var mqttTopic = Topics[ResponseTopic];
         mqttTopic.IsUsedForReplies = true;
         mqttTopic.IsListener = true;

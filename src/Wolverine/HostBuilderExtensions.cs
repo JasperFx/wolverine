@@ -27,6 +27,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Runtime.Heartbeat;
 
 namespace Wolverine;
 
@@ -203,6 +204,13 @@ public static class HostBuilderExtensions
         
         // The runtime is also a hosted service
         services.AddSingleton(s => (IHostedService)s.GetRequiredService<IWolverineRuntime>());
+
+        // Lightweight Solo liveness bookends for a storeless Solo host (#3188). Registered AFTER
+        // the runtime hosted service so NodeStarted() fires once transports are up, and (hosted
+        // services stop in reverse) NodeStopped() fires before the runtime tears them down.
+        // No-ops unless the host is Solo with a NullMessageStore.
+        services.AddSingleton<SoloHeartbeatService>();
+        services.AddSingleton(s => (IHostedService)s.GetRequiredService<SoloHeartbeatService>());
 
         services.MessagingRootService(x => x.MessageTracking);
 

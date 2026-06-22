@@ -166,8 +166,17 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         // and SQS queue names are case-sensitive. Without this, the sender creates
         // "wolverine-response-MyApp-123" but the receiver resolves the reply URI
         // to "wolverine-response-myapp-123" (lowercased by Uri), creating a different queue.
+        // The per-node response queue must be unique to this running node. In Solo mode the assigned
+        // node number is always 1 (#3188), and the service name is not unique per host, so multiple
+        // Solo hosts (e.g. the request/reply compliance sender + receiver, or successive fixtures on
+        // one broker) would share one response queue and cross-deliver each other's replies. Use the
+        // always-unique UniqueNodeId in Solo; Balanced gets a unique AssignedNodeNumber via election.
+        // See #3189.
+        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
         var responseName = SanitizeSqsName(
-            $"wolverine.response.{runtime.Options.ServiceName}.{runtime.DurabilitySettings.AssignedNodeNumber}")
+            $"wolverine.response.{runtime.Options.ServiceName}.{responseNode}")
             .ToLowerInvariant();
 
         var queue = Queues[responseName];

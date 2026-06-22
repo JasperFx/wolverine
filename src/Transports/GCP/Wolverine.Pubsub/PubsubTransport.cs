@@ -161,7 +161,15 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
             return;
         }
 
-        var responseName = $"{ResponseName}.{Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber)}";
+        // The per-node response endpoint must be unique to this running node. In Solo mode the
+        // assigned node number is always 1 (#3188), so several Solo services sharing a project would
+        // collide on the same response subscription and cross-deliver each other's replies — use the
+        // always unique UniqueNodeId instead. Balanced nodes get a unique AssignedNodeNumber via
+        // election, so they keep the existing node-number name. See #3189.
+        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : Math.Abs(runtime.DurabilitySettings.AssignedNodeNumber).ToString();
+        var responseName = $"{ResponseName}.{responseNode}";
         var responseTopic = new PubsubEndpoint(responseName, this, EndpointRole.System);
 
         responseTopic.IsListener = responseTopic.IsUsedForReplies = true;
