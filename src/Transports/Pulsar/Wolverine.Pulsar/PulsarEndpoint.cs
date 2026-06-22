@@ -47,6 +47,29 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     /// </summary>
     public RetryLetterTopic? RetryLetterTopic { get; set; }
 
+    /// <summary>
+    /// The dead letter topic actually in effect for this endpoint: the per-endpoint
+    /// <see cref="DeadLetterTopic"/> override if set, otherwise the transport-wide default
+    /// (<see cref="PulsarTransport.DeadLetterTopic"/>). Per-endpoint configuration always wins.
+    /// </summary>
+    internal DeadLetterTopic? EffectiveDeadLetterTopic => DeadLetterTopic ?? _parent.DeadLetterTopic;
+
+    /// <summary>
+    /// The retry letter topic actually in effect for this endpoint: the per-endpoint
+    /// <see cref="RetryLetterTopic"/> override if set, otherwise the transport-wide default
+    /// (<see cref="PulsarTransport.RetryLetterTopic"/>). Per-endpoint configuration always wins.
+    /// </summary>
+    internal RetryLetterTopic? EffectiveRetryLetterTopic => RetryLetterTopic ?? _parent.RetryLetterTopic;
+
+    /// <summary>
+    /// Native dead-lettering routes failed messages to a real Pulsar topic, so report that
+    /// (rather than the durable default) to monitoring when a native DLQ is in effect.
+    /// </summary>
+    public override DeadLetterStorageMode DeadLetterStorage =>
+        EffectiveDeadLetterTopic is { Mode: DeadLetterTopicMode.Native }
+            ? DeadLetterStorageMode.Native
+            : DeadLetterStorageMode.Durable;
+
     public bool IsPersistent => Persistence.Equals(Persistent);
 
     /// <summary>
@@ -112,13 +135,15 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
     {
+        // Resolves the former DLQ-sender stub TODO. Pulsar dead-lettering is intentionally NOT done
+        // through an endpoint-level sender:
+        //  - Native mode is handled by PulsarListener (ISupportDeadLetterQueue), which produces to the
+        //    {topic}-DLQ topic with the native reconsume metadata and retry-letter-topic chaining.
+        //  - WolverineStorage mode is handled by the durable dead letter store.
+        // Returning a sender here would make BufferedReceiver/DurableReceiver report
+        // NativeDeadLetterQueueEnabled, which MessageContext.tryGetDeadLetterQueue prefers over the
+        // listener — hijacking the richer native path and dropping the reconsume metadata. So we
+        // defer to the base (no native endpoint sender). See #3186.
         return base.TryBuildDeadLetterSender(runtime, out deadLetterSender);
-
-
-        // TODO: ?
-        //var queueName =  this.DeadLetterTopic?.TopicName ?? _parent.DeadLetterTopic.TopicName;
-        //var dlq = _parent[UriFor(queueName)];
-        //deadLetterSender = dlq.CreateSender(runtime);
-        //return true;
     }
 }

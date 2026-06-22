@@ -32,24 +32,23 @@ public static class PulsarTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="configure"></param>
-    public static void UsePulsar(this WolverineOptions endpoints, Action<IPulsarClientBuilder> configure)
+    public static PulsarConfiguration UsePulsar(this WolverineOptions endpoints, Action<IPulsarClientBuilder> configure)
     {
-        // doesn't apply the policy?!?:
-        //endpoints.Policies.Add<PulsarNativeResiliencyPolicy>();
-        //endpoints.Policies.Add(new PulsarNativeResiliencyPolicy());
-
         new PulsarNativeResiliencyPolicy().Apply(endpoints);
 
-        configure(endpoints.PulsarTransport().Builder);
+        var transport = endpoints.PulsarTransport();
+        configure(transport.Builder);
+
+        return new PulsarConfiguration(transport);
     }
 
     /// <summary>
     ///     Connect to a local, standalone Pulsar broker at the default port
     /// </summary>
     /// <param name="endpoints"></param>
-    public static void UsePulsar(this WolverineOptions endpoints)
+    public static PulsarConfiguration UsePulsar(this WolverineOptions endpoints)
     {
-        endpoints.UsePulsar(_ => { });
+        return endpoints.UsePulsar(_ => { });
     }
 
     /// <summary>
