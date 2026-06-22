@@ -55,12 +55,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             .Topic(endpoint.PulsarTopic())
             .Create();
 
-        NativeDeadLetterQueueEnabled = (transport.DeadLetterTopic is not null &&
-                                       transport.DeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage) ||
-                                       (endpoint.DeadLetterTopic is not null && endpoint.DeadLetterTopic.Mode !=
-                                       DeadLetterTopicMode.WolverineStorage);
+        // Per-endpoint-override-wins resolution (endpoint override, else transport default).
+        NativeDeadLetterQueueEnabled = endpoint.EffectiveDeadLetterTopic is not null &&
+                                       endpoint.EffectiveDeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
 
-        NativeRetryLetterQueueEnabled = endpoint.RetryLetterTopic is not null &&
+        NativeRetryLetterQueueEnabled = endpoint.EffectiveRetryLetterTopic is not null &&
                                         RetryLetterTopic.SupportedSubscriptionTypes.Contains(endpoint.SubscriptionType);
 
         trySetupNativeResiliency(endpoint, transport);
@@ -110,7 +109,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             return;
         }
 
-        if (endpoint.RetryLetterTopic is not null)
+        if (endpoint.EffectiveRetryLetterTopic is not null)
         {
             _retryLetterQueueProducer = transport.Client!.NewProducer()
                 .Topic(getRetryLetterTopicUri(endpoint)!.ToString())
@@ -140,14 +139,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         return NativeRetryLetterQueueEnabled
             ? PulsarEndpoint.NativeTopicPath(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
-                endpoint.RetryLetterTopic?.TopicName ?? $"{endpoint.TopicName}-RETRY")
+                endpoint.EffectiveRetryLetterTopic?.TopicName ?? $"{endpoint.TopicName}-RETRY")
             : null;
     }
 
     private Uri getDeadLetteredTopicUri(PulsarEndpoint endpoint)
     {
         return PulsarEndpoint.NativeTopicPath(endpoint.IsPersistent, endpoint.Tenant, endpoint.Namespace,
-            endpoint.DeadLetterTopic?.TopicName ?? $"{endpoint.TopicName}-DLQ");
+            endpoint.EffectiveDeadLetterTopic?.TopicName ?? $"{endpoint.TopicName}-DLQ");
     }
 
     public ValueTask CompleteAsync(Envelope envelope)

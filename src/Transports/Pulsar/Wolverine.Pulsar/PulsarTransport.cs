@@ -28,8 +28,21 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     public IPulsarClientBuilder Builder { get; }
 
     internal IPulsarClient? Client { get; private set; }
-    public DeadLetterTopic? DeadLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
-    public RetryLetterTopic? RetryLetterTopic { get; internal set; } // TODO: should we even have a default or just per endpoint based?
+    /// <summary>
+    /// Transport-wide default dead letter topic applied to every Pulsar endpoint that does not set
+    /// its own <see cref="PulsarEndpoint.DeadLetterTopic"/>. Resolution is per-endpoint-override-wins:
+    /// an endpoint reads its effective value through <see cref="PulsarEndpoint.EffectiveDeadLetterTopic"/>
+    /// (per-endpoint override, else this default). Mirrors the Kafka transport default + per-endpoint
+    /// override shape. Set via <c>UsePulsar(...).DeadLetterQueueing(...)</c>.
+    /// </summary>
+    public DeadLetterTopic? DeadLetterTopic { get; internal set; }
+
+    /// <summary>
+    /// Transport-wide default retry letter topic, resolved per-endpoint-override-wins through
+    /// <see cref="PulsarEndpoint.EffectiveRetryLetterTopic"/>. Set via
+    /// <c>UsePulsar(...).RetryLetterQueueing(...)</c>.
+    /// </summary>
+    public RetryLetterTopic? RetryLetterTopic { get; internal set; }
 
 
     //private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
