@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Text.RegularExpressions;
 using DotPulsar;
+using DotPulsar.Abstractions;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -81,6 +83,18 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     ///     source topic. Delayed/backoff redelivery is handled by the retry-letter topics (#3182).
     /// </summary>
     public bool UseNativeRedelivery { get; internal set; }
+
+    /// <summary>
+    ///     Optional hook to customize the DotPulsar consumer for this listener (consumer name,
+    ///     receive-queue size, priority level, properties, etc.) immediately before it is created.
+    /// </summary>
+    internal Action<IConsumerBuilder<ReadOnlySequence<byte>>>? ConfigureConsumer { get; set; }
+
+    /// <summary>
+    ///     Optional hook to customize the DotPulsar producer for this endpoint (compression, batching,
+    ///     producer name, routing mode, etc.) immediately before it is created.
+    /// </summary>
+    internal Action<IProducerBuilder<ReadOnlySequence<byte>>>? ConfigureProducer { get; set; }
 
     /// <summary>
     ///     Use to override the dead letter topic for this endpoint

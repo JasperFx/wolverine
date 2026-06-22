@@ -133,6 +133,30 @@ For delayed / backoff redelivery (growing the delay between attempts), use the P
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
 or ack-timeout settings.
 
+## Customizing Consumers & Producers
+
+Beyond the global `IPulsarClientBuilder` passed to `UsePulsar(...)`, you can customize the
+individual DotPulsar consumer or producer per endpoint immediately before it is created — to set a
+consumer/producer name, compression, batching, receive-queue size, routing mode, priority level,
+and so on:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .ConfigureConsumer(consumer => consumer
+        .ConsumerName("orders-worker")
+        .PriorityLevel(1));
+
+opts.PublishMessage<OrderPlaced>()
+    .ToPulsarTopic("persistent://public/default/orders")
+    .ConfigureProducer(producer => producer
+        .ProducerName("orders-publisher")
+        .CompressionType(CompressionType.Lz4));
+```
+
+The callback receives the same `IConsumerBuilder` / `IProducerBuilder` Wolverine uses internally, so
+anything DotPulsar exposes is available. A listener also exposes `ConfigureProducer(...)` for the
+producer it uses on the requeue/redelivery path.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender
