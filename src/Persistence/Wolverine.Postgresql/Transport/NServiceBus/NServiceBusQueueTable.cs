@@ -1,4 +1,5 @@
 using Weasel.Core;
+using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 
 namespace Wolverine.Postgresql.Transport.NServiceBus;
@@ -18,12 +19,18 @@ internal class NServiceBusQueueTable : Table
         AddColumn<string>("Headers").NotNull();
         AddColumn("Body", "bytea");
 
-        // Seq is the auto-incrementing column NServiceBus orders on for FIFO receive. We model it
-        // only as a serial column: NServiceBus adds a UNIQUE *constraint* on seq, but Weasel can
-        // only express a unique *index*, and the two don't reconcile (Weasel would try to drop the
-        // constraint-backed index, which PostgreSQL refuses). Since the transport never needs to
-        // enforce seq uniqueness itself, leaving it off keeps schema diffs clean against the tables
-        // NServiceBus owns.
         AddColumn<int>("Seq").AutoIncrement().NotNull();
+
+        // Seq is what the destructive receive orders by (FIFO), so a Wolverine-provisioned table
+        // needs an index on it or the ORDER BY degrades to a full sort once a backlog builds — a
+        // soak that let the table grow collapsed receiver throughput by ~60x without this. We use a
+        // *non-unique* index (NOT a unique one): NServiceBus puts a UNIQUE *constraint* on seq and
+        // Weasel can only express a unique *index*, so a unique index would make Weasel try to drop
+        // the constraint-backed index (which PostgreSQL refuses) when reconciling against an
+        // NServiceBus-owned table. The transport never needs to enforce seq uniqueness itself.
+        Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{identifier.Name}_seq"))
+        {
+            Columns = ["Seq"]
+        });
     }
 }
