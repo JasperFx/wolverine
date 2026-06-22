@@ -248,7 +248,12 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     /// <returns></returns>
     public AzureServiceBusConfiguration EnableWolverineControlQueues()
     {
-        var queueName = "wolverine.control." + Options.Durability.AssignedNodeNumber;
+        // In Solo mode the assigned node number is always 1 (#3188); key the per-node control queue
+        // on the unique node id so multiple Solo hosts on one namespace don't collide. See #3189.
+        var controlNode = Options.Durability.Mode == DurabilityMode.Solo
+            ? Options.UniqueNodeId.ToString("N")
+            : Options.Durability.AssignedNodeNumber.ToString();
+        var queueName = "wolverine.control." + controlNode;
         
         var queue = Transport.Queues[queueName];
 
