@@ -1,3 +1,5 @@
+using Google.Api.Gax;
+using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
@@ -212,6 +214,130 @@ public class DocumentationSamples
                         // is built by Wolverine
                         e => { e.TelemetryEnabled = true; }
                     );
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task use_credential_aca_managed_identity()
+    {
+        #region sample_pubsub_use_credential_aca_managed_identity
+        // Azure Container Apps sets IDENTITY_ENDPOINT and IDENTITY_HEADER automatically
+        // when managed identity is enabled. These variables expose the same token endpoint
+        // that Azure.Identity's DefaultAzureCredential calls internally on ACA.
+        var identityEndpoint = Environment.GetEnvironmentVariable("IDENTITY_ENDPOINT")
+            ?? throw new InvalidOperationException("IDENTITY_ENDPOINT not set — is managed identity enabled on this Container App?");
+        var identityHeader = Environment.GetEnvironmentVariable("IDENTITY_HEADER")
+            ?? throw new InvalidOperationException("IDENTITY_HEADER not set — is managed identity enabled on this Container App?");
+
+        // Build the WIF external account credential JSON once at startup.
+        // Google's SDK handles all subsequent token refresh automatically:
+        // it re-calls credential_source.url to get a fresh Azure subject token
+        // and re-exchanges it with Google STS — no background task needed.
+        var externalAccountJson = $$"""
+            {
+              "type": "external_account",
+              "audience": "//iam.googleapis.com/projects/YOUR_PROJECT_NUMBER/locations/global/workloadIdentityPools/YOUR_POOL_ID/providers/YOUR_PROVIDER_ID",
+              "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+              "token_url": "https://sts.googleapis.com/v1/token",
+              "service_account_impersonation_url": "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/YOUR_SERVICE_ACCOUNT@YOUR_PROJECT.iam.gserviceaccount.com:generateAccessToken",
+              "credential_source": {
+                "url": "{{identityEndpoint}}?resource=api://AzureADTokenExchange&api-version=2019-08-01",
+                "headers": { "x-identity-header": "{{identityHeader}}" },
+                "format": { "type": "json", "subject_token_field_name": "access_token" }
+              }
+            }
+            """;
+
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+                    .UseCredential(GoogleCredential.FromJson(externalAccountJson));
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task use_credential_async_factory()
+    {
+        #region sample_pubsub_use_credential_async
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+
+                    // Use an async factory when the credential must be fetched at startup —
+                    // for example, reading a secret from Azure Key Vault before connecting.
+                    .UseCredential(async () =>
+                    {
+                        // Fetch credential configuration from an async source
+                        var json = await File.ReadAllTextAsync("/path/to/wif-credential-config.json");
+                        return GoogleCredential.FromJson(json);
+                    });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task use_credential_wif()
+    {
+        #region sample_pubsub_use_credential_wif
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+
+                    // Provide a GoogleCredential directly. The credential manages its own
+                    // token refresh lifecycle — including Workload Identity Federation (WIF)
+                    // scenarios where the application runs outside of GCP (e.g. Azure App Service).
+                    .UseCredential(
+                        GoogleCredential.FromFile("/path/to/wif-credential-config.json")
+                    );
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task configure_publisher_api_client()
+    {
+        #region sample_pubsub_configure_publisher_api_client
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+
+                    // Full access to PublisherServiceApiClientBuilder for advanced scenarios
+                    // such as custom endpoints or channel credentials.
+                    .ConfigurePublisherApiClient(builder =>
+                    {
+                        builder.Endpoint = "custom.pubsub.endpoint:443";
+                    });
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task configure_subscriber_client()
+    {
+        #region sample_pubsub_configure_subscriber_client
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UsePubsub("your-project-id")
+
+                    // Full access to SubscriberClientBuilder for advanced scenarios
+                    // such as tuning flow control or concurrency settings.
+                    .ConfigureSubscriberClient(builder =>
+                    {
+                        builder.Settings = new SubscriberClient.Settings
+                        {
+                            FlowControlSettings = new FlowControlSettings(
+                                maxOutstandingElementCount: 500,
+                                maxOutstandingByteCount: 50 * 1024 * 1024
+                            ),
+                        };
+                    });
             }).StartAsync();
 
         #endregion

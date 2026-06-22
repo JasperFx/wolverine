@@ -31,6 +31,28 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     /// </summary>
     public bool SystemEndpointsEnabled = false;
 
+    /// <summary>
+    ///     Optional async callback to configure the <see cref="PublisherServiceApiClientBuilder" /> before it is built.
+    ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O
+    ///     (e.g. fetching a token from Azure Key Vault or Azure IMDS).
+    /// </summary>
+    public Func<PublisherServiceApiClientBuilder, ValueTask>? ConfigurePublisherApiBuilder { get; set; }
+
+    /// <summary>
+    ///     Optional async callback to configure the <see cref="SubscriberServiceApiClientBuilder" /> before it is built.
+    ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
+    /// </summary>
+    public Func<SubscriberServiceApiClientBuilder, ValueTask>? ConfigureSubscriberApiBuilder { get; set; }
+
+    /// <summary>
+    ///     Optional async callback to configure the <see cref="SubscriberClientBuilder" /> before it is built.
+    ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
+    ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
+    /// </summary>
+    public Func<SubscriberClientBuilder, ValueTask>? ConfigureSubscriberClientBuilder { get; set; }
+
     public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub", ["gcp", ProtocolName])
     {
         IdentifierDelimiter = ".";
@@ -51,24 +73,29 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        var pubBuilder = new PublisherServiceApiClientBuilder
-        {
-            EmulatorDetection = EmulatorDetection
-        };
-        var subBuilder = new SubscriberServiceApiClientBuilder
-        {
-            EmulatorDetection = EmulatorDetection
-        };
-
         if (string.IsNullOrWhiteSpace(ProjectId))
         {
             throw new InvalidOperationException(
                 "Google Cloud Platform Pub/Sub project id must be set before connecting");
         }
 
+        var pubBuilder = new PublisherServiceApiClientBuilder
+        {
+            EmulatorDetection = EmulatorDetection
+        };
+        if (ConfigurePublisherApiBuilder != null)
+            await ConfigurePublisherApiBuilder(pubBuilder);
+
+        var subApiBuilder = new SubscriberServiceApiClientBuilder
+        {
+            EmulatorDetection = EmulatorDetection
+        };
+        if (ConfigureSubscriberApiBuilder != null)
+            await ConfigureSubscriberApiBuilder(subApiBuilder);
+
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
         PublisherApiClient = await pubBuilder.BuildAsync();
-        SubscriberApiClient = await subBuilder.BuildAsync();
+        SubscriberApiClient = await subApiBuilder.BuildAsync();
     }
 
     public override Endpoint? ReplyEndpoint()
