@@ -29,6 +29,24 @@ public static class NServiceBusSqlServerTransportExtensions
     }
 
     /// <summary>
+    /// Opt into the NServiceBus SQL Server interop transport and configure transport-wide
+    /// settings. Calling this is optional; <see cref="ListenToNServiceBusSqlServerQueue"/> and
+    /// <see cref="ToNServiceBusSqlServerQueue"/> will register the transport on demand.
+    /// </summary>
+    /// <param name="schema">Schema that owns the NServiceBus queue tables; defaults to "dbo"</param>
+    /// <param name="autoProvision">
+    /// When true, Wolverine will create the NServiceBus queue tables if they do not already
+    /// exist. Defaults to false because NServiceBus normally owns and provisions its own tables.
+    /// </param>
+    public static WolverineOptions UseNServiceBusSqlServerInterop(this WolverineOptions options,
+        string? schema = null, bool autoProvision = false)
+    {
+        var transport = options.NServiceBusSqlServerTransport(schema);
+        transport.AutoProvision = autoProvision;
+        return options;
+    }
+
+    /// <summary>
     /// Listen for messages published by an NServiceBus endpoint to a SQL Server queue table
     /// of the given name. The table is owned by NServiceBus; Wolverine reads it directly.
     /// </summary>

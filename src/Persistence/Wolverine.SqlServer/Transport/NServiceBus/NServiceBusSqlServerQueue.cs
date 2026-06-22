@@ -216,8 +216,8 @@ BEGIN
         Body varbinary(max),
         RowVersion bigint IDENTITY(1,1) NOT NULL
     );
-    CREATE NONCLUSTERED INDEX [Index_RowVersion] ON {TableIdentifier} (RowVersion);
-    CREATE CLUSTERED INDEX [Index_Expires] ON {TableIdentifier} (Expires) WHERE Expires IS NOT NULL;
+    CREATE CLUSTERED INDEX [Index_RowVersion] ON {TableIdentifier} (RowVersion);
+    CREATE NONCLUSTERED INDEX [Index_Expires] ON {TableIdentifier} (Expires) WHERE Expires IS NOT NULL;
 END";
     }
 }

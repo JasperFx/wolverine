@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.Data.SqlClient;
 using Weasel.SqlServer;
 using Wolverine.Runtime;
@@ -49,12 +50,19 @@ internal class NServiceBusSqlServerQueueSender : ISender
         await conn.OpenAsync();
         try
         {
-            await conn.CreateCommand(_sendSql)
+            var cmd = conn.CreateCommand(_sendSql)
                 .With("Id", row.Id)
-                .With("Expires", (object?)row.Expires?.UtcDateTime ?? DBNull.Value)
                 .With("Headers", row.Headers)
-                .With("Body", row.Body)
-                .ExecuteNonQueryAsync();
+                .With("Body", row.Body);
+
+            // The NServiceBus Expires column is a plain datetime; bind it with an explicit
+            // type so a null doesn't get inferred as sql_variant (which datetime rejects).
+            cmd.Parameters.Add(new SqlParameter("Expires", SqlDbType.DateTime)
+            {
+                Value = (object?)row.Expires?.UtcDateTime ?? DBNull.Value
+            });
+
+            await cmd.ExecuteNonQueryAsync();
         }
         finally
         {
