@@ -221,8 +221,34 @@ Wolverine = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         // Tell Wolverine to make this endpoint interoperable with MassTransit
         .UseMassTransitInterop(mt =>
         {
-            // optionally customize the inner JSON serialization
+            // optionally customize the inner JSON serialization, or map the Wolverine
+            // tenant id from each incoming MassTransit message (see below)
         })
         .DefaultIncomingMessage<ResponseMessage>().UseForReplies();
 }).StartAsync();
 ```
+
+### Mapping the Tenant Id
+
+When consuming messages from MassTransit, you can derive Wolverine's tenant id for each incoming
+message from either the message body or the MassTransit envelope metadata (headers, addresses,
+correlation ids). Register one or more `MapTenantIdFrom<T>` mappers inside `UseMassTransitInterop`:
+
+```cs
+opts.ListenToRabbitQueue("orders")
+    .UseMassTransitInterop(mt =>
+    {
+        // Pull the tenant id straight off the strongly-typed message body
+        mt.MapTenantIdFrom<OrderPlaced>(env => env.Message?.TenantId);
+
+        // ...or from a MassTransit header carried on the envelope
+        mt.MapTenantIdFrom<OrderShipped>(env =>
+            env.Headers.TryGetValue("tenant-id", out var value) ? value?.ToString() : null);
+    });
+```
+
+The lambda receives the strongly-typed MassTransit envelope (`MassTransitEnvelope<T>`), which exposes
+the deserialized `Message` alongside the MassTransit metadata. Each registration applies only to its own
+message type, and returning `null` or an empty string leaves the tenant id untouched. Tenant mapping
+affects only the inbound (deserialization) path, and works on any MassTransit-interop listener
+(Rabbit MQ, Azure Service Bus, Amazon SQS).

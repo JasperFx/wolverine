@@ -156,7 +156,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
     public AmazonSqsListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!));
+        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!, configure));
         return this;
     }
     

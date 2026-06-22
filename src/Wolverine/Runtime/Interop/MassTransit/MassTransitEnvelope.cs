@@ -2,39 +2,28 @@ using JasperFx.Core.Reflection;
 
 namespace Wolverine.Runtime.Interop.MassTransit;
 
-internal interface IMassTransitEnvelope
+/// <summary>
+///     Strongly-typed view over a MassTransit "envelope" message. The non-generic base carries the
+///     MassTransit transport metadata (ids, addresses, headers); <see cref="MassTransitEnvelope{T}" />
+///     adds the deserialized message body. Exposed to user code through hooks such as
+///     <see cref="IMassTransitInterop.MapTenantIdFrom{T}" /> so that Wolverine metadata (e.g. the
+///     tenant id) can be derived from either the deserialized message body or the surrounding
+///     MassTransit transport metadata (headers, addresses, ids).
+/// </summary>
+public abstract class MassTransitEnvelope
 {
-    object? Body { get; }
-    string? ResponseAddress { get; set; }
-    string? SourceAddress { get; set; }
-    void TransferData(Envelope envelope);
-}
-
-internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
-{
-    public MassTransitEnvelope()
+    protected MassTransitEnvelope()
     {
     }
 
-    public MassTransitEnvelope(Envelope envelope)
+    protected MassTransitEnvelope(Envelope envelope)
     {
-        if (envelope.Message is T m)
-        {
-            Message = m;
-        }
-        else
-        {
-            throw new ArgumentOutOfRangeException(nameof(envelope.Message),
-                $"Message cannot be cast to {typeof(T).FullNameInCode()}");
-        }
-
         MessageId = envelope.Id.ToString();
         CorrelationId = envelope.CorrelationId;
         ConversationId = envelope.ConversationId.ToString();
         SentTime = DateTime.UtcNow;
-        Message = (T)envelope.Message!;
 
-        var messageType = envelope.Message.GetType();
+        var messageType = envelope.Message!.GetType();
         MessageType = [$"urn:message:{messageType.Namespace}:{messageType.NameInCode()}"];
 
         if (envelope.DeliverBy != null)
@@ -61,18 +50,18 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     // ReSharper disable once UnusedAutoPropertyAccessor.Global
     public string[]? MessageType { get; set; }
 
-    public T? Message { get; set; }
-
     public DateTime? ExpirationTime { get; set; }
     public DateTime? SentTime { get; set; }
 
     public Dictionary<string, object?> Headers { get; set; } = new();
 
-    // Wolverine doesn't care about this, so don't bother deserializing it
+    // Wolverine doesn't care about this on the inbound side, so don't bother deserializing it
     // ReSharper disable once UnusedMember.Global
     public BusHostInfo Host => BusHostInfo.Instance;
 
-    public object? Body => Message;
+    /// <summary>The deserialized message body.</summary>
+    public abstract object? Body { get; }
+
     public string? SourceAddress { get; set; }
     public string? ResponseAddress { get; set; }
 
@@ -104,8 +93,12 @@ internal class MassTransitEnvelope<T> : IMassTransitEnvelope where T : class
     }
 }
 
-[Serializable]
-internal class MassTransitEnvelope : MassTransitEnvelope<object>
+/// <summary>
+///     Strongly-typed MassTransit envelope view carrying the deserialized <typeparamref name="T" />
+///     message body alongside the MassTransit transport metadata.
+/// </summary>
+/// <typeparam name="T">The Wolverine message type carried by the MassTransit envelope.</typeparam>
+public class MassTransitEnvelope<T> : MassTransitEnvelope where T : class
 {
     public MassTransitEnvelope()
     {
@@ -113,5 +106,19 @@ internal class MassTransitEnvelope : MassTransitEnvelope<object>
 
     public MassTransitEnvelope(Envelope envelope) : base(envelope)
     {
+        if (envelope.Message is T m)
+        {
+            Message = m;
+        }
+        else
+        {
+            throw new ArgumentOutOfRangeException(nameof(envelope.Message),
+                $"Message cannot be cast to {typeof(T).FullNameInCode()}");
+        }
     }
+
+    /// <summary>The deserialized message body.</summary>
+    public T? Message { get; set; }
+
+    public override object? Body => Message;
 }
