@@ -53,6 +53,32 @@ partial class Build
             WaitForAzureServiceBusEmulatorToBeReady();
         if (services.Contains("kafka"))
             WaitForKafkaToBeReady();
+        if (services.Contains("gcp-pubsub"))
+            WaitForPubsubEmulatorToBeReady();
+    }
+
+    void WaitForPubsubEmulatorToBeReady()
+    {
+        var attempt = 0;
+        while (attempt < 30)
+        {
+            try
+            {
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                tcpClient.Connect("localhost", 8085);
+                Log.Information("GCP Pub/Sub emulator is up and ready!");
+                return;
+            }
+            catch (Exception)
+            {
+                // ignore connection errors
+            }
+
+            Thread.Sleep(2000);
+            attempt++;
+        }
+
+        Log.Warning("GCP Pub/Sub emulator did not become ready after 60 seconds");
     }
 
     void WaitForKafkaToBeReady()
@@ -367,6 +393,20 @@ partial class Build
 
             BuildTestProjects(tests);
             StartDockerServices("postgresql");
+
+            RunTestProject(tests);
+        });
+
+    Target CIPubsub => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Transports" / "GCP" / "Wolverine.Pubsub.Tests" / "Wolverine.Pubsub.Tests.csproj";
+
+            BuildTestProjects(tests);
+            // Durable compliance fixtures persist through Marten/Postgres; the rest use the
+            // Pub/Sub emulator started via docker compose. See #3191.
+            StartDockerServices("gcp-pubsub", "postgresql");
 
             RunTestProject(tests);
         });
