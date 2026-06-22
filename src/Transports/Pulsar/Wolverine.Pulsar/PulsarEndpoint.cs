@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using DotPulsar;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -43,6 +44,31 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     /// </summary>
     public SubscriptionInitialPosition SubscriptionInitialPosition { get; internal set; } =
         SubscriptionInitialPosition.Latest;
+
+    /// <summary>
+    ///     Additional native Pulsar topic paths (e.g. <c>persistent://public/default/other</c>) that a
+    ///     single listener consumes alongside its primary topic. Pulsar supports one consumer over many
+    ///     topics; analogue of Kafka topic groups. Empty by default (single-topic listener).
+    /// </summary>
+    internal List<string> AdditionalTopics { get; } = new();
+
+    /// <summary>
+    ///     When set, the listener subscribes to every topic matching this regex pattern instead of an
+    ///     explicit topic (or topic list). Pulsar pattern subscription.
+    /// </summary>
+    internal Regex? TopicsPattern { get; set; }
+
+    /// <summary>
+    ///     Which topics a <see cref="TopicsPattern"/> subscription matches (persistent, non-persistent,
+    ///     or all). Defaults to persistent-only.
+    /// </summary>
+    internal RegexSubscriptionMode RegexSubscriptionMode { get; set; } = RegexSubscriptionMode.Persistent;
+
+    /// <summary>
+    ///     The full set of native topic paths this listener subscribes to explicitly: the primary topic
+    ///     plus any <see cref="AdditionalTopics"/>. Not used when <see cref="TopicsPattern"/> is set.
+    /// </summary>
+    internal IReadOnlyList<string> AllTopicPaths() => [PulsarTopic(), .. AdditionalTopics];
 
     public bool EnableRequeue { get; internal set; } = true;
     public bool UnsubscribeOnClose { get; internal set; } = true;

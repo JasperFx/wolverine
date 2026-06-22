@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
@@ -243,6 +244,54 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     public PulsarListenerConfiguration BeginAtLatest()
     {
         add(e => { e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Latest; });
+        return this;
+    }
+
+    /// <summary>
+    /// Have this single listener consume from one or more additional Pulsar topics alongside the
+    /// primary topic it was created with. Pulsar supports a single consumer over multiple topics;
+    /// this is the analogue of Kafka topic groups. Each value is a full native topic path, e.g.
+    /// <c>persistent://public/default/other</c>.
+    /// </summary>
+    /// <param name="additionalTopicPaths"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration Topics(params string[] additionalTopicPaths)
+    {
+        // Validate eagerly so a malformed topic path fails at configuration time with a clear error.
+        foreach (var path in additionalTopicPaths)
+        {
+            _ = PulsarEndpointUri.Topic(path);
+        }
+
+        add(e =>
+        {
+            foreach (var path in additionalTopicPaths)
+            {
+                if (path != e.PulsarTopic() && !e.AdditionalTopics.Contains(path))
+                {
+                    e.AdditionalTopics.Add(path);
+                }
+            }
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Subscribe this listener to every topic matching <paramref name="pattern"/> (Pulsar pattern
+    /// subscription) rather than an explicit topic or topic list. The topic the listener was created
+    /// with is used only as the Wolverine endpoint identity.
+    /// </summary>
+    /// <param name="pattern">Regex matched against native topic paths within the namespace.</param>
+    /// <param name="mode">Which topics the pattern matches (persistent / non-persistent / all).</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration TopicsPattern(Regex pattern,
+        RegexSubscriptionMode mode = RegexSubscriptionMode.Persistent)
+    {
+        add(e =>
+        {
+            e.TopicsPattern = pattern;
+            e.RegexSubscriptionMode = mode;
+        });
         return this;
     }
 

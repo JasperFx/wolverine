@@ -49,12 +49,29 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         var combined = CancellationTokenSource.CreateLinkedTokenSource(_cancellation, _localCancellation.Token);
 
-        _consumer = transport.Client!.NewConsumer()
+        var consumerBuilder = transport.Client!.NewConsumer()
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
-            .InitialPosition(endpoint.SubscriptionInitialPosition)
-            .Topic(endpoint.PulsarTopic())
-            .Create();
+            .InitialPosition(endpoint.SubscriptionInitialPosition);
+
+        if (endpoint.TopicsPattern is not null)
+        {
+            // Pattern subscription: consume every topic matching the regex.
+            consumerBuilder = consumerBuilder
+                .TopicsPattern(endpoint.TopicsPattern)
+                .RegexSubscriptionMode(endpoint.RegexSubscriptionMode);
+        }
+        else if (endpoint.AdditionalTopics.Count > 0)
+        {
+            // Multi-topic subscription: one consumer over the primary + additional topics.
+            consumerBuilder = consumerBuilder.Topics(endpoint.AllTopicPaths());
+        }
+        else
+        {
+            consumerBuilder = consumerBuilder.Topic(endpoint.PulsarTopic());
+        }
+
+        _consumer = consumerBuilder.Create();
 
         // Per-endpoint-override-wins resolution (endpoint override, else transport default).
         NativeDeadLetterQueueEnabled = endpoint.EffectiveDeadLetterTopic is not null &&

@@ -87,6 +87,33 @@ resumes from its committed cursor on every restart regardless of this setting, a
 messages that are still retained on the topic. The default is `SubscriptionInitialPosition.Latest`, matching
 DotPulsar's own default.
 
+## Multi-Topic & Pattern Subscriptions
+
+A single Pulsar listener can consume from more than one topic, or from every topic matching a
+regular expression — the Pulsar analogue of Kafka topic groups. This reduces the number of
+consumers you need and lets a listener automatically pick up new topics that match a pattern.
+
+```csharp
+// One listener over several explicit topics
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .Topics(
+        "persistent://public/default/orders-priority",
+        "persistent://public/default/orders-bulk");
+
+// One listener over every topic matching a regex pattern
+opts.ListenToPulsarTopic("persistent://public/default/events-all")
+    .TopicsPattern(new Regex("persistent://public/default/events-.*"));
+
+// Pattern, restricted to non-persistent topics (default is persistent only)
+opts.ListenToPulsarTopic("non-persistent://public/default/telemetry-all")
+    .TopicsPattern(new Regex("non-persistent://public/default/telemetry-.*"),
+        RegexSubscriptionMode.NonPersistent);
+```
+
+When a pattern is configured it takes precedence, and the topic the listener was created with is
+used only as the Wolverine endpoint identity. Pattern subscriptions match topics that exist at
+subscription time and pick up newly created matching topics as Pulsar discovers them.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender
