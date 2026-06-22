@@ -106,7 +106,102 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The factory is invoked once per client builder during startup. If you need to share a single fetch across all three builders, close over a cached `Task<GoogleCredential>` in your factory lambda.
+The factory is **not** a one-time, startup-only hook. It runs again every time Wolverine constructs one of the underlying client builders:
+
+- the publisher and subscriber **API** client builders are rebuilt whenever the transport (re)connects;
+- the streaming **subscriber** client is rebuilt on *every listener (re)connect* — including each automatic restart after a transient fault such as `DEADLINE_EXCEEDED`.
+
+This per-connect re-invocation is deliberate, and it is the foundation for [rolling credentials](#rolling-credentials) below.
+
+::: tip
+Because the factory can fire frequently — once per listener reconnect, not just once at startup — keep it cheap. If you only need a single fetch shared across all three builders, close over a cached `Task<GoogleCredential>` (or use the caching pattern shown under [Rolling credentials](#rolling-credentials)) so you don't hit your secret store on every reconnect.
+:::
+
+## Rolling credentials
+
+A `GoogleCredential` built from Application Default Credentials or a Workload Identity Federation config file refreshes its own *access tokens* internally, so for those you do **not** need to do anything special.
+
+Rolling credentials matter when the credential **material itself** rotates and cannot self-refresh — most commonly when you mint short-lived access tokens yourself via `GoogleCredential.FromAccessToken(...)`, or when the underlying credential config is periodically rotated by an external system. A static `FromAccessToken` credential is frozen at the moment it is created and will eventually expire.
+
+Because Wolverine re-invokes the credential factory on every listener (re)connect, you can hand out a freshly-minted credential over time and have running listeners adopt it automatically — no host restart required. Wrap your token source in a small holder that caches the current credential and refreshes it as it nears expiry:
+
+<!-- snippet: sample_pubsub_use_credential_rolling -->
+<a id='snippet-sample_pubsub_use_credential_rolling'></a>
+```cs
+// A holder that vends a short-lived GoogleCredential and refreshes it as it nears expiry.
+// Short-lived access tokens minted via GoogleCredential.FromAccessToken cannot refresh
+// themselves, so something has to hand out a new one over time.
+var credentials = new RollingCredentialSource();
+
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePubsub("your-project-id")
+
+            // The async factory is invoked again on every listener (re)connect, so each
+            // reconnect picks up the freshest credential without restarting the host.
+            .UseCredential(() => credentials.GetAsync());
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_use_credential_rolling' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `RollingCredentialSource` below caches the current credential, refreshes it once when it nears expiry (with other concurrent connects awaiting the same refresh), and reuses it on the fast path so a steady stream of reconnects doesn't hammer your secret store:
+
+<!-- snippet: sample_pubsub_rolling_credential_source -->
+<a id='snippet-sample_pubsub_rolling_credential_source'></a>
+```cs
+// A thread-safe source of short-lived credentials. The cached credential is reused until it
+// nears expiry, then refreshed once (other callers wait on the same refresh). Because Wolverine
+// rebuilds the streaming subscriber client on every listener (re)connect — for example after a
+// DEADLINE_EXCEEDED restart — GetAsync runs again each time and the listener transparently
+// adopts the latest credential.
+public class RollingCredentialSource
+{
+    private readonly SemaphoreSlim _lock = new(1, 1);
+    private readonly TimeSpan _refreshMargin = TimeSpan.FromMinutes(5);
+    private GoogleCredential? _current;
+    private DateTimeOffset _expiresAt = DateTimeOffset.MinValue;
+
+    public async ValueTask<GoogleCredential> GetAsync()
+    {
+        // Fast path: the cached credential is still comfortably valid
+        if (_current is not null && DateTimeOffset.UtcNow < _expiresAt - _refreshMargin)
+        {
+            return _current;
+        }
+
+        await _lock.WaitAsync();
+        try
+        {
+            // Double-check inside the lock in case another connect already refreshed it
+            if (_current is null || DateTimeOffset.UtcNow >= _expiresAt - _refreshMargin)
+            {
+                var (token, lifetime) = await FetchAccessTokenAsync();
+                _current = GoogleCredential.FromAccessToken(token);
+                _expiresAt = DateTimeOffset.UtcNow + lifetime;
+            }
+        }
+        finally
+        {
+            _lock.Release();
+        }
+
+        return _current;
+    }
+
+    // Replace with a real call to your token-vending source — e.g. Azure Key Vault, AWS Secrets
+    // Manager, GCP STS, or an internal token broker. Return the access token and how long it lives.
+    private Task<(string token, TimeSpan lifetime)> FetchAccessTokenAsync()
+        => throw new NotImplementedException();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_rolling_credential_source' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: warning
+The credential is captured by the streaming subscriber client *at the point of each connect*. An already-running listener will not swap credentials mid-flight — it adopts the refreshed credential on its **next** (re)connect. Size your `_refreshMargin` so a fresh credential is always handed out comfortably before the old one expires.
+:::
 
 ## Customising the API Client Builders
 
