@@ -249,6 +249,26 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Ephemeral "hot-tail" / broadcast consume (GH-3184): this listener uses a non-durable Pulsar
+    /// <c>Reader</c> cursor starting at the tail (<see cref="DotPulsar.MessageId.Latest"/>) instead of a
+    /// durable subscription, so every node receives all messages published after it joins and never
+    /// replays history — the idiomatic Pulsar pattern for live dashboards and fan-out-to-all. The reader
+    /// cursor is throwaway and unacknowledged, so dead-letter / retry-letter queueing, native redelivery,
+    /// and acknowledgment strategies do not apply. Pulsar analogue of the Kafka transport's
+    /// <c>TailFromLatest()</c>.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration TailFromLatest()
+    {
+        add(e =>
+        {
+            e.IsHotTail = true;
+            e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Latest;
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Have this single listener consume from one or more additional Pulsar topics alongside the
     /// primary topic it was created with. Pulsar supports a single consumer over multiple topics;
     /// this is the analogue of Kafka topic groups. Each value is a full native topic path, e.g.

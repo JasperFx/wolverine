@@ -76,6 +76,14 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public bool UnsubscribeOnClose { get; internal set; } = true;
 
     /// <summary>
+    ///     When true, this listener consumes via an ephemeral, non-durable Pulsar <c>Reader</c> starting
+    ///     at the tail (<see cref="DotPulsar.MessageId.Latest"/>) instead of a durable subscription, so
+    ///     every node receives all messages published after it joins and never replays history (GH-3184).
+    ///     Set via <c>TailFromLatest()</c>.
+    /// </summary>
+    internal bool IsHotTail { get; set; }
+
+    /// <summary>
     ///     When true, a requeue/defer of a single message uses Pulsar's native per-message
     ///     redelivery (<c>RedeliverUnacknowledgedMessages([messageId])</c>) — the message is left
     ///     unacknowledged and Pulsar redelivers that one message, preserving its redelivery count —
@@ -202,6 +210,13 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
+        // Hot-tail (GH-3184): a non-durable Reader at the tail rather than a durable subscription.
+        if (IsHotTail)
+        {
+            var readerListener = new PulsarReaderListener(runtime, this, receiver, _parent, runtime.Cancellation);
+            return ValueTask.FromResult<IListener>(readerListener);
+        }
+
         var listener = new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
         return ValueTask.FromResult<IListener>(listener);
     }
