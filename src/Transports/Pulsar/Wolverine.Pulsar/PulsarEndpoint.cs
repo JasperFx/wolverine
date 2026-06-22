@@ -34,6 +34,16 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public string? TopicName { get; private set; }
     public string SubscriptionName { get; internal set; } = "Wolverine";
     public SubscriptionType SubscriptionType { get; internal set; } = SubscriptionType.Exclusive;
+
+    /// <summary>
+    ///     Where a brand-new subscription starts consuming: <see cref="SubscriptionInitialPosition.Latest"/>
+    ///     (default — only messages published after the subscription is created) or
+    ///     <see cref="SubscriptionInitialPosition.Earliest"/> (replay from the start of the topic's
+    ///     retained backlog). Only applies on the first read of a not-yet-existing subscription.
+    /// </summary>
+    public SubscriptionInitialPosition SubscriptionInitialPosition { get; internal set; } =
+        SubscriptionInitialPosition.Latest;
+
     public bool EnableRequeue { get; internal set; } = true;
     public bool UnsubscribeOnClose { get; internal set; } = true;
 

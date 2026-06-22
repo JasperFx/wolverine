@@ -63,6 +63,30 @@ Depending on demand, the Pulsar transport will be enhanced to support convention
 topic routing later.
 ::: 
 
+## Subscription Initial Position
+
+When a Wolverine listener creates a **brand-new** Pulsar subscription, you can control where that subscription
+starts reading. This is the Pulsar analogue of the Kafka transport's `BeginAtEarliest()` / `BeginAtLatest()`:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    // Replay from the earliest message still retained on the topic
+    .BeginAtEarliest();
+
+opts.ListenToPulsarTopic("persistent://public/default/notifications")
+    // Only consume messages published after the subscription is created (the default)
+    .BeginAtLatest();
+
+// Or set it explicitly with the DotPulsar enum:
+opts.ListenToPulsarTopic("persistent://public/default/audit")
+    .SubscriptionInitialPosition(SubscriptionInitialPosition.Earliest);
+```
+
+This only affects the **first** read of a not-yet-existing subscription. Once the subscription exists, Pulsar
+resumes from its committed cursor on every restart regardless of this setting, and `Earliest` can only replay
+messages that are still retained on the topic. The default is `SubscriptionInitialPosition.Latest`, matching
+DotPulsar's own default.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender
