@@ -85,6 +85,25 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     public bool UseNativeRedelivery { get; internal set; }
 
     /// <summary>
+    ///     How this listener acknowledges completed messages: individually (default), cumulatively, or
+    ///     batched. See <see cref="PulsarAckStrategy"/>.
+    /// </summary>
+    public PulsarAckStrategy AckStrategy { get; internal set; } = PulsarAckStrategy.Individual;
+
+    /// <summary>
+    ///     For <see cref="PulsarAckStrategy.Batched"/>: flush the pending acknowledgments once this many
+    ///     messages have completed. Default 100.
+    /// </summary>
+    public int AckBatchSize { get; internal set; } = 100;
+
+    /// <summary>
+    ///     For <see cref="PulsarAckStrategy.Batched"/>: also flush pending acknowledgments at least this
+    ///     often, even if the batch size has not been reached. Default 1 second; set to
+    ///     <see cref="TimeSpan.Zero"/> to flush only by count.
+    /// </summary>
+    public TimeSpan AckBatchInterval { get; internal set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>
     ///     Optional hook to customize the DotPulsar consumer for this listener (consumer name,
     ///     receive-queue size, priority level, properties, etc.) immediately before it is created.
     /// </summary>

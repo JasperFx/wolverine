@@ -21,6 +21,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly IReceiver _receiver;
     private readonly Task? _receivingRetryLoop;
     private readonly PulsarEndpoint _endpoint;
+    private readonly PulsarAckHandler _ackHandler;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
 
@@ -31,6 +32,15 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _endpoint = endpoint;
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _cancellation = cancellation;
+
+        if (endpoint.AckStrategy == PulsarAckStrategy.Cumulative &&
+            endpoint.SubscriptionType is SubscriptionType.Shared or SubscriptionType.KeyShared)
+        {
+            throw new InvalidOperationException(
+                $"Cumulative acknowledgment is only valid for Exclusive or Failover subscriptions, not " +
+                $"{endpoint.SubscriptionType}, on Pulsar topic {endpoint.PulsarTopic()}. Use Individual or " +
+                "Batched acknowledgment for shared subscriptions.");
+        }
 
         Address = endpoint.Uri;
 
@@ -75,6 +85,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
         _consumer = consumerBuilder.Create();
 
+        _ackHandler = new PulsarAckHandler(_consumer, endpoint.AckStrategy, endpoint.AckBatchSize,
+            endpoint.AckBatchInterval, _cancellation);
+
         // Per-endpoint-override-wins resolution (endpoint override, else transport default).
         NativeDeadLetterQueueEnabled = endpoint.EffectiveDeadLetterTopic is not null &&
                                        endpoint.EffectiveDeadLetterTopic.Mode != DeadLetterTopicMode.WolverineStorage;
@@ -88,6 +101,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         {
             await foreach (var message in _consumer.Messages(combined.Token))
             {
+                // Record receipt so the ack handler can compute the cumulative-ack watermark safely.
+                _ackHandler.Track(FixMessageId(message.MessageId, _consumer.Topic));
+
                 var envelope = new PulsarEnvelope(message)
                 {
                     Data = message.Data.ToArray(),
@@ -177,11 +193,17 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         if (envelope is PulsarEnvelope e)
         {
-            // Acknowledge on the appropriate consumer based on where the message came from
-            var consumer = e.IsFromRetryConsumer && _retryConsumer != null ? _retryConsumer : _consumer;
-            if (consumer != null)
+            // Retry-consumer messages always acknowledge individually; the configurable ack strategy
+            // (#3180) applies to the primary consumer.
+            if (e.IsFromRetryConsumer && _retryConsumer != null)
             {
-                return consumer.Acknowledge(FixMessageId(e.MessageData.MessageId, consumer.Topic), _cancellation);
+                return _retryConsumer.Acknowledge(FixMessageId(e.MessageData.MessageId, _retryConsumer.Topic),
+                    _cancellation);
+            }
+
+            if (_consumer != null)
+            {
+                return _ackHandler.CompleteAsync(FixMessageId(e.MessageData.MessageId, _consumer.Topic));
             }
         }
 
@@ -219,6 +241,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         await _localCancellation.CancelAsync();
         _localCancellation.Dispose();
+
+        // Flush any pending batched acks before the consumer is torn down.
+        await _ackHandler.DisposeAsync();
 
         if (_consumer != null)
         {

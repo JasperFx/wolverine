@@ -157,6 +157,32 @@ The callback receives the same `IConsumerBuilder` / `IProducerBuilder` Wolverine
 anything DotPulsar exposes is available. A listener also exposes `ConfigureProducer(...)` for the
 producer it uses on the requeue/redelivery path.
 
+## Acknowledgment Strategy
+
+By default the listener acknowledges each message individually as it completes. On high-volume
+subscriptions you can reduce broker chatter by acknowledging cumulatively or in batches:
+
+```csharp
+// Individual (default)
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .AcknowledgeIndividually();
+
+// Cumulative — one ack confirms everything up to a point. Exclusive/Failover only.
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .AcknowledgeCumulative();
+
+// Batched — individual acks flushed by count or interval
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .AcknowledgeInBatches(batchSize: 100, interval: TimeSpan.FromSeconds(1));
+```
+
+**Cumulative ack is only valid for Exclusive / Failover subscriptions** — configuring it on a
+Shared / Key_Shared subscription throws a clear error at startup. Because Wolverine's buffered
+listener can complete messages out of order, cumulative ack only ever advances to the highest
+**contiguous-completed** message: it will never acknowledge a message that is still being processed,
+so no in-flight work is lost. Batched ack has no such ordering constraint and is safe for any
+subscription type.
+
 ## Read Only Subscriptions <Badge type="tip" text="3.13" />
 
 As part of Wolverine's "Requeue" error handling action, the Pulsar transport tries to quietly create a matching sender

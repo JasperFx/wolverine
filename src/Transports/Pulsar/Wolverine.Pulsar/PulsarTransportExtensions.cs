@@ -336,6 +336,51 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Acknowledge each message individually as it completes (the default).
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeIndividually()
+    {
+        add(e => { e.AckStrategy = PulsarAckStrategy.Individual; });
+        return this;
+    }
+
+    /// <summary>
+    /// Acknowledge cumulatively — one ack confirms every message up to a point in the subscription,
+    /// reducing broker chatter on high-volume ordered subscriptions. Only valid for Exclusive /
+    /// Failover subscriptions (a clear error is thrown at startup otherwise). Wolverine only advances
+    /// the cumulative ack to the highest contiguous-completed message, so it never acks a message
+    /// that is still being processed.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeCumulative()
+    {
+        add(e => { e.AckStrategy = PulsarAckStrategy.Cumulative; });
+        return this;
+    }
+
+    /// <summary>
+    /// Acknowledge messages individually but in batches, flushed when <paramref name="batchSize"/>
+    /// messages have completed or every <paramref name="interval"/> (whichever comes first). Reduces
+    /// broker chatter without the ordering constraints of cumulative ack; safe for every subscription
+    /// type.
+    /// </summary>
+    /// <param name="batchSize">Flush after this many completed messages. Default 100.</param>
+    /// <param name="interval">Also flush at least this often. Default 1 second; pass
+    /// <see cref="TimeSpan.Zero"/> to flush only by count.</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeInBatches(int batchSize = 100, TimeSpan? interval = null)
+    {
+        add(e =>
+        {
+            e.AckStrategy = PulsarAckStrategy.Batched;
+            e.AckBatchSize = batchSize;
+            e.AckBatchInterval = interval ?? TimeSpan.FromSeconds(1);
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Override the Pulsar subscription type to  <see cref="DotPulsar.SubscriptionType.Failover"/> for just this topic
     /// </summary>
     /// <param name="subscriptionType"></param>
