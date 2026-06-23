@@ -1,25 +1,20 @@
-using System.Collections.Concurrent;
-using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
 using Npgsql;
 using NpgsqlTypes;
 using Weasel.Core;
 using Weasel.Postgresql;
-using Wolverine.Configuration;
+using Wolverine.RDBMS.Transport;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
 namespace Wolverine.Postgresql.Transport.MassTransit;
 
-internal class MassTransitPostgresqlQueueListener : IListener
+internal class MassTransitPostgresqlQueueListener : DatabaseListener
 {
-    private readonly CancellationTokenSource _cancellation = new();
     private readonly MassTransitPostgresqlQueue _queue;
-    private readonly IReceiver _receiver;
     private readonly NpgsqlDataSource _dataSource;
-    private readonly ILogger _logger;
     private readonly MassTransitPostgresqlEnvelopeMapper _mapper;
-    private readonly TimeSpan _pollingInterval;
     private readonly TimeSpan _lockDuration;
     private readonly Guid _consumerId = Guid.NewGuid();
     private readonly string _fetchSql;
@@ -30,20 +25,16 @@ internal class MassTransitPostgresqlQueueListener : IListener
     // nack (unlock_message) using the (delivery id, lock id) pair MassTransit handed us.
     private readonly ConcurrentDictionary<Guid, (long DeliveryId, Guid LockId)> _leases = new();
 
-    private Task? _task;
-
     public MassTransitPostgresqlQueueListener(MassTransitPostgresqlQueue queue, IWolverineRuntime runtime,
         IReceiver receiver)
+        : base(queue.Uri, queue.Name, receiver,
+            runtime.LoggerFactory.CreateLogger<MassTransitPostgresqlQueueListener>(),
+            queue.PollingInterval ?? runtime.DurabilitySettings.ScheduledJobPollingTime)
     {
         _queue = queue;
-        _receiver = receiver;
         _dataSource = queue.Parent.Store.NpgsqlDataSource;
-        _logger = runtime.LoggerFactory.CreateLogger<MassTransitPostgresqlQueueListener>();
         _mapper = queue.BuildMapper(runtime);
-        _pollingInterval = queue.PollingInterval ?? runtime.DurabilitySettings.ScheduledJobPollingTime;
         _lockDuration = queue.LockDuration;
-
-        Address = queue.Uri;
 
         var schema = queue.Parent.SchemaName;
 
@@ -54,11 +45,9 @@ internal class MassTransitPostgresqlQueueListener : IListener
         _unlockSql = $"SELECT {schema}.unlock_message(:delivery_id, :lock_id, :delay, :headers)";
     }
 
-    public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+    protected override int MaximumMessagesToReceive => _queue.MaximumMessagesToReceive;
 
-    public Uri Address { get; }
-
-    public async ValueTask CompleteAsync(Envelope envelope)
+    public override async ValueTask CompleteAsync(Envelope envelope)
     {
         if (!_leases.TryGetValue(envelope.Id, out var lease))
         {
@@ -80,7 +69,7 @@ internal class MassTransitPostgresqlQueueListener : IListener
         }
     }
 
-    public async ValueTask DeferAsync(Envelope envelope)
+    public override async ValueTask DeferAsync(Envelope envelope)
     {
         if (!_leases.TryGetValue(envelope.Id, out var lease))
         {
@@ -104,60 +93,7 @@ internal class MassTransitPostgresqlQueueListener : IListener
         }
     }
 
-    public ValueTask DisposeAsync()
-    {
-        return StopAsync();
-    }
-
-    public async ValueTask StopAsync()
-    {
-        await _cancellation.CancelAsync();
-        _task?.SafeDispose();
-    }
-
-    public Task StartAsync()
-    {
-        _task = Task.Run(listenForMessagesAsync, _cancellation.Token);
-        return Task.CompletedTask;
-    }
-
-    private async Task listenForMessagesAsync()
-    {
-        var failedCount = 0;
-
-        while (!_cancellation.Token.IsCancellationRequested)
-        {
-            try
-            {
-                var messages = await fetchAsync(_queue.MaximumMessagesToReceive, _cancellation.Token);
-                failedCount = 0;
-
-                if (messages.Count > 0)
-                {
-                    await _receiver.ReceivedAsync(this, messages.ToArray());
-                }
-                else
-                {
-                    await Task.Delay(_pollingInterval, _cancellation.Token);
-                }
-            }
-            catch (Exception e)
-            {
-                if (e is TaskCanceledException or OperationCanceledException && _cancellation.IsCancellationRequested)
-                {
-                    break;
-                }
-
-                failedCount++;
-                var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
-                _logger.LogError(e, "Error while trying to receive messages from MassTransit PostgreSQL queue {Name}",
-                    _queue.Name);
-                await Task.Delay(pauseTime);
-            }
-        }
-    }
-
-    private async Task<IReadOnlyList<Envelope>> fetchAsync(int count, CancellationToken token)
+    protected override async Task<IReadOnlyList<Envelope>> TryPopAsync(int count, CancellationToken token)
     {
         // A fresh lock_id per fetch call; the consumer_id is stable for the listener lifetime.
         var lockId = Guid.NewGuid();
