@@ -16,7 +16,9 @@ public record EndpointHealthSnapshot(
     bool SenderLatched,
     int? BufferLimit,
     long? BrokerQueueDepth = null,
-    TransportConnectionState ConnectionState = TransportConnectionState.Unknown);
+    TransportConnectionState ConnectionState = TransportConnectionState.Unknown,
+    ReceiveLoopStatus ReceiveLoopStatus = ReceiveLoopStatus.Unknown,
+    DateTimeOffset? LastReceiveLoopActivityAt = null);
 
 public enum EndpointDirection
 {
