@@ -12,12 +12,14 @@ public class PulsarSender : ISender, IAsyncDisposable
     private readonly CancellationToken _cancellation;
     private readonly IPulsarEnvelopeMapper _mapper;
     private readonly IProducer<ReadOnlySequence<byte>> _producer;
+    private readonly Schemas.IPulsarMessageCodec? _codec;
 
     public PulsarSender(IWolverineRuntime runtime, PulsarEndpoint endpoint, PulsarTransport transport,
         CancellationToken cancellation)
     {
         var endpoint1 = endpoint;
         _cancellation = cancellation;
+        _codec = endpoint.MessageCodec;
 
         // GH-3183: when an endpoint schema is configured, create the producer with it so the broker
         // registers the schema for the topic. The schema is a pass-through over Wolverine's bytes, so the
@@ -61,6 +63,15 @@ public class PulsarSender : ISender, IAsyncDisposable
         var message = new MessageMetadata();
 
         _mapper.MapEnvelopeToOutgoing(envelope, message);
+
+        // GH-3213: for a schema that owns the encoding (Avro), encode the message object directly so the
+        // body is genuine schema-encoded bytes. Non-codec messages (e.g. a ping) on the same endpoint fall
+        // back to Wolverine's serialized body.
+        if (_codec != null && envelope.Message != null && _codec.MessageType.IsInstanceOfType(envelope.Message))
+        {
+            await _producer.Send(message, _codec.Encode(envelope.Message), _cancellation);
+            return;
+        }
 
         await _producer.Send(message, new ReadOnlySequence<byte>(envelope.Data!), _cancellation);
     }
