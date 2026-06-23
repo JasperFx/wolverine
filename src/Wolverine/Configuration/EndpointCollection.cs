@@ -135,6 +135,7 @@ public class EndpointCollection : IEndpointCollection
 
         foreach (var listener in _listeners.Values)
         {
+            var loopHealth = receiveLoopHealthOf(listener);
             snapshots.Add(new EndpointHealthSnapshot(
                 Uri: listener.Uri,
                 EndpointName: listener.Endpoint.EndpointName,
@@ -145,7 +146,9 @@ public class EndpointCollection : IEndpointCollection
                 LastMessageSentAt: null,
                 SenderLatched: false,
                 BufferLimit: listener.Endpoint.BufferingLimits?.Maximum,
-                ConnectionState: connectionStateOf(listener)));
+                ConnectionState: connectionStateOf(listener),
+                ReceiveLoopStatus: loopHealth?.ReceiveLoopStatus ?? ReceiveLoopStatus.Unknown,
+                LastReceiveLoopActivityAt: loopHealth?.LastReceiveLoopActivityAt));
         }
 
         foreach (var sender in _senders.Enumerate().Select(x => x.Value))
@@ -164,6 +167,23 @@ public class EndpointCollection : IEndpointCollection
         }
 
         return snapshots;
+    }
+
+    // Resolve the background receive-loop health for a listener. The agent itself may report it, otherwise reach
+    // through to the IListener it owns. Listeners with no managed loop (push transports, local queues) report null.
+    private static IReportReceiveLoopHealth? receiveLoopHealthOf(IListeningAgent agent)
+    {
+        if (agent is IReportReceiveLoopHealth reporter)
+        {
+            return reporter;
+        }
+
+        if (agent is ListeningAgent { Listener: IReportReceiveLoopHealth listenerReporter })
+        {
+            return listenerReporter;
+        }
+
+        return null;
     }
 
     // Resolve the underlying transport channel/connection state for a listener. The agent itself may report it
