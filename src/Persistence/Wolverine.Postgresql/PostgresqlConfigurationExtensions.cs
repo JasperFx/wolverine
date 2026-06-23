@@ -103,9 +103,12 @@ public static class PostgresqlConfigurationExtensions
     public static PostgresqlPersistenceExpression UsePostgresqlPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
-        string? transportSchema = "wolverine_queues")
+        string? transportSchema = "wolverine_queues",
+        MessageStoreRole role = MessageStoreRole.Main)
     {
-        options.PersistMessagesWithPostgresql(connectionString, schema);
+        // GH-3226: forward the message-store role so apps that already have an event-store-backed Main
+        // (Marten / Polecat) can register this transport's persistence as Ancillary instead of a second Main.
+        options.PersistMessagesWithPostgresql(connectionString, schema, role);
 
         if (transportSchema != null)
         {
