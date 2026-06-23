@@ -19,7 +19,13 @@ public class PulsarSender : ISender, IAsyncDisposable
         var endpoint1 = endpoint;
         _cancellation = cancellation;
 
-        var producerBuilder = transport.Client!.NewProducer().Topic(endpoint1.PulsarTopic());
+        // GH-3183: when an endpoint schema is configured, create the producer with it so the broker
+        // registers the schema for the topic. The schema is a pass-through over Wolverine's bytes, so the
+        // builder is still IProducerBuilder<ReadOnlySequence<byte>> and the send path is unchanged.
+        var producerBuilder = (endpoint.Schema != null
+                ? transport.Client!.NewProducer(endpoint.Schema)
+                : transport.Client!.NewProducer())
+            .Topic(endpoint1.PulsarTopic());
         endpoint.ConfigureProducer?.Invoke(producerBuilder);
         _producer = producerBuilder.Create();
 

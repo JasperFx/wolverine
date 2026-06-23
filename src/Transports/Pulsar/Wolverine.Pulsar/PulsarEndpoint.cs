@@ -124,6 +124,15 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     internal Action<IProducerBuilder<ReadOnlySequence<byte>>>? ConfigureProducer { get; set; }
 
     /// <summary>
+    ///     Optional Pulsar schema for this endpoint (GH-3183). When set, the producer and consumer are
+    ///     created with this schema so the broker registers it for the topic (schema registration,
+    ///     compatibility checks, evolution). The schema is a pass-through over the bytes Wolverine already
+    ///     serializes, so the rest of the byte-oriented pipeline (mapper, CloudEvents, headers) is
+    ///     unchanged. Null (the default) uses DotPulsar's raw <c>ByteSequence</c> schema (no registration).
+    /// </summary>
+    internal ISchema<ReadOnlySequence<byte>>? Schema { get; set; }
+
+    /// <summary>
     ///     Use to override the dead letter topic for this endpoint
     /// </summary>
     public DeadLetterTopic? DeadLetterTopic { get; set; }
