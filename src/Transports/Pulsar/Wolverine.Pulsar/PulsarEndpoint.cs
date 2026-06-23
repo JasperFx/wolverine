@@ -149,6 +149,15 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     internal string? ProducerName { get; set; }
 
     /// <summary>
+    ///     Optional message codec for schemas that own the body encoding (e.g. Avro, GH-3213). When set,
+    ///     the sender encodes <c>envelope.Message</c> through the codec and the listener decodes back to the
+    ///     message object directly (bypassing Wolverine's body serialization), while <see cref="Schema"/>
+    ///     registers the matching schema with the broker. Null (the default) keeps the byte-oriented path
+    ///     where Wolverine owns the body (raw bytes or the JSON pass-through schema).
+    /// </summary>
+    internal Schemas.IPulsarMessageCodec? MessageCodec { get; set; }
+
+    /// <summary>
     ///     Use to override the dead letter topic for this endpoint
     /// </summary>
     public DeadLetterTopic? DeadLetterTopic { get; set; }
