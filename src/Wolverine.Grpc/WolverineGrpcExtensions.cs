@@ -71,6 +71,12 @@ public static class WolverineGrpcExtensions
             return new GrpcGraph(runtime.Options, container);
         });
 
+        // GH-3235: expose the discovered gRPC endpoint -> message-type mapping via the core IGrpcEndpointManifest
+        // abstraction so diagnostic consumers (CritterWatch) can read it without referencing WolverineFx.Grpc.
+        services.AddSingleton<IGrpcEndpointManifest>(sp =>
+            new GrpcEndpointManifest(sp.GetRequiredService<GrpcGraph>(),
+                sp.GetRequiredService<WolverineGrpcOptions>()));
+
         services.AddSingleton<WolverineGrpcExceptionInterceptor>();
         services.Configure<GrpcServiceOptions>(opts =>
         {
