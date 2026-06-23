@@ -1,13 +1,14 @@
 using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Wolverine.Transports;
 
 namespace Wolverine.RabbitMQ.Internal;
 
 /// <summary>
 /// Base class for Rabbit MQ listeners and senders
 /// </summary>
-internal abstract class RabbitMqChannelAgent : IAsyncDisposable
+internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnectionState
 {
     private readonly ConnectionMonitor _monitor;
     private readonly SemaphoreSlim Locker = new(1, 1);
@@ -25,6 +26,11 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable
 
     internal AgentState State { get; private set; } = AgentState.Disconnected;
     internal bool IsConnected => State == AgentState.Connected;
+
+    // Surfaces the channel agent's connection state to EndpointHealthSnapshot so external monitors can see a
+    // dead-but-Accepting listener (or a disconnected sender) directly rather than inferring it from staleness.
+    public TransportConnectionState ConnectionState =>
+        State == AgentState.Connected ? TransportConnectionState.Connected : TransportConnectionState.Disconnected;
 
     internal IChannel? Channel { get; set; }
 

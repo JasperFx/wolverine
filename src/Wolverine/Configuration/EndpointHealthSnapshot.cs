@@ -1,3 +1,5 @@
+using Wolverine.Transports;
+
 namespace Wolverine.Configuration;
 
 /// <summary>
@@ -13,7 +15,8 @@ public record EndpointHealthSnapshot(
     DateTimeOffset? LastMessageSentAt,
     bool SenderLatched,
     int? BufferLimit,
-    long? BrokerQueueDepth = null);
+    long? BrokerQueueDepth = null,
+    TransportConnectionState ConnectionState = TransportConnectionState.Unknown);
 
 public enum EndpointDirection
 {
