@@ -22,6 +22,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly Task? _receivingRetryLoop;
     private readonly PulsarEndpoint _endpoint;
     private readonly PulsarAckHandler _ackHandler;
+    private readonly Schemas.IPulsarMessageCodec? _codec;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
 
@@ -32,6 +33,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
         _endpoint = endpoint;
         _receiver = receiver ?? throw new ArgumentNullException(nameof(receiver));
         _cancellation = cancellation;
+        _codec = endpoint.MessageCodec;
 
         if (endpoint.AckStrategy == PulsarAckStrategy.Cumulative &&
             endpoint.SubscriptionType is SubscriptionType.Shared or SubscriptionType.KeyShared)
@@ -118,6 +120,13 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
                 mapper.MapIncomingToEnvelope(envelope, message);
 
+                // GH-3213: a schema codec (Avro) owns the body encoding, so decode the message object
+                // directly here — the pipeline then skips its own body deserialization.
+                if (_codec != null)
+                {
+                    envelope.Message = _codec.Decode(message.Data);
+                }
+
                 await receiver.ReceivedAsync(this, envelope);
             }
         }, combined.Token);
@@ -137,6 +146,11 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                     };
 
                     mapper.MapIncomingToEnvelope(envelope, message);
+
+                    if (_codec != null)
+                    {
+                        envelope.Message = _codec.Decode(message.Data);
+                    }
 
                     await receiver.ReceivedAsync(this, envelope);
                 }

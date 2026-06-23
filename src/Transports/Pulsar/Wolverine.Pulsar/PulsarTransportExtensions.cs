@@ -344,6 +344,23 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
     }
 
     /// <summary>
+    /// Register a Pulsar Avro schema for <typeparamref name="T"/> on this listener (GH-3213). The broker
+    /// registers the topic's Avro schema and the body is genuine Avro on the wire (DotPulsar's built-in
+    /// <c>Schema.AvroISpecificRecord&lt;T&gt;()</c>). <typeparamref name="T"/> must be an Apache.Avro
+    /// <c>ISpecificRecord</c>. The producing endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarListenerConfiguration UseAvroSchema<T>() where T : class
+    {
+        add(e =>
+        {
+            var codec = new PulsarAvroCodec<T>();
+            e.MessageCodec = codec;
+            e.Schema = new PulsarSchema(codec.SchemaInfo);
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Register a custom Pulsar schema on this listener (GH-3183). The schema's <c>SchemaInfo</c> is what
     /// the broker stores for the topic; <c>Encode</c>/<c>Decode</c> operate over the bytes Wolverine
     /// serializes, so use a pass-through schema unless you are also replacing Wolverine's body serializer.
@@ -719,6 +736,23 @@ public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguratio
     public PulsarSubscriberConfiguration UseJsonSchema<T>()
     {
         add(e => e.Schema = PulsarSchema.ForJson(typeof(T)));
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar Avro schema for <typeparamref name="T"/> on this sending endpoint (GH-3213). The
+    /// broker registers the topic's Avro schema and the body is genuine Avro on the wire (DotPulsar's
+    /// built-in <c>Schema.AvroISpecificRecord&lt;T&gt;()</c>). <typeparamref name="T"/> must be an
+    /// Apache.Avro <c>ISpecificRecord</c>. The consuming endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarSubscriberConfiguration UseAvroSchema<T>() where T : class
+    {
+        add(e =>
+        {
+            var codec = new PulsarAvroCodec<T>();
+            e.MessageCodec = codec;
+            e.Schema = new PulsarSchema(codec.SchemaInfo);
+        });
         return this;
     }
 
