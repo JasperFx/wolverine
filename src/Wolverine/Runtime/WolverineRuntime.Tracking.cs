@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
@@ -59,11 +60,22 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     internal TrackedSession? ActiveSession { get; set; }
 
-    public void Sent(Envelope envelope)
+    /// <summary>
+    /// Build the metric tag set for an envelope: the standard tags (message.type + message.destination +
+    /// tenant.id + any custom SetMetricsTag values) plus the <c>source</c> service-name tag. The
+    /// <c>source</c> tag is added to *every* instrument (GH-3221) so a shared metrics backend that scrapes
+    /// many services can slice each series per service.
+    /// </summary>
+    private TagList metricTags(Envelope envelope)
     {
         var tags = envelope.ToMetricsHeaders();
         tags.Add(MetricsConstants.SourceKey, _serviceName);
-        _sentCounter.Add(1, tags);
+        return tags;
+    }
+
+    public void Sent(Envelope envelope)
+    {
+        _sentCounter.Add(1, metricTags(envelope));
 
         if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
             && envelope.MessageType.IsNotEmpty()
@@ -89,9 +101,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
         if (isExternal)
         {
-            var tags = envelope.ToMetricsHeaders();
-            tags.Add(MetricsConstants.SourceKey, _serviceName);
-            _receivedCounter.Add(1, tags);
+            _receivedCounter.Add(1, metricTags(envelope));
         }
 
         if (isExternal && Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
@@ -119,7 +129,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
         var time = envelope.StopTiming();
         if (time > 0)
         {
-            _executionCounter.Record(time, envelope.ToMetricsHeaders());
+            _executionCounter.Record(time, metricTags(envelope));
         }
 
         ActiveSession?.Record(MessageEventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);
@@ -128,7 +138,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void ExecutionFinished(Envelope envelope, Exception exception)
     {
         ExecutionFinished(envelope);
-        var tags = envelope.ToMetricsHeaders();
+        var tags = metricTags(envelope);
         tags.Add(MetricsConstants.ExceptionType, exception.GetType().Name);
         _failureCounter.Add(1, tags);
     }
@@ -136,7 +146,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void MessageSucceeded(Envelope envelope)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        var tags = envelope.ToMetricsHeaders();
+        var tags = metricTags(envelope);
         _effectiveTime.Record(time, tags);
 
         _successCounter.Add(1, tags);
@@ -157,7 +167,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void MessageFailed(Envelope envelope, Exception ex)
     {
         var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-        var tags = envelope.ToMetricsHeaders();
+        var tags = metricTags(envelope);
         _effectiveTime.Record(time, tags);
 
         _deadLetterQueueCounter.Add(1, tags);
