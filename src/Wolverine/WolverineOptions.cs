@@ -542,6 +542,13 @@ public sealed partial class WolverineOptions
     public string ServiceName { get; set; } = null!;
 
     /// <summary>
+    ///     Free-form, user-defined service-level tags. These are surfaced on <c>ServiceCapabilities.Tags</c> and flow
+    ///     to monitoring tools (e.g. CritterWatch) so operators can label and filter related services by their own
+    ///     conventions. The operator owns any <c>key:value</c> convention — Wolverine treats these as opaque strings.
+    /// </summary>
+    public IList<string> Tags { get; } = new List<string>();
+
+    /// <summary>
     ///     This should probably *only* be used in development or testing
     ///     to latch all outgoing message sending
     /// </summary>
