@@ -132,6 +132,25 @@ public class MetricsOptions
     /// Wolverine will sample and publish metric data collection. Default is 5 seconds
     /// </summary>
     public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
+
+    /// <summary>
+    /// Default explicit histogram bucket boundaries (in milliseconds) applied to the
+    /// <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms. The
+    /// OpenTelemetry SDK's default buckets are poor for millisecond-scale latencies; these are tuned for
+    /// message handling. See GH-3224.
+    /// </summary>
+    public static readonly IReadOnlyList<double> DefaultHistogramBucketBoundaries =
+        new double[] { 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000 };
+
+    /// <summary>
+    /// Explicit histogram bucket boundaries (in milliseconds) used as the instrument <em>advice</em> for
+    /// the <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms, so quantile
+    /// baselines computed from a time-series database (Prometheus / VictoriaMetrics) are meaningful for
+    /// millisecond latencies. Defaults to <see cref="DefaultHistogramBucketBoundaries"/>. Set to
+    /// <c>null</c> to fall back to the OpenTelemetry SDK / exporter defaults, or supply your own ascending
+    /// boundaries. An OpenTelemetry <c>View</c> still overrides this advice when configured. See GH-3224.
+    /// </summary>
+    public IReadOnlyList<double>? HistogramBucketBoundaries { get; set; } = DefaultHistogramBucketBoundaries;
 }
 
 /// <summary>
