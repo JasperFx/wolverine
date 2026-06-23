@@ -32,6 +32,12 @@ public class ServiceCapabilities : OptionsDescription
         DurabilitySettings = options.Durability.ToDescription();
 
         AddValue(nameof(options.ServiceName), options.ServiceName);
+
+        // User-defined service-level tags (GH-3240). Free-form strings surfaced on the inherited
+        // OptionsDescription.Tags (string[]); consumed by CritterWatch to let users filter related services by
+        // their own labels. Distinct from per-endpoint tag concepts — this is service-level.
+        Tags = options.Tags.ToArray();
+
         AddValue(nameof(options.DefaultExecutionTimeout), options.DefaultExecutionTimeout);
         AddValue(nameof(options.DefaultRemoteInvocationTimeout), options.DefaultRemoteInvocationTimeout);
         AddValue(nameof(options.DisableAllExternalListeners), options.DisableAllExternalListeners);

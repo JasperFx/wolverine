@@ -194,3 +194,26 @@ host.Services.GetRequiredService<IWolverineRuntime>()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/using_configure_wolverine.cs#L14-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_configure_wolverine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Service-Level Tags <Badge type="tip" text="6.15" />
+
+You can attach free-form, service-level **tags** to a Wolverine application through `WolverineOptions.Tags`. These are
+opaque strings — you own any `key:value` (or any other) convention — and they label the whole service rather than
+individual endpoints or messages:
+
+```cs
+builder.Services.AddWolverine(opts =>
+{
+    opts.ServiceName = "Orders";
+
+    // Free-form, operator-defined labels for this service
+    opts.Tags.Add("team:fulfillment");
+    opts.Tags.Add("tier:critical");
+    opts.Tags.Add("domain:orders");
+});
+```
+
+The tags are surfaced on `ServiceCapabilities.Tags`, the diagnostic snapshot Wolverine exposes for monitoring tools.
+[CritterWatch](https://github.com/JasperFx/CritterWatch) consumes them to let you group and filter related services on
+its dashboard by your own labels. They are distinct from any per-endpoint tagging — this is a single, service-wide set
+of labels.
