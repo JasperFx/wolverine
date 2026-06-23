@@ -1,5 +1,6 @@
 using IntegrationTests;
 using JasperFx;
+using JasperFx.Events;
 using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -74,6 +75,25 @@ public class bootstrapping_ancillary_polecat_stores_with_wolverine : IAsyncLifet
     {
         theHost.Services.GetRequiredService<OutboxedSessionFactory<IPlayerStore>>()
             .ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void resolves_both_the_primary_and_ancillary_event_stores()
+    {
+        // GH-3219: ancillary Polecat stores must surface via GetServices<IEventStore>() the same way the
+        // primary does (and the same way core Marten registers both) — otherwise the ancillary store is
+        // invisible to the read-only capabilities / CritterWatch projection-explorer surface that
+        // discovers stores this way. Asserted by reference because both stores are present as distinct
+        // IEventStore instances (Polecat currently reports the same Identity string for both, which is a
+        // separate concern from discovery).
+        var stores = theHost.Services.GetServices<IEventStore>().ToArray();
+
+        var primary = (IEventStore)theHost.Services.GetRequiredService<IDocumentStore>();
+        var ancillary = (IEventStore)theHost.Services.GetRequiredService<IPlayerStore>();
+
+        primary.ShouldNotBeSameAs(ancillary);
+        stores.ShouldContain(primary);
+        stores.ShouldContain(ancillary);
     }
 
     [Fact]

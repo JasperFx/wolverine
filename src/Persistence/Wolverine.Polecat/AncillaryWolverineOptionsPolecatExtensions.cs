@@ -1,6 +1,7 @@
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Events;
 using JasperFx.Events.Subscriptions;
 using Polecat;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,13 @@ public static class AncillaryWolverineOptionsPolecatExtensions
         configure?.Invoke(integration);
 
         expression.Services.AddSingleton<IConfigurePolecat<T>, PolecatOverrides<T>>();
+
+        // GH-3219: bridge the store-agnostic JasperFx.Events.IEventStore for the ancillary store type T,
+        // mirroring the primary store (WolverineOptionsPolecatExtensions) and core Marten's ancillary
+        // registration. Without it the ancillary Polecat store is invisible to anything that discovers
+        // stores via GetServices<IEventStore>() — the EventSubscriptionAgentFamily (so ancillary async
+        // projections never distribute) and downstream tooling like CritterWatch's projection explorer.
+        expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<T>());
 
         expression.Services.AddSingleton<AncillaryMessageStore>(s =>
         {
