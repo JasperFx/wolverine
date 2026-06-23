@@ -13,15 +13,19 @@ public class WolverineHttpTransportClient(IHttpClientFactory clientFactory) : IW
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(batch.Messages));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeBatchContentType);
-        await client.PostAsync(client.BaseAddress, content);
+        var response = await client.PostAsync(client.BaseAddress, content);
+        // Throw on a non-success status so the durable sender treats it as a failure and requeues,
+        // rather than acknowledging success and deleting the outgoing envelope (#3173).
+        response.EnsureSuccessStatusCode();
     }
-    
+
     public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
     {
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(envelope));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeContentType);
-        await client.PostAsync(client.BaseAddress, content);
+        var response = await client.PostAsync(client.BaseAddress, content);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task<InlineHttpReply> InvokeAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
@@ -42,9 +46,12 @@ public class WolverineHttpTransportClientCloudEvents(IHttpClientFactory clientFa
         var client = clientFactory.CreateClient(uri);
         var content = new ByteArrayContent(EnvelopeSerializer.Serialize(batch.Messages));
         content.Headers.ContentType = new MediaTypeHeaderValue(HttpTransport.EnvelopeBatchContentType);
-        await client.PostAsync(client.BaseAddress, content);
+        var response = await client.PostAsync(client.BaseAddress, content);
+        // Throw on a non-success status so the durable sender treats it as a failure and requeues
+        // rather than deleting the outgoing envelope (#3173).
+        response.EnsureSuccessStatusCode();
     }
-    
+
     public async Task SendAsync(string uri, Envelope envelope, JsonSerializerOptions? options = null)
     {
         var client = clientFactory.CreateClient(uri);

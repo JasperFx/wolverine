@@ -179,6 +179,39 @@ public class HttpSenderTests
         await mockClient.Received(1).SendBatchAsync(
             Arg.Is("https://batch.com/api"),
             Arg.Is<OutgoingMessageBatch>(b => b.Messages.Count == 2));
+
+        // #3173: a successful send must acknowledge the batch so the durable sending agent deletes
+        // the outgoing envelopes from the outbox; otherwise the messages redeliver forever.
+        await callback.Received(1).MarkSuccessfulAsync(batch);
+    }
+
+    [Fact]
+    public async Task batched_sender_protocol_marks_failure_when_client_throws()
+    {
+        var endpoint = new HttpEndpoint(new Uri("https://batch.com/api"), EndpointRole.Application)
+        {
+            OutboundUri = "https://batch.com/api"
+        };
+
+        var services = new ServiceCollection();
+        var mockClient = Substitute.For<IWolverineHttpTransportClient>();
+        var failure = new HttpRequestException("boom");
+        mockClient.SendBatchAsync(Arg.Any<string>(), Arg.Any<OutgoingMessageBatch>())
+            .Returns(Task.FromException(failure));
+        services.AddSingleton(mockClient);
+        var serviceProvider = services.BuildServiceProvider();
+
+        var protocol = new HttpSenderProtocol(endpoint, serviceProvider);
+
+        var batch = new OutgoingMessageBatch(endpoint.Uri,
+            new[] { new Envelope { Id = Guid.NewGuid(), Data = new byte[] { 1 } } });
+        var callback = Substitute.For<ISenderCallback>();
+
+        await protocol.SendBatchAsync(callback, batch);
+
+        // A failed send must be reported as a failure (requeue), never acknowledged as success.
+        await callback.Received(1).MarkProcessingFailureAsync(batch, failure);
+        await callback.DidNotReceive().MarkSuccessfulAsync(batch);
     }
 
     [Fact]
