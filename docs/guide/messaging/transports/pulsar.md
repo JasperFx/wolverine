@@ -189,6 +189,52 @@ For delayed / backoff redelivery (growing the delay between attempts), use the P
 retry-letter topics instead — DotPulsar's client does not expose negative-acknowledgment backoff
 or ack-timeout settings.
 
+## Tiered Retry-Letter Policy <Badge type="tip" text="6.8" />
+
+`RetryLetterQueueing(...)` configures Pulsar's native retry-letter topic per endpoint. For a
+first-class, discoverable **error policy** — the Pulsar analogue of the Kafka transport's
+`MoveToKafkaRetryTopic` — use `MoveToPulsarRetryTopic(...)`:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .SubscriptionType(SubscriptionType.Shared);
+
+// On failure: redeliver after 5s, then 30s, then 2m, then dead-letter.
+opts.OnException<TransientException>()
+    .MoveToPulsarRetryTopic(5.Seconds(), 30.Seconds(), 2.Minutes());
+```
+
+Each `TimeSpan` is one retry tier. On the first failure the message is routed to the retry-letter
+topic and redelivered after the first delay; on the next failure after the second delay; and so on.
+After the last tier is exhausted the message lands in the dead-letter topic. The delays are wired
+onto every Pulsar listener at startup (provisioning the retry-letter producer/consumer and the DLQ),
+so you don't also need an explicit `RetryLetterQueueing(...)` call.
+
+::: warning Requires a Shared or Key_Shared subscription
+Pulsar message delaying only works on `Shared` / `KeyShared` subscriptions. Applying
+`MoveToPulsarRetryTopic` to an `Exclusive` / `Failover` listener emits a startup warning and the
+policy falls back to an inline retry. The policy is also Pulsar-only: a failure arriving over any
+other transport falls back to an inline retry (and a startup warning is emitted when non-Pulsar
+listeners are present).
+:::
+
+### By-key concurrency with Key_Shared
+
+Pulsar's `Key_Shared` subscription is the idiomatic, **zero-extra-code** path for intra-partition
+concurrency by key — the free Pulsar analogue of the Kafka transport's sticky by-key processing. With
+a `Key_Shared` subscription, Pulsar distributes messages across the connected consumers (nodes) by
+message key, so messages that share a key are always delivered to the **same** consumer in order,
+while different keys are processed concurrently across the cluster:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/orders")
+    .SubscriptionType(SubscriptionType.KeyShared);
+```
+
+Set the key on the way out via the ordinary Wolverine `GroupId` / partition-key conventions (the
+producer stamps it as the Pulsar message key). This pairs naturally with `MoveToPulsarRetryTopic`,
+which also requires `Shared` / `Key_Shared`.
+
 ## Customizing Consumers & Producers
 
 Beyond the global `IPulsarClientBuilder` passed to `UsePulsar(...)`, you can customize the
