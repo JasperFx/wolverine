@@ -918,6 +918,28 @@ will be added back to Wolverine in 4.0.
 | wolverine-effective-time     | Histogram                                                                                                 | Effective time between a message being sent and being completely handled in milliseconds. Right now this works between Wolverine to Wolverine application sending and from NServiceBus applications sending to Wolverine applications through Wolverine’s NServiceBus interoperability. |
 | wolverine-execution-failure  | Counter                                                                                                   | Number of message execution failures. Tagged by exception type                                                                                                                                                                                                                         |
 
+### Standard Metrics Tags
+
+Every Wolverine metric instrument above is tagged with these dimensions so you can slice the series in your
+observability tooling:
+
+| Tag                   | Description                                                                            |
+|-----------------------|----------------------------------------------------------------------------------------|
+| `message.type`        | The message type name                                                                  |
+| `message.destination` | The endpoint URI the message was sent to / received at (when known)                    |
+| `tenant.id`           | The tenant id (when the message is tenant-scoped)                                       |
+| `source`              | The Wolverine `ServiceName` of the application emitting the metric                      |
+
+The `wolverine-execution-failure` instrument additionally carries an `exception.type` tag. You can attach your
+own per-message tags with [`Envelope.SetMetricsTag`](#additional-metrics-tags).
+
+::: tip The `source` tag <Badge type="tip" text="6.14.1" />
+Before 6.14.1 the `source` (service-name) tag was only present on `wolverine-messages-sent` and
+`wolverine-messages-received`. As of **6.14.1** it is added to **every** instrument, so a shared metrics backend
+that scrapes many services can slice each series per service — `{source="my-service"}` /
+`sum by (source, ...)` works uniformly across all Wolverine metrics.
+:::
+
 As a sample set up for publishing metrics, here's a proof of concept built with Honeycomb as the metrics collector:
 
 ```csharp
