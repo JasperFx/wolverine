@@ -72,8 +72,13 @@ public static class WolverineOptionsPolecatExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<SqlServerMessageStore>>();
 
+            // Mirror Wolverine.Marten: when no message-storage schema is configured, inherit the
+            // Polecat store's DatabaseSchemaName so distinct-schema Polecat services are isolated by
+            // default (separate durability tables: dead letters, nodes/assignments, …) instead of
+            // all sharing the "wolverine" schema. See GH-3175.
             var schemaName = integration.MessageStorageSchemaName ??
                              runtime.Options.Durability.MessageStorageSchemaName ??
+                             store.Options.DatabaseSchemaName ??
                              "wolverine";
 
             return BuildSqlServerMessageStore(schemaName, store, runtime, logger);
