@@ -7,7 +7,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Nats.Internal;
 
-public class NatsListener : IListener, ISupportDeadLetterQueue
+public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectionState
 {
     private readonly NatsEndpoint _endpoint;
     private readonly IWolverineRuntime _runtime;
@@ -20,6 +20,10 @@ public class NatsListener : IListener, ISupportDeadLetterQueue
     private readonly ISender _deadLetterSender;
 
     public IHandlerPipeline? Pipeline { get; private set; }
+
+    // GH-3231: surface the NATS connection state (via the subscriber that owns the connection) so external monitors
+    // can detect a listener whose connection has dropped while it still reports Accepting.
+    public TransportConnectionState ConnectionState => _subscriber.ConnectionState;
 
     internal NatsListener(
         NatsEndpoint endpoint,

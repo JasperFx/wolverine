@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pulsar;
 
-internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling
+internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling, IReportConnectionState
 {
     private readonly CancellationToken _cancellation;
     private readonly IConsumer<ReadOnlySequence<byte>>? _consumer;
@@ -25,6 +25,12 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     private readonly Schemas.IPulsarMessageCodec? _codec;
     private IProducer<ReadOnlySequence<byte>>? _retryLetterQueueProducer;
     private IProducer<ReadOnlySequence<byte>>? _dlqProducer;
+
+    // GH-3231: DotPulsar exposes consumer state only via change-notifications, so a background monitor tracks the
+    // latest state here. Volatile because it is written by the monitor task and read by external health probes.
+    private volatile TransportConnectionState _connectionState = TransportConnectionState.Disconnected;
+
+    public TransportConnectionState ConnectionState => _connectionState;
 
     public PulsarListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport,
@@ -70,7 +76,10 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
                 : transport.Client!.NewConsumer())
             .SubscriptionName(endpoint.SubscriptionName)
             .SubscriptionType(endpoint.SubscriptionType)
-            .InitialPosition(endpoint.SubscriptionInitialPosition);
+            .InitialPosition(endpoint.SubscriptionInitialPosition)
+            // GH-3231: track the consumer's connection state so health probes can read it (see ConnectionState). A
+            // user-supplied StateChangedHandler via ConfigureConsumer below would override this.
+            .StateChangedHandler(changed => _connectionState = changed.ConsumerState.ToTransportConnectionState());
 
         if (endpoint.TopicsPattern is not null)
         {

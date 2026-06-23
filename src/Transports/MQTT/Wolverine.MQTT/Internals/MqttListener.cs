@@ -8,7 +8,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.MQTT.Internals;
 
-internal class MqttListener : IListener
+internal class MqttListener : IListener, IReportConnectionState
 {
     private readonly MqttTransport _broker;
     private readonly CancellationTokenSource _cancellation = new();
@@ -18,6 +18,10 @@ internal class MqttListener : IListener
     private readonly IReceiver _receiver;
     private readonly MqttTopic _topic;
 
+    // GH-3231: surface the managed MQTT client's connection state so external monitors can detect a listener whose
+    // broker connection has dropped (and not resubscribed) while it still reports Accepting.
+    public TransportConnectionState ConnectionState =>
+        _broker.Client.IsConnected ? TransportConnectionState.Connected : TransportConnectionState.Disconnected;
 
     public MqttListener(MqttTransport broker, ILogger logger, MqttTopic topic, IReceiver receiver)
     {

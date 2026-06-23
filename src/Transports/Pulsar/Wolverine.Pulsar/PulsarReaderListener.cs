@@ -14,11 +14,17 @@ namespace Wolverine.Pulsar;
 /// idiomatic Pulsar pattern for live dashboards and fan-out-to-all. No subscription cursor is committed,
 /// so there is nothing to acknowledge: <see cref="CompleteAsync"/> / <see cref="DeferAsync"/> are no-ops.
 /// </summary>
-internal class PulsarReaderListener : IListener
+internal class PulsarReaderListener : IListener, IReportConnectionState
 {
     private readonly CancellationTokenSource _localCancellation;
     private readonly IReader<ReadOnlySequence<byte>> _reader;
     private readonly Task _receivingLoop;
+
+    // GH-3231: updated by the reader's StateChangedHandler (registered on the builder below). Volatile because it is
+    // written from DotPulsar's state-change callback and read by external health probes.
+    private volatile TransportConnectionState _connectionState = TransportConnectionState.Disconnected;
+
+    public TransportConnectionState ConnectionState => _connectionState;
 
     public PulsarReaderListener(IWolverineRuntime runtime, PulsarEndpoint endpoint, IReceiver receiver,
         PulsarTransport transport, CancellationToken cancellation)
@@ -37,7 +43,9 @@ internal class PulsarReaderListener : IListener
 
         var readerBuilder = transport.Client!.NewReader()
             .Topic(endpoint.PulsarTopic())
-            .StartMessageId(MessageId.Latest);
+            .StartMessageId(MessageId.Latest)
+            // GH-3231: track the reader's connection state so health probes can read it (see ConnectionState).
+            .StateChangedHandler(changed => _connectionState = changed.ReaderState.ToTransportConnectionState());
 
         _reader = readerBuilder.Create();
 
