@@ -25,6 +25,7 @@
         <ProjectReference Include="..\Samples\PingPongWithGrpcStreaming\Ponger\Ponger.csproj"/>
         <ProjectReference Include="..\Samples\GreeterProtoFirstGrpc\Messages\Messages.csproj"/>
         <ProjectReference Include="..\Samples\GreeterProtoFirstGrpc\Server\Server.csproj"/>
+        <ProjectReference Include="..\Samples\GreeterCodeFirstGrpc\Messages\Messages.csproj"/>
         <ProjectReference Include="..\Samples\RacerWithGrpc\RacerContracts\RacerContracts.csproj"/>
         <ProjectReference Include="..\Samples\RacerWithGrpc\RacerServer\RacerServer.csproj"/>
     </ItemGroup>
