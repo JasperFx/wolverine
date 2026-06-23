@@ -731,4 +731,31 @@ public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguratio
         add(e => e.Schema = schema);
         return this;
     }
+
+    /// <summary>
+    /// Enable Pulsar producer deduplication for this sending endpoint (GH-3185). The producer is created
+    /// with a stable producer name and stamps a monotonic per-message sequence id, so the broker discards
+    /// duplicate sends of the same message (for example outbox resends of the same envelope).
+    ///
+    /// This is **producer→broker** deduplication only, not end-to-end exactly-once, and it requires broker
+    /// deduplication to be enabled on the namespace/topic (e.g. <c>pulsar-admin namespaces
+    /// set-deduplication public/default --enable</c>).
+    /// </summary>
+    /// <param name="producerName">
+    /// Optional stable producer name. The broker tracks the last sequence id per producer name, so a fixed
+    /// name lets dedup span producer restarts. When omitted, a name is derived from the service name and
+    /// topic.
+    /// </param>
+    public PulsarSubscriberConfiguration EnableDeduplication(string? producerName = null)
+    {
+        add(e =>
+        {
+            e.DeduplicationEnabled = true;
+            if (producerName != null)
+            {
+                e.ProducerName = producerName;
+            }
+        });
+        return this;
+    }
 }

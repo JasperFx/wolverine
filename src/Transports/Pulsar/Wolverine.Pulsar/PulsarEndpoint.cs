@@ -133,6 +133,22 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
     internal ISchema<ReadOnlySequence<byte>>? Schema { get; set; }
 
     /// <summary>
+    ///     When true, this sending endpoint opts into Pulsar producer deduplication (GH-3185): the
+    ///     producer is created with a stable <see cref="ProducerName"/> and stamps a monotonic per-message
+    ///     sequence id, so the broker discards duplicate sends of the same message (e.g. outbox resends).
+    ///     This is producer→broker dedup only, not end-to-end exactly-once, and requires broker
+    ///     deduplication to be enabled on the namespace/topic. Set via <c>EnableDeduplication()</c>.
+    /// </summary>
+    internal bool DeduplicationEnabled { get; set; }
+
+    /// <summary>
+    ///     Stable Pulsar producer name used for deduplication. The broker tracks the last sequence id per
+    ///     producer name, so this must be stable across producer sessions for dedup to span restarts. When
+    ///     null, the sender derives one from the service name and topic.
+    /// </summary>
+    internal string? ProducerName { get; set; }
+
+    /// <summary>
     ///     Use to override the dead letter topic for this endpoint
     /// </summary>
     public DeadLetterTopic? DeadLetterTopic { get; set; }
