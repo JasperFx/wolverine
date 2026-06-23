@@ -14,7 +14,12 @@ public class EventStoreAgents : IAsyncDisposable
     private readonly IObserver<ShardState>[] _observers;
     private readonly SemaphoreSlim _daemonLock = new(1);
     private ImHashMap<DatabaseId, IProjectionDaemon> _daemons = ImHashMap<DatabaseId, IProjectionDaemon>.Empty;
-    private readonly List<ShardName> _shardNames = new();
+
+    // Keyed by ShardName.RelativeUrl. Populated as a side effect of SupportedAgentsAsync, but also resolved
+    // on demand by BuildAgentAsync (a node assigned an agent may never have enumerated its own shards). An
+    // ImHashMap so the enumeration writes and the BuildAgentAsync reads are lock-free across threads. See
+    // GH-3216.
+    private ImHashMap<string, ShardName> _shardNames = ImHashMap<string, ShardName>.Empty;
     
     public EventStoreAgents(IEventStore store, IObserver<ShardState>[] observers)
     {
@@ -91,7 +96,7 @@ public class EventStoreAgents : IAsyncDisposable
             
             foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
             {
-                _shardNames.Fill(shardName);
+                _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
                 var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
                 list.Add(uri);
             }
@@ -105,7 +110,7 @@ public class EventStoreAgents : IAsyncDisposable
             {
                 foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
                 {
-                    _shardNames.Fill(shardName);
+                    _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
                     var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
                     list.Add(uri);
                 }
@@ -140,7 +145,7 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async Task<EventSubscriptionAgent> BuildAgentAsync(Uri uri, DatabaseId databaseId, string shardPath)
     {
-        var shardName = _shardNames.FirstOrDefault(x => x.RelativeUrl == shardPath);
+        var shardName = await ResolveShardNameAsync(shardPath, CancellationToken.None);
         if (shardName == null)
         {
             throw new ArgumentOutOfRangeException(nameof(shardPath), $"Unable to find a shard with path '{shardPath}'");
@@ -149,6 +154,26 @@ public class EventStoreAgents : IAsyncDisposable
         var daemon = await FindDaemonAsync(databaseId);
 
         return new EventSubscriptionAgent(uri, shardName, daemon);
+    }
+
+    /// <summary>
+    /// Resolve a shard by its <c>RelativeUrl</c>. The cache is populated lazily as a side effect of
+    /// <see cref="SupportedAgentsAsync" />, which only runs on the node that evaluates assignments (the
+    /// leader). A node that is *assigned* an agent may never have enumerated its own shards yet, so on a
+    /// cache miss enumerate the store's registered subscriptions directly before giving up — otherwise
+    /// agent start fails non-deterministically on followers / after failover. See GH-3216.
+    /// </summary>
+    private async ValueTask<ShardName?> ResolveShardNameAsync(string shardPath, CancellationToken cancellation)
+    {
+        if (_shardNames.TryFind(shardPath, out var shardName))
+        {
+            return shardName;
+        }
+
+        // Populate the cache from the store usage (the same source SupportedAgentsAsync reads), then retry.
+        await SupportedAgentsAsync(cancellation);
+
+        return _shardNames.TryFind(shardPath, out shardName) ? shardName : null;
     }
 
     /// <summary>
