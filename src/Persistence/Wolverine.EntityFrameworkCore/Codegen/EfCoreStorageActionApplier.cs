@@ -21,9 +21,17 @@ public static class EfCoreStorageActionApplier
                 context.Update(action.Entity); // Not really correct, but let it go
                 break;
             case StorageAction.Update:
-                context.Update(action.Entity);
+                if (!IsTracked(context, action.Entity))
+                {
+                    context.Update(action.Entity);
+                }
                 break;
-                
+
         }
+    }
+
+    private static bool IsTracked<TEntity>(DbContext context, TEntity entity)
+    {
+        return context.ChangeTracker.Entries().Any(entry => ReferenceEquals(entry.Entity, entity));
     }
 }
