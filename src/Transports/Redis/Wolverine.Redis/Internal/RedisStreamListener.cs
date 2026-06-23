@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener, ISupportDeadLetterQueue
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportConnectionState
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -44,6 +44,14 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     public Uri Address { get; }
     public ListeningStatus Status => _status;
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
+    // GH-3231: surface the StackExchange.Redis multiplexer connection state. The XREADGROUP poll loop runs over a
+    // long-lived, auto-reconnecting multiplexer, so this lets external monitors see a listener whose multiplexer is
+    // down even though ListeningStatus still reports Accepting.
+    public TransportConnectionState ConnectionState =>
+        _transport.GetDatabase(database: _endpoint.DatabaseId).Multiplexer.IsConnected
+            ? TransportConnectionState.Connected
+            : TransportConnectionState.Disconnected;
 
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
     

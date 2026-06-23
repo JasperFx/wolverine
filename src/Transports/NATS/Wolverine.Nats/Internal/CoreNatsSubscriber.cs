@@ -31,6 +31,8 @@ internal class CoreNatsSubscriber : INatsSubscriber
 
     public bool SupportsNativeDeadLetterQueue => false;
 
+    public TransportConnectionState ConnectionState => _connection.ConnectionState.ToTransportConnectionState();
+
     public async Task StartAsync(
         IListener listener,
         IReceiver receiver,

@@ -36,6 +36,8 @@ internal class JetStreamSubscriber : INatsSubscriber
 
     public bool SupportsNativeDeadLetterQueue => _endpoint.DeadLetterQueueEnabled;
 
+    public TransportConnectionState ConnectionState => _connection.ConnectionState.ToTransportConnectionState();
+
     public async Task StartAsync(
         IListener listener,
         IReceiver receiver,
