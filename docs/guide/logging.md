@@ -940,6 +940,28 @@ that scrapes many services can slice each series per service — `{source="my-se
 `sum by (source, ...)` works uniformly across all Wolverine metrics.
 :::
 
+### Histogram Buckets <Badge type="tip" text="6.14.1" />
+
+The `wolverine-execution-time` and `wolverine-effective-time` histograms record millisecond latencies, but the
+default OpenTelemetry histogram buckets are tuned for seconds — so quantile baselines computed from a
+time-series database (Prometheus / VictoriaMetrics) over those instruments are coarse. Wolverine therefore
+applies a millisecond-oriented set of explicit bucket boundaries (as instrument
+[advice](https://opentelemetry.io/docs/specs/otel/metrics/api/#instrument-advisory-parameters)) by default. You
+can override them, or opt back into the SDK defaults:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // Supply your own ascending bucket boundaries, in milliseconds
+    opts.Metrics.HistogramBucketBoundaries = new double[] { 5, 25, 100, 500, 2000, 10000 };
+
+    // ...or fall back to the OpenTelemetry SDK / exporter defaults
+    opts.Metrics.HistogramBucketBoundaries = null;
+});
+```
+
+An explicit OpenTelemetry `View` for these instruments still overrides this advice when configured.
+
 As a sample set up for publishing metrics, here's a proof of concept built with Honeycomb as the metrics collector:
 
 ```csharp

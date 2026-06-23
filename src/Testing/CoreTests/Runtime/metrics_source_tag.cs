@@ -114,8 +114,13 @@ public record MetricFail;
 
 public class MetricSuccessHandler
 {
-    public void Handle(MetricSuccess _)
+    public async Task Handle(MetricSuccess _)
     {
+        // Ensure a measurable, non-zero execution time so the wolverine-execution-time histogram actually
+        // records — ExecutionFinished only records when StopTiming() (truncated to whole milliseconds) is
+        // > 0. Without this the histogram has no data points on a fast machine, which made the source-tag
+        // and bucket-boundary tests flaky in CI.
+        await Task.Delay(5);
     }
 }
 

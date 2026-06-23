@@ -106,10 +106,20 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
         Handlers.AddMessageHandler(typeof(Acknowledgement), new AcknowledgementHandler(Replies));
         Handlers.AddMessageHandler(typeof(FailureAcknowledgement), new FailureAcknowledgementHandler(Replies, LoggerFactory.CreateLogger<FailureAcknowledgementHandler>()));
 
+        // GH-3224: millisecond-tuned histogram bucket boundaries (advice). Null => OpenTelemetry SDK
+        // defaults. The execution-time histogram is long-typed, so the boundaries are cast to long.
+        var bucketBoundaries = options.Metrics.HistogramBucketBoundaries;
+        var executionTimeAdvice = bucketBoundaries == null
+            ? null
+            : new InstrumentAdvice<long> { HistogramBucketBoundaries = bucketBoundaries.Select(x => (long)x).ToArray() };
+        var effectiveTimeAdvice = bucketBoundaries == null
+            ? null
+            : new InstrumentAdvice<double> { HistogramBucketBoundaries = bucketBoundaries.ToArray() };
+
         _sentCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSent, MetricsConstants.Messages,
             "Number of messages sent");
         _executionCounter = Meter.CreateHistogram<long>(MetricsConstants.ExecutionTime, MetricsConstants.Milliseconds,
-            "Execution time in milliseconds");
+            "Execution time in milliseconds", tags: null, advice: executionTimeAdvice);
         _successCounter = Meter.CreateCounter<int>(MetricsConstants.MessagesSucceeded, MetricsConstants.Messages,
             "Number of messages successfully processed");
 
@@ -124,7 +134,8 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
         _effectiveTime = Meter.CreateHistogram<double>(MetricsConstants.EffectiveMessageTime,
             MetricsConstants.Milliseconds,
-            "Effective time between a message being sent and being completely handled in milliseconds");
+            "Effective time between a message being sent and being completely handled in milliseconds",
+            tags: null, advice: effectiveTimeAdvice);
 
         _invokers = new LightweightCache<Type, IMessageInvoker>(findInvoker);
 
