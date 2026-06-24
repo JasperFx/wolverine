@@ -68,10 +68,21 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
             }
         }
 
+        // #3248 — the Main envelope store is a different engine (e.g. a host that persists to SQL Server
+        // but wires a PostgreSQL queue transport). Bind to the same-engine store registered as Ancillary
+        // (found in `stores` above) instead of throwing — the transport's queue tables only need a
+        // PostgreSQL database, not the Main store. Same fallback as ConnectAsync.
+        if (Store == null && stores.Count == 1)
+        {
+            Store = stores[0];
+        }
+
         if (Store == null)
         {
             throw new InvalidOperationException(
-                $"The PostgreSQL transport is configured for usage, but the envelope storage is incompatible: {runtime.Storage}");
+                "The PostgreSQL transport requires exactly one PostgreSQL-backed message store (the Main store, " +
+                "or a single Ancillary store registered with role: MessageStoreRole.Ancillary), but the envelope " +
+                $"storage is incompatible: {runtime.Storage}");
         }
     }
 
