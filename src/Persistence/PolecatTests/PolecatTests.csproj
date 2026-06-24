@@ -37,4 +37,17 @@
         </Compile>
     </ItemGroup>
 
+  <!-- JasperFx.Events.SourceGenerator is bundled inside the Polecat nupkg (analyzers/dotnet/cs/)
+       AND referenced explicitly above. When both copies are the identical version they load as two
+       analyzer instances, each emitting every projection's .Evolver dispatcher into this assembly,
+       so the compile fails with CS0433 ("type exists in both PolecatTests and PolecatTests"). The
+       generator dedupes within a single instance but cannot coordinate across two instances. Drop
+       the Polecat-bundled copy and keep the explicit one — the kept copy is the same store-agnostic
+       generator and still emits dispatchers for every projection in the compilation. -->
+  <Target Name="DropDuplicateBundledEventSourceGenerator" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)"
+                Condition="'%(Filename)' == 'JasperFx.Events.SourceGenerator' and $([System.String]::Copy('%(Identity)').Replace('\', '/').Contains('/polecat/'))" />
+    </ItemGroup>
+  </Target>
 </Project>
