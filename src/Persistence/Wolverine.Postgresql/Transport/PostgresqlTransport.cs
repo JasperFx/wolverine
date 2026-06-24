@@ -69,10 +69,12 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
 
         // #3248 — the Main envelope store is a different engine (e.g. a host that persists to SQL Server
-        // but wires a PostgreSQL queue transport). Bind to the same-engine store registered as Ancillary
-        // (found in `stores` above) instead of throwing — the transport's queue tables only need a
-        // PostgreSQL database, not the Main store. Same fallback as ConnectAsync.
-        if (Store == null && stores.Count == 1)
+        // but wires a PostgreSQL queue transport). Bind to a same-engine store registered as Ancillary
+        // instead of throwing — the transport's queue tables only need a PostgreSQL database, not the Main
+        // store, and the loop above already provisioned them in every same-engine store. A host can carry
+        // several same-engine stores (e.g. a primary + ancillary document store on the same server); they
+        // are co-located in practice, so the first is a safe binding. Same fallback as ConnectAsync.
+        if (Store == null && stores.Count > 0)
         {
             Store = stores[0];
         }
@@ -80,8 +82,8 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         if (Store == null)
         {
             throw new InvalidOperationException(
-                "The PostgreSQL transport requires exactly one PostgreSQL-backed message store (the Main store, " +
-                "or a single Ancillary store registered with role: MessageStoreRole.Ancillary), but the envelope " +
+                "The PostgreSQL transport requires at least one PostgreSQL-backed message store (the Main store, " +
+                "or an Ancillary store registered with role: MessageStoreRole.Ancillary), but the envelope " +
                 $"storage is incompatible: {runtime.Storage}");
         }
     }
@@ -122,16 +124,15 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
             // PostgreSQL database, not the Main store, so bind to a same-engine store registered as
             // Ancillary (see MessageStoreRole.Ancillary / role: passthrough) instead of throwing.
             var postgresStores = await runtime.Stores.FindAllAsync<PostgresqlMessageStore>();
-            if (postgresStores.Count == 1)
+            if (postgresStores.Count > 0)
             {
                 Store = postgresStores[0];
             }
             else
             {
                 throw new ArgumentOutOfRangeException(
-                    "The PostgreSQL transport requires exactly one PostgreSQL-backed message store (the Main store, " +
-                    "or a single Ancillary store registered with role: MessageStoreRole.Ancillary), but found " +
-                    postgresStores.Count + ".");
+                    "The PostgreSQL transport requires at least one PostgreSQL-backed message store (the Main " +
+                    "store, or an Ancillary store registered with role: MessageStoreRole.Ancillary), but found none.");
             }
         }
 
