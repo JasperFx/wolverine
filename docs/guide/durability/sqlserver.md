@@ -204,7 +204,32 @@ The transport reuses Wolverine's own SQL Server message store for the durable in
 belong to NServiceBus. Because NServiceBus normally owns and provisions its own tables, `AutoProvision` is **off by
 default** for these endpoints.
 
+Start with the message contracts shared by both applications. In a real system these usually live in a
+small contracts assembly referenced by both the Wolverine and NServiceBus hosts:
+
 ```cs
+// Shared between the Wolverine and NServiceBus applications.
+public interface IOrderContract
+{
+    Guid Id { get; set; }
+}
+
+public class OrderPlaced : IOrderContract
+{
+    public Guid Id { get; set; }
+}
+
+public class OrderConfirmed
+{
+    public Guid Id { get; set; }
+}
+```
+
+Configure the Wolverine application to read and write the NServiceBus queue tables:
+
+```cs
+using Wolverine;
+using Wolverine.SqlServer;
 using Wolverine.SqlServer.Transport.NServiceBus;
 
 builder.UseWolverine(opts =>
@@ -224,8 +249,40 @@ builder.UseWolverine(opts =>
     opts.ListenToNServiceBusSqlServerQueue("wolverine").UseForReplies();
 
     // Let NServiceBus send interface-typed messages that Wolverine binds to concrete types
-    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
 });
+```
+
+The NServiceBus application is configured normally with its own SQL Server transport pointed at the same
+database. NServiceBus owns and provisions the queue tables; Wolverine just reads and writes them:
+
+```cs
+using NServiceBus;
+
+var endpointConfiguration = new EndpointConfiguration("nsb");
+endpointConfiguration.UseSerialization<NewtonsoftJsonSerializer>();
+
+var transport = new SqlServerTransport(connectionString)
+{
+    TransportTransactionMode = TransportTransactionMode.SendsAtomicWithReceive
+};
+endpointConfiguration.UseTransport(transport);
+
+// NServiceBus creates its queue tables on startup
+endpointConfiguration.EnableInstallers();
+```
+
+An NServiceBus handler receives the Wolverine-produced message like any other NServiceBus message and can
+reply straight back to Wolverine's listening table:
+
+```cs
+public class OrderPlacedHandler : IHandleMessages<OrderPlaced>
+{
+    public Task Handle(OrderPlaced message, IMessageHandlerContext context)
+    {
+        return context.Reply(new OrderConfirmed { Id = message.Id });
+    }
+}
 ```
 
 Wolverine translates between its `Envelope` and the NServiceBus wire format with the standard NServiceBus headers
@@ -239,9 +296,43 @@ The `Body` written by NServiceBus' JSON serializer begins with a UTF-8 byte orde
 receive so the payload deserializes cleanly with either the default `System.Text.Json` or a Newtonsoft serializer.
 :::
 
-A full, runnable bidirectional example (both frameworks hosted side by side) lives in the
-[wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository. See the
-[interop tutorial](/tutorials/interop) for the bigger picture.
+### Multi-Tenancy
+
+NServiceBus implements multi-tenancy as a *persistence* concern rather than a transport one: the SQL Server
+transport queue tables live in a single shared database, and the tenant identity travels as a user-defined
+**message header** (the Particular [SQL persistence multi-tenancy sample](https://docs.particular.net/persistence/sql/multi-tenant)
+uses `tenant_id`). A receiving NServiceBus endpoint reads that header in its `MultiTenantConnectionBuilder`
+to open the correct tenant database.
+
+Wolverine maps that header to and from its own `Envelope.TenantId` so the two systems stay tenant-aware across
+the boundary. Opt in per endpoint with `MapTenantIdToHeader` on the sending side and `MapTenantIdFromHeader`
+on the listening side, passing the header name your NServiceBus endpoint is configured with (defaults to
+`tenant_id`):
+
+```cs
+builder.UseWolverine(opts =>
+{
+    opts.PersistMessagesWithSqlServer(connectionString, "wolverine");
+    opts.UseNServiceBusSqlServerInterop();
+
+    // Stamp Wolverine's Envelope.TenantId onto the NServiceBus "tenant_id" header
+    opts.PublishMessage<OrderPlaced>().ToNServiceBusSqlServerQueue("nsb")
+        .MapTenantIdToHeader();
+
+    // Surface the NServiceBus "tenant_id" header back as Envelope.TenantId
+    opts.ListenToNServiceBusSqlServerQueue("wolverine")
+        .MapTenantIdFromHeader()
+        .UseForReplies();
+});
+```
+
+Now when Wolverine sends with a tenant id (for example `bus.PublishAsync(message, new DeliveryOptions { TenantId = "tenant-green" })`),
+the NServiceBus endpoint receives the `tenant_id` header and resolves the matching tenant database; and any
+message NServiceBus sends with that header arrives at Wolverine with `Envelope.TenantId` already populated.
+The default (non-)tenant is never written as a header, so single-tenant traffic is unaffected.
+
+A full, runnable bidirectional example (both frameworks hosted side by side, including the multi-tenant case)
+is maintained in Wolverine's interop test suite. See the [interop tutorial](/tutorials/interop) for the bigger picture.
 
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
 
