@@ -106,8 +106,22 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
         }
         else
         {
-            throw new ArgumentOutOfRangeException(
-                "The PostgreSQL transport can only be used if PostgreSQL is the backing message store");
+            // #3248 — the Main envelope store is a different engine (e.g. a host that persists to SQL
+            // Server but wires a PostgreSQL queue transport). The transport's queue tables only need a
+            // PostgreSQL database, not the Main store, so bind to a same-engine store registered as
+            // Ancillary (see MessageStoreRole.Ancillary / role: passthrough) instead of throwing.
+            var postgresStores = await runtime.Stores.FindAllAsync<PostgresqlMessageStore>();
+            if (postgresStores.Count == 1)
+            {
+                Store = postgresStores[0];
+            }
+            else
+            {
+                throw new ArgumentOutOfRangeException(
+                    "The PostgreSQL transport requires exactly one PostgreSQL-backed message store (the Main store, " +
+                    "or a single Ancillary store registered with role: MessageStoreRole.Ancillary), but found " +
+                    postgresStores.Count + ".");
+            }
         }
 
         // This is de facto a little environment test
