@@ -472,7 +472,7 @@ builder.UseWolverine(opts =>
     opts.ListenToNServiceBusSqlServerQueue("wolverine").UseForReplies();
 
     // Bind NServiceBus interface-typed messages to Wolverine's concrete types
-    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
 });
 ```
 
@@ -488,8 +488,7 @@ A few things to note about NServiceBus database interop:
 
 See the [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability) and
 [PostgreSQL](/guide/durability/postgresql.html#nservicebus-interoperability) transport guides for the full set of
-options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for runnable,
-bidirectional samples with both frameworks hosted side by side.
+options, including complete inline samples of both frameworks hosted side by side and the multi-tenant case.
 
 ## Interop with MassTransit over Database Transports
 
@@ -513,7 +512,7 @@ builder.UseWolverine(opts =>
 
     opts.ListenToMassTransitPostgresqlQueue("wolverine").UseForReplies();
 
-    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
 });
 ```
 
@@ -528,5 +527,5 @@ A few things to note:
   ack (`delete_message`) on success or nack (`unlock_message`) on failure.
 
 See the [PostgreSQL transport guide](/guide/durability/postgresql.html#masstransit-interoperability) for the full set of
-options, and the [wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable,
-bidirectional sample.
+options. The Wolverine-side configuration shown above is the complete setup; MassTransit owns and migrates its own
+`transport` schema.

@@ -52,6 +52,15 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
     public string? InteropReplyQueueName { get; set; }
 
     /// <summary>
+    /// When set, Wolverine maps its <see cref="Envelope.TenantId"/> to and from this NServiceBus
+    /// message header on this queue. NServiceBus multi-tenancy is a persistence concern: the tenant
+    /// id rides as a user-defined header (the Particular SQL-persistence sample uses
+    /// <c>tenant_id</c>) and the receiving endpoint's <c>MultiTenantConnectionBuilder</c> uses it to
+    /// open the tenant's database. Null (the default) disables tenant mapping.
+    /// </summary>
+    public string? TenantHeader { get; set; }
+
+    /// <summary>
     ///     The maximum number of messages to receive in a single poll. Default is 20.
     /// </summary>
     public int MaximumMessagesToReceive { get; set; } = 20;
@@ -87,7 +96,7 @@ public class NServiceBusSqlServerQueue : Endpoint, IBrokerQueue
             return Parent.ReplyEndpoint()?.EndpointName;
         });
 
-        _mapper = new NServiceBusSqlServerEnvelopeMapper(this, () => replyName.Value);
+        _mapper = new NServiceBusSqlServerEnvelopeMapper(this, () => replyName.Value, TenantHeader);
         return _mapper;
     }
 

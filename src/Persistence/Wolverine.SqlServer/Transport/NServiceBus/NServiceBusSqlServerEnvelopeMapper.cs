@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Util;
@@ -42,11 +43,13 @@ internal class NServiceBusSqlServerEnvelopeMapper
 
     private readonly Endpoint _endpoint;
     private readonly Func<string?> _replyAddress;
+    private readonly string? _tenantHeader;
 
-    public NServiceBusSqlServerEnvelopeMapper(Endpoint endpoint, Func<string?> replyAddress)
+    public NServiceBusSqlServerEnvelopeMapper(Endpoint endpoint, Func<string?> replyAddress, string? tenantHeader = null)
     {
         _endpoint = endpoint;
         _replyAddress = replyAddress;
+        _tenantHeader = tenantHeader;
     }
 
     /// <summary>
@@ -94,6 +97,15 @@ internal class NServiceBusSqlServerEnvelopeMapper
         else if (envelope.MessageType.IsNotEmpty())
         {
             headers[EnclosedMessageTypesHeader] = envelope.MessageType!;
+        }
+
+        // NServiceBus multi-tenancy: carry Wolverine's tenant id in the NServiceBus tenant header
+        // so the receiving endpoint's SQL persistence resolves the right tenant database. Skip the
+        // default (non-)tenant so single-tenant traffic stays byte-for-byte unchanged.
+        if (_tenantHeader.IsNotEmpty() && envelope.TenantId.IsNotEmpty() &&
+            envelope.TenantId != StorageConstants.DefaultTenantId)
+        {
+            headers[_tenantHeader!] = envelope.TenantId!;
         }
 
         var json = JsonSerializer.Serialize(headers, NServiceBusSqlJsonContext.Default.DictionaryStringString);
@@ -145,6 +157,14 @@ internal class NServiceBusSqlServerEnvelopeMapper
         if (headers.TryGetValue(EnclosedMessageTypesHeader, out var enclosed) && enclosed.IsNotEmpty())
         {
             envelope.MessageType = resolveMessageType(enclosed);
+        }
+
+        // NServiceBus multi-tenancy: surface the tenant id NServiceBus stamped on the message as
+        // Wolverine's Envelope.TenantId so the rest of the Wolverine pipeline is tenant-aware.
+        if (_tenantHeader.IsNotEmpty() && headers.TryGetValue(_tenantHeader!, out var tenantId) &&
+            tenantId.IsNotEmpty())
+        {
+            envelope.TenantId = tenantId;
         }
 
         envelope.Serializer = _endpoint.TryFindSerializer(envelope.ContentType) ?? _endpoint.DefaultSerializer;

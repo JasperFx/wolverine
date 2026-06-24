@@ -279,7 +279,7 @@ builder.UseWolverine(opts =>
     opts.ListenToNServiceBusPostgresqlQueue("wolverine").UseForReplies();
 
     // Let NServiceBus send interface-typed messages that Wolverine binds to concrete types
-    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
 });
 ```
 
@@ -290,8 +290,15 @@ receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A
 * NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
   bare queue name so request/reply works in both directions.
 
-See the [interop tutorial](/tutorials/interop) for the bigger picture and the
-[wolverine-interop](https://github.com/JasperFx/wolverine-interop) repository for a runnable, bidirectional sample.
+Tenant propagation works exactly as it does for SQL Server: NServiceBus carries the tenant id in a message
+header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapTenantIdToHeader` /
+`MapTenantIdFromHeader` to the endpoints. See the
+[SQL Server multi-tenancy section](/guide/durability/sqlserver.html#multi-tenancy) for the full explanation and sample.
+
+The [SQL Server NServiceBus interoperability guide](/guide/durability/sqlserver.html#nservicebus-interoperability)
+shows the complete bidirectional setup inline — the shared message contracts, the NServiceBus host configuration, and
+a handler — all of which applies here apart from swapping the `*SqlServer*` configuration calls for the `*Postgresql*`
+ones shown above. See the [interop tutorial](/tutorials/interop) for the bigger picture.
 
 ## MassTransit Interoperability <Badge type="tip" text="6.0" />
 
@@ -322,7 +329,7 @@ builder.UseWolverine(opts =>
     // Listen to the queue MassTransit sends to, and use it for replies
     opts.ListenToMassTransitPostgresqlQueue("wolverine").UseForReplies();
 
-    opts.Policies.RegisterInteropMessageAssembly(typeof(IMyMessageContract).Assembly);
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
 });
 ```
 
