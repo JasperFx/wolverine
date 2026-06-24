@@ -92,16 +92,17 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
             // a SQL Server database, not the Main store, so bind to a same-engine store registered as
             // Ancillary (see MessageStoreRole.Ancillary / role: passthrough) instead of throwing.
             var sqlServerStores = await runtime.Stores.FindAllAsync<SqlServerMessageStore>();
-            if (sqlServerStores.Count == 1)
+            if (sqlServerStores.Count > 0)
             {
+                // A host can carry several same-engine stores (e.g. a primary + ancillary store on the
+                // same server); they are co-located in practice, so the first is a safe binding.
                 Storage = sqlServerStores[0];
             }
             else
             {
                 throw new InvalidOperationException(
-                    "The Sql Server Transport requires exactly one Sql Server-backed message store (the Main store, " +
-                    "or a single Ancillary store registered with role: MessageStoreRole.Ancillary), but found " +
-                    sqlServerStores.Count + ".");
+                    "The Sql Server Transport requires at least one Sql Server-backed message store (the Main " +
+                    "store, or an Ancillary store registered with role: MessageStoreRole.Ancillary), but found none.");
             }
         }
 
