@@ -255,8 +255,17 @@ public partial class AssignmentGrid
 
         foreach (var agentUri in restrictions.FindPausedAgentUris())
         {
-            var agent = AgentFor(agentUri);
-            if (agent == null) continue;
+            // A paused-agent restriction can legitimately reference a URI that is NOT a distributable
+            // grid agent — e.g. a receiving-endpoint listener paused application-wide (CritterWatch #533).
+            // Such a URI honors its pause directly in ListeningAgent.StartAsync() via FindPausedAgentUris(),
+            // not through the assignment grid, so it simply has no Agent here. AgentFor(uri) does a dictionary
+            // indexer lookup that THROWS KeyNotFoundException for a missing key (the `agent == null` guard
+            // below was dead code), which poisoned every subsequent EvaluateAssignmentsAsync cycle once such
+            // a restriction was persisted. Skip URIs that aren't grid agents instead.
+            if (!_agents.TryGetValue(agentUri, out var agent))
+            {
+                continue;
+            }
 
             agent.IsPaused = true;
             if (agent.AssignedNode != null)
