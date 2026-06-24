@@ -3,6 +3,23 @@ namespace Wolverine;
 public static class MessageBusExtensions
 {
     /// <summary>
+    ///     Publish a sequence of messages to all known subscribers in the order in which
+    ///     the messages are enumerated. Messages without known subscribers are ignored.
+    /// </summary>
+    /// <param name="bus"></param>
+    /// <param name="messages"></param>
+    /// <typeparam name="T"></typeparam>
+    public static async ValueTask PublishAllAsync<T>(this IMessageBus bus, IEnumerable<T> messages)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+
+        foreach (var message in messages)
+        {
+            await bus.PublishAsync(message).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     ///     Schedule the publishing or execution of a message until a later time
     /// </summary>
     /// <param name="message"></param>

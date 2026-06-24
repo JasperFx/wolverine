@@ -74,6 +74,56 @@ public class TestMessageContextTests
     }
 
     [Fact]
+    public async Task publish_all_typed_messages_in_order()
+    {
+        var messages = new List<Message1> { new(), new(), new() };
+
+        await theContext.PublishAllAsync(messages);
+
+        theSpy.Published.Select(x => x.ShouldBeOfType<Envelope>().Message).ShouldBe(messages);
+    }
+
+    [Fact]
+    public async Task publish_all_heterogeneous_messages_in_order()
+    {
+        object[] messages = [new Message1(), new Message2(), new Message3()];
+
+        await theContext.PublishAllAsync(messages);
+
+        theSpy.Published.Select(x => x.ShouldBeOfType<Envelope>().Message).ShouldBe(messages);
+    }
+
+    [Fact]
+    public async Task publish_all_with_no_messages_is_a_no_op()
+    {
+        await theContext.PublishAllAsync(Array.Empty<Message1>());
+
+        theSpy.Published.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task publish_all_rejects_a_null_sequence()
+    {
+        IEnumerable<Message1> messages = null!;
+
+        await Should.ThrowAsync<ArgumentNullException>(async () =>
+            await theContext.PublishAllAsync(messages));
+
+        theSpy.Published.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task publish_all_stops_and_propagates_an_enumeration_failure()
+    {
+        var first = new Message1();
+
+        await Should.ThrowAsync<InvalidOperationException>(async () =>
+            await theContext.PublishAllAsync(messagesThatFailAfter(first)));
+
+        theSpy.Published.Single().ShouldBeOfType<Envelope>().Message.ShouldBeSameAs(first);
+    }
+
+    [Fact]
     public async Task send_to_endpoint()
     {
         var message1 = new Message1();
@@ -531,6 +581,12 @@ public class TestMessageContextTests
             .InvokeAsync<NumberResponse>(new NumberRequest(5, 6));
 
         #endregion
+    }
+
+    private static IEnumerable<Message1> messagesThatFailAfter(Message1 first)
+    {
+        yield return first;
+        throw new InvalidOperationException("Expected test failure");
     }
 }
 

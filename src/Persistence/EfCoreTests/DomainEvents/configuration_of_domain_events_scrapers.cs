@@ -103,6 +103,26 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
 
         tracked.MessageSucceeded.SingleMessage<Event1>().Color.ShouldBe("orange");
     }
+
+    [Fact]
+    public async Task publish_all_domain_events_using_dbcontextoutbox()
+    {
+        await startHostAsync(_ => { });
+
+        await using var scope = theHost.Services.CreateAsyncScope();
+        var outbox = scope.ServiceProvider.GetRequiredService<IDbContextOutbox<CleanDbContext>>();
+        IDomainEvent[] events = [new Event1("red"), new Event2("green"), new Event3("blue")];
+
+        var tracked = await theHost.ExecuteAndWaitAsync(async _ =>
+        {
+            await outbox.PublishAllAsync(events);
+            await outbox.SaveChangesAndFlushMessagesAsync();
+        });
+
+        tracked.MessageSucceeded.SingleMessage<Event1>().Color.ShouldBe("red");
+        tracked.MessageSucceeded.SingleMessage<Event2>().Color.ShouldBe("green");
+        tracked.MessageSucceeded.SingleMessage<Event3>().Color.ShouldBe("blue");
+    }
     
         
     [Fact]
