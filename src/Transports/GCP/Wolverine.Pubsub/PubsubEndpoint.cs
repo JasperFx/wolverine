@@ -130,7 +130,12 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
         try
         {
-            if (!IsDeadLetter)
+            // Only competing-consumer listeners get a per-node subscription so that each node
+            // load balances a distinct copy of the stream. A leader-pinned (or otherwise
+            // single-node) listener must read from one shared, cluster-stable subscription;
+            // otherwise every node creates its own subscription and Pub/Sub fans a copy of every
+            // message to each, breaking the single-consumer (leader-only) guarantee.
+            if (!IsDeadLetter && ListenerScope == ListenerScope.CompetingConsumers)
             {
                 Server.Subscription.Name =
                     Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
