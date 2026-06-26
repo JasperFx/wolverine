@@ -24,7 +24,9 @@
         </PackageReference>
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="StronglyTypedId" />
-        <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+        <!-- JasperFx.Events.SourceGenerator is now bundled transitively (via JasperFx.Events /
+             Polecat 4.6.0), so an explicit analyzer reference here double-generates the
+             AggregateEvolver/EventProjection partials (CS0433/CS0111/CS0101). -->
     </ItemGroup>
 
     <ItemGroup>
