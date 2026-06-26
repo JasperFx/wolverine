@@ -24,6 +24,10 @@
         </PackageReference>
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="StronglyTypedId" />
+        <!-- The JasperFx.Events source generator must run on THIS assembly so the
+             AggregateEvolver / projection dispatchers are emitted (there is no runtime
+             fallback). Reference it explicitly so it always runs; the target below drops
+             Polecat's bundled duplicate copy where it also flows. -->
         <PackageReference Include="JasperFx.Events.SourceGenerator" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
