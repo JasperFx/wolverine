@@ -34,6 +34,15 @@ public class PulsarNativeResiliencyContinuation : IContinuation
                 await new MoveToErrorQueue(_exception)
                     .ExecuteAsync(lifecycle, runtime, now, activity);
                 //await listener.MoveToErrorsAsync(envelope, _exception);
+                return;
+            }
+
+            // No native retry-letter or dead-letter topic configured. If the endpoint opted into
+            // native per-message redelivery (#3177), leave the message unacknowledged and ask Pulsar
+            // to redeliver just it; otherwise keep the historical no-op behavior.
+            if (listener.UsesNativeRedelivery)
+            {
+                await listener.DeferAsync(envelope);
             }
 
             return;

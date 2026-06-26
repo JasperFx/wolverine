@@ -123,4 +123,64 @@ public class PulsarEndpointTests
         var uri = PulsarEndpoint.NativeTopicPath(true, "public", "default", "orders-DLQ");
         uri.ShouldBe(new Uri("persistent://public/default/orders-DLQ"));
     }
+
+    [Fact]
+    public void effective_dead_letter_topic_falls_back_to_transport_default()
+    {
+        var transport = new PulsarTransport
+        {
+            DeadLetterTopic = new DeadLetterTopic("transport-default-dlq", DeadLetterTopicMode.Native)
+        };
+
+        var endpoint = transport["pulsar://persistent/public/default/orders".ToUri()];
+
+        // No per-endpoint override -> transport-wide default is used.
+        endpoint.EffectiveDeadLetterTopic!.TopicName.ShouldBe("transport-default-dlq");
+    }
+
+    [Fact]
+    public void effective_dead_letter_topic_prefers_per_endpoint_override()
+    {
+        var transport = new PulsarTransport
+        {
+            DeadLetterTopic = new DeadLetterTopic("transport-default-dlq", DeadLetterTopicMode.Native)
+        };
+
+        var endpoint = transport["pulsar://persistent/public/default/orders".ToUri()];
+        endpoint.DeadLetterTopic = new DeadLetterTopic("endpoint-dlq", DeadLetterTopicMode.Native);
+
+        // Per-endpoint configuration always wins over the transport default.
+        endpoint.EffectiveDeadLetterTopic!.TopicName.ShouldBe("endpoint-dlq");
+    }
+
+    [Fact]
+    public void effective_retry_letter_topic_prefers_per_endpoint_override()
+    {
+        var transportDefault = new RetryLetterTopic([1.Seconds()]);
+        var endpointOverride = new RetryLetterTopic([2.Seconds()]);
+
+        var transport = new PulsarTransport { RetryLetterTopic = transportDefault };
+        var endpoint = transport["pulsar://persistent/public/default/orders".ToUri()];
+
+        endpoint.EffectiveRetryLetterTopic.ShouldBe(transportDefault);
+
+        endpoint.RetryLetterTopic = endpointOverride;
+        endpoint.EffectiveRetryLetterTopic.ShouldBe(endpointOverride);
+    }
+
+    [Theory]
+    [InlineData(DeadLetterTopicMode.Native)]
+    [InlineData(DeadLetterTopicMode.WolverineStorage)]
+    public void try_build_dead_letter_sender_is_always_false(DeadLetterTopicMode mode)
+    {
+        var transport = new PulsarTransport();
+        var endpoint = transport["pulsar://persistent/public/default/orders".ToUri()];
+        endpoint.DeadLetterTopic = new DeadLetterTopic(mode);
+
+        // Pulsar never uses an endpoint-level DLQ sender: native dead-lettering is owned by the
+        // listener (ISupportDeadLetterQueue, with reconsume metadata) and WolverineStorage by the
+        // durable store. Returning a sender here would hijack the native path. See #3186.
+        endpoint.TryBuildDeadLetterSender(null!, out var sender).ShouldBeFalse();
+        sender.ShouldBeNull();
+    }
 }

@@ -3,6 +3,7 @@ using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Daemon;
+using JasperFx.Events.Descriptors;
 using JasperFx.Events.Projections;
 
 namespace Wolverine.Runtime.Agents;
@@ -13,7 +14,12 @@ public class EventStoreAgents : IAsyncDisposable
     private readonly IObserver<ShardState>[] _observers;
     private readonly SemaphoreSlim _daemonLock = new(1);
     private ImHashMap<DatabaseId, IProjectionDaemon> _daemons = ImHashMap<DatabaseId, IProjectionDaemon>.Empty;
-    private readonly List<ShardName> _shardNames = new();
+
+    // Keyed by ShardName.RelativeUrl. Populated as a side effect of SupportedAgentsAsync, but also resolved
+    // on demand by BuildAgentAsync (a node assigned an agent may never have enumerated its own shards). An
+    // ImHashMap so the enumeration writes and the BuildAgentAsync reads are lock-free across threads. See
+    // GH-3216.
+    private ImHashMap<string, ShardName> _shardNames = ImHashMap<string, ShardName>.Empty;
     
     public EventStoreAgents(IEventStore store, IObserver<ShardState>[] observers)
     {
@@ -90,7 +96,7 @@ public class EventStoreAgents : IAsyncDisposable
             
             foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
             {
-                _shardNames.Fill(shardName);
+                _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
                 var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
                 list.Add(uri);
             }
@@ -104,7 +110,7 @@ public class EventStoreAgents : IAsyncDisposable
             {
                 foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
                 {
-                    _shardNames.Fill(shardName);
+                    _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
                     var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
                     list.Add(uri);
                 }
@@ -139,15 +145,113 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async Task<EventSubscriptionAgent> BuildAgentAsync(Uri uri, DatabaseId databaseId, string shardPath)
     {
-        var shardName = _shardNames.FirstOrDefault(x => x.RelativeUrl == shardPath);
+        var shardName = await ResolveShardNameAsync(shardPath, CancellationToken.None);
         if (shardName == null)
         {
             throw new ArgumentOutOfRangeException(nameof(shardPath), $"Unable to find a shard with path '{shardPath}'");
         }
 
         var daemon = await FindDaemonAsync(databaseId);
-        
+
         return new EventSubscriptionAgent(uri, shardName, daemon);
+    }
+
+    /// <summary>
+    /// Resolve a shard by its <c>RelativeUrl</c>. The cache is populated lazily as a side effect of
+    /// <see cref="SupportedAgentsAsync" />, which only runs on the node that evaluates assignments (the
+    /// leader). A node that is *assigned* an agent may never have enumerated its own shards yet, so on a
+    /// cache miss enumerate the store's registered subscriptions directly before giving up — otherwise
+    /// agent start fails non-deterministically on followers / after failover. See GH-3216.
+    /// </summary>
+    private async ValueTask<ShardName?> ResolveShardNameAsync(string shardPath, CancellationToken cancellation)
+    {
+        if (_shardNames.TryFind(shardPath, out var shardName))
+        {
+            return shardName;
+        }
+
+        // Populate the cache from the store usage (the same source SupportedAgentsAsync reads), then retry.
+        await SupportedAgentsAsync(cancellation);
+
+        return _shardNames.TryFind(shardPath, out shardName) ? shardName : null;
+    }
+
+    /// <summary>
+    /// Rebuild a REGISTERED projection addressed by its shard identity, regardless of lifecycle
+    /// (Inline / Live / Async) or whether it is currently distributed as a continuous agent. Unlike
+    /// <see cref="SupportedAgentsAsync" /> — which only surfaces <see cref="ProjectionLifecycle.Async" />
+    /// shards as distributable agents — this matches the shard across the full registered subscription set,
+    /// builds the projection daemon for the owning database, and runs the daemon's rebuild. The daemon
+    /// spins up a transient rebuild agent for that projection, replays to the high-water mark, then stops
+    /// it — exactly the "spin up an agent just for the rebuild, then shut it down" behavior an operator
+    /// wants when rebuilding a non-running (e.g. Inline) projection. Returns false when no registered shard
+    /// matches <paramref name="shardIdentity" />. See GH-3163.
+    /// </summary>
+    public async Task<bool> TryRebuildRegisteredProjectionAsync(string shardIdentity, string? tenantId,
+        CancellationToken cancellation)
+    {
+        if (!ShardName.TryParse(shardIdentity, out var baseName) || baseName is null)
+        {
+            return false;
+        }
+
+        var usage = await _store.TryCreateUsage(cancellation);
+        if (usage == null)
+        {
+            return false;
+        }
+
+        // Match across ALL lifecycles — an Inline/Live projection still carries its ShardNames on the
+        // descriptor (the descriptor populates them before the Async-only distribution filter), so a
+        // registered-but-not-distributed projection resolves here even though it has no agent URI.
+        var match = usage.Subscriptions
+            .SelectMany(sub => sub.ShardNames.Select(shard => (Subscription: sub, Shard: shard)))
+            .FirstOrDefault(x =>
+                string.Equals(x.Shard.Identity, baseName.Identity, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(x.Shard.RelativeUrl, baseName.RelativeUrl, StringComparison.OrdinalIgnoreCase));
+
+        if (match.Shard == null)
+        {
+            return false;
+        }
+
+        // Resolve the owning database: database-per-tenant resolves the tenant's database; otherwise the
+        // main/single database (single-database per-tenant rebuilds are scoped by the tenantId argument the
+        // daemon's rebuild overload understands, not by a separate database).
+        DatabaseId? databaseId = null;
+        if (!string.IsNullOrEmpty(tenantId))
+        {
+            databaseId = await TryResolveTenantDatabaseIdAsync(tenantId, cancellation);
+        }
+
+        databaseId ??= ResolveDefaultDatabaseId(usage);
+        if (databaseId == null)
+        {
+            return false;
+        }
+
+        var daemon = await FindDaemonAsync(databaseId);
+
+        // Rebuild scope: today an event store can only rebuild an ENTIRE projection — every shard of the
+        // projection at once — so we rebuild by the projection name. The "All" shard key (the canonical
+        // identity, e.g. "Trip:All") denotes exactly that whole-projection rebuild. The ONE exception is
+        // per-tenant partitioning, where an individual shard IS a single tenant's partition: a non-null
+        // tenantId flows to the daemon's tenant overload to rebuild just that partition, leaving the other
+        // tenants untouched. For a store-global projection the tenant is a no-op. RebuildProjectionAsync
+        // builds a rebuild-mode agent, replays to the high-water mark, then stops it.
+        await daemon.RebuildProjectionAsync(match.Subscription.Name, tenantId, cancellation);
+        return true;
+    }
+
+    private static DatabaseId? ResolveDefaultDatabaseId(EventStoreUsage usage)
+    {
+        if (usage.Database.MainDatabase != null)
+        {
+            return new DatabaseId(usage.Database.MainDatabase.ServerName, usage.Database.MainDatabase.DatabaseName);
+        }
+
+        var first = usage.Database.Databases.FirstOrDefault();
+        return first == null ? null : new DatabaseId(first.ServerName, first.DatabaseName);
     }
 
     public async Task StartAllAsync(CancellationToken cancellationToken)

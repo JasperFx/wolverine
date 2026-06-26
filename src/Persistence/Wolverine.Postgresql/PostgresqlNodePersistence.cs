@@ -113,6 +113,11 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
     public async Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
         CancellationToken cancellationToken)
     {
+        // No changes to persist. Compiling/executing an empty BatchBuilder yields a single command with
+        // an empty CommandText, which throws "CommandText property has not been initialized" — so no-op
+        // instead. The empty case happens on an idempotent restriction apply (no delta). See wolverine#3252.
+        if (restrictions.Count == 0) return;
+
         var builder = new BatchBuilder();
         foreach (var restriction in restrictions)
         {

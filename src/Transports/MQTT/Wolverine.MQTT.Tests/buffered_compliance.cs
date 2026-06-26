@@ -69,7 +69,9 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         var transport = options.Transports
             .GetOrCreate<MqttTransport>();
 
-        transport.ResponseTopic.ShouldBe("wolverine/response/" + options.Durability.AssignedNodeNumber);
+        // Solo mode keys the reply topic on the unique node id (not the always-1 assigned node
+        // number) so multiple Solo services on one broker don't collide. See #3189.
+        transport.ResponseTopic.ShouldBe("wolverine/response/" + options.UniqueNodeId.ToString("N"));
 
         transport.ReplyEndpoint().ShouldBeOfType<MqttTopic>().TopicName.ShouldBe(transport.ResponseTopic);
     }

@@ -87,6 +87,19 @@ public class DurabilitySettings : IDescribeMyself
     public DurabilityMode Mode { get; set; } = DurabilityMode.Balanced;
 
     /// <summary>
+    /// Opt-in reconciliation for when more than one registered message store claims the <c>Main</c> role
+    /// (GH-3226) — e.g. an event-store-backed main store (Marten / Polecat <c>IntegrateWithWolverine()</c>)
+    /// combined with a database-backed transport (the SQL Server / PostgreSQL queues) that also registers an
+    /// implicit <c>Main</c> store. The callback receives every <c>Main</c>-tagged store and returns the one to
+    /// keep as <c>Main</c>; the others are demoted to <c>Ancillary</c> instead of Wolverine throwing
+    /// "There must be exactly one message store tagged as the 'main' store". When left null (the default) the
+    /// strict single-Main validation is enforced. Return null from the callback to also fall back to the
+    /// strict validation.
+    /// </summary>
+    public Func<IReadOnlyList<Wolverine.Persistence.Durability.IMessageStore>,
+        Wolverine.Persistence.Durability.IMessageStore?>? ResolveMainStoreOnConflict { get; set; }
+
+    /// <summary>
     /// Direct Wolverine on how it judges message identity. "Classic" default is IdOnly. Switch to IdAndDestination
     /// for Modular Monolith usage where you may be receiving the same message and processing separately in different
     /// external transport listening endpoints

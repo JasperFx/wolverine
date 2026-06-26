@@ -135,6 +135,7 @@ public class EndpointCollection : IEndpointCollection
 
         foreach (var listener in _listeners.Values)
         {
+            var loopHealth = receiveLoopHealthOf(listener);
             snapshots.Add(new EndpointHealthSnapshot(
                 Uri: listener.Uri,
                 EndpointName: listener.Endpoint.EndpointName,
@@ -144,7 +145,10 @@ public class EndpointCollection : IEndpointCollection
                 LastQueueActivityAt: listener.LastQueueActivityAt,
                 LastMessageSentAt: null,
                 SenderLatched: false,
-                BufferLimit: listener.Endpoint.BufferingLimits?.Maximum));
+                BufferLimit: listener.Endpoint.BufferingLimits?.Maximum,
+                ConnectionState: connectionStateOf(listener),
+                ReceiveLoopStatus: loopHealth?.ReceiveLoopStatus ?? ReceiveLoopStatus.Unknown,
+                LastReceiveLoopActivityAt: loopHealth?.LastReceiveLoopActivityAt));
         }
 
         foreach (var sender in _senders.Enumerate().Select(x => x.Value))
@@ -158,10 +162,67 @@ public class EndpointCollection : IEndpointCollection
                 LastQueueActivityAt: null,
                 LastMessageSentAt: sender.LastMessageSentAt,
                 SenderLatched: sender.Latched,
-                BufferLimit: null));
+                BufferLimit: null,
+                ConnectionState: connectionStateOf(sender)));
         }
 
         return snapshots;
+    }
+
+    // Resolve the background receive-loop health for a listener. The agent itself may report it, otherwise reach
+    // through to the IListener it owns. Listeners with no managed loop (push transports, local queues) report null.
+    private static IReportReceiveLoopHealth? receiveLoopHealthOf(IListeningAgent agent)
+    {
+        if (agent is IReportReceiveLoopHealth reporter)
+        {
+            return reporter;
+        }
+
+        if (agent is ListeningAgent { Listener: IReportReceiveLoopHealth listenerReporter })
+        {
+            return listenerReporter;
+        }
+
+        return null;
+    }
+
+    // Resolve the underlying transport channel/connection state for a listener. The agent itself may report it
+    // (IReportConnectionState), otherwise reach through to the IListener it owns. Transports without a connection
+    // notion fall through to Unknown.
+    private static TransportConnectionState connectionStateOf(IListeningAgent agent)
+    {
+        if (agent is IReportConnectionState reporter)
+        {
+            return reporter.ConnectionState;
+        }
+
+        if (agent is ListeningAgent { Listener: IReportConnectionState listenerReporter })
+        {
+            return listenerReporter.ConnectionState;
+        }
+
+        return TransportConnectionState.Unknown;
+    }
+
+    // Resolve the underlying transport channel/connection state for a sending agent. The agent itself may report it,
+    // otherwise reach through to the ISender it wraps (SendingAgent / InlineSendingAgent both expose Sender).
+    private static TransportConnectionState connectionStateOf(ISendingAgent agent)
+    {
+        if (agent is IReportConnectionState reporter)
+        {
+            return reporter.ConnectionState;
+        }
+
+        var sender = agent switch
+        {
+            SendingAgent sa => sa.Sender,
+            InlineSendingAgent ia => ia.Sender,
+            _ => null
+        };
+
+        return sender is IReportConnectionState senderReporter
+            ? senderReporter.ConnectionState
+            : TransportConnectionState.Unknown;
     }
 
     public ISendingAgent GetOrBuildSendingAgent(Uri address, Action<Endpoint>? configureNewEndpoint = null)

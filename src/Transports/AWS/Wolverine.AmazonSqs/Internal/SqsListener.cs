@@ -7,15 +7,14 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsListener : IListener, ISupportDeadLetterQueue
+internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveLoopHealth
 {
-    private readonly CancellationTokenSource _cancellation = new();
     private readonly RetryBlock<Envelope>? _deadLetterBlock;
     private readonly AmazonSqsQueue? _deadLetterQueue;
     private readonly AmazonSqsQueue _queue;
     private readonly IReceiver _receiver;
     private readonly RetryBlock<AmazonSqsEnvelope> _requeueBlock;
-    private readonly Task _task;
+    private readonly BackgroundReceiveLoop _loop;
     private readonly AmazonSqsTransport _transport;
     private readonly ISqsEnvelopeMapper _mapper;
     private readonly TimeSpan _drainTimeout;
@@ -45,8 +44,6 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
             _deadLetterQueue = _transport.Queues[_queue.DeadLetterQueueName];
         }
 
-        var failedCount = 0;
-
         _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, _) =>
         {
             if (!env.WasDeleted)
@@ -61,84 +58,68 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
             new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
                 runtime.Cancellation);
 
-        _receiver = receiver;
-
-        _task = Task.Run(async () =>
-        {
-            while (!_cancellation.Token.IsCancellationRequested)
-            {
-                try
-                {
-                    var request = new ReceiveMessageRequest(_queue.QueueUrl);
-
-                    _queue.ConfigureRequest(request);
-
-                    var results = await _transport.Client.ReceiveMessageAsync(request, _cancellation.Token);
-
-                    failedCount = 0;
-
-                    if (results.Messages != null && results.Messages.Any())
-                    {
-                        var envelopes = new List<Envelope>(results.Messages.Count);
-                        foreach (var message in results.Messages)
-                        {
-                            try
-                            {
-                                var envelope = buildEnvelope(message);
-
-                                envelopes.Add(envelope);
-                            }
-                            catch (Exception e)
-                            {
-                                if (_deadLetterQueue != null)
-                                {
-                                    try
-                                    {
-                                        await _transport.Client.SendMessageAsync(new SendMessageRequest(
-                                            _deadLetterQueue.QueueUrl,
-                                            message.Body));
-                                    }
-                                    catch (Exception exception)
-                                    {
-                                        logger.LogError(exception,
-                                            "Error while trying to directly send a dead letter message {Id} from {Uri}",
-                                            message.MessageId, _queue.Uri);
-                                    }
-                                }
-
-                                logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId,
-                                    _queue.Uri);
-                            }
-                        }
-
-                        // ReSharper disable once CoVariantArrayConversion
-                        if (envelopes.Any())
-                        {
-                            await receiver.ReceivedAsync(this, envelopes.ToArray());
-                        }
-                    }
-                    else
-                    {
-                        // Slow down if this is a periodically used queue
-                        await Task.Delay(250.Milliseconds());
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                    // do nothing here, it's all good
-                }
-                catch (Exception e)
-                {
-                    failedCount++;
-                    var pauseTime = failedCount > 5 ? 1.Seconds() : (failedCount * 100).Milliseconds();
-
-                    logger.LogError(e, "Error while trying to retrieve messages from SQS Queue {Uri}",
-                        queue.Uri);
-                    await Task.Delay(pauseTime);
-                }
-            }
-        }, _cancellation.Token);
+        // GH-3236: the receive loop is now a shared BackgroundReceiveLoop — it owns the task, the
+        // catch -> log -> exponential-backoff -> continue policy, the idle delay when a poll returns nothing, the
+        // heartbeat, and safe teardown. The listener just provides one poll-and-process iteration and reports the
+        // loop's health through IReportReceiveLoopHealth.
+        _loop = new BackgroundReceiveLoop(_queue.Uri, logger, pollOnceAsync, runtime.Cancellation);
+        _loop.Start();
     }
+
+    private async Task<bool> pollOnceAsync(CancellationToken token)
+    {
+        var request = new ReceiveMessageRequest(_queue.QueueUrl);
+        _queue.ConfigureRequest(request);
+
+        var results = await _transport.Client!.ReceiveMessageAsync(request, token);
+
+        if (results.Messages == null || !results.Messages.Any())
+        {
+            // No work — the loop applies its idle delay before polling again.
+            return false;
+        }
+
+        var envelopes = new List<Envelope>(results.Messages.Count);
+        foreach (var message in results.Messages)
+        {
+            try
+            {
+                envelopes.Add(buildEnvelope(message));
+            }
+            catch (Exception e)
+            {
+                if (_deadLetterQueue != null)
+                {
+                    try
+                    {
+                        await _transport.Client.SendMessageAsync(new SendMessageRequest(
+                            _deadLetterQueue.QueueUrl,
+                            message.Body));
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(exception,
+                            "Error while trying to directly send a dead letter message {Id} from {Uri}",
+                            message.MessageId, _queue.Uri);
+                    }
+                }
+
+                _logger.LogError(e, "Error while reading message {Id} from {Uri}", message.MessageId, _queue.Uri);
+            }
+        }
+
+        // ReSharper disable once CoVariantArrayConversion
+        if (envelopes.Any())
+        {
+            await _receiver.ReceivedAsync(this, envelopes.ToArray());
+        }
+
+        return true;
+    }
+
+    public ReceiveLoopStatus ReceiveLoopStatus => _loop.ReceiveLoopStatus;
+
+    public DateTimeOffset? LastReceiveLoopActivityAt => _loop.LastReceiveLoopActivityAt;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -162,34 +143,16 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
 
     public async ValueTask DisposeAsync()
     {
-        if (!_cancellation.IsCancellationRequested)
-        {
-            await _cancellation.CancelAsync();
-        }
-
-        _cancellation.Dispose();
+        await _loop.DisposeAsync();
         _requeueBlock.Dispose();
         _deadLetterBlock?.Dispose();
-        _task.SafeDispose();
     }
 
     public Uri Address => _queue.Uri;
 
     public async ValueTask StopAsync()
     {
-        await _cancellation.CancelAsync();
-
-        try
-        {
-            await _task.WaitAsync(_drainTimeout);
-        }
-        catch (Exception e)
-        {
-            if (e is not TaskCanceledException)
-            {
-                _logger.LogDebug(e, "Error waiting for SQS polling task to complete during shutdown for {Uri}", _queue.Uri);
-            }
-        }
+        await _loop.StopAsync(_drainTimeout);
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
@@ -214,7 +177,13 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
         var envelope = new AmazonSqsEnvelope(message);
-        _mapper.ReadEnvelopeData(envelope, message.Body, message.MessageAttributes);
+
+        // SQS only returns MessageAttributes when they were explicitly requested, and
+        // brokers/SDKs may hand back a null collection when a message carries none (as is
+        // the case for MassTransit/NServiceBus messages that keep their metadata in the body).
+        // Guarantee a non-null dictionary so ISqsEnvelopeMapper implementations can read freely.
+        var attributes = message.MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
+        _mapper.ReadEnvelopeData(envelope, message.Body, attributes);
 
         return envelope;
     }

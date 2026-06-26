@@ -25,24 +25,25 @@ public class PersistenceMetrics : IDisposable
         _observer = runtime.Observer;
         var meter = runtime.Meter;
 
-        if (databaseName.IsEmpty())
+        // GH-3225: tag the queue-depth gauges dimensionally so an external TSDB can slice inbox/outbox/scheduled
+        // depth per service ("source") and per database. The database is a dimensional tag rather than a per-database
+        // instrument *name* suffix (the old behavior) so a single series can be grouped/filtered by database.
+        var tags = new List<KeyValuePair<string, object?>>
         {
-            _incoming = meter.CreateObservableGauge(MetricsConstants.InboxCount, () => Counts.Incoming,
-                MetricsConstants.Messages, "Inbox messages");
-            _outgoing = meter.CreateObservableGauge(MetricsConstants.OutboxCount, () => Counts.Outgoing,
-                MetricsConstants.Messages, "Outbox messages");
-            _scheduled = meter.CreateObservableGauge(MetricsConstants.ScheduledCount, () => Counts.Scheduled,
-                MetricsConstants.Messages, "Scheduled messages");
-        }
-        else
+            new(MetricsConstants.SourceKey, runtime.Options.ServiceName)
+        };
+
+        if (databaseName.IsNotEmpty())
         {
-            _incoming = meter.CreateObservableGauge( MetricsConstants.InboxCount + "." + databaseName, () => Counts.Incoming,
-                MetricsConstants.Messages, "Inbox messages for database " + databaseName);
-            _outgoing = meter.CreateObservableGauge(MetricsConstants.OutboxCount+ "." + databaseName, () => Counts.Outgoing,
-                MetricsConstants.Messages, "Outbox messages for database " + databaseName);
-            _scheduled = meter.CreateObservableGauge(MetricsConstants.ScheduledCount+ "." + databaseName, () => Counts.Scheduled,
-                MetricsConstants.Messages, "Scheduled messages for database " + databaseName);
+            tags.Add(new KeyValuePair<string, object?>(MetricsConstants.DatabaseKey, databaseName));
         }
+
+        _incoming = meter.CreateObservableGauge(MetricsConstants.InboxCount, () => Counts.Incoming,
+            MetricsConstants.Messages, "Inbox messages", tags);
+        _outgoing = meter.CreateObservableGauge(MetricsConstants.OutboxCount, () => Counts.Outgoing,
+            MetricsConstants.Messages, "Outbox messages", tags);
+        _scheduled = meter.CreateObservableGauge(MetricsConstants.ScheduledCount, () => Counts.Scheduled,
+            MetricsConstants.Messages, "Scheduled messages", tags);
     }
     
     public PersistedCounts Counts { get; set; } = new();

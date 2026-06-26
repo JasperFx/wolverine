@@ -26,6 +26,16 @@ public interface IListenerCircuit
     
     ValueTask StartAsync();
 
+    /// <summary>
+    /// Force the listener to stop and rebuild its underlying transport listener even if it currently reports
+    /// <see cref="ListeningStatus.Accepting"/>. This is the remediation primitive for recovering a "stuck"
+    /// listener — e.g. a dead transport channel that the framework could not self-heal but that still reports
+    /// Accepting — without bouncing the process. When <paramref name="force"/> is <c>false</c> this behaves like
+    /// <see cref="StartAsync"/> (a no-op when already Accepting). The default implementation is the gentle
+    /// <see cref="StartAsync"/>; circuits backed by a real transport listener override it to tear down and rebuild.
+    /// </summary>
+    ValueTask RestartAsync(bool force = true) => StartAsync();
+
     Task EnqueueDirectlyAsync(IEnumerable<Envelope> envelopes);
 }
 
@@ -300,6 +310,20 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _logger.LogInformation("Listener at {Uri} has been permanently latched", Uri);
         await _runtime.Observer.ListenerLatched(Endpoint);
+    }
+
+    public async ValueTask RestartAsync(bool force = true)
+    {
+        if (force)
+        {
+            // Tear the listener down even when Status still reports Accepting — the underlying transport channel
+            // may be dead while the orchestration status is stale (the #3171-class state, or anything the framework
+            // can't self-heal). StopAndDrainAsync sets Status to Stopped, so the StartAsync() below is no longer a
+            // no-op and fully rebuilds the listener.
+            await StopAndDrainAsync();
+        }
+
+        await StartAsync();
     }
 
     public async ValueTask StartAsync()

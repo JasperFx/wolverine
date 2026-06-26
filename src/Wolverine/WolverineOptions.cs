@@ -132,6 +132,25 @@ public class MetricsOptions
     /// Wolverine will sample and publish metric data collection. Default is 5 seconds
     /// </summary>
     public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
+
+    /// <summary>
+    /// Default explicit histogram bucket boundaries (in milliseconds) applied to the
+    /// <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms. The
+    /// OpenTelemetry SDK's default buckets are poor for millisecond-scale latencies; these are tuned for
+    /// message handling. See GH-3224.
+    /// </summary>
+    public static readonly IReadOnlyList<double> DefaultHistogramBucketBoundaries =
+        new double[] { 1, 2, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000 };
+
+    /// <summary>
+    /// Explicit histogram bucket boundaries (in milliseconds) used as the instrument <em>advice</em> for
+    /// the <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms, so quantile
+    /// baselines computed from a time-series database (Prometheus / VictoriaMetrics) are meaningful for
+    /// millisecond latencies. Defaults to <see cref="DefaultHistogramBucketBoundaries"/>. Set to
+    /// <c>null</c> to fall back to the OpenTelemetry SDK / exporter defaults, or supply your own ascending
+    /// boundaries. An OpenTelemetry <c>View</c> still overrides this advice when configured. See GH-3224.
+    /// </summary>
+    public IReadOnlyList<double>? HistogramBucketBoundaries { get; set; } = DefaultHistogramBucketBoundaries;
 }
 
 /// <summary>
@@ -521,6 +540,13 @@ public sealed partial class WolverineOptions
     ///     Descriptive name of the running service. Used in Wolverine diagnostics and testing support
     /// </summary>
     public string ServiceName { get; set; } = null!;
+
+    /// <summary>
+    ///     Free-form, user-defined service-level tags. These are surfaced on <c>ServiceCapabilities.Tags</c> and flow
+    ///     to monitoring tools (e.g. CritterWatch) so operators can label and filter related services by their own
+    ///     conventions. The operator owns any <c>key:value</c> convention — Wolverine treats these as opaque strings.
+    /// </summary>
+    public IList<string> Tags { get; } = new List<string>();
 
     /// <summary>
     ///     This should probably *only* be used in development or testing

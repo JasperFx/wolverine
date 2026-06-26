@@ -7,12 +7,12 @@ public class MassTransitEnvelopeTests
 {
     private readonly Envelope theEnvelope = new();
     private readonly DateTimeOffset theExpirationTime = new(new DateTime(2022, 9, 13, 5, 5, 0));
-    private readonly MassTransitEnvelope theMassTransitEnvelope;
+    private readonly MassTransitEnvelope<object> theMassTransitEnvelope;
     private readonly DateTimeOffset theSentTime = new(new DateTime(2022, 9, 13, 5, 0, 0));
 
     public MassTransitEnvelopeTests()
     {
-        theMassTransitEnvelope = new MassTransitEnvelope
+        theMassTransitEnvelope = new MassTransitEnvelope<object>
         {
             MessageId = Guid.NewGuid().ToString(),
             CorrelationId = Guid.NewGuid().ToString(),
@@ -42,7 +42,7 @@ public class MassTransitEnvelopeTests
         envelope.Headers["color"] = "purple";
         envelope.Headers["number"] = "1";
 
-        var mtEnvelope = new MassTransitEnvelope(envelope);
+        var mtEnvelope = new MassTransitEnvelope<object>(envelope);
 
         mtEnvelope.MessageId.ShouldBe(envelope.Id.ToString());
         mtEnvelope.CorrelationId.ShouldBe(envelope.CorrelationId);

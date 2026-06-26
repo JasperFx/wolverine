@@ -75,14 +75,9 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task StoreIncomingAsync(Envelope envelope)
     {
-        if (envelope.Status == EnvelopeStatus.Scheduled)
+        // A no-op store never throws; just schedule in memory when we can and otherwise do nothing.
+        if (envelope.Status == EnvelopeStatus.Scheduled && envelope.ScheduledTime != null)
         {
-            if (envelope.ScheduledTime == null)
-            {
-                throw new ArgumentOutOfRangeException(
-                    $"The envelope {envelope} is marked as Scheduled, but does not have an ExecutionTime");
-            }
-
             ScheduledJobs?.Enqueue(envelope.ScheduledTime.Value, envelope);
         }
 
@@ -99,13 +94,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
     {
-        if (!envelope.ScheduledTime.HasValue)
+        if (envelope.ScheduledTime.HasValue)
         {
-            throw new ArgumentOutOfRangeException(nameof(envelope),
-                $"Envelope does not have a value for {nameof(Envelope.ScheduledTime)}");
+            ScheduledJobs?.Enqueue(envelope.ScheduledTime.Value, envelope);
         }
-
-        ScheduledJobs?.Enqueue(envelope.ScheduledTime!.Value, envelope);
 
         return Task.CompletedTask;
     }
@@ -127,7 +119,7 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
-        throw new NotSupportedException();
+        return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());
     }
 
     public Task DiscardAndReassignOutgoingAsync(Envelope[] discards, Envelope[] reassigned, int nodeId)
@@ -144,7 +136,9 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
     public IMessageOutbox Outbox => this;
     public IDeadLetters DeadLetters => this;
     public IScheduledMessages ScheduledMessages => this;
-    public INodeAgentPersistence Nodes => throw new NotSupportedException();
+    // A no-op node persistence rather than throwing: observers / CritterWatch call this to record node
+    // lifecycle and must not blow up on a storeless (Solo / NullMessageStore) host.
+    public INodeAgentPersistence Nodes => NullNodeAgentPersistence.Instance;
 
     // No durable backing → no dynamic-listener registry. Solo-mode hosts that
     // *do* want dynamic listeners need a real message store.
@@ -172,7 +166,10 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public IAgent StartScheduledJobs(IWolverineRuntime wolverineRuntime)
     {
-        throw new NotSupportedException();
+        // In-memory scheduled jobs are wired separately (WolverineRuntime.startInMemoryScheduledJobs), so
+        // there is no durable scheduled-job agent to run here — return a no-op agent rather than throwing.
+        return new CompositeAgent(new Uri($"{PersistenceConstants.AgentScheme}://scheduledjobs/null"),
+            Array.Empty<IAgent>());
     }
 
     public Task<IReadOnlyList<Envelope>> AllIncomingAsync()
@@ -258,27 +255,27 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
     public Task<IReadOnlyList<Envelope>> LoadScheduledToExecuteAsync(DateTimeOffset utcNow)
     {
-        throw new NotSupportedException();
+        return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());
     }
 
     public Task ReassignOutgoingAsync(int ownerId, Envelope[] outgoing)
     {
-        throw new NotSupportedException();
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        throw new NotSupportedException();
+        return Task.FromResult((IReadOnlyList<Envelope>)Array.Empty<Envelope>());
     }
 
     public Task ReassignIncomingAsync(int ownerId, IReadOnlyList<Envelope> incoming)
     {
-        throw new NotSupportedException();
+        return Task.CompletedTask;
     }
 
     public Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
-        throw new NotImplementedException();
+        return Task.FromResult<DeadLetterEnvelope?>(null);
     }
 
     Task<ScheduledMessageResults> IScheduledMessages.QueryAsync(ScheduledMessageQuery query, CancellationToken token)
@@ -304,6 +301,8 @@ public class NullMessageStore : IMessageStore, IMessageInbox, IMessageOutbox, IM
 
 internal class NullNodeAgentPersistence : INodeAgentPersistence
 {
+    public static readonly NullNodeAgentPersistence Instance = new();
+
     public Task ClearAllAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;

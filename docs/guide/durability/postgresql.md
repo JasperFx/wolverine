@@ -249,6 +249,94 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+## NServiceBus Interoperability <Badge type="tip" text="6.0" />
+
+Wolverine can exchange messages with an [NServiceBus](https://particular.net/nservicebus) endpoint that uses the
+[PostgreSQL transport](https://docs.particular.net/transports/sql/) by reading and writing the NServiceBus queue
+tables directly — the same database-backed interop available for [SQL Server](/guide/durability/sqlserver.html#nservicebus-interoperability).
+One table per queue with a JSON `Headers` column and a raw `Body` column; Wolverine's own durable inbox/outbox still
+lives in its PostgreSQL message store, only the *queue* tables belong to NServiceBus.
+
+Because NServiceBus normally owns and provisions its own tables, `AutoProvision` is **off by default** for these endpoints.
+
+```cs
+using Wolverine.Postgresql.Transport.NServiceBus;
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine's durable inbox/outbox lives in PostgreSQL
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    // Opt into the NServiceBus PostgreSQL interop transport (autoProvision: true only if you
+    // want Wolverine to create the queue tables itself; NServiceBus usually owns them).
+    opts.UseNServiceBusPostgresqlInterop(autoProvision: false);
+
+    // Send Wolverine messages to the "nsb" NServiceBus endpoint table
+    opts.PublishMessage<OrderPlaced>().ToNServiceBusPostgresqlQueue("nsb");
+
+    // Listen for messages NServiceBus sends to Wolverine's own "wolverine" table,
+    // and use it as the reply address Wolverine stamps onto outgoing messages
+    opts.ListenToNServiceBusPostgresqlQueue("wolverine").UseForReplies();
+
+    // Let NServiceBus send interface-typed messages that Wolverine binds to concrete types
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
+});
+```
+
+The queue tables are modeled and migrated through Weasel like every other Wolverine transport table, and the destructive
+receive uses `FOR UPDATE SKIP LOCKED` ordered by the NServiceBus `seq` column. A few PostgreSQL-specific notes:
+
+* NServiceBus uses lowercase column names; Wolverine's send/receive SQL matches them with unquoted identifiers.
+* NServiceBus addresses queues as the schema-qualified `"schema"."table"`; Wolverine maps the reply address back to the
+  bare queue name so request/reply works in both directions.
+
+Tenant propagation works exactly as it does for SQL Server: NServiceBus carries the tenant id in a message
+header, and Wolverine maps it to and from `Envelope.TenantId` when you add `MapTenantIdToHeader` /
+`MapTenantIdFromHeader` to the endpoints. See the
+[SQL Server multi-tenancy section](/guide/durability/sqlserver.html#multi-tenancy) for the full explanation and sample.
+
+The [SQL Server NServiceBus interoperability guide](/guide/durability/sqlserver.html#nservicebus-interoperability)
+shows the complete bidirectional setup inline — the shared message contracts, the NServiceBus host configuration, and
+a handler — all of which applies here apart from swapping the `*SqlServer*` configuration calls for the `*Postgresql*`
+ones shown above. See the [interop tutorial](/tutorials/interop) for the bigger picture.
+
+## MassTransit Interoperability <Badge type="tip" text="6.0" />
+
+Wolverine can also interoperate with a [MassTransit](https://masstransit.io) application that uses the
+[PostgreSQL SQL transport](https://masstransit.io/documentation/transports/sql). Unlike NServiceBus' documented
+table contract, MassTransit's SQL transport is a function-driven, two-table model
+(`transport.message` + `transport.message_delivery`) that MassTransit **owns and migrates itself**, so Wolverine
+interoperates by calling MassTransit's stored functions — `send_message` to publish, `fetch_messages` to lease, and
+`delete_message`/`unlock_message` to ack/nack — rather than reading and writing a table directly. MassTransit must be
+running (or have run) to migrate the `transport` schema; Wolverine never provisions it (beyond optionally calling
+`create_queue_v2` for a queue it listens to).
+
+```cs
+using Wolverine.Postgresql.Transport.MassTransit;
+
+builder.UseWolverine(opts =>
+{
+    // Wolverine's durable inbox/outbox lives in PostgreSQL
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+    // Opt into the MassTransit PostgreSQL interop transport. autoProvision: true makes Wolverine
+    // call create_queue_v2 for its own listening queues.
+    opts.UseMassTransitPostgresqlInterop(autoProvision: true);
+
+    // Send Wolverine messages to a MassTransit queue
+    opts.PublishMessage<OrderPlaced>().ToMassTransitPostgresqlQueue("masstransit");
+
+    // Listen to the queue MassTransit sends to, and use it for replies
+    opts.ListenToMassTransitPostgresqlQueue("wolverine").UseForReplies();
+
+    opts.Policies.RegisterInteropMessageAssembly(typeof(IOrderContract).Assembly);
+});
+```
+
+Wolverine writes the bare message JSON into the `body` column and the envelope fields into the message columns,
+emitting the MassTransit `urn:message:{Namespace}:{TypeName}` message type. Incoming messages are leased through
+`fetch_messages` and acked/nacked with the `(message_delivery_id, lock_id)` pair MassTransit hands back. Message
+types are resolved against the assemblies you register with `RegisterInteropMessageAssembly`.
 
 ## Multi-Tenancy
 

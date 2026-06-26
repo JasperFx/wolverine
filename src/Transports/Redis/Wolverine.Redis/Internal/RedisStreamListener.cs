@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Redis.Internal;
 
-public class RedisStreamListener : IListener, ISupportDeadLetterQueue
+public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportConnectionState, IReportReceiveLoopHealth
 {
     private readonly RedisTransport _transport;
     private readonly RedisStreamEndpoint _endpoint;
@@ -20,7 +20,11 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     private readonly CancellationTokenSource _cancellation = new();
     private readonly DurabilitySettings _settings;
 
-    private Task? _consumerTask;
+    // GH-3236: the main XREADGROUP/XAUTOCLAIM consumer loop now runs on the shared BackgroundReceiveLoop, which
+    // owns the task, backoff, idle delay, heartbeat, and teardown. _autoClaimWatch is cross-iteration timing state
+    // (when to switch a poll to XAUTOCLAIM), promoted to a field now that the loop body is per-iteration.
+    private BackgroundReceiveLoop? _loop;
+    private readonly Stopwatch _autoClaimWatch = Stopwatch.StartNew();
     private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
@@ -44,6 +48,18 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     public Uri Address { get; }
     public ListeningStatus Status => _status;
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
+    // GH-3231: surface the StackExchange.Redis multiplexer connection state. The XREADGROUP poll loop runs over a
+    // long-lived, auto-reconnecting multiplexer, so this lets external monitors see a listener whose multiplexer is
+    // down even though ListeningStatus still reports Accepting.
+    public TransportConnectionState ConnectionState =>
+        _transport.GetDatabase(database: _endpoint.DatabaseId).Multiplexer.IsConnected
+            ? TransportConnectionState.Connected
+            : TransportConnectionState.Disconnected;
+
+    // GH-3236: surface the consumer loop's liveness (heartbeat + faulted/hung detection) for EndpointHealthSnapshot.
+    public ReceiveLoopStatus ReceiveLoopStatus => _loop?.ReceiveLoopStatus ?? ReceiveLoopStatus.NotStarted;
+    public DateTimeOffset? LastReceiveLoopActivityAt => _loop?.LastReceiveLoopActivityAt;
 
     internal bool DeleteOnAck => _transport.DeleteStreamEntryOnAck;
     
@@ -140,9 +156,13 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
 
             _status = ListeningStatus.Accepting;
 
-            // Start the consumer loop
-            _consumerTask = Task.Run(ConsumerLoop, _cancellation.Token);
-            
+            // Start the consumer loop on the shared BackgroundReceiveLoop. The idle delay is the endpoint's
+            // BlockTimeout, matching the previous "no messages -> wait BlockTimeout before polling again" behavior.
+            _autoClaimWatch.Restart();
+            _loop = new BackgroundReceiveLoop(Address, _logger, pollOnceAsync, _cancellation.Token,
+                _endpoint.BlockTimeoutMilliseconds.Milliseconds());
+            _loop.Start();
+
             // Start the scheduled messages polling loop
             _scheduledTask = Task.Run(LookForScheduledMessagesAsync, _cancellation.Token);
         }
@@ -160,20 +180,9 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
         _status = ListeningStatus.Stopped;
         await _cancellation.CancelAsync();
 
-        if (_consumerTask != null)
+        if (_loop != null)
         {
-            try
-            {
-                await _consumerTask.WaitAsync(TimeSpan.FromSeconds(10));
-            }
-            catch (TaskCanceledException)
-            {
-                // Expected when cancellation token is used
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Error while stopping consumer task for stream {StreamKey}", _endpoint.StreamKey);
-            }
+            await _loop.StopAsync(TimeSpan.FromSeconds(10));
         }
         
         if (_scheduledTask != null)
@@ -313,94 +322,72 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
             noAck: false);
     }
 
-    private async Task ConsumerLoop()
+    // One iteration of the consumer loop, driven by BackgroundReceiveLoop. Returns true when it read+processed
+    // entries (loop continues immediately), false when idle (loop applies the BlockTimeout idle delay). The NOGROUP
+    // handling is kept here: provision-and-retry when AutoProvision is on, otherwise stop the listener — the same
+    // fail-fast behavior as before. Other exceptions propagate to BackgroundReceiveLoop's log-and-backoff policy.
+    private async Task<bool> pollOnceAsync(CancellationToken token)
     {
         var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
-        var autoClaimWatch = Stopwatch.StartNew();
 
         try
         {
-            while (!_cancellation.Token.IsCancellationRequested && _status == ListeningStatus.Accepting)
+            // Determine if it's time to use AutoClaim instead of regular read
+            var shouldUseAutoClaim = _endpoint.AutoClaimEnabled &&
+                                     _autoClaimWatch.Elapsed >= _endpoint.AutoClaimPeriod;
+
+            // Read from either XREADGROUP or XAUTOCLAIM
+            var streamResults = await ReadEntriesAsync(database, shouldUseAutoClaim);
+
+            if (shouldUseAutoClaim)
             {
-                try
+                _autoClaimWatch.Restart();
+                _logger.LogDebug("Used XAUTOCLAIM for {StreamKey}, found {Count} entries",
+                    _endpoint.StreamKey, streamResults.Length);
+            }
+            else
+            {
+                _logger.LogDebug("Read {Count} entries from {StreamKey} for group {Group} consumer {Consumer}",
+                    streamResults.Length, _endpoint.StreamKey, _endpoint.ConsumerGroup, _consumerName);
+            }
+
+            if (!streamResults.Any())
+            {
+                // No messages — the loop applies its idle delay (BlockTimeout) before polling again.
+                return false;
+            }
+
+            // Process each message
+            foreach (var message in streamResults)
+            {
+                if (token.IsCancellationRequested)
                 {
-                    // Determine if it's time to use AutoClaim instead of regular read
-                    var shouldUseAutoClaim = _endpoint.AutoClaimEnabled &&
-                                           autoClaimWatch.Elapsed >= _endpoint.AutoClaimPeriod;
-
-                    // Read from either XREADGROUP or XAUTOCLAIM
-                    var streamResults = await ReadEntriesAsync(database, shouldUseAutoClaim);
-
-                    if (shouldUseAutoClaim)
-                    {
-                        autoClaimWatch.Restart();
-                        _logger.LogDebug("Used XAUTOCLAIM for {StreamKey}, found {Count} entries",
-                            _endpoint.StreamKey, streamResults.Length);
-                    }
-                    else
-                    {
-                        _logger.LogDebug("Read {Count} entries from {StreamKey} for group {Group} consumer {Consumer}",
-                            streamResults.Length, _endpoint.StreamKey, _endpoint.ConsumerGroup, _consumerName);
-                    }
-
-                    if (!streamResults.Any())
-                    {
-                        // No messages, wait a bit before polling again
-                        await Task.Delay(_endpoint.BlockTimeoutMilliseconds, _cancellation.Token);
-                        continue;
-                    }
-
-                    // Process each message
-                    foreach (var message in streamResults)
-                    {
-                        if (_cancellation.Token.IsCancellationRequested)
-                            break;
-
-                        await ProcessMessage(message);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Expected when shutting down
                     break;
                 }
-                catch (RedisServerException ex) when (
-                    ex.Message.Contains("NOGROUP", StringComparison.OrdinalIgnoreCase) ||
-                    ex.Message.Contains("no such key", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (_transport.AutoProvision)
-                    {
-                        _logger.LogWarning(ex, "Consumer group or stream missing for {StreamKey}/{Group}. Attempting to create and retry.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
-                        await EnsureGroupExistsAsync(database);
-                        await Task.Delay(TimeSpan.FromMilliseconds(200), _cancellation.Token);
-                    }
-                    else
-                    {
-                        _logger.LogError(ex, "Redis stream/consumer group missing for {StreamKey}/{Group}, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create resources.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
-                        _status = ListeningStatus.Stopped;
-                        await _cancellation.CancelAsync();
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error in Redis stream consumer loop for {StreamKey}", _endpoint.StreamKey);
 
-                    // Brief delay before retrying to avoid tight error loops
-                    await Task.Delay(TimeSpan.FromSeconds(5), _cancellation.Token);
-                }
+                await ProcessMessage(message);
             }
-        }
-        catch (OperationCanceledException)
-        {
-            // Expected during shutdown
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fatal error in Redis stream consumer loop for {StreamKey}", _endpoint.StreamKey);
-        }
 
-        _logger.LogDebug("Redis stream consumer loop ended for {StreamKey}", _endpoint.StreamKey);
+            return true;
+        }
+        catch (RedisServerException ex) when (
+            ex.Message.Contains("NOGROUP", StringComparison.OrdinalIgnoreCase) ||
+            ex.Message.Contains("no such key", StringComparison.OrdinalIgnoreCase))
+        {
+            if (_transport.AutoProvision)
+            {
+                _logger.LogWarning(ex, "Consumer group or stream missing for {StreamKey}/{Group}. Attempting to create and retry.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
+                await EnsureGroupExistsAsync(database);
+                await Task.Delay(TimeSpan.FromMilliseconds(200), token);
+                return false;
+            }
+
+            _logger.LogError(ex, "Redis stream/consumer group missing for {StreamKey}/{Group}, and AutoProvision is disabled. Enable AutoProvision() or run AddResourceSetupOnStartup() to create resources.", _endpoint.StreamKey, _endpoint.ConsumerGroup);
+            _status = ListeningStatus.Stopped;
+            // Cancel the shared token so the BackgroundReceiveLoop stops (no point retrying a misconfiguration).
+            await _cancellation.CancelAsync();
+            return false;
+        }
     }
 
     private async Task ProcessMessage(StreamEntry streamEntry)
@@ -436,7 +423,10 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue
     public async ValueTask DisposeAsync()
     {
         await _cancellation.CancelAsync();
-        _consumerTask.SafeDispose();
+        if (_loop != null)
+        {
+            await _loop.DisposeAsync();
+        }
         _scheduledTask.SafeDispose();
         _cancellation.Dispose();
     }

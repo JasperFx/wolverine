@@ -58,7 +58,14 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
 
     private async Task<object> persistNode(SqlConnection conn, WolverineNode node, CancellationToken cancellationToken)
     {
-        var strings = node.Capabilities.Select(x => x.ToString()).Join(",");
+        // GH-3165: join capabilities with a newline, NOT a comma. SQL Server has no array column type
+        // (unlike Postgres, which stores capabilities as text[]), so we serialize to a single delimited
+        // string. A comma is unsafe because an agent capability URI can legitimately contain a comma —
+        // an event-subscription agent URI embeds the DatabaseId, and a SQL Server DatabaseId's server name
+        // is "host,port" (e.g. "localhost,1434"). Comma-splitting then shredded one URI into invalid
+        // fragments and threw on read. A newline can never appear in a Uri.ToString() (it would be
+        // percent-encoded), so it is a safe delimiter.
+        var strings = node.Capabilities.Select(x => x.ToString()).Join("\n");
 
         await using var cmd = conn.CreateCommand($"insert into {_nodeTable} (id, uri, capabilities, description, version) OUTPUT Inserted.node_number values (@id, @uri, @capabilities, @description, @version) ")
             .With("id", node.NodeId)
@@ -119,6 +126,11 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
     public async Task PersistAgentRestrictionsAsync(IReadOnlyList<AgentRestriction> restrictions,
         CancellationToken cancellationToken)
     {
+        // No changes to persist. Compiling/executing an empty BatchBuilder yields a single command with
+        // an empty CommandText, which throws "CommandText property has not been initialized" — so no-op
+        // instead. The empty case happens on an idempotent restriction apply (no delta). See wolverine#3252.
+        if (restrictions.Count == 0) return;
+
         var builder = new BatchBuilder();
         foreach (var restriction in restrictions)
         {
@@ -278,7 +290,12 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         var capabilities = await reader.GetFieldValueAsync<string>(7);
         if (capabilities.IsNotEmpty())
         {
-            node.Capabilities.AddRange(capabilities.Split(',').Select(x => new Uri(x)));
+            // GH-3165: split on newline (see persistNode) — a comma can appear inside an agent URI, so it
+            // is not a safe delimiter. Tolerate legacy comma-joined rows that carried no comma-bearing URI
+            // by also treating a lone comma-free string as a single entry (newline-split yields one element).
+            node.Capabilities.AddRange(capabilities
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => new Uri(x)));
         }
 
         return node;

@@ -352,13 +352,30 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     /// </summary>
     /// <param name="configuration">An action that adds or updates consumer settings for this topic.</param>
     /// <returns>The current <see cref="KafkaListenerConfiguration"/> for fluent chaining.</returns>
+    /// <exception cref="ArgumentNullException"></exception>
     public KafkaListenerConfiguration ExtendConsumerConfiguration(Action<ConsumerConfig> configuration)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+
         add(topic =>
         {
-            topic.ConsumerConfig ??= new ConsumerConfig();
-            configuration(topic.ConsumerConfig);
+            var values = topic.Parent.ConsumerConfig.
+                ToDictionary(x => x.Key, x => x.Value);
+
+            if (topic.ConsumerConfig != null)
+            {
+                foreach (var pair in topic.ConsumerConfig)
+                {
+                    values[pair.Key] = pair.Value;
+                }
+            }
+
+            var config = new ConsumerConfig(values);
+            configuration(config);
+
+            topic.ConsumerConfig = config;
         });
+
         return this;
     }
 }

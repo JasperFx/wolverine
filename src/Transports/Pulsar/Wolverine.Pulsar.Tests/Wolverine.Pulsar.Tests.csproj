@@ -11,6 +11,7 @@
         <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="All"/>
         <PackageReference Include="coverlet.collector" PrivateAssets="All" />
         <PackageReference Include="Testcontainers.Pulsar" />
+        <PackageReference Include="Apache.Avro" />
     </ItemGroup>
 
     <ItemGroup>

@@ -77,7 +77,15 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     {
         _logger = runtime.LoggerFactory.CreateLogger<NatsTransport>();
 
-        ResponseSubject = $"wolverine.response.{runtime.Options.Durability.AssignedNodeNumber}";
+        // The per-node reply subject must be unique to this running node. In Solo mode the
+        // assigned node number is always 1 (#3188), so several Solo services on one broker would
+        // collide on the same subject and cross-deliver each other's replies — use the always
+        // unique UniqueNodeId instead. Balanced nodes get a unique AssignedNodeNumber via election,
+        // so they keep the existing, more readable subject. See #3189.
+        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : runtime.Options.Durability.AssignedNodeNumber.ToString();
+        ResponseSubject = $"wolverine.response.{responseNode}";
         var responseEndpoint = _endpoints[ResponseSubject];
         responseEndpoint.IsUsedForReplies = true;
         responseEndpoint.IsListener = true;

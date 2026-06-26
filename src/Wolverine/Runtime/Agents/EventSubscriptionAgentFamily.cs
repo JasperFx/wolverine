@@ -19,6 +19,12 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         return new Uri($"{SchemeName}://{storeIdentity.Type}/{storeIdentity.Name}/{databaseId}/{name.RelativeUrl}");
     }
 
+    // The store Type rides in the agent URI's authority (host), and System.Uri lowercases the authority
+    // while EventStoreIdentity.ToString() preserves the original casing. Normalize both the stored key
+    // and the reverse lookup to one casing so a store whose Identity.Type has uppercase letters (e.g.
+    // Polecat's "SqlServer") still round-trips from URI back to its EventStoreAgents. See GH-3168.
+    private static string StoreKey(string identity) => identity.ToLowerInvariant();
+
     /// <summary>
     /// Resolve the agent <see cref="Uri" /> for a projection/subscription shard identified by its
     /// <paramref name="shardIdentity" /> (the JasperFx <c>ShardName.Identity</c>, e.g. <c>"Trip:All"</c>)
@@ -82,6 +88,22 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     private static bool MatchesShard(Uri agentUri, string relativeUrl)
         => agentUri.AbsolutePath.TrimEnd('/').EndsWith("/" + relativeUrl, StringComparison.OrdinalIgnoreCase);
+
+    /// <inheritdoc />
+    public async ValueTask<bool> TryRebuildRegisteredProjectionAsync(string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+    {
+        foreach (var entry in _stores.Enumerate())
+        {
+            if (await entry.Value.TryRebuildRegisteredProjectionAsync(shardIdentity, tenantId, token)
+                    .ConfigureAwait(false))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
     
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
     {
@@ -89,7 +111,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
         foreach (var store in stores)
         {
-            _stores = _stores.AddOrUpdate(store.Identity.ToString(), new EventStoreAgents(store, _observers));
+            _stores = _stores.AddOrUpdate(StoreKey(store.Identity.ToString()), new EventStoreAgents(store, _observers));
         }
     }
 
@@ -107,7 +129,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         // segments[2] database id
         // other segments get you the relative path
         
-        var storeIdentity = $"{uri.Segments[1].Trim('/')}:{uri.Host}";
+        var storeIdentity = StoreKey($"{uri.Segments[1].Trim('/')}:{uri.Host}");
         if (_stores.TryFind(storeIdentity, out var store))
         {
             var databaseId = DatabaseId.Parse(uri.Segments[2].Trim('/'));
@@ -148,7 +170,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     internal EventStoreAgents FindStore(EventStoreIdentity identity)
     {
-        if (_stores.TryFind(identity.ToString(), out var store))
+        if (_stores.TryFind(StoreKey(identity.ToString()), out var store))
         {
             return store;
         }

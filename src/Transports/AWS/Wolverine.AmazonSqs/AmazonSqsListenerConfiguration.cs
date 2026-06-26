@@ -156,7 +156,7 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
 
     public AmazonSqsListenerConfiguration UseMassTransitInterop(Action<IMassTransitInterop>? configure = null)
     {
-        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!));
+        add(e => e.Mapper = new MassTransitMapper((Endpoint as IMassTransitInteropEndpoint)!, configure));
         return this;
     }
     
@@ -244,7 +244,7 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
 
         if (sqs.Headers.TryGetValue("NServiceBus.ReplyToAddress", out var replyQueue))
         {
-            envelope.ReplyUri = new Uri($"sqs://queue/{replyQueue}");
+            envelope.ReplyUri = new Uri($"sqs://{replyQueue}");
         }
 
         if (sqs.Headers.TryGetValue("NServiceBus.ContentType", out var contentType))

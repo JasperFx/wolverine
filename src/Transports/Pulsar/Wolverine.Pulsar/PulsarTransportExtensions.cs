@@ -1,5 +1,7 @@
+using System.Buffers;
 using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using DotPulsar;
 using DotPulsar.Abstractions;
 using JasperFx.Core.Reflection;
@@ -7,6 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Pulsar.ErrorHandling;
 using Wolverine.Pulsar.Internal;
+using Wolverine.Pulsar.Schemas;
 using Wolverine.Runtime.Partitioning;
 
 namespace Wolverine.Pulsar;
@@ -32,24 +35,23 @@ public static class PulsarTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <param name="configure"></param>
-    public static void UsePulsar(this WolverineOptions endpoints, Action<IPulsarClientBuilder> configure)
+    public static PulsarConfiguration UsePulsar(this WolverineOptions endpoints, Action<IPulsarClientBuilder> configure)
     {
-        // doesn't apply the policy?!?:
-        //endpoints.Policies.Add<PulsarNativeResiliencyPolicy>();
-        //endpoints.Policies.Add(new PulsarNativeResiliencyPolicy());
-
         new PulsarNativeResiliencyPolicy().Apply(endpoints);
 
-        configure(endpoints.PulsarTransport().Builder);
+        var transport = endpoints.PulsarTransport();
+        configure(transport.Builder);
+
+        return new PulsarConfiguration(transport);
     }
 
     /// <summary>
     ///     Connect to a local, standalone Pulsar broker at the default port
     /// </summary>
     /// <param name="endpoints"></param>
-    public static void UsePulsar(this WolverineOptions endpoints)
+    public static PulsarConfiguration UsePulsar(this WolverineOptions endpoints)
     {
-        endpoints.UsePulsar(_ => { });
+        return endpoints.UsePulsar(_ => { });
     }
 
     /// <summary>
@@ -206,6 +208,236 @@ public class PulsarListenerConfiguration : InteroperableListenerConfiguration<Pu
         //if (subscriptionType is DotPulsar.SubscriptionType.Shared or DotPulsar.SubscriptionType.KeyShared)
         //    return new PulsarSharedListenerConfiguration(this._endpoint);
 
+        return this;
+    }
+
+    /// <summary>
+    /// Set where a brand-new subscription starts consuming. Only affects the first read of a
+    /// not-yet-existing subscription; once the subscription exists, Pulsar resumes from its
+    /// committed position regardless of this setting.
+    /// </summary>
+    /// <param name="initialPosition"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration SubscriptionInitialPosition(SubscriptionInitialPosition initialPosition)
+    {
+        add(e => { e.SubscriptionInitialPosition = initialPosition; });
+        return this;
+    }
+
+    /// <summary>
+    /// Start a brand-new subscription at the earliest retained message in the topic (replay the
+    /// existing backlog). Pulsar analogue of the Kafka transport's <c>BeginAtEarliest()</c>. Only
+    /// applies on the first read of a not-yet-existing subscription.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration BeginAtEarliest()
+    {
+        add(e => { e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Earliest; });
+        return this;
+    }
+
+    /// <summary>
+    /// Start a brand-new subscription at the latest position so only messages published after the
+    /// subscription is created are consumed (DotPulsar's default). Pulsar analogue of the Kafka
+    /// transport's <c>BeginAtLatest()</c>. Only applies on the first read of a not-yet-existing
+    /// subscription.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration BeginAtLatest()
+    {
+        add(e => { e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Latest; });
+        return this;
+    }
+
+    /// <summary>
+    /// Ephemeral "hot-tail" / broadcast consume (GH-3184): this listener uses a non-durable Pulsar
+    /// <c>Reader</c> cursor starting at the tail (<see cref="DotPulsar.MessageId.Latest"/>) instead of a
+    /// durable subscription, so every node receives all messages published after it joins and never
+    /// replays history — the idiomatic Pulsar pattern for live dashboards and fan-out-to-all. The reader
+    /// cursor is throwaway and unacknowledged, so dead-letter / retry-letter queueing, native redelivery,
+    /// and acknowledgment strategies do not apply. Pulsar analogue of the Kafka transport's
+    /// <c>TailFromLatest()</c>.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration TailFromLatest()
+    {
+        add(e =>
+        {
+            e.IsHotTail = true;
+            e.SubscriptionInitialPosition = DotPulsar.SubscriptionInitialPosition.Latest;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Have this single listener consume from one or more additional Pulsar topics alongside the
+    /// primary topic it was created with. Pulsar supports a single consumer over multiple topics;
+    /// this is the analogue of Kafka topic groups. Each value is a full native topic path, e.g.
+    /// <c>persistent://public/default/other</c>.
+    /// </summary>
+    /// <param name="additionalTopicPaths"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration Topics(params string[] additionalTopicPaths)
+    {
+        // Validate eagerly so a malformed topic path fails at configuration time with a clear error.
+        foreach (var path in additionalTopicPaths)
+        {
+            _ = PulsarEndpointUri.Topic(path);
+        }
+
+        add(e =>
+        {
+            foreach (var path in additionalTopicPaths)
+            {
+                if (path != e.PulsarTopic() && !e.AdditionalTopics.Contains(path))
+                {
+                    e.AdditionalTopics.Add(path);
+                }
+            }
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Subscribe this listener to every topic matching <paramref name="pattern"/> (Pulsar pattern
+    /// subscription) rather than an explicit topic or topic list. The topic the listener was created
+    /// with is used only as the Wolverine endpoint identity.
+    /// </summary>
+    /// <param name="pattern">Regex matched against native topic paths within the namespace.</param>
+    /// <param name="mode">Which topics the pattern matches (persistent / non-persistent / all).</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration TopicsPattern(Regex pattern,
+        RegexSubscriptionMode mode = RegexSubscriptionMode.Persistent)
+    {
+        add(e =>
+        {
+            e.TopicsPattern = pattern;
+            e.RegexSubscriptionMode = mode;
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Requeue/defer a failed message using Pulsar's native per-message redelivery
+    /// (<c>RedeliverUnacknowledgedMessages</c>) instead of acknowledging it and re-publishing a
+    /// fresh copy to the source topic. The original message is left unacknowledged and Pulsar
+    /// redelivers just that one message, preserving its redelivery count. For delayed/backoff
+    /// redelivery use the retry-letter topics instead.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration UseNativeRedelivery()
+    {
+        add(e => { e.UseNativeRedelivery = true; });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar JSON schema for <typeparamref name="T"/> on this listener (GH-3183). The broker
+    /// registers the topic's JSON schema (enabling schema compatibility checks + evolution); the message
+    /// body remains Wolverine's normal JSON serialization. The producing endpoint must register a
+    /// compatible schema.
+    /// </summary>
+    public PulsarListenerConfiguration UseJsonSchema<T>()
+    {
+        add(e => e.Schema = PulsarSchema.ForJson(typeof(T)));
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar Avro schema for <typeparamref name="T"/> on this listener (GH-3213). The broker
+    /// registers the topic's Avro schema and the body is genuine Avro on the wire (DotPulsar's built-in
+    /// <c>Schema.AvroISpecificRecord&lt;T&gt;()</c>). <typeparamref name="T"/> must be an Apache.Avro
+    /// <c>ISpecificRecord</c>. The producing endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarListenerConfiguration UseAvroSchema<T>() where T : class
+    {
+        add(e =>
+        {
+            var codec = new PulsarAvroCodec<T>();
+            e.MessageCodec = codec;
+            e.Schema = new PulsarSchema(codec.SchemaInfo);
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a custom Pulsar schema on this listener (GH-3183). The schema's <c>SchemaInfo</c> is what
+    /// the broker stores for the topic; <c>Encode</c>/<c>Decode</c> operate over the bytes Wolverine
+    /// serializes, so use a pass-through schema unless you are also replacing Wolverine's body serializer.
+    /// </summary>
+    public PulsarListenerConfiguration UsePulsarSchema(ISchema<ReadOnlySequence<byte>> schema)
+    {
+        add(e => e.Schema = schema);
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the DotPulsar consumer for this listener (consumer name, receive-queue size,
+    /// priority level, read-compacted, properties, etc.) immediately before it is created. Runs
+    /// against the same <see cref="IConsumerBuilder{TMessage}"/> Wolverine uses internally.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration ConfigureConsumer(Action<IConsumerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureConsumer = configure; });
+        return this;
+    }
+
+    /// <summary>
+    /// Customize the DotPulsar producer used by this listener for requeue/redelivery sends
+    /// immediately before it is created.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration ConfigureProducer(Action<IProducerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureProducer = configure; });
+        return this;
+    }
+
+    /// <summary>
+    /// Acknowledge each message individually as it completes (the default).
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeIndividually()
+    {
+        add(e => { e.AckStrategy = PulsarAckStrategy.Individual; });
+        return this;
+    }
+
+    /// <summary>
+    /// Acknowledge cumulatively — one ack confirms every message up to a point in the subscription,
+    /// reducing broker chatter on high-volume ordered subscriptions. Only valid for Exclusive /
+    /// Failover subscriptions (a clear error is thrown at startup otherwise). Wolverine only advances
+    /// the cumulative ack to the highest contiguous-completed message, so it never acks a message
+    /// that is still being processed.
+    /// </summary>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeCumulative()
+    {
+        add(e => { e.AckStrategy = PulsarAckStrategy.Cumulative; });
+        return this;
+    }
+
+    /// <summary>
+    /// Acknowledge messages individually but in batches, flushed when <paramref name="batchSize"/>
+    /// messages have completed or every <paramref name="interval"/> (whichever comes first). Reduces
+    /// broker chatter without the ordering constraints of cumulative ack; safe for every subscription
+    /// type.
+    /// </summary>
+    /// <param name="batchSize">Flush after this many completed messages. Default 100.</param>
+    /// <param name="interval">Also flush at least this often. Default 1 second; pass
+    /// <see cref="TimeSpan.Zero"/> to flush only by count.</param>
+    /// <returns></returns>
+    public PulsarListenerConfiguration AcknowledgeInBatches(int batchSize = 100, TimeSpan? interval = null)
+    {
+        add(e =>
+        {
+            e.AckStrategy = PulsarAckStrategy.Batched;
+            e.AckBatchSize = batchSize;
+            e.AckBatchInterval = interval ?? TimeSpan.FromSeconds(1);
+        });
         return this;
     }
 
@@ -481,5 +713,83 @@ public class PulsarSubscriberConfiguration : InteroperableSubscriberConfiguratio
 {
     public PulsarSubscriberConfiguration(PulsarEndpoint endpoint) : base(endpoint)
     {
+    }
+
+    /// <summary>
+    /// Customize the DotPulsar producer for this sending endpoint (compression, batching, producer
+    /// name, routing mode, etc.) immediately before it is created. Runs against the same
+    /// <see cref="IProducerBuilder{TMessage}"/> Wolverine uses internally.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public PulsarSubscriberConfiguration ConfigureProducer(Action<IProducerBuilder<ReadOnlySequence<byte>>> configure)
+    {
+        add(e => { e.ConfigureProducer = configure; });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar JSON schema for <typeparamref name="T"/> on this sending endpoint (GH-3183). The
+    /// broker registers the topic's JSON schema; the message body remains Wolverine's normal JSON
+    /// serialization. The consuming endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarSubscriberConfiguration UseJsonSchema<T>()
+    {
+        add(e => e.Schema = PulsarSchema.ForJson(typeof(T)));
+        return this;
+    }
+
+    /// <summary>
+    /// Register a Pulsar Avro schema for <typeparamref name="T"/> on this sending endpoint (GH-3213). The
+    /// broker registers the topic's Avro schema and the body is genuine Avro on the wire (DotPulsar's
+    /// built-in <c>Schema.AvroISpecificRecord&lt;T&gt;()</c>). <typeparamref name="T"/> must be an
+    /// Apache.Avro <c>ISpecificRecord</c>. The consuming endpoint must register a compatible schema.
+    /// </summary>
+    public PulsarSubscriberConfiguration UseAvroSchema<T>() where T : class
+    {
+        add(e =>
+        {
+            var codec = new PulsarAvroCodec<T>();
+            e.MessageCodec = codec;
+            e.Schema = new PulsarSchema(codec.SchemaInfo);
+        });
+        return this;
+    }
+
+    /// <summary>
+    /// Register a custom Pulsar schema on this sending endpoint (GH-3183). See
+    /// <see cref="PulsarListenerConfiguration.UsePulsarSchema"/>.
+    /// </summary>
+    public PulsarSubscriberConfiguration UsePulsarSchema(ISchema<ReadOnlySequence<byte>> schema)
+    {
+        add(e => e.Schema = schema);
+        return this;
+    }
+
+    /// <summary>
+    /// Enable Pulsar producer deduplication for this sending endpoint (GH-3185). The producer is created
+    /// with a stable producer name and stamps a monotonic per-message sequence id, so the broker discards
+    /// duplicate sends of the same message (for example outbox resends of the same envelope).
+    ///
+    /// This is **producer→broker** deduplication only, not end-to-end exactly-once, and it requires broker
+    /// deduplication to be enabled on the namespace/topic (e.g. <c>pulsar-admin namespaces
+    /// set-deduplication public/default --enable</c>).
+    /// </summary>
+    /// <param name="producerName">
+    /// Optional stable producer name. The broker tracks the last sequence id per producer name, so a fixed
+    /// name lets dedup span producer restarts. When omitted, a name is derived from the service name and
+    /// topic.
+    /// </param>
+    public PulsarSubscriberConfiguration EnableDeduplication(string? producerName = null)
+    {
+        add(e =>
+        {
+            e.DeduplicationEnabled = true;
+            if (producerName != null)
+            {
+                e.ProducerName = producerName;
+            }
+        });
+        return this;
     }
 }

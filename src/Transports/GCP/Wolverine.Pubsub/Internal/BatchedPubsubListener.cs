@@ -20,7 +20,7 @@ public class BatchedPubsubListener : PubsubListener
         await listenForMessagesAsync(async () =>
         {
             var subscriptionName = _endpoint.Server.Subscription.Name;
-            await using SubscriberClient subscriber = await new SubscriberClientBuilder
+            var subscriberBuilder = new SubscriberClientBuilder
             {
                 SubscriptionName = subscriptionName,
                 EmulatorDetection = _transport.EmulatorDetection,
@@ -31,7 +31,10 @@ public class BatchedPubsubListener : PubsubListener
                     // In terms of fetching messages, a single SubscriberClient creates multiple instances of SubscriberServiceApiClient, and each will observe the flow control settings independently
                     FlowControlSettings = new(_endpoint.Client.MaxOutstandingMessages, _endpoint.Client.MaxOutstandingByteCount),
                 }
-            }.BuildAsync();
+            };
+            if (_transport.ConfigureSubscriberClientBuilder != null)
+                await _transport.ConfigureSubscriberClientBuilder(subscriberBuilder);
+            await using SubscriberClient subscriber = await subscriberBuilder.BuildAsync();
             var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
             try
             {

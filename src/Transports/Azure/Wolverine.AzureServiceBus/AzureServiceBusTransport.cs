@@ -199,7 +199,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     {
         if (!SystemQueuesEnabled) return;
 
-        var queueName = $"wolverine.response.{runtime.Options.ServiceName}.{runtime.DurabilitySettings.AssignedNodeNumber}";
+        // In Solo mode the assigned node number is always 1 (#3188) and the service name is not
+        // unique per host, so multiple Solo hosts on one namespace would share a response queue and
+        // cross-deliver replies — key on the always-unique UniqueNodeId instead. Balanced gets a
+        // unique AssignedNodeNumber via election. See #3189.
+        var responseNode = runtime.Options.Durability.Mode == DurabilityMode.Solo
+            ? runtime.Options.UniqueNodeId.ToString("N")
+            : runtime.DurabilitySettings.AssignedNodeNumber.ToString();
+        var queueName = $"wolverine.response.{runtime.Options.ServiceName}.{responseNode}";
 
         var queue = Queues[queueName];
 

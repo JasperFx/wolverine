@@ -83,9 +83,12 @@ public static class SqlServerConfigurationExtensions
     public static SqlServerPersistenceExpression UseSqlServerPersistenceAndTransport(this WolverineOptions options,
         string connectionString,
         string? schema = null,
-        string? transportSchema = null)
+        string? transportSchema = null,
+        MessageStoreRole role = MessageStoreRole.Main)
     {
-        options.PersistMessagesWithSqlServer(connectionString, schema);
+        // GH-3226: forward the message-store role so apps that already have an event-store-backed Main
+        // (Marten / Polecat) can register this transport's persistence as Ancillary instead of a second Main.
+        options.PersistMessagesWithSqlServer(connectionString, schema, role);
 
         options.Services.AddTransient<IDatabase, SqlServerTransportDatabase>();
 

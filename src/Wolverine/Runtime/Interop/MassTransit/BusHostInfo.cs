@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Wolverine.Runtime.Interop.MassTransit;
 
 [Serializable]
-internal class BusHostInfo
+public class BusHostInfo
 {
     public static readonly BusHostInfo Instance = new();
 

@@ -10,6 +10,9 @@ namespace Wolverine.RDBMS;
 
 public abstract partial class MessageDatabase<T>
 {
+    // GH-3166: sentinel "received at" for dead letters whose envelope had no Destination (received_at is NULL).
+    internal static readonly Uri UnknownReceivedAtUri = new("unknown://none");
+
     public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range,
         CancellationToken token)
     {
@@ -44,7 +47,15 @@ public abstract partial class MessageDatabase<T>
 
             while (await reader.ReadAsync(token))
             {
-                var uri = new Uri(await reader.GetFieldValueAsync<string>(0, token));
+                // GH-3166: received_at is envelope.Destination?.ToString() and is NULL for any envelope
+                // that dead-lettered without a destination. An unguarded new Uri(GetFieldValueAsync<string>)
+                // threw on DBNull and aborted the ENTIRE summarize — so a single destination-less dead
+                // letter made the DLQ explorer report "No dead letter queue entries found" for the whole
+                // store, even though count(*) (the durability monitor's path) reported hundreds. Group the
+                // destination-less rows under a clear sentinel instead of throwing.
+                var uri = await reader.IsDBNullAsync(0, token)
+                    ? UnknownReceivedAtUri
+                    : new Uri(await reader.GetFieldValueAsync<string>(0, token));
                 var messageType = await reader.GetFieldValueAsync<string>(1, token);
                 var exceptionType = await reader.GetFieldValueAsync<string>(2, token);
                 var count = await reader.GetFieldValueAsync<int>(3, token);

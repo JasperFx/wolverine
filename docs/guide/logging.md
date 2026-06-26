@@ -917,6 +917,53 @@ will be added back to Wolverine in 4.0.
 | wolverine-dead-letter-queue  | Counter                                                                                                   | Number of messages moved to dead letter queues                                                                                                                                                                                                                                         |
 | wolverine-effective-time     | Histogram                                                                                                 | Effective time between a message being sent and being completely handled in milliseconds. Right now this works between Wolverine to Wolverine application sending and from NServiceBus applications sending to Wolverine applications through Wolverine’s NServiceBus interoperability. |
 | wolverine-execution-failure  | Counter                                                                                                   | Number of message execution failures. Tagged by exception type                                                                                                                                                                                                                         |
+| wolverine-inbox-count        | [Observable Gauge](https://opentelemetry.io/docs/specs/otel/metrics/api/#asynchronous-gauge)             | Current number of persisted incoming (inbox) messages. Tagged by `source` and `database`                                                                                                                                                                                                |
+| wolverine-outbox-count       | Observable Gauge                                                                                          | Current number of persisted outgoing (outbox) messages. Tagged by `source` and `database`                                                                                                                                                                                              |
+| wolverine-scheduled-count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
+
+### Standard Metrics Tags
+
+Every Wolverine metric instrument above is tagged with these dimensions so you can slice the series in your
+observability tooling:
+
+| Tag                   | Description                                                                            |
+|-----------------------|----------------------------------------------------------------------------------------|
+| `message.type`        | The message type name                                                                  |
+| `message.destination` | The endpoint URI the message was sent to / received at (when known)                    |
+| `tenant.id`           | The tenant id (when the message is tenant-scoped)                                       |
+| `source`              | The Wolverine `ServiceName` of the application emitting the metric                      |
+
+The `wolverine-execution-failure` instrument additionally carries an `exception.type` tag. You can attach your
+own per-message tags with [`Envelope.SetMetricsTag`](#additional-metrics-tags).
+
+::: tip The `source` tag <Badge type="tip" text="6.14.1" />
+Before 6.14.1 the `source` (service-name) tag was only present on `wolverine-messages-sent` and
+`wolverine-messages-received`. As of **6.14.1** it is added to **every** instrument, so a shared metrics backend
+that scrapes many services can slice each series per service — `{source="my-service"}` /
+`sum by (source, ...)` works uniformly across all Wolverine metrics.
+:::
+
+### Histogram Buckets <Badge type="tip" text="6.14.1" />
+
+The `wolverine-execution-time` and `wolverine-effective-time` histograms record millisecond latencies, but the
+default OpenTelemetry histogram buckets are tuned for seconds — so quantile baselines computed from a
+time-series database (Prometheus / VictoriaMetrics) over those instruments are coarse. Wolverine therefore
+applies a millisecond-oriented set of explicit bucket boundaries (as instrument
+[advice](https://opentelemetry.io/docs/specs/otel/metrics/api/#instrument-advisory-parameters)) by default. You
+can override them, or opt back into the SDK defaults:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    // Supply your own ascending bucket boundaries, in milliseconds
+    opts.Metrics.HistogramBucketBoundaries = new double[] { 5, 25, 100, 500, 2000, 10000 };
+
+    // ...or fall back to the OpenTelemetry SDK / exporter defaults
+    opts.Metrics.HistogramBucketBoundaries = null;
+});
+```
+
+An explicit OpenTelemetry `View` for these instruments still overrides this advice when configured.
 
 As a sample set up for publishing metrics, here's a proof of concept built with Honeycomb as the metrics collector:
 
@@ -1027,3 +1074,21 @@ public static async Task publish_operation(IMessageBus bus, string tenantId, str
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/MetricsSamples.cs#L29-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_tenant_id_tagging' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Queue Depth Gauge Tags <Badge type="tip" text="6.14.1" />
+
+The inbox / outbox / scheduled queue-depth gauges (`wolverine-inbox-count`, `wolverine-outbox-count`,
+`wolverine-scheduled-count`) are tagged so you can slice persisted message depth from a shared metrics backend:
+
+| Tag        | Description                                                                                          |
+|------------|------------------------------------------------------------------------------------------------------|
+| `source`   | The Wolverine `ServiceName` of the application emitting the metric                                    |
+| `database` | The database name backing the store. Only present when more than one message database is in play (e.g. multi-tenancy through separate databases) |
+
+::: tip
+Before **6.14.1**, the multi-database build emitted one gauge *per database* by appending the database name to the
+instrument **name** (`wolverine-inbox-count.<database>`). That made the depth impossible to group across databases
+in a TSDB. The database is now a `database` **tag** on the canonical `wolverine-inbox-count` instrument instead, so
+`sum by (database) (wolverine_inbox_count)` works as expected. Update any dashboards that referenced the old
+per-database instrument names.
+:::

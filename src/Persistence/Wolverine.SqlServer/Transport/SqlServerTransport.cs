@@ -87,8 +87,23 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
         }
         else
         {
-            throw new InvalidOperationException(
-                "The Sql Server Transport can only be used if the message persistence is also Sql Server backed");
+            // #3248 — the Main envelope store is a different engine (e.g. a host that persists to
+            // PostgreSQL but wires a SQL Server queue transport). The transport's queue tables only need
+            // a SQL Server database, not the Main store, so bind to a same-engine store registered as
+            // Ancillary (see MessageStoreRole.Ancillary / role: passthrough) instead of throwing.
+            var sqlServerStores = await runtime.Stores.FindAllAsync<SqlServerMessageStore>();
+            if (sqlServerStores.Count > 0)
+            {
+                // A host can carry several same-engine stores (e.g. a primary + ancillary store on the
+                // same server); they are co-located in practice, so the first is a safe binding.
+                Storage = sqlServerStores[0];
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    "The Sql Server Transport requires at least one Sql Server-backed message store (the Main " +
+                    "store, or an Ancillary store registered with role: MessageStoreRole.Ancillary), but found none.");
+            }
         }
 
         Settings = Storage.Settings;

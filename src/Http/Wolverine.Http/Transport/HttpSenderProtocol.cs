@@ -20,6 +20,20 @@ internal class HttpSenderProtocol : ISenderProtocol
         using var scope = _services.CreateScope();
         var client = scope.ServiceProvider.GetRequiredService<IWolverineHttpTransportClient>() ??
                      throw new InvalidOperationException("IWolverineHttpTransportClient is not registered in the service container");
-        await client.SendBatchAsync(_endpoint.OutboundUri, batch);
+
+        try
+        {
+            await client.SendBatchAsync(_endpoint.OutboundUri, batch);
+        }
+        catch (Exception e)
+        {
+            // Signal failure so the durable sending agent requeues rather than dropping the batch.
+            await callback.MarkProcessingFailureAsync(batch, e);
+            return;
+        }
+
+        // Acknowledge success so the durable sending agent deletes the outgoing envelopes from the
+        // outbox. Without this the durable HTTP transport redelivers the same messages forever (#3173).
+        await callback.MarkSuccessfulAsync(batch);
     }
 }

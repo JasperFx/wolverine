@@ -96,6 +96,13 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     internal bool GroupByMessageKey { get; set; }
 
     /// <summary>
+    /// When set, this is a non-blocking retry-tier topic (GH-3148): the listener waits this fixed delay
+    /// (relative to each record's produced timestamp) before reprocessing the record through the normal
+    /// handler pipeline. A re-failure escalates to the next tier; the last tier exhausts to the DLQ.
+    /// </summary>
+    internal TimeSpan? RetryTierDelay { get; set; }
+
+    /// <summary>
     /// Enable native dead letter queue support for this endpoint.
     /// When enabled, failed messages will be produced to the Kafka DLQ topic
     /// instead of being moved to database-backed dead letter storage.
@@ -138,6 +145,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.BootstrapServers))
         {
             ConsumerConfig.BootstrapServers = Parent.ConsumerConfig.BootstrapServers;
+        }
+
+        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.GroupId))
+        {
+            ConsumerConfig.GroupId = Parent.ConsumerConfig.GroupId;
         }
 
         return ConsumerConfig ?? Parent.ConsumerConfig;

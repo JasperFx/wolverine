@@ -122,7 +122,12 @@ public static class DatabasePersistence
         var executionTime = await reader.IsDBNullAsync(1, cancellation).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
         var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
         var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
-        var receivedAt = await reader.GetFieldValueAsync<string>(4, cancellation);
+        // GH-3166: received_at is written as envelope.Destination?.ToString() (DatabasePersistence's dead
+        // letter insert), so it is NULL for any envelope that dead-lettered without a destination (e.g. a
+        // locally-published message that failed before routing). Guard the read the same way `source` is —
+        // an unguarded GetFieldValueAsync<string> throws on DBNull, which previously poisoned the whole
+        // DLQ "Query Messages" fetch and surfaced as "No messages loaded".
+        var receivedAt = await reader.IsDBNullAsync(4, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(4, cancellation);
         var source = await reader.IsDBNullAsync(5, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(5, cancellation);
         var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
         var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);

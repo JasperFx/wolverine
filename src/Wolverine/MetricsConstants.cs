@@ -23,4 +23,5 @@ public class MetricsConstants
     public const string MessagesFailed = "wolverine-execution-failure";
     public const string ExceptionType = "exception.type";
     public const string SourceKey = "source";
+    public const string DatabaseKey = "database";
 }

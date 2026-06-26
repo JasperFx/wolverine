@@ -72,8 +72,13 @@ public static class WolverineOptionsPolecatExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<SqlServerMessageStore>>();
 
+            // Mirror Wolverine.Marten: when no message-storage schema is configured, inherit the
+            // Polecat store's DatabaseSchemaName so distinct-schema Polecat services are isolated by
+            // default (separate durability tables: dead letters, nodes/assignments, …) instead of
+            // all sharing the "wolverine" schema. See GH-3175.
             var schemaName = integration.MessageStorageSchemaName ??
                              runtime.Options.Durability.MessageStorageSchemaName ??
+                             store.Options.DatabaseSchemaName ??
                              "wolverine";
 
             return BuildSqlServerMessageStore(schemaName, store, runtime, logger);
@@ -101,15 +106,17 @@ public static class WolverineOptionsPolecatExtensions
                 s.GetRequiredService<IWolverineRuntime>(),
                 (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
 
+        // GH-3133 / GH-3219, Gap 2: Polecat's AddPolecat registers IDocumentStore but not the
+        // store-agnostic JasperFx.Events.IEventStore (the Polecat DocumentStore implements
+        // IEventStore<IDocumentSession, IQuerySession>). Bridge it UNCONDITIONALLY so the store is
+        // discoverable via GetServices<IEventStore>() regardless of whether managed distribution is
+        // enabled — the EventSubscriptionAgentFamily resolves stores this way (when managed distribution
+        // is on) AND so does the read-only capabilities / CritterWatch projection-explorer surface
+        // (always). Marten registers IEventStore unconditionally in its own AddMarten.
+        expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<IDocumentStore>());
+
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {
-            // GH-3133, Gap 2: Polecat's AddPolecat registers IDocumentStore but not the store-agnostic
-            // JasperFx.Events.IEventStore that EventSubscriptionAgentFamily(IEnumerable<IEventStore>)
-            // resolves — without it the family sees no stores and no projection shards distribute.
-            // Marten registers IEventStore in its own AddMarten; bridge it here for Polecat. The
-            // Polecat DocumentStore implements IEventStore<IDocumentSession, IQuerySession>.
-            expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<IDocumentStore>());
-
             expression.Services.AddSingleton<WolverineProjectionCoordinator>();
             expression.Services.AddSingleton<EventSubscriptionAgentFamily>();
             expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());

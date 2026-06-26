@@ -240,9 +240,14 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     {
         Transport.SystemQueuesEnabled = true;
 
-        // Lowercase to match URI normalization (see tryBuildSystemEndpoints comment)
+        // Lowercase to match URI normalization (see tryBuildSystemEndpoints comment). In Solo mode the
+        // assigned node number is always 1 (#3188), so key the per-node control queue on the unique
+        // node id to keep multiple Solo hosts on one broker from colliding. See #3189.
+        var controlNode = Options.Durability.Mode == DurabilityMode.Solo
+            ? Options.UniqueNodeId.ToString("N")
+            : Options.Durability.AssignedNodeNumber.ToString();
         var queueName = AmazonSqsTransport.SanitizeSqsName(
-            "wolverine.control." + Options.Durability.AssignedNodeNumber)
+            "wolverine.control." + controlNode)
             .ToLowerInvariant();
 
         var queue = Transport.Queues[queueName];

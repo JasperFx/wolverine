@@ -227,7 +227,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Listening', link:'/guide/messaging/transports/gcp-pubsub/listening'},
                                         {text: 'Dead Letter Queues', link:'/guide/messaging/transports/gcp-pubsub/deadlettering'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/gcp-pubsub/conventional-routing'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/gcp-pubsub/interoperability'},
+                                        {text: 'Customisation', link:'/guide/messaging/transports/gcp-pubsub/customisation'}
                                     ]},
                                 {text: 'Apache Pulsar', link: '/guide/messaging/transports/pulsar'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},

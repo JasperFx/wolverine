@@ -51,6 +51,19 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_pubsub_emulator' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Authentication / Credentials
+
+By default, Wolverine uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials). If you need to supply a specific `GoogleCredential` — for example when running on Azure with Workload Identity Federation — use `UseCredential`:
+
+```csharp
+opts.UsePubsub("your-project-id")
+    .UseCredential(
+        GoogleCredential.FromFile("/path/to/wif-credential-config.json")
+    );
+```
+
+The credential manages its own token refresh lifecycle, so no additional background task is required. For more control over the underlying GCP client builders, see [Customisation](/guide/messaging/transports/gcp-pubsub/customisation).
+
 ## Request/Reply
 
 [Request/reply](https://www.enterpriseintegrationpatterns.com/patterns/messaging/RequestReply.html) mechanics (`IMessageBus.InvokeAsync<T>()`) are possible with the GCP Pub/Sub transport *if* Wolverine has the ability to auto-provision a specific response topic and subscription for each node. That topic and subscription would be named like `wlvrn.response.[application node id]` if you happen to notice that in your GCP Pub/Sub.
