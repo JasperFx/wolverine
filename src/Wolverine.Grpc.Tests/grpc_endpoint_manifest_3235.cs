@@ -36,7 +36,8 @@ public class grpc_endpoint_manifest_3235
 
         endpoints.ShouldNotBeEmpty();
 
-        // v1 surfaces only the unary, bus-forwarding flavors.
+        // The manifest surfaces only the proto-first + code-first bus-forwarding flavors (hand-written and
+        // direct-mapped are excluded by design).
         endpoints.ShouldAllBe(e =>
             e.Mode == GrpcServiceDiscoveryMode.ProtoFirst || e.Mode == GrpcServiceDiscoveryMode.CodeFirst);
 
@@ -48,13 +49,18 @@ public class grpc_endpoint_manifest_3235
         sayHello.RequestType.ShouldBe(typeof(HelloRequest));
         sayHello.ResponseType.ShouldBe(typeof(HelloReply));
         sayHello.HandlerType.ShouldBe(typeof(GreeterGrpcService));
+        sayHello.StreamKind.ShouldBe(GrpcRpcStreamKind.Unary);
 
         // The other proto-first unary RPCs are present...
         endpoints.ShouldContain(e =>
             e.Mode == GrpcServiceDiscoveryMode.ProtoFirst && e.MethodName == "SayGoodbye");
 
-        // ...but the server-streaming RPC (StreamGreetings, in both the proto and the code-first contract) is excluded.
-        endpoints.ShouldNotContain(e => e.MethodName == "StreamGreetings");
+        // ...and the server-streaming RPC (StreamGreetings) is now surfaced too (GH-3265): it forwards its request to
+        // the bus via StreamAsync, so it is a genuine message-publishing origin. There is a proto-first one (response
+        // HelloReply) and a code-first one (response GreetReply).
+        endpoints.ShouldContain(e =>
+            e.Mode == GrpcServiceDiscoveryMode.ProtoFirst && e.MethodName == "StreamGreetings"
+            && e.StreamKind == GrpcRpcStreamKind.ServerStreaming);
 
         // Code-first: IGreeterCodeFirstService.Greet forwards GreetRequest to the bus.
         var greet = endpoints.Single(e =>
@@ -63,6 +69,7 @@ public class grpc_endpoint_manifest_3235
         greet.ResponseType.ShouldBe(typeof(GreetReply));
         greet.ServiceName.ShouldBe("GreeterCodeFirstService");
         greet.HandlerType.ShouldBe(typeof(IGreeterCodeFirstService));
+        greet.StreamKind.ShouldBe(GrpcRpcStreamKind.Unary);
     }
 
     [Fact]
