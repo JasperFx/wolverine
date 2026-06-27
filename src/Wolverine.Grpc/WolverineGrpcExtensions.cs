@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
+using Wolverine.Configuration.Capabilities;
 using Wolverine.Runtime;
 
 namespace Wolverine.Grpc;
@@ -76,6 +77,11 @@ public static class WolverineGrpcExtensions
         services.AddSingleton<IGrpcEndpointManifest>(sp =>
             new GrpcEndpointManifest(sp.GetRequiredService<GrpcGraph>(),
                 sp.GetRequiredService<WolverineGrpcOptions>()));
+
+        // GH-3267: surface the manifest along the ServiceCapabilities descriptor path (ServiceCapabilities.GrpcEndpoints)
+        // so a monitoring console can discover the gRPC services this app exposes, parallel to AspNet/HTTP endpoints.
+        services.AddSingleton<IGrpcEndpointDescriptorSource>(sp =>
+            new GrpcEndpointDescriptorSource(sp.GetRequiredService<IGrpcEndpointManifest>()));
 
         services.AddSingleton<WolverineGrpcExceptionInterceptor>();
         services.Configure<GrpcServiceOptions>(opts =>

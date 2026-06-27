@@ -122,6 +122,15 @@ public class ServiceCapabilities : OptionsDescription
     /// </summary>
     public List<AspNetEndpointDescriptor> AspNetEndpoints { get; set; } = [];
 
+    /// <summary>
+    /// Diagnostic snapshots of the application's Wolverine gRPC RPC endpoints — the proto-first and code-first RPCs
+    /// whose generated wrapper forwards a request to the message bus — populated by walking
+    /// <see cref="IGrpcEndpointDescriptorSource"/> services through DI. <c>Wolverine.Grpc</c> registers a single
+    /// source when gRPC integration is enabled. Empty when no gRPC integration is loaded (pure-Wolverine workers
+    /// incur no gRPC dependency). Mirrors <see cref="AspNetEndpoints"/>.
+    /// </summary>
+    public List<GrpcRpcDescriptor> GrpcEndpoints { get; set; } = [];
+
     public List<EndpointDescriptor> MessagingEndpoints { get; set; } = [];
 
     public DatabaseCardinality MessageStoreCardinality { get; set; } = DatabaseCardinality.None;
@@ -162,6 +171,8 @@ public class ServiceCapabilities : OptionsDescription
         await readHttpGraphs(runtime, token, capabilities);
 
         readAspNetEndpoints(runtime, capabilities);
+
+        readGrpcEndpoints(runtime, capabilities);
 
         readMessageTypes(runtime, capabilities);
 
@@ -218,6 +229,23 @@ public class ServiceCapabilities : OptionsDescription
         }
 
         capabilities.AspNetEndpoints.AddRange(list.OrderBy(x => x.Route + "::" + string.Join(",", x.HttpMethods)));
+    }
+
+    /// <summary>
+    /// Walk every <see cref="IGrpcEndpointDescriptorSource"/> in DI — registered by <c>Wolverine.Grpc</c> when gRPC
+    /// integration is enabled. Pure-Wolverine workers won't have any registered; the collection stays empty. Ordered
+    /// by service + method so the snapshot is stable across emits.
+    /// </summary>
+    private static void readGrpcEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    {
+        var sources = runtime.Services.GetServices<IGrpcEndpointDescriptorSource>();
+        var list = new List<GrpcRpcDescriptor>();
+        foreach (var source in sources)
+        {
+            list.AddRange(source.Endpoints);
+        }
+
+        capabilities.GrpcEndpoints.AddRange(list.OrderBy(x => x.ServiceName + "::" + x.MethodName, StringComparer.Ordinal));
     }
 
     private static void readEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
