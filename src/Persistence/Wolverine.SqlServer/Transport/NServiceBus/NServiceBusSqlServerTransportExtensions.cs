@@ -13,7 +13,7 @@ public static class NServiceBusSqlServerTransportExtensions
     /// Requires Wolverine to also be using SQL Server backed message persistence.
     /// </summary>
     internal static NServiceBusSqlServerTransport NServiceBusSqlServerTransport(this WolverineOptions options,
-        string? schema = null)
+        string? schema = null, string? connectionString = null)
     {
         var transport = options.Transports.OfType<NServiceBusSqlServerTransport>().FirstOrDefault();
         if (transport == null)
@@ -30,6 +30,11 @@ public static class NServiceBusSqlServerTransportExtensions
             transport.SchemaName = schema!;
         }
 
+        if (connectionString.IsNotEmpty())
+        {
+            transport.ConnectionString = connectionString;
+        }
+
         return transport;
     }
 
@@ -43,10 +48,17 @@ public static class NServiceBusSqlServerTransportExtensions
     /// When true, Wolverine will create the NServiceBus queue tables if they do not already
     /// exist. Defaults to false because NServiceBus normally owns and provisions its own tables.
     /// </param>
+    /// <param name="connectionString">
+    /// Optional explicit connection string for the single database that owns the NServiceBus interop queue tables.
+    /// Set this when Wolverine's message storage is multi-tenanted (a database per tenant) but the NServiceBus queues
+    /// live on one shared database: the transport binds to this one database only and never creates a queue per tenant
+    /// database. When null (the default), the transport uses Wolverine's SQL Server message store (the <c>Main</c>
+    /// store under multi-tenancy).
+    /// </param>
     public static WolverineOptions UseNServiceBusSqlServerInterop(this WolverineOptions options,
-        string? schema = null, bool autoProvision = false)
+        string? schema = null, bool autoProvision = false, string? connectionString = null)
     {
-        var transport = options.NServiceBusSqlServerTransport(schema);
+        var transport = options.NServiceBusSqlServerTransport(schema, connectionString);
         transport.AutoProvision = autoProvision;
         return options;
     }

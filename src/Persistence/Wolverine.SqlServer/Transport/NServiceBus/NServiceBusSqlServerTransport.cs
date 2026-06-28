@@ -37,6 +37,15 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
     /// </summary>
     public string SchemaName { get; set; } = "dbo";
 
+    /// <summary>
+    /// Optional explicit connection string for the single database that owns the NServiceBus interop queue tables.
+    /// When set, the transport binds to this one database and is fully decoupled from Wolverine's message storage —
+    /// use this when storage is multi-tenanted (a database per tenant) but the NServiceBus queues live on one shared
+    /// database that must NOT be replicated per tenant. When null (the default), the transport falls back to
+    /// Wolverine's SQL Server message store (the <c>Main</c> store under multi-tenancy).
+    /// </summary>
+    public string? ConnectionString { get; set; }
+
     public override Uri ResourceUri => new("nservicebus-sqlserver-transport://");
 
     protected override IEnumerable<NServiceBusSqlServerQueue> endpoints()
@@ -62,21 +71,29 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
 
     public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        if (runtime.Storage is SqlServerMessageStore store)
+        if (ConnectionString.IsNotEmpty())
+        {
+            // Explicit single database for the NServiceBus interop queues, decoupled from Wolverine's
+            // (possibly multi-tenanted) message storage. No requirement that storage itself be SQL Server backed:
+            // the interop queues are buffered and never touch Wolverine's durable inbox/outbox tables.
+            Settings = new DatabaseSettings { ConnectionString = ConnectionString, SchemaName = SchemaName };
+        }
+        else if (runtime.Storage is SqlServerMessageStore store)
         {
             Storage = store;
+            Settings = Storage.Settings;
         }
         else if (runtime.Storage is MultiTenantedMessageStore mt && mt.Main is SqlServerMessageStore s)
         {
             Storage = s;
+            Settings = Storage.Settings;
         }
         else
         {
             throw new InvalidOperationException(
-                "The NServiceBus Sql Server interop transport can only be used if Wolverine's message persistence is also Sql Server backed");
+                "The NServiceBus Sql Server interop transport requires either an explicit connection string " +
+                "(UseNServiceBusSqlServerInterop(connectionString: ...)) or Wolverine's message persistence to be Sql Server backed");
         }
-
-        Settings = Storage.Settings;
 
         // de facto environment test
         await using var conn = new SqlConnection(Settings.ConnectionString);
@@ -95,6 +112,13 @@ public class NServiceBusSqlServerTransport : BrokerTransport<NServiceBusSqlServe
     /// </summary>
     internal string ResolveConnectionString(IWolverineRuntime runtime)
     {
+        // An explicit connection string pins the interop queues to one database regardless of storage tenancy,
+        // and is resolvable before ConnectAsync has run (e.g. from the Weasel command line).
+        if (ConnectionString.IsNotEmpty())
+        {
+            return ConnectionString!;
+        }
+
         if (Settings is not null)
         {
             return Settings.ConnectionString!;
