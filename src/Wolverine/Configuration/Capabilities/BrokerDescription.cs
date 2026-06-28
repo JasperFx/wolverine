@@ -18,9 +18,18 @@ public class BrokerDescription : OptionsDescription
         Name = subject.Name;
 
         ReplyUri = subject.ReplyEndpoint()?.Uri;
+        Endpoint = subject.DescribeEndpoint();
     }
 
     public string ProtocolName { get; set; } = null!;
     public string Name { get; set; } = null!;
     public Uri? ReplyUri { get; set; }
+
+    /// <summary>
+    /// A sanitized, credential-free summary of what this broker is pointing to (host + port, virtual host, namespace,
+    /// region, bootstrap servers, …) for monitoring consoles. Null when the transport reports no connection target.
+    /// Built from parsed connection components only — never contains usernames, passwords, SAS keys, or connection
+    /// strings. See <see cref="ITransport.DescribeEndpoint"/>.
+    /// </summary>
+    public string? Endpoint { get; set; }
 }

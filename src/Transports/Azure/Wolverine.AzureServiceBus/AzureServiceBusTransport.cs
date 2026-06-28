@@ -259,6 +259,16 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         }
     }
 
+    public override string? DescribeEndpoint()
+    {
+        if (!string.IsNullOrEmpty(FullyQualifiedNamespace)) return FullyQualifiedNamespace;
+
+        // The Endpoint host inside the connection string is the namespace FQDN; only the SharedAccessKey is secret.
+        if (!string.IsNullOrEmpty(ConnectionString)) return HostName;
+
+        return null;
+    }
+
     protected override IEnumerable<Endpoint> explicitEndpoints()
     {
         foreach (var queue in Queues) yield return queue;

@@ -187,9 +187,27 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
     internal IManagedMqttClient Client { get; set; } = null!;
     internal MqttJwtAuthenticationOptions? JwtAuthenticationOptions { get; set; }
 
-    [ChildDescription]
+    // GH-3269: ManagedMqttClientOptions.ClientOptions carries Credentials (username/password) and other secrets.
+    // Reflecting it into the diagnostic tree would leak them, so it is suppressed; the sanitized host:port target is
+    // surfaced via DescribeEndpoint() instead.
+    [IgnoreDescription]
     public ManagedMqttClientOptions Options { get; set; } = new ManagedMqttClientOptions
         { ClientOptions = new MqttClientOptions() };
+
+    public override string? DescribeEndpoint()
+    {
+        switch (Options.ClientOptions?.ChannelOptions)
+        {
+            case MqttClientTcpOptions tcp:
+                var port = tcp.Port ?? 1883;
+                return $"{tcp.Server}:{port}";
+            case MqttClientWebSocketOptions ws:
+                // The websocket URI is the endpoint; credentials ride on Credentials, not the URI.
+                return ws.Uri;
+            default:
+                return null;
+        }
+    }
 
     public override Endpoint ReplyEndpoint()
     {

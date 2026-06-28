@@ -43,6 +43,9 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         };
     }
 
+    // GH-3269: built straight from the connection string, which may embed userinfo (nats://user:pass@host). Suppressed
+    // from the reflected diagnostic tree so credentials never leak; the sanitized target is on DescribeEndpoint().
+    [IgnoreDescription]
     public override Uri ResourceUri =>
         Configuration.ConnectionString != null
             ? new Uri(Configuration.ConnectionString)
@@ -50,12 +53,43 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
     public string ResponseSubject { get; private set; } = "wolverine.response";
 
+    public override string? DescribeEndpoint()
+    {
+        var cs = Configuration.ConnectionString;
+        if (string.IsNullOrWhiteSpace(cs)) return null;
+
+        // The connection string may be a comma-separated server list and may embed userinfo (nats://user:pass@host);
+        // report host:port only so no credentials are surfaced.
+        var servers = cs
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(safeHostPort)
+            .Where(x => x != null);
+
+        var summary = string.Join(", ", servers);
+        return string.IsNullOrEmpty(summary) ? null : summary;
+    }
+
+    private static string? safeHostPort(string server)
+    {
+        if (Uri.TryCreate(server, UriKind.Absolute, out var uri))
+        {
+            var port = uri.Port > 0 ? uri.Port : 4222;
+            return $"{uri.Host}:{port}";
+        }
+
+        return null;
+    }
+
     [ChildDescription]
     public NatsTransportConfiguration Configuration { get; } = new();
 
+    // Live runtime objects (not configuration) that throw before the transport connects — never part of the
+    // diagnostic description.
+    [IgnoreDescription]
     public NatsConnection Connection =>
         _connection ?? throw new InvalidOperationException("NATS connection not initialized");
 
+    [IgnoreDescription]
     public INatsJSContext JetStreamContext =>
         _jetStreamContext
         ?? throw new InvalidOperationException("JetStream context not initialized");
