@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -6,18 +7,30 @@ namespace Wolverine.Nats.Configuration;
 
 public class NatsTransportConfiguration
 {
+    // GH-3269: the raw connection string may embed userinfo (nats://user:pass@host), and the auth properties below are
+    // secrets. They are suppressed from the reflected diagnostic tree; the sanitized host:port target is surfaced via
+    // NatsTransport.DescribeEndpoint() instead.
+    [IgnoreDescription]
     public string ConnectionString { get; set; } = "nats://localhost:4222";
     public string? ClientName { get; set; }
     public TimeSpan ConnectTimeout { get; set; } = TimeSpan.FromSeconds(10);
     public TimeSpan RequestTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
+    [IgnoreDescription]
     public string? Username { get; set; }
+    [IgnoreDescription]
     public string? Password { get; set; }
+    [IgnoreDescription]
     public string? Token { get; set; }
+    [IgnoreDescription]
     public string? Jwt { get; set; }
+    [IgnoreDescription]
     public string? NKeySeed { get; set; }
+    [IgnoreDescription]
     public string? CredentialsFile { get; set; }
+    [IgnoreDescription]
     public string? NKeyFile { get; set; }
+    [IgnoreDescription]
     public Func<Uri, CancellationToken, ValueTask<NatsAuthCred>>? AuthCallback { get; set; }
 
     public bool EnableTls { get; set; }

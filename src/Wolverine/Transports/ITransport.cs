@@ -41,6 +41,15 @@ public interface ITransport
     /// </summary>
     string Describe() => $"{Name} broker (scheme '{Protocol}')";
 
+    /// <summary>
+    /// A sanitized, credential-free, human-readable summary of what this broker is pointing to — the connection
+    /// target (host + port, virtual host, namespace, region, bootstrap servers, …) for diagnostic consumers such as
+    /// CritterWatch's messaging topology. MUST be built from parsed connection components, NEVER from a raw connection
+    /// string: no usernames, passwords, SAS keys, or secrets of any kind. Returns null when the transport has no
+    /// meaningful connection target (e.g. the in-memory/local transport) or it cannot be determined safely.
+    /// </summary>
+    string? DescribeEndpoint() => null;
+
     Endpoint? ReplyEndpoint();
 
     Endpoint GetOrCreateEndpoint(Uri uri);

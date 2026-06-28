@@ -71,6 +71,24 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         Client = client;
     }
 
+    public override string? DescribeEndpoint()
+    {
+        // An explicit ServiceURL (e.g. LocalStack) is a plain endpoint URL; AWS credentials are supplied separately.
+        if (Config.ServiceURL.IsNotEmpty()) return Config.ServiceURL;
+
+        try
+        {
+            var region = Config.RegionEndpoint?.SystemName;
+            if (region.IsNotEmpty()) return region;
+        }
+        catch (Exception)
+        {
+            // RegionEndpoint resolution can probe ambient configuration; ignore.
+        }
+
+        return null;
+    }
+
     [DescribeAsConfigurationState]
     public Func<IWolverineRuntime, AWSCredentials>? CredentialSource { get; set; }
 

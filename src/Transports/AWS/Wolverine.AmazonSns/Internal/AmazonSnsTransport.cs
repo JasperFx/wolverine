@@ -68,6 +68,24 @@ public class AmazonSnsTransport : BrokerTransport<AmazonSnsTopic>
     internal IAmazonSimpleNotificationService? SnsClient { get; private set; }
     internal IAmazonSQS? SqsClient { get; private set; }
 
+    public override string? DescribeEndpoint()
+    {
+        // An explicit ServiceURL (e.g. LocalStack) is a plain endpoint URL; AWS credentials are supplied separately.
+        if (SnsConfig.ServiceURL.IsNotEmpty()) return SnsConfig.ServiceURL;
+
+        try
+        {
+            var region = SnsConfig.RegionEndpoint?.SystemName;
+            if (region.IsNotEmpty()) return region;
+        }
+        catch (Exception)
+        {
+            // RegionEndpoint resolution can probe ambient configuration; ignore.
+        }
+
+        return null;
+    }
+
     public int LocalStackPort { get; set; }
 
     public bool UseLocalStackInDevelopment { get; set; }

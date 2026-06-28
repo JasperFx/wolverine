@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Google.Api.Gax;
 using Google.Cloud.PubSub.V1;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
@@ -37,6 +38,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O
     ///     (e.g. fetching a token from Azure Key Vault or Azure IMDS).
     /// </summary>
+    [IgnoreDescription]
     public Func<PublisherServiceApiClientBuilder, ValueTask>? ConfigurePublisherApiBuilder { get; set; }
 
     /// <summary>
@@ -44,6 +46,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
     ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
     /// </summary>
+    [IgnoreDescription]
     public Func<SubscriberServiceApiClientBuilder, ValueTask>? ConfigureSubscriberApiBuilder { get; set; }
 
     /// <summary>
@@ -51,6 +54,7 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     ///     Applied after <see cref="EmulatorDetection" /> is set, so it may override any transport-level defaults.
     ///     Multiple calls compose in order. Use the async signature when credential construction requires I/O.
     /// </summary>
+    [IgnoreDescription]
     public Func<SubscriberClientBuilder, ValueTask>? ConfigureSubscriberClientBuilder { get; set; }
 
     public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub", ["gcp", ProtocolName])
@@ -65,6 +69,14 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     }
 
     public override Uri ResourceUri => new Uri("pubsub://" + ProjectId);
+
+    public override string? DescribeEndpoint()
+    {
+        if (string.IsNullOrWhiteSpace(ProjectId)) return null;
+        return EmulatorDetection == EmulatorDetection.None
+            ? $"project: {ProjectId}"
+            : $"project: {ProjectId} (emulator)";
+    }
 
     public ValueTask DisposeAsync()
     {

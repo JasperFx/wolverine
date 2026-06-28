@@ -23,6 +23,13 @@ public abstract class TransportBase<TEndpoint> : ITransport, ITagged where TEndp
         return true;
     }
 
+    /// <summary>
+    /// A sanitized, credential-free summary of this broker's connection target. The default returns null;
+    /// concrete broker transports override to report host/port/namespace/region built from parsed connection
+    /// components only — never a raw connection string or any secret. See <see cref="ITransport.DescribeEndpoint"/>.
+    /// </summary>
+    public virtual string? DescribeEndpoint() => null;
+
     public string Name { get; }
 
     public string Protocol { get; }

@@ -30,24 +30,37 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     internal List<KafkaTopicGroup> TopicGroups { get; } = new();
 
-    [ChildDescription]
+    // GH-3269: Confluent's ProducerConfig/ConsumerConfig/AdminClientConfig (ClientConfig) expose SaslUsername,
+    // SaslPassword, SslKeyPassword, SslKeystorePassword, … as public properties. Reflecting them into the diagnostic
+    // tree (the old [ChildDescription]) leaks those secrets to monitoring consumers, so they are suppressed.
+    // The sanitized bootstrap-servers target is surfaced via DescribeEndpoint() instead.
+    [IgnoreDescription]
     public ProducerConfig ProducerConfig { get; } = new();
     [IgnoreDescription]
     public Action<ProducerBuilder<string, byte[]>> ConfigureProducerBuilders { get; internal set; } = _ => {};
 
-    [ChildDescription]
+    [IgnoreDescription]
     public ConsumerConfig ConsumerConfig { get; } = new();
     [IgnoreDescription]
     public Action<ConsumerBuilder<string, byte[]>> ConfigureConsumerBuilders { get; internal set; } = _ => {};
 
-    [ChildDescription]
+    [IgnoreDescription]
     public AdminClientConfig AdminClientConfig { get; } = new();
     [IgnoreDescription]
     public Action<AdminClientBuilder> ConfigureAdminClientBuilders { get; internal set; } = _ => {};
 
+    public override string? DescribeEndpoint()
+    {
+        // BootstrapServers is a CSV of host:port (e.g. "broker1:9092, broker2:9092"); it carries no credentials.
+        var bootstrap = ProducerConfig.BootstrapServers
+                        ?? ConsumerConfig.BootstrapServers
+                        ?? AdminClientConfig.BootstrapServers;
+        return string.IsNullOrWhiteSpace(bootstrap) ? null : bootstrap;
+    }
+
     public KafkaTransport() : this("kafka")
     {
-        
+
     }
 
     public KafkaTransport(string protocol) : base(protocol, "Kafka Topics", ["kafka"])

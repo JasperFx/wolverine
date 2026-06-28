@@ -118,6 +118,21 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             ? null
             : new RabbitMqConnectionDescription(ConnectionFactory, AmqpTcpEndpoints.ToList());
 
+    public override string? DescribeEndpoint()
+    {
+        var factory = ConnectionFactory;
+        if (factory == null)
+        {
+            // Explicit endpoint list configured without a single resolved factory host.
+            return AmqpTcpEndpoints.Count > 0
+                ? string.Join(", ", AmqpTcpEndpoints.Select(e => $"{e.HostName}:{e.Port}"))
+                : null;
+        }
+
+        var vhost = string.IsNullOrEmpty(factory.VirtualHost) ? "/" : factory.VirtualHost;
+        return $"{factory.HostName}:{factory.Port} (vhost: {vhost})";
+    }
+
     internal void ConfigureFactory(Action<ConnectionFactory> configure)
     {
         var factory = new ConnectionFactory

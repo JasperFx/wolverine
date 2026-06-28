@@ -189,6 +189,19 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
         : _configurationOptions != null ? SanitizeConfigurationOptionsForLogging(_configurationOptions)
         : SanitizeConnectionStringForLogging(_connectionString!);
 
+    public override string? DescribeEndpoint()
+    {
+        // Prefer a clean host:port; primaryEndPoint() never exposes credentials. Fall back to the already-sanitized
+        // ConnectionSummary for caller-managed multiplexers or a factory not yet resolved.
+        return primaryEndPoint() switch
+        {
+            System.Net.DnsEndPoint dns => $"{dns.Host}:{dns.Port}",
+            System.Net.IPEndPoint ip => $"{ip.Address}:{ip.Port}",
+            { } endpoint => endpoint.ToString(),
+            _ => ConnectionSummary
+        };
+    }
+
     internal IDatabase GetDatabase(string? connectionString = null, int database = 0)
     {
         var connection = GetConnection(connectionString);
