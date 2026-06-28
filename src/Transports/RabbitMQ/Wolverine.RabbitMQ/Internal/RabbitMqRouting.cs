@@ -22,6 +22,13 @@ public class RabbitMqRouting : RabbitMqEndpoint
 
         ExchangeName = _exchange.ExchangeName;
         BrokerRole = "exchange";
+
+        // GH-3270: give the sending endpoint a recognizable EndpointName so it doesn't fall through to the synthetic
+        // Uri (blank/"unknown" in the endpoint-health snapshot). The default exchange routes by routing key — which is
+        // the target queue name — so use the key alone; a named exchange combines its name with the routing key.
+        EndpointName = string.IsNullOrEmpty(_exchange.DeclaredName)
+            ? routingKey
+            : $"{_exchange.DeclaredName}/{routingKey}";
     }
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
