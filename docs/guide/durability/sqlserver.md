@@ -334,6 +334,41 @@ The default (non-)tenant is never written as a header, so single-tenant traffic 
 A full, runnable bidirectional example (both frameworks hosted side by side, including the multi-tenant case)
 is maintained in Wolverine's interop test suite. See the [interop tutorial](/tutorials/interop) for the bigger picture.
 
+#### Dedicated interop database under multi-tenanted storage <Badge type="tip" text="6.16" />
+
+The NServiceBus header-based tenancy above is about NServiceBus' *own* persistence. A different situation arises
+when **Wolverine's** message storage is multi-tenanted with [a separate database per tenant](#multi-tenancy): there,
+the NServiceBus interop queue tables still live on the **one shared database** NServiceBus reads from — they must
+*not* be replicated into each tenant database.
+
+By default the interop transport binds to Wolverine's `Main` SQL Server message store. To pin it instead to a single,
+dedicated database that is fully decoupled from the tenanted storage, pass an explicit `connectionString` to
+`UseNServiceBusSqlServerInterop`:
+
+```cs
+builder.UseWolverine(opts =>
+{
+    // Wolverine's message storage is multi-tenanted: a database per tenant
+    opts.PersistMessagesWithSqlServer(mainConnectionString)
+        .UseMasterTableTenancy(tenants =>
+        {
+            tenants.Register("tenant_one", tenantOneConnectionString);
+            tenants.Register("tenant_two", tenantTwoConnectionString);
+        });
+
+    // ...but the NServiceBus interop queues live on ONE shared database. Pin the transport to it
+    // so Wolverine never tries to create the queue tables per tenant database.
+    opts.UseNServiceBusSqlServerInterop(autoProvision: true, connectionString: nsbSharedConnectionString);
+
+    opts.PublishMessage<OrderPlaced>().ToNServiceBusSqlServerQueue("nsb");
+});
+```
+
+With the explicit connection string set, the interop queue tables are created, sent to, and listened on against
+that one database only — regardless of which tenant a message is sent under. (This is independent of the per-message
+`tenant_id` header mapping above, which you can still apply if the receiving NServiceBus endpoint is itself
+tenant-partitioned.)
+
 ## Lightweight Saga Usage <Badge type="tip" text="3.0" />
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.
