@@ -244,6 +244,19 @@ opts.ListenToPostgresqlQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+### Dequeue Performance <Badge type="tip" text="6.16" />
+
+The PostgreSQL queue tables carry a btree index on the dequeue ordering column so that the
+`ORDER BY ... LIMIT n FOR UPDATE SKIP LOCKED` pull each poll performs is an ordered index scan rather
+than a scan + sort of the whole table. This is applied automatically — no configuration is required.
+
+Unlike the [Sql Server transport's `OptimizeQueueThroughput()`](./sqlserver.html#optimizing-queue-throughput),
+there is no clustered-storage opt-in for PostgreSQL: PostgreSQL tables are heaps (there is no clustered
+index to align with the dequeue order), so the index above already captures essentially all of the
+available benefit. For very high-churn queues the main operational lever is PostgreSQL autovacuum —
+busy queue tables accumulate dead tuples from the constant insert/delete cycle, so ensure autovacuum
+is keeping up (and consider per-table autovacuum tuning) rather than reaching for a storage-layout change.
+
 ::: info Control queue
 Wolverine has an internal control queue (`dbcontrol`) used for internal operations.
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.

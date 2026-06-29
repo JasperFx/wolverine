@@ -158,8 +158,9 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
         }
         catch (NpgsqlException e)
         {
-            // Making this idempotent, but optimistically
-            if (e.Message.ContainsIgnoreCase("duplicate key value")) return;
+            // Idempotent on a duplicate send. Match on the SQLSTATE unique-violation code (23505)
+            // rather than the localized message text.
+            if (e is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }) return;
             throw;
         }
         finally
@@ -186,7 +187,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
         }
         catch (NpgsqlException e)
         {
-            if (e.Message.ContainsIgnoreCase("duplicate key value"))
+            if (e is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
             {
                 await conn.CreateCommand(
                         $"delete from {_quotedStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
@@ -226,7 +227,7 @@ DO UPDATE SET {DatabaseConstants.Body} = :body, {DatabaseConstants.MessageType} 
                 catch (NpgsqlException e)
                 {
                     // Making this idempotent, but optimistically
-                    if (e.Message.ContainsIgnoreCase("duplicate key value")) return;
+                    if (e is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }) return;
                     throw;
                 }
             }
