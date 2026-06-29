@@ -44,7 +44,15 @@ public class RecoverOutgoingMessagesCommand : IAgentCommand
         await _store.Outbox.DiscardAndReassignOutgoingAsync(expiredMessages, good,
             runtime.Options.Durability.AssignedNodeNumber);
 
-        foreach (var envelope in good) await _sendingAgent.EnqueueOutgoingAsync(envelope);
+        foreach (var envelope in good)
+        {
+            // The sender wire tap is an in-memory-only reference that does not survive
+            // persistence, so a recovered outgoing envelope has none. Re-attach it from
+            // the sending agent's endpoint so RecordSuccessAsync still fires when the
+            // recovered message is sent. See GH-3263.
+            envelope.WireTap ??= _sendingAgent.Endpoint.WireTap;
+            await _sendingAgent.EnqueueOutgoingAsync(envelope);
+        }
 
         _logger.LogInformation(
             "Recovered {Count} messages from outbox for destination {Destination} while discarding {ExpiredCount} expired messages",

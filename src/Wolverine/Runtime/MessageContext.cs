@@ -617,6 +617,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         envelope.Sender = Runtime.Endpoints.GetOrBuildSendingAgent(envelope.Destination);
         envelope.Serializer = Runtime.Options.FindSerializer(envelope.ContentType);
 
+        // The sender wire tap is an in-memory-only reference that does not survive the
+        // durable serialization round trip a scheduled send goes through. Re-attach it
+        // from the resolved destination endpoint so RecordSuccessAsync still fires when
+        // the previously scheduled message is finally sent. See GH-3263.
+        envelope.WireTap ??= envelope.Sender.Endpoint.WireTap;
+
         if (envelope.Serializer == null)
         {
             throw new InvalidOperationException($"Invalid content type '{envelope.ContentType}'");
