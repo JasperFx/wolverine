@@ -51,6 +51,14 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     /// </summary>
     public string MessageStorageSchemaName { get; private set; } = "dbo";
 
+    /// <summary>
+    /// Opt into the higher-throughput queue table storage layout: queue and scheduled tables are
+    /// clustered on a monotonic <c>seq</c> identity column (for FIFO dequeue and contiguous deletes)
+    /// with a unique non-clustered index on the message id, instead of a clustered primary key on a
+    /// random Guid. Off by default. Enable via <see cref="SqlServerPersistenceExpression.OptimizeQueueThroughput"/>.
+    /// </summary>
+    public bool OptimizeQueueThroughput { get; set; }
+
     protected override IEnumerable<SqlServerQueue> endpoints()
     {
         return Queues;
