@@ -231,7 +231,8 @@ public class SagaChain : HandlerChain
         // suffix when picking up handler methods, so without this the saga
         // method would be discovered into the chain but silently dropped from
         // StartingCalls / ExistingCalls / NotFoundCalls and never invoked.
-        // See https://github.com/JasperFx/wolverine/issues/2578.
+        // See https://github.com/JasperFx/wolverine/issues/2578 and the
+        // re-report https://github.com/JasperFx/wolverine/issues/3274.
         return Handlers
             .Where(x => x.HandlerType.CanBeCastTo<Saga>()
                         && methodNames.Any(n =>

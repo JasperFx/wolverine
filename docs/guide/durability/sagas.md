@@ -464,22 +464,20 @@ to early attempts to make Wolverine backward compatible with its ancestor toolin
 name or style in your application and use that consistently throughout.
 :::
 
-The following method names are meaningful in `Saga` types:
+The following method names are meaningful in `Saga` types. Every name is *also* accepted with an
+`Async` suffix when the method returns a `Task` or `Task<T>`, and Wolverine treats the suffixed
+name identically to the bare name:
 
-| Name                                 | Description                                                                                                         |
-|--------------------------------------|---------------------------------------------------------------------------------------------------------------------|
-| `Start`, `Starts`                    | Only called if the identified saga does not already exist *and* the incoming message contains the new saga identity |
-| `StartOrHandle`, `StartsOrHandles`   | Called if the identified saga regardless of whether the saga already exists or is new |
-| `Handle`, `Handles`                  | Called only when the identified saga already exists |
-| `Consume`, `Consumes`                | Called only when the identified saga already exists |
-| `Orchestrate`, `Orchestrates`        | Called only when the identified saga already exists |
-| `NotFound`                           | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
+| Name                                 | `Async` variants                                  | Description                                                                                                         |
+|--------------------------------------|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|
+| `Start`, `Starts`                    | `StartAsync`, `StartsAsync`                        | Only called if the identified saga does not already exist *and* the incoming message contains the new saga identity |
+| `StartOrHandle`, `StartsOrHandles`   | `StartOrHandleAsync`, `StartsOrHandlesAsync`      | Called if the identified saga regardless of whether the saga already exists or is new |
+| `Handle`, `Handles`                  | `HandleAsync`, `HandlesAsync`                      | Called only when the identified saga already exists |
+| `Consume`, `Consumes`                | `ConsumeAsync`, `ConsumesAsync`                    | Called only when the identified saga already exists |
+| `Orchestrate`, `Orchestrates`        | `OrchestrateAsync`, `OrchestratesAsync`           | Called only when the identified saga already exists |
+| `NotFound`                           | `NotFoundAsync`                                    | Only called if the identified saga does not already exist, and there is no matching `Start` handler for the incoming message |
 
-Each of the names above is also accepted with the `Async` suffix when the
-method returns a `Task` or `Task<T>` — e.g. `StartAsync`, `HandleAsync`,
-`OrchestrateAsync`, `ConsumeAsync`, `StartOrHandleAsync`, `NotFoundAsync`.
-Wolverine treats the suffixed name identically to the bare name; pick whichever
-reads better in your codebase. Mixing styles within a single saga is allowed
+Pick whichever form reads better in your codebase. Mixing styles within a single saga is allowed
 but generally discouraged for readability.
 
 ```csharp
