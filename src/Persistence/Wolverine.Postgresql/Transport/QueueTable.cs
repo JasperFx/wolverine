@@ -1,4 +1,5 @@
 using Weasel.Core;
+using Weasel.Postgresql;
 using Weasel.Postgresql.Tables;
 using Wolverine.RDBMS;
 
@@ -14,5 +15,15 @@ internal class QueueTable : Table
         AddColumn<string>(DatabaseConstants.MessageType).NotNull();
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("((now() at time zone 'utc'))");
+
+        // The dequeue path orders by timestamp (TOP/LIMIT n ... ORDER BY timestamp) on every poll.
+        // Without this index the ordered LIMIT has to scan + sort the whole queue table; a btree on
+        // timestamp turns it into an ordered index scan. See GH perf review. The index name is run
+        // through Shorten() to stay under PostgreSQL's 63-char NAMEDATALEN limit (see GH-2942).
+        var indexName = PostgresqlIdentifier.Shorten($"idx_{tableName}_timestamp");
+        Indexes.Add(new IndexDefinition(indexName)
+        {
+            Columns = ["timestamp"]
+        });
     }
 }
