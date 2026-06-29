@@ -52,6 +52,10 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
         var queueTableIdentifier = queue.QueueTable.Identifier;
         var scheduledTableIdentifier = queue.ScheduledTable.Identifier;
 
+        // When the high-throughput layout is enabled the tables are clustered on the monotonic
+        // "seq" identity, so dequeue ordering must use it; otherwise fall back to "timestamp".
+        var orderBy = queue.Parent.OptimizeQueueThroughput ? "seq" : "timestamp";
+
         _tryPopMessagesDirectlySql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';
 IF ( (512 & @@OPTIONS) = 512 ) SET @NOCOUNT = 'ON';
@@ -60,7 +64,7 @@ SET NOCOUNT ON;
 WITH message AS (
     SELECT TOP(@count) {DatabaseConstants.Body}, {DatabaseConstants.KeepUntil}
     FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {queueTableIdentifier}.timestamp)
+    ORDER BY {queueTableIdentifier}.{orderBy})
 DELETE FROM message
 OUTPUT
     deleted.{DatabaseConstants.Body};
@@ -76,7 +80,7 @@ SET NOCOUNT ON;
 delete FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable});
 select top(@count) id, body, message_type, keep_until into #temp_pop_{queue.Name}
 FROM {queueTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-ORDER BY {queueTableIdentifier}.timestamp;
+ORDER BY {queueTableIdentifier}.{orderBy};
 delete from {queueTableIdentifier} where id in (select id from #temp_pop_{queue.Name});
 INSERT INTO {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
 (id, status, owner_id, body, message_type, received_at, keep_until)
@@ -90,7 +94,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
 select id, body, message_type, keep_until into #temp_move_{queue.Name}
 FROM {scheduledTableIdentifier} WITH (UPDLOCK, READPAST, ROWLOCK)
 WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {queueTableIdentifier})
-ORDER BY {scheduledTableIdentifier}.timestamp;
+ORDER BY {scheduledTableIdentifier}.{orderBy};
 delete from {scheduledTableIdentifier} where id in (select id from #temp_move_{queue.Name});
 INSERT INTO {queueTableIdentifier}
 (id, body, message_type, keep_until)

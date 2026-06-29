@@ -321,6 +321,10 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     {
         if (_writeDirectlyToQueueTableSql != null) return;
 
+        // Mirror the dequeue ordering chosen by the listener (see SqlServerQueueListener): "seq" under
+        // the high-throughput layout, "timestamp" otherwise.
+        var orderBy = Parent.OptimizeQueueThroughput ? "seq" : "timestamp";
+
         _writeDirectlyToQueueTableSql =
             $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
 
@@ -354,7 +358,7 @@ DELETE FROM {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} 
 select id, body, message_type, keep_until into #temp_move_{Name}
 FROM {ScheduledTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
 WHERE {DatabaseConstants.ExecutionTime} <= SYSDATETIMEOFFSET() AND ID NOT IN (select id from {QueueTable.Identifier})
-ORDER BY {ScheduledTable.Identifier}.timestamp;
+ORDER BY {ScheduledTable.Identifier}.{orderBy};
 delete from {ScheduledTable.Identifier} where id in (select id from #temp_move_{Name});
 INSERT INTO {QueueTable.Identifier}
 (id, body, message_type, keep_until)
@@ -373,7 +377,7 @@ SET NOCOUNT ON;
 WITH message AS (
     SELECT TOP(@count) {DatabaseConstants.Body}, {DatabaseConstants.KeepUntil}
     FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-    ORDER BY {QueueTable.Identifier}.timestamp)
+    ORDER BY {QueueTable.Identifier}.{orderBy})
 DELETE FROM message
 OUTPUT
     deleted.{DatabaseConstants.Body};
@@ -389,7 +393,7 @@ SET NOCOUNT ON;
 delete FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK) where id in (select id from {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable});
 select top(@count) id, body, message_type, keep_until into #temp_pop_{Name}
 FROM {QueueTable.Identifier} WITH (UPDLOCK, READPAST, ROWLOCK)
-ORDER BY {QueueTable.Identifier}.timestamp;
+ORDER BY {QueueTable.Identifier}.{orderBy};
 delete from {QueueTable.Identifier} where id in (select id from #temp_pop_{Name});
 INSERT INTO {Parent.MessageStorageSchemaName}.{DatabaseConstants.IncomingTable}
 (id, status, owner_id, body, message_type, received_at, keep_until)
@@ -425,7 +429,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
             catch (SqlException e)
             {
                 // Making this idempotent, but optimistically
-                if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+                if (e.Number is 2627 or 2601) return;
                 throw;
             }
         }
@@ -469,7 +473,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         catch (SqlException e)
         {
             // Making this idempotent, but optimistically
-            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+            if (e.Number is 2627 or 2601) return;
             throw;
         }
 
@@ -496,7 +500,7 @@ IF (@NOCOUNT = 'OFF') SET NOCOUNT OFF;";
         }
         catch (SqlException e)
         {
-            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"))
+            if (e.Number is 2627 or 2601)
             {
                 await conn.CreateCommand(
                         $"delete from {Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")

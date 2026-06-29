@@ -135,8 +135,9 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         }
         catch (SqlException e)
         {
-            // Making this idempotent, but optimistically
-            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+            // Idempotent on a duplicate send: 2627 = PK violation, 2601 = unique index violation.
+            // Match on the error number rather than the message text, which is localized.
+            if (e.Number is 2627 or 2601) return;
             throw;
         }
         finally
@@ -164,7 +165,7 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
         }
         catch (SqlException e)
         {
-            if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint"))
+            if (e.Number is 2627 or 2601)
             {
                 await using var cleanupCmd = conn.CreateCommand(
                         $"delete from {_queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable} where id = @id")
@@ -207,7 +208,7 @@ WHEN NOT MATCHED THEN INSERT  ({DatabaseConstants.Id}, {DatabaseConstants.Body},
                 catch (SqlException e)
                 {
                     // Making this idempotent, but optimistically
-                    if (e.Message.ContainsIgnoreCase("Violation of PRIMARY KEY constraint")) return;
+                    if (e.Number is 2627 or 2601) return;
                     throw;
                 }
             }

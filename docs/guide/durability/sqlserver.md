@@ -145,6 +145,43 @@ opts.ListenToSqlServerQueue("inbound").PollingInterval(2.Seconds());
 
 When not set, the queue falls back to the global `DurabilitySettings.ScheduledJobPollingTime`.
 
+### Optimizing Queue Throughput <Badge type="tip" text="6.16" />
+
+By default the Sql Server queue and scheduled-message tables use a clustered primary key on the
+message `id` (a random `Guid`). That layout is simple and safe, but on busy queues with non-trivial
+depth it has two costs: inserts land on random pages (causing page splits and fragmentation), and
+the dequeue query (`SELECT TOP(n) ... ORDER BY timestamp`) has no supporting index, so each poll
+scans and sorts the whole table.
+
+You can opt into a higher-throughput storage layout that mirrors the design used by mature SQL-based
+queues (including Wolverine's own NServiceBus interop transport): the tables are **clustered on a
+monotonic `seq` identity column** so dequeues are an ordered clustered-index seek and the matching
+deletes remove physically contiguous rows, while the message `id` keeps a unique non-clustered index
+so duplicate sends still fail fast for idempotency. A filtered index also speeds up the expiry sweep.
+
+```cs
+opts.UseSqlServerPersistenceAndTransport(connectionString)
+    // Use the clustered-identity queue table layout for much higher dequeue
+    // throughput and far more consistent tail latency on deep queues
+    .OptimizeQueueThroughput();
+```
+
+In Wolverine's own benchmarks this raised batched-drain throughput by well over an order of magnitude
+and turned worst-case deep-queue dequeue latency from hundreds of milliseconds into single-digit
+milliseconds.
+
+::: warning
+This setting changes the physical schema of the queue tables. Enabling it on an **existing** database
+causes a one-time table rebuild the next time the schema is applied (drop the clustered primary key,
+add the `seq` identity column, and build the new clustered/unique indexes). Queue tables are normally
+transient, so this is usually cheap, but you should enable it during a maintenance window — ideally
+with the queues drained. New applications can simply turn it on from the start.
+
+This applies to Wolverine's native Sql Server queue tables only. The NServiceBus interoperability
+transport already uses the equivalent clustered layout (it must match the NServiceBus on-disk schema),
+so no opt-in is needed there.
+:::
+
 If you want to use Sql Server as a queueing mechanism between multiple applications, you'll need:
 
 1. To target the same Sql Server database, even if the two applications target different database schemas
