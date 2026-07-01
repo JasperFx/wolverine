@@ -16,18 +16,19 @@ namespace Wolverine.Nats.Tests;
 /// prefixing on one shared connection, which <see cref="MultiTenancyIntegrationTests"/> covers).
 ///
 /// Answering the practical question "does per-tenant mean a different NATS setup?": yes — to prove a tenant
-/// publishes over its <em>own</em> connection, that connection must point at a genuinely distinguishable
-/// server. This test therefore spins up a second NATS broker (server B) via Testcontainers alongside the
-/// shared broker (server A) and asserts:
+/// uses its <em>own</em> connection, that connection must point at a genuinely distinguishable server. This
+/// test therefore spins up a second NATS broker (server B) via Testcontainers alongside the shared broker
+/// (server A) and asserts:
 /// <list type="bullet">
-/// <item>a message for the tenant with a dedicated connection lands on <b>server B</b> and not server A, and</item>
-/// <item>a default (no-tenant) message lands on <b>server A</b> (the shared connection).</item>
+/// <item>a message for the tenant with a dedicated connection is published to <b>server B</b> and not server A,</item>
+/// <item>a default (no-tenant) message is published to <b>server A</b> (the shared connection), and</item>
+/// <item>a message tagged for the tenant is <b>consumed</b> back over the tenant's own connection (server B),
+/// arriving stamped with its tenant id.</item>
 /// </list>
 ///
-/// Assertions use raw NATS subscribers rather than Wolverine receivers, because inbound consumption over a
-/// tenant's dedicated connection is a documented, not-yet-wired limitation — the send path is what these
-/// changes cover. This test needs two brokers, so it is intended as a local sanity check and is <b>not</b>
-/// required to run in CI.
+/// The publish-side assertions use raw NATS subscribers rather than Wolverine receivers so the exact target
+/// server is provable; the inbound test uses a single Wolverine host plus the tracking API. This test needs
+/// two brokers, so it is intended as a local sanity check and is <b>not</b> required to run in CI.
 /// </summary>
 [Collection("NATS Integration")]
 [Trait("Category", "Integration")]

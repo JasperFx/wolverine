@@ -273,16 +273,62 @@ public class NatsTransportExpression
     // override what differs (mirrors RabbitMqTenant.Compile copying the parent's connection settings).
     private NatsTransportConfiguration cloneConnectionConfiguration()
     {
+        var source = Transport.Configuration;
+
         var clone = new NatsTransportConfiguration();
         foreach (var property in typeof(NatsTransportConfiguration).GetProperties())
         {
             if (property is { CanRead: true, CanWrite: true })
             {
-                property.SetValue(clone, property.GetValue(Transport.Configuration));
+                property.SetValue(clone, property.GetValue(source));
             }
         }
 
+        // The reflective copy above aliases the two mutable reference members by reference, so a tenant action
+        // that mutates them in place (e.g. cfg.JetStreamDefaults.DuplicateWindow = ... or cfg.Streams[...] = ...)
+        // would leak into the shared transport config and every other tenant. Give each tenant its own copy.
+        clone.JetStreamDefaults = cloneJetStreamDefaults(source.JetStreamDefaults);
+        clone.Streams = source.Streams.ToDictionary(pair => pair.Key, pair => cloneStream(pair.Value));
+
         return clone;
+    }
+
+    private static JetStreamDefaults cloneJetStreamDefaults(JetStreamDefaults source)
+    {
+        return new JetStreamDefaults
+        {
+            MaxAge = source.MaxAge,
+            MaxMessages = source.MaxMessages,
+            MaxBytes = source.MaxBytes,
+            Replicas = source.Replicas,
+            AckWait = source.AckWait,
+            MaxDeliver = source.MaxDeliver,
+            DuplicateWindow = source.DuplicateWindow,
+            DeliverPolicy = source.DeliverPolicy
+        };
+    }
+
+    private static StreamConfiguration cloneStream(StreamConfiguration source)
+    {
+        return new StreamConfiguration
+        {
+            Name = source.Name,
+            Subjects = new List<string>(source.Subjects),
+            Retention = source.Retention,
+            Storage = source.Storage,
+            MaxMessages = source.MaxMessages,
+            MaxBytes = source.MaxBytes,
+            MaxAge = source.MaxAge,
+            MaxMessagesPerSubject = source.MaxMessagesPerSubject,
+            DiscardPolicy = source.DiscardPolicy,
+            Replicas = source.Replicas,
+            AllowRollup = source.AllowRollup,
+            AllowDirect = source.AllowDirect,
+            DenyDelete = source.DenyDelete,
+            DenyPurge = source.DenyPurge,
+            DuplicateWindow = source.DuplicateWindow,
+            AllowMsgSchedules = source.AllowMsgSchedules
+        };
     }
 
     protected override NatsListenerConfiguration createListenerExpression(
