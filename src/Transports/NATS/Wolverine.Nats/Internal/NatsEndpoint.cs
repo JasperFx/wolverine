@@ -208,7 +208,9 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                     _mapper,
                     runtime.Cancellation,
                     useJetStream,
-                    supportsScheduledSend
+                    supportsScheduledSend,
+                    subjectMapper,
+                    tenant.TenantId
                 );
 
                 tenantedSender.RegisterSender(tenant.TenantId, tenantSender);

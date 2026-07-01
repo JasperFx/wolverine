@@ -14,6 +14,8 @@ public class NatsSender : ISender
     private readonly CancellationToken _cancellation;
     private readonly INatsPublisher _publisher;
     private readonly bool _supportsNativeScheduledSend;
+    private readonly ITenantSubjectMapper? _tenantSubjectMapper;
+    private readonly string? _tenantId;
 
     internal NatsSender(
         NatsEndpoint endpoint,
@@ -21,7 +23,9 @@ public class NatsSender : ISender
         ILogger<NatsEndpoint> logger,
         NatsEnvelopeMapper mapper,
         CancellationToken cancellation,
-        bool supportsNativeScheduledSend
+        bool supportsNativeScheduledSend,
+        ITenantSubjectMapper? tenantSubjectMapper = null,
+        string? tenantId = null
     )
     {
         _endpoint = endpoint;
@@ -30,6 +34,8 @@ public class NatsSender : ISender
         _mapper = mapper;
         _cancellation = cancellation;
         _supportsNativeScheduledSend = supportsNativeScheduledSend;
+        _tenantSubjectMapper = tenantSubjectMapper;
+        _tenantId = tenantId;
         Destination = endpoint.Uri;
     }
 
@@ -41,14 +47,17 @@ public class NatsSender : ISender
         NatsEnvelopeMapper mapper,
         CancellationToken cancellation,
         bool useJetStream,
-        bool supportsNativeScheduledSend
+        bool supportsNativeScheduledSend,
+        ITenantSubjectMapper? tenantSubjectMapper = null,
+        string? tenantId = null
     )
     {
         INatsPublisher publisher = useJetStream
             ? new JetStreamPublisher(connection, jetStreamContext!, logger, endpoint.ScheduleSubjectSuffix, endpoint.MsgIdSource)
             : new CoreNatsPublisher(connection, logger);
 
-        return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend);
+        return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend,
+            tenantSubjectMapper, tenantId);
     }
 
     public bool SupportsNativeScheduledSend => _supportsNativeScheduledSend;
@@ -98,9 +107,23 @@ public class NatsSender : ISender
                 // stamps the computed subject onto Envelope.TopicName. Static endpoints leave it
                 // null and fall back to the endpoint's fixed subject. Mirrors RabbitMqSender and
                 // InlineKafkaSender.
-                targetSubject = envelope.TopicName.IsNotEmpty()
-                    ? _endpoint.NormalizeSubject(envelope.TopicName)
-                    : _endpoint.Subject;
+                if (envelope.TopicName.IsNotEmpty())
+                {
+                    // A per-message subject (RoutingMode.ByTopic). Unlike a static endpoint subject — which is
+                    // tenant-qualified once at construction (see NatsEndpoint.CreateSender) — this computed
+                    // subject arrives un-prefixed, so apply the same tenant mapping here. Otherwise a
+                    // subject-isolation tenant's dynamic-subject sends would publish without the tenant prefix
+                    // and defeat isolation.
+                    targetSubject = _endpoint.NormalizeSubject(envelope.TopicName);
+                    if (_tenantSubjectMapper is not null && !string.IsNullOrEmpty(_tenantId))
+                    {
+                        targetSubject = _tenantSubjectMapper.MapSubject(targetSubject, _tenantId);
+                    }
+                }
+                else
+                {
+                    targetSubject = _endpoint.Subject;
+                }
 
                 // Advanced escape hatch: rewrite the subject from envelope-level state (headers,
                 // tenant, aggregate id) that the strongly-typed subject function can't express.
