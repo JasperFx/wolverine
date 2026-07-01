@@ -52,6 +52,16 @@ public class NatsTransportConfiguration
     public ITenantIdResolver? TenantIdResolver { get; set; }
     public ISubjectResolver? SubjectResolver { get; set; }
     public string? TenantSubjectPrefix { get; set; }
+
+    /// <summary>
+    /// Optional source of the JetStream <c>Nats-Msg-Id</c> used for server-side
+    /// deduplication (within the stream's duplicate window). Defaults to the Wolverine
+    /// envelope Id when null; set it to project a domain identity such as
+    /// <c>{stream}/{version}</c> so non-Wolverine consumers get server-side dedup too.
+    /// An explicit <c>Nats-Msg-Id</c> header already on the outgoing envelope wins.
+    /// </summary>
+    [IgnoreDescription]
+    public Func<Envelope, string>? MsgIdSource { get; set; }
     public Dictionary<string, StreamConfiguration> Streams { get; set; } = new();
 
     internal NatsOpts ToNatsOpts()
@@ -84,27 +94,32 @@ public class NatsTransportConfiguration
         };
     }
 
-    internal NatsJSOpts? ToJetStreamOpts()
-    {
-        if (!EnableJetStream)
-        {
-            return null;
-        }
-
-        return new NatsJSOpts(ToNatsOpts(), JetStreamDomain, JetStreamApiPrefix ?? "$JS.API");
-    }
 }
 
+/// <summary>
+/// Transport-wide defaults used as the template when Wolverine auto-provisions JetStream streams
+/// and consumers. Per-stream <see cref="StreamConfiguration"/> overrides these where it sets a value.
+/// (<c>AckPolicy</c> is always <c>Explicit</c> for Wolverine consumers.)
+/// </summary>
 public class JetStreamDefaults
 {
-    public string Retention { get; set; } = "limits";
     public TimeSpan? MaxAge { get; set; } = TimeSpan.FromDays(7);
     public long? MaxMessages { get; set; } = 1_000_000;
     public long? MaxBytes { get; set; } = 1024 * 1024 * 1024;
     public int Replicas { get; set; } = 1;
-    public string AckPolicy { get; set; } = "explicit";
     public TimeSpan AckWait { get; set; } = TimeSpan.FromSeconds(30);
-    public int MaxDeliver { get; set; } = 3;
+
+    /// <summary>
+    /// Default maximum delivery attempts for auto-provisioned JetStream consumers, and the dead-letter
+    /// threshold. A per-endpoint <c>ConfigureDeadLetterQueue(maxDeliveryAttempts, ...)</c> overrides this.
+    /// </summary>
+    public int MaxDeliver { get; set; } = 5;
+
+    /// <summary>
+    /// Deduplication window applied to auto-provisioned streams. Within this window JetStream
+    /// discards messages carrying a duplicate <c>Nats-Msg-Id</c> (see
+    /// <see cref="NatsTransportConfiguration.MsgIdSource"/>).
+    /// </summary>
     public TimeSpan DuplicateWindow { get; set; } = TimeSpan.FromMinutes(2);
 
     /// <summary>

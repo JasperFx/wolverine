@@ -38,7 +38,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     {
         _endpoints.OnMissing = subject =>
         {
-            var normalized = NormalizeSubject(subject);
+            var normalized = NormalizeSubjectIfEnabled(subject);
             return new NatsEndpoint(normalized, this, EndpointRole.Application);
         };
     }
@@ -144,14 +144,33 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
             }
         }
 
+        var autoProvisionStreams = Configuration.AutoProvision && Configuration.Streams.Any();
+
         if (Configuration.EnableJetStream)
         {
-            _jetStreamContext = _connection.CreateJetStreamContext();
+            _jetStreamContext = CreateJetStreamContext();
             _logger.LogInformation("JetStream context initialized");
 
-            if (Configuration.AutoProvision && Configuration.Streams.Any())
+            if (autoProvisionStreams)
             {
-                await ProvisionStreamsAsync();
+                await ProvisionStreamsAsync(_jetStreamContext);
+            }
+        }
+
+        // Tenants that declare their own connection string / credentials get a dedicated connection they
+        // own for the lifetime of the transport; the NATS client connects lazily on first use. Tenants
+        // without their own connection reuse the shared connection above (subject-prefix isolation only).
+        foreach (var tenant in Tenants.Where(x => x.HasOwnConnection))
+        {
+            var tenantConnection = new NatsConnection(buildTenantNatsOpts(tenant));
+            tenant.Connection = tenantConnection;
+            _logger.LogInformation("Created dedicated NATS connection for tenant {TenantId}", tenant.TenantId);
+
+            // Each tenant server is its own JetStream instance, so mirror the configured streams onto it
+            // (the streams the shared connection just provisioned don't exist on the tenant's server).
+            if (Configuration.EnableJetStream && autoProvisionStreams)
+            {
+                await ProvisionStreamsAsync(CreateJetStreamContext(tenantConnection));
             }
         }
     }
@@ -174,6 +193,65 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return subject.Trim().Replace('/', '.');
     }
 
+    /// <summary>
+    /// Normalize a subject honoring <see cref="NatsTransportConfiguration.NormalizeSubjects"/>: when the flag
+    /// is enabled (the default) '/' separators are converted to NATS '.' tokens; when disabled the subject is
+    /// only trimmed, so callers can use literal subjects containing '/'.
+    /// </summary>
+    internal string NormalizeSubjectIfEnabled(string subject)
+    {
+        return Configuration.NormalizeSubjects ? NormalizeSubject(subject) : subject.Trim();
+    }
+
+    /// <summary>
+    /// Create a JetStream context on the shared connection honoring the configured
+    /// <see cref="NatsTransportConfiguration.JetStreamDomain"/> / <see cref="NatsTransportConfiguration.JetStreamApiPrefix"/>.
+    /// </summary>
+    internal INatsJSContext CreateJetStreamContext() => CreateJetStreamContext(Connection);
+
+    /// <summary>
+    /// Create a JetStream context on the given connection honoring the configured JetStream domain / API prefix.
+    /// All JetStream context creation flows through this factory so domain / leaf-node setups work uniformly
+    /// (including per-tenant connections). When neither is configured the result is identical to the client
+    /// default (<c>connection.CreateJetStreamContext()</c>).
+    /// </summary>
+    internal INatsJSContext CreateJetStreamContext(NatsConnection connection)
+    {
+        var domain = Configuration.JetStreamDomain;
+        var apiPrefix = Configuration.JetStreamApiPrefix;
+
+        if (string.IsNullOrWhiteSpace(domain) && string.IsNullOrWhiteSpace(apiPrefix))
+        {
+            return connection.CreateJetStreamContext();
+        }
+
+        // NatsJSOpts forbids setting both ApiPrefix and Domain; when both are supplied domain wins.
+        var jsOpts = string.IsNullOrWhiteSpace(domain)
+            ? new NatsJSOpts(connection.Opts, apiPrefix: apiPrefix)
+            : new NatsJSOpts(connection.Opts, domain: domain);
+
+        return connection.CreateJetStreamContext(jsOpts);
+    }
+
+    /// <summary>
+    /// Resolve the NATS connection for a tenant: the tenant's own dedicated connection (created during
+    /// <see cref="ConnectAsync"/>) when it declares its own connection string / credentials, otherwise the
+    /// shared transport connection.
+    /// </summary>
+    internal NatsConnection GetTenantConnection(NatsTenant tenant)
+    {
+        return tenant.HasOwnConnection ? tenant.Connection ?? Connection : Connection;
+    }
+
+    private static NatsOpts buildTenantNatsOpts(NatsTenant tenant)
+    {
+        // The tenant carries its own full connection configuration (URL + any of the NATS auth mechanisms +
+        // TLS), so we reuse the same ToNatsOpts() the shared connection uses rather than privileging one
+        // credential kind. Only the client name is decorated so tenant connections are distinguishable.
+        var opts = tenant.ConnectionConfiguration!.ToNatsOpts();
+        return opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
+    }
+
     public static string ExtractSubjectFromUri(Uri uri)
     {
         if (uri.Scheme != "nats")
@@ -187,12 +265,48 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
 
     public NatsEndpoint EndpointForSubject(string subject)
     {
-        var normalized = NormalizeSubject(subject);
+        var normalized = NormalizeSubjectIfEnabled(subject);
         return _endpoints[normalized];
+    }
+
+    /// <summary>
+    /// Base subject for on-demand topic-routed sending endpoints created by
+    /// <c>PublishMessagesToNatsSubject&lt;T&gt;</c>. The real destination is the per-message
+    /// subject stamped onto <see cref="Envelope.TopicName"/>; this is only a base/fallback.
+    /// </summary>
+    internal const string TopicSenderSubject = "wolverine.topics";
+
+    private int _topicSenderIndex;
+
+    /// <summary>
+    /// Create a new topic-routed (<see cref="RoutingMode.ByTopic"/>) sending endpoint so
+    /// messages can be published to a per-message subject computed at send time. Mirrors the
+    /// MQTT transport's <c>NewTopicSender</c>; each call returns a distinct endpoint so multiple
+    /// subject-source functions can coexist. Being <c>ByTopic</c> also enrolls the endpoint in
+    /// <see cref="IMessageBus.BroadcastToTopicAsync"/>.
+    /// </summary>
+    internal NatsEndpoint NewTopicSender()
+    {
+        var subject = $"{TopicSenderSubject}.{++_topicSenderIndex}";
+        var endpoint = _endpoints[subject];
+        endpoint.RoutingType = RoutingMode.ByTopic;
+        return endpoint;
     }
 
     public async ValueTask DisposeAsync()
     {
+        foreach (var tenant in Tenants.Where(x => x.Connection != null))
+        {
+            try
+            {
+                await tenant.Connection!.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error disposing NATS connection for tenant {TenantId}", tenant.TenantId);
+            }
+        }
+
         try
         {
             if (_connection != null)
@@ -206,7 +320,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         }
     }
 
-    private async Task ProvisionStreamsAsync()
+    private async Task ProvisionStreamsAsync(INatsJSContext js)
     {
         _logger?.LogInformation(
             "Provisioning {Count} configured streams",
@@ -220,7 +334,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                 var exists = false;
                 try
                 {
-                    await JetStreamContext.GetStreamAsync(name);
+                    await js.GetStreamAsync(name);
                     exists = true;
                     _logger?.LogDebug("Stream {StreamName} already exists", name);
                 }
@@ -240,6 +354,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                         MaxMsgsPerSubject = config.MaxMessagesPerSubject ?? 0,
                         Discard = config.DiscardPolicy,
                         NumReplicas = config.Replicas,
+                        DuplicateWindow = config.DuplicateWindow ?? Configuration.JetStreamDefaults.DuplicateWindow,
                         AllowRollupHdrs = config.AllowRollup,
                         AllowDirect = config.AllowDirect,
                         DenyDelete = config.DenyDelete,
@@ -247,7 +362,7 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
                         AllowMsgSchedules = config.AllowMsgSchedules
                     };
 
-                    await JetStreamContext.CreateStreamAsync(streamConfig);
+                    await js.CreateStreamAsync(streamConfig);
                     _logger?.LogInformation(
                         "Created stream {StreamName} with subjects: {Subjects}",
                         name,
