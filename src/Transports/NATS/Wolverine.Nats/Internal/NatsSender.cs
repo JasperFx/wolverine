@@ -1,5 +1,7 @@
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using Wolverine.Transports.Sending;
 
 namespace Wolverine.Nats.Internal;
@@ -34,6 +36,7 @@ public class NatsSender : ISender
     internal static NatsSender Create(
         NatsEndpoint endpoint,
         NatsConnection connection,
+        INatsJSContext? jetStreamContext,
         ILogger<NatsEndpoint> logger,
         NatsEnvelopeMapper mapper,
         CancellationToken cancellation,
@@ -42,7 +45,7 @@ public class NatsSender : ISender
     )
     {
         INatsPublisher publisher = useJetStream
-            ? new JetStreamPublisher(connection, logger, endpoint.ScheduleSubjectSuffix)
+            ? new JetStreamPublisher(connection, jetStreamContext!, logger, endpoint.ScheduleSubjectSuffix, endpoint.MsgIdSource)
             : new CoreNatsPublisher(connection, logger);
 
         return new NatsSender(endpoint, publisher, logger, mapper, cancellation, supportsNativeScheduledSend);
@@ -70,7 +73,7 @@ public class NatsSender : ISender
 
             var data = envelope.Data ?? Array.Empty<byte>();
 
-            var targetSubject = _endpoint.Subject;
+            string targetSubject;
             string? replyTo = null;
 
             if (envelope.IsResponse && envelope.Destination != null)
@@ -90,6 +93,22 @@ public class NatsSender : ISender
             }
             else
             {
+                // Per-message subject routing: when the endpoint is RoutingMode.ByTopic (see
+                // PublishMessagesToNatsSubject<T> / IMessageBus.BroadcastToTopicAsync) Wolverine
+                // stamps the computed subject onto Envelope.TopicName. Static endpoints leave it
+                // null and fall back to the endpoint's fixed subject. Mirrors RabbitMqSender and
+                // InlineKafkaSender.
+                targetSubject = envelope.TopicName.IsNotEmpty()
+                    ? _endpoint.NormalizeSubject(envelope.TopicName)
+                    : _endpoint.Subject;
+
+                // Advanced escape hatch: rewrite the subject from envelope-level state (headers,
+                // tenant, aggregate id) that the strongly-typed subject function can't express.
+                if (_endpoint.SubjectResolver is { } resolver)
+                {
+                    targetSubject = resolver.ResolveSubject(targetSubject, envelope);
+                }
+
                 if (envelope.ReplyRequested != null && envelope.ReplyUri != null)
                 {
                     replyTo = NatsTransport.ExtractSubjectFromUri(envelope.ReplyUri);

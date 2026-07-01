@@ -61,7 +61,7 @@ internal class CoreNatsSubscriber : INatsSubscriber
                 "Starting Core NATS listener for pattern {Pattern} (base subject: {Subject}) with queue group {QueueGroup}",
                 _subscriptionPattern,
                 _endpoint.Subject,
-                _endpoint.QueueGroup ?? "(none)"
+                _endpoint.EffectiveQueueGroup ?? "(none)"
             );
         }
 
@@ -69,11 +69,12 @@ internal class CoreNatsSubscriber : INatsSubscriber
         {
             IAsyncDisposable subscription;
 
-            if (!string.IsNullOrEmpty(_endpoint.QueueGroup))
+            var queueGroup = _endpoint.EffectiveQueueGroup;
+            if (!string.IsNullOrEmpty(queueGroup))
             {
                 subscription = await _connection.SubscribeCoreAsync<byte[]>(
                     pattern,
-                    _endpoint.QueueGroup,
+                    queueGroup,
                     cancellationToken: cancellation
                 );
             }

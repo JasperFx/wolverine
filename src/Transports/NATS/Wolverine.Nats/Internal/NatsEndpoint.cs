@@ -4,6 +4,7 @@ using NATS.Client.Core;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using Wolverine.Configuration;
+using Wolverine.Nats.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -39,13 +40,62 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     [IgnoreDescription]
     public object? NatsSerializer { get; set; }
     public Dictionary<string, string> CustomHeaders { get; set; } = new();
+
+    /// <summary>
+    /// Optional transport-wide hook to rewrite the outgoing subject per envelope
+    /// (headers, tenant, aggregate id) beyond what per-message topic routing can express.
+    /// Sourced from <see cref="NatsTransportConfiguration.SubjectResolver"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal ISubjectResolver? SubjectResolver => _transport.Configuration.SubjectResolver;
+
+    /// <summary>
+    /// Optional transport-wide source of the JetStream <c>Nats-Msg-Id</c> dedup key.
+    /// Sourced from <see cref="NatsTransportConfiguration.MsgIdSource"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal Func<Envelope, string>? MsgIdSource => _transport.Configuration.MsgIdSource;
+
+    /// <summary>
+    /// Transport-wide JetStream stream/consumer template applied when Wolverine auto-provisions.
+    /// </summary>
+    [IgnoreDescription]
+    internal JetStreamDefaults JetStreamDefaults => _transport.Configuration.JetStreamDefaults;
+
+    /// <summary>
+    /// Normalize a per-message subject honoring the transport's
+    /// <see cref="NatsTransportConfiguration.NormalizeSubjects"/> flag.
+    /// </summary>
+    internal string NormalizeSubject(string subject) => _transport.NormalizeSubjectIfEnabled(subject);
     public string? QueueGroup { get; set; }
+
+    /// <summary>
+    /// The queue group actually used for load-balanced delivery: the per-endpoint
+    /// <see cref="QueueGroup"/> when set, otherwise the transport-wide
+    /// <see cref="NatsTransportConfiguration.DefaultQueueGroup"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal string? EffectiveQueueGroup =>
+        string.IsNullOrEmpty(QueueGroup) ? _transport.Configuration.DefaultQueueGroup : QueueGroup;
+
     public string? StreamName { get; set; }
     public string? ConsumerName { get; set; }
     public bool UseJetStream { get; set; }
     public bool DeadLetterQueueEnabled { get; set; } = true;
     public string? DeadLetterSubject { get; set; }
-    public int MaxDeliveryAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Per-endpoint override for the maximum delivery attempts / dead-letter threshold. When null the
+    /// transport-wide <see cref="JetStreamDefaults.MaxDeliver"/> applies (see <see cref="EffectiveMaxDeliveryAttempts"/>).
+    /// </summary>
+    public int? MaxDeliveryAttempts { get; set; }
+
+    /// <summary>
+    /// Resolved maximum delivery attempts: the per-endpoint <see cref="MaxDeliveryAttempts"/> when set,
+    /// otherwise the transport-wide <see cref="JetStreamDefaults.MaxDeliver"/>.
+    /// </summary>
+    [IgnoreDescription]
+    internal int EffectiveMaxDeliveryAttempts => MaxDeliveryAttempts ?? JetStreamDefaults.MaxDeliver;
 
     /// <summary>
     /// Suffix appended to the destination subject to form the NATS JetStream scheduling subject for native
@@ -107,9 +157,12 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                                     _transport.Configuration.Streams.TryGetValue(StreamName, out var streamConfig) &&
                                     streamConfig.AllowMsgSchedules;
         
+        var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext() : null;
+
         var baseSender = NatsSender.Create(
             this,
             _connection,
+            jetStreamContext,
             _logger,
             _mapper,
             runtime.Cancellation,
@@ -125,6 +178,12 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             {
                 var subjectMapper = tenant.SubjectMapper ?? _transport.TenantSubjectMapper;
                 var tenantSubject = subjectMapper.MapSubject(Subject, tenant.TenantId);
+
+                // Tenants that declare their own connection/credentials publish over their dedicated
+                // connection (with its own JetStream context); the rest reuse the shared connection.
+                var tenantConnection = _transport.GetTenantConnection(tenant);
+                var tenantJetStreamContext =
+                    useJetStream ? _transport.CreateJetStreamContext(tenantConnection) : null;
 
                 var tenantEndpoint = new NatsEndpoint(tenantSubject, _transport, Role)
                 {
@@ -143,7 +202,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
                 var tenantSender = NatsSender.Create(
                     tenantEndpoint,
-                    _connection,
+                    tenantConnection,
+                    tenantJetStreamContext,
                     _logger,
                     _mapper,
                     runtime.Cancellation,
@@ -175,44 +235,78 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
             deadLetterSender = (ISender)runtime.Endpoints.GetOrBuildSendingAgent(dlqEndpoint.Uri);
         }
 
+        var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
+
         string subscriptionPattern = Subject;
         ITenantSubjectMapper? tenantMapper = null;
+        var tenantAware = _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware;
 
-        if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        if (tenantAware)
         {
             tenantMapper = _transport.TenantSubjectMapper;
             subscriptionPattern = tenantMapper.GetSubscriptionPattern(Subject);
         }
 
+        // The shared listener consumes the default connection plus every subject-prefix tenant, whose messages
+        // arrive on the shared connection under the wildcard pattern.
+        var sharedListener = await startListenerAsync(
+            runtime, receiver, _connection, useJetStream, subscriptionPattern, tenantMapper, deadLetterSender);
+
+        // Tenants with their own connection publish on a separate server/account the shared listener can't see,
+        // so consume each over its own connection and stamp the tenant id onto inbound envelopes. Mirrors the
+        // RabbitMQ / Azure Service Bus CompoundListener multi-tenancy pattern; per-envelope completion routes
+        // back to the right connection via Envelope.Listener.
+        var dedicatedTenants = tenantAware
+            ? _transport.Tenants.Where(t => t.HasOwnConnection).ToArray()
+            : [];
+
+        if (dedicatedTenants.Length == 0)
+        {
+            return sharedListener;
+        }
+
+        var compound = new CompoundListener(Uri);
+        compound.Inner.Add(sharedListener);
+
+        foreach (var tenant in dedicatedTenants)
+        {
+            var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+            var tenantListener = await startListenerAsync(
+                runtime, tenantReceiver, _transport.GetTenantConnection(tenant), useJetStream,
+                subscriptionPattern, tenantMapper, deadLetterSender);
+            compound.Inner.Add(tenantListener);
+        }
+
+        return compound;
+    }
+
+    private async ValueTask<NatsListener> startListenerAsync(
+        IWolverineRuntime runtime,
+        IReceiver receiver,
+        NatsConnection connection,
+        bool useJetStream,
+        string subscriptionPattern,
+        ITenantSubjectMapper? tenantMapper,
+        ISender? deadLetterSender)
+    {
+        var jetStreamContext = useJetStream ? _transport.CreateJetStreamContext(connection) : null;
+
         var listener = NatsListener.Create(
             this,
-            _connection,
+            connection,
+            jetStreamContext,
             runtime,
             receiver,
-            _logger,
+            _logger!,
             deadLetterSender,
             runtime.Cancellation,
-            UseJetStream && _transport.Configuration.EnableJetStream,
+            useJetStream,
             subscriptionPattern,
             tenantMapper
         );
 
         await listener.StartAsync();
-
         return listener;
-    }
-
-    public NatsHeaders BuildHeaders(Envelope envelope)
-    {
-        var headers = new NatsHeaders();
-        _mapper?.MapEnvelopeToOutgoing(envelope, headers);
-
-        foreach (var header in CustomHeaders)
-        {
-            headers[header.Key] = header.Value;
-        }
-
-        return headers;
     }
 
     public async ValueTask<bool> CheckAsync()
@@ -231,7 +325,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
 
         try
         {
-            var js = _connection.CreateJetStreamContext();
+            var js = _transport.CreateJetStreamContext();
             var stream = await js.GetStreamAsync(
                 StreamName,
                 cancellationToken: CancellationToken.None
@@ -262,7 +356,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         {
             try
             {
-                var js = _connection.CreateJetStreamContext();
+                var js = _transport.CreateJetStreamContext();
                 await js.DeleteConsumerAsync(StreamName, ConsumerName);
                 logger.LogInformation(
                     "Deleted consumer {Consumer} from stream {Stream}",
@@ -323,13 +417,16 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                 string.Join(", ", subjects)
             );
 
+            var defaults = JetStreamDefaults;
             var config = new StreamConfig(StreamName, subjects)
             {
                 Retention = StreamConfigRetention.Workqueue,
                 Discard = StreamConfigDiscard.Old,
-                MaxAge = TimeSpan.FromDays(1),
-                DuplicateWindow = TimeSpan.FromMinutes(2),
-                MaxMsgs = 1_000_000
+                MaxAge = defaults.MaxAge ?? TimeSpan.Zero,
+                MaxMsgs = defaults.MaxMessages ?? -1,
+                MaxBytes = defaults.MaxBytes ?? -1,
+                NumReplicas = defaults.Replicas,
+                DuplicateWindow = defaults.DuplicateWindow
             };
 
             await js.CreateStreamAsync(config);
@@ -344,8 +441,8 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
                 DurableName = ConsumerName,
                 FilterSubject = Subject,
                 AckPolicy = ConsumerConfigAckPolicy.Explicit,
-                AckWait = TimeSpan.FromSeconds(30),
-                MaxDeliver = MaxDeliveryAttempts,
+                AckWait = JetStreamDefaults.AckWait,
+                MaxDeliver = EffectiveMaxDeliveryAttempts,
                 ReplayPolicy = ConsumerConfigReplayPolicy.Instant
             };
 

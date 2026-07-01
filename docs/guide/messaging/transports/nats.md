@@ -299,6 +299,24 @@ opts.ListenToNatsSubject("orders.received")
     .Named("orders-listener");
 ```
 
+### Load Balancing with Queue Groups
+
+Multiple listeners sharing a NATS queue group have each message delivered to only one member, spreading load
+across instances. Set a transport-wide default so every listener joins the same group:
+
+```csharp
+opts.UseNats(nats =>
+{
+    nats.ConnectionString = "nats://localhost:4222";
+    nats.DefaultQueueGroup = "orders-workers";
+});
+```
+
+::: tip Subject normalization
+By default the transport normalizes `/` separators in subjects to NATS `.` tokens (`NormalizeSubjects`, on by
+default). Set `nats.NormalizeSubjects = false` if you need to use literal subjects that contain `/`.
+:::
+
 ## Publishing Messages
 
 ### To a Specific Subject
@@ -323,6 +341,88 @@ Send messages synchronously without buffering:
 opts.PublishAllMessages()
     .ToNatsSubject("orders")
     .SendInline();
+```
+
+### Static Outgoing Headers
+
+Attach a constant header to every message published to a subject with `AddOutgoingHeader`:
+
+```csharp
+opts.PublishMessage<OrderCreated>()
+    .ToNatsSubject("orders.created")
+    .AddOutgoingHeader("x-source", "orders-service");
+```
+
+### Per-Message (Dynamic) Subjects
+
+`ToNatsSubject("...")` publishes to a single static subject. To compute the subject *per message* — e.g. an
+aggregate-scoped subject like `orders.events.{id}` — use `PublishMessagesToNatsSubject<T>`. This is built on
+Wolverine's generic topic routing (`RoutingMode.ByTopic` / `Envelope.TopicName`), the same mechanism the
+RabbitMQ, Kafka, and MQTT transports use, so it also participates in `IMessageBus.BroadcastToTopicAsync`.
+
+```csharp
+opts.UseNats("nats://localhost:4222").AutoProvision();
+
+// The subject is derived from each message instance.
+opts.PublishMessagesToNatsSubject<OrderEvent>(e => $"orders.events.{e.OrderId}");
+```
+
+The same endpoint is automatically enrolled for explicit topic broadcasts, where the caller supplies the
+subject directly (overriding the function):
+
+```csharp
+await bus.BroadcastToTopicAsync("orders.events.12345", new OrderShipped(...));
+```
+
+::: tip Consuming dynamic subjects
+Because the publish subject varies, a consumer must subscribe to the whole space with a NATS wildcard.
+For Core NATS, listen on `orders.events.>`. For JetStream, provision the stream over a wildcard subject
+(`orders.events.>`) so it captures every computed subject, then listen with a matching consumer filter. A
+too-narrow stream subject silently fails to capture the dynamic subjects.
+:::
+
+For subject shaping that a strongly-typed `Func<T, string>` can't express — for example deriving the subject
+from an envelope header or tenant id — configure an `ISubjectResolver`. It runs after the base/topic subject
+is determined and can rewrite it from any envelope state:
+
+```csharp
+opts.UseNats(nats =>
+{
+    nats.ConnectionString = "nats://localhost:4222";
+    nats.SubjectResolver = new MyAggregateSubjectResolver();
+});
+```
+
+### Deduplication (JetStream `Nats-Msg-Id`)
+
+Wolverine stamps a `Nats-Msg-Id` on every JetStream publish, so the stream's duplicate window discards
+duplicates server-side — the idempotency key external (non-Wolverine) consumers can rely on, independent of
+Wolverine's own durable-inbox dedup on `Envelope.Id`.
+
+By default the id is the Wolverine `Envelope.Id`. Project a domain identity instead with `DeduplicateUsing`
+so a logical event dedups even across separate sends (e.g. `{stream}/{version}`):
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .AutoProvision()
+    // Any two publishes resolving to the same key within the stream's duplicate window collapse to one.
+    .DeduplicateUsing(envelope => $"{envelope.GroupId}/{envelope.Id}");
+```
+
+Precedence for the dedup key:
+
+1. An explicit `Nats-Msg-Id` header already on the outgoing envelope always wins.
+2. Otherwise the configured `DeduplicateUsing` function is used.
+3. Otherwise the Wolverine `Envelope.Id`.
+
+The duplicate window itself is configured per stream (`WithDeduplicationWindow`) or transport-wide via
+`JetStreamDefaults.DuplicateWindow` (default two minutes):
+
+```csharp
+opts.UseNats("nats://localhost:4222")
+    .DefineStream("ORDERS", s => s
+        .WithSubjects("orders.>")
+        .WithDeduplicationWindow(TimeSpan.FromMinutes(5)));
 ```
 
 ## Scheduled Message Delivery
@@ -380,9 +480,26 @@ When native scheduled send is not available (server < 2.12 or stream not configu
 
 ## Multi-Tenancy
 
-NATS transport supports subject-based tenant isolation.
+::: tip
+For a holistic overview of multi-tenancy across all of Wolverine, see the [Multi-Tenancy Tutorial](/tutorials/multi-tenancy)
+and [Multi-Tenancy with Wolverine](/guide/handlers/multi-tenancy) for how Wolverine tracks the tenant id across messages.
+:::
 
-### Basic Multi-Tenancy
+The NATS transport supports two flavors of tenant isolation:
+
+- **Subject-based** — all tenants share one connection and are separated by a tenant subject prefix
+  (`{tenantId}.{subject}`). This is soft partitioning within a single NATS account.
+- **Connection-based** — a tenant gets its own dedicated NATS connection to a different server or **account**.
+
+::: info NATS accounts are the native tenancy boundary
+In NATS, true multi-tenancy is [Accounts](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/accounts):
+each account is a fully isolated subject namespace, and a single connection authenticates into exactly **one**
+account. So a genuinely isolated tenant means a **dedicated connection with its own credentials** (see
+[Per-Tenant Connections](#per-tenant-connections)). A subject prefix on a shared connection is only
+partitioning within one account, not account-level isolation.
+:::
+
+### Basic Multi-Tenancy (Subject Isolation)
 
 ```csharp
 opts.UseNats("nats://localhost:4222")
@@ -395,6 +512,33 @@ opts.UseNats("nats://localhost:4222")
 
 - `TenantIdRequired`: Throws if tenant ID is missing
 - `FallbackToDefault`: Uses base subject if tenant ID is missing
+
+### Per-Tenant Connections
+
+To route a tenant to its own NATS server or account, add it with a configuration action. The action receives
+a copy of the transport's own connection settings, so you only override what differs for this tenant — a
+different URL, or any of the NATS auth mechanisms (token, JWT/NKey, credentials file, client certificate):
+
+```csharp
+opts.UseNats("nats://shared:4222")
+    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+    .AddTenant("tenant-a", cfg => cfg.ConnectionString = "nats://tenant-a-host:4222")
+    .AddTenant("tenant-b", cfg =>
+    {
+        cfg.ConnectionString = "nats://tenant-b-host:4222";
+        cfg.CredentialsFile = "/etc/nats/tenant-b.creds";
+    });
+```
+
+Each tenant with its own configuration gets a dedicated connection, owned by the transport for its lifetime.
+Tenants added without a configuration action keep sharing the transport connection (subject-prefix isolation
+only).
+
+Both **sending and listening** are tenant-aware. A listener consumes on the shared connection *and* on each
+tenant's dedicated connection: when a message arrives on a tenant connection it is stamped with that tenant's
+id, and its ack/nak/dead-letter is routed back over the same connection. Sending a message tagged with a
+`TenantId` publishes it over that tenant's connection. If any tenant streams need JetStream, the configured
+streams are auto-provisioned on each tenant server as well (when `AutoProvision()` is on).
 
 ### Custom Subject Mapper
 
@@ -430,8 +574,13 @@ The response endpoint always uses Core NATS for low-latency replies, even when t
 
 ### JetStream
 
-- **Retry**: Message is requeued via `NakAsync()` with optional delay
-- **Dead Letter**: Message is terminated via `AckTerminateAsync()`
+- **Retry**: Message is requeued via `NakAsync()` with optional delay, up to the consumer's maximum delivery
+  attempts (`JetStreamDefaults.MaxDeliver`, default 5, or a per-endpoint `MaxDeliveryAttempts` override).
+- **Dead Letter**: Once delivery attempts are exhausted, the poison message is first forwarded to the
+  configured dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
+  `AckTerminateAsync(reason)` so the server stops redelivering and records why. If **no** dead-letter subject
+  is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
+  dead-letter subject to keep poison messages.
 
 ### Core NATS
 

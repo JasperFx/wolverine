@@ -4,6 +4,7 @@ using Wolverine.Configuration;
 using Wolverine.Nats.Configuration;
 using Wolverine.Nats.Internal;
 using Wolverine.Runtime.Partitioning;
+using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Nats;
 
@@ -109,6 +110,27 @@ public static class NatsTransportExtensions
         var endpoint = transport.EndpointForSubject(subject);
 
         options.PublishMessage<T>().To(endpoint.Uri);
+
+        return new NatsSubscriberConfiguration(endpoint);
+    }
+
+    /// <summary>
+    /// Publish messages of type <typeparamref name="T"/> (or castable to it) to a NATS subject
+    /// computed per message by <paramref name="subjectSource"/>. Enables per-message dynamic
+    /// subjects such as <c>orders.events.{id}</c> using Wolverine's generic topic routing
+    /// (<see cref="RoutingMode.ByTopic"/> / <c>Envelope.TopicName</c>), so these messages also
+    /// participate in <see cref="IMessageBus.BroadcastToTopicAsync"/>.
+    /// </summary>
+    public static NatsSubscriberConfiguration PublishMessagesToNatsSubject<T>(
+        this WolverineOptions options,
+        Func<T, string> subjectSource
+    )
+    {
+        var transport = options.NatsTransport();
+        var endpoint = transport.NewTopicSender();
+
+        var routing = new TopicRouting<T>(subjectSource, endpoint);
+        options.PublishWithMessageRoutingSource(routing);
 
         return new NatsSubscriberConfiguration(endpoint);
     }

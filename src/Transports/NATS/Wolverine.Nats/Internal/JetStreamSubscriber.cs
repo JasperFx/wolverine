@@ -21,6 +21,7 @@ internal class JetStreamSubscriber : INatsSubscriber
     public JetStreamSubscriber(
         NatsEndpoint endpoint,
         NatsConnection connection,
+        INatsJSContext jetStreamContext,
         ILogger<NatsEndpoint> logger,
         JetStreamEnvelopeMapper mapper,
         string? subscriptionPattern = null
@@ -31,7 +32,7 @@ internal class JetStreamSubscriber : INatsSubscriber
         _logger = logger;
         _mapper = mapper;
         _subscriptionPattern = subscriptionPattern ?? endpoint.Subject;
-        _jetStreamContext = connection.CreateJetStreamContext();
+        _jetStreamContext = jetStreamContext;
     }
 
     public bool SupportsNativeDeadLetterQueue => _endpoint.DeadLetterQueueEnabled;
@@ -55,8 +56,8 @@ internal class JetStreamSubscriber : INatsSubscriber
         var config = new ConsumerConfig
         {
             AckPolicy = ConsumerConfigAckPolicy.Explicit,
-            MaxDeliver = _endpoint.MaxDeliveryAttempts,
-            AckWait = TimeSpan.FromSeconds(30)
+            MaxDeliver = _endpoint.EffectiveMaxDeliveryAttempts,
+            AckWait = _endpoint.JetStreamDefaults.AckWait
         };
 
         // Apply the per-endpoint or transport-wide DeliverPolicy override when set.
@@ -79,9 +80,9 @@ internal class JetStreamSubscriber : INatsSubscriber
             config.Name = _endpoint.ConsumerName;
             config.DurableName = _endpoint.ConsumerName;
 
-            if (!string.IsNullOrEmpty(_endpoint.QueueGroup))
+            if (!string.IsNullOrEmpty(_endpoint.EffectiveQueueGroup))
             {
-                config.DeliverGroup = _endpoint.QueueGroup;
+                config.DeliverGroup = _endpoint.EffectiveQueueGroup;
             }
 
             try

@@ -18,6 +18,13 @@ public class StreamConfiguration
     public bool AllowDirect { get; set; }
     public bool DenyDelete { get; set; }
     public bool DenyPurge { get; set; }
+
+    /// <summary>
+    /// Deduplication window for this stream. Within this window JetStream discards messages carrying a
+    /// duplicate <c>Nats-Msg-Id</c>. When null the transport-wide
+    /// <see cref="JetStreamDefaults.DuplicateWindow"/> is applied.
+    /// </summary>
+    public TimeSpan? DuplicateWindow { get; set; }
     
     /// <summary>
     /// Enable scheduled message delivery (requires NATS Server 2.12+)
@@ -92,6 +99,15 @@ public class StreamConfiguration
     public StreamConfiguration WithReplicas(int replicas)
     {
         Replicas = replicas;
+        return this;
+    }
+
+    /// <summary>
+    /// Set the deduplication window for this stream (see <see cref="DuplicateWindow"/>).
+    /// </summary>
+    public StreamConfiguration WithDeduplicationWindow(TimeSpan window)
+    {
+        DuplicateWindow = window;
         return this;
     }
 

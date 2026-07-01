@@ -37,4 +37,15 @@ public class NatsSubscriberConfiguration
         add(endpoint => endpoint.ScheduleSubjectSuffix = suffix);
         return this;
     }
+
+    /// <summary>
+    /// Add a static header written to every message published to this subject.
+    /// </summary>
+    public NatsSubscriberConfiguration AddOutgoingHeader(string key, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key, nameof(key));
+
+        add(endpoint => endpoint.CustomHeaders[key] = value);
+        return this;
+    }
 }
