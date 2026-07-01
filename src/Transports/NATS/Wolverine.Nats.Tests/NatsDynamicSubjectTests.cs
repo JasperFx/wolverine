@@ -238,6 +238,61 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
         delivered!.Value.Subject.ShouldBe(expectedSubject);
     }
 
+    [Fact]
+    public async Task subject_resolver_output_is_normalized()
+    {
+        if (!await NatsTestHelpers.IsNatsAvailable(_natsUrl))
+        {
+            return;
+        }
+
+        var root = $"normalized.{Guid.NewGuid():N}";
+        var baseSubject = $"{root}.base";
+        // The resolver deliberately returns a '/'-separated subject. With NormalizeSubjects on (the default)
+        // it must be published with '.' tokens, consistent with static subjects and TopicName routing — so
+        // the raw subscriber bound to the normalized subject is what receives it.
+        var expectedSubject = $"{baseSubject}.A-42";
+
+        using var receiver = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "NormalizeResolverReceiver";
+                opts.UseNats(_natsUrl).AutoProvision();
+                opts.ListenToNatsSubject($"{root}.>").Named("normalize-wildcard");
+            })
+            .StartAsync();
+
+        using var sender = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(logging => logging.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "NormalizeResolverSender";
+                opts.UseNats(natsCfg =>
+                {
+                    natsCfg.ConnectionString = _natsUrl;
+                    natsCfg.SubjectResolver = new SlashSubjectResolver();
+                }).AutoProvision();
+
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject).SendInline();
+            })
+            .StartAsync();
+
+        await using var raw = await NatsTestHelpers.SubscribeRawAsync(_natsUrl, expectedSubject);
+
+        await sender
+            .TrackActivity()
+            .AlsoTrack(receiver)
+            .Timeout(30.Seconds())
+            .SendMessageAndWaitAsync(new OrderPlaced("A-42"),
+                new DeliveryOptions { Headers = { ["aggregate-id"] = "A-42" } });
+
+        var delivered = await raw.ReadAsync(5.Seconds());
+        delivered.ShouldNotBeNull();
+        delivered!.Value.Subject.ShouldBe(expectedSubject);
+    }
+
     /// <summary>
     /// Rewrites the base subject to <c>{base}.{aggregate-id}</c> using the <c>aggregate-id</c> header —
     /// the kind of envelope-level shaping the strongly-typed subject function can't express.
@@ -248,6 +303,22 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
         {
             return envelope.Headers.TryGetValue("aggregate-id", out var id) && id.IsNotEmpty()
                 ? $"{baseSubject}.{id}"
+                : baseSubject;
+        }
+
+        public string? ExtractTenantId(string subject) => null;
+    }
+
+    /// <summary>
+    /// Returns a '/'-separated subject on purpose, to prove the transport normalizes a resolver's output the
+    /// same way it normalizes static subjects and <c>Envelope.TopicName</c> (when NormalizeSubjects is on).
+    /// </summary>
+    private sealed class SlashSubjectResolver : ISubjectResolver
+    {
+        public string ResolveSubject(string baseSubject, Envelope envelope)
+        {
+            return envelope.Headers.TryGetValue("aggregate-id", out var id) && id.IsNotEmpty()
+                ? $"{baseSubject}/{id}"
                 : baseSubject;
         }
 

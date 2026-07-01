@@ -2,6 +2,8 @@ using IntegrationTests;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
+using NATS.Net;
 using Shouldly;
 using Testcontainers.Nats;
 using Wolverine.Tracking;
@@ -152,6 +154,39 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
         var received = session.Received.SingleEnvelope<OrderPlaced>();
         received.TenantId.ShouldBe("tenantB");
         received.Message.ShouldBeOfType<OrderPlaced>().OrderId.ShouldBe("for-tenant-b");
+    }
+
+    [Fact]
+    public async Task streams_are_auto_provisioned_over_a_tenants_own_connection()
+    {
+        if (_skip) return;
+
+        var streamName = $"TENANTPROV_{Guid.NewGuid():N}";
+        var subject = $"tenantprov.{Guid.NewGuid():N}";
+
+        // A tenant with its own connection to server B, plus a configured stream + AutoProvision. Stream
+        // provisioning runs at host start over the tenant's dedicated connection — which is never explicitly
+        // ConnectAsync'd; the NATS client connects lazily on first use. If that path were broken, StartAsync
+        // would throw right here.
+        using var host = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(l => l.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "PerTenantProvisioning";
+                opts.UseNats(_serverAUrl)
+                    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+                    .AutoProvision()
+                    .DefineStream(streamName, s => s.WithSubjects($"{subject}.>"))
+                    .AddTenant("tenantB", cfg => cfg.ConnectionString = _serverBUrl);
+            })
+            .StartAsync();
+
+        // Prove the stream was actually created on server B (the tenant's own server), not just server A.
+        // GetStreamAsync throws if the stream is absent, so a broken provisioning path fails the test.
+        await using var connToB = new NatsConnection(new NatsOpts { Url = _serverBUrl });
+        await connToB.ConnectAsync();
+        var streamOnB = await connToB.CreateJetStreamContext().GetStreamAsync(streamName);
+        streamOnB.ShouldNotBeNull();
     }
 
     private Task<IHost> BuildSenderAsync(string baseSubject)

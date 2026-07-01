@@ -126,10 +126,12 @@ public class NatsSender : ISender
                 }
 
                 // Advanced escape hatch: rewrite the subject from envelope-level state (headers,
-                // tenant, aggregate id) that the strongly-typed subject function can't express.
+                // tenant, aggregate id) that the strongly-typed subject function can't express. Run the
+                // result back through NormalizeSubject so a resolver's output honors NormalizeSubjects the
+                // same way static subjects and TopicName routing do (a no-op beyond trimming when disabled).
                 if (_endpoint.SubjectResolver is { } resolver)
                 {
-                    targetSubject = resolver.ResolveSubject(targetSubject, envelope);
+                    targetSubject = _endpoint.NormalizeSubject(resolver.ResolveSubject(targetSubject, envelope));
                 }
 
                 if (envelope.ReplyRequested != null && envelope.ReplyUri != null)
