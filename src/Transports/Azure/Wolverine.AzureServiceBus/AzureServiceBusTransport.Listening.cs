@@ -66,7 +66,7 @@ public partial class AzureServiceBusTransport
 
         if (queue.Mode == EndpointMode.Inline)
         {
-            var messageProcessor = BusClient.CreateProcessor(queue.QueueName);
+            var messageProcessor = BusClient.CreateProcessor(queue.QueueName, BuildProcessorOptions(queue));
 
             var inlineListener = new InlineAzureServiceBusListener(queue,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver,
@@ -122,7 +122,7 @@ public partial class AzureServiceBusTransport
 
         if (subscription.Mode == EndpointMode.Inline)
         {
-            var messageProcessor = BusClient.CreateProcessor(subscription.Topic.TopicName, subscription.SubscriptionName);
+            var messageProcessor = BusClient.CreateProcessor(subscription.Topic.TopicName, subscription.SubscriptionName, BuildProcessorOptions(subscription));
             var inlineListener = new InlineAzureServiceBusListener(subscription,
                 runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusListener>(), messageProcessor, receiver, mapper,  requeue
             );
@@ -137,5 +137,24 @@ public partial class AzureServiceBusTransport
         var listener = new BatchedAzureServiceBusListener(subscription, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
 
         return listener;
+    }
+
+    // Builds the ServiceBusProcessorOptions for an inline listener, applying any user supplied
+    // customization and then re-asserting the properties that Wolverine's inline acknowledgement
+    // logic depends on. InlineAzureServiceBusListener explicitly completes, defers, and dead
+    // letters messages against the message lock, so the processor must run in PeekLock mode; the
+    // ReceiveAndDelete mode would remove messages before Wolverine can process them and would break
+    // dead lettering and deferral.
+    internal static ServiceBusProcessorOptions BuildProcessorOptions(AzureServiceBusEndpoint endpoint)
+    {
+        var options = new ServiceBusProcessorOptions();
+
+        endpoint.ConfigureProcessor?.Invoke(options);
+
+        // Reserved by Wolverine: the inline listener relies on the peek-lock model to complete,
+        // defer, and dead letter messages, so this cannot be honored from user configuration.
+        options.ReceiveMode = ServiceBusReceiveMode.PeekLock;
+
+        return options;
     }
 }
