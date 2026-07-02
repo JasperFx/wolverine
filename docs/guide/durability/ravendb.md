@@ -177,9 +177,25 @@ public static class RecordTeamHandler
 
 ## System Control Queues
 
-The RavenDb integration to Wolverine does not yet come with a built in database control queue
-mechanism, so you will need to add that from external messaging brokers as in this example
-using Azure Service Bus:
+Wolverine uses a "control queue" for low latency communication between running nodes to coordinate
+[agent assignments](/guide/durability/leadership-and-troubleshooting) such as leader election and exclusive
+listeners when running in the `Balanced` durability mode. The RavenDb integration
+ships with a **native, database-backed control queue** that requires no additional configuration —
+simply calling `opts.UseRavenDbPersistence()` (as shown at the top of this page) is enough.
+
+When running in `Balanced` mode (the default), Wolverine automatically registers a RavenDb-backed control
+endpoint that stores inter-node control messages in a `ControlMessages` collection. Each node polls for
+messages targeted at its own node id, dispatches them, and deletes them once handled. Control messages are
+also given a short expiration as a safety net for undelivered messages.
+
+::: tip
+The native control queue is only activated when the durability mode is `Balanced` and you have not already
+supplied a different node control endpoint (see below). It is not used in `Solo`, `Serverless`, or
+`MediatorOnly` modes, which do not require inter-node coordination.
+:::
+
+If you would rather use an external messaging broker for the control queue, you can still opt into that.
+For example, with Azure Service Bus:
 
 <!-- snippet: sample_enabling_azure_service_bus_control_queues -->
 <a id='snippet-sample_enabling_azure_service_bus_control_queues'></a>
@@ -213,6 +229,7 @@ as a control endpoint with this configuration option:
 ```csharp
 WolverineOptions.UseTcpForControlEndpoint();
 ```
+
 
 In the option above, Wolverine is just looking for an unused port, and assigning that found port
 as the listener for the node being bootstrapped. 
