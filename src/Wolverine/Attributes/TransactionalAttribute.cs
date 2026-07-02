@@ -28,6 +28,11 @@ public class TransactionalAttribute : ModifyChainAttribute
             chain.Tags["TransactionMiddlewareMode"] = Mode;
         }
 
+        if (DbContextType != null)
+        {
+            chain.Tags["TransactionalDbContextType"] = DbContextType;
+        }
+
         chain.ApplyImpliedMiddlewareFromHandlers(rules);
         var transactionFrameProvider = rules.As<GenerationRules>().GetPersistenceProviders(chain, container);
         transactionFrameProvider.ApplyTransactionSupport(chain, container);
@@ -60,6 +65,14 @@ public class TransactionalAttribute : ModifyChainAttribute
     /// </summary>
     public bool IsModeExplicitlySet => _modeExplicitlySet;
 
+    /// <summary>
+    /// Optionally selects which of this handler chain's DbContext-shaped dependencies is the
+    /// single transactional one. Required when a chain has more than one DbContext-shaped
+    /// dependency (e.g. a read-only lookup context alongside the one that owns the write) -
+    /// without it, the persistence provider cannot tell them apart and throws.
+    /// </summary>
+    public Type? DbContextType { get; set; }
+
     public TransactionalAttribute()
     {
     }
@@ -67,5 +80,10 @@ public class TransactionalAttribute : ModifyChainAttribute
     public TransactionalAttribute(IdempotencyStyle idempotency)
     {
         Idempotency = idempotency;
+    }
+
+    public TransactionalAttribute(Type dbContextType)
+    {
+        DbContextType = dbContextType;
     }
 }
