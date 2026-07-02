@@ -42,6 +42,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 {
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     public const string TransactionModeKey = "TransactionMiddlewareMode";
+    public const string TransactionalDbContextTypeKey = "TransactionalDbContextType";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
     private ImHashMap<Type, Type> _abstractions = ImHashMap<Type, Type>.Empty;
 
@@ -478,6 +479,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var contextTypes = FindDbContextTypes().ToArray();
 
+        if (chain.Tags.TryGetValue(TransactionalDbContextTypeKey, out var taggedTypeObj) && taggedTypeObj is Type taggedType)
+        {
+            // The tagged type may be a registered DbContext abstraction (WithDbContextAbstraction<,>)
+            // rather than the concrete DbContext itself - Clean Architecture handlers depend on the
+            // abstraction, never on the concrete EF Core type.
+            var resolvedType = _abstractions.TryFind(taggedType, out var concreteFromAbstraction)
+                ? concreteFromAbstraction
+                : taggedType;
+
+            if (!contextTypes.Contains(resolvedType))
+            {
+                throw new InvalidOperationException(
+                    $"The [Transactional] DbContextType {taggedType.FullNameInCode()} on {chain.Description} is not one of this chain's dependencies (directly or via a registered DbContext abstraction). Detected {nameof(DbContext)} types: {(contextTypes.Length == 0 ? "none" : contextTypes.Select(x => x.Name).Join(", "))}");
+            }
+
+            return resolvedType;
+        }
+
         if (contextTypes.Length == 0)
         {
             var sagaType = chain.HandlerCalls().SelectMany(x => x.Creates)
@@ -489,7 +508,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             {
                 return DetermineDbContextType(sagaType, container);
             }
-            
+
             throw new InvalidOperationException(
                 $"Cannot determine the {nameof(DbContext)} type for {chain.Description}");
         }
@@ -497,7 +516,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (contextTypes.Length > 1)
         {
             throw new InvalidOperationException(
-                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}");
+                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}. Use [Transactional(typeof(YourDbContext))] to select which one is transactional for this handler.");
         }
 
         return contextTypes.Single();
