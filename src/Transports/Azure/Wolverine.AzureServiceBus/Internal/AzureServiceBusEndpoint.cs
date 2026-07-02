@@ -49,6 +49,15 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     /// </summary>
     public TimeSpan MaximumWaitTime { get; set; } = 5.Seconds();
 
+    /// <summary>
+    ///     Optional customization of the Azure Service Bus <see cref="ServiceBusProcessorOptions" /> used
+    ///     by inline listeners for this endpoint. Wolverine reserves control of the properties it depends
+    ///     on for correct message acknowledgement (see AzureServiceBusTransport.Listening), so those will
+    ///     be re-asserted after this action runs.
+    /// </summary>
+    [IgnoreDescription]
+    public Action<ServiceBusProcessorOptions>? ConfigureProcessor { get; set; }
+
     public abstract ValueTask<bool> CheckAsync();
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);

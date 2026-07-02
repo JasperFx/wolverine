@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
@@ -61,6 +62,22 @@ public class
     public AzureServiceBusQueueListenerConfiguration ConfigureQueue(Action<CreateQueueOptions> configure)
     {
         add(e => configure(e.Options));
+        return this;
+    }
+
+    /// <summary>
+    ///     Customize the Azure Service Bus <see cref="ServiceBusProcessorOptions" /> used by this
+    ///     listener when running in the inline (<c>ProcessInline()</c>) mode. This is the way to raise
+    ///     <see cref="ServiceBusProcessorOptions.MaxAutoLockRenewalDuration" /> for inline handlers that
+    ///     run longer than the Azure SDK's default of five minutes. Wolverine reserves control of the
+    ///     properties it depends on for message acknowledgement (currently <c>ReceiveMode</c>), which are
+    ///     re-asserted after this action runs.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration ConfigureProcessor(Action<ServiceBusProcessorOptions> configure)
+    {
+        add(e => e.ConfigureProcessor = configure);
         return this;
     }
 
