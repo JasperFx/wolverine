@@ -83,6 +83,73 @@ public partial class AssignmentGrid
         }
     }
 
+    /// <summary>
+    /// Distribute agents of a scheme across nodes with <b>group affinity</b>: every agent whose
+    /// <paramref name="groupKey"/> is equal is placed on the same node, and whole groups are spread
+    /// evenly across nodes. Intended for sharded event stores where each agent's group is its shard
+    /// database (JasperFx/marten#4806) — co-locating a database's agents on one node bounds that node
+    /// to the databases it owns, so connection pools scale with databases rather than nodes × databases.
+    ///
+    /// <para>Balanced by a greedy least-loaded fit: each database group (largest first) goes to the node
+    /// with the fewest agents so far, so nodes end up with roughly equal <em>total agent counts</em> — a
+    /// proxy for per-tenant work, since a database contributes one agent per resident tenant × projection —
+    /// rather than merely an equal number of databases. It balances by agent/tenant count, not by raw event
+    /// volume, so a database that is few-tenants-but-huge can still be heavier than its agent count implies.
+    /// Deterministic tie-breaks (prefer non-leaders, then node id) keep a steady grid from churning. This
+    /// prototype does not yet apply blue/green capability matching; use the standard
+    /// <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is required.</para>
+    /// </summary>
+    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey)
+    {
+        if (_nodes.Count == 0)
+        {
+            throw new InvalidOperationException("There are no active nodes");
+        }
+
+        var agents = AvailableAgentsForScheme(scheme);
+        if (agents.Count == 0)
+        {
+            return;
+        }
+
+        var nodes = _nodes.OrderBy(x => x.IsLeader).ThenBy(x => x.AssignedId).ToList();
+
+        if (nodes.Count == 1)
+        {
+            var only = nodes[0];
+            foreach (var agent in agents)
+            {
+                only.Assign(agent);
+            }
+
+            return;
+        }
+
+        var groups = agents
+            .GroupBy(a => groupKey(a.Uri))
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
+            .ToList();
+
+        var agentCountByNode = nodes.ToDictionary(n => n, _ => 0);
+        foreach (var group in groups)
+        {
+            // Least-loaded node wins; prefer non-leaders and lower node ids on ties for a stable result.
+            var node = agentCountByNode
+                .OrderBy(kv => kv.Value)
+                .ThenBy(kv => kv.Key.IsLeader)
+                .ThenBy(kv => kv.Key.AssignedId)
+                .First().Key;
+
+            foreach (var agent in group)
+            {
+                node.Assign(agent);
+            }
+
+            agentCountByNode[node] += group.Count();
+        }
+    }
+
     public bool AllNodesHaveSameCapabilities(string scheme)
     {
         var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme);
