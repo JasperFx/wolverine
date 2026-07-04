@@ -45,6 +45,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     public const string TransactionalDbContextTypeKey = "TransactionalDbContextType";
     private ImHashMap<Type, Type?> _dbContextTypes = ImHashMap<Type, Type?>.Empty;
     private ImHashMap<Type, Type> _abstractions = ImHashMap<Type, Type>.Empty;
+    private ImHashMap<Type, bool> _wolverineEnabled = ImHashMap<Type, bool>.Empty;
 
     public TransactionMiddlewareMode DefaultMode { get; set; } = TransactionMiddlewareMode.Eager;
 
@@ -52,6 +53,23 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     {
         _abstractions = _abstractions.AddOrUpdate(abstractionType, dbContextType);
     }
+
+    /// <summary>
+    /// Registration-side transactional DbContext selection (WithTransactionalDbContext&lt;T&gt;).
+    /// Lets the composition root pick which DbContext-shaped dependency of a chain is the transactional
+    /// one, so Clean Architecture / modular-monolith handlers never need a [Transactional] attribute or
+    /// a DbContext reference. <paramref name="selectionType"/> may be a concrete DbContext or a registered
+    /// DbContext abstraction. A null <paramref name="predicate"/> applies wherever that context is a
+    /// candidate dependency; a predicate scopes it (e.g. to a module's handler assembly).
+    /// </summary>
+    public void RegisterTransactionalSelection(Type selectionType, Func<IChain, bool>? predicate)
+    {
+        _transactionalSelections.Add(new TransactionalSelection(selectionType, predicate));
+    }
+
+    private readonly List<TransactionalSelection> _transactionalSelections = new();
+
+    private sealed record TransactionalSelection(Type SelectionType, Func<IChain, bool>? Predicate);
 
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
@@ -316,6 +334,96 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
     }
 
+    /// <summary>
+    /// Resolves the transactional DbContext for this chain from any registration-side selections
+    /// (WithTransactionalDbContext). Returns null when none apply. A selection may name a concrete
+    /// DbContext or a registered abstraction; a selection that matches a chain but names a type the
+    /// chain does not depend on fails loudly, as do two conflicting selections on the same chain.
+    /// </summary>
+    private Type? resolveRegistrationSelection(IChain chain, Type[] contextTypes)
+    {
+        Type? selected = null;
+
+        foreach (var selection in _transactionalSelections)
+        {
+            var resolved = _abstractions.TryFind(selection.SelectionType, out var concrete)
+                ? concrete
+                : selection.SelectionType;
+
+            // A null predicate means "applies wherever this context is a candidate dependency".
+            var applies = selection.Predicate?.Invoke(chain) ?? contextTypes.Contains(resolved);
+            if (!applies)
+            {
+                continue;
+            }
+
+            if (!contextTypes.Contains(resolved))
+            {
+                throw new InvalidOperationException(
+                    $"The registration-side transactional DbContext selection {selection.SelectionType.FullNameInCode()} for {chain.Description} is not one of this chain's dependencies (directly or via a registered DbContext abstraction). Detected {nameof(DbContext)} types: {contextTypes.Select(x => x.Name).Join(", ")}");
+            }
+
+            if (selected != null && selected != resolved)
+            {
+                throw new InvalidOperationException(
+                    $"Conflicting registration-side transactional DbContext selections for {chain.Description}: both {selected.Name} and {resolved.Name} apply. Scope each WithTransactionalDbContext<T>(...) call so at most one matches a given handler.");
+            }
+
+            selected = resolved;
+        }
+
+        return selected;
+    }
+
+    /// <summary>
+    /// Is this DbContext "Wolverine-enabled" - i.e. did it map Wolverine envelope storage
+    /// (via <c>MapWolverineEnvelopeStorage</c>, typically through
+    /// <c>AddDbContextWithWolverineIntegration</c>)? Only Wolverine-enabled contexts can own the
+    /// transaction + outbox, so this is the signal used to disambiguate a chain that depends on more
+    /// than one DbContext-shaped service without any handler-side selection. Result cached per type.
+    /// </summary>
+    private bool isWolverineEnabled(Type dbContextType, IServiceContainer container)
+    {
+        if (_wolverineEnabled.TryFind(dbContextType, out var enabled))
+        {
+            return enabled;
+        }
+
+        enabled = determineWolverineEnabled(dbContextType, container);
+        _wolverineEnabled = _wolverineEnabled.AddOrUpdate(dbContextType, enabled);
+        return enabled;
+    }
+
+    private bool determineWolverineEnabled(Type dbContextType, IServiceContainer container)
+    {
+        try
+        {
+            using var nested = container.Services.CreateScope();
+
+            // Multi-tenant DbContexts aren't resolved directly - they're produced by an
+            // IDbContextBuilder<T>. Build the "main" instance to inspect its model.
+            var builderType = typeof(IDbContextBuilder<>).MakeGenericType(dbContextType);
+            if (container.HasRegistrationFor(builderType))
+            {
+                var builder = (IDbContextBuilder)nested.ServiceProvider.GetRequiredService(builderType);
+                return builder.BuildForMain().IsWolverineEnabled();
+            }
+
+            return nested.ServiceProvider.GetService(dbContextType) is DbContext dbContext
+                   && dbContext.IsWolverineEnabled();
+        }
+        catch (Exception e)
+        {
+            // Mirror TryDetermineDbContextType: a candidate whose model can't be built is simply not
+            // treated as the Wolverine-enabled one; we fall through to the explicit-selection error.
+            var logger = container.Services.GetService<ILogger<EFCorePersistenceFrameProvider>>();
+            logger?.LogError(e,
+                "Error determining whether DbContext type {DbContextType} is Wolverine-enabled",
+                dbContextType.FullNameInCode());
+            return false;
+        }
+    }
+
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
         // GH-3039: For saga chains, defer to the saga's own transaction-support application at codegen
@@ -513,10 +621,31 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 $"Cannot determine the {nameof(DbContext)} type for {chain.Description}");
         }
 
+        // Explicit registration-side selection (WithTransactionalDbContext). This is the Clean
+        // Architecture / modular-monolith path: the composition root chooses, the handler stays free
+        // of any DbContext reference. Consulted for every chain with at least one DbContext dependency
+        // so a mis-scoped selection is validated the same way the [Transactional] tag is above. Ranks
+        // below the per-handler [Transactional] tag and above automatic resolution.
+        var selected = resolveRegistrationSelection(chain, contextTypes);
+        if (selected != null)
+        {
+            return selected;
+        }
+
         if (contextTypes.Length > 1)
         {
+            // Automatic disambiguation: a DbContext that never mapped Wolverine envelope storage
+            // (e.g. a plain AddDbContext<> read-only lookup, or another module's context used here
+            // only for reads) can't own the transaction + outbox. If exactly one candidate is
+            // Wolverine-enabled, it is unambiguously the transactional one - no config required.
+            var enabled = contextTypes.Where(x => isWolverineEnabled(x, container)).ToArray();
+            if (enabled.Length == 1)
+            {
+                return enabled[0];
+            }
+
             throw new InvalidOperationException(
-                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}. Use [Transactional(typeof(YourDbContext))] to select which one is transactional for this handler.");
+                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}. Select which one is transactional with [Transactional(typeof(YourDbContext))] on the handler, or at registration via UseEntityFrameworkCoreTransactions().WithTransactionalDbContext<YourDbContext>().");
         }
 
         return contextTypes.Single();

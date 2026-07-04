@@ -384,3 +384,103 @@ opts.UseEntityFrameworkCoreTransactions()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L62-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_mixed_dbcontexts' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Selecting the Transactional DbContext <Badge type="tip" text="6.17" />
+
+A handler chain can only have **one** transactional `DbContext` — the one Wolverine enrolls in the
+transaction and uses for the outbox. But a handler is often legitimately given more than one
+`DbContext`-shaped dependency: one it writes through, plus one it only *reads* from — a shared
+read-only lookup database, or another module's context in a modular monolith.
+
+When a chain depends on more than one `DbContext`-shaped service, Wolverine resolves which one is
+transactional in this order:
+
+1. A `[Transactional(typeof(TDbContext))]` attribute on the handler (most specific).
+2. A registration-side selection made with `WithTransactionalDbContext<T>()`.
+3. **Automatic**: the single [Wolverine-enabled](#automatic-selection) candidate, if there is exactly one.
+
+If none of these resolves to a single context, Wolverine fails fast at startup and names the
+candidates.
+
+### Automatic selection
+
+Only a `DbContext` that mapped Wolverine's envelope storage (via `MapWolverineEnvelopeStorage`,
+which `AddDbContextWithWolverineIntegration<T>()` sets up) can own the transaction and outbox. A
+plain `AddDbContext<T>()` read-only lookup context therefore is **never** a transactional candidate.
+When exactly one of a handler's `DbContext` dependencies is Wolverine-enabled, Wolverine selects it
+automatically — no attribute, no configuration, and the read context is simply an ordinary injected
+dependency:
+
+```cs
+builder.Host.UseWolverine(opts =>
+{
+    // The write side — enrolled in the transaction + outbox.
+    opts.Services.AddDbContextWithWolverineIntegration<LedgerDbContext>(x =>
+        x.UseNpgsql(connectionString));
+
+    // A shared read-only lookup context: a plain AddDbContext<>, never enrolled.
+    opts.Services.AddDbContext<RatesDbContext>(x => x.UseNpgsql(connectionString));
+
+    opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+    opts.UseEntityFrameworkCoreTransactions();
+    opts.Policies.AutoApplyTransactions();
+});
+
+public class PostLedgerEntryHandler
+{
+    // No [Transactional] attribute and no need to name a DbContext: LedgerDbContext is the only
+    // Wolverine-enabled dependency, so it is selected automatically. RatesDbContext is read-only.
+    public static void Handle(PostLedgerEntry cmd, LedgerDbContext ledger, RatesDbContext rates)
+    {
+        ledger.Entries.Add(new LedgerEntry { Id = cmd.Id, Memo = cmd.Memo });
+    }
+}
+```
+
+### Explicit selection at registration
+
+When **both** contexts are Wolverine-enabled — for example two modules that each own an outbox —
+nothing can be inferred automatically. Rather than putting a `[Transactional(typeof(...))]` attribute
+on the handler (which a Clean Architecture application layer should not carry), select the write
+context in the composition root with `WithTransactionalDbContext<T>()`. The handler stays free of any
+`DbContext` reference and any Wolverine attribute:
+
+```cs
+opts.Services.AddDbContextWithWolverineIntegration<SalesDbContext>(x => x.UseNpgsql(connectionString));
+opts.Services.AddDbContextWithWolverineIntegration<AuditDbContext>(x => x.UseNpgsql(connectionString));
+
+opts.PersistMessagesWithPostgresql(connectionString, "wolverine");
+
+opts.UseEntityFrameworkCoreTransactions()
+    // SalesDbContext is the transactional one wherever it is a handler dependency.
+    .WithTransactionalDbContext<SalesDbContext>();
+
+opts.Policies.AutoApplyTransactions();
+```
+
+The type argument can be a concrete `DbContext` **or** an abstraction registered with
+`WithDbContextAbstraction<TAbstraction, TDbContext>()`, so an Application-layer handler can depend on,
+and the composition root can select, an abstraction — never the concrete EF Core type:
+
+```cs
+opts.UseEntityFrameworkCoreTransactions()
+    .WithDbContextAbstraction<ISalesStore, SalesDbContext>()
+    .WithTransactionalDbContext<ISalesStore>();
+```
+
+### Modular monolith
+
+In a modular monolith each module typically owns its own write `DbContext`, while a handler may read
+from another module's context. Give each module's registration its own selection scoped to that
+module's handler assembly, so a handler enrolls only its module's context even when it reads from
+another's:
+
+```cs
+opts.UseEntityFrameworkCoreTransactions()
+    .WithTransactionalDbContext<SalesDbContext>(typeof(SalesModuleHandler).Assembly)
+    .WithTransactionalDbContext<AuditDbContext>(typeof(AuditModuleHandler).Assembly);
+```
+
+For finer control, an overload accepts a predicate over the handler chain
+(`Func<IChain, bool>`). A selection that matches a chain but names a `DbContext` the chain does not
+depend on — and two selections that conflict on the same chain — both fail fast at startup.
