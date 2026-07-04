@@ -62,4 +62,40 @@ public class distribute_by_group_affinity
 
         node.ForScheme("event-subscriptions").Count().ShouldBe(3);
     }
+
+    [Fact]
+    public void bounded_fan_out_spreads_a_heavy_database_across_up_to_k_nodes()
+    {
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithNode(3, Guid.NewGuid());
+
+        // One heavy database with 6 tenants; bound = 2 → its agents span exactly 2 nodes (not 1, not 3).
+        var agents = Enumerable.Range(1, 6).Select(t => Agent("dbHeavy", "t" + t)).ToArray();
+        grid.WithAgents(agents);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey, maxNodesPerGroup: 2);
+
+        var nodesUsed = agents.Select(a => grid.AgentFor(a).AssignedNode).Distinct().ToList();
+        nodesUsed.Count.ShouldBe(2, "a heavy database must fan out across up to the bound (2) nodes");
+        nodesUsed.ShouldAllBe(n => n != null);
+    }
+
+    [Fact]
+    public void a_group_smaller_than_the_bound_uses_fewer_nodes()
+    {
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithNode(3, Guid.NewGuid());
+
+        // A single-tenant database can only ever use one node, even with a higher bound.
+        grid.WithAgents(Agent("dbLight", "t1"));
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey, maxNodesPerGroup: 3);
+
+        grid.AgentFor(Agent("dbLight", "t1")).AssignedNode.ShouldNotBeNull();
+        grid.Nodes.Count(n => n.ForScheme("event-subscriptions").Any()).ShouldBe(1);
+    }
 }

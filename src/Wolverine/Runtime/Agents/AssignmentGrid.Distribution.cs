@@ -84,22 +84,21 @@ public partial class AssignmentGrid
     }
 
     /// <summary>
-    /// Distribute agents of a scheme across nodes with <b>group affinity</b>: every agent whose
-    /// <paramref name="groupKey"/> is equal is placed on the same node, and whole groups are spread
-    /// evenly across nodes. Intended for sharded event stores where each agent's group is its shard
-    /// database (JasperFx/marten#4806) — co-locating a database's agents on one node bounds that node
-    /// to the databases it owns, so connection pools scale with databases rather than nodes × databases.
+    /// Distribute agents of a scheme across nodes with <b>bounded group affinity</b>: agents that share a
+    /// <paramref name="groupKey"/> (e.g. a shard database) are kept together, but a group may fan out across
+    /// up to <paramref name="maxNodesPerGroup"/> nodes. This is the "mix" between strict affinity
+    /// (<c>maxNodesPerGroup == 1</c> — fewest connections, but a heavy group is serialized on one node's
+    /// pool) and even spreading: a higher bound lets a heavy group parallelize across several nodes while
+    /// still capping how many nodes reach that group's database, so its server-side connection ceiling stays
+    /// bounded at (bound × per-node pool). Intended for sharded event stores (JasperFx/marten#4806).
     ///
-    /// <para>Balanced by a greedy least-loaded fit: each database group (largest first) goes to the node
-    /// with the fewest agents so far, so nodes end up with roughly equal <em>total agent counts</em> — a
-    /// proxy for per-tenant work, since a database contributes one agent per resident tenant × projection —
-    /// rather than merely an equal number of databases. It balances by agent/tenant count, not by raw event
-    /// volume, so a database that is few-tenants-but-huge can still be heavier than its agent count implies.
-    /// Deterministic tie-breaks (prefer non-leaders, then node id) keep a steady grid from churning. This
-    /// prototype does not yet apply blue/green capability matching; use the standard
-    /// <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is required.</para>
+    /// <para>Groups are placed largest-first onto their k = min(bound, group size, node count) least-loaded
+    /// nodes; each group's agents then greedily fill those nodes least-loaded-first, so total agent count
+    /// stays balanced and the result is deterministic (a steady grid does not churn). A group with fewer
+    /// agents than the bound naturally uses fewer nodes. This prototype does not apply blue/green capability
+    /// matching; use <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is required.</para>
     /// </summary>
-    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey)
+    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey, int maxNodesPerGroup = 1)
     {
         if (_nodes.Count == 0)
         {
@@ -110,6 +109,11 @@ public partial class AssignmentGrid
         if (agents.Count == 0)
         {
             return;
+        }
+
+        if (maxNodesPerGroup < 1)
+        {
+            maxNodesPerGroup = 1;
         }
 
         var nodes = _nodes.OrderBy(x => x.IsLeader).ThenBy(x => x.AssignedId).ToList();
@@ -125,28 +129,39 @@ public partial class AssignmentGrid
             return;
         }
 
+        var load = nodes.ToDictionary(n => n, _ => 0);
+
         var groups = agents
             .GroupBy(a => groupKey(a.Uri))
             .OrderByDescending(g => g.Count())
             .ThenBy(g => g.Key, StringComparer.Ordinal)
             .ToList();
 
-        var agentCountByNode = nodes.ToDictionary(n => n, _ => 0);
         foreach (var group in groups)
         {
-            // Least-loaded node wins; prefer non-leaders and lower node ids on ties for a stable result.
-            var node = agentCountByNode
+            var members = group.ToList();
+            var k = Math.Min(Math.Min(maxNodesPerGroup, members.Count), nodes.Count);
+
+            // The k least-loaded nodes host this group; a group smaller than the bound uses fewer nodes.
+            var chosen = load
                 .OrderBy(kv => kv.Value)
                 .ThenBy(kv => kv.Key.IsLeader)
                 .ThenBy(kv => kv.Key.AssignedId)
-                .First().Key;
+                .Take(k)
+                .Select(kv => kv.Key)
+                .ToList();
 
-            foreach (var agent in group)
+            // Greedily fill the group's agents onto the chosen nodes, least-loaded first, to balance work.
+            foreach (var agent in members)
             {
+                var node = chosen
+                    .OrderBy(n => load[n])
+                    .ThenBy(n => n.IsLeader)
+                    .ThenBy(n => n.AssignedId)
+                    .First();
                 node.Assign(agent);
+                load[node]++;
             }
-
-            agentCountByNode[node] += group.Count();
         }
     }
 
