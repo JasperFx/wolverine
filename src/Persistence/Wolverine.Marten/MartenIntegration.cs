@@ -40,11 +40,33 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     public bool UseFastEventForwarding { get; set; }
     
     /// <summary>
-    /// Use this when using Wolverine to evenly distribute event projection and subscription 
-    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c> 
+    /// Use this when using Wolverine to evenly distribute event projection and subscription
+    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c>
     /// option and should not be used in combination with Marten's own load distribution.
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
+
+    /// <summary>
+    /// Opt-in (default false): when <see cref="UseWolverineManagedEventSubscriptionDistribution"/> is on and
+    /// the Marten store uses sharded databases with per-tenant event partitioning, assign each shard
+    /// database's per-(shard, tenant) agents with <b>database affinity</b> — all of a database's agents run
+    /// on one node — instead of spreading them evenly by count. This bounds each node to the shard databases
+    /// it owns, so connection pools scale with the number of shard databases rather than nodes × databases
+    /// (which otherwise exhausts a shared server's max_connections). Flows through to
+    /// <c>StoreOptions.Events.UseDatabaseAffineAgentAssignment</c>; only takes effect for a sharded,
+    /// per-tenant-partitioned store. See JasperFx/marten#4806.
+    /// </summary>
+    public bool UseDatabaseAffineAgentAssignment { get; set; }
+
+    /// <summary>
+    /// When <see cref="UseDatabaseAffineAgentAssignment"/> is on, the maximum number of nodes a single shard
+    /// database's agents may fan out across (the "mix" between strict affinity and even spreading). 1 = strict
+    /// affinity (one node per database — fewest connections). A higher value lets a heavy database parallelize
+    /// across up to N least-loaded nodes, at the cost of that database being reachable from up to N nodes
+    /// (server-side connection ceiling per database ≈ N × per-node pool). Flows through to
+    /// <c>StoreOptions.Events.DatabaseAffineAgentFanout</c>. Default 1. See JasperFx/marten#4806.
+    /// </summary>
+    public int DatabaseAffineAgentFanout { get; set; } = 1;
 
     public void Configure(WolverineOptions options)
     {
@@ -201,6 +223,18 @@ internal class MartenOverrides : IConfigureMarten
                     nameof(Saga.Version), typeof(int))!;
             }
         });
+
+        // Bridge the Wolverine-managed distribution's database-affine agent-assignment settings — configured
+        // on IntegrateWithWolverine — onto the Marten event store, because Wolverine's distribution is what
+        // consumes them (via IEventStore.GroupAgentAssignmentsByDatabase / MaxNodesPerDatabaseForAgents).
+        // Only the main store (StoreType == null): this is a sharded per-tenant-store concern, not ancillary.
+        // See JasperFx/marten#4806.
+        if (StoreType == null &&
+            services.GetService<MartenIntegration>() is { UseDatabaseAffineAgentAssignment: true } integration)
+        {
+            options.Events.UseDatabaseAffineAgentAssignment = true;
+            options.Events.DatabaseAffineAgentFanout = integration.DatabaseAffineAgentFanout;
+        }
     }
 }
 

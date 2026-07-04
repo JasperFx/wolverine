@@ -81,22 +81,27 @@ services.AddMarten(opts =>
 {
     // ... sharded tenancy + per-tenant event partitioning ...
     opts.Events.UseTenantPartitionedEvents = true;
-
-    // Keep a shard database's per-tenant agents together on one node
-    opts.Events.UseDatabaseAffineAgentAssignment = true;
-
-    // The "mix": allow a single shard database's agents to fan out across up to N nodes
-    // for more parallelism (default 1 = strict affinity). Server-side connections for one
-    // database then stay bounded at roughly N × per-node pool size.
-    opts.Events.DatabaseAffineAgentFanout = 2;
 })
-.IntegrateWithWolverine();
+.IntegrateWithWolverine(x =>
+{
+    x.UseWolverineManagedEventSubscriptionDistribution = true;
+
+    // Keep a shard database's per-tenant agents together on one node.
+    x.UseDatabaseAffineAgentAssignment = true;
+
+    // The "mix": allow a single shard database's agents to fan out across up to N nodes for more
+    // parallelism (default 1 = strict affinity). Server-side connections for one database then stay
+    // bounded at roughly N × per-node pool size.
+    x.DatabaseAffineAgentFanout = 2;
+});
 ```
 
-Wolverine reads these off the store through `IEventStore.GroupAgentAssignmentsByDatabase` and
-`IEventStore.MaxNodesPerDatabaseForAgents`, so the behavior is entirely opt-in and store-driven — a store that does not
-set them keeps the default even distribution. The grouping key is the `[event store type]/[event store name]/[database]`
-prefix of the agent `Uri` (see below), so all of a shard database's per-tenant agents share one group.
+These settings on `IntegrateWithWolverine` flow through to `StoreOptions.Events.UseDatabaseAffineAgentAssignment`
+and `DatabaseAffineAgentFanout` (you can also set them there directly). Wolverine reads them off the store through
+`IEventStore.GroupAgentAssignmentsByDatabase` and `IEventStore.MaxNodesPerDatabaseForAgents`, so the behavior is entirely
+opt-in and store-driven — a store that does not set them keeps the default even distribution. The grouping key is the
+`[event store type]/[event store name]/[database]` prefix of the agent `Uri` (see below), so all of a shard database's
+per-tenant agents share one group.
 
 ## Uri Structure
 
