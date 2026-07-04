@@ -160,9 +160,18 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         // shard database's per-tenant agents together on one node so a node opens connection pools only to
         // the databases it owns (pools scale with databases, not nodes × databases, which otherwise
         // exhausts a shared server). Otherwise distribute evenly with blue/green semantics as before.
-        if (_stores.Enumerate().Any(e => e.Value.GroupAgentAssignmentsByDatabase))
+        var affineStores = _stores.Enumerate()
+            .Select(e => e.Value)
+            .Where(s => s.GroupAgentAssignmentsByDatabase)
+            .ToList();
+
+        if (affineStores.Count != 0)
         {
-            assignments.DistributeByGroupAffinity(SchemeName, DatabaseKeyOf);
+            // Bounded fan-out ("mix"): a shard database's agents may spread across up to this many nodes.
+            // One grid pass covers every store's agents (their per-store URI prefix keeps groups distinct),
+            // so use the largest bound any affine store asks for.
+            var maxNodesPerGroup = affineStores.Max(s => s.MaxNodesPerDatabaseForAgents);
+            assignments.DistributeByGroupAffinity(SchemeName, DatabaseKeyOf, maxNodesPerGroup);
         }
         else
         {
