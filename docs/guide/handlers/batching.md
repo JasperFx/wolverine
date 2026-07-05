@@ -346,6 +346,10 @@ Throwing the exception *is* the opt-in — there is no configuration to enable. 
 their original messages by reference identity, so throw the factory with the actual object(s) handed to your
 handler.
 
+When combined with [`CoalesceBy`](#de-duplicating-a-batch-with-coalesceby), flagging a coalesced item
+poisons **every** original message that collapsed into that key — the handler only sees one message per key,
+but all the de-duplicated members for a poisoned key are dead-lettered together.
+
 `ApplyItemException` is for failures the handler can *name*. For **opaque** failures — where the handler
 throws but cannot tell which item was the culprit — use the `IsolateBatchMembers()` error policy below.
 
