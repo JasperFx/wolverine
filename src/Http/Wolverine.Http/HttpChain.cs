@@ -71,6 +71,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     internal bool RequestBodyIsOptional { get; set; }
 
     private string? _fileName;
+    private string? _typeNameOverride;
     private readonly List<string> _httpMethods = [];
 
     private readonly List<Variable> _routeVariables = [];
@@ -131,6 +132,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         if (method.Method.TryGetAttribute<WolverineHttpMethodAttribute>(out var att))
         {
+            _typeNameOverride = att.TypeName;
             MapToRoute(att.HttpMethod, att.Template, att.Order);
             if (att.Name.IsNotEmpty())
             {
@@ -238,6 +240,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         // Doing this prevents middleware policies
         // from doing something stupid
         RequestType ??= typeof(void);
+    }
+
+    /// <summary>
+    /// Append a deterministic suffix to the generated C# type name so two routes that would otherwise
+    /// derive the same identifier (e.g. "/a$b" and "/a-b" both sanitizing to "a_b") stay unique. Called
+    /// by <see cref="HttpGraph"/> only for chains whose generated name actually collides.
+    /// </summary>
+    internal void DisambiguateTypeName(string suffix)
+    {
+        _fileName = $"{_fileName}_{suffix}";
+        _description = _fileName;
     }
 
     [IgnoreDescription]

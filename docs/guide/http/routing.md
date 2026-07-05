@@ -223,6 +223,36 @@ public string Post()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/NamedRouteEndpoint.cs#L7-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_route_name' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Special Characters in Routes <Badge type="tip" text="6.17" />
+
+Wolverine generates a C# type for each HTTP endpoint, and it derives that type's name from the route
+template. A route can legally contain characters that are valid in a URL path but not in a C# identifier
+— for example a `$` used to mark an RPC-style action:
+
+```csharp
+[WolverinePut("/assets/$action")]
+public static string TriggerAction() => "triggered";
+```
+
+Wolverine handles this for you: any character in the route that isn't a valid C# identifier character is
+replaced with `_` when building the generated type name, so routes like `/assets/$action` "just work"
+(earlier versions failed to compile with `CS1056: Unexpected character '$'`). Two routes that would
+otherwise sanitize to the *same* type name (for example `/a$b` and `/a-b`) are automatically given a
+short deterministic suffix so they stay unique.
+
+### Overriding the generated type name
+
+If you'd rather control the generated type name explicitly — for a nicer name, or to disambiguate an
+edge case yourself — every route attribute exposes a `TypeName` property as an escape hatch:
+
+```csharp
+[WolverinePut("/assets/$action", TypeName = "TriggerAssetAction")]
+public static string TriggerAction() => "triggered";
+```
+
+The value you supply is still sanitized to a valid identifier, so it can never produce code that fails to
+compile.
+
 
 
 
