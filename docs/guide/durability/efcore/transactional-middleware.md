@@ -174,6 +174,12 @@ await host.StartAsync();
 
 With this option, you will no longer need to decorate handler methods with the `[Transactional]` attribute.
 
+::: tip
+If an auto-transaction handler depends on **more than one** `DbContext` type, Wolverine cannot infer
+which one owns the transaction and will fail fast at startup. See
+[Selecting the Transactional DbContext](#selecting-the-transactional-dbcontext) for how to designate it.
+:::
+
 ## Transaction Middleware Mode
 
 By default, the EF Core transactional middleware uses `TransactionMiddlewareMode.Eager`, which eagerly opens an
@@ -384,3 +390,87 @@ opts.UseEntityFrameworkCoreTransactions()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests/dbContext_abstraction_scenarios.cs#L62-L83' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_mixed_dbcontexts' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Selecting the Transactional DbContext <Badge type="tip" text="6.17" />
+
+A handler chain can only have **one** transactional `DbContext` — the one Wolverine enrolls in the
+transaction and uses for the outbox. But a handler is often legitimately given more than one
+`DbContext`-shaped dependency: one it writes through, plus one it only *reads* from — a shared
+read-only lookup database, or another module's context in a modular monolith.
+
+This applies uniformly to every kind of Wolverine chain — message handlers, HTTP endpoints, and gRPC
+endpoints — since they all resolve their transactional storage the same way. The attributes below can
+be placed on the handler method or the containing class (for HTTP, on the endpoint method).
+
+When a chain depends on more than one `DbContext`-shaped service, Wolverine will **not** guess which
+one is transactional. There is no automatic selection and no "magic" — you designate it explicitly, or
+Wolverine fails fast at startup:
+
+```
+Cannot determine the DbContext type for <handler>, multiple DbContext types detected:
+AppDbContext, LookupDbContext. Wolverine will not guess which one owns the transaction. Either
+remove the automatic transactional middleware from this handler (e.g. with [NonTransactional] or
+by not calling AutoApplyTransactions), or explicitly designate the transactional DbContext with
+[Transactional(typeof(YourDbContext))] or [Storage(typeof(YourDbContext))] on the handler.
+```
+
+You have three ways to resolve it.
+
+### 1. `[Transactional(typeof(TDbContext))]`
+
+Name the write context on the handler. The other `DbContext` is simply an ordinary injected read
+dependency:
+
+```csharp
+public class GrantAccessHandler
+{
+    [Transactional(typeof(AppDbContext))]
+    public static void Handle(GrantAccess message, AppDbContext users, LookupDbContext lookup)
+    {
+        // users.SaveChanges() is enrolled in the transaction + outbox.
+        // lookup is just an ordinary injected read-only dependency.
+    }
+}
+```
+
+`[Transactional]` lives in the core `Wolverine` assembly and only stores a `System.Type`, so neither the
+attribute nor your handler assembly needs to reference anything EF-Core-specific beyond `typeof`. The
+type may also be a **DbContext abstraction** registered via `WithDbContextAbstraction<TAbstraction,
+TDbContext>()`, so a Clean Architecture handler can name the abstraction it depends on rather than the
+concrete EF Core type:
+
+```csharp
+opts.UseEntityFrameworkCoreTransactions()
+    .WithDbContextAbstraction<IAppStore, AppDbContext>();
+
+// ...
+
+[Transactional(typeof(IAppStore))]
+public static void Handle(GrantAccess message, IAppStore users, LookupDbContext lookup) { }
+```
+
+### 2. `[Storage(typeof(TDbContext))]`
+
+The provider-agnostic `[Storage]` attribute — the same one used to route a handler to a Marten or
+Polecat ancillary store — can equally designate the transactional `DbContext`:
+
+```csharp
+[Storage(typeof(AppDbContext))]
+public static void Handle(GrantAccess message, AppDbContext users, LookupDbContext lookup) { }
+```
+
+This behaves identically to `[Transactional(typeof(AppDbContext))]` for the purpose of choosing the
+transactional context. Use whichever attribute reads better in your codebase.
+
+### 3. Opt the handler out
+
+If a multi-`DbContext` handler should not be transactional at all, mark it `[NonTransactional]` (or
+don't apply `AutoApplyTransactions`). Wolverine then leaves both contexts as plain injected
+dependencies.
+
+### No guessing
+
+A designation that names a type the handler does **not** actually depend on — directly or via a
+registered abstraction — fails loudly at startup and names the offending type, rather than silently
+falling back to a default. Single-`DbContext` handlers are unaffected by any of this: there is exactly
+one candidate, so no attribute is needed.
