@@ -195,6 +195,57 @@ The durable inbox behaves just a little bit differently for message batching. Wo
 "handle" the individual messages, but does not mark them as handled in the message store until a batch message
 that refers to the original message is completely processed. 
 
+## De-duplicating a batch with `CoalesceBy`
+
+A very common batching workload is a "trigger storm": a bulk operation fires hundreds or thousands of
+"recalculate" messages that actually concern only a few dozen distinct entities. Batching already collapses
+those into one handler invocation, but the handler still sees every duplicate and recomputes the same entity
+many times. `CoalesceBy` de-duplicates the batch by a key so the handler sees **one message per distinct key,
+last message wins**:
+
+```csharp
+opts.BatchMessagesOf<RecalculateScores>(batching =>
+{
+    batching.BatchSize = 500;
+    batching.TriggerTime = 10.Seconds();
+
+    // The handler sees at most one RecalculateScores per AggregateId (the latest one)
+    batching.CoalesceBy((RecalculateScores x) => x.AggregateId);
+});
+```
+
+::: tip
+The key selector's lambda parameter must be **explicitly typed** to the batched element type (e.g.
+`(RecalculateScores x) => ...`) so both the message and key type arguments can be inferred.
+:::
+
+`CoalesceBy` is just sugar over the [`IMessageBatcher`](#custom-batching-strategies) seam — it installs a
+built-in `CoalescingMessageBatcher<T, TKey>` instead of the default batcher. Like the default it first groups
+by tenant id, then de-duplicates within each tenant group.
+
+Crucially, coalescing only changes **what the handler sees** — never what gets acknowledged. Every original
+member message still rides on the batch, so the transactional inbox/outbox tracking and dead-lettering behave
+exactly as they do for a normal (non-coalesced) batch. If you drop from 1,000 messages to 40 distinct keys,
+the handler runs once over 40 items, but all 1,000 member messages are settled with that batch.
+
+## Batch identity with `IBatchContext`
+
+A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing —
+useful for correlating log entries, emitting batch-level metrics, or making per-batch decisions:
+
+```csharp
+public static void Handle(Item[] items, IBatchContext batch)
+{
+    // batch.BatchId is a stable id for this assembled batch (correlate your logs with it)
+    // batch.Members describes each original member message: MessageId, Attempts, SentAt
+    logger.LogInformation("Processing batch {BatchId} of {Count} members", batch.BatchId, batch.Members.Count);
+}
+```
+
+`IBatchContext` is purely informational; reading it never changes what is acknowledged or how the batch is
+settled. When combined with `CoalesceBy`, `Members` still lists **every** original member message (all the
+ones that settle with the batch), even though the `items` array the handler sees was de-duplicated.
+
 ## Custom Batching Strategies
 
 ::: info

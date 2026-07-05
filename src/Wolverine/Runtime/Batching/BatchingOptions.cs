@@ -36,6 +36,33 @@ public class BatchingOptions : IAsyncDisposable
     public IMessageBatcher Batcher { get; set; }
 
     /// <summary>
+    /// De-duplicate the batched messages by a key so the handler only ever sees one message per
+    /// distinct key (the last message for that key wins). This is sugar over the <see cref="Batcher"/>
+    /// seam: it installs a <c>CoalescingMessageBatcher&lt;T,TKey&gt;</c>. It only changes what the
+    /// handler sees - every member envelope still settles with the batch, exactly like a normal batch.
+    /// The lambda parameter must be explicitly typed to the batched element type so both type
+    /// arguments can be inferred, e.g. <c>CoalesceBy((RecalculateScores x) =&gt; x.AggregateId)</c>.
+    /// </summary>
+    /// <param name="keySelector">Selects the de-duplication key from each message</param>
+    /// <typeparam name="T">The batched element type (must match <see cref="ElementType"/>)</typeparam>
+    /// <typeparam name="TKey">The de-duplication key type</typeparam>
+    public void CoalesceBy<T, TKey>(Func<T, TKey> keySelector)
+    {
+        if (keySelector == null)
+        {
+            throw new ArgumentNullException(nameof(keySelector));
+        }
+
+        if (typeof(T) != ElementType)
+        {
+            throw new ArgumentOutOfRangeException(nameof(keySelector),
+                $"The coalescing key selector must accept the batched element type '{ElementType.FullNameInCode()}', but accepted '{typeof(T).FullNameInCode()}'. Use an explicitly typed lambda parameter, e.g. CoalesceBy(({ElementType.Name} x) => x.SomeKey).");
+        }
+
+        Batcher = new CoalescingMessageBatcher<T, TKey>(keySelector);
+    }
+
+    /// <summary>
     /// The maximum size of the message batch. Default is 100.
     /// </summary>
     public int BatchSize { get; set; } = 100;
