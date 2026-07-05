@@ -80,7 +80,12 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
             && runtime.Options.Transports.NodeControlEndpoint == null
             && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
         {
-            var transport = new Transport.RavenDbControlTransport(_store, runtime.Options);
+            // The transport itself is registered eagerly in UseRavenDbPersistence so
+            // its "ravendb://" scheme resolves for publishing rules. Here we promote
+            // its control endpoint to the NodeControlEndpoint, which marks it as a
+            // live listener — only under Balanced, so Solo hosts never poll.
+            var transport = runtime.Options.Transports.OfType<Transport.RavenDbControlTransport>().FirstOrDefault()
+                            ?? new Transport.RavenDbControlTransport(_store, runtime.Options);
             runtime.Options.Transports.Add(transport);
             runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
         }

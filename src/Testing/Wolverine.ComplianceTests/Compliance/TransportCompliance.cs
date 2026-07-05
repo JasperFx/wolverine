@@ -34,8 +34,17 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
     public bool AllLocally { get; set; }
 
     public bool MustReset { get; set; } = true;
-    
+
     public bool IsSenderOnlyTransport { get; set; }
+
+    /// <summary>
+    /// Durability mode applied to the sender and receiver hosts. Defaults to Solo,
+    /// which is correct for the vast majority of broker transports. Control-plane
+    /// transports that only register in a clustered mode (e.g. the RavenDB control
+    /// queue, which wires its NodeControlEndpoint only under Balanced) can override
+    /// this to DurabilityMode.Balanced.
+    /// </summary>
+    public DurabilityMode Mode { get; set; } = DurabilityMode.Solo;
 
     public async ValueTask DisposeAsync()
     {
@@ -86,7 +95,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             .UseWolverine(options =>
             {
                 configure(options);
-                options.Durability.Mode = DurabilityMode.Solo;
+                options.Durability.Mode = Mode;
                 configureReceiver(options);
                 configureSender(options);
             }).StartAsync();
@@ -99,7 +108,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
             {
                 configure(opts);
                 configureSender(opts);
-                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.Mode = Mode;
             }).StartAsync();
 
     }
@@ -117,7 +126,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         options.Services.AddSingleton<IMessageSerializer, GreenTextWriter>();
         //options.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
 
-        options.Durability.Mode = DurabilityMode.Solo;
+        options.Durability.Mode = Mode;
 
         options.UseNewtonsoftForSerialization();
     }
@@ -127,7 +136,7 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
         Receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.Durability.Mode = Mode;
                 configure(opts);
                 configureReceiver(opts);
             }).StartAsync();

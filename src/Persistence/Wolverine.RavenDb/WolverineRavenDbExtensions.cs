@@ -20,6 +20,18 @@ public static class WolverineRavenDbExtensions
     public static WolverineOptions UseRavenDbPersistence(this WolverineOptions options)
     {
         options.Services.AddSingleton<IMessageStore, RavenDbMessageStore>();
+
+        // Register the native RavenDB control-queue transport eagerly so the
+        // "ravendb://" scheme resolves for publishing rules configured at bootstrap.
+        // The endpoint only becomes a live listener when the message store promotes
+        // it to the NodeControlEndpoint under Balanced durability (see
+        // RavenDbMessageStore.Initialize). The store is resolved later, in the
+        // transport's InitializeAsync.
+        if (!options.Transports.OfType<Internals.Transport.RavenDbControlTransport>().Any())
+        {
+            options.Transports.Add(new Internals.Transport.RavenDbControlTransport(options));
+        }
+
         options.CodeGeneration.InsertFirstPersistenceStrategy<RavenDbPersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new AsyncDocumentSessionSource());
         options.Services.AddHostedService<DeadLetterQueueReplayer>();
