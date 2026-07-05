@@ -226,6 +226,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 enrolledInTransaction = true;
             }
         }
+        else if (isHttpChain(chain)
+                 && !isMultiTenanted(container, dbContextType)
+                 && chain.RequiresOutbox()
+                 && chain.ShouldFlushOutgoingMessages())
+        {
+            // GH-3291: A Wolverine.Http endpoint has no incoming envelope, so - unlike a message handler,
+            // whose MessageContext is enlisted by MessageContext.ReadEnvelope at runtime - its
+            // MessageContext.Transaction stays null in Lightweight mode. Cascaded messages would then be
+            // sent immediately, before the SaveChangesAsync postprocessor commits, silently dropping the
+            // transactional-outbox guarantee for HTTP endpoints (message handlers are unaffected). Enroll
+            // the DbContext in the outbox WITHOUT an explicit BeginTransactionAsync (SaveChanges' implicit
+            // transaction covers the write, and skipping the explicit begin keeps this compatible with EF
+            // Core's EnableRetryOnFailure). Setting enrolledInTransaction = true makes the code below add
+            // the CommitEfCoreEnvelopeTransaction postprocessor (which flushes after commit) instead of a
+            // standalone, pre-commit FlushOutgoingMessages. Restricted to HttpChain on purpose.
+            chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbContextType));
+            enrolledInTransaction = true;
+        }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
         if (abstractionType != null)
@@ -321,6 +339,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     private bool isMultiTenanted(IServiceContainer container, Type dbContextType)
     {
         return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
+    }
+
+    // HttpChain is the only chain type whose Scoping is HttpEndpoints. Detected via the scoping enum
+    // rather than a type reference so Wolverine.EntityFrameworkCore need not depend on Wolverine.Http.
+    private static bool isHttpChain(IChain chain)
+    {
+        return chain.Scoping == MiddlewareScoping.HttpEndpoints;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
