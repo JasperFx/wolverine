@@ -52,6 +52,14 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         _abstractions = _abstractions.AddOrUpdate(abstractionType, dbContextType);
     }
 
+    /// <summary>
+    /// True when <paramref name="type"/> is a DbContext abstraction registered via
+    /// <c>WithDbContextAbstraction&lt;TAbstraction, TDbContext&gt;()</c>. Lets the EF Core
+    /// <see cref="Wolverine.Persistence.IAncillaryStoreFrameProvider"/> accept a <c>[Storage(typeof(abstraction))]</c>
+    /// designation without depending on this provider's private abstraction map.
+    /// </summary>
+    internal bool IsRegisteredAbstraction(Type type) => _abstractions.Contains(type);
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         var dbContextType = TryDetermineDbContextType(entityType, container);
@@ -478,6 +486,17 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
         var contextTypes = FindDbContextTypes().ToArray();
 
+        // Explicit, no-magic disambiguation. When a chain depends on more than one DbContext-shaped
+        // service, the developer designates the transactional one with either [Transactional(typeof(X))]
+        // (carried as a chain tag) or [Storage(typeof(X))] (carried as chain.AncillaryStoreType). X may
+        // be a concrete DbContext or a registered DbContext abstraction. A designation that names a type
+        // the chain does not actually depend on fails loudly rather than silently picking a default.
+        var designated = resolveDesignatedDbContext(chain, contextTypes);
+        if (designated != null)
+        {
+            return designated;
+        }
+
         if (contextTypes.Length == 0)
         {
             var sagaType = chain.HandlerCalls().SelectMany(x => x.Creates)
@@ -489,7 +508,7 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             {
                 return DetermineDbContextType(sagaType, container);
             }
-            
+
             throw new InvalidOperationException(
                 $"Cannot determine the {nameof(DbContext)} type for {chain.Description}");
         }
@@ -497,10 +516,84 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         if (contextTypes.Length > 1)
         {
             throw new InvalidOperationException(
-                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}");
+                $"Cannot determine the {nameof(DbContext)} type for {chain.Description}, multiple {nameof(DbContext)} types detected: {contextTypes.Select(x => x.Name).Join(", ")}. " +
+                $"Wolverine will not guess which one owns the transaction. Either remove the automatic transactional middleware from this handler (e.g. with [NonTransactional] or by not calling AutoApplyTransactions), " +
+                $"or explicitly designate the transactional {nameof(DbContext)} with [Transactional(typeof(YourDbContext))] or [Storage(typeof(YourDbContext))] on the handler.");
         }
 
         return contextTypes.Single();
+    }
+
+    /// <summary>
+    /// Resolve an explicit transactional-DbContext designation for this chain, or null when there is
+    /// none. Two equivalent, EF-Core-agnostic markers are honored:
+    /// <list type="bullet">
+    /// <item><c>[Transactional(typeof(X))]</c> — carried as the <see cref="TransactionalAttribute.TransactionalDbContextTypeKey"/> chain tag.</item>
+    /// <item><c>[Storage(typeof(X))]</c> — carried as <see cref="IChain.AncillaryStoreType"/>.</item>
+    /// </list>
+    /// X may be a concrete DbContext or a registered DbContext abstraction. A designation that names a
+    /// type the chain does not depend on throws; a <see cref="IChain.AncillaryStoreType"/> that names a
+    /// non-DbContext ancillary store (a genuine Marten/Polecat secondary store) is ignored here.
+    /// </summary>
+    private Type? resolveDesignatedDbContext(IChain chain, Type[] contextTypes)
+    {
+        if (chain.Tags.TryGetValue(TransactionalAttribute.TransactionalDbContextTypeKey, out var tagged)
+            && tagged is Type taggedType)
+        {
+            return validateDesignation(taggedType, chain, contextTypes, "[Transactional]");
+        }
+
+        // [Storage(typeof(X))] designation. We read the attribute directly off the handler rather than
+        // relying on chain.AncillaryStoreType, because DetermineDbContextType runs from
+        // AutoApplyTransactions before the StorageAttribute's eager policy / Modify has populated
+        // AncillaryStoreType. Only honored when X resolves to one of this chain's DbContext candidates;
+        // a [Storage] that names a genuine Marten/Polecat ancillary store on some other chain is ignored
+        // here and left to that integration.
+        var storageType = findStorageAttributeType(chain) ?? chain.AncillaryStoreType;
+        if (storageType != null)
+        {
+            var resolved = _abstractions.TryFind(storageType, out var concrete) ? concrete : storageType;
+
+            // If it names a DbContext-shaped type (or registered abstraction) but isn't actually a
+            // dependency, fail loudly the same way the [Transactional] tag does — a typo shouldn't
+            // silently fall through to the ambiguity error.
+            if (resolved.CanBeCastTo<DbContext>() || _abstractions.Contains(storageType))
+            {
+                return validateDesignation(storageType, chain, contextTypes, "[Storage]");
+            }
+        }
+
+        return null;
+    }
+
+    private static Type? findStorageAttributeType(IChain chain)
+    {
+        foreach (var call in chain.HandlerCalls())
+        {
+            var att = call.Method.GetCustomAttribute<StorageAttribute>(inherit: true)
+                      ?? call.HandlerType.GetCustomAttribute<StorageAttribute>(inherit: true);
+
+            if (att != null)
+            {
+                return att.StoreType;
+            }
+        }
+
+        return null;
+    }
+
+    private Type validateDesignation(Type designated, IChain chain, Type[] contextTypes, string source)
+    {
+        var resolved = _abstractions.TryFind(designated, out var concrete) ? concrete : designated;
+
+        if (!contextTypes.Contains(resolved))
+        {
+            throw new InvalidOperationException(
+                $"The {source} DbContextType {designated.FullNameInCode()} on {chain.Description} is not one of this chain's dependencies (directly or via a registered DbContext abstraction). " +
+                $"Detected {nameof(DbContext)} types: {(contextTypes.Length == 0 ? "none" : contextTypes.Select(x => x.Name).Join(", "))}");
+        }
+
+        return resolved;
     }
 
     public class CastDbContextFrame : SyncFrame

@@ -14,6 +14,13 @@ namespace Wolverine.Attributes;
 /// </summary>
 public class TransactionalAttribute : ModifyChainAttribute
 {
+    /// <summary>
+    /// Chain tag key carrying the persistence storage type (e.g. a specific EF Core DbContext)
+    /// that a <see cref="TransactionalAttribute"/> designates as the transactional one. Read by
+    /// persistence providers to disambiguate multi-storage handler chains.
+    /// </summary>
+    public const string TransactionalDbContextTypeKey = "TransactionalDbContextType";
+
     private bool _modeExplicitlySet;
 
     public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
@@ -26,6 +33,15 @@ public class TransactionalAttribute : ModifyChainAttribute
         if (_modeExplicitlySet)
         {
             chain.Tags["TransactionMiddlewareMode"] = Mode;
+        }
+
+        if (DbContextType != null)
+        {
+            // Consumed by the persistence provider (e.g. EF Core's
+            // EFCorePersistenceFrameProvider) to disambiguate which storage type owns the
+            // transaction when a chain depends on more than one. Kept as a chain tag so this
+            // attribute — and the core Wolverine assembly — never reference EF Core.
+            chain.Tags[TransactionalDbContextTypeKey] = DbContextType;
         }
 
         chain.ApplyImpliedMiddlewareFromHandlers(rules);
@@ -60,6 +76,18 @@ public class TransactionalAttribute : ModifyChainAttribute
     /// </summary>
     public bool IsModeExplicitlySet => _modeExplicitlySet;
 
+    /// <summary>
+    /// Optionally designate which persistence storage type owns the transaction for this handler
+    /// when its chain depends on more than one candidate (for example two EF Core DbContext types —
+    /// one written through, one read-only). This may be the concrete type or an abstraction the
+    /// provider has been taught to resolve (e.g. a DbContext abstraction registered via
+    /// <c>WithDbContextAbstraction&lt;TAbstraction, TDbContext&gt;()</c>). It is only consulted when a
+    /// chain is otherwise ambiguous; single-candidate handlers ignore it. The value is carried as a
+    /// plain <see cref="Type"/>, so neither this attribute nor the core Wolverine assembly reference
+    /// any specific persistence technology.
+    /// </summary>
+    public Type? DbContextType { get; set; }
+
     public TransactionalAttribute()
     {
     }
@@ -67,5 +95,15 @@ public class TransactionalAttribute : ModifyChainAttribute
     public TransactionalAttribute(IdempotencyStyle idempotency)
     {
         Idempotency = idempotency;
+    }
+
+    /// <summary>
+    /// Designate which persistence storage type (e.g. a specific EF Core DbContext, or a registered
+    /// DbContext abstraction) owns the transaction for this handler, for chains that depend on more
+    /// than one candidate. See <see cref="DbContextType"/>.
+    /// </summary>
+    public TransactionalAttribute(Type dbContextType)
+    {
+        DbContextType = dbContextType;
     }
 }

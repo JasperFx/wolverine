@@ -325,6 +325,16 @@ public static class WolverineEntityCoreExtensions
             throw new Exception($"Unable to find any ${typeof(EFCorePersistenceFrameProvider)}");
         }
         efProvider.DefaultMode = mode;
+
+        // Let [Storage(typeof(MyDbContext))] designate the transactional DbContext on a multi-DbContext
+        // handler, the same way [Transactional(typeof(MyDbContext))] does. Registered once; harmless if
+        // no handler uses [Storage]. See EFCoreDbContextStorageFrameProvider.
+        if (!options.Services.Any(x => x.ServiceType == typeof(IAncillaryStoreFrameProvider)
+                                       && x.ImplementationInstance is EFCoreDbContextStorageFrameProvider))
+        {
+            options.Services.AddSingleton<IAncillaryStoreFrameProvider>(new EFCoreDbContextStorageFrameProvider(efProvider));
+        }
+
         return new EFCoreTransactionConfiguration(options, efProvider);
     }
 
