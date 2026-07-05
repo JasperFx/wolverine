@@ -8,17 +8,11 @@ namespace Wolverine.Nats.Internal;
 public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 {
     private readonly ITenantSubjectMapper? _tenantMapper;
-
-    // Named brokers carry the broker name as their URI scheme, so incoming envelopes must be stamped with
-    // this endpoint's scheme (not a hard-coded "nats") for reply/tracking routing to resolve back to the
-    // right transport instance. See AddNamedNatsBroker.
-    private readonly string _scheme;
-
+    
     public NatsEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
         : base(endpoint)
     {
         _tenantMapper = tenantMapper;
-        _scheme = endpoint.Uri.Scheme;
     }
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
@@ -51,7 +45,7 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
     protected override void writeIncomingHeaders(NatsMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = new Uri($"{_scheme}://subject/{incoming.Subject}");
+        envelope.Destination = new Uri($"nats://subject/{incoming.Subject}");
 
         if (_tenantMapper != null)
         {
@@ -67,7 +61,7 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
             EnvelopeSerializer.ReadDataElement(
                 envelope,
                 EnvelopeConstants.ReplyUriKey,
-                $"{_scheme}://subject/{incoming.ReplyTo}"
+                $"nats://subject/{incoming.ReplyTo}"
             );
         }
 
@@ -84,15 +78,11 @@ public class NatsEnvelopeMapper : EnvelopeMapper<NatsMsg<byte[]>, NatsHeaders>
 public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHeaders>
 {
     private readonly ITenantSubjectMapper? _tenantMapper;
-
-    // See NatsEnvelopeMapper._scheme — named brokers carry the broker name as their URI scheme.
-    private readonly string _scheme;
-
+    
     public JetStreamEnvelopeMapper(NatsEndpoint endpoint, ITenantSubjectMapper? tenantMapper = null)
         : base(endpoint)
     {
         _tenantMapper = tenantMapper;
-        _scheme = endpoint.Uri.Scheme;
     }
 
     protected override void writeOutgoingHeader(NatsHeaders headers, string key, string value)
@@ -125,7 +115,7 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
     protected override void writeIncomingHeaders(INatsJSMsg<byte[]> incoming, Envelope envelope)
     {
         envelope.Data = incoming.Data;
-        envelope.Destination = new Uri($"{_scheme}://subject/{incoming.Subject}");
+        envelope.Destination = new Uri($"nats://subject/{incoming.Subject}");
 
         if (_tenantMapper != null)
         {
@@ -141,7 +131,7 @@ public class JetStreamEnvelopeMapper : EnvelopeMapper<INatsJSMsg<byte[]>, NatsHe
             EnvelopeSerializer.ReadDataElement(
                 envelope,
                 EnvelopeConstants.ReplyUriKey,
-                $"{_scheme}://subject/{incoming.ReplyTo}"
+                $"nats://subject/{incoming.ReplyTo}"
             );
         }
 

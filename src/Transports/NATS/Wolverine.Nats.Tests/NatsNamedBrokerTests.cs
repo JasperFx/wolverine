@@ -73,9 +73,12 @@ public class NatsNamedBrokerRegistrationTests
 /// NATS_URL / docker-compose) and the named broker is a second Testcontainers broker (server B). Proves:
 /// <list type="bullet">
 /// <item>a message published on the named broker lands on <b>server B</b> and not server A,</item>
-/// <item>a default publish lands on <b>server A</b> and not server B, and</item>
-/// <item>a message published <b>and consumed</b> on the named broker round-trips (exercising the named
-/// broker's inbound envelope mapping, which stamps the broker's own URI scheme).</item>
+/// <item>a default publish lands on <b>server A</b> and not server B,</item>
+/// <item>a message published <b>and consumed</b> on the named broker round-trips and arrives stamped with
+/// the broker's own URI scheme (the receive pipeline sets <c>Destination</c> from the listener endpoint's
+/// URI), and</item>
+/// <item>a full request/reply round-trips over the named broker, proving the reply is routed back to
+/// server B rather than the default server A.</item>
 /// </list>
 /// </summary>
 [Collection("NATS Integration")]
@@ -168,9 +171,9 @@ public class NatsNamedBrokerTests : IAsyncLifetime
 
         var subject = $"named.{Guid.NewGuid():N}";
 
-        // A single host both publishes and listens on the named broker (server B). The round-trip exercises
-        // the named broker's inbound envelope mapping, which must stamp the "secondary" scheme (not "nats")
-        // so Destination/reply routing resolves back to the right transport instance.
+        // A single host both publishes and listens on the named broker (server B). On receipt the pipeline
+        // stamps Destination from the listener endpoint's URI, so the consumed envelope carries the named
+        // broker's "secondary" scheme rather than the default "nats".
         using var host = await Host.CreateDefaultBuilder()
             .ConfigureLogging(l => l.AddXunitLogging(_output))
             .UseWolverine(opts =>
@@ -193,6 +196,40 @@ public class NatsNamedBrokerTests : IAsyncLifetime
         var received = session.Received.SingleEnvelope<OrderPlaced>();
         received.Message.ShouldBeOfType<OrderPlaced>().OrderId.ShouldBe("round-trip");
         received.Destination!.Scheme.ShouldBe("secondary");
+    }
+
+    [Fact]
+    public async Task request_reply_round_trips_over_the_named_broker()
+    {
+        if (_skip) return;
+
+        var subject = $"named.rr.{Guid.NewGuid():N}";
+
+        // Request/reply entirely over the named broker (server B). The reply is routed by the reply-uri's
+        // scheme, which the pipeline corrects to the receiving endpoint's scheme ("secondary") — so the
+        // response travels back over server B, not the default server A. If reply routing resolved to the
+        // default broker, InvokeAndWaitAsync would time out.
+        using var host = await Host.CreateDefaultBuilder()
+            .ConfigureLogging(l => l.AddXunitLogging(_output))
+            .UseWolverine(opts =>
+            {
+                opts.ServiceName = "NamedBrokerRequestReply";
+                opts.UseNats(_serverAUrl);
+                opts.AddNamedNatsBroker(theName, _serverBUrl);
+
+                opts.Policies.DisableConventionalLocalRouting();
+                opts.PublishMessage<NamedPing>().ToNatsSubjectOnNamedBroker(theName, subject);
+                opts.ListenToNatsSubjectOnNamedBroker(theName, subject);
+            })
+            .StartAsync();
+
+        var (_, response) = await host
+            .TrackActivity()
+            .Timeout(30.Seconds())
+            .InvokeAndWaitAsync<NamedPong>(new NamedPing("named-rr"));
+
+        response.ShouldNotBeNull();
+        response.Name.ShouldBe("named-rr");
     }
 
     /// <summary>
@@ -223,4 +260,13 @@ public class NatsNamedBrokerTests : IAsyncLifetime
             })
             .StartAsync();
     }
+}
+
+public record NamedPing(string Name);
+
+public record NamedPong(string Name);
+
+public class NamedPingHandler
+{
+    public NamedPong Handle(NamedPing ping) => new(ping.Name);
 }
