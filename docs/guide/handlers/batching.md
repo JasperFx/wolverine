@@ -346,10 +346,33 @@ Throwing the exception *is* the opt-in — there is no configuration to enable. 
 their original messages by reference identity, so throw the factory with the actual object(s) handed to your
 handler.
 
+`ApplyItemException` is for failures the handler can *name*. For **opaque** failures — where the handler
+throws but cannot tell which item was the culprit — use the `IsolateBatchMembers()` error policy below.
+
+## Isolating an opaque batch failure with `IsolateBatchMembers`
+
+When a batch handler throws an exception it can't attribute to a specific item, you can still avoid
+dead-lettering the whole batch by isolating the failing member. The `IsolateBatchMembers()` error policy,
+keyed on an exception type, re-runs each member of the failed batch as its own size-1 batch — so only the
+member that actually reproduces the failure is dead-lettered, and every healthy member succeeds:
+
+```csharp
+// A deterministic error isolates the offending member...
+opts.Policies.OnException<ValidationException>().IsolateBatchMembers();
+
+// ...while a transient error still retries the whole batch (the two policies compose by exception type).
+opts.Policies.OnException<SqlException>().RetryWithCooldown(100.Milliseconds(), 1.Seconds());
+```
+
+Because it is matched by exception type, it composes with the ordinary retry verbs: a transient
+`SqlException` retries the whole batch with a cooldown, while a deterministic `ValidationException` isolates
+the bad member. The isolation is bounded and one-time — a member that has already been reduced to a size-1
+batch is simply dead-lettered rather than probed again. On a message type that is **not** batched,
+`IsolateBatchMembers()` behaves like a plain move-to-error-queue (there is nothing to isolate).
+
 ::: info
-This isolates messages the handler can *name*. For opaque failures where the handler cannot tell which item
-is bad, a bounded "probe each item individually" fallback and exception-type-driven isolation
-(`IsolateBatchMembers()`) are planned as a follow-up (see [GH-3289](https://github.com/JasperFx/wolverine/issues/3289)).
+A count-based variant — `ProbeIndividuallyAfter(attempts: N)`, which probes individually only after N
+whole-batch failures — is a planned follow-up (see [GH-3289](https://github.com/JasperFx/wolverine/issues/3289)).
 :::
 
 ## Custom Batching Strategies
