@@ -38,12 +38,6 @@ public class EventStoreAgents : IAsyncDisposable
     /// </summary>
     public bool GroupAgentAssignmentsByDatabase => _store.GroupAgentAssignmentsByDatabase;
 
-    /// <summary>
-    /// Upper bound on how many nodes a single shard database's agents may fan out across under database-affine
-    /// assignment (the "mix"; 1 = strict affinity). Surfaces <see cref="IEventStore.MaxNodesPerDatabaseForAgents"/>.
-    /// </summary>
-    public int MaxNodesPerDatabaseForAgents => _store.MaxNodesPerDatabaseForAgents;
-
     public async ValueTask DisposeAsync()
     {
         foreach (var entry in _daemons.Enumerate())
