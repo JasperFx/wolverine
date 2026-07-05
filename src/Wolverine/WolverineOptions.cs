@@ -270,6 +270,10 @@ public sealed partial class WolverineOptions
 
         this.OnException<DuplicateIncomingEnvelopeException>().Discard();
 
+        // GH-3289: a batch handler can throw ApplyItemException to isolate poison items from a batch.
+        // Throwing the exception is the opt-in; this built-in rule resolves it on every attempt.
+        this.OnException<ApplyItemException>().ContinueWith(new Runtime.Batching.ApplyItemContinuationSource());
+
         MessagePartitioning = new MessagePartitioningRules(this);
         
         InternalRouteSources.Insert(0, Transports.GetOrCreate<StubTransport>());

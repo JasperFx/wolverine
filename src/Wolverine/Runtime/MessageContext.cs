@@ -408,6 +408,35 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
         await _channel.CompleteAsync(Envelope).ConfigureAwait(false);
     }
 
+    // Dead-letter a specific SUBSET of a batch's member envelopes without touching the other members
+    // or completing the batch envelope. Used by the batch item-isolation continuations to move only the
+    // poison items to the DLQ while the survivors are acked or replayed. The batch envelope itself is
+    // settled afterwards by the caller's CompleteAsync(). GH-3289.
+    internal async Task MoveBatchMembersToDeadLetterQueueAsync(IReadOnlyList<Envelope> members, Exception exception)
+    {
+        if (_channel == null || Envelope == null)
+        {
+            throw new InvalidOperationException("No Envelope is active for this context");
+        }
+
+        var deadLetterQueue = tryGetDeadLetterQueue(_channel, Envelope);
+        if (deadLetterQueue is not null)
+        {
+            foreach (var member in members)
+            {
+                await deadLetterQueue.MoveToErrorsAsync(member, exception).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        foreach (var member in members)
+        {
+            var ex = await interceptDeadLetterAsync(member, exception).ConfigureAwait(false);
+            await Storage.Inbox.MoveToDeadLetterStorageAsync(member, ex).ConfigureAwait(false);
+        }
+    }
+
     // Give registered IDeadLetterInterceptor implementations a chance to mutate the envelope
     // (e.g. redact/encrypt the body) and/or replace the exception that gets persisted, before a
     // failed envelope is written to durable dead-letter storage. Interceptors run in registration
