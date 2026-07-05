@@ -58,16 +58,6 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public bool UseDatabaseAffineAgentAssignment { get; set; }
 
-    /// <summary>
-    /// When <see cref="UseDatabaseAffineAgentAssignment"/> is on, the maximum number of nodes a single shard
-    /// database's agents may fan out across (the "mix" between strict affinity and even spreading). 1 = strict
-    /// affinity (one node per database — fewest connections). A higher value lets a heavy database parallelize
-    /// across up to N least-loaded nodes, at the cost of that database being reachable from up to N nodes
-    /// (server-side connection ceiling per database ≈ N × per-node pool). Flows through to
-    /// <c>StoreOptions.Events.DatabaseAffineAgentFanout</c>. Default 1. See JasperFx/marten#4806.
-    /// </summary>
-    public int DatabaseAffineAgentFanout { get; set; } = 1;
-
     public void Configure(WolverineOptions options)
     {
         // Duplicate incoming messages
@@ -224,16 +214,15 @@ internal class MartenOverrides : IConfigureMarten
             }
         });
 
-        // Bridge the Wolverine-managed distribution's database-affine agent-assignment settings — configured
+        // Bridge the Wolverine-managed distribution's database-affine agent-assignment setting — configured
         // on IntegrateWithWolverine — onto the Marten event store, because Wolverine's distribution is what
-        // consumes them (via IEventStore.GroupAgentAssignmentsByDatabase / MaxNodesPerDatabaseForAgents).
-        // Only the main store (StoreType == null): this is a sharded per-tenant-store concern, not ancillary.
+        // consumes it (via IEventStore.GroupAgentAssignmentsByDatabase). Only the main store
+        // (StoreType == null): this is a sharded per-tenant-store concern, not ancillary.
         // See JasperFx/marten#4806.
         if (StoreType == null &&
-            services.GetService<MartenIntegration>() is { UseDatabaseAffineAgentAssignment: true } integration)
+            services.GetService<MartenIntegration>() is { UseDatabaseAffineAgentAssignment: true })
         {
             options.Events.UseDatabaseAffineAgentAssignment = true;
-            options.Events.DatabaseAffineAgentFanout = integration.DatabaseAffineAgentFanout;
         }
     }
 }

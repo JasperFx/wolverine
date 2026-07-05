@@ -84,21 +84,20 @@ public partial class AssignmentGrid
     }
 
     /// <summary>
-    /// Distribute agents of a scheme across nodes with <b>bounded group affinity</b>: agents that share a
-    /// <paramref name="groupKey"/> (e.g. a shard database) are kept together, but a group may fan out across
-    /// up to <paramref name="maxNodesPerGroup"/> nodes. This is the "mix" between strict affinity
-    /// (<c>maxNodesPerGroup == 1</c> — fewest connections, but a heavy group is serialized on one node's
-    /// pool) and even spreading: a higher bound lets a heavy group parallelize across several nodes while
-    /// still capping how many nodes reach that group's database, so its server-side connection ceiling stays
-    /// bounded at (bound × per-node pool). Intended for sharded event stores (JasperFx/marten#4806).
+    /// Distribute agents of a scheme across nodes with <b>group affinity</b>: all agents that share a
+    /// <paramref name="groupKey"/> (e.g. a shard database) are assigned to the same node. Intended for
+    /// sharded event stores whose per-(shard, tenant) agents each connect to their shard database: an even
+    /// per-agent spread makes every node open pools to (nearly) every database (pools grow as
+    /// nodes×databases and exhaust a shared server's max_connections), while grouping keeps each node
+    /// connected only to the databases it owns, so pools scale with the number of databases
+    /// (JasperFx/marten#4806).
     ///
-    /// <para>Groups are placed largest-first onto their k = min(bound, group size, node count) least-loaded
-    /// nodes; each group's agents then greedily fill those nodes least-loaded-first, so total agent count
-    /// stays balanced and the result is deterministic (a steady grid does not churn). A group with fewer
-    /// agents than the bound naturally uses fewer nodes. This prototype does not apply blue/green capability
-    /// matching; use <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is required.</para>
+    /// <para>Groups are placed largest-first onto the least-loaded node (deterministic tie-breaks), so total
+    /// agent count stays balanced and a steady grid does not churn. This does not apply blue/green
+    /// capability matching; use <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is
+    /// required.</para>
     /// </summary>
-    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey, int maxNodesPerGroup = 1)
+    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey)
     {
         if (_nodes.Count == 0)
         {
@@ -109,11 +108,6 @@ public partial class AssignmentGrid
         if (agents.Count == 0)
         {
             return;
-        }
-
-        if (maxNodesPerGroup < 1)
-        {
-            maxNodesPerGroup = 1;
         }
 
         var nodes = _nodes.OrderBy(x => x.IsLeader).ThenBy(x => x.AssignedId).ToList();
@@ -140,28 +134,20 @@ public partial class AssignmentGrid
         foreach (var group in groups)
         {
             var members = group.ToList();
-            var k = Math.Min(Math.Min(maxNodesPerGroup, members.Count), nodes.Count);
 
-            // The k least-loaded nodes host this group; a group smaller than the bound uses fewer nodes.
-            var chosen = load
+            // The least-loaded node hosts the whole group (tie-breaks: non-leader first, then node id).
+            var node = load
                 .OrderBy(kv => kv.Value)
                 .ThenBy(kv => kv.Key.IsLeader)
                 .ThenBy(kv => kv.Key.AssignedId)
-                .Take(k)
-                .Select(kv => kv.Key)
-                .ToList();
+                .First().Key;
 
-            // Greedily fill the group's agents onto the chosen nodes, least-loaded first, to balance work.
             foreach (var agent in members)
             {
-                var node = chosen
-                    .OrderBy(n => load[n])
-                    .ThenBy(n => n.IsLeader)
-                    .ThenBy(n => n.AssignedId)
-                    .First();
                 node.Assign(agent);
-                load[node]++;
             }
+
+            load[node] += members.Count;
         }
     }
 

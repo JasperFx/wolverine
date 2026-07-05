@@ -64,38 +64,33 @@ public class distribute_by_group_affinity
     }
 
     [Fact]
-    public void bounded_fan_out_spreads_a_heavy_database_across_up_to_k_nodes()
+    public void a_heavy_database_stays_on_one_node_and_light_groups_balance_around_it()
     {
         var grid = new AssignmentGrid();
         grid.WithNode(1, Guid.NewGuid());
         grid.WithNode(2, Guid.NewGuid());
-        grid.WithNode(3, Guid.NewGuid());
 
-        // One heavy database with 6 tenants; bound = 2 → its agents span exactly 2 nodes (not 1, not 3).
-        var agents = Enumerable.Range(1, 6).Select(t => Agent("dbHeavy", "t" + t)).ToArray();
-        grid.WithAgents(agents);
+        // One heavy database (4 tenants) + two light ones (1 tenant each). Largest-first placement puts the
+        // heavy group on one node and both light groups on the other — totals stay as balanced as whole
+        // groups allow, and a database is never split across nodes.
+        var agents = new List<Uri>();
+        foreach (var tenant in new[] { "t1", "t2", "t3", "t4" })
+            agents.Add(Agent("dbHeavy", tenant));
+        agents.Add(Agent("dbLight1", "t1"));
+        agents.Add(Agent("dbLight2", "t1"));
 
-        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey, maxNodesPerGroup: 2);
+        grid.WithAgents(agents.ToArray());
 
-        var nodesUsed = agents.Select(a => grid.AgentFor(a).AssignedNode).Distinct().ToList();
-        nodesUsed.Count.ShouldBe(2, "a heavy database must fan out across up to the bound (2) nodes");
-        nodesUsed.ShouldAllBe(n => n != null);
-    }
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
 
-    [Fact]
-    public void a_group_smaller_than_the_bound_uses_fewer_nodes()
-    {
-        var grid = new AssignmentGrid();
-        grid.WithNode(1, Guid.NewGuid());
-        grid.WithNode(2, Guid.NewGuid());
-        grid.WithNode(3, Guid.NewGuid());
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
 
-        // A single-tenant database can only ever use one node, even with a higher bound.
-        grid.WithAgents(Agent("dbLight", "t1"));
+        var heavyNode = grid.AgentFor(Agent("dbHeavy", "t1")).AssignedNode;
+        new[] { "t2", "t3", "t4" }
+            .Select(t => grid.AgentFor(Agent("dbHeavy", t)).AssignedNode)
+            .ShouldAllBe(n => n == heavyNode);
 
-        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey, maxNodesPerGroup: 3);
-
-        grid.AgentFor(Agent("dbLight", "t1")).AssignedNode.ShouldNotBeNull();
-        grid.Nodes.Count(n => n.ForScheme("event-subscriptions").Any()).ShouldBe(1);
+        grid.AgentFor(Agent("dbLight1", "t1")).AssignedNode.ShouldNotBe(heavyNode);
+        grid.AgentFor(Agent("dbLight2", "t1")).AssignedNode.ShouldNotBe(heavyNode);
     }
 }
