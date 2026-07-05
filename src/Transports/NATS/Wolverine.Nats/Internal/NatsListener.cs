@@ -1,6 +1,7 @@
 using JasperFx.Blocks;
 using Microsoft.Extensions.Logging;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -85,38 +86,57 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        if (envelope is NatsEnvelope natsEnvelope)
+        if (envelope is not NatsEnvelope natsEnvelope || !NativeDeadLetterQueueEnabled ||
+            natsEnvelope.JetStreamMsg == null)
         {
-            if (NativeDeadLetterQueueEnabled && natsEnvelope.JetStreamMsg != null)
-            {
-                var metadata = natsEnvelope.JetStreamMsg.Metadata;
-
-                if (metadata?.NumDelivered >= (ulong)_endpoint.MaxDeliveryAttempts)
-                {
-                    await natsEnvelope.JetStreamMsg.AckAsync(
-                        cancellationToken: _cancellation.Token
-                    );
-
-                    if (!string.IsNullOrEmpty(_endpoint.DeadLetterSubject))
-                    {
-                        envelope.Attempts = (int)(metadata?.NumDelivered ?? 1);
-
-                        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
-                        envelope.Headers["x-dlq-original-subject"] = _endpoint.Subject;
-
-                        await _deadLetterSender.SendAsync(envelope);
-                    }
-
-                    _logger.LogError(
-                        exception,
-                        "Message {MessageId} moved to dead letter queue after {Attempts} attempts. Subject: {Subject}",
-                        envelope.Id,
-                        metadata?.NumDelivered ?? 1,
-                        _endpoint.DeadLetterSubject
-                    );
-                }
-            }
+            return;
         }
+
+        var metadata = natsEnvelope.JetStreamMsg.Metadata;
+        if (metadata?.NumDelivered < (ulong)_endpoint.EffectiveMaxDeliveryAttempts)
+        {
+            return;
+        }
+
+        var attempts = (int)(metadata?.NumDelivered ?? 1);
+
+        // Retain the poison message by forwarding a copy to the dead-letter subject BEFORE terminating,
+        // so a terminate failure can't lose it. Terminating without a configured dead-letter subject drops
+        // the message, so warn loudly in that case.
+        if (!string.IsNullOrEmpty(_endpoint.DeadLetterSubject))
+        {
+            envelope.Attempts = attempts;
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+            envelope.Headers["x-dlq-original-subject"] = _endpoint.Subject;
+
+            await _deadLetterSender.SendAsync(envelope);
+        }
+        else
+        {
+            _logger.LogWarning(
+                exception,
+                "Message {MessageId} exceeded {Attempts} delivery attempts on subject {Subject} but no dead-letter subject is configured; it will be terminated and dropped. Use DeadLetterTo(...) / ConfigureDeadLetterQueue(...) to retain poison messages.",
+                envelope.Id,
+                attempts,
+                _endpoint.Subject
+            );
+        }
+
+        // Terminate delivery on the JetStream consumer with a reason so the server stops redelivering and
+        // records why the message was dead-lettered.
+        await natsEnvelope.JetStreamMsg.AckTerminateAsync(
+            $"wolverine: exceeded {attempts} delivery attempts ({exception.GetType().Name})",
+            cancellationToken: _cancellation.Token
+        );
+
+        _logger.LogError(
+            exception,
+            "Message {MessageId} terminated after {Attempts} delivery attempts. Subject: {Subject}, DeadLetter: {DeadLetter}",
+            envelope.Id,
+            attempts,
+            _endpoint.Subject,
+            _endpoint.DeadLetterSubject ?? "(none)"
+        );
     }
 
     public async ValueTask CompleteAsync(Envelope envelope)
@@ -168,6 +188,7 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
     internal static NatsListener Create(
         NatsEndpoint endpoint,
         NatsConnection connection,
+        INatsJSContext? jetStreamContext,
         IWolverineRuntime runtime,
         IReceiver receiver,
         ILogger<NatsEndpoint> logger,
@@ -186,7 +207,7 @@ public class NatsListener : IListener, ISupportDeadLetterQueue, IReportConnectio
             {
                 jsMapper.ReceivesMessage(endpoint.MessageType);
             }
-            subscriber = new JetStreamSubscriber(endpoint, connection, logger, jsMapper, subscriptionPattern);
+            subscriber = new JetStreamSubscriber(endpoint, connection, jetStreamContext!, logger, jsMapper, subscriptionPattern);
         }
         else
         {

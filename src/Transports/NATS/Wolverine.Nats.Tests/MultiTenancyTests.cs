@@ -260,10 +260,11 @@ public class NatsTenantTests
     public void creates_tenant_with_id()
     {
         var tenant = new NatsTenant("tenant1");
-        
+
         tenant.TenantId.ShouldBe("tenant1");
         tenant.SubjectMapper.ShouldBeNull();
-        tenant.ConnectionString.ShouldBeNull();
+        tenant.ConnectionConfiguration.ShouldBeNull();
+        tenant.HasOwnConnection.ShouldBeFalse();
     }
 
     [Fact]
