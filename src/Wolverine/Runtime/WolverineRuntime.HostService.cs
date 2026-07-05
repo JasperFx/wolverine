@@ -107,6 +107,11 @@ public partial class WolverineRuntime
             // the new queue still receives the durable/local-queue endpoint policies.
             reassignBatchQueuesThatCollideWithHandlers();
 
+            // Under the DEFAULT Classic behavior the same collision is NOT resolved: the direct
+            // Handle(T) handler wins and the BatchMessagesOf<T>() batch handler is silently shadowed.
+            // Warn loudly (or throw, if opted in) so the shadowing is not a silent surprise. GH-3289.
+            warnOrAssertBatchHandlerConflicts();
+
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
             // cost (attribute reads, interface walks, generic-type pretty-printing).
@@ -597,6 +602,50 @@ public partial class WolverineRuntime
             var batchQueue = local.QueueFor(batchQueueName);
             batchQueue.Mode = directQueue.Mode;
             batch.LocalExecutionQueueName = batchQueue.EndpointName;
+        }
+    }
+
+    private void warnOrAssertBatchHandlerConflicts()
+    {
+        // Only relevant under the default Classic behavior. Under Separated the same collision is
+        // legitimately resolved by reassignBatchQueuesThatCollideWithHandlers() (both handlers run).
+        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler)
+        {
+            return;
+        }
+
+        if (Options.BatchDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var batch in Options.BatchDefinitions)
+        {
+            // A non-null chain for the element type itself means there is a direct Handle(T) handler
+            // colliding with the batch (the batch handler is for T[], a different chain).
+            var directChain = Handlers.ChainFor(batch.ElementType);
+            if (directChain == null)
+            {
+                continue;
+            }
+
+            var elementType = batch.ElementType.NameInCode();
+            var directHandlers = directChain.Handlers
+                .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
+
+            var message =
+                $"Batch handler conflict for message type '{batch.ElementType.FullNameInCode()}': it has BOTH a direct handler ({directHandlers}) " +
+                $"and a BatchMessagesOf<{elementType}>() batch handler ({elementType}[]). Under the default " +
+                $"MultipleHandlerBehavior.ClassicCombineIntoOneLogicalHandler the direct handler wins and the batch handler is silently " +
+                $"shadowed (it never runs). To run both independently set opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated; " +
+                $"otherwise remove one of the two handlers. (Call opts.AssertNoBatchHandlerConflicts() to make Wolverine throw on this instead of warning.)";
+
+            if (Options.AssertsNoBatchHandlerConflicts)
+            {
+                throw new InvalidOperationException(message);
+            }
+
+            Logger.LogWarning(message);
         }
     }
 
