@@ -144,6 +144,11 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
         _chains.AddRange(calls.Select(x => new HttpChain(x, this){ServiceProviderSource = wolverineHttpOptions.ServiceProviderSource}));
 
+        // Two different routes can sanitize to the same generated C# type name (e.g. "/a$b" and "/a-b"
+        // both -> "a_b"). Append a deterministic suffix to any that actually collide so codegen stays
+        // valid. See GH-3282.
+        ResolveDuplicateTypeNames(_chains);
+
         // Expand multi-version handlers before any policy runs, so middleware, route prefix,
         // and other policies are applied uniformly to every per-version clone. Without this,
         // clones would miss whatever the policies subsequently mutate.
@@ -166,6 +171,34 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         foreach (var policy in wolverineHttpOptions.Policies) policy.Apply(_chains, Rules, Container);
 
         _endpoints.AddRange(_chains.Select(x => x.BuildEndpoint(wolverineHttpOptions.WarmUpRoutes)));
+    }
+
+    internal static void ResolveDuplicateTypeNames(IReadOnlyList<HttpChain> chains)
+    {
+        foreach (var group in chains.GroupBy(x => x.Description).Where(g => g.Count() > 1))
+        {
+            foreach (var chain in group)
+            {
+                chain.DisambiguateTypeName(deterministicSuffix(chain));
+            }
+        }
+    }
+
+    // A stable (process-independent) FNV-1a hash of what actually distinguishes two colliding chains,
+    // so the generated type names stay deterministic across builds — important for TypeLoadMode.Static
+    // where the codegen-time names must match what was written to disk.
+    private static string deterministicSuffix(HttpChain chain)
+    {
+        var key = $"{chain.Method.HandlerType.FullName}.{chain.Method.Method.Name}|{chain.HttpMethods.Join(",")}|{chain.RoutePattern?.RawText}";
+
+        uint hash = 2166136261u;
+        foreach (var b in System.Text.Encoding.UTF8.GetBytes(key))
+        {
+            hash ^= b;
+            hash *= 16777619u;
+        }
+
+        return hash.ToString("x8");
     }
 
     public override IChangeToken GetChangeToken()

@@ -85,6 +85,15 @@ public abstract class WolverineHttpMethodAttribute : Attribute
     /// Sets the description for this endpoint in OpenAPI documentation
     /// </summary>
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Optionally override the name of the C# type Wolverine generates for this endpoint. Wolverine
+    /// normally derives that type name from the route template, but a route may contain characters that
+    /// are legal in a URL yet not in a C# identifier (for example <c>"/assets/$action"</c>). Wolverine
+    /// sanitizes those automatically, but this is the escape hatch when you want an explicit, readable
+    /// generated type name for such routes. The value is still sanitized to a valid identifier.
+    /// </summary>
+    public string? TypeName { get; set; }
 }
 
 /// <summary>

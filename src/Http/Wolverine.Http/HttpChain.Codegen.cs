@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Text;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -224,9 +225,15 @@ public partial class HttpChain
 
     private string determineFileName()
     {
+        // Escape hatch (GH-3282): an explicit [WolverineVerb(..., TypeName = "...")] override wins over
+        // the route-derived name. Still sanitized so a careless override can't produce invalid code.
+        if (_typeNameOverride.IsNotEmpty())
+        {
+            return SanitizeToTypeName(_typeNameOverride!);
+        }
+
         var parts = RoutePattern!.RawText!.Replace("{", "").Replace("*", "").Replace(".", "_").Replace("?", "").Replace("}", "").Split('/').Select(x => x.Split(':').First());
 
-        char[] invalidPathChars = Path.GetInvalidPathChars();
         var fileName = _httpMethods.Select(x => x.ToUpper()).Concat(parts).Join("_").Replace('-', '_').Replace("__", "_");
 
         // Append content type suffix to make endpoint names unique when using [AcceptsContentType]
@@ -237,15 +244,33 @@ public partial class HttpChain
             fileName = $"{fileName}_{suffix}";
         }
 
-        var characters = fileName.ToCharArray();
-        for (int i = 0; i < characters.Length; i++)
+        return SanitizeToTypeName(fileName);
+    }
+
+    // The result is used verbatim as the generated C# type name (assembly.AddType(_fileName, ...)), so
+    // it must be a legal C# identifier. Route templates can contain characters that are legal in a URL
+    // path but not in an identifier (e.g. '$' in "/assets/$action", which previously produced CS1056).
+    // Map every character that isn't a valid identifier character to '_', collapse the runs of '_' that
+    // creates, and prefix '_' when the result would start with a digit. See GH-3282.
+    internal static string SanitizeToTypeName(string raw)
+    {
+        var builder = new StringBuilder(raw.Length);
+        foreach (var c in raw)
         {
-            if (invalidPathChars.Contains(characters[i]))
-            {
-                characters[i] = '_';
-            }
+            builder.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
         }
 
-        return new string(characters);
+        var name = builder.ToString();
+        while (name.Contains("__"))
+        {
+            name = name.Replace("__", "_");
+        }
+
+        if (name.Length == 0)
+        {
+            return "_";
+        }
+
+        return char.IsDigit(name[0]) ? "_" + name : name;
     }
 }
