@@ -100,6 +100,10 @@
     <PackageVersion Include="Spectre.Console" Version="0.55.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17" />
     <PackageVersion Include="StronglyTypedId" Version="1.0.0-beta08" />
+    <!-- Transitively pinned (see CentralPackageTransitivePinningEnabled above): Swashbuckle 9.x
+         and Microsoft.AspNetCore.OpenApi 10.x pull Microsoft.OpenApi 2.0.0, which carries a high
+         severity advisory (GHSA-v5pm-xwqc-g5wc, patched in 2.7.5). -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore.Swagger" Version="9.0.1" />
     <PackageVersion Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.1" />
