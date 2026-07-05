@@ -121,7 +121,15 @@ internal class InlineReceiver : IReceiver
             await _pipeline.InvokeAsync(envelope, listener, activity!);
             _logger.IncomingReceived(envelope, listener.Address);
 
-            activity?.SetStatus(ActivityStatusCode.Ok);
+            // Don't clobber an Error status already set by the HandlerPipeline / Executor.
+            // When a message fails but the failure is contained by an error-handling
+            // continuation (dead-letter, discard, retries exhausted, ...), no exception
+            // propagates out of InvokeAsync, so this success path still runs. Only mark
+            // Ok when the activity isn't already flagged as an Error. See GH-3288.
+            if (activity is { Status: not ActivityStatusCode.Error })
+            {
+                activity.SetStatus(ActivityStatusCode.Ok);
+            }
         }
         catch (Exception? e)
         {
