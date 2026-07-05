@@ -141,6 +141,14 @@ By default Wolverine assumes the batch handler is the *only* consumer of the ele
 is always routed straight to the batch. If you *also* declare a direct `Handle(Item)` handler alongside
 `BatchMessagesOf<Item>()`, the direct handler wins and the batch is silently shadowed -- the batched handler never runs.
 
+::: warning
+Because that shadowing is easy to miss, Wolverine logs a loud **warning at startup** whenever a message type has
+both a direct `Handle(T)` handler and a `BatchMessagesOf<T>()` batch handler under the default
+`ClassicCombineIntoOneLogicalHandler` mode, naming both handlers and pointing you at `MultipleHandlerBehavior.Separated`.
+If you would rather this configuration be a hard error, call `opts.AssertNoBatchHandlerConflicts()` and Wolverine will
+throw at startup instead of warning.
+:::
+
 The one exception is `MultipleHandlerBehavior.Separated`. Under that mode Wolverine treats the per-message handler and
 the batched handler as two independent consumers of `Item`, so **both** run for every `Item`:
 
