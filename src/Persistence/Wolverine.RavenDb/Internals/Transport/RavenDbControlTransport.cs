@@ -12,11 +12,20 @@ namespace Wolverine.RavenDb.Internals.Transport;
 
 internal class RavenDbControlTransport : ITransport, IAsyncDisposable
 {
-    public const string ProtocolName = "ravencontrol";
+    public const string ProtocolName = "ravendb";
 
     private readonly Cache<Guid, RavenDbControlEndpoint> _endpoints;
     private readonly WolverineOptions _options;
     private RetryBlock<List<Envelope>>? _deleteBlock;
+
+    // Registered eagerly at configuration time (UseRavenDbPersistence) so the
+    // "ravendb://" scheme resolves for publishing rules. The IDocumentStore isn't
+    // resolvable until the container is built, so it's supplied lazily in
+    // InitializeAsync. The ControlEndpoint is only promoted to a live listener when
+    // the message store wires it as the NodeControlEndpoint (Balanced mode).
+    public RavenDbControlTransport(WolverineOptions options) : this(null!, options)
+    {
+    }
 
     public RavenDbControlTransport(IDocumentStore store, WolverineOptions options)
     {
@@ -29,7 +38,6 @@ internal class RavenDbControlTransport : ITransport, IAsyncDisposable
         });
 
         ControlEndpoint = _endpoints[_options.UniqueNodeId];
-        ControlEndpoint.IsListener = true;
     }
 
     public bool TryBuildBrokerUsage(out BrokerDescription description)
@@ -40,7 +48,7 @@ internal class RavenDbControlTransport : ITransport, IAsyncDisposable
 
     public RavenDbControlEndpoint ControlEndpoint { get; }
 
-    public IDocumentStore Store { get; }
+    public IDocumentStore Store { get; private set; }
 
     public WolverineOptions Options => _options;
 
@@ -87,6 +95,10 @@ internal class RavenDbControlTransport : ITransport, IAsyncDisposable
 
     public ValueTask InitializeAsync(IWolverineRuntime runtime)
     {
+        // The store isn't available when the transport is registered at config time;
+        // resolve it now from the built container.
+        Store ??= (IDocumentStore)runtime.Services.GetService(typeof(IDocumentStore))!;
+
         foreach (var endpoint in Endpoints()) endpoint.Compile(runtime);
 
         _deleteBlock = new RetryBlock<List<Envelope>>(deleteEnvelopesAsync,

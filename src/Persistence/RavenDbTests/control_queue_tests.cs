@@ -50,7 +50,7 @@ public class control_queue_tests : IAsyncLifetime
             }).StartAsync();
 
         var nodeId = _receiver.GetRuntime().Options.UniqueNodeId;
-        _receiverUri = new Uri($"ravencontrol://{nodeId}");
+        _receiverUri = new Uri($"ravendb://{nodeId}");
     }
 
     public async Task DisposeAsync()
@@ -68,7 +68,7 @@ public class control_queue_tests : IAsyncLifetime
         // WolverineNode.For to throw "ControlEndpoint cannot be null for this usage".
         var endpoint = _sender.GetRuntime().Options.Transports.NodeControlEndpoint;
         endpoint.ShouldNotBeNull();
-        endpoint.Uri.Scheme.ShouldBe("ravencontrol");
+        endpoint.Uri.Scheme.ShouldBe("ravendb");
     }
 
     [Fact]
