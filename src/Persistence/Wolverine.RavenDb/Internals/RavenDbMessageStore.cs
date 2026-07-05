@@ -71,7 +71,19 @@ public partial class RavenDbMessageStore : IMessageStoreWithAgentSupport
     public IDeadLetters DeadLetters => this;
     public void Initialize(IWolverineRuntime runtime)
     {
-        // NOTHING YET
+        // In Balanced mode Wolverine requires a node control endpoint so nodes can
+        // exchange agent-coordination commands. Without this the runtime throws
+        // "ControlEndpoint cannot be null for this usage" from WolverineNode.For.
+        // Register a native RavenDB-backed control queue unless the user already
+        // supplied one (e.g. an external broker or UseTcpForControlEndpoint()).
+        if (Role == MessageStoreRole.Main
+            && runtime.Options.Transports.NodeControlEndpoint == null
+            && runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        {
+            var transport = new Transport.RavenDbControlTransport(_store, runtime.Options);
+            runtime.Options.Transports.Add(transport);
+            runtime.Options.Transports.NodeControlEndpoint = transport.ControlEndpoint;
+        }
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
