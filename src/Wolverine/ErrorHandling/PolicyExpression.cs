@@ -306,6 +306,11 @@ internal class FailureActions : IAdditionalActions, IFailureActions
         return this;
     }
 
+    public IAdditionalActions IsolateBatchMembers()
+    {
+        return ContinueWith(new Runtime.Batching.ProbeIndividuallyContinuationSource());
+    }
+
     public IAdditionalActions PauseSending(TimeSpan pauseTime)
     {
         var slot = _rule.AddSlot(new PauseSendingContinuation(pauseTime));
@@ -524,6 +529,13 @@ public interface IFailureActions
     /// </summary>
     IAdditionalActions Discard();
 
+    /// <summary>
+    ///     For a batched message handler, isolate the failing member(s): re-run each member of the batch
+    ///     as its own size-1 batch so only the message that actually causes this exception is
+    ///     dead-lettered, while the healthy members succeed. No effect on non-batched messages. GH-3289.
+    /// </summary>
+    IAdditionalActions IsolateBatchMembers();
+
 
     /// <summary>
     ///     Schedule the message for additional attempts with a delay. Use this
@@ -669,6 +681,18 @@ public class PolicyExpression : IFailureActions
     public IAdditionalActions Discard()
     {
         return new FailureActions(_match, _parent).Discard();
+    }
+
+    /// <summary>
+    ///     For a batched message handler, isolate the failing member(s): re-run each member of the batch
+    ///     as its own size-1 batch so only the message that actually causes this exception is
+    ///     dead-lettered, while the healthy members succeed. Composes with the retry verbs on other
+    ///     exception types (e.g. RetryWithCooldown for transient errors). No effect on non-batched
+    ///     messages. See GH-3289.
+    /// </summary>
+    public IAdditionalActions IsolateBatchMembers()
+    {
+        return new FailureActions(_match, _parent).IsolateBatchMembers();
     }
 
     /// <summary>
