@@ -190,3 +190,18 @@ public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
     {
     }
 }
+
+/// <summary>
+///     Marks a method on a Wolverine endpoint as being a QUERY route. QUERY (RFC 10008) is a safe,
+///     idempotent method — like GET — that additionally carries a request body, so it is well suited
+///     to search/query endpoints whose parameters are too large or structured for the query string.
+///     Because it is safe, a QUERY endpoint is not wrapped in transactional/outbox middleware unless it
+///     takes a message-bus dependency (the same dependency-based rule as every other verb); unlike GET,
+///     it is allowed to bind a request body.
+/// </summary>
+public class WolverineQueryAttribute : WolverineHttpMethodAttribute
+{
+    public WolverineQueryAttribute([StringSyntax("Route")]string template) : base("QUERY", template)
+    {
+    }
+}
