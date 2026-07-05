@@ -7,6 +7,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Scheduled;
@@ -111,6 +112,10 @@ public partial class WolverineRuntime
             // Handle(T) handler wins and the BatchMessagesOf<T>() batch handler is silently shadowed.
             // Warn loudly (or throw, if opted in) so the shadowing is not a silent surprise. GH-3289.
             warnOrAssertBatchHandlerConflicts();
+
+            // Apply BatchMessagesOf<T>(b => b.ProbeIndividuallyAfter(N)) as a failure rule on the batch
+            // handler chain. GH-3289.
+            applyBatchProbePolicies();
 
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
@@ -646,6 +651,34 @@ public partial class WolverineRuntime
             }
 
             Logger.LogWarning(message);
+        }
+    }
+
+    private void applyBatchProbePolicies()
+    {
+        if (Options.BatchDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var batch in Options.BatchDefinitions)
+        {
+            if (batch.ProbeIndividuallyAfterAttempts is not { } attempts)
+            {
+                continue;
+            }
+
+            // The failure rule lives on the batch handler chain (the T[] handler), matching any exception:
+            // retry the whole batch until it has failed `attempts` times, then re-run each member as its
+            // own size-1 batch so only the failing one dead-letters.
+            var batchChain = Handlers.ChainFor(batch.Batcher.BatchMessageType);
+            if (batchChain == null)
+            {
+                continue;
+            }
+
+            batchChain.OnException<Exception>()
+                .ContinueWith(new Batching.ProbeIndividuallyContinuationSource(attempts));
         }
     }
 

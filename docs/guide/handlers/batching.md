@@ -370,10 +370,27 @@ the bad member. The isolation is bounded and one-time — a member that has alre
 batch is simply dead-lettered rather than probed again. On a message type that is **not** batched,
 `IsolateBatchMembers()` behaves like a plain move-to-error-queue (there is nothing to isolate).
 
-::: info
-A count-based variant — `ProbeIndividuallyAfter(attempts: N)`, which probes individually only after N
-whole-batch failures — is a planned follow-up (see [GH-3289](https://github.com/JasperFx/wolverine/issues/3289)).
-:::
+### Probing after N whole-batch failures
+
+When you don't have a specific exception type to key on — the batch just fails and you can't tell whether it's
+transient or a poison item — configure a **count-based** probe directly on the batch. `ProbeIndividuallyAfter(N)`
+retries the whole batch `N` times and *only then* falls back to isolating each member individually:
+
+```csharp
+opts.BatchMessagesOf<Order>(b =>
+{
+    b.BatchSize = 500;
+    b.TriggerTime = 10.Seconds();
+
+    // Retry the whole batch 3 times (in case the failure was transient); if it still fails, re-run each
+    // member on its own so only the genuinely bad one dead-letters.
+    b.ProbeIndividuallyAfter(attempts: 3);
+});
+```
+
+This gives transient failures a chance to clear on retry before paying for the per-member probe, and like
+`IsolateBatchMembers` it is bounded and one-time — once reduced to a size-1 batch, a failing member is
+dead-lettered rather than probed again.
 
 ## Custom Batching Strategies
 

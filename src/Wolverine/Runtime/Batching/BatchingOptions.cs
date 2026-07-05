@@ -62,6 +62,27 @@ public class BatchingOptions : IAsyncDisposable
         Batcher = new CoalescingMessageBatcher<T, TKey>(keySelector);
     }
 
+    internal int? ProbeIndividuallyAfterAttempts { get; private set; }
+
+    /// <summary>
+    /// After the whole batch has failed <paramref name="attempts"/> times, re-run each member as its own
+    /// size-1 batch so that only the message actually causing the failure is dead-lettered while the
+    /// healthy members succeed. Use this for <em>opaque</em> failures where the handler cannot name the bad
+    /// item. Bounded and one-time: a member reduced to a size-1 batch is dead-lettered rather than probed
+    /// again. For failures the handler can attribute to a specific exception type, prefer the
+    /// <c>OnException&lt;T&gt;().IsolateBatchMembers()</c> policy instead. See GH-3289.
+    /// </summary>
+    /// <param name="attempts">The number of whole-batch failures to allow before probing. Must be >= 1.</param>
+    public void ProbeIndividuallyAfter(int attempts)
+    {
+        if (attempts < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(attempts), "The probe threshold must be at least 1");
+        }
+
+        ProbeIndividuallyAfterAttempts = attempts;
+    }
+
     /// <summary>
     /// The maximum size of the message batch. Default is 100.
     /// </summary>
