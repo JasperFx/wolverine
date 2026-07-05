@@ -192,7 +192,45 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
 
         var listener = new KafkaListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>());
+
+        // Broker-per-tenant (GH-3303): the shared listener consumes the default cluster. Each tenant runs its
+        // own listener on its own cluster, stamping the tenant id onto inbound envelopes via TenantIdRule.
+        // Per-envelope completion routes back over the receiving connection through Envelope.Listener — mirrors
+        // the RabbitMQ / NATS CompoundListener multi-tenancy pattern.
+        if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var compound = new CompoundListener(Uri);
+            compound.Inner.Add(listener);
+
+            foreach (var tenant in Parent.Tenants)
+            {
+                var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
+                var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                var tenantListener = new KafkaListener(this, tenantConfig,
+                    tenant.Transport.CreateConsumer(tenantConfig), tenantReceiver,
+                    runtime.LoggerFactory.CreateLogger<KafkaListener>(), tenant.Transport);
+                compound.Inner.Add(tenantListener);
+            }
+
+            return ValueTask.FromResult((IListener)compound);
+        }
+
         return ValueTask.FromResult((IListener)listener);
+    }
+
+    /// <summary>
+    /// Clone an already-resolved effective consumer config (commit strategy + hot-tail already applied) and
+    /// re-point it at the tenant's cluster. The GroupId is deliberately preserved unchanged — each tenant is a
+    /// separate cluster, so offsets are isolated and there is no reason to suffix the group id (GH-3303).
+    /// </summary>
+    internal static ConsumerConfig cloneConsumerConfigForTenant(ConsumerConfig source, KafkaTenant tenant)
+    {
+        var clone = new ConsumerConfig(new Dictionary<string, string>(source))
+        {
+            BootstrapServers = tenant.Transport.ConsumerConfig.BootstrapServers
+        };
+
+        return clone;
     }
 
     /// <summary>
@@ -214,7 +252,27 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
+        // Broker-per-tenant (GH-3303): route by Envelope.TenantId to a per-tenant sender bound to that tenant's
+        // own cluster, falling back to the shared cluster for the default/untenanted path.
+        //
+        // Both the tenant senders AND the default sender they fall back to must be simple fire-and-forget
+        // ISenders here: TenantedSender intentionally does NOT implement ISenderRequiresCallback (GH-2361), and
+        // it does not forward RegisterCallback to the senders beneath it. A BatchedSender registered under it
+        // would therefore never receive its ISenderCallback and would silently drop every message. InlineKafka-
+        // Sender produces + flushes directly and needs no callback — the same fire-and-forget model the RabbitMQ
+        // and NATS broker-per-tenant senders use.
+        if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var tenantedSender = new TenantedSender(Uri, Parent.TenantedIdBehavior, new InlineKafkaSender(this, Parent));
+            foreach (var tenant in Parent.Tenants)
+            {
+                tenantedSender.RegisterSender(tenant.TenantId, new InlineKafkaSender(this, tenant.Transport));
+            }
+
+            return tenantedSender;
+        }
+
         return Mode == EndpointMode.Inline
             ? new InlineKafkaSender(this)
             : new BatchedSender(this, new KafkaSenderProtocol(this), runtime.Cancellation,
@@ -276,6 +334,19 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         if (IsExternallyOwned) return;
 
         using var adminClient = Parent.CreateAdminClient();
+        await SetupOnAsync(adminClient, logger);
+    }
+
+    /// <summary>
+    /// Create this topic on the supplied admin client. Split out from <see cref="SetupAsync"/> so the same
+    /// spec/creation logic can be applied against a tenant cluster's admin client (broker-per-tenant, GH-3303).
+    /// </summary>
+    internal async ValueTask SetupOnAsync(IAdminClient adminClient, ILogger logger)
+    {
+        if (TopicName == WolverineTopicsName) return; // don't care, this is just a marker
+
+        if (IsExternallyOwned) return;
+
         Specification.Name = TopicName;
 
         try

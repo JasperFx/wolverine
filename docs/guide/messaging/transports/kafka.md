@@ -161,7 +161,18 @@ using var host = await Host.CreateDefaultBuilder()
 
                 // Other configuration
             })
-            
+            // Extends the consumer configuration for this topic only.
+            // Unlike ConfigureConsumer(), this preserves any existing topic-level
+            // ConsumerConfig and only applies the changes below.
+            .ExtendConsumerConfiguration(config =>
+            {
+                // This also sets Envelope.GroupId for any messages received
+                // from this topic.
+                config.GroupId = "foo";
+                config.BootstrapServers = KafkaContainerFixture.ConnectionString;
+
+                // Other additive configuration
+            })
             // Configure circuit breaker behavior for
             // this specific Kafka listener
             .CircuitBreaker(cb =>
@@ -169,7 +180,6 @@ using var host = await Host.CreateDefaultBuilder()
                 cb.MinimumThreshold = 10;
                 cb.PauseTime = TimeSpan.FromMinutes(1);
             })
-            
             // Fine tune how the Kafka Topic is declared by Wolverine
             .Specification(spec =>
             {
@@ -186,7 +196,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.Services.AddResourceSetupOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L14-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L15-L144' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_bootstrapping_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The various `Configure*****()` methods provide quick access to the full API of the Confluent Kafka library for security
@@ -739,7 +749,7 @@ public static class KafkaInstrumentation
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L183-L195' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L232-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafkainstrumentation_middleware' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
@@ -770,11 +780,101 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L157-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L168-L190' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_kafka_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Kafka broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
+
+## Multi-Tenancy with a Broker per Tenant <Badge type="tip" text="6.9" />
+
+Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
+configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic
+topology, and each tenant is served by its **own dedicated Kafka cluster**. Which cluster a message goes to (and
+which cluster an inbound message came from) is decided at runtime by the message's
+[tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`:
+
+<!-- snippet: sample_kafka_broker_per_tenant -->
+<a id='snippet-sample_kafka_broker_per_tenant'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // The "default" / shared Kafka cluster
+        opts.UseKafka(KafkaContainerFixture.ConnectionString)
+            .AutoProvision()
+
+            // How should Wolverine route a message whose TenantId is null or
+            // unknown? FallbackToDefault (the default) uses the shared cluster;
+            // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+            .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+            // Each tenant gets its OWN dedicated Kafka cluster, but shares the
+            // topic topology declared below. The tenant inherits the parent's
+            // client configuration (auth, SASL/SSL, idempotence, DLQ topic, ...)
+            // with just the bootstrap servers re-pointed.
+            .AddTenant("tenant-a", "tenant-a-kafka:9092")
+
+            // Or configure the tenant cluster through the full Kafka surface,
+            // seeded from the parent settings, when it needs its own credentials:
+            .AddTenant("tenant-b", tenant => tenant.ConfigureClient(client =>
+            {
+                client.BootstrapServers = "tenant-b-kafka:9092";
+                client.SaslUsername = "tenant-b-user";
+                client.SaslPassword = "tenant-b-secret";
+            }));
+
+        // One shared topology; messages are routed to the right cluster at
+        // runtime by Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-a" }).
+        opts.PublishMessage<ColorMessage>().ToKafkaTopic("colors");
+        opts.ListenToKafkaTopic("colors");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L195-L228' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_kafka_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To route a specific message to a tenant's cluster, stamp the tenant id on the send:
+
+```csharp
+await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "tenant-a" });
+```
+
+Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
+compound listener that runs one consumer per tenant cluster — each inbound envelope is stamped with the tenant id
+it was consumed under. This mirrors the [RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and
+[NATS](/guide/messaging/transports/nats) broker-per-tenant support.
+
+::: tip Named broker vs. broker-per-tenant
+Use a **named broker** when a *fixed set of endpoints* should always talk to a *specific* broker. Use
+**broker-per-tenant** when the *same logical endpoints* should be transparently routed to a *different cluster per
+tenant* based on the runtime tenant id. They are independent features and can be combined.
+:::
+
+### Choosing the unknown-tenant behavior
+
+`TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
+
+* `FallbackToDefault` (the default) — route it to the shared/default cluster (the one passed to `UseKafka`).
+* `TenantIdRequired` — throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` — silently drop the message.
+
+### Consumer groups are *not* suffixed per tenant
+
+Because each tenant is a **separate Kafka cluster**, consumer offsets live in that tenant's own cluster. Wolverine
+therefore keeps the **same consumer group id** across all tenant listeners rather than suffixing it per tenant —
+there is no offset collision to avoid. (This is deliberately different from transports like NATS that isolate
+tenants by subject prefix on a *shared* connection.)
+
+### Auto-provisioning per cluster
+
+When [`AutoProvision()`](#) is enabled, Wolverine provisions the shared topic topology — including the dead letter
+queue topic — on **every** tenant cluster, not just the default one, since each is an independent broker. A tenant
+listener's dead-lettered messages are likewise produced to the DLQ topic on that tenant's own cluster.
+
+::: warning Out of scope
+Per-tenant [non-blocking retry topics](#non-blocking-retry-topics) and [topic replay](#replaying-a-topic) are bound
+to the default cluster only; they are not currently fanned out per tenant.
+:::
 
 ## Non-Blocking Retry Topics <Badge type="tip" text="6.8" />
 
@@ -1011,7 +1111,7 @@ using var host = await Host.CreateDefaultBuilder()
         
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L138-L152' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/DocumentationSamples.cs#L149-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_all_kafka_sending' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Publisher Batching

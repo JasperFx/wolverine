@@ -21,13 +21,17 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     private readonly string? _messageTypeName;
     private readonly ILogger _logger;
     private readonly KafkaOffsetCommitter _committer;
+    // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
+    // (default-cluster) listener, which falls back to the topic's parent transport.
+    private readonly KafkaTransport? _tenantTransport;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
-        ILogger<KafkaListener> logger)
+        ILogger<KafkaListener> logger, KafkaTransport? tenantTransport = null)
     {
         _endpoint = topic;
         _logger = logger;
+        _tenantTransport = tenantTransport;
         Address = topic.Uri;
         _consumer = consumer;
 
@@ -160,8 +164,12 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        var transport = _endpoint.Parent;
+        // Broker-per-tenant (GH-3303): a tenant listener must DLQ onto its own cluster, not the shared one.
+        var transport = _tenantTransport ?? _endpoint.Parent;
         var dlqTopicName = transport.DeadLetterQueueTopicName;
+        var producerConfig = _tenantTransport != null
+            ? _tenantTransport.ProducerConfig
+            : _endpoint.GetEffectiveProducerConfig();
 
         try
         {
@@ -173,7 +181,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
             message.Headers.Add(DeadLetterQueueConstants.ExceptionStackHeader, Encoding.UTF8.GetBytes(exception.StackTrace ?? ""));
             message.Headers.Add(DeadLetterQueueConstants.FailedAtHeader, Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()));
 
-            using var producer = transport.CreateProducer(_endpoint.GetEffectiveProducerConfig());
+            using var producer = transport.CreateProducer(producerConfig);
             await producer.ProduceAsync(dlqTopicName, message);
             producer.Flush();
 

@@ -20,13 +20,17 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     private readonly IReceiver _receiver;
     private readonly ILogger _logger;
     private readonly KafkaOffsetCommitter _committer;
+    // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
+    // (default-cluster) listener, which falls back to the endpoint's parent transport.
+    private readonly KafkaTransport? _tenantTransport;
 
     public KafkaTopicGroupListener(KafkaTopicGroup endpoint, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
-        ILogger<KafkaTopicGroupListener> logger)
+        ILogger<KafkaTopicGroupListener> logger, KafkaTransport? tenantTransport = null)
     {
         _endpoint = endpoint;
         _logger = logger;
+        _tenantTransport = tenantTransport;
         Address = endpoint.Uri;
         _consumer = consumer;
 
@@ -143,7 +147,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public async Task MoveToErrorsAsync(Envelope envelope, Exception exception)
     {
-        var transport = _endpoint.Parent;
+        // Broker-per-tenant (GH-3303): a tenant listener must DLQ onto its own cluster, not the shared one.
+        var transport = _tenantTransport ?? _endpoint.Parent;
         var dlqTopicName = transport.DeadLetterQueueTopicName;
 
         try

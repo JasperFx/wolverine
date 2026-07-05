@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using Wolverine.Kafka.Internals;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Kafka;
 
@@ -197,6 +198,47 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     public KafkaTransportExpression DeadLetterQueueTopicName(string topicName)
     {
         _transport.DeadLetterQueueTopicName = topicName;
+        return this;
+    }
+
+    /// <summary>
+    /// Override the sending behavior for unknown or missing tenant ids when using broker-per-tenant Kafka
+    /// multi-tenancy (GH-3303). See <see cref="TenantedIdBehavior"/>. Default is
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> unless changed.
+    /// </summary>
+    public KafkaTransportExpression TenantIdBehavior(TenantedIdBehavior behavior)
+    {
+        _transport.TenantedIdBehavior = behavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Register a tenant that is served by its own dedicated Kafka cluster identified by
+    /// <paramref name="bootstrapServers"/>, while sharing the topic topology declared on this transport. The
+    /// tenant inherits the parent's producer/consumer/admin configuration (auth, SASL/SSL, idempotence, static
+    /// membership, DLQ topic name, …) with only the bootstrap servers re-pointed. Outbound messages carrying a
+    /// matching <see cref="Envelope.TenantId"/> are routed to this cluster; inbound messages consumed from it
+    /// are stamped with the tenant id.
+    ///
+    /// The consumer group id is intentionally inherited unchanged — each tenant is a separate cluster with its
+    /// own offsets, so there is no need (and it would be incorrect) to suffix the group id per tenant.
+    /// </summary>
+    public KafkaTransportExpression AddTenant(string tenantId, string bootstrapServers)
+    {
+        _transport.Tenants[tenantId] = new KafkaTenant(tenantId) { BootstrapServers = bootstrapServers };
+        return this;
+    }
+
+    /// <summary>
+    /// Register a tenant served by its own dedicated Kafka cluster, configured through the full Kafka transport
+    /// surface (auth, SASL/SSL, advanced client options). The <paramref name="configure"/> action runs against a
+    /// configuration seeded from this transport's own settings, so you only override what differs for the tenant
+    /// (typically <c>ConfigureClient(c =&gt; c.BootstrapServers = ...)</c> plus any tenant-specific credentials).
+    /// </summary>
+    public KafkaTransportExpression AddTenant(string tenantId, Action<KafkaTransportExpression> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        _transport.Tenants[tenantId] = new KafkaTenant(tenantId) { Configure = configure };
         return this;
     }
 
