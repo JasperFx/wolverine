@@ -9,7 +9,7 @@ internal class NatsHealthCheck : WolverineTransportHealthCheck
     public NatsHealthCheck(NatsTransport transport) => _transport = transport;
 
     public override string TransportName => "NATS";
-    public override string Protocol => "nats";
+    public override string Protocol => _transport.Protocol;
 
     public override Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
