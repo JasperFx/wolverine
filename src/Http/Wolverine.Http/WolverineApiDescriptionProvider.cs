@@ -32,6 +32,17 @@ internal class WolverineApiDescriptionProvider : IApiDescriptionProvider
 
                 foreach (var httpMethod in chain.HttpMethods)
                 {
+                    // OpenAPI 3.1 (and the Swashbuckle / Microsoft.OpenApi stack Wolverine emits with)
+                    // has no representation for the QUERY verb (RFC 10008) — Swashbuckle throws a
+                    // KeyNotFoundException mapping the method, which would break document generation for
+                    // the whole app. Gracefully omit QUERY endpoints from the API description, matching
+                    // ASP.NET Core's own behavior on OpenAPI 3.1. QUERY becomes a first-class operation
+                    // in OpenAPI 3.2; first-class documentation can follow once the stack supports it.
+                    if (string.Equals(httpMethod, "QUERY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
                     context.Results.Add(chain.CreateApiDescription(httpMethod));
                 }
             }

@@ -187,6 +187,51 @@ public static OrderShipped Ship(ShipOrder command, Order order)
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## The HTTP QUERY Method <Badge type="tip" text="6.17" />
+
+Wolverine.HTTP supports the [HTTP `QUERY` method (RFC 10008)](https://www.rfc-editor.org/rfc/rfc10008.html)
+through the `[WolverineQuery]` attribute. `QUERY` is a **safe, idempotent** method — like `GET` — but,
+unlike `GET`, it is allowed to carry a **request body**. It's intended for search/query endpoints whose
+criteria are too large or too structured to encode in the query string:
+
+<!-- snippet: sample_wolverine_query_endpoint -->
+<a id='snippet-sample_wolverine_query_endpoint'></a>
+```cs
+// QUERY (RFC 10008) is safe and idempotent like GET, but carries a request body — ideal for
+// search endpoints whose criteria are too large or structured for the query string. Wolverine
+// binds the request body just like it would for POST, and — because the endpoint takes no
+// message-bus dependency — no transactional/outbox middleware is applied.
+[WolverineQuery("/search")]
+public static SearchResults Search(SearchRequest request)
+{
+    var hits = Enumerable.Range(1, request.Page)
+        .Select(i => $"{request.Term}-{i}")
+        .ToArray();
+
+    return new SearchResults(request.Term, request.Page, hits);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/QueryEndpoints.cs#L11-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_query_endpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The request body binds exactly as it would for a `POST` endpoint.
+
+::: tip
+Because `QUERY` is a *safe* method, a `QUERY` endpoint follows the same dependency-based rule as every
+other verb for transactional middleware: Wolverine only wraps a handler in transactional/outbox
+middleware when it depends on `IMessageBus`/`IMessageContext`. A plain `QUERY` search endpoint is
+therefore never transactional, even when `AutoApplyTransactions()` is enabled.
+:::
+
+::: warning OpenAPI limitation
+`QUERY` only became a first-class operation in **OpenAPI 3.2**. The OpenAPI 3.1 document produced by the
+Swashbuckle / `Microsoft.OpenApi` stack cannot represent it, so — matching ASP.NET Core's own behavior on
+OpenAPI 3.1 — Wolverine **gracefully omits `QUERY` endpoints from the generated OpenAPI document** rather
+than break generation for the rest of the application. The endpoints are fully routable and functional;
+they are simply not described in the OpenAPI 3.1 output. First-class OpenAPI documentation can follow once
+the underlying OpenAPI stack emits 3.2.
+:::
+
 ## JSON Handling
 
 See [JSON serialization for more information](/guide/http/json)
