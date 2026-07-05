@@ -49,19 +49,26 @@ internal class CoalescingMessageBatcher<T, TKey> : IMessageBatcher
                 var key = _keySelector(typed);
 
                 // A null key can't index a Dictionary; never coalesce null-keyed items - keep each.
+                int groupIndex;
                 if (key is not null && indexByKey.TryGetValue(key, out var index))
                 {
                     coalesced[index] = typed;
+                    groupIndex = index;
                 }
                 else
                 {
+                    groupIndex = coalesced.Count;
                     if (key is not null)
                     {
-                        indexByKey[key] = coalesced.Count;
+                        indexByKey[key] = groupIndex;
                     }
 
                     coalesced.Add(typed);
                 }
+
+                // Stamp the member with its coalesced-group index so ApplyItemException can poison every
+                // member that collapsed into a flagged key (GH-3289). Unique per key within this batch.
+                envelope.BatchGroupId = groupIndex;
             }
 
             // ...but EVERY member envelope stays on the batch, so settlement (inbox/outbox tracking and

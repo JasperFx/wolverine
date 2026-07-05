@@ -57,13 +57,28 @@ internal class ApplyItemContinuation : IContinuation
             return;
         }
 
-        // Partition members by reference identity: a thrown poison item is matched to the member
-        // envelope whose Message IS that instance. This is exact for a normal (non-coalesced) batch.
-        // NOTE (GH-3289): under CoalesceBy the handler sees the last-wins instance for a key, which is
-        // the Message of only ONE member, so only that member is dead-lettered here; the earlier
-        // same-key members fall into the survivor set (acked/replayed). Poisoning every member that
-        // collapsed into a coalesced key is a deliberate follow-up (items 2/3).
-        var poison = members.Where(m => containsByReference(_exception.PoisonItems, m.Message)).ToArray();
+        // Partition members by reference identity: a thrown poison item is matched to the member envelope
+        // whose Message IS that instance. This is exact for a normal (non-coalesced) batch.
+        var poison = members.Where(m => containsByReference(_exception.PoisonItems, m.Message)).ToList();
+
+        // GH-3289: under CoalesceBy the handler only sees the last-wins instance for a key (the Message of
+        // ONE member), but every member that collapsed into that key is "about" the same flagged item, so
+        // poison them all. BatchGroupId is stamped per coalesced key by CoalescingMessageBatcher; it is
+        // null for a normal batch, in which case this expansion is a no-op.
+        var poisonGroups = poison.Where(m => m.BatchGroupId.HasValue).Select(m => m.BatchGroupId!.Value)
+            .ToHashSet();
+        if (poisonGroups.Count > 0)
+        {
+            foreach (var member in members)
+            {
+                if (member.BatchGroupId.HasValue && poisonGroups.Contains(member.BatchGroupId.Value)
+                                                 && !poison.Contains(member))
+                {
+                    poison.Add(member);
+                }
+            }
+        }
+
         var survivors = members.Where(m => !poison.Contains(m)).ToArray();
 
         var replay = _exception.Disposition switch
@@ -76,7 +91,7 @@ internal class ApplyItemContinuation : IContinuation
         };
 
         // 1. Dead-letter ONLY the poison members (the final CompleteAsync then settles them too).
-        if (poison.Length > 0)
+        if (poison.Count > 0)
         {
             if (lifecycle is MessageContext context)
             {

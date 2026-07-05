@@ -103,6 +103,12 @@ public partial class Envelope
     [JsonIgnore]
     internal bool InBatch { get; set; }
 
+    // GH-3289: identifies which coalesced group a batch member belongs to when the batch was assembled by
+    // CoalescingMessageBatcher (CoalesceBy). Members sharing a key get the same id, so ApplyItemException
+    // can poison every member that collapsed into a flagged key. Null for non-coalesced batches.
+    [JsonIgnore]
+    internal int? BatchGroupId { get; set; }
+
     /// <summary>
     /// Set to <c>true</c> by <see cref="Runtime.WolverineRuntime.AcquireInternalEnvelope"/>
     /// when this envelope was pulled from <see cref="Runtime.WolverineRuntime.EnvelopePool"/>.
@@ -524,6 +530,7 @@ public partial class Envelope
         Status = default;
         OwnerId = 0;
         InBatch = false;
+        BatchGroupId = null;
         FromPool = false;
         Sender = null;
         Listener = null;
