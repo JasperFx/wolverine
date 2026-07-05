@@ -119,6 +119,41 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task configuring_processor_options()
+    {
+        #region sample_configuring_azure_service_bus_processor_options
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+            opts.ListenToAzureServiceBusQueue("incoming")
+
+                // Inline listeners create an Azure Service Bus ServiceBusProcessor. By default the
+                // Azure SDK only renews the message lock for five minutes, so an inline handler that
+                // runs longer than that loses its lock and the message is redelivered. Raise the
+                // renewal window here so long-running inline handlers keep their lock.
+                .ConfigureProcessor(processorOptions =>
+                {
+                    processorOptions.MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(30);
+                })
+
+                // Run the handler inline against the ServiceBusProcessor
+                .ProcessInline();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
     public async Task configure_buffered_listener()
     {
         var builder = Host.CreateApplicationBuilder();
