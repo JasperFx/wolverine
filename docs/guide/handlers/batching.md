@@ -189,11 +189,61 @@ Under `Separated` mode each `Handle(Item[])` handler is given its own sticky que
 batch out to every one of them and each runs independently. (Under the default `Classic` behavior the multiple
 `Handle(Item[])` handlers are instead combined into a single logical handler that invokes each one in turn.)
 
+## Durability and message settlement
+
+::: warning
+**A durable (persistent) listener is required for guaranteed delivery of batched processing.** With an
+inline or buffered listener, the individual messages are settled (acknowledged / marked handled) *before*
+the batch they belong to actually runs, so a process crash while a batch is still accumulating loses those
+messages. If you cannot afford to lose messages, batch behind a [durable inbox](/guide/durability/).
+:::
+
+Batching accumulates incoming messages in memory before forwarding them to your batch handler as a single
+`T[]` (or custom batch) message. The important question is *when the original member messages are settled*
+with the inbox or the broker, because anything accumulated but not yet run is only as safe as that settlement
+timing. This differs by [endpoint mode](/guide/messaging/listeners):
+
+| Endpoint mode | When the member messages are settled | Crash while a batch is accumulating |
+|---|---|---|
+| **Durable** | *After* the batch succeeds — members are held `InBatch` and only marked handled in the message store once the batch message completes | Members are recovered from the inbox and reprocessed — **no loss** |
+| **Inline** | The moment each message is absorbed into the batcher — *before* the batch runs | Accumulated members are already settled and are **lost** |
+| **Buffered** | At receipt — *before* the batch runs | Accumulated members are already settled and are **lost** |
+
+In other words, deferred settlement is exactly what makes batching loss-proof, and the durable inbox is the
+*only* mode that provides it. This is a deliberate design choice: holding a broker lease open across an entire
+accumulation window (with per-transport lock renewal) is inherently transport-specific, whereas the durable
+inbox already solves the loss problem uniformly across every transport.
+
+The mechanics: a batched member is flagged `Envelope.InBatch = true` when it enters the batcher. On a durable
+listener, `DurableReceiver.CompleteAsync` early-returns for any `InBatch` envelope, so the member stays
+un-settled in the message store; only when the assembled batch message completes are all of its members marked
+handled together. On inline and buffered listeners there is no inbox to defer to, so the member is settled as
+soon as the batching handler absorbs it.
+
+### The lock window caveat (lock-based transports)
+
+On transports that hand out a time-bounded lock or lease per message — Azure Service Bus peek-lock, Amazon SQS
+visibility timeout, and similar — the **accumulation window plus the batch processing time must fit inside that
+lock duration**. Wolverine's broker listeners do not renew these locks for messages that are sitting inside a
+batch waiting to be flushed.
+
+If your `TriggerTime` (or the time to fill a `BatchSize` worth of messages) approaches or exceeds the broker's
+lock/visibility window, the broker will consider the lock expired and **redeliver** those messages while they
+are still buffered. The symptoms are silent duplicate processing and a `DeliveryCount` that climbs toward the
+dead-letter threshold, with nothing logged by Wolverine to explain it. Guidance:
+
+- Keep `TriggerTime` comfortably below the transport's lock/visibility duration (leaving headroom for the batch
+  handler's own execution time), **or**
+- Use a durable listener, where members are pulled from the persistent inbox rather than held under a broker
+  lock, so the accumulation window is no longer bounded by the broker lease.
+
 ## What about durable messaging ("inbox")?
 
 The durable inbox behaves just a little bit differently for message batching. Wolverine will technically
 "handle" the individual messages, but does not mark them as handled in the message store until a batch message
-that refers to the original message is completely processed. 
+that refers to the original message is completely processed. See [Durability and message
+settlement](#durability-and-message-settlement) above for the full settlement model and why a durable listener
+is required for guaranteed delivery.
 
 ## Custom Batching Strategies
 
