@@ -304,6 +304,54 @@ public static void Handle(Item[] items, IBatchContext batch)
 settled. When combined with `CoalesceBy`, `Members` still lists **every** original member message (all the
 ones that settle with the batch), even though the `items` array the handler sees was de-duplicated.
 
+## Isolating poison items with `ApplyItemException`
+
+By default a failed batch is retried and dead-lettered **as a unit** — one poison message takes every other
+message in the batch to the dead-letter queue with it. When your batch handler already knows *which* item is
+bad (a validation failure, a specific row a bulk API rejected), it can throw `ApplyItemException` to isolate
+just that item instead. Wolverine dead-letters only the named item(s) and dispositions the survivors, so the
+healthy messages are not collateral damage:
+
+```csharp
+public static void Handle(Order[] orders)
+{
+    foreach (var order in orders)
+    {
+        if (!IsValid(order))
+        {
+            // Dead-letter this one order, re-run the batch handler over the rest
+            throw ApplyItemException.DeadLetterAndReplayOthers(order);
+        }
+        // ... process order ...
+    }
+}
+```
+
+The static factories make the intent explicit at the call site:
+
+```csharp
+throw ApplyItemException.DeadLetterAndReplayOthers(badOrder);            // DLQ it, re-run the rest
+throw ApplyItemException.DeadLetterAndAckOthers(bad1, bad2);             // DLQ them, ack the rest as-is
+throw ApplyItemException.DeadLetter(poison: bads, ackItems: committed);  // DLQ bads, ack what I committed, replay the remainder
+```
+
+- **`DeadLetterAndReplayOthers`** — dead-letter the poison item(s), then re-run the batch handler over the
+  remaining items as a fresh, reduced batch. Use it when the handler had not yet committed anything.
+- **`DeadLetterAndAckOthers`** — dead-letter the poison item(s) and acknowledge every other item as-is (no
+  re-run). Use it when the handler already committed the good items in the same transaction.
+- **`DeadLetter(poison, ackItems)`** — dead-letter the poison item(s), acknowledge the items you explicitly
+  committed, and replay the remainder.
+
+Throwing the exception *is* the opt-in — there is no configuration to enable. The items are matched back to
+their original messages by reference identity, so throw the factory with the actual object(s) handed to your
+handler.
+
+::: info
+This isolates messages the handler can *name*. For opaque failures where the handler cannot tell which item
+is bad, a bounded "probe each item individually" fallback and exception-type-driven isolation
+(`IsolateBatchMembers()`) are planned as a follow-up (see [GH-3289](https://github.com/JasperFx/wolverine/issues/3289)).
+:::
+
 ## Custom Batching Strategies
 
 ::: info
