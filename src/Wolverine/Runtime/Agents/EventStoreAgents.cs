@@ -108,7 +108,12 @@ public class EventStoreAgents : IAsyncDisposable
         {
             if (_store.DistributesAgentsPerTenant && database.TenantIds.Count > 0)
             {
-                foreach (var tenantId in database.TenantIds.Distinct())
+                // Tenant ids are matched case-insensitively elsewhere in this class (see
+                // TryResolveTenantDatabaseIdAsync), so dedupe the fan-out the same way, and skip blank ids —
+                // a malformed usage descriptor must not yield duplicate or invalid per-tenant agent URIs.
+                foreach (var tenantId in database.TenantIds
+                             .Where(t => !string.IsNullOrWhiteSpace(t))
+                             .Distinct(StringComparer.OrdinalIgnoreCase))
                 {
                     var tenantShard = shardName.ForTenant(tenantId);
                     _shardNames = _shardNames.AddOrUpdate(tenantShard.RelativeUrl, tenantShard);
