@@ -11,6 +11,11 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     private readonly Block<Envelope>[] _slots;
 
     public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, Func<Envelope, CancellationToken, Task> processAsync)
+        : this(numberOfSlots, rules, Block<Envelope>.DefaultBoundedCapacity, processAsync)
+    {
+    }
+
+    public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, int boundedCapacity, Func<Envelope, CancellationToken, Task> processAsync)
     {
         _numberOfSlots = numberOfSlots;
         _rules = rules;
@@ -18,7 +23,7 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
         _slots = new Block<Envelope>[_numberOfSlots];
         for (int i = 0; i < _numberOfSlots; i++)
         {
-            _slots[i] = new Block<Envelope>(processAsync);
+            _slots[i] = new Block<Envelope>(1, boundedCapacity, processAsync);
         }
     }
 
