@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+    <!--
+      Security remediation for GHSA-v5pm-xwqc-g5wc (uncontrolled recursion / stack overflow
+      when parsing OpenAPI documents with circular schema references).
+
+      Microsoft.AspNetCore.OpenApi 10.0.0 (net10.0) pulls in the vulnerable Microsoft.OpenApi
+      2.0.0 transitively. With TreatWarningsAsErrors=true the NU1903 restore audit turns that
+      into a hard build break. Add a direct reference to the patched 2.7.5 (same 2.x major, so
+      API-compatible with AspNetCore.OpenApi 10.x; version pinned centrally in
+      Directory.Packages.props) so it wins over the transitive 2.0.0.
+
+      Scoped deliberately to (net10.0 AND references Microsoft.AspNetCore.OpenApi):
+        * net9.0 resolves Microsoft.OpenApi 1.6.x, which is not in the affected range — leave it.
+        * Swashbuckle-only web apps resolve Microsoft.OpenApi 1.2.x — forcing 2.x would break
+          Swashbuckle 6.5.0, and they aren't vulnerable, so leave them too.
+      Non-web test projects that reference these web apps inherit the pin transitively.
+    -->
+    <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0' And @(PackageReference->AnyHaveMetadataValue('Identity', 'Microsoft.AspNetCore.OpenApi')) ">
+        <PackageReference Include="Microsoft.OpenApi" />
+    </ItemGroup>
+
+</Project>
