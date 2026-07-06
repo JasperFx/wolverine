@@ -91,4 +91,21 @@ public class event_store_agents_per_tenant_distribution
 
         uris.Count.ShouldBe(1, "a per-tenant store with no tenants provisioned yet keeps one store-global agent");
     }
+
+    [Fact]
+    public async Task dedupes_tenants_case_insensitively_and_skips_blank_ids()
+    {
+        // Tenant ids are matched case-insensitively elsewhere (TryResolveTenantDatabaseIdAsync), so the
+        // fan-out must not produce two agents for the same logical tenant in different casing, nor an
+        // invalid agent for a blank id that slipped into the usage descriptor.
+        var agents = AgentsFor(
+            UsageWithOneAsyncShardOnADatabaseWith("Clinic-A", "clinic-a", "clinic-b", "", "   "),
+            distributesPerTenant: true);
+
+        var uris = await agents.SupportedAgentsAsync(CancellationToken.None);
+
+        uris.Count.ShouldBe(2, "one agent per logical tenant: clinic-a (deduped across casing) and clinic-b");
+        uris.ShouldContain(u => u.AbsolutePath.TrimEnd('/').EndsWith("/clinic-a", StringComparison.OrdinalIgnoreCase));
+        uris.ShouldContain(u => u.AbsolutePath.TrimEnd('/').EndsWith("/clinic-b", StringComparison.OrdinalIgnoreCase));
+    }
 }
