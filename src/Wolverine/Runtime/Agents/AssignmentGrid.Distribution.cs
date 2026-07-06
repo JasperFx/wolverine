@@ -121,6 +121,13 @@ public partial class AssignmentGrid
     ///     Same as <see cref="DistributeByGroupAffinity(string, Func{Uri, string})" />, restricted to the
     ///     agents of the scheme matching <paramref name="filter" />. Agents outside the filter are left
     ///     completely untouched so one scheme can be distributed in several independent passes.
+    ///
+    ///     <para>Blue/green capability matching mirrors <see cref="DistributeEvenlyWithBlueGreenSemantics(string)" />:
+    ///     with homogeneous node capabilities placement is capability-blind; otherwise a group's candidate
+    ///     nodes are those capable of running every agent in the group, the least-loaded candidate hosts the
+    ///     group, and when no node can host the whole group each agent falls back individually to its
+    ///     least-loaded capable node — an agent no node declares a capability for is left exactly as the even
+    ///     path leaves it (running where it is, or unassigned).</para>
     /// </summary>
     public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey, Func<Uri, bool> filter)
     {
@@ -129,7 +136,14 @@ public partial class AssignmentGrid
             throw new InvalidOperationException("There are no active nodes");
         }
 
-        var agents = AvailableAgentsForScheme(scheme, filter);
+        // Mirror DistributeEvenlyWithBlueGreenSemantics: identical capabilities everywhere means placement
+        // is capability-blind; otherwise match each agent to the nodes that declare it as a capability.
+        var sameCapabilities = AllNodesHaveSameCapabilities(scheme, filter);
+
+        var agents = sameCapabilities
+            ? AvailableAgentsForScheme(scheme, filter)
+            : MatchAgentsToCapableNodesFor(scheme, filter);
+
         if (agents.Count == 0)
         {
             return;
@@ -139,6 +153,7 @@ public partial class AssignmentGrid
 
         if (nodes.Count == 1)
         {
+            // Same single-node behavior as both even paths: the only node takes everything.
             var only = nodes[0];
             foreach (var agent in agents)
             {
@@ -160,12 +175,41 @@ public partial class AssignmentGrid
         {
             var members = group.ToList();
 
-            // The least-loaded node hosts the whole group (tie-breaks: non-leader first, then node id).
-            var node = load
-                .OrderBy(kv => kv.Value)
-                .ThenBy(kv => kv.Key.IsLeader)
-                .ThenBy(kv => kv.Key.AssignedId)
-                .First().Key;
+            // Candidate nodes for the whole group: nodes capable of running every member (all nodes when
+            // capabilities are homogeneous).
+            var candidates = sameCapabilities
+                ? nodes
+                : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))).ToList();
+
+            if (candidates.Count == 0)
+            {
+                // No single node can host the whole group — mirror the blue/green even path's per-agent
+                // behavior: each member goes to its least-loaded capable node, and a member no node
+                // declares a capability for is simply left alone (candidate == null there too).
+                foreach (var member in members)
+                {
+                    var candidate = member.CandidateNodes
+                        .OrderBy(n => load.GetValueOrDefault(n))
+                        .ThenBy(n => n.IsLeader)
+                        .ThenBy(n => n.AssignedId)
+                        .FirstOrDefault();
+
+                    if (candidate != null)
+                    {
+                        candidate.Assign(member);
+                        load[candidate] += 1;
+                    }
+                }
+
+                continue;
+            }
+
+            // The least-loaded candidate hosts the whole group (tie-breaks: non-leader first, then node id).
+            var node = candidates
+                .OrderBy(n => load[n])
+                .ThenBy(n => n.IsLeader)
+                .ThenBy(n => n.AssignedId)
+                .First();
 
             foreach (var agent in members)
             {
