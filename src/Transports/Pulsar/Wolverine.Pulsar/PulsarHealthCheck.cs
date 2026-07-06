@@ -9,7 +9,7 @@ internal class PulsarHealthCheck : WolverineTransportHealthCheck
     public PulsarHealthCheck(PulsarTransport transport) => _transport = transport;
 
     public override string TransportName => "Pulsar";
-    public override string Protocol => "pulsar";
+    public override string Protocol => _transport.Protocol;
 
     public override Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {

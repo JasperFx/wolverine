@@ -22,11 +22,11 @@ public static class PulsarTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static PulsarTransport PulsarTransport(this WolverineOptions endpoints)
+    internal static PulsarTransport PulsarTransport(this WolverineOptions endpoints, BrokerName? name = null)
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<PulsarTransport>();
+        return transports.GetOrCreate<PulsarTransport>(name);
     }
 
     /// <summary>
@@ -52,6 +52,36 @@ public static class PulsarTransportExtensions
     public static PulsarConfiguration UsePulsar(this WolverineOptions endpoints)
     {
         return endpoints.UsePulsar(_ => { });
+    }
+
+    /// <summary>
+    ///     Configure connection and authentication information for an additional, named Pulsar broker used by
+    ///     this application. Only use this overload if your Wolverine application needs to talk to two or more
+    ///     Pulsar brokers. The <paramref name="name"/> doubles as the URI scheme for the additional broker's
+    ///     endpoints, so pin publishing/listening to it with <see cref="ToPulsarTopicOnNamedBroker"/> /
+    ///     <see cref="ListenToPulsarTopicOnNamedBroker"/>.
+    ///
+    ///     <para>
+    ///     A "named broker" is a <em>statically-addressed</em> second connection you target explicitly. This is
+    ///     distinct from broker-per-tenant multi-tenancy (<see cref="PulsarConfiguration.AddTenant(string,System.Action{DotPulsar.Abstractions.IPulsarClientBuilder})"/>),
+    ///     where the connection is selected at runtime from each message's tenant id.
+    ///     </para>
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">Identity of the additional Pulsar broker; also the URI scheme of its endpoints.</param>
+    /// <param name="configure">Fully configures the additional broker's DotPulsar client (ServiceUrl + auth).</param>
+    public static PulsarConfiguration AddNamedPulsarBroker(this WolverineOptions endpoints, BrokerName name,
+        Action<IPulsarClientBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(configure);
+
+        new PulsarNativeResiliencyPolicy().Apply(endpoints);
+
+        var transport = endpoints.PulsarTransport(name);
+        configure(transport.Builder);
+
+        return new PulsarConfiguration(transport);
     }
 
     /// <summary>
@@ -83,6 +113,41 @@ public static class PulsarTransportExtensions
     {
         var uri = PulsarEndpointUri.Topic(topicPath);
         var endpoint = endpoints.PulsarTransport()[uri];
+        endpoint.IsListener = true;
+        return new PulsarListenerConfiguration(endpoint);
+    }
+
+    /// <summary>
+    ///     Publish matching messages to a Pulsar topic on an additional, named broker registered via
+    ///     <see cref="AddNamedPulsarBroker"/>.
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="name">Identity of the additional Pulsar broker</param>
+    /// <param name="topicPath">Pulsar topic of the form "persistent|non-persistent://tenant/namespace/topic"</param>
+    public static PulsarSubscriberConfiguration ToPulsarTopicOnNamedBroker(this IPublishToExpression publishing,
+        BrokerName name, string topicPath)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<PulsarTransport>(name);
+        var endpoint = transport.EndpointFor(topicPath);
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new PulsarSubscriberConfiguration(endpoint);
+    }
+
+    /// <summary>
+    ///     Listen to a Pulsar topic on an additional, named broker registered via
+    ///     <see cref="AddNamedPulsarBroker"/>.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">Identity of the additional Pulsar broker</param>
+    /// <param name="topicPath">Pulsar topic of the form "persistent|non-persistent://tenant/namespace/topic"</param>
+    public static PulsarListenerConfiguration ListenToPulsarTopicOnNamedBroker(this WolverineOptions endpoints,
+        BrokerName name, string topicPath)
+    {
+        var endpoint = endpoints.PulsarTransport(name).EndpointFor(topicPath);
         endpoint.IsListener = true;
         return new PulsarListenerConfiguration(endpoint);
     }

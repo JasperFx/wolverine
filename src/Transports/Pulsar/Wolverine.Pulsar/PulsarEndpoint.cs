@@ -244,20 +244,18 @@ public class PulsarEndpoint : Endpoint<IPulsarEnvelopeMapper, PulsarEnvelopeMapp
 
     public override ValueTask<IListener> BuildListenerAsync(IWolverineRuntime runtime, IReceiver receiver)
     {
-        // Hot-tail (GH-3184): a non-durable Reader at the tail rather than a durable subscription.
-        if (IsHotTail)
-        {
-            var readerListener = new PulsarReaderListener(runtime, this, receiver, _parent, runtime.Cancellation);
-            return ValueTask.FromResult<IListener>(readerListener);
-        }
-
-        var listener = new PulsarListener(runtime, this, receiver, _parent, runtime.Cancellation);
-        return ValueTask.FromResult<IListener>(listener);
+        // Delegate to the transport so broker-per-tenant fan-out (GH-3308) and the hot-tail branch (GH-3184)
+        // are resolved in one place. The transport builds a CompoundListener over per-tenant clusters when
+        // tenants are registered and this endpoint is tenant-aware; otherwise a single listener.
+        return _parent.BuildListenerAsync(this, receiver, runtime);
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
-        return new PulsarSender(runtime, this, _parent, runtime.Cancellation);
+        // Delegate to the transport so broker-per-tenant fan-out (GH-3308) is resolved in one place. The
+        // transport wraps a TenantedSender over per-tenant clusters when tenants are registered and this
+        // endpoint is tenant-aware; otherwise a single sender.
+        return _parent.BuildSender(this, runtime);
     }
 
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
