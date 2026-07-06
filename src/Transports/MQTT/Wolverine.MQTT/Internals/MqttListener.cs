@@ -3,6 +3,7 @@ using JasperFx.Blocks;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Client;
+using MQTTnet.Extensions.ManagedClient;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -18,17 +19,24 @@ internal class MqttListener : IListener, IReportConnectionState
     private readonly IReceiver _receiver;
     private readonly MqttTopic _topic;
 
+    // Broker-per-tenant (GH-3307): the managed client this listener consumes from — the default/shared client
+    // for the untenanted listener, or a tenant's own dedicated client. ConnectionState reports on this specific
+    // connection so a dropped tenant connection is surfaced independently of the default one.
+    private readonly IManagedMqttClient _client;
+
     // GH-3231: surface the managed MQTT client's connection state so external monitors can detect a listener whose
     // broker connection has dropped (and not resubscribed) while it still reports Accepting.
     public TransportConnectionState ConnectionState =>
-        _broker.Client.IsConnected ? TransportConnectionState.Connected : TransportConnectionState.Disconnected;
+        _client.IsConnected ? TransportConnectionState.Connected : TransportConnectionState.Disconnected;
 
-    public MqttListener(MqttTransport broker, ILogger logger, MqttTopic topic, IReceiver receiver)
+    public MqttListener(MqttTransport broker, ILogger logger, MqttTopic topic, IReceiver receiver,
+        IManagedMqttClient client)
     {
         _broker = broker;
         _logger = logger;
         _topic = topic;
         _receiver = receiver;
+        _client = client;
         Address = topic.Uri;
 
         TopicName = topic.ListeningTopic;

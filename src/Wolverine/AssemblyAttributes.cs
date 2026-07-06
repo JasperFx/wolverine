@@ -49,6 +49,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Kafka.Tests")]
 [assembly: InternalsVisibleTo("Wolverine.Kafka")]
 [assembly: InternalsVisibleTo("Wolverine.Nats")]
+[assembly: InternalsVisibleTo("Wolverine.MQTT")]
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]
 [assembly: InternalsVisibleTo("MetricsTests")]
