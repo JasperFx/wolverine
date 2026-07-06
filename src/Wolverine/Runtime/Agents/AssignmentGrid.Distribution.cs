@@ -12,13 +12,25 @@ public partial class AssignmentGrid
     /// <exception cref="InvalidOperationException"></exception>
     public void DistributeEvenly(string scheme)
     {
+        DistributeEvenly(scheme, _ => true);
+    }
+
+    /// <summary>
+    ///     Attempts to redistribute the agents of a given agent type that match <paramref name="filter" />
+    ///     evenly across the known, executing nodes with minimal disruption. Agents of the scheme outside the
+    ///     filter are left completely untouched, so one scheme can be distributed in several independent
+    ///     passes (e.g. per event store).
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
+    public void DistributeEvenly(string scheme, Func<Uri, bool> filter)
+    {
         if (_nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }
 
         // Need to weed out agents that aren't "paused"
-        var agents = AvailableAgentsForScheme(scheme);
+        var agents = AvailableAgentsForScheme(scheme, filter);
         if (agents.Count == 0)
         {
             return;
@@ -35,6 +47,11 @@ public partial class AssignmentGrid
             return;
         }
 
+        // Per-node counts must only consider the agents in this pass — otherwise a filtered pass
+        // would detach or count agents that belong to a different pass of the same scheme.
+        var agentSet = agents.ToHashSet();
+        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
+
         var spread = (double)agents.Count / _nodes.Count;
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
@@ -42,7 +59,7 @@ public partial class AssignmentGrid
         // First, pair down number of running agents if necessary. Might have to steal some later
         foreach (var node in _nodes)
         {
-            var extras = node.ForScheme(scheme).Skip(maximum).ToArray();
+            var extras = node.Agents.Where(agentSet.Contains).Skip(maximum).ToArray();
             foreach (var agent in extras)
             {
                 agent.Detach();
@@ -59,7 +76,7 @@ public partial class AssignmentGrid
                 break;
             }
 
-            var count = node.ForScheme(scheme).Count();
+            var count = countOn(node);
 
             for (var i = 0; i < minimum - count; i++)
             {
@@ -78,7 +95,7 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = _nodes.FirstOrDefault(x => !x.IsLeader && x.ForScheme(scheme).Count() < maximum) ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
+            var node = _nodes.FirstOrDefault(x => !x.IsLeader && countOn(x) < maximum) ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
             node.Assign(agent);
         }
     }
@@ -93,18 +110,26 @@ public partial class AssignmentGrid
     /// (JasperFx/marten#4806).
     ///
     /// <para>Groups are placed largest-first onto the least-loaded node (deterministic tie-breaks), so total
-    /// agent count stays balanced and a steady grid does not churn. This does not apply blue/green
-    /// capability matching; use <see cref="DistributeEvenlyWithBlueGreenSemantics"/> when that is
-    /// required.</para>
+    /// agent count stays balanced and a steady grid does not churn.</para>
     /// </summary>
     public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey)
+    {
+        DistributeByGroupAffinity(scheme, groupKey, _ => true);
+    }
+
+    /// <summary>
+    ///     Same as <see cref="DistributeByGroupAffinity(string, Func{Uri, string})" />, restricted to the
+    ///     agents of the scheme matching <paramref name="filter" />. Agents outside the filter are left
+    ///     completely untouched so one scheme can be distributed in several independent passes.
+    /// </summary>
+    public void DistributeByGroupAffinity(string scheme, Func<Uri, string> groupKey, Func<Uri, bool> filter)
     {
         if (_nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }
 
-        var agents = AvailableAgentsForScheme(scheme);
+        var agents = AvailableAgentsForScheme(scheme, filter);
         if (agents.Count == 0)
         {
             return;
@@ -153,11 +178,21 @@ public partial class AssignmentGrid
 
     public bool AllNodesHaveSameCapabilities(string scheme)
     {
-        var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme);
+        return AllNodesHaveSameCapabilities(scheme, _ => true);
+    }
+
+    /// <summary>
+    ///     Same as <see cref="AllNodesHaveSameCapabilities(string)" />, only comparing the capabilities of the
+    ///     scheme matching <paramref name="filter" /> — so one store's homogeneous capabilities aren't judged
+    ///     "different" because another store of the same scheme is mid blue/green rollout.
+    /// </summary>
+    public bool AllNodesHaveSameCapabilities(string scheme, Func<Uri, bool> filter)
+    {
+        var gold = _nodes[0].OrderedCapabilitiesForScheme(scheme).Where(filter);
 
         foreach (var node in _nodes.Skip(1))
         {
-            var matching = node.OrderedCapabilitiesForScheme(scheme);
+            var matching = node.OrderedCapabilitiesForScheme(scheme).Where(filter);
 
             if (!gold.SequenceEqual(matching))
             {
@@ -167,7 +202,7 @@ public partial class AssignmentGrid
 
         return true;
     }
-    
+
     /// <summary>
     /// Attempts to redistribute agents for a given agent type evenly
     /// across the known, executing nodes with minimal disruption. This version assumes
@@ -177,19 +212,30 @@ public partial class AssignmentGrid
     /// <exception cref="InvalidOperationException"></exception>
     public void DistributeEvenlyWithBlueGreenSemantics(string scheme)
     {
+        DistributeEvenlyWithBlueGreenSemantics(scheme, _ => true);
+    }
+
+    /// <summary>
+    ///     Same as <see cref="DistributeEvenlyWithBlueGreenSemantics(string)" />, restricted to the agents of
+    ///     the scheme matching <paramref name="filter" />. Agents outside the filter are left completely
+    ///     untouched so one scheme can be distributed in several independent passes.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"></exception>
+    public void DistributeEvenlyWithBlueGreenSemantics(string scheme, Func<Uri, bool> filter)
+    {
         var nodes = _nodes;
         if (nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
         }
 
-        if (AllNodesHaveSameCapabilities(scheme))
+        if (AllNodesHaveSameCapabilities(scheme, filter))
         {
-            DistributeEvenly(scheme);
+            DistributeEvenly(scheme, filter);
             return;
         }
 
-        var agents = MatchAgentsToCapableNodesFor(scheme);
+        var agents = MatchAgentsToCapableNodesFor(scheme, filter);
 
         if (agents.Count == 0)
         {
@@ -204,6 +250,10 @@ public partial class AssignmentGrid
             return;
         }
 
+        // Per-node counts must only consider the agents in this pass; see DistributeEvenly above.
+        var agentSet = agents.ToHashSet();
+        int countOn(Node node) => node.Agents.Count(agentSet.Contains);
+
         var spread = (double)agents.Count / nodes.Count;
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
@@ -217,17 +267,17 @@ public partial class AssignmentGrid
                 agent.Detach();
             }
         }
-        
-        // In the missing, we're going to put the agents up top that can be supported in fewer places 
+
+        // In the missing, we're going to put the agents up top that can be supported in fewer places
         var missing = agents.Where(x => x.AssignedNode == null).OrderBy(x => x.CandidateNodes.Count).ToList();
         foreach (var agent in missing)
         {
             // First try to find a node that has less than the minimum number of nodes
             var candidate = agent
                 .CandidateNodes
-                .FirstOrDefault(x => x.ForScheme(scheme).Count() < minimum) 
+                .FirstOrDefault(x => countOn(x) < minimum)
                             // Or fall back to the least loaded down node
-                            ?? agent.CandidateNodes.MinBy(x => x.ForScheme(scheme).Count());
+                            ?? agent.CandidateNodes.MinBy(countOn);
 
             candidate?.Assign(agent);
         }

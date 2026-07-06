@@ -156,7 +156,33 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
-        assignments.DistributeEvenlyWithBlueGreenSemantics(SchemeName);
+        // JasperFx/jasperfx#486 / JasperFx/marten#4806: each store's agents are distributed in their own
+        // pass, keyed off the store's database cardinality. A store backed by multiple databases gets
+        // database-affine assignment — all of a shard database's agents (e.g. its per-tenant agents under
+        // sharded tenancy + per-tenant event partitioning) kept together on one node, so a node opens
+        // connection pools only to the databases it owns and pools scale with the number of databases
+        // rather than nodes × databases (which otherwise exhausts a shared server's max_connections).
+        // Single-database stores keep the even blue/green spread unchanged.
+        var multiDatabaseStoreKeys = new HashSet<string>();
+        foreach (var entry in _stores.Enumerate())
+        {
+            if (entry.Value.DatabaseCardinality is DatabaseCardinality.StaticMultiple
+                or DatabaseCardinality.DynamicMultiple)
+            {
+                multiDatabaseStoreKeys.Add(entry.Key);
+            }
+        }
+
+        foreach (var storeKey in multiDatabaseStoreKeys)
+        {
+            assignments.DistributeByGroupAffinity(SchemeName, DatabaseKeyOf,
+                uri => StoreKeyOf(uri) == storeKey);
+        }
+
+        // Everything else — single-database stores and any URI that doesn't resolve to a known
+        // multi-database store — keeps the pre-existing even distribution with blue/green semantics.
+        assignments.DistributeEvenlyWithBlueGreenSemantics(SchemeName,
+            uri => !multiDatabaseStoreKeys.Contains(StoreKeyOf(uri)));
 
         return new ValueTask();
     }
@@ -167,6 +193,14 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     internal static string DatabaseKeyOf(Uri uri)
         => uri.Segments.Length >= 3
             ? $"{uri.Host}/{uri.Segments[1].Trim('/')}/{uri.Segments[2].Trim('/')}"
+            : uri.AbsoluteUri;
+
+    // The (type, name) prefix of an agent URI identifies the owning store; this reproduces the _stores
+    // key exactly the way BuildAgentAsync does. A URI too short to carry a store name can't belong to any
+    // store, so it gets a key no store key ever matches.
+    internal static string StoreKeyOf(Uri uri)
+        => uri.Segments.Length >= 2
+            ? StoreKey($"{uri.Segments[1].Trim('/')}:{uri.Host}")
             : uri.AbsoluteUri;
 
     public async ValueTask DisposeAsync()

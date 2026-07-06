@@ -30,6 +30,16 @@ public class EventStoreAgents : IAsyncDisposable
     
     public EventStoreIdentity Identity { get; }
 
+    /// <summary>
+    /// How many databases back this event store. The distribution in
+    /// <see cref="EventSubscriptionAgentFamily.EvaluateAssignmentsAsync"/> keys off this: a store backed by
+    /// multiple databases (static or dynamic) gets database-affine assignment — all of a database's agents
+    /// kept together on one node so connection pools scale with the number of databases instead of
+    /// nodes × databases — while a single-database store keeps the even blue/green spread.
+    /// See JasperFx/jasperfx#486.
+    /// </summary>
+    public DatabaseCardinality DatabaseCardinality => _store.DatabaseCardinality;
+
     public async ValueTask DisposeAsync()
     {
         foreach (var entry in _daemons.Enumerate())
