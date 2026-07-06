@@ -39,23 +39,33 @@ internal class CircuitWatcher : IDisposable
 
     private async Task pingUntilConnectedAsync()
     {
-        using var timer=new PeriodicTimer(_senderCircuit.RetryInterval);
-        while (await timer.WaitForNextTickAsync(_cancellation.Token))
+        try
         {
-            try
+            using var timer = new PeriodicTimer(_senderCircuit.RetryInterval);
+            while (await timer.WaitForNextTickAsync(_cancellation.Token))
             {
-                var pinged = await _senderCircuit.TryToResumeAsync(_cancellation.Token);
-
-                if (pinged)
+                try
                 {
-                    await _senderCircuit.ResumeAsync(_cancellation.Token);
-                    return;
+                    var pinged = await _senderCircuit.TryToResumeAsync(_cancellation.Token);
+
+                    if (pinged)
+                    {
+                        await _senderCircuit.ResumeAsync(_cancellation.Token);
+                        return;
+                    }
+                }
+                // ReSharper disable once EmptyGeneralCatchClause
+                catch (Exception)
+                {
                 }
             }
-            // ReSharper disable once EmptyGeneralCatchClause
-            catch (Exception)
-            {
-            }
+        }
+        catch (Exception)
+        {
+            // Expected on Dispose(): cancelling and disposing the linked CTS can surface as
+            // OperationCanceledException from the timer wait, or ObjectDisposedException if a
+            // token registration races the dispose. Either way, shutting down is correct --
+            // don't let this show up as an unobserved/faulted background task.
         }
     }
 }

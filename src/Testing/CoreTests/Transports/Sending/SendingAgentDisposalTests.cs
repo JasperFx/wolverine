@@ -23,6 +23,11 @@ public class SendingAgentDisposalTests
 
         watcher.Dispose();
 
+        // Dispose() cancels the loop but does not wait for an already-in-flight tick to observe
+        // that cancellation, so settle first before taking the baseline -- otherwise a tick that
+        // was already running when Dispose() was called could tick over during the assertion
+        // window below and cause a spurious failure.
+        await Task.Delay(200.Milliseconds());
         var countAtDispose = circuit.CallCount;
         await Task.Delay(200.Milliseconds());
 
@@ -55,6 +60,9 @@ public class SendingAgentDisposalTests
 
         await agent.DisposeAsync();
 
+        // See circuit_watcher_dispose_stops_the_ping_loop above: settle before taking the baseline
+        // so an already-in-flight ping can't tick over during the assertion window below.
+        await Task.Delay(200.Milliseconds());
         var pingCountAtDispose = sender.PingCount;
         await Task.Delay(200.Milliseconds());
 
