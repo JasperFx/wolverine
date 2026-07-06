@@ -471,6 +471,121 @@ Also see the more generic [Wolverine Guide on Interoperability](/tutorials/inter
 
 Pulsar interoperability is done through the `IPulsarEnvelopeMapper` interface.
 
+## Connecting to Multiple Brokers
+
+If a single Wolverine application needs to talk to more than one Pulsar broker, register the additional
+broker(s) with `AddNamedPulsarBroker` using a `BrokerName`, then pin publishing or listening to a specific
+broker with the `*OnNamedBroker` overloads:
+
+<!-- snippet: sample_pulsar_named_broker -->
+<a id='snippet-sample_pulsar_named_broker'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // The default Pulsar broker
+        opts.UsePulsar(c => c.ServiceUrl(new Uri("pulsar://localhost:6650")));
+
+        // An additional, independent Pulsar broker identified by name. The name doubles as the
+        // URI scheme of the named broker's endpoints (e.g. "secondary://..."), so its endpoints
+        // never collide with the default "pulsar://" broker.
+        opts.AddNamedPulsarBroker(new BrokerName("secondary"),
+            c => c.ServiceUrl(new Uri("pulsar://secondary-pulsar:6650")));
+
+        // Publish a message type to a topic on the named broker
+        opts.PublishMessage<Message1>()
+            .ToPulsarTopicOnNamedBroker(new BrokerName("secondary"),
+                "persistent://public/default/one");
+
+        // Listen to a topic on the named broker
+        opts.ListenToPulsarTopicOnNamedBroker(new BrokerName("secondary"),
+            "persistent://public/default/two");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L105-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_named_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: info
+The Wolverine `Uri` scheme for any endpoint on a named broker is the broker name itself, so in the example
+above you would see endpoint URIs like `secondary://persistent/public/default/two`. The default broker keeps
+the canonical `pulsar://` scheme, which keeps the two brokers' endpoints from colliding.
+:::
+
+Connecting to multiple named brokers is a *static* topology — you target a specific broker explicitly — which
+is distinct from the *runtime* per-tenant routing described in [Multi-Tenancy / Broker per Tenant](#multi-tenancy-broker-per-tenant).
+
+## Multi-Tenancy / Broker per Tenant
+
+Broker-per-tenant gives each Wolverine [tenant](/guide/handlers/multi-tenancy) its own **dedicated Pulsar
+cluster** while sharing a single topic topology. Which cluster a message goes to — and which cluster an inbound
+message came from — is decided at runtime by the message's tenant id, typically stamped through
+`DeliveryOptions.TenantId`:
+
+<!-- snippet: sample_pulsar_broker_per_tenant -->
+<a id='snippet-sample_pulsar_broker_per_tenant'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePulsar(c => c.ServiceUrl(new Uri("pulsar://localhost:6650")))
+
+            // Route messages with an unknown/missing tenant id to the default broker above
+            .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+            // Each tenant is served by its own dedicated Pulsar CLUSTER. This is NOT the native
+            // Pulsar tenant segment in persistent://{tenant}/{namespace}/{topic} — the differentiator
+            // is the cluster connection (service URL + auth), and the native tenant/namespace stays
+            // whatever the shared topic topology declares.
+            .AddTenant("tenant-a", new Uri("pulsar://tenant-a-pulsar:6650"))
+
+            // The action overload runs against a fresh PulsarClient.Builder(), so it must FULLY
+            // specify the tenant cluster's ServiceUrl and any authentication.
+            .AddTenant("tenant-b", client =>
+            {
+                client.ServiceUrl(new Uri("pulsar://tenant-b-pulsar:6650"));
+                // client.Authentication(...); // tenant-specific auth if needed
+            });
+
+        // One shared topic topology; the cluster is chosen at runtime from each message's tenant id
+        opts.PublishMessage<Message1>().ToPulsarTopic("persistent://public/default/one");
+        opts.ListenToPulsarTopic("persistent://public/default/one");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Pulsar/Wolverine.Pulsar.Tests/DocumentationSamples.cs#L132-L158' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pulsar_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To route a specific message to a tenant's cluster, stamp the tenant id on the send:
+
+```csharp
+await bus.SendAsync(new OrderPlaced("blue"), new DeliveryOptions { TenantId = "tenant-a" });
+```
+
+Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
+`CompoundListener` that runs one consumer per tenant cluster — each inbound envelope is stamped with the tenant
+id it was consumed under. This mirrors the RabbitMQ, Azure Service Bus, and NATS broker-per-tenant support.
+
+::: warning The Wolverine tenant id is NOT the native Pulsar tenant
+Pulsar has its own **native tenant** segment in the topic hierarchy `persistent://{tenant}/{namespace}/{topic}`
+(the `public` in `persistent://public/default/orders`). Wolverine's broker-per-tenant tenant id is an
+**orthogonal routing concept**: it selects a whole **cluster connection** (service URL + auth), *never* the
+native tenant segment. Two Wolverine tenants normally use the *same* native tenant/namespace on *different*
+clusters. Do not conflate the two.
+:::
+
+`TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
+
+* `FallbackToDefault` (the default) — route it to the default cluster passed to `UsePulsar`.
+* `TenantIdRequired` — throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` — silently drop the message.
+
+::: info Each tenant is a separate cluster
+Because DotPulsar's client builder is not cloneable, each `AddTenant(...)` action runs against a fresh
+`PulsarClient.Builder()` and must fully specify its own `ServiceUrl` and authentication (the RabbitMQ transport
+has the same "fresh factory" caveat). Native retry-letter / dead-letter topics are provisioned per tenant
+cluster by that tenant's own listener. A broker-per-tenant setup genuinely requires distinct clusters — two
+competing durable subscriptions on a single broker would collide.
+:::
+
 ## URI reference
 
 The `PulsarEndpointUri` helper class produces Wolverine endpoint URIs of the form `pulsar://persistent/{tenant}/{ns}/{topic}` or `pulsar://non-persistent/{tenant}/{ns}/{topic}` — the form Wolverine's parser accepts. Pulsar-native topic-path strings (`persistent://...`) used by the native Pulsar client are a separate concept and are not built by this helper.

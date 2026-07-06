@@ -90,11 +90,51 @@ public static class PulsarEndpointUri
             : NonPersistentTopic(parsed.Host, pathParts[0], pathParts[1]);
     }
 
+    /// <summary>
+    /// Converts a Pulsar-native topic path into a Wolverine endpoint URI whose scheme is
+    /// <paramref name="scheme"/> (the owning transport's <see cref="PulsarTransport.Protocol"/>) rather than the
+    /// hard-coded <c>pulsar</c>. For the default broker <paramref name="scheme"/> is <c>pulsar</c>; for a named
+    /// broker (<see cref="PulsarTransportExtensions.AddNamedPulsarBroker"/>) it is the broker name, so the named
+    /// broker's endpoints route through <c>ForScheme</c> and never collide with the default broker's endpoints.
+    /// <see cref="PulsarEndpoint.Parse"/> only validates the host segment, so the scheme is free to vary per broker.
+    /// </summary>
+    internal static Uri Topic(string topicPath, string scheme)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(topicPath);
+
+        var parsed = new Uri(topicPath);
+
+        if (parsed.Scheme != PulsarEndpoint.Persistent && parsed.Scheme != PulsarEndpoint.NonPersistent)
+        {
+            throw new ArgumentException(
+                $"topicPath must use scheme '{PulsarEndpoint.Persistent}' or '{PulsarEndpoint.NonPersistent}', got '{parsed.Scheme}'.",
+                nameof(topicPath));
+        }
+
+        var pathParts = parsed.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (pathParts.Length != 2)
+        {
+            throw new ArgumentException(
+                $"topicPath must have the form '{{scheme}}://{{tenant}}/{{namespace}}/{{topic}}', got '{topicPath}'.",
+                nameof(topicPath));
+        }
+
+        // parsed.Scheme is the persistence segment ("persistent"/"non-persistent"); parsed.Host is the native
+        // Pulsar tenant. The resulting Wolverine endpoint URI is "{scheme}://{persistence}/{tenant}/{ns}/{topic}".
+        return BuildEndpointUri(scheme, parsed.Scheme, parsed.Host, pathParts[0], pathParts[1]);
+    }
+
     private static Uri BuildEndpointUri(string persistence, string tenant, string @namespace, string topicName)
+    {
+        return BuildEndpointUri(PulsarTransport.ProtocolName, persistence, tenant, @namespace, topicName);
+    }
+
+    private static Uri BuildEndpointUri(string scheme, string persistence, string tenant, string @namespace,
+        string topicName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tenant);
         ArgumentException.ThrowIfNullOrWhiteSpace(@namespace);
         ArgumentException.ThrowIfNullOrWhiteSpace(topicName);
-        return new Uri($"pulsar://{persistence}/{tenant}/{@namespace}/{topicName}");
+        return new Uri($"{scheme}://{persistence}/{tenant}/{@namespace}/{topicName}");
     }
 }
