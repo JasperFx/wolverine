@@ -28,6 +28,17 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
     private bool _latched;
 
     public BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline)
+        : this(endpoint, runtime, pipeline, Block<Envelope>.DefaultBoundedCapacity)
+    {
+    }
+
+    /// <param name="boundedCapacity">
+    /// The in-memory buffer size before writers are back-pressured. Broker-backed buffered receivers keep
+    /// the bounded default so a fast broker can't flood memory. Local queues that may cascade onto
+    /// themselves pass <see cref="Block{T}.Unbounded"/> — a bounded buffer would deadlock a handler that
+    /// enqueues to its own queue faster than it drains (GH-3287).
+    /// </param>
+    protected BufferedReceiver(Endpoint endpoint, IWolverineRuntime runtime, IHandlerPipeline pipeline, int boundedCapacity)
     {
         _endpoint = endpoint;
         _runtime = runtime;
@@ -48,9 +59,9 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             (env, _) => env.Listener is { } l ? l.CompleteAsync(env).AsTask() : Task.CompletedTask, runtime.Logger,
             runtime.Cancellation);
 
-        _receivingBlock = endpoint.GroupShardingSlotNumber == null  
-            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, executeAsync)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, executeAsync).DeserializeFirst(pipeline, runtime, this);
+        _receivingBlock = endpoint.GroupShardingSlotNumber == null
+            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, executeAsync)
+            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, boundedCapacity, executeAsync).DeserializeFirst(pipeline, runtime, this);
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {

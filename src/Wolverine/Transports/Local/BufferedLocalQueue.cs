@@ -1,3 +1,4 @@
+using JasperFx.Blocks;
 using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -12,7 +13,12 @@ internal class BufferedLocalQueue : BufferedReceiver, ISendingAgent, IListenerCi
     private readonly IMessageTracker _messageTracker;
     private readonly IWolverineRuntime _runtime;
 
-    public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime, new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint))
+    // Unbounded (GH-3287): a buffered local queue is routinely a handler's own cascade target — Handler A
+    // running on this queue enqueues thousands of messages back onto it. A bounded, back-pressuring buffer
+    // would either drop those (the original bug) or deadlock (the handler blocks on a full queue that only
+    // it can drain). Local queues are in-process, so we favor unbounded growth over losing messages.
+    public BufferedLocalQueue(Endpoint endpoint, IWolverineRuntime runtime) : base(endpoint, runtime,
+        new HandlerPipeline((WolverineRuntime)runtime, (IExecutorFactory)runtime, endpoint), Block<Envelope>.Unbounded)
     {
         _messageTracker = runtime.MessageTracking;
         _runtime = runtime;
