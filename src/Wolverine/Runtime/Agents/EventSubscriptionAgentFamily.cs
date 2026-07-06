@@ -156,22 +156,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
-        // JasperFx/marten#4806 (opt-in): when a sharded store asks for database-affine assignment, keep a
-        // shard database's per-tenant agents together on one node so a node opens connection pools only to
-        // the databases it owns (pools scale with databases, not nodes × databases, which otherwise
-        // exhausts a shared server). Otherwise distribute evenly with blue/green semantics as before.
-        var anyAffineStore = _stores.Enumerate()
-            .Any(e => e.Value.GroupAgentAssignmentsByDatabase);
-
-        if (anyAffineStore)
-        {
-            // One grid pass covers every store's agents — their per-store URI prefix keeps groups distinct.
-            assignments.DistributeByGroupAffinity(SchemeName, DatabaseKeyOf);
-        }
-        else
-        {
-            assignments.DistributeEvenlyWithBlueGreenSemantics(SchemeName);
-        }
+        assignments.DistributeEvenlyWithBlueGreenSemantics(SchemeName);
 
         return new ValueTask();
     }

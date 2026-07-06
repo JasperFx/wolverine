@@ -46,18 +46,6 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
 
-    /// <summary>
-    /// Opt-in (default false): when <see cref="UseWolverineManagedEventSubscriptionDistribution"/> is on and
-    /// the Marten store uses sharded databases with per-tenant event partitioning, assign each shard
-    /// database's per-(shard, tenant) agents with <b>database affinity</b> — all of a database's agents run
-    /// on one node — instead of spreading them evenly by count. This bounds each node to the shard databases
-    /// it owns, so connection pools scale with the number of shard databases rather than nodes × databases
-    /// (which otherwise exhausts a shared server's max_connections). Flows through to
-    /// <c>StoreOptions.Events.UseDatabaseAffineAgentAssignment</c>; only takes effect for a sharded,
-    /// per-tenant-partitioned store. See JasperFx/marten#4806.
-    /// </summary>
-    public bool UseDatabaseAffineAgentAssignment { get; set; }
-
     public void Configure(WolverineOptions options)
     {
         // Duplicate incoming messages
@@ -213,17 +201,6 @@ internal class MartenOverrides : IConfigureMarten
                     nameof(Saga.Version), typeof(int))!;
             }
         });
-
-        // Bridge the Wolverine-managed distribution's database-affine agent-assignment setting — configured
-        // on IntegrateWithWolverine — onto the Marten event store, because Wolverine's distribution is what
-        // consumes it (via IEventStore.GroupAgentAssignmentsByDatabase). Only the main store
-        // (StoreType == null): this is a sharded per-tenant-store concern, not ancillary.
-        // See JasperFx/marten#4806.
-        if (StoreType == null &&
-            services.GetService<MartenIntegration>() is { UseDatabaseAffineAgentAssignment: true })
-        {
-            options.Events.UseDatabaseAffineAgentAssignment = true;
-        }
     }
 }
 

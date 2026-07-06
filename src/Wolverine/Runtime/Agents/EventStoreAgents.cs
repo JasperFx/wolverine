@@ -30,14 +30,6 @@ public class EventStoreAgents : IAsyncDisposable
     
     public EventStoreIdentity Identity { get; }
 
-    /// <summary>
-    /// When true (opt-in, sharded stores only), this store's per-(shard, tenant) agents should be assigned
-    /// with database affinity — all agents for a shard database on one node — so a node opens pools only to
-    /// the databases it owns. Surfaces <see cref="IEventStore.GroupAgentAssignmentsByDatabase"/>. See
-    /// JasperFx/marten#4806.
-    /// </summary>
-    public bool GroupAgentAssignmentsByDatabase => _store.GroupAgentAssignmentsByDatabase;
-
     public async ValueTask DisposeAsync()
     {
         foreach (var entry in _daemons.Enumerate())
