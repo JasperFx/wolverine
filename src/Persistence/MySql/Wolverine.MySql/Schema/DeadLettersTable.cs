@@ -32,9 +32,23 @@ internal class DeadLettersTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
         AddColumn<bool>(DatabaseConstants.Replayable);
 
+        // GH-3279: DLQ replay and cleanup both filter on `replayable`. MySQL has no filtered/partial
+        // indexes, so this is a plain index on the column — still far better than the full-table scan
+        // the durability agent's replay cycle otherwise pays on every pass.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_replayable")
+        {
+            Columns = [DatabaseConstants.Replayable]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Expires).AllowNulls();
+
+            // Same story for the expiration sweep, which filters on `expires`.
+            Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_expires")
+            {
+                Columns = [DatabaseConstants.Expires]
+            });
         }
     }
 }

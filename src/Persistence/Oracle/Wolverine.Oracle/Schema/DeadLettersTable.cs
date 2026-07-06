@@ -32,9 +32,23 @@ internal class DeadLettersTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.SentAt);
         AddColumn<bool>(DatabaseConstants.Replayable);
 
+        // GH-3279: DLQ replay and cleanup both filter on `replayable`. This is a plain b-tree index
+        // (WHERE-clause partial indexes are Oracle 23c+ only), which still turns the durability
+        // agent's replay-cycle full scan into an index lookup.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_replayable")
+        {
+            Columns = [DatabaseConstants.Replayable]
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Expires).AllowNulls();
+
+            // Same story for the expiration sweep, which filters on `expires`.
+            Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_expires")
+            {
+                Columns = [DatabaseConstants.Expires]
+            });
         }
     }
 }
