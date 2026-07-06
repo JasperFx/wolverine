@@ -17,6 +17,13 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
     private readonly MessageContext _context;
     private readonly SqlServerMessageStore _messageStore;
 
+    // Only flip the in-memory Envelope.Status to Handled once the commit actually
+    // succeeds (AfterCommitAsync). Setting it pre-commit left the flag stale on
+    // rollback, so DurableReceiver's _markAsHandled optimization (which skips the
+    // real UPDATE when Status == Handled) would strand the row as 'Incoming'.
+    // Mirrors the Wolverine.Marten FlushOutgoingMessagesOnCommit fix.
+    private bool _queuedHandledUpdate;
+
     public FlushOutgoingMessagesOnCommit(MessageContext context, SqlServerMessageStore messageStore)
     {
         _context = context;
@@ -25,6 +32,8 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
 
     public Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
+        _queuedHandledUpdate = false;
+
         // No need to do anything for HTTP requests
         if (_context.Envelope == null)
         {
@@ -45,7 +54,10 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
                 // Use ITransactionParticipant to execute the SQL in the same transaction
                 session.AddTransactionParticipant(new MarkIncomingAsHandledParticipant(
                     _messageStore.IncomingFullName, _context.Envelope.Id, keepUntil));
-                _context.Envelope.Status = EnvelopeStatus.Handled;
+
+                // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
+                // above is only durable if this batch commits. See _queuedHandledUpdate.
+                _queuedHandledUpdate = true;
             }
         }
 
@@ -54,6 +66,13 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
 
     public Task AfterCommitAsync(IDocumentSession session, CancellationToken token)
     {
+        // The queued mark-handled UPDATE is only durable now that the commit
+        // succeeded, so it's safe to trust the in-memory optimization flag.
+        if (_queuedHandledUpdate && _context.Envelope != null)
+        {
+            _context.Envelope.Status = EnvelopeStatus.Handled;
+        }
+
         return _context.FlushOutgoingMessagesAsync();
     }
 }
@@ -91,7 +110,14 @@ internal class FlushOutgoingMessagesParticipant : ITransactionParticipant
             cmd.Parameters.AddWithValue("@keepUntil", keepUntil);
             cmd.Parameters.AddWithValue("@id", _context.Envelope.Id);
             await cmd.ExecuteNonQueryAsync(token);
-            _context.Envelope.Status = EnvelopeStatus.Handled;
+
+            // Deliberately do NOT flip _context.Envelope.Status to Handled here: this
+            // runs inside BeforeCommitAsync, before the transaction commits, and
+            // ITransactionParticipant exposes no after-commit hook to defer to. Setting
+            // it pre-commit left a stale flag on rollback that made DurableReceiver skip
+            // the real mark-handled UPDATE, stranding the row as 'Incoming'. The
+            // (idempotent) UPDATE via DurableReceiver._markAsHandled covers the success
+            // path instead.
         }
     }
 }

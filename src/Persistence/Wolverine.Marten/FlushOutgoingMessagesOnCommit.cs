@@ -13,6 +13,16 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
     private readonly MessageContext _context;
     private readonly PostgresqlMessageStore _messageStore;
 
+    // Tracks whether BeforeSaveChangesAsync queued the "mark incoming handled"
+    // UPDATE into this batch. The in-memory Envelope.Status flag is only flipped
+    // once the commit actually succeeds (in AfterCommitAsync). Flipping it before
+    // the commit left it stale on rollback (e.g. a duplicate document insert), so
+    // DurableReceiver's _markAsHandled optimization — which skips the real UPDATE
+    // when Status == Handled — would strand the row as 'Incoming' forever and it
+    // would be reprocessed on every reclaim/restart. See
+    // Bug_discard_after_failed_outbox_commit.
+    private bool _queuedHandledUpdate;
+
     public FlushOutgoingMessagesOnCommit(MessageContext context, PostgresqlMessageStore messageStore)
     {
         _context = context;
@@ -21,6 +31,8 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
 
     public override Task BeforeSaveChangesAsync(IDocumentSession session, CancellationToken token)
     {
+        _queuedHandledUpdate = false;
+
         // No need to do anything for HTTP requests
         if (_context.Envelope == null)
         {
@@ -85,7 +97,10 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
 
                 var keepUntil = DateTimeOffset.UtcNow.Add(_context.Runtime.Options.Durability.KeepAfterMessageHandling);
                 session.QueueSqlCommand($"update {incomingTableName} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = ? where id = ?", keepUntil, _context.Envelope.Id);
-                _context.Envelope.Status = EnvelopeStatus.Handled;
+
+                // Defer the in-memory status flip to AfterCommitAsync — the UPDATE
+                // above is only durable if this batch commits. See _queuedHandledUpdate.
+                _queuedHandledUpdate = true;
             }
 
             // This was buggy in real usage.
@@ -103,6 +118,13 @@ internal class FlushOutgoingMessagesOnCommit : DocumentSessionListenerBase
 
     public override Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
+        // The queued mark-handled UPDATE is only durable now that the commit
+        // succeeded, so it's safe to trust the in-memory optimization flag.
+        if (_queuedHandledUpdate && _context.Envelope != null)
+        {
+            _context.Envelope.Status = EnvelopeStatus.Handled;
+        }
+
         return _context.FlushOutgoingMessagesAsync();
     }
 }
