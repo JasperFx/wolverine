@@ -62,6 +62,40 @@ The MQTT transport does not really support the "Requeue" error handling policy i
 effectively an inline "Retry"
 :::
 
+## Connecting to Multiple MQTT Brokers
+
+If a single Wolverine application needs to talk to more than one MQTT broker, register the additional broker(s)
+with `AddNamedMqttBroker` using a `BrokerName`, then pin publishing or listening to a specific broker with the
+`*OnNamedBroker` overloads:
+
+```csharp
+opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("primary-broker")));
+
+// An additional, independent MQTT broker identified by name
+opts.AddNamedMqttBroker(new BrokerName("secondary"),
+    mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("secondary-broker")));
+
+// Publish a message type to a topic on a named broker
+opts.PublishMessage<OrderPlaced>()
+    .ToMqttTopicOnNamedBroker(new BrokerName("secondary"), "orders");
+
+// Listen to a topic on a named broker
+opts.ListenToMqttTopicOnNamedBroker(new BrokerName("secondary"), "orders");
+```
+
+::: info
+The Wolverine `Uri` scheme for any endpoint on a named broker is the broker name itself, so in the example above
+you would see endpoint URIs like `secondary://topic/orders`. The default broker keeps the canonical `mqtt://`
+scheme, which keeps the two brokers' endpoints from colliding.
+:::
+
+Each named broker is a completely separate `IManagedMqttClient` with its own per-node response topic, so
+request/reply works independently over each broker.
+
+Connecting to multiple named brokers is distinct from [broker-per-tenant multi-tenancy](#broker-per-tenant): a
+named broker is a statically-addressed second connection that you target explicitly, whereas per-tenant
+connections are selected at runtime from each message's tenant id.
+
 ## Broadcast to User Defined Topics
 
 As long as the MQTT transport is enabled in your application, you can explicitly publish messages to any named topic
@@ -387,6 +421,67 @@ builder.UseWolverine(opts =>
             30.Minutes()));
 });
 ```
+
+## Broker per Tenant
+
+Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
+configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic
+topology, and each tenant is served by its **own dedicated MQTT connection** (a distinct broker). Which
+connection a message goes to (and which connection an inbound message came from) is decided at runtime by the
+message's [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`:
+
+```csharp
+opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("shared-broker")))
+
+    // How should Wolverine route a message whose TenantId is null or unknown?
+    // FallbackToDefault (the default) uses the shared connection; TenantIdRequired
+    // throws; IgnoreUnknownTenants silently drops it.
+    .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+    // Each tenant gets its OWN dedicated MQTT connection, but shares the
+    // topic topology declared below.
+    .AddTenant("tenant-west",
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("west-broker")))
+
+    .AddTenant("tenant-east",
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("east-broker")));
+
+// One shared topology; messages are routed to the right connection at runtime by
+// Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-west" }).
+opts.PublishMessage<OrderPlaced>().ToMqttTopic("orders");
+opts.ListenToMqttTopic("orders");
+```
+
+To route a specific message to a tenant's connection, stamp the tenant id on the send:
+
+```csharp
+await bus.SendAsync(new OrderPlaced("blue"), new DeliveryOptions { TenantId = "tenant-west" });
+```
+
+Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
+compound listener that runs one subscription per tenant connection — each inbound envelope is stamped with the
+tenant id of the connection it was consumed from. This mirrors the
+[RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and
+[Azure Service Bus](/guide/messaging/transports/azureservicebus/multitenancy) broker-per-tenant support.
+
+::: warning Unique ClientId per tenant (mandatory)
+MQTT brokers forcibly disconnect a second connection that shares a `ClientId`. Wolverine therefore always gives
+each tenant connection a **unique** `ClientId` derived from the tenant id (`<clientId>-tenant-<tenantId>`), even
+if you pre-set one on the tenant options. This is required so tenant connections never kick each other.
+:::
+
+::: info Shared topology, isolated broker
+Unlike a shared-broker/topic-prefix multi-tenancy model, MQTT tenants use the **same topic string** on each
+tenant's **own broker** — isolation is purely a matter of which broker the tenant's connection points at. One
+consequence: [retained messages](#clearing-out-retained-messages) are per-broker, so a retained message on one
+tenant's broker is not visible to any other tenant.
+:::
+
+::: tip Named broker vs. broker-per-tenant
+Use a **named broker** when a *fixed set of endpoints* should always talk to a *specific* broker. Use
+**broker-per-tenant** when the *same logical endpoints* should be transparently routed to a *different connection
+per tenant* based on the runtime tenant id. They are independent features and can be combined.
+:::
 
 ## Interoperability
 

@@ -14,11 +14,11 @@ public static class MqttTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static MqttTransport MqttTransport(this WolverineOptions endpoints)
+    internal static MqttTransport MqttTransport(this WolverineOptions endpoints, BrokerName? name = null)
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<MqttTransport>();
+        return transports.GetOrCreate<MqttTransport>(name);
     }
 
     /// <summary>
@@ -78,6 +78,52 @@ public static class MqttTransportExtensions
     }
 
     /// <summary>
+    /// Configure a connection to a secondary, named MQTT broker used by this application. Only use this overload if
+    /// your Wolverine application needs to talk to two or more MQTT brokers. The <paramref name="name"/> doubles as
+    /// the URI scheme for the additional broker's endpoints, so pin publishing/listening to it with
+    /// <see cref="ToMqttTopicOnNamedBroker"/> / <see cref="ListenToMqttTopicOnNamedBroker"/>.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional MQTT broker</param>
+    /// <param name="configure">Configuration for the additional broker's connection</param>
+    /// <param name="jwtAuthenticationOptions">Optional OAUTH2-JWT authentication for the additional broker.</param>
+    public static MqttTransportExpression AddNamedMqttBroker(this WolverineOptions options,
+        BrokerName name,
+        Action<ManagedMqttClientOptionsBuilder> configure,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
+    {
+        var transport = options.MqttTransport(name);
+        var builder = new ManagedMqttClientOptionsBuilder();
+        configure(builder);
+
+        transport.Options = builder.Build();
+        transport.JwtAuthenticationOptions = jwtAuthenticationOptions;
+
+        return new MqttTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Configure a connection to a secondary, named MQTT broker used by this application, bypassing the fluent
+    /// builder. Only use this overload if your Wolverine application needs to talk to two or more MQTT brokers.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional MQTT broker</param>
+    /// <param name="mqttOptions">The connection options for the additional broker</param>
+    /// <param name="jwtAuthenticationOptions">Optional OAUTH2-JWT authentication for the additional broker.</param>
+    public static MqttTransportExpression AddNamedMqttBroker(this WolverineOptions options,
+        BrokerName name,
+        ManagedMqttClientOptions mqttOptions,
+        MqttJwtAuthenticationOptions? jwtAuthenticationOptions = null)
+    {
+        var transport = options.MqttTransport(name);
+
+        transport.Options = mqttOptions;
+        transport.JwtAuthenticationOptions = jwtAuthenticationOptions;
+
+        return new MqttTransportExpression(transport, options);
+    }
+
+    /// <summary>
     ///     Listen for incoming messages at the designated MQTT topic name
     /// </summary>
     /// <param name="endpoints"></param>
@@ -119,6 +165,25 @@ public static class MqttTransportExtensions
     }
 
     /// <summary>
+    /// Listen for incoming messages at the designated MQTT topic name on an additional, named broker registered via
+    /// <see cref="AddNamedMqttBroker(WolverineOptions, BrokerName, Action{ManagedMqttClientOptionsBuilder}, MqttJwtAuthenticationOptions)"/>.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">Identity of the additional MQTT broker</param>
+    /// <param name="topicName">The MQTT topic name to listen to</param>
+    public static MqttListenerConfiguration ListenToMqttTopicOnNamedBroker(this WolverineOptions endpoints,
+        BrokerName name, string topicName)
+    {
+        var transport = endpoints.MqttTransport(name);
+
+        var endpoint = transport.Topics[topicName];
+        endpoint.EndpointName = topicName;
+        endpoint.IsListener = true;
+
+        return new MqttListenerConfiguration(endpoint);
+    }
+
+    /// <summary>
     /// Publish messages to an MQTT topic
     /// </summary>
     /// <param name="publishing"></param>
@@ -128,6 +193,27 @@ public static class MqttTransportExtensions
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<MqttTransport>();
+
+        var topic = transport.Topics[topicName];
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(topic.Uri);
+
+        return new MqttSubscriberConfiguration(topic);
+    }
+
+    /// <summary>
+    /// Publish messages to an MQTT topic on an additional, named broker registered via
+    /// <see cref="AddNamedMqttBroker(WolverineOptions, BrokerName, Action{ManagedMqttClientOptionsBuilder}, MqttJwtAuthenticationOptions)"/>.
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="name">Identity of the additional MQTT broker</param>
+    /// <param name="topicName">The MQTT topic name</param>
+    public static MqttSubscriberConfiguration ToMqttTopicOnNamedBroker(this IPublishToExpression publishing,
+        BrokerName name, string topicName)
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<MqttTransport>(name);
 
         var topic = transport.Topics[topicName];
 
