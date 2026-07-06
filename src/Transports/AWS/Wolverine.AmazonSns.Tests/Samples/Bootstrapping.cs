@@ -1,11 +1,83 @@
-﻿using Amazon.Runtime;
+﻿using Amazon;
+using Amazon.Runtime;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSns.Tests.Samples;
 
 public class Bootstrapping
 {
+    public async Task use_named_brokers()
+    {
+        #region sample_using_multiple_sns_brokers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The "default" broker
+                opts.UseAmazonSnsTransport();
+
+                // Add a second, named Amazon SNS broker that connects to a
+                // different account or region
+                opts.AddNamedAmazonSnsBroker(new BrokerName("americas"), snsConfig =>
+                {
+                    snsConfig.RegionEndpoint = RegionEndpoint.USEast1;
+                }).AutoProvision();
+
+                // Publish to a topic on the named broker. The Uri scheme for these
+                // endpoints is the broker name, so you'd see "americas://colors".
+                opts.PublishMessage<Message1>()
+                    .ToSnsTopicOnNamedBroker(new BrokerName("americas"), "colors");
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task broker_per_tenant()
+    {
+        #region sample_sns_broker_per_tenant
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The "default" / shared SNS connection
+                opts.UseAmazonSnsTransport(config =>
+                {
+                    config.RegionEndpoint = RegionEndpoint.USEast1;
+                })
+                    .AutoProvision()
+
+                    // How should Wolverine route a message whose TenantId is null or
+                    // unknown? FallbackToDefault (the default) uses the shared connection;
+                    // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+                    .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                    // Each tenant gets its OWN dedicated SNS connection, but shares the
+                    // topic topology declared below. This tenant inherits the parent's
+                    // AWS credentials, and just re-points at its own region.
+                    .AddTenant("tenant-west", config =>
+                    {
+                        config.RegionEndpoint = RegionEndpoint.USWest2;
+                    })
+
+                    // Or give the tenant its own dedicated AWS account by supplying
+                    // its own credentials (optionally with its own region/endpoint too):
+                    .AddTenant("tenant-eu", new BasicAWSCredentials("tenant-eu-key", "tenant-eu-secret"),
+                        config =>
+                        {
+                            config.RegionEndpoint = RegionEndpoint.EUWest1;
+                        });
+
+                // SNS is publish-only, so broker-per-tenant means tenant-specific PUBLISHERS.
+                // A message is published to the right tenant's connection at runtime by its
+                // Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-west" }).
+                opts.PublishMessage<Message1>().ToSnsTopic("colors");
+            }).StartAsync();
+
+        #endregion
+    }
+
     public async Task for_local_development()
     {
         #region sample_connect_to_sns_and_localstack

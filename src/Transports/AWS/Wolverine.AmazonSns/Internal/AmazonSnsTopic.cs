@@ -17,8 +17,8 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
 {
     private bool _initialized;
 
-    internal AmazonSnsTopic(string topicName, AmazonSnsTransport parent) 
-        : base(new Uri($"{AmazonSnsTransport.SnsProtocol}://{topicName}"), EndpointRole.Application)
+    internal AmazonSnsTopic(string topicName, AmazonSnsTransport parent)
+        : base(new Uri($"{parent.Protocol}://{topicName}"), EndpointRole.Application)
     {
         Parent = parent;
 
@@ -159,16 +159,76 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         Mapper ??= BuildMapper(runtime);
-        
+
+        // Broker-per-tenant (GH-3305): route by Envelope.TenantId to a per-tenant publisher bound to that tenant's
+        // own SNS account, falling back to the shared account for the default/untenanted path. SNS is publish-only,
+        // so there is no CompoundListener — only a TenantedSender.
+        //
+        // Both the tenant senders AND the default sender they fall back to must be fire-and-forget ISenders:
+        // TenantedSender intentionally does NOT implement ISenderRequiresCallback (GH-2361) and does not forward
+        // RegisterCallback to the senders beneath it. A BatchedSender (SnsSenderProtocol) registered under it would
+        // therefore never receive its ISenderCallback and would silently drop every message. InlineSnsSender sends
+        // directly and needs no callback — the same fire-and-forget model the SQS / RabbitMQ / NATS per-tenant
+        // senders use.
+        if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var tenantedSender = new TenantedSender(Uri, Parent.TenantedIdBehavior, new InlineSnsSender(runtime, this));
+            foreach (var tenant in Parent.Tenants)
+            {
+                var tenantTopic = BuildTenantSibling(tenant);
+                tenantedSender.RegisterSender(tenant.TenantId, new InlineSnsSender(runtime, tenantTopic));
+            }
+
+            return tenantedSender;
+        }
+
         if (Mode == EndpointMode.Inline)
         {
             return new InlineSnsSender(runtime, this);
         }
-        
+
         var protocol = new SnsSenderProtocol(runtime, this,
             Parent.SnsClient ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SnsSenderProtocol>());
+    }
+
+    /// <summary>
+    /// Broker-per-tenant (GH-3305): materialize this topic's tenant-specific twin on the given tenant's child
+    /// transport — same topic name and configuration, but bound to the tenant's own SNS client and its own TopicArn
+    /// cache (which is why a fresh endpoint is required rather than reusing this one, and why the subscriptions are
+    /// deep-copied — SubscriptionArn is stamped per account). The tenant twin is cached on the tenant transport's
+    /// <see cref="AmazonSnsTransport.Topics"/> so repeated sender builds resolve the same instance.
+    /// </summary>
+    internal AmazonSnsTopic BuildTenantSibling(AmazonSnsTenant tenant)
+    {
+        var sibling = tenant.Transport.Topics[TopicName];
+
+        sibling.Mode = Mode;
+        sibling.EndpointName = EndpointName;
+        sibling.Role = Role;
+
+        // Share the interop mapper strategy so tenant traffic serializes identically to the shared account.
+        sibling.Mapper = Mapper;
+        sibling.MapperFactory = MapperFactory;
+
+        // Preserve topic-creation attributes (FIFO, etc.) for AutoProvision on the tenant account.
+        sibling.Configuration.Attributes = Configuration.Attributes is { Count: > 0 }
+            ? new Dictionary<string, string>(Configuration.Attributes)
+            : sibling.Configuration.Attributes;
+
+        // Deep-copy subscriptions so each tenant provisions its own SQS subscription (and stamps its own
+        // SubscriptionArn) against its own paired SQS client, rather than sharing the parent's list/ARNs.
+        sibling.TopicSubscriptions = TopicSubscriptions
+            .Select(x => new AmazonSnsSubscription(x.Endpoint, x.Type, new AmazonSnsSubscriptionAttributes
+            {
+                RawMessageDelivery = x.Attributes.RawMessageDelivery,
+                FilterPolicy = x.Attributes.FilterPolicy,
+                RedrivePolicy = x.Attributes.RedrivePolicy
+            }))
+            .ToList();
+
+        return sibling;
     }
 
     public override  async ValueTask InitializeAsync(ILogger logger)
