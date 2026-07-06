@@ -23,6 +23,14 @@ internal class DeadLettersTable : Table
         AddColumn(DatabaseConstants.SentAt, "TEXT").NotNull().DefaultValueByExpression("(datetime('now'))");
         AddColumn(DatabaseConstants.Replayable, "INTEGER").DefaultValue(1);
 
+        // GH-3279: DLQ replay and cleanup both filter on `replayable`; a partial index scoped to the
+        // handful of replayable rows keeps both off a full-table scan.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_replayable")
+        {
+            Columns = [DatabaseConstants.Replayable],
+            Predicate = $"{DatabaseConstants.Replayable} = 1"
+        });
+
         if (durability.DeadLetterQueueExpirationEnabled)
         {
             // GH-3071 — every other RDBMS backend (Postgres, SqlServer, MySql,
@@ -36,6 +44,13 @@ internal class DeadLettersTable : Table
             // `no such column: expires`. Aligning with the rest of the
             // backends closes the schema-vs-SQL gap.
             AddColumn(DatabaseConstants.Expires, "TEXT");
+
+            // Same story for the expiration sweep, which filters on `expires`.
+            Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_expires")
+            {
+                Columns = [DatabaseConstants.Expires],
+                Predicate = $"{DatabaseConstants.Expires} is not null"
+            });
         }
     }
 }

@@ -23,6 +23,24 @@ To replay dead lettered messages back to the incoming table, you also have a com
 dotnet run -- storage replay
 ```
 
+## Indexing <Badge type="tip" text="6.16" />
+
+The durability agent's background replay and cleanup cycles both filter the `wolverine_dead_letters`
+table on the `replayable` column (and, when [dead letter expiration](#dead-letter-expiration) is
+enabled, on the `expires` column). On a large dead-letter table these queries would otherwise force a
+full table scan on every cycle. Wolverine automatically provisions indexes for these columns as part
+of the normal schema creation/migration — a partial index scoped to the matching rows on PostgreSQL,
+SQL Server, and SQLite, and a plain index on MySQL and Oracle (which don't support filtered indexes).
+There is nothing to configure.
+
+::: warning
+If you are upgrading with an *already very large* `wolverine_dead_letters` table, be aware that the
+schema migration that adds these indexes runs a normal `CREATE INDEX`, which takes a write-blocking
+lock for the duration (potentially minutes on a multi-GB table). If that matters for your deployment,
+create the indexes ahead of time with `CREATE INDEX CONCURRENTLY` (PostgreSQL) / `WITH (ONLINE = ON)`
+(SQL Server) before rolling out the upgrade.
+:::
+
 ## Introspecting an Endpoint's Dead Letter Destination <Badge type="tip" text="6.9" />
 
 Where an endpoint's dead letters actually go varies by transport and configuration: some endpoints
