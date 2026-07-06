@@ -11,11 +11,12 @@ namespace Wolverine.Nats;
 public static class NatsTransportExtensions
 {
     /// <summary>
-    /// Get access to the NATS transport for advanced configuration
+    /// Get access to the NATS transport for advanced configuration. Pass a <paramref name="name"/> to
+    /// resolve an additional, named NATS broker (see <see cref="AddNamedNatsBroker(WolverineOptions, BrokerName, string)"/>).
     /// </summary>
-    internal static NatsTransport NatsTransport(this WolverineOptions options)
+    internal static NatsTransport NatsTransport(this WolverineOptions options, BrokerName? name = null)
     {
-        return options.Transports.GetOrCreate<NatsTransport>();
+        return options.Transports.GetOrCreate<NatsTransport>(name);
     }
 
     /// <summary>
@@ -80,6 +81,46 @@ public static class NatsTransportExtensions
     }
 
     /// <summary>
+    /// Configure connection and authentication information for a secondary NATS broker used by this
+    /// application. Only use this overload if your Wolverine application needs to talk to two or more
+    /// NATS brokers. The <paramref name="name"/> doubles as the URI scheme for the additional broker's
+    /// endpoints, so pin publishing/listening to it with <see cref="ToNatsSubjectOnNamedBroker"/> /
+    /// <see cref="ListenToNatsSubjectOnNamedBroker"/>.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional NATS broker</param>
+    /// <param name="connectionString">The NATS connection string for the additional broker</param>
+    public static NatsTransportExpression AddNamedNatsBroker(
+        this WolverineOptions options,
+        BrokerName name,
+        string connectionString
+    )
+    {
+        var transport = options.NatsTransport(name);
+        transport.Configuration.ConnectionString = connectionString;
+        return new NatsTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Configure connection and authentication information for a secondary NATS broker used by this
+    /// application with full access to the <see cref="NatsTransportConfiguration"/> (auth, TLS, JetStream).
+    /// Only use this overload if your Wolverine application needs to talk to two or more NATS brokers.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional NATS broker</param>
+    /// <param name="configure">Configuration for the additional broker's connection</param>
+    public static NatsTransportExpression AddNamedNatsBroker(
+        this WolverineOptions options,
+        BrokerName name,
+        Action<NatsTransportConfiguration> configure
+    )
+    {
+        var transport = options.NatsTransport(name);
+        configure(transport.Configuration);
+        return new NatsTransportExpression(transport, options);
+    }
+
+    /// <summary>
     /// Publish messages to a NATS subject
     /// </summary>
     public static NatsSubscriberConfiguration ToNatsSubject(
@@ -89,6 +130,30 @@ public static class NatsTransportExtensions
     {
         var transports = publishing.As<PublishingExpression>().Parent.Transports;
         var transport = transports.GetOrCreate<NatsTransport>();
+
+        var endpoint = transport.EndpointForSubject(subject);
+
+        // This is necessary to hook up the subscription rules
+        publishing.To(endpoint.Uri);
+
+        return new NatsSubscriberConfiguration(endpoint);
+    }
+
+    /// <summary>
+    /// Publish messages to a NATS subject on an additional, named broker registered via
+    /// <see cref="AddNamedNatsBroker(WolverineOptions, BrokerName, string)"/>.
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="name">Identity of the additional NATS broker</param>
+    /// <param name="subject">The NATS subject</param>
+    public static NatsSubscriberConfiguration ToNatsSubjectOnNamedBroker(
+        this IPublishToExpression publishing,
+        BrokerName name,
+        string subject
+    )
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<NatsTransport>(name);
 
         var endpoint = transport.EndpointForSubject(subject);
 
@@ -144,6 +209,26 @@ public static class NatsTransportExtensions
     )
     {
         var transport = options.NatsTransport();
+        var endpoint = transport.EndpointForSubject(subject);
+        endpoint.IsListener = true;
+
+        return new NatsListenerConfiguration(endpoint);
+    }
+
+    /// <summary>
+    /// Listen to messages from a NATS subject on an additional, named broker registered via
+    /// <see cref="AddNamedNatsBroker(WolverineOptions, BrokerName, string)"/>.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="name">Identity of the additional NATS broker</param>
+    /// <param name="subject">The NATS subject</param>
+    public static NatsListenerConfiguration ListenToNatsSubjectOnNamedBroker(
+        this WolverineOptions options,
+        BrokerName name,
+        string subject
+    )
+    {
+        var transport = options.NatsTransport(name);
         var endpoint = transport.EndpointForSubject(subject);
         endpoint.IsListener = true;
 

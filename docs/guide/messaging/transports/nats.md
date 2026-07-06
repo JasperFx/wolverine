@@ -478,6 +478,43 @@ opts.PublishMessage<OrderCreated>()
 
 When native scheduled send is not available (server < 2.12 or stream not configured), Wolverine falls back to its database-backed scheduled message persistence.
 
+## Connecting to Multiple NATS Brokers
+
+If a single Wolverine application needs to talk to more than one NATS broker, register the additional
+broker(s) with `AddNamedNatsBroker` using a `BrokerName`, then pin publishing or listening to a specific
+broker with the `*OnNamedBroker` overloads:
+
+```csharp
+opts.UseNats("nats://localhost:4222");
+
+// An additional, independent NATS broker identified by name
+opts.AddNamedNatsBroker(new BrokerName("secondary"), "nats://secondary-nats:4222");
+
+// Or configure the additional broker with the full connection/auth surface
+opts.AddNamedNatsBroker(new BrokerName("eu"), cfg =>
+{
+    cfg.ConnectionString = "nats://eu-nats:4222";
+    cfg.EnableJetStream = true;
+});
+
+// Publish a message type to a subject on a named broker
+opts.PublishMessage<OrderPlaced>()
+    .ToNatsSubjectOnNamedBroker(new BrokerName("secondary"), "orders");
+
+// Listen to a subject on a named broker
+opts.ListenToNatsSubjectOnNamedBroker(new BrokerName("secondary"), "orders");
+```
+
+::: info
+The Wolverine `Uri` scheme for any endpoint on a named broker is the broker name itself, so in the example
+above you would see endpoint URIs like `secondary://subject/orders`. The default broker keeps the canonical
+`nats://` scheme, which keeps the two brokers' endpoints from colliding.
+:::
+
+Connecting to multiple named brokers is distinct from [Multi-Tenancy](#multi-tenancy): a named broker is a
+statically-addressed second connection that you target explicitly, whereas per-tenant connections are
+selected at runtime from each message's tenant id.
+
 ## Multi-Tenancy
 
 ::: tip

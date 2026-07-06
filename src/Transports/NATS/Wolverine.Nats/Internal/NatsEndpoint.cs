@@ -19,7 +19,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     private NatsEnvelopeMapper? _mapper;
 
     public NatsEndpoint(string subject, NatsTransport transport, EndpointRole role)
-        : base(new Uri($"nats://subject/{subject}"), role)
+        : base(new Uri($"{transport.Protocol}://subject/{subject}"), role)
     {
         Subject = subject;
         _transport = transport;

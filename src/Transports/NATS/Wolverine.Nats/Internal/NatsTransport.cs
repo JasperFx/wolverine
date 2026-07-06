@@ -33,8 +33,18 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
     internal JasperFx.Core.LightweightCache<string, NatsTenant> Tenants { get; } = new();
     internal ITenantSubjectMapper TenantSubjectMapper { get; set; } = new DefaultTenantSubjectMapper();
 
-    public NatsTransport()
-        : base(ProtocolName, "NATS Transport", ["nats.io"])
+    public NatsTransport() : this(ProtocolName)
+    {
+    }
+
+    /// <summary>
+    /// Constructor used when connecting to more than one NATS broker from a single application. The
+    /// <paramref name="protocol"/> doubles as the additional broker's URI scheme so its endpoints don't
+    /// collide with the default <c>nats://</c> broker. Reached through
+    /// <see cref="TransportCollection.GetOrCreate{T}"/> when a <see cref="BrokerName"/> is supplied.
+    /// </summary>
+    public NatsTransport(string protocol)
+        : base(protocol, "NATS Transport", ["nats.io"])
     {
         _endpoints.OnMissing = subject =>
         {
@@ -252,13 +262,14 @@ public class NatsTransport : BrokerTransport<NatsEndpoint>, IAsyncDisposable
         return opts with { Name = $"{opts.Name}-tenant-{tenant.TenantId}" };
     }
 
+    /// <summary>
+    /// Extract the NATS subject from a Wolverine NATS endpoint URI of the form
+    /// <c>{scheme}://subject/{subject}</c>. The scheme is intentionally not validated against a fixed
+    /// literal: named brokers (see <c>AddNamedNatsBroker</c>) carry the broker name as the scheme, and
+    /// routing to the correct transport instance has already happened by scheme before this is reached.
+    /// </summary>
     public static string ExtractSubjectFromUri(Uri uri)
     {
-        if (uri.Scheme != "nats")
-        {
-            throw new ArgumentException($"Invalid URI scheme. Expected 'nats', got '{uri.Scheme}'");
-        }
-
         var path = uri.LocalPath.Trim('/');
         return string.IsNullOrEmpty(path) ? uri.Host : path;
     }
