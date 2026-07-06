@@ -1,8 +1,11 @@
 using Amazon.Runtime;
+using Amazon.SQS;
+using JasperFx.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
@@ -263,6 +266,68 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
         Options.Transports.NodeControlEndpoint = queue;
 
         Transport.SystemQueues.Add(queue);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Override the sending behavior for unknown or missing tenant ids when using broker-per-tenant Amazon SQS
+    /// multi-tenancy (GH-3304). See <see cref="TenantedIdBehavior"/>. Default is
+    /// <see cref="Wolverine.Transports.Sending.TenantedIdBehavior.FallbackToDefault"/> unless changed.
+    /// </summary>
+    /// <param name="behavior"></param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration TenantIdBehavior(TenantedIdBehavior behavior)
+    {
+        Transport.TenantedIdBehavior = behavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Register a tenant that is served by its own dedicated Amazon SQS connection (typically a distinct region or
+    /// <c>ServiceURL</c>) while sharing the queue topology declared on this transport. The tenant inherits the
+    /// parent's AWS credentials and provisioning / dead-letter behavior; use <paramref name="configure"/> to point
+    /// the tenant at its own region or endpoint. Outbound messages carrying a matching
+    /// <see cref="Envelope.TenantId"/> are routed to this tenant's connection; inbound messages consumed from it are
+    /// stamped with the tenant id.
+    /// </summary>
+    /// <param name="tenantId"></param>
+    /// <param name="configure">Configuration applied to the tenant's own <see cref="AmazonSQSConfig"/>.</param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration AddTenant(string tenantId, Action<AmazonSQSConfig> configure)
+    {
+        if (tenantId.IsEmpty()) throw new ArgumentOutOfRangeException(nameof(tenantId), "Empty or null tenantId");
+        ArgumentNullException.ThrowIfNull(configure);
+
+        // Deferred: applied in AmazonSqsTenant.Compile() after the parent connection is seeded onto the tenant, so
+        // the tenant only overrides the axes it sets and inherits the rest.
+        Transport.Tenants[tenantId].Configure = configure;
+
+        return this;
+    }
+
+    /// <summary>
+    /// Register a tenant that is served by its own dedicated Amazon SQS account, identified by its own
+    /// <paramref name="credentials"/>, while sharing the queue topology declared on this transport. Use the optional
+    /// <paramref name="configure"/> to also point the tenant at its own region or <c>ServiceURL</c>; if omitted the
+    /// tenant inherits the parent's region/endpoint. Outbound messages carrying a matching
+    /// <see cref="Envelope.TenantId"/> are routed to this tenant's account; inbound messages consumed from it are
+    /// stamped with the tenant id.
+    /// </summary>
+    /// <param name="tenantId"></param>
+    /// <param name="credentials">The AWS credentials for the tenant's dedicated account.</param>
+    /// <param name="configure">Optional configuration applied to the tenant's own <see cref="AmazonSQSConfig"/>.</param>
+    /// <returns></returns>
+    public AmazonSqsTransportConfiguration AddTenant(string tenantId, AWSCredentials credentials,
+        Action<AmazonSQSConfig>? configure = null)
+    {
+        if (tenantId.IsEmpty()) throw new ArgumentOutOfRangeException(nameof(tenantId), "Empty or null tenantId");
+        ArgumentNullException.ThrowIfNull(credentials);
+
+        var tenant = Transport.Tenants[tenantId];
+        tenant.Transport.CredentialSource = _ => credentials;
+        // Deferred: applied in AmazonSqsTenant.Compile() after the parent connection is seeded onto the tenant.
+        tenant.Configure = configure;
 
         return this;
     }
