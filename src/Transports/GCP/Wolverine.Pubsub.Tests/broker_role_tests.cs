@@ -11,8 +11,9 @@ public class broker_role_tests
     [Fact]
     public void pubsub_endpoint_broker_role_is_pubsub()
     {
-        var transport = new PubsubTransport("wolverine")
+        var transport = new PubsubTransport
         {
+            ProjectId = "wolverine",
             PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
             SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
             EmulatorDetection = EmulatorDetection.EmulatorOnly

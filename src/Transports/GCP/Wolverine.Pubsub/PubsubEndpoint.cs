@@ -34,6 +34,31 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
     public PubsubServerOptions Server = new();
 
+    internal PubsubTransport Transport => _transport;
+
+    /// <summary>
+    /// The topic name for this endpoint under the given project id. For the default project this is the endpoint's
+    /// own <see cref="PubsubServerOptions.Topic" /> name; for a tenant project (broker-per-tenant) it is the same
+    /// topic id under the tenant's project, yielding a physically distinct GCP topic.
+    /// </summary>
+    internal TopicName TopicNameFor(string projectId)
+    {
+        return projectId == _transport.ProjectId
+            ? Server.Topic.Name
+            : new TopicName(projectId, Server.Topic.Name.TopicId);
+    }
+
+    /// <summary>
+    /// The subscription name for this endpoint under the given project id. Preserves the (possibly per-node)
+    /// subscription id computed during <see cref="SetupAsync" />, just under the tenant's project.
+    /// </summary>
+    internal SubscriptionName SubscriptionNameFor(string projectId)
+    {
+        return projectId == _transport.ProjectId
+            ? Server.Subscription.Name
+            : new SubscriptionName(projectId, Server.Subscription.Name.SubscriptionId);
+    }
+
     public PubsubEndpoint(
         string topicName,
         PubsubTransport transport,
@@ -97,23 +122,60 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             return;
         }
 
+        // Only competing-consumer listeners get a per-node subscription so that each node
+        // load balances a distinct copy of the stream. A leader-pinned (or otherwise
+        // single-node) listener must read from one shared, cluster-stable subscription;
+        // otherwise every node creates its own subscription and Pub/Sub fans a copy of every
+        // message to each, breaking the single-consumer (leader-only) guarantee.
+        //
+        // Applied once here (before per-connection provisioning) so the mutated subscription id is shared by the
+        // default project and every tenant project.
+        if ((IsListener || IsDeadLetter) && !IsDeadLetter && ListenerScope == ListenerScope.CompetingConsumers)
+        {
+            Server.Subscription.Name =
+                Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
+        }
+
+        // Provision on the default/shared connection...
+        await provisionAsync(logger, _transport.DefaultClients);
+
+        // ...and on each tenant's own project (broker-per-tenant, GH-3306). Each tenant is an independent GCP
+        // project, so the same logical topic/subscription must be created there too using the tenant's client.
+        if (isTenantAware())
+        {
+            foreach (var tenant in _transport.Tenants)
+            {
+                await provisionAsync(logger, _transport.GetTenantClients(tenant));
+            }
+        }
+    }
+
+    private async Task provisionAsync(ILogger logger, PubsubClientSet clients)
+    {
+        if (clients.PublisherApiClient is null)
+        {
+            throw new WolverinePubsubTransportNotConnectedException();
+        }
+
+        var topicName = TopicNameFor(clients.ProjectId);
+
         try
         {
-            await _transport.PublisherApiClient.CreateTopicAsync(new Topic
+            await clients.PublisherApiClient.CreateTopicAsync(new Topic
             {
-                TopicName = Server.Topic.Name,
+                TopicName = topicName,
                 MessageRetentionDuration = Server.Topic.Options.MessageRetentionDuration
             });
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
         {
             logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub topic \"{Topic}\" already exists", Uri,
-                Server.Topic.Name);
+                topicName);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub topic \"{Topic}\"",
-                Uri, Server.Topic.Name);
+                Uri, topicName);
 
             throw;
         }
@@ -123,28 +185,19 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
             return;
         }
 
-        if (_transport.SubscriberApiClient is null)
+        if (clients.SubscriberApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();
         }
 
+        var subscriptionName = SubscriptionNameFor(clients.ProjectId);
+
         try
         {
-            // Only competing-consumer listeners get a per-node subscription so that each node
-            // load balances a distinct copy of the stream. A leader-pinned (or otherwise
-            // single-node) listener must read from one shared, cluster-stable subscription;
-            // otherwise every node creates its own subscription and Pub/Sub fans a copy of every
-            // message to each, breaking the single-consumer (leader-only) guarantee.
-            if (!IsDeadLetter && ListenerScope == ListenerScope.CompetingConsumers)
-            {
-                Server.Subscription.Name =
-                    Server.Subscription.Name.WithAssignedNodeNumber(_transport.AssignedNodeNumber);
-            }
-
             var request = new Subscription
             {
-                SubscriptionName = Server.Subscription.Name,
-                TopicAsTopicName = Server.Topic.Name,
+                SubscriptionName = subscriptionName,
+                TopicAsTopicName = topicName,
                 AckDeadlineSeconds = Server.Subscription.Options.AckDeadlineSeconds,
                 EnableExactlyOnceDelivery = Server.Subscription.Options.EnableExactlyOnceDelivery,
                 EnableMessageOrdering = Server.Subscription.Options.EnableMessageOrdering,
@@ -168,21 +221,26 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
                 request.Filter = Server.Subscription.Options.Filter;
             }
 
-            await _transport.SubscriberApiClient.CreateSubscriptionAsync(request);
+            await clients.SubscriberApiClient.CreateSubscriptionAsync(request);
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
         {
             logger.LogInformation("{Uri}: Google Cloud Platform Pub/Sub subscription \"{Subscription}\" already exists",
-                Uri, Server.Subscription.Name);
+                Uri, subscriptionName);
         }
         catch (Exception ex)
         {
             logger.LogError(ex,
                 "{Uri}: Error trying to initialize Google Cloud Platform Pub/Sub subscription \"{Subscription}\" to topic \"{Topic}\"",
-                Uri, Server.Subscription.Name, Server.Topic.Name);
+                Uri, subscriptionName, topicName);
 
             throw;
         }
+    }
+
+    private bool isTenantAware()
+    {
+        return _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware;
     }
 
     public async ValueTask<bool> CheckAsync()
@@ -307,22 +365,35 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
     {
         EnvelopeMapper ??= BuildMapper(runtime);
 
-        if (Mode == EndpointMode.Inline)
+        if (!isTenantAware())
         {
-            return ValueTask.FromResult<IListener>(new InlinePubsubListener(
-                this,
-                _transport,
-                receiver,
-                runtime
-            ));
+            return ValueTask.FromResult(buildListener(runtime, receiver, _transport.DefaultClients));
         }
 
-        return ValueTask.FromResult<IListener>(new BatchedPubsubListener(
-            this,
-            _transport,
-            receiver,
-            runtime
-        ));
+        // Broker-per-tenant (GH-3306): the default listener consumes the shared project, and each tenant is
+        // consumed over its own project via a dedicated listener that stamps the tenant id onto inbound envelopes
+        // (mirrors the NATS / RabbitMQ / Azure Service Bus CompoundListener pattern). Pub/Sub acknowledges inline
+        // in the streaming callback, so per-envelope completion never routes back through CompoundListener.
+        var compound = new CompoundListener(Uri);
+        compound.Inner.Add(buildListener(runtime, receiver, _transport.DefaultClients));
+
+        foreach (var tenant in _transport.Tenants)
+        {
+            var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+            compound.Inner.Add(buildListener(runtime, tenantReceiver, _transport.GetTenantClients(tenant)));
+        }
+
+        return ValueTask.FromResult<IListener>(compound);
+    }
+
+    private IListener buildListener(IWolverineRuntime runtime, IReceiver receiver, PubsubClientSet clients)
+    {
+        if (Mode == EndpointMode.Inline)
+        {
+            return new InlinePubsubListener(this, _transport, receiver, runtime, clients);
+        }
+
+        return new BatchedPubsubListener(this, _transport, receiver, runtime, clients);
     }
 
     public override DeadLetterStorageMode DeadLetterStorage => DeadLetterName.IsNotEmpty()
@@ -358,9 +429,11 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         return false;
     }
 
-    internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
+    internal async Task SendMessageAsync(Envelope envelope, ILogger logger, PubsubClientSet? clients = null)
     {
-        if (_transport.PublisherApiClient is null)
+        clients ??= _transport.DefaultClients;
+
+        if (clients.PublisherApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();
         }
@@ -378,9 +451,9 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
 
         message.OrderingKey = envelope.GroupId ?? orderBy ?? message.OrderingKey;
 
-        await _transport.PublisherApiClient.PublishAsync(new PublishRequest
+        await clients.PublisherApiClient.PublishAsync(new PublishRequest
         {
-            TopicAsTopicName = Server.Topic.Name,
+            TopicAsTopicName = TopicNameFor(clients.ProjectId),
             Messages = { message }
         });
     }
@@ -415,6 +488,25 @@ public class PubsubEndpoint : Endpoint<IPubsubEnvelopeMapper, PubsubEnvelopeMapp
         if (_transport.PublisherApiClient is null)
         {
             throw new WolverinePubsubTransportNotConnectedException();
+        }
+
+        if (isTenantAware())
+        {
+            // Broker-per-tenant (GH-3306): route outbound sends by Envelope.TenantId. Both the default-fallback
+            // sender and every per-tenant sender MUST be the fire-and-forget InlinePubsubSender (not
+            // BatchedSender + PubsubSenderProtocol): TenantedSender deliberately does not implement
+            // ISenderRequiresCallback, so a BatchedSender underneath it would never have its outbox entries
+            // deleted. See GH-2361.
+            var defaultSender = new InlinePubsubSender(this, runtime, _transport.DefaultClients);
+            var tenantedSender = new TenantedSender(Uri, _transport.TenantedIdBehavior, defaultSender);
+
+            foreach (var tenant in _transport.Tenants)
+            {
+                var tenantSender = new InlinePubsubSender(this, runtime, _transport.GetTenantClients(tenant));
+                tenantedSender.RegisterSender(tenant.TenantId, tenantSender);
+            }
+
+            return tenantedSender;
         }
 
         if (Mode == EndpointMode.Inline)

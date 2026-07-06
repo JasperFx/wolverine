@@ -6,6 +6,7 @@ using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
 namespace Wolverine.Pubsub.Tests;
@@ -56,6 +57,68 @@ public class DocumentationSamples
             {
                 opts.UsePubsub("your-project-id")
                     .EnableSystemEndpoints();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task named_pubsub_brokers()
+    {
+        #region sample_named_pubsub_broker
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The default / shared Pub/Sub broker
+                opts.UsePubsub("your-project-id").AutoProvision();
+
+                // An additional, independent Pub/Sub broker pointed at a different GCP project.
+                // The Wolverine Uri scheme for endpoints on this broker becomes the broker name
+                // ("americas"), e.g. americas://americas-project-id/colors
+                opts.AddNamedPubsubBroker(new BrokerName("americas"), "americas-project-id")
+                    .AutoProvision();
+
+                // Pin specific endpoints to the named broker
+                opts.PublishMessage<ColorMessage>()
+                    .ToPubsubTopicOnNamedBroker(new BrokerName("americas"), "colors");
+                opts.ListenToPubsubTopicOnNamedBroker(new BrokerName("americas"), "colors");
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task broker_per_tenant()
+    {
+        #region sample_pubsub_broker_per_tenant
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The "default" / shared Pub/Sub connection on its own GCP project
+                opts.UsePubsub("shared-project-id")
+                    .AutoProvision()
+
+                    // How should Wolverine route a message whose TenantId is null or
+                    // unknown? FallbackToDefault (the default) uses the shared project;
+                    // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+                    .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                    // Each tenant is served by its OWN dedicated GCP project, but shares
+                    // the topic topology declared below. Project-id-per-tenant is the
+                    // natural isolation axis: the same logical topic under a different
+                    // project is a physically distinct Pub/Sub resource.
+                    .AddTenant("tenant1", "tenant1-project-id")
+
+                    // A tenant may also carry its own dedicated credentials by configuring
+                    // its client builders (seeded from the parent transport otherwise):
+                    .AddTenant("tenant2", "tenant2-project-id", tenant =>
+                    {
+                        tenant.ConfigurePublisherApiBuilder =
+                            builder => { /* builder.GoogleCredential = ...; */ return ValueTask.CompletedTask; };
+                    });
+
+                // One shared topology; messages are routed to the right project at runtime
+                // by Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant1" }).
+                opts.PublishMessage<ColorMessage>().ToPubsubTopic("colors");
+                opts.ListenToPubsubTopic("colors");
             }).StartAsync();
 
         #endregion
@@ -471,3 +534,4 @@ public class RollingCredentialSource
 }
 
 #endregion
+public record ColorMessage(string Color);
