@@ -10,8 +10,9 @@ public class BatchedPubsubListener : PubsubListener
         PubsubEndpoint endpoint,
         PubsubTransport transport,
         IReceiver receiver,
-        IWolverineRuntime runtime
-    ) : base(endpoint, transport, receiver, runtime)
+        IWolverineRuntime runtime,
+        PubsubClientSet clients
+    ) : base(endpoint, transport, receiver, runtime, clients)
     {
     }
 
@@ -19,11 +20,11 @@ public class BatchedPubsubListener : PubsubListener
     {
         await listenForMessagesAsync(async () =>
         {
-            var subscriptionName = _endpoint.Server.Subscription.Name;
+            var subscriptionName = ListeningSubscriptionName;
             var subscriberBuilder = new SubscriberClientBuilder
             {
                 SubscriptionName = subscriptionName,
-                EmulatorDetection = _transport.EmulatorDetection,
+                EmulatorDetection = _clients.EmulatorDetection,
                 Settings = new()
                 {
                     // https://cloud.google.com/dotnet/docs/reference/Google.Cloud.PubSub.V1/latest/Google.Cloud.PubSub.V1.SubscriberClient.Settings#Google_Cloud_PubSub_V1_SubscriberClient_Settings_FlowControlSettings
@@ -32,8 +33,8 @@ public class BatchedPubsubListener : PubsubListener
                     FlowControlSettings = new(_endpoint.Client.MaxOutstandingMessages, _endpoint.Client.MaxOutstandingByteCount),
                 }
             };
-            if (_transport.ConfigureSubscriberClientBuilder != null)
-                await _transport.ConfigureSubscriberClientBuilder(subscriberBuilder);
+            if (_clients.ConfigureSubscriberClientBuilder != null)
+                await _clients.ConfigureSubscriberClientBuilder(subscriberBuilder);
             await using SubscriberClient subscriber = await subscriberBuilder.BuildAsync();
             var ctRegistration = _cancellation.Token.Register(() => subscriber.StopAsync(CancellationToken.None));
             try
