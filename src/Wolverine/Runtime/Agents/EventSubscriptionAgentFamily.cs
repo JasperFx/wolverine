@@ -154,8 +154,15 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         return list;
     }
 
-    public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
+    public async ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
+        // Retire superseded agents FIRST — see RetireSupersededAgents below. The grid is seeded from every
+        // node's ActiveAgents, so an agent that this family no longer enumerates (e.g. the store-global
+        // agent for a database that just gained its first tenant, now replaced by per-tenant agents) is
+        // still present and running in the grid; without retirement the distribution below would happily
+        // keep it assigned and it would process events concurrently with its replacements.
+        var retired = await RetireSupersededAgentsAsync(assignments);
+
         // JasperFx/jasperfx#486 / JasperFx/marten#4806: each store's agents are distributed in their own
         // pass, keyed off the store's database cardinality. A store backed by multiple databases gets
         // database-affine assignment — all of a shard database's agents (e.g. its per-tenant agents under
@@ -176,15 +183,61 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         foreach (var storeKey in multiDatabaseStoreKeys)
         {
             assignments.DistributeByGroupAffinity(SchemeName, DatabaseKeyOf,
-                uri => StoreKeyOf(uri) == storeKey);
+                uri => !retired.Contains(uri) && StoreKeyOf(uri) == storeKey);
         }
 
         // Everything else — single-database stores and any URI that doesn't resolve to a known
         // multi-database store — keeps the pre-existing even distribution with blue/green semantics.
         assignments.DistributeEvenlyWithBlueGreenSemantics(SchemeName,
-            uri => !multiDatabaseStoreKeys.Contains(StoreKeyOf(uri)));
+            uri => !retired.Contains(uri) && !multiDatabaseStoreKeys.Contains(StoreKeyOf(uri)));
+    }
 
-        return new ValueTask();
+    /// <summary>
+    /// Stop agents of this scheme that the current <see cref="SupportedAgentsAsync" /> enumeration no
+    /// longer lists AND that have been superseded by a tenant-scoping change of the same shard: the
+    /// supported set contains an agent for the same store, database, projection, shard key, and version
+    /// that differs only in the tenant slot. That is exactly the runtime transition where a database gains
+    /// its first tenant (store-global agent replaced by per-tenant agents) or loses one (per-tenant agent
+    /// replaced by the store-global agent or the remaining tenants) — the stale agent tracks the same
+    /// events as its replacements and MUST stop, or both run concurrently and double-process.
+    ///
+    /// <para>Deliberately narrower than "not in the supported set": blue/green rollouts legitimately run
+    /// agents the evaluating node's own store does not enumerate (a green node's new projection or new
+    /// version, matched purely through node capabilities), and those must keep running. A version bump
+    /// changes the version slot — not the tenant slot — so it never matches this rule.</para>
+    /// </summary>
+    private async ValueTask<HashSet<Uri>> RetireSupersededAgentsAsync(AssignmentGrid assignments)
+    {
+        var retired = new HashSet<Uri>();
+
+        var supported = (await SupportedAgentsAsync()).ToHashSet();
+        var supportedTenantNeutral = supported
+            .Select(TenantNeutralKeyOf)
+            .Where(x => x != null)
+            .ToHashSet();
+
+        foreach (var agent in assignments.AgentsForScheme(SchemeName))
+        {
+            if (supported.Contains(agent.Uri))
+            {
+                continue;
+            }
+
+            var neutral = TenantNeutralKeyOf(agent.Uri);
+            if (neutral == null || !supportedTenantNeutral.Contains(neutral))
+            {
+                continue;
+            }
+
+            retired.Add(agent.Uri);
+
+            // Detaching a running agent leaves OriginalNode set with no AssignedNode, which is exactly
+            // what makes TryBuildAssignmentCommand emit a StopRemoteAgent to wherever it runs. The
+            // distribution passes exclude retired URIs so nothing re-assigns them.
+            agent.Detach();
+        }
+
+        return retired;
     }
 
     // Agent URIs are event-subscriptions://{type}/{name}/{databaseId}/{shard...} (see UriFor); the
@@ -202,6 +255,55 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         => uri.Segments.Length >= 2
             ? StoreKey($"{uri.Segments[1].Trim('/')}:{uri.Host}")
             : uri.AbsoluteUri;
+
+    /// <summary>
+    /// The agent URI with the tenant slot removed: store type + name + database + projection name + shard
+    /// key + version. Two agent URIs share a tenant-neutral key exactly when they track the same shard of
+    /// the same projection in the same database and differ only in tenant scoping (store-global vs
+    /// per-tenant, or different tenants) — the supersession relation RetireSupersededAgentsAsync keys on.
+    /// The shard path follows JasperFx's ShardName.RelativeUrl grammar,
+    /// <c>{name}/{shardKey}[/v{version}][/{tenant}]</c>, so with three trailing segments a
+    /// <c>v{digits}</c> third segment is the version (same heuristic as ShardName.TryParse) and anything
+    /// else is a tenant. Returns null for a URI that doesn't parse as this scheme's grammar — such an
+    /// agent is never treated as superseded.
+    /// </summary>
+    internal static string? TenantNeutralKeyOf(Uri uri)
+    {
+        // Segments: "/", {storeName}, {databaseId}, {projectionName}, {shardKey}, [v{n} | tenant], [tenant]
+        var segments = uri.Segments.Skip(1).Select(x => x.Trim('/')).Where(x => x.Length > 0).ToArray();
+        if (segments.Length is < 4 or > 6)
+        {
+            return null;
+        }
+
+        var version = "v1";
+        if (segments.Length == 5)
+        {
+            if (IsVersionSegment(segments[4]))
+            {
+                version = segments[4];
+            }
+            // else segments[4] is a tenant id and the shard is version 1
+        }
+        else if (segments.Length == 6)
+        {
+            if (!IsVersionSegment(segments[4]))
+            {
+                // Six segments only fit the grammar as name/shardKey/v{n}/tenant — anything else is
+                // malformed, and a malformed URI must never look like somebody's supersession.
+                return null;
+            }
+
+            version = segments[4];
+        }
+
+        return $"{uri.Host}/{segments[0]}/{segments[1]}/{segments[2]}/{segments[3]}/{version}"
+            .ToLowerInvariant();
+    }
+
+    private static bool IsVersionSegment(string segment)
+        => segment.Length >= 2 && (segment[0] == 'v' || segment[0] == 'V') &&
+           segment.Skip(1).All(char.IsAsciiDigit);
 
     public async ValueTask DisposeAsync()
     {
