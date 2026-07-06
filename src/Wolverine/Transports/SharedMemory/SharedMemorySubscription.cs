@@ -87,7 +87,7 @@ public class SharedMemorySubscription : SharedMemoryEndpoint, IListener, ISender
         if (_receiver != null)
         {
             envelope.ReplyUri ??= ReplyUri;
-            return _receiver.PostAsync(envelope);
+            return _receiver.PostAsync(SharedMemoryEnvelope.CopyForDelivery(envelope));
         }
 
         return new ValueTask();
