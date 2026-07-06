@@ -4,6 +4,7 @@ using Google.Cloud.PubSub.V1;
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using Wolverine.Configuration;
+using Wolverine.Pubsub.Internal;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 
@@ -25,6 +26,13 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     public string ProjectId = string.Empty;
     internal PublisherServiceApiClient? PublisherApiClient;
     internal SubscriberServiceApiClient? SubscriberApiClient;
+
+    /// <summary>
+    /// Registered tenants for the broker-per-tenant model (GH-3306). Each tenant is served by its own dedicated
+    /// GCP project/connection while sharing the endpoint topology. Keyed by tenant id.
+    /// </summary>
+    [IgnoreDescription]
+    public LightweightCache<string, PubsubTenant> Tenants { get; } = new();
 
     /// <summary>
     ///     Is this transport connection allowed to build and use response topic and subscription
@@ -57,18 +65,45 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
     [IgnoreDescription]
     public Func<SubscriberClientBuilder, ValueTask>? ConfigureSubscriberClientBuilder { get; set; }
 
-    public PubsubTransport() : base(ProtocolName, "Google Cloud Platform Pub/Sub", ["gcp", ProtocolName])
+    /// <summary>
+    /// Build the Google Cloud Platform Pub/Sub transport. The single-string constructor sets the transport
+    /// <b>protocol</b> (broker name / URI scheme), NOT the project id — this is required so that
+    /// <see cref="Wolverine.Transports.TransportCollection.GetOrCreate{T}(Wolverine.BrokerName)" /> can spin up
+    /// named brokers via <c>Activator.CreateInstance(typeof(PubsubTransport), name.Name)</c>. Set the
+    /// <see cref="ProjectId" /> separately via <c>UsePubsub</c>/<c>AddNamedPubsubBroker</c>.
+    /// </summary>
+    public PubsubTransport(string protocol) : base(protocol, "Google Cloud Platform Pub/Sub", ["gcp", protocol])
     {
         IdentifierDelimiter = ".";
         Topics = new LightweightCache<string, PubsubEndpoint>(name => new PubsubEndpoint(name, this));
     }
 
-    public PubsubTransport(string projectId) : this()
+    public PubsubTransport() : this(ProtocolName)
     {
-        ProjectId = projectId;
     }
 
-    public override Uri ResourceUri => new Uri("pubsub://" + ProjectId);
+    public override Uri ResourceUri => new Uri($"{Protocol}://" + ProjectId);
+
+    /// <summary>
+    /// The resolved API client set for the default/shared connection. Senders and listeners that are not bound to a
+    /// specific tenant use this.
+    /// </summary>
+    internal PubsubClientSet DefaultClients => new()
+    {
+        ProjectId = ProjectId,
+        EmulatorDetection = EmulatorDetection,
+        PublisherApiClient = PublisherApiClient,
+        SubscriberApiClient = SubscriberApiClient,
+        ConfigureSubscriberClientBuilder = ConfigureSubscriberClientBuilder
+    };
+
+    /// <summary>
+    /// Resolve the API client set for a tenant (broker-per-tenant). Built during <see cref="ConnectAsync" />.
+    /// </summary>
+    internal PubsubClientSet GetTenantClients(PubsubTenant tenant)
+    {
+        return tenant.Clients ?? throw new WolverinePubsubTransportNotConnectedException();
+    }
 
     public override string? DescribeEndpoint()
     {
@@ -108,6 +143,21 @@ public class PubsubTransport : BrokerTransport<PubsubEndpoint>, IAsyncDisposable
         AssignedNodeNumber = runtime.DurabilitySettings.AssignedNodeNumber;
         PublisherApiClient = await pubBuilder.BuildAsync();
         SubscriberApiClient = await subApiBuilder.BuildAsync();
+
+        // Broker-per-tenant (GH-3306): every registered tenant builds its own dedicated client pair against its own
+        // GCP project. Credential/emulator hooks are seeded from the parent transport when the tenant did not set
+        // its own, so a tenant only re-points the axes it actually overrides.
+        foreach (var tenant in Tenants)
+        {
+            tenant.EmulatorDetection = tenant.EmulatorDetection == EmulatorDetection.None
+                ? EmulatorDetection
+                : tenant.EmulatorDetection;
+            tenant.ConfigurePublisherApiBuilder ??= ConfigurePublisherApiBuilder;
+            tenant.ConfigureSubscriberApiBuilder ??= ConfigureSubscriberApiBuilder;
+            tenant.ConfigureSubscriberClientBuilder ??= ConfigureSubscriberClientBuilder;
+
+            await tenant.ConnectAsync();
+        }
     }
 
     public override Endpoint? ReplyEndpoint()

@@ -13,11 +13,11 @@ public static class PubsubTransportExtensions
     /// </summary>
     /// <param name="endpoints"></param>
     /// <returns></returns>
-    internal static PubsubTransport PubsubTransport(this WolverineOptions endpoints)
+    internal static PubsubTransport PubsubTransport(this WolverineOptions endpoints, BrokerName? name = null)
     {
         var transports = endpoints.As<WolverineOptions>().Transports;
 
-        return transports.GetOrCreate<PubsubTransport>();
+        return transports.GetOrCreate<PubsubTransport>(name);
     }
 
     /// <summary>
@@ -48,6 +48,88 @@ public static class PubsubTransportExtensions
         configure?.Invoke(transport);
 
         return new PubsubConfiguration(transport, endpoints);
+    }
+
+    /// <summary>
+    ///     Add an additional, named broker connection to Google Cloud Platform Pub/Sub alongside the default one.
+    ///     Endpoints created through the <c>...OnNamedBroker</c> overloads are pinned to this broker. Note that the
+    ///     Wolverine <see cref="Uri" /> scheme for endpoints on a named broker is the broker name itself
+    ///     (e.g. <c>{name}://{projectId}/{topic}</c>), not <c>pubsub</c>.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">The unique name of the additional broker.</param>
+    /// <param name="projectId">The GCP project id for this named broker.</param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static PubsubConfiguration AddNamedPubsubBroker(this WolverineOptions endpoints, BrokerName name,
+        string projectId, Action<PubsubTransport>? configure = null)
+    {
+        var transport = endpoints.PubsubTransport(name);
+
+        transport.ProjectId = projectId ?? throw new ArgumentNullException(nameof(projectId));
+
+        configure?.Invoke(transport);
+
+        return new PubsubConfiguration(transport, endpoints);
+    }
+
+    /// <summary>
+    ///     Listen for incoming messages at the designated Google Cloud Platform Pub/Sub topic on a named broker.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
+    /// <param name="topicName">The name of the Google Cloud Platform Pub/Sub topic</param>
+    /// <param name="configure">
+    ///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
+    /// </param>
+    /// <returns></returns>
+    public static PubsubTopicListenerConfiguration ListenToPubsubTopicOnNamedBroker(
+        this WolverineOptions endpoints,
+        BrokerName name,
+        string topicName,
+        Action<PubsubEndpoint>? configure = null
+    )
+    {
+        var transport = endpoints.PubsubTransport(name);
+        var topic = transport.Topics[transport.MaybeCorrectName(topicName)];
+
+        topic.EndpointName = topicName;
+        topic.IsListener = true;
+
+        configure?.Invoke(topic);
+
+        return new PubsubTopicListenerConfiguration(topic);
+    }
+
+    /// <summary>
+    ///     Publish the designated messages to a Google Cloud Platform Pub/Sub topic on a named broker.
+    /// </summary>
+    /// <param name="publishing"></param>
+    /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
+    /// <param name="topicName"></param>
+    /// <param name="configure">
+    ///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
+    /// </param>
+    /// <returns></returns>
+    public static PubsubTopicSubscriberConfiguration ToPubsubTopicOnNamedBroker(
+        this IPublishToExpression publishing,
+        BrokerName name,
+        string topicName,
+        Action<PubsubEndpoint>? configure = null
+    )
+    {
+        var transports = publishing.As<PublishingExpression>().Parent.Transports;
+        var transport = transports.GetOrCreate<PubsubTransport>(name);
+        var topic = transport.Topics[transport.MaybeCorrectName(topicName)];
+
+        topic.EndpointName = topicName;
+
+        configure?.Invoke(topic);
+
+        // This is necessary unfortunately to hook up the subscription rules
+        publishing.To(topic.Uri);
+
+        return new PubsubTopicSubscriberConfiguration(topic);
     }
 
     /// <summary>
