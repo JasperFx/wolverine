@@ -165,6 +165,11 @@ public partial class AssignmentGrid
 
         var load = nodes.ToDictionary(n => n, _ => 0);
 
+        // Mirror the even paths' per-node ceiling so groups spread instead of piling up on the node that
+        // happens to be running them today. A single group larger than the ceiling still occupies one
+        // node whole — groups are indivisible by design.
+        var maximum = (int)Math.Ceiling((double)agents.Count / nodes.Count);
+
         var groups = agents
             .GroupBy(a => groupKey(a.Uri))
             .OrderByDescending(g => g.Count())
@@ -176,18 +181,30 @@ public partial class AssignmentGrid
             var members = group.ToList();
 
             // Candidate nodes for the whole group: nodes capable of running every member (all nodes when
-            // capabilities are homogeneous).
+            // capabilities are homogeneous) — plus any node that was already running part of the group
+            // when the grid was assembled. The grandfathering mirrors the even paths, which leave running
+            // agents in place regardless of declared capabilities: a node's capability snapshot is
+            // persisted once at node startup, so a node that started before (say) a tenant database was
+            // provisioned never declares that database's agents even though it is happily running them.
             var candidates = sameCapabilities
                 ? nodes
-                : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))).ToList();
+                : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))
+                                   || members.Any(m => m.OriginalNode == n)).ToList();
 
             if (candidates.Count == 0)
             {
                 // No single node can host the whole group — mirror the blue/green even path's per-agent
-                // behavior: each member goes to its least-loaded capable node, and a member no node
-                // declares a capability for is simply left alone (candidate == null there too).
+                // behavior: an already-running member stays where it is (minimal disruption), an
+                // unassigned member goes to its least-loaded capable node, and a member no node declares
+                // a capability for is simply left alone (candidate == null there too).
                 foreach (var member in members)
                 {
+                    if (member.AssignedNode != null)
+                    {
+                        load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
+                        continue;
+                    }
+
                     var candidate = member.CandidateNodes
                         .OrderBy(n => load.GetValueOrDefault(n))
                         .ThenBy(n => n.IsLeader)
@@ -204,7 +221,25 @@ public partial class AssignmentGrid
                 continue;
             }
 
-            // The least-loaded candidate hosts the whole group (tie-breaks: non-leader first, then node id).
+            // Minimal disruption, mirroring DistributeEvenly: the node already running the WHOLE group
+            // keeps it as long as that doesn't push the node past the ceiling. Without this, every
+            // evaluation reshuffles groups from scratch and a node whose stale capability snapshot keeps
+            // it out of the capability candidates can be starved permanently across evaluations.
+            var incumbent = members[0].AssignedNode;
+            if (incumbent != null && members.Any(m => m.AssignedNode != incumbent))
+            {
+                incumbent = null;
+            }
+
+            if (incumbent != null && candidates.Contains(incumbent) &&
+                load[incumbent] + members.Count <= maximum)
+            {
+                load[incumbent] += members.Count;
+                continue;
+            }
+
+            // Otherwise the least-loaded candidate hosts the whole group (tie-breaks: non-leader first,
+            // then node id).
             var node = candidates
                 .OrderBy(n => load[n])
                 .ThenBy(n => n.IsLeader)

@@ -138,4 +138,63 @@ public class distribute_by_group_affinity
         grid.AgentFor(t2).AssignedNode.ShouldBe(node2);
         grid.AgentFor(t3).AssignedNode.ShouldBeNull("an agent no node declares a capability for is parked, exactly like the even path");
     }
+
+    [Fact]
+    public void a_node_already_running_a_groups_agents_stays_a_candidate_despite_a_stale_capability_snapshot()
+    {
+        // Capability snapshots are persisted once at node startup, so a node that started before the
+        // tenant databases were provisioned declares NO event-subscription capabilities even though it is
+        // running all the agents (MartenTests' MultiTenantContext starts exactly this way). The even paths
+        // tolerate that by leaving running agents in place; group placement must grandfather such a node
+        // as a candidate too, or it is starved and another node ends up with several whole databases.
+        var databases = new[] { "db1", "db2", "db3" };
+        var tenants = new[] { "t1", "t2", "t3" };
+        var all = databases.SelectMany(db => tenants.Select(t => Agent(db, t))).ToArray();
+
+        var grid = new AssignmentGrid();
+        var node1 = grid.WithNode(1, Guid.NewGuid());
+        node1.Running(all); // was the only node; no capabilities declared
+        grid.WithNode(2, Guid.NewGuid()).HasCapabilities(all);
+        grid.WithNode(3, Guid.NewGuid()).HasCapabilities(all);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        // Every database whole on one node, and the three databases spread across all three nodes --
+        // including the stale-capability node.
+        var hosts = databases.Select(db =>
+        {
+            var nodes = tenants.Select(t => grid.AgentFor(Agent(db, t)).AssignedNode).Distinct().ToList();
+            nodes.Count.ShouldBe(1, $"all agents of {db} must be on a single node");
+            return nodes[0]!;
+        }).ToList();
+
+        hosts.Distinct().Count().ShouldBe(3, "three equal databases across three nodes must land one per node");
+    }
+
+    [Fact]
+    public void an_incumbent_node_keeps_its_group_up_to_the_ceiling()
+    {
+        // Mid-convergence snapshot of the MultiTenantContext scenario: node 1 (stale capability snapshot,
+        // declares nothing) still runs db1's agent, node 2 runs db2's and db3's, node 3 just joined. The
+        // even path resolves this to 1/1/1 by moving only the over-ceiling extra; group placement must do
+        // the same — keep incumbents up to the ceiling, move only db3 — instead of reshuffling from
+        // scratch, which starves the stale-capability node forever.
+        var g1 = Agent("db1", "only");
+        var g2 = Agent("db2", "only");
+        var g3 = Agent("db3", "only");
+
+        var grid = new AssignmentGrid();
+        var node1 = grid.WithNode(1, Guid.NewGuid());
+        node1.Running(g1); // no declared capabilities
+        var node2 = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { g1, g2, g3 });
+        node2.Running(g2, g3);
+        var node3 = grid.WithNode(3, Guid.NewGuid()).HasCapabilities(new[] { g1, g2, g3 });
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AgentFor(g1).AssignedNode.ShouldBe(node1, "the incumbent keeps its group despite the stale capability snapshot");
+        grid.AgentFor(g2).AssignedNode.ShouldBe(node2, "an under-ceiling incumbent keeps its group");
+        grid.AgentFor(g3).AssignedNode.ShouldBe(node3, "only the over-ceiling group moves, to the empty node");
+    }
 }
+
