@@ -11,7 +11,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
+public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposable
 {
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
     public const string ResponseEndpointName = "AmazonSqsResponses";
@@ -95,10 +95,18 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     [IgnoreDescription]
     public LightweightCache<string, AmazonSqsQueue> Queues { get; }
 
+    /// <summary>
+    /// Broker-per-tenant registrations (GH-3304). Each tenant owns a child transport pointed at its own SQS
+    /// account/region/endpoint (and its own queue + QueueUrl cache); outbound is routed by
+    /// <see cref="Envelope.TenantId"/> and inbound listeners stamp the tenant id.
+    /// </summary>
+    [IgnoreDescription]
+    internal LightweightCache<string, AmazonSqsTenant> Tenants { get; } = new(name => new AmazonSqsTenant(name));
+
     [ChildDescription]
     public AmazonSQSConfig Config { get; } = new();
 
-    internal IAmazonSQS? Client { get; private set; }
+    internal IAmazonSQS? Client { get; set; }
 
     public int LocalStackPort { get; set; }
 
@@ -218,6 +226,59 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
         {
             await CleanupOrphanedSystemQueuesAsync(runtime);
             StartSystemQueueKeepAlive(runtime.DurabilitySettings.Cancellation, runtime);
+        }
+
+        // Broker-per-tenant (GH-3304): now that the parent connection is fully resolved, seed each tenant's child
+        // transport from it and build the tenant's own SQS client. Clients are lightweight and the queues/QueueUrls
+        // are resolved lazily per tenant, so there's no live connection to open here — but when AutoProvision is on
+        // we create the shared queue topology on every tenant account, since each is a separate broker.
+        if (Tenants.Any())
+        {
+            foreach (var tenant in Tenants)
+            {
+                tenant.Compile(this, runtime);
+            }
+
+            if (AutoProvision)
+            {
+                await provisionTenantQueuesAsync(runtime);
+            }
+        }
+    }
+
+    // Create the shared application queues (and their dead letter queues) on each tenant's own account. Mirrors
+    // what the default connection provisions lazily via AmazonSqsQueue.InitializeAsync, but runs against the
+    // tenant client so a tenant's listener has its queue ready before it starts polling (GH-3304).
+    private async Task provisionTenantQueuesAsync(IWolverineRuntime runtime)
+    {
+        var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsTransport>();
+
+        var applicationQueues = Queues
+            .Where(x => x.Role == EndpointRole.Application)
+            .ToArray();
+
+        foreach (var tenant in Tenants)
+        {
+            foreach (var queue in applicationQueues)
+            {
+                try
+                {
+                    var tenantQueue = queue.BuildTenantSibling(tenant);
+                    await tenantQueue.SetupAsync(tenant.Transport.Client!);
+
+                    if (tenantQueue.DeadLetterQueueName.IsNotEmpty() && !DisableDeadLetterQueues)
+                    {
+                        await tenant.Transport.Queues[tenantQueue.DeadLetterQueueName!]
+                            .SetupAsync(tenant.Transport.Client!);
+                    }
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e,
+                        "Error while provisioning queue {Queue} for tenant {TenantId}", queue.QueueName,
+                        tenant.TenantId);
+                }
+            }
         }
     }
 
@@ -347,4 +408,17 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>
     }
 
     public string ServerHost => Config.ServiceURL?.ToUri().Host!;
+
+    public ValueTask DisposeAsync()
+    {
+        Client?.Dispose();
+
+        // Broker-per-tenant (GH-3304): each tenant owns its own SQS client through its child transport; dispose them.
+        foreach (var tenant in Tenants)
+        {
+            tenant.Transport.Client?.Dispose();
+        }
+
+        return ValueTask.CompletedTask;
+    }
 }

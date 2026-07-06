@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Amazon;
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -7,6 +8,7 @@ using CoreTests.Configuration;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests.Compliance;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 
@@ -41,6 +43,49 @@ public class Bootstrapping
                 // Listen to topics
                 opts.ListenToSqsQueueOnNamedBroker(new BrokerName("americas"), "red");
                 // Other configuration
+            }).StartAsync();
+
+        #endregion
+    }
+
+    private async Task broker_per_tenant()
+    {
+        #region sample_sqs_broker_per_tenant
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The "default" / shared SQS connection
+                opts.UseAmazonSqsTransport(config =>
+                {
+                    config.RegionEndpoint = RegionEndpoint.USEast1;
+                })
+                    .AutoProvision()
+
+                    // How should Wolverine route a message whose TenantId is null or
+                    // unknown? FallbackToDefault (the default) uses the shared connection;
+                    // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+                    .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                    // Each tenant gets its OWN dedicated SQS connection, but shares the
+                    // queue topology declared below. This tenant inherits the parent's
+                    // AWS credentials, and just re-points at its own region.
+                    .AddTenant("tenant-west", config =>
+                    {
+                        config.RegionEndpoint = RegionEndpoint.USWest2;
+                    })
+
+                    // Or give the tenant its own dedicated AWS account by supplying
+                    // its own credentials (optionally with its own region/endpoint too):
+                    .AddTenant("tenant-eu", new BasicAWSCredentials("tenant-eu-key", "tenant-eu-secret"),
+                        config =>
+                        {
+                            config.RegionEndpoint = RegionEndpoint.EUWest1;
+                        });
+
+                // One shared topology; messages are routed to the right connection at
+                // runtime by Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-west" }).
+                opts.PublishMessage<SenderConfigurationTests.ColorMessage>().ToSqsQueue("colors");
+                opts.ListenToSqsQueue("colors");
             }).StartAsync();
 
         #endregion

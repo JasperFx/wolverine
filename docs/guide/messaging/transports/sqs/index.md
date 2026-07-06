@@ -24,7 +24,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L65-L81' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L110-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_simplistic_aws_sqs_setup' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -54,7 +54,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L86-L110' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L131-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_config_aws_sqs_connection' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 
@@ -72,7 +72,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.UseAmazonSqsTransportLocally();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L51-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L96-L105' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_sqs_and_localstack' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And lastly, if you want to explicitly supply an access and secret key for your credentials to SQS, you can use this syntax:
@@ -106,7 +106,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L115-L142' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L160-L187' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_setting_aws_credentials' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting to Multiple Brokers <Badge type="tip" text="4.7" />
@@ -143,11 +143,103 @@ using var host = await Host.CreateDefaultBuilder()
         // Other configuration
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L18-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_sqs_brokers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L20-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_multiple_sqs_brokers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoints from a "named" Amazon SQS broker is the name that you supply
 for the broker. So in the example above, you might see `Uri` values for `emea://colors` or `americas://red`.
+
+## Multi-Tenancy with a Broker per Tenant <Badge type="tip" text="6.17" />
+
+Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker by name at
+configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared queue
+topology, and each tenant is served by its **own dedicated SQS connection** (a distinct AWS account/credentials,
+region, or `ServiceURL`). Which connection a message goes to (and which connection an inbound message came from) is
+decided at runtime by the message's [tenant id](/guide/handlers/multi-tenancy), typically set through
+`DeliveryOptions.TenantId`:
+
+<!-- snippet: sample_sqs_broker_per_tenant -->
+<a id='snippet-sample_sqs_broker_per_tenant'></a>
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // The "default" / shared SQS connection
+        opts.UseAmazonSqsTransport(config =>
+        {
+            config.RegionEndpoint = RegionEndpoint.USEast1;
+        })
+            .AutoProvision()
+
+            // How should Wolverine route a message whose TenantId is null or
+            // unknown? FallbackToDefault (the default) uses the shared connection;
+            // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+            .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+            // Each tenant gets its OWN dedicated SQS connection, but shares the
+            // queue topology declared below. This tenant inherits the parent's
+            // AWS credentials, and just re-points at its own region.
+            .AddTenant("tenant-west", config =>
+            {
+                config.RegionEndpoint = RegionEndpoint.USWest2;
+            })
+
+            // Or give the tenant its own dedicated AWS account by supplying
+            // its own credentials (optionally with its own region/endpoint too):
+            .AddTenant("tenant-eu", new BasicAWSCredentials("tenant-eu-key", "tenant-eu-secret"),
+                config =>
+                {
+                    config.RegionEndpoint = RegionEndpoint.EUWest1;
+                });
+
+        // One shared topology; messages are routed to the right connection at
+        // runtime by Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-west" }).
+        opts.PublishMessage<SenderConfigurationTests.ColorMessage>().ToSqsQueue("colors");
+        opts.ListenToSqsQueue("colors");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/Samples/Bootstrapping.cs#L53-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sqs_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+To route a specific message to a tenant's connection, stamp the tenant id on the send:
+
+```csharp
+await bus.SendAsync(new ColorMessage("blue"), new DeliveryOptions { TenantId = "tenant-west" });
+```
+
+Wolverine wraps the outbound endpoint in a `TenantedSender` that dispatches on `Envelope.TenantId`, and builds a
+compound listener that runs one poller per tenant connection — each inbound envelope is stamped with the tenant id
+of the connection it was consumed from. This mirrors the
+[RabbitMQ](/guide/messaging/transports/rabbitmq/multi-tenancy) and [Azure Service Bus](/guide/messaging/transports/azureservicebus/multitenancy)
+broker-per-tenant support.
+
+::: tip Named broker vs. broker-per-tenant
+Use a **named broker** when a *fixed set of endpoints* should always talk to a *specific* broker. Use
+**broker-per-tenant** when the *same logical endpoints* should be transparently routed to a *different connection per
+tenant* based on the runtime tenant id. They are independent features and can be combined.
+:::
+
+### How a tenant connection is seeded
+
+Each tenant owns its own child transport — its own `IAmazonSQS` client *and* its own queue-url cache (which is why
+tenants can safely share a queue name without their cached `QueueUrl` values colliding). At startup Wolverine seeds
+the tenant's connection from the parent's — AWS credentials, region/`ServiceURL`, `AuthenticationRegion`,
+auto-provisioning, and the dead-letter-queue configuration — and *then* applies your `AddTenant(...)` overrides, so a
+tenant only re-points the axes it actually sets and inherits everything else.
+
+### Choosing the unknown-tenant behavior
+
+`TenantIdBehavior(...)` controls what happens when a message has a null or unregistered tenant id:
+
+* `FallbackToDefault` (the default) — route it to the shared/default connection (the one passed to `UseAmazonSqsTransport`).
+* `TenantIdRequired` — throw; every message must carry a known tenant id.
+* `IgnoreUnknownTenants` — silently drop the message.
+
+### Auto-provisioning per connection
+
+When [`AutoProvision()`](#) is enabled, Wolverine provisions the shared queue topology — including each queue's dead
+letter queue — on **every** tenant connection, not just the default one, since each is an independent broker. A tenant
+listener's dead-lettered messages are likewise sent to the dead letter queue on that tenant's own connection.
 
 ## Identifier Prefixing for Shared Brokers
 

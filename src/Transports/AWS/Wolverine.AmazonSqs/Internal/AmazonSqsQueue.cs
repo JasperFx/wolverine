@@ -383,21 +383,70 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         {
             throw new InvalidOperationException("The parent transport has not yet been initialized");
         }
-        
+
         Mapper ??= BuildMapper(runtime);
+
+        var logger = runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>();
 
         if (QueueUrl.IsEmpty())
         {
-            await InitializeAsync(runtime.LoggerFactory.CreateLogger<AmazonSqsQueue>());
+            await InitializeAsync(logger);
         }
-        
-        return new SqsListener(runtime, this, _parent, receiver);
+
+        var listener = new SqsListener(runtime, this, _parent, receiver);
+
+        // Broker-per-tenant (GH-3304): the shared listener consumes the default account. Each tenant runs its own
+        // listener on its own account/region, stamping the tenant id onto inbound envelopes via TenantIdRule.
+        // Per-envelope completion routes back over the receiving connection through Envelope.Listener — the same
+        // CompoundListener multi-tenancy pattern used by RabbitMQ / NATS / Kafka.
+        if (_parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var compound = new CompoundListener(Uri);
+            compound.Inner.Add(listener);
+
+            foreach (var tenant in _parent.Tenants)
+            {
+                var tenantQueue = BuildTenantSibling(tenant);
+                if (tenantQueue.QueueUrl.IsEmpty())
+                {
+                    await tenantQueue.InitializeAsync(logger);
+                }
+
+                var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                compound.Inner.Add(new SqsListener(runtime, tenantQueue, tenant.Transport, tenantReceiver));
+            }
+
+            return compound;
+        }
+
+        return listener;
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         Mapper ??= BuildMapper(runtime);
-        
+
+        // Broker-per-tenant (GH-3304): route by Envelope.TenantId to a per-tenant sender bound to that tenant's own
+        // account, falling back to the shared account for the default/untenanted path.
+        //
+        // Both the tenant senders AND the default sender they fall back to must be simple fire-and-forget ISenders:
+        // TenantedSender intentionally does NOT implement ISenderRequiresCallback (GH-2361), and it does not forward
+        // RegisterCallback to the senders beneath it. A BatchedSender (SqsSenderProtocol) registered under it would
+        // therefore never receive its ISenderCallback and would silently drop every message. InlineSqsSender sends
+        // directly and needs no callback — the same fire-and-forget model the RabbitMQ / NATS / Kafka per-tenant
+        // senders use.
+        if (_parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var tenantedSender = new TenantedSender(Uri, _parent.TenantedIdBehavior, new InlineSqsSender(runtime, this));
+            foreach (var tenant in _parent.Tenants)
+            {
+                var tenantQueue = BuildTenantSibling(tenant);
+                tenantedSender.RegisterSender(tenant.TenantId, new InlineSqsSender(runtime, tenantQueue));
+            }
+
+            return tenantedSender;
+        }
+
         if (Mode == EndpointMode.Inline)
         {
             return new InlineSqsSender(runtime, this);
@@ -407,6 +456,51 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
         return new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
+    }
+
+    /// <summary>
+    /// Broker-per-tenant (GH-3304): materialize this queue's tenant-specific twin on the given tenant's child
+    /// transport — same queue name and configuration, but bound to the tenant's own SQS client and its own
+    /// QueueUrl cache (which is why a fresh endpoint is required rather than reusing this one). The tenant twin is
+    /// cached on the tenant transport's <see cref="AmazonSqsTransport.Queues"/> so repeated sender/listener builds
+    /// resolve the same instance.
+    /// </summary>
+    internal AmazonSqsQueue BuildTenantSibling(AmazonSqsTenant tenant)
+    {
+        var sibling = tenant.Transport.Queues[QueueName];
+
+        sibling.Mode = Mode;
+        sibling.EndpointName = EndpointName;
+        sibling.IsListener = IsListener;
+        sibling.Role = Role;
+        sibling.EnableFairQueueMessageGroups = EnableFairQueueMessageGroups;
+        sibling.VisibilityTimeout = VisibilityTimeout;
+        sibling.WaitTimeSeconds = WaitTimeSeconds;
+        sibling.MaxNumberOfMessages = MaxNumberOfMessages;
+        sibling.MessageAttributeNames = MessageAttributeNames;
+
+        // Share the interop mapper strategy so tenant traffic serializes identically to the shared account.
+        sibling.Mapper = Mapper;
+        sibling.MapperFactory = MapperFactory;
+
+        // Preserve queue-creation attributes (FIFO, retention, redrive, ...) for AutoProvision on the tenant account.
+        if (Configuration.Attributes is { Count: > 0 })
+        {
+            sibling.Configuration.Attributes ??= new Dictionary<string, string>();
+            foreach (var pair in Configuration.Attributes)
+            {
+                sibling.Configuration.Attributes[pair.Key] = pair.Value;
+            }
+        }
+
+        // Only pin the dead letter queue name when it was set explicitly on this listener; otherwise let the tenant
+        // queue fall back to the tenant transport's own DefaultDeadLetterQueueName (seeded in AmazonSqsTenant.Compile).
+        if (_deadLetterQueueNameSetExplicitly)
+        {
+            sibling.DeadLetterQueueName = _deadLetterQueueName;
+        }
+
+        return sibling;
     }
 
     protected override bool supportsMode(EndpointMode mode)
