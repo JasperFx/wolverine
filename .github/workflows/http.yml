@@ -38,6 +38,10 @@ jobs:
       - name: Run HTTP Tests
         run: ./build.sh CIHttp --framework net9.0
 
+      # Asp.Versioning tests are pinned to net10.0
+      - name: Run HTTP Asp.Versioning Tests
+        run: ./build.sh CIHttpAspVersioning
+
       - name: Stop containers
         if: always()
         run: docker compose down

@@ -78,18 +78,29 @@ internal static class ApiVersionResolver
 
     /// <summary>
     /// Builds resolutions for the given <paramref name="versions"/> in order, marking each as
-    /// deprecated when any attribute in <paramref name="deprecationSource"/> declares the version
-    /// with <see cref="ApiVersionAttribute.Deprecated"/>. Used by every branch of
-    /// <see cref="ResolveVersions"/>: class-only, method-only, and [MapToApiVersion] filtering.
+    /// deprecated when any provider in <paramref name="versionProviders"/> declares the version
+    /// with the <see cref="ApiVersionProviderOptions.Deprecated"/> flag.
     /// </summary>
-    private static IReadOnlyList<ApiVersionResolution> BuildResolutions(
+    /// <param name="versions">The API versions to build resolutions for.</param>
+    /// <param name="versionProviders">
+    /// The API version providers whose <see cref="ApiVersionProviderOptions.Deprecated"/> flag drives
+    /// per-version deprecation (e.g. <c>[ApiVersion]</c>, <c>[MapToApiVersion]</c>,
+    /// <c>[AdvertiseApiVersions]</c>).
+    /// </param>
+    /// <returns>A read-only list of API version resolutions.</returns>
+    public static IReadOnlyList<ApiVersionResolution> BuildResolutions(
         IReadOnlyCollection<ApiVersion> versions,
-        IReadOnlyCollection<ApiVersionAttribute> deprecationSource)
+        IReadOnlyCollection<IApiVersionProvider> versionProviders
+    )
     {
         var result = new List<ApiVersionResolution>(versions.Count);
         foreach (var version in versions)
         {
-            var isDeprecated = deprecationSource.Any(a => a.Deprecated && a.Versions.Contains(version));
+            var isDeprecated = versionProviders.Any(a =>
+                a.Options.HasFlag(ApiVersionProviderOptions.Deprecated)
+                && a.Versions.Contains(version)
+            );
+
             result.Add(new ApiVersionResolution(version, isDeprecated));
         }
         return result;

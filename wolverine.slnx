@@ -44,6 +44,12 @@
     <Project Path="src/Http/OpenApiDemonstrator/OpenApiDemonstrator.csproj" />
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
+    <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj">
+      <Build Project="false" />
+    </Project>
+    <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj">
+      <Build Project="false" />
+    </Project>
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />

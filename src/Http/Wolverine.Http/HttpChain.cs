@@ -859,9 +859,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     /// <summary>
     /// Sets an explicit operation ID (endpoint name) and marks it as explicit so it is used
-    /// as the endpoint name in the ASP.NET Core routing infrastructure. This is used by
-    /// <see cref="ApiVersioning.ApiVersioningPolicy"/> to disambiguate endpoints that share the
-    /// same handler method name after URL-segment version prefixes are applied.
+    /// as the endpoint name in the ASP.NET Core routing infrastructure. This is used by policies
+    /// that need to disambiguate endpoints who share the same handler method name (e.g. 
+    /// <see cref="ApiVersioning.ApiVersioningPolicy"/>).
     /// </summary>
     internal void SetExplicitOperationId(string operationId)
     {

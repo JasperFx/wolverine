@@ -15,6 +15,11 @@ This release supports **URL-segment versioning** (e.g. `/v1/...`, `/v2/...`) and
 via repeated `[ApiVersion]` attributes or `[MapToApiVersion]`. See [Multi-version handlers](#multi-version-handlers).
 :::
 
+If you need the full `Asp.Versioning.Http` feature set — its request-time matcher, version reporter, and
+API explorer — or you are migrating an existing Asp.Versioning integration to Wolverine, use the
+`WolverineFx.Http.AspVersioning` bridge instead. See
+[Asp.Versioning.Http Package Support](#asp-versioning-http-package-support).
+
 ## Quick Start
 
 **1. Add the package** (if not already present via `WolverineFx.Http`):
@@ -544,3 +549,144 @@ version to the class-level `[ApiVersion]` list, or remove it from `[MapToApiVers
 **Both `[ApiVersion]` and `[MapToApiVersion]` on the same method.**
 Startup throws. Use only one: `[ApiVersion]` declares versions independently of the class; `[MapToApiVersion]`
 selects from class-level versions.
+
+## Asp.Versioning.Http Package Support <Badge type="tip" text="6.17" />
+
+Everything above is Wolverine's **native** versioning, which depends only on `Asp.Versioning.Abstractions`
+and supports URL-segment versioning with minimal runtime overhead. If you'd prefer to version your
+endpoints using [`Asp.Versioning.Http`](https://github.com/dotnet/aspnet-api-versioning) or are migrating
+an existing Asp.Versioning codebase and want identical behavior, Wolverine offers a dedicated
+`WolverineFx.Http.AspVersioning` bridge package to support that integration.
+
+::: warning
+This integration currently requires **.NET 10 or later** — the `WolverineFx.Http.AspVersioning` package
+targets `net10.0` only.
+:::
+
+::: tip Prefer native versioning unless you need the full Asp.Versioning feature set
+`Asp.Versioning.Http` registers a request-time `ApiVersionMatcherPolicy` and wraps every matched
+endpoint's delegate with response decorators, so it carries real per-request cost. Wolverine's native
+[`UseApiVersioning`](#quick-start) does not register the `Asp.Versioning.Http` runtime stack, so it
+generally performs better and should be favored by teams that do not require full Asp.Versioning
+functionality.
+:::
+
+### Decision Matrix
+
+|                     | Native `UseApiVersioning()`                     | Bridge `UseAspVersioning()`                          |
+|---------------------|-------------------------------------------------|------------------------------------------------------|
+| Dependency          | `Asp.Versioning.Abstractions` only              | full `Asp.Versioning.Http`                           |
+| Target frameworks   | net9.0 / net10.0                                | **net10.0 only**                                     |
+| Version readers     | URL-segment only                                | query, header, media-type, URL-segment, combined     |
+| URL-segment routes  | auto-rewrites `/orders` → `/v1/orders`          | you author `{version:apiVersion}` (no auto prefix)   |
+| Runtime cost        | no request-time matcher or response decorators  | Asp.Versioning matcher policy + response decorators  |
+| Configured via      | `opts.UseApiVersioning(v => …)`                 | your own `AddApiVersioning(…)`                       |
+
+In short: prefer native for URL-segment versioning at the lowest overhead (or on .NET 9); reach for
+the bridge when you need header/query/media-type readers, the rest of the Asp.Versioning feature set,
+or a behavior-identical migration of an existing Asp.Versioning app.
+
+### Basic Usage
+
+**1. Install the package:**
+
+```bash
+dotnet add package WolverineFx.Http.AspVersioning
+```
+
+**2. Register Asp.Versioning and enable the bridge.** Unlike native versioning, you register
+`AddApiVersioning(...)` yourself — the bridge delegates entirely to *your* Asp.Versioning configuration
+(version reader, reporting, sunset policies, and so on):
+
+```csharp
+using Wolverine.Http.AspVersioning;
+
+// Your own Asp.Versioning configuration — reader, reporting, defaults, etc.
+builder.Services.AddApiVersioning(options =>
+{
+    options.ReportApiVersions = true;
+});
+
+builder.Services.AddWolverineHttp();
+
+// ...
+
+app.MapWolverineEndpoints(opts => opts.UseAspVersioning());
+```
+
+::: warning
+Wolverine will throw an exception if `UseApiVersioning()` and `UseAspVersioning()` are both used in
+the same application — choose one or the other.
+:::
+
+**3. Version your endpoints with the usual attributes.** The bridge understands `[ApiVersion]`,
+`[MapToApiVersion]`, `[AdvertiseApiVersions]`, and `[ApiVersionNeutral]` with the same
+method-overrides-class precedence as native versioning:
+
+```csharp
+[ApiVersion("1.0")]
+public static class OrdersV1Endpoint
+{
+    [WolverineGet("/orders")]
+    public static OrdersV1Response Get() => new(["order-a", "order-b"]);
+}
+
+[ApiVersion("2.0")]
+public static class OrdersV2Endpoint
+{
+    // Same route as v1 — Asp.Versioning selects between them by the requested version.
+    [WolverineGet("/orders")]
+    public static OrdersV2Response Get() => new("ok", ["v2-a", "v2-b"]);
+}
+```
+
+With this configuration `GET /orders?api-version=1.0` reaches the v1 endpoint and
+`GET /orders?api-version=2.0` reaches the v2 endpoint.
+
+### URL-segment versioning
+
+URL-segment versioning works exactly as it does in a vanilla Asp.Versioning minimal API: author the
+version as a `{version:apiVersion}` route parameter and configure a URL-segment (or combined) reader via
+`AddApiVersioning`. Unlike native versioning, the bridge does **not** synthesize a `/v1/` prefix — you
+write the segment yourself, and endpoints declaring different versions share the one template:
+
+```csharp
+[ApiVersion("1.0")]
+public static class OrdersV1Endpoint
+{
+    [WolverineGet("/v{version:apiVersion}/orders")]
+    public static OrdersV1Response Get() => new(["order-a", "order-b"]);
+}
+
+[ApiVersion("2.0")]
+public static class OrdersV2Endpoint
+{
+    [WolverineGet("/v{version:apiVersion}/orders")]
+    public static OrdersV2Response Get() => new("ok", ["v2-a", "v2-b"]);
+}
+```
+
+`GET /v1/orders` reaches the v1 endpoint and `GET /v2/orders` the v2 endpoint. Set
+`AddApiExplorer(o => o.SubstituteApiVersionInUrl = true)` to render concrete versions (`/v1/orders`) in
+the generated OpenAPI documents.
+
+### OpenAPI
+
+Asp.Versioning's API explorer is offered as a separate package (`Asp.Versioning.Mvc.ApiExplorer`)
+and is not included as a dependency of `WolverineFx.Http.AspVersioning`. Once added to your project,
+it can be configured exactly as if you were building a minimal API. For example:
+
+```csharp
+builder.Services
+    .AddApiVersioning(options => options.ReportApiVersions = true)
+    .AddApiExplorer(options =>
+    {
+        options.GroupNameFormat = "'v'VVV";
+        options.SubstituteApiVersionInUrl = false;
+    });
+```
+
+::: warning
+Do not mix in the native [document-name strategy](#openapi-integration) or `DescribeWolverineApiVersions()`;
+those belong to the native versioning path described above.
+:::
