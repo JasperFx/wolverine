@@ -93,4 +93,49 @@ public class distribute_by_group_affinity
         grid.AgentFor(Agent("dbLight1", "t1")).AssignedNode.ShouldNotBe(heavyNode);
         grid.AgentFor(Agent("dbLight2", "t1")).AssignedNode.ShouldNotBe(heavyNode);
     }
+
+    [Fact]
+    public void a_group_lands_only_on_a_node_capable_of_running_it()
+    {
+        // Blue/green: node capabilities differ, so placement must respect them exactly like
+        // DistributeEvenlyWithBlueGreenSemantics — the db1 group may only land on the capable node 2,
+        // even though the load-based choice alone would prefer the emptier node 1.
+        var db1Agents = new[] { Agent("db1", "t1"), Agent("db1", "t2") };
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        var node2 = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(db1Agents);
+
+        grid.WithAgents(db1Agents);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var uri in db1Agents)
+        {
+            grid.AgentFor(uri).AssignedNode.ShouldBe(node2,
+                "the group must land on the only node that declares its agents as capabilities");
+        }
+    }
+
+    [Fact]
+    public void when_no_node_can_host_the_whole_group_members_fall_back_individually()
+    {
+        // Mirrors the blue/green even path: no single node is capable of every member, so each member goes
+        // to its own least-loaded capable node, and a member NO node declares stays unassigned (parked).
+        var t1 = Agent("db1", "t1");
+        var t2 = Agent("db1", "t2");
+        var t3 = Agent("db1", "t3");
+
+        var grid = new AssignmentGrid();
+        var node1 = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(new[] { t1 });
+        var node2 = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { t2 });
+
+        grid.WithAgents(t1, t2, t3);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AgentFor(t1).AssignedNode.ShouldBe(node1);
+        grid.AgentFor(t2).AssignedNode.ShouldBe(node2);
+        grid.AgentFor(t3).AssignedNode.ShouldBeNull("an agent no node declares a capability for is parked, exactly like the even path");
+    }
 }
