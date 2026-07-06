@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using JasperFx.Events.Daemon;
 using Marten;
 using Marten.Events;
 using Marten.Exceptions;
@@ -167,6 +168,20 @@ internal class MartenOverrides : IConfigureMarten
     public void Configure(IServiceProvider services, StoreOptions options)
     {
         options.Events.MessageOutbox = new MartenToWolverineOutbox(services, StoreType);
+
+        // GH-3290: when Wolverine manages the event subscription distribution, it replaces
+        // Marten's AddAsyncDaemon(DaemonMode.HotCold) registration outright, but Marten only
+        // knows the daemon state through Projections.AsyncMode. Left at Disabled, Marten's
+        // DocumentStore writes a misleading "The async daemon is disabled ... projections
+        // will not be executed" warning at startup even though Wolverine IS running the
+        // async projections. Reflect the real daemon state so the warning is not raised.
+        // Only upgrades from Disabled — an explicit user AddAsyncDaemon() choice is left alone.
+        var integration = services.GetService<MartenIntegration>();
+        if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && options.Projections.AsyncMode == DaemonMode.Disabled)
+        {
+            options.Projections.AsyncMode = DaemonMode.HotCold;
+        }
 
         // Envelope is Wolverine's operational outbox document. Keep it
         // single-tenant and unpartitioned regardless of blanket document
