@@ -1,9 +1,7 @@
 using Google.Api.Gax;
 using Google.Apis.Auth.OAuth2;
 using Google.Cloud.PubSub.V1;
-using Wolverine.Pubsub.Internal;
 using Wolverine.Transports;
-using Wolverine.Transports.Sending;
 
 namespace Wolverine.Pubsub;
 
@@ -199,50 +197,6 @@ public class PubsubConfiguration : BrokerExpression<
         ConfigurePublisherApiClient(async b => b.GoogleCredential = await credentialFactory());
         ConfigureSubscriberApiClient(async b => b.GoogleCredential = await credentialFactory());
         ConfigureSubscriberClient(async b => b.GoogleCredential = await credentialFactory());
-        return this;
-    }
-
-    /// <summary>
-    ///     Control how Wolverine routes outbound messages whose <see cref="Envelope.TenantId" /> is null or does not
-    ///     match a registered tenant (broker-per-tenant). Defaults to
-    ///     <see cref="TenantedIdBehavior.FallbackToDefault" />, which uses the default/shared connection.
-    /// </summary>
-    public PubsubConfiguration TenantIdBehavior(TenantedIdBehavior behavior)
-    {
-        Transport.TenantedIdBehavior = behavior;
-
-        return this;
-    }
-
-    /// <summary>
-    ///     Register a tenant served by its own dedicated Google Cloud Platform Pub/Sub connection using a different
-    ///     GCP project (broker-per-tenant). The tenant shares the endpoint topology declared on this transport, but
-    ///     messages are routed to its project at runtime by <see cref="Envelope.TenantId" />. Credential / emulator
-    ///     settings are seeded from the parent transport.
-    /// </summary>
-    /// <param name="tenantId">The tenant id used to route messages (e.g. via <c>DeliveryOptions.TenantId</c>).</param>
-    /// <param name="projectId">The GCP project id that isolates this tenant's topology.</param>
-    public PubsubConfiguration AddTenant(string tenantId, string projectId)
-    {
-        return AddTenant(tenantId, projectId, null);
-    }
-
-    /// <summary>
-    ///     Register a tenant served by its own dedicated Google Cloud Platform Pub/Sub connection using a different
-    ///     GCP project (broker-per-tenant), with an opportunity to override the tenant's credential / emulator hooks.
-    ///     Any hook the tenant does not set is seeded from the parent transport.
-    /// </summary>
-    /// <param name="tenantId">The tenant id used to route messages (e.g. via <c>DeliveryOptions.TenantId</c>).</param>
-    /// <param name="projectId">The GCP project id that isolates this tenant's topology.</param>
-    /// <param name="configure">Optional per-tenant configuration (dedicated credentials, emulator detection).</param>
-    public PubsubConfiguration AddTenant(string tenantId, string projectId, Action<PubsubTenant>? configure)
-    {
-        var tenant = new PubsubTenant(tenantId, projectId);
-
-        configure?.Invoke(tenant);
-
-        Transport.Tenants[tenantId] = tenant;
-
         return this;
     }
 

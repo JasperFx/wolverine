@@ -12,7 +12,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task configure_publisher_api_client_sets_callback_on_transport()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -26,7 +26,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task configure_subscriber_api_client_sets_callback_on_transport()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -40,7 +40,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task configure_subscriber_client_sets_callback_on_transport()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -54,7 +54,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task multiple_configure_publisher_api_client_calls_compose_in_order()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var order = new List<int>();
 
@@ -68,7 +68,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task multiple_configure_subscriber_client_calls_compose_in_order()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var order = new List<int>();
 
@@ -82,7 +82,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_configure_publisher_api_client_callback_is_awaited()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -99,7 +99,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task use_credential_sets_credential_on_publisher_api_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -114,7 +114,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task use_credential_sets_credential_on_subscriber_api_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -129,7 +129,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task use_credential_sets_credential_on_subscriber_client_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -144,7 +144,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_use_credential_factory_sets_credential_on_publisher_api_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -164,7 +164,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task multiple_configure_subscriber_api_client_calls_compose_in_order()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var order = new List<int>();
 
@@ -178,7 +178,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_configure_subscriber_api_client_callback_is_awaited()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -195,7 +195,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_configure_subscriber_client_callback_is_awaited()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var called = false;
 
@@ -212,7 +212,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_use_credential_factory_sets_credential_on_subscriber_api_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -231,7 +231,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task async_use_credential_factory_sets_credential_on_subscriber_client_builder()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var credential = GoogleCredential.FromAccessToken("test-token");
         GoogleCredential? observed = null;
@@ -253,7 +253,7 @@ public class PubsubConfigurationTests
         // Each listener (re)connect rebuilds the streaming SubscriberClient and re-applies the
         // configure callback, so an async credential factory runs again every time. This is what
         // lets rolling/rotated credentials be picked up without restarting the application.
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var invocations = 0;
 
@@ -274,7 +274,7 @@ public class PubsubConfigurationTests
     [Fact]
     public async Task subscriber_client_receives_a_fresh_credential_on_each_connect()
     {
-        var transport = new PubsubTransport { ProjectId = "test" };
+        var transport = new PubsubTransport("test");
         var config = new PubsubConfiguration(transport, new WolverineOptions());
         var counter = 0;
 

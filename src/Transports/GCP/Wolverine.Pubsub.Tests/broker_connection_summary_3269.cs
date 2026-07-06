@@ -12,21 +12,21 @@ public class broker_connection_summary_3269
     [Fact]
     public void describe_endpoint_reports_the_project_id()
     {
-        var transport = new PubsubTransport { ProjectId = "my-project" };
+        var transport = new PubsubTransport("my-project");
         transport.DescribeEndpoint().ShouldBe("project: my-project");
     }
 
     [Fact]
     public void describe_endpoint_marks_the_emulator()
     {
-        var transport = new PubsubTransport { ProjectId = "my-project", EmulatorDetection = EmulatorDetection.EmulatorOnly };
+        var transport = new PubsubTransport("my-project") { EmulatorDetection = EmulatorDetection.EmulatorOnly };
         transport.DescribeEndpoint().ShouldBe("project: my-project (emulator)");
     }
 
     [Fact]
     public void broker_description_endpoint_is_populated()
     {
-        var transport = new PubsubTransport { ProjectId = "my-project" };
+        var transport = new PubsubTransport("my-project");
         new BrokerDescription(transport).Endpoint.ShouldBe("project: my-project");
     }
 }

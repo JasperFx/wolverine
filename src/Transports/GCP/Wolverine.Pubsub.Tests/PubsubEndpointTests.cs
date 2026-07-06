@@ -13,9 +13,8 @@ public class PubsubEndpointTests
 {
     private PubsubTransport createTransport()
     {
-        return new PubsubTransport
+        return new PubsubTransport("wolverine")
         {
-            ProjectId = "wolverine",
             PublisherApiClient = Substitute.For<PublisherServiceApiClient>(),
             SubscriberApiClient = Substitute.For<SubscriberServiceApiClient>(),
             EmulatorDetection = EmulatorDetection.EmulatorOnly

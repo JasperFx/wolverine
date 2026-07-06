@@ -8,17 +8,14 @@ public class InlinePubsubSender : ISender
 {
     private readonly PubsubEndpoint _endpoint;
     private readonly ILogger _logger;
-    private readonly PubsubClientSet _clients;
 
     public InlinePubsubSender(
         PubsubEndpoint endpoint,
-        IWolverineRuntime runtime,
-        PubsubClientSet? clients = null
+        IWolverineRuntime runtime
     )
     {
         _endpoint = endpoint;
         _logger = runtime.LoggerFactory.CreateLogger<InlinePubsubSender>();
-        _clients = clients ?? endpoint.Transport.DefaultClients;
     }
 
     public bool SupportsNativeScheduledSend => false;
@@ -42,6 +39,6 @@ public class InlinePubsubSender : ISender
 
     public async ValueTask SendAsync(Envelope envelope)
     {
-        await _endpoint.SendMessageAsync(envelope, _logger, _clients);
+        await _endpoint.SendMessageAsync(envelope, _logger);
     }
 }
