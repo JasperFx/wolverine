@@ -9,6 +9,7 @@ using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Redis.Internal;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Tests;
 
@@ -158,6 +159,54 @@ public class DocumentationSamples
                 // Database 3: Analytics and reporting
                 opts.PublishMessage<AnalyticsEvent>().ToRedisStream("analytics", 3);
                 opts.ListenToRedisStream("analytics", "analytics-processors", 3);
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task named_broker()
+    {
+        #region sample_redis_named_broker
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The default Redis broker
+                opts.UseRedisTransport("localhost:6379");
+
+                // An additional, independent Redis broker identified by name
+                opts.AddNamedRedisBroker(new BrokerName("secondary"), "localhost:6399");
+
+                // Publish a message type to a stream on the named broker
+                opts.PublishMessage<OrderCreated>()
+                    .ToRedisStreamOnNamedBroker(new BrokerName("secondary"), "orders");
+
+                // Listen to a stream on the named broker
+                opts.ListenToRedisStreamOnNamedBroker(new BrokerName("secondary"), "orders", "order-processors");
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public static async Task multi_tenancy()
+    {
+        #region sample_redis_multi_tenancy
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRedisTransport("localhost:6379")
+                    .AutoProvision()
+
+                    // Route messages that carry a tenant id to that tenant's own Redis server;
+                    // messages with no (or an unknown) tenant id fall back to the shared connection
+                    .ConfigureMultiTenancy(TenantedIdBehavior.FallbackToDefault)
+
+                    // Each tenant gets its own dedicated Redis server
+                    .AddTenant("tenant1", "redis-tenant1:6379")
+                    .AddTenant("tenant2", "redis-tenant2:6379");
+
+                // The stream topology is shared; the connection is chosen per message from Envelope.TenantId
+                opts.PublishMessage<OrderCreated>().ToRedisStream("orders");
+                opts.ListenToRedisStream("orders", "order-processors");
             }).StartAsync();
 
         #endregion

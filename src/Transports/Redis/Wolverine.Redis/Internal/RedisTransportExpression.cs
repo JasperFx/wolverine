@@ -1,6 +1,8 @@
+using StackExchange.Redis;
 using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Redis.Internal;
 
@@ -59,6 +61,57 @@ public class RedisTransportExpression : BrokerExpression<RedisTransport, RedisSt
     
     public RedisTransportExpression DeleteStreamEntryOnAck(bool deleteStreamEntryOnAck){
         _transport.DeleteStreamEntryOnAck = deleteStreamEntryOnAck;
+        return this;
+    }
+
+    /// <summary>
+    /// Configure how Wolverine routes messages that carry a tenant id when broker-per-tenant connections
+    /// have been registered with <see cref="AddTenant(string,string)"/>. GH-3309.
+    /// </summary>
+    public RedisTransportExpression ConfigureMultiTenancy(
+        TenantedIdBehavior behavior = TenantedIdBehavior.FallbackToDefault)
+    {
+        _transport.TenantedIdBehavior = behavior;
+        return this;
+    }
+
+    /// <summary>
+    /// Add a tenant that uses its own dedicated Redis server, addressed by a StackExchange.Redis connection
+    /// string. Messages tagged with this tenant id are published and consumed over the tenant's own
+    /// connection. GH-3309.
+    /// </summary>
+    public RedisTransportExpression AddTenant(string tenantId, string connectionString)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        _transport.Tenants[tenantId] = new RedisTenant(tenantId) { ConnectionString = connectionString };
+        return this;
+    }
+
+    /// <summary>
+    /// Add a tenant that uses its own dedicated Redis server, addressed by caller-supplied
+    /// <see cref="ConfigurationOptions"/>. Wolverine builds and owns (disposes) the tenant multiplexer. GH-3309.
+    /// </summary>
+    public RedisTransportExpression AddTenant(string tenantId, ConfigurationOptions configurationOptions)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        ArgumentNullException.ThrowIfNull(configurationOptions);
+
+        _transport.Tenants[tenantId] = new RedisTenant(tenantId) { ConfigurationOptions = configurationOptions };
+        return this;
+    }
+
+    /// <summary>
+    /// Add a tenant that uses a caller-managed <see cref="IConnectionMultiplexer"/>. Wolverine uses it as-is
+    /// and does NOT dispose it — the caller owns its lifetime. GH-3309.
+    /// </summary>
+    public RedisTransportExpression AddTenant(string tenantId, IConnectionMultiplexer connectionMultiplexer)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(tenantId);
+        ArgumentNullException.ThrowIfNull(connectionMultiplexer);
+
+        _transport.Tenants[tenantId] = new RedisTenant(tenantId) { ExternalConnection = connectionMultiplexer };
         return this;
     }
 }

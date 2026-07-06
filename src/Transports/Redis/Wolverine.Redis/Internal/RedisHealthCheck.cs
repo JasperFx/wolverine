@@ -9,7 +9,7 @@ internal class RedisHealthCheck : WolverineTransportHealthCheck
     public RedisHealthCheck(RedisTransport transport) => _transport = transport;
 
     public override string TransportName => "Redis";
-    public override string Protocol => "redis";
+    public override string Protocol => _transport.Protocol;
 
     public override Task<TransportHealthResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
@@ -41,7 +41,7 @@ internal class RedisHealthCheck : WolverineTransportHealthCheck
     public override async Task<long?> GetBrokerQueueDepthAsync(Uri endpointUri,
         CancellationToken cancellationToken = default)
     {
-        if (endpointUri.Scheme != "redis") return null;
+        if (endpointUri.Scheme != _transport.Protocol) return null;
 
         var streamKey = endpointUri.Segments.LastOrDefault()?.TrimEnd('/');
         if (string.IsNullOrEmpty(streamKey)) return null;

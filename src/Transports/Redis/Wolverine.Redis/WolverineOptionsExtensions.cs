@@ -101,6 +101,118 @@ public static class WolverineOptionsExtensions
     }
 
     /// <summary>
+    /// Locate the Redis transport for this application. Pass a <paramref name="name"/> to resolve an
+    /// additional, named Redis broker registered via <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>.
+    /// GH-3309.
+    /// </summary>
+    internal static RedisTransport RedisTransport(this WolverineOptions options, BrokerName? name = null)
+    {
+        if (name == null)
+        {
+            return options.Transports.GetOrCreate<RedisTransport>();
+        }
+
+        var existing = options.Transports.OfType<RedisTransport>().FirstOrDefault(x => x.Protocol == name.Name);
+        if (existing == null)
+        {
+            throw new InvalidOperationException(
+                $"No named Redis broker '{name.Name}' has been registered. Call AddNamedRedisBroker(new BrokerName(\"{name.Name}\"), connectionString) before publishing or listening on it.");
+        }
+
+        return existing;
+    }
+
+    /// <summary>
+    /// Register an additional, independent Redis broker addressed by a StackExchange.Redis connection string.
+    /// Only use this if your Wolverine application needs to talk to two or more Redis brokers. The
+    /// <paramref name="name"/> doubles as the URI scheme for the additional broker's endpoints, so pin
+    /// publishing / listening to it with <see cref="ToRedisStreamOnNamedBroker"/> /
+    /// <see cref="ListenToRedisStreamOnNamedBroker(WolverineOptions, BrokerName, string, string)"/>. GH-3309.
+    /// </summary>
+    public static RedisTransportExpression AddNamedRedisBroker(this WolverineOptions options, BrokerName name, string connectionString)
+    {
+        var transport = new RedisTransport(name.Name, connectionString);
+        options.Transports.Add(transport);
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Register an additional, independent Redis broker addressed by caller-supplied
+    /// <see cref="ConfigurationOptions"/>. See <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>. GH-3309.
+    /// </summary>
+    public static RedisTransportExpression AddNamedRedisBroker(this WolverineOptions options, BrokerName name, ConfigurationOptions configurationOptions)
+    {
+        var transport = new RedisTransport(name.Name, configurationOptions);
+        options.Transports.Add(transport);
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Register an additional, independent Redis broker addressed by a caller-managed
+    /// <see cref="IConnectionMultiplexer"/> (which Wolverine does NOT dispose).
+    /// See <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>. GH-3309.
+    /// </summary>
+    public static RedisTransportExpression AddNamedRedisBroker(this WolverineOptions options, BrokerName name, IConnectionMultiplexer connectionMultiplexer)
+    {
+        var transport = new RedisTransport(name.Name, connectionMultiplexer);
+        options.Transports.Add(transport);
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Register an additional, independent Redis broker addressed by an <see cref="IConnectionMultiplexer"/>
+    /// resolved from the IoC container at runtime (which Wolverine does NOT dispose).
+    /// See <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>. GH-3309.
+    /// </summary>
+    public static RedisTransportExpression AddNamedRedisBroker(this WolverineOptions options, BrokerName name, Func<IServiceProvider, IConnectionMultiplexer> connectionFactory)
+    {
+        var transport = new RedisTransport(name.Name, connectionFactory);
+        options.Transports.Add(transport);
+        return new RedisTransportExpression(transport, options);
+    }
+
+    /// <summary>
+    /// Publish messages to a Redis stream on an additional, named broker registered via
+    /// <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>. GH-3309.
+    /// </summary>
+    /// <param name="publishing">Publishing configuration</param>
+    /// <param name="name">Identity of the additional Redis broker</param>
+    /// <param name="streamKey">Redis stream key name</param>
+    /// <param name="databaseId">Redis database ID (default 0)</param>
+    public static RedisSubscriberConfiguration ToRedisStreamOnNamedBroker(this IPublishToExpression publishing, BrokerName name, string streamKey, int databaseId = 0)
+    {
+        var transport = publishing.As<PublishingExpression>().Parent.RedisTransport(name);
+
+        var endpoint = transport.StreamEndpoint(streamKey, databaseId);
+
+        publishing.To(endpoint.Uri);
+
+        return new RedisSubscriberConfiguration(endpoint);
+    }
+
+    /// <summary>
+    /// Listen to a Redis stream on an additional, named broker registered via
+    /// <see cref="AddNamedRedisBroker(WolverineOptions, BrokerName, string)"/>. GH-3309.
+    /// </summary>
+    /// <param name="options">Wolverine configuration options</param>
+    /// <param name="name">Identity of the additional Redis broker</param>
+    /// <param name="streamKey">Redis stream key name</param>
+    /// <param name="consumerGroup">Consumer group name</param>
+    /// <param name="databaseId">Redis database ID (default 0)</param>
+    public static RedisListenerConfiguration ListenToRedisStreamOnNamedBroker(this WolverineOptions options, BrokerName name, string streamKey, string consumerGroup, int databaseId = 0)
+    {
+        var transport = options.RedisTransport(name);
+
+        var endpoint = transport.StreamEndpoint(streamKey, databaseId, e =>
+        {
+            e.ConsumerGroup = consumerGroup;
+            e.IsListener = true;
+        });
+
+        return new RedisListenerConfiguration(endpoint);
+    }
+
+    /// <summary>
     /// Configure Wolverine to publish messages to the specified Redis stream (uses database 0)
     /// </summary>
     /// <param name="publishing">Publishing configuration</param>
