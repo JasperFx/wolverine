@@ -15,35 +15,40 @@ internal interface ISenderCircuit : ICircuitTester
 
 internal class CircuitWatcher : IDisposable
 {
-    private readonly CancellationToken _cancellation;
+    // Linked (not just stored) so Dispose() can stop the loop on its own, independent of whether the
+    // caller's token has been cancelled yet. Without this, Dispose() only released the Task wrapper --
+    // pingUntilConnectedAsync kept running against the still-live caller token.
+    private readonly CancellationTokenSource _cancellation;
     private readonly ISenderCircuit _senderCircuit;
     private readonly Task _task;
 
     public CircuitWatcher(ISenderCircuit senderCircuit, CancellationToken cancellation)
     {
         _senderCircuit = senderCircuit;
-        _cancellation = cancellation;
+        _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
 
-        _task = Task.Run(pingUntilConnectedAsync, _cancellation);
+        _task = Task.Run(pingUntilConnectedAsync, _cancellation.Token);
     }
 
     public void Dispose()
     {
+        _cancellation.Cancel();
         _task.SafeDispose();
+        _cancellation.Dispose();
     }
 
     private async Task pingUntilConnectedAsync()
     {
         using var timer=new PeriodicTimer(_senderCircuit.RetryInterval);
-        while (await timer.WaitForNextTickAsync(_cancellation))
+        while (await timer.WaitForNextTickAsync(_cancellation.Token))
         {
             try
             {
-                var pinged = await _senderCircuit.TryToResumeAsync(_cancellation);
+                var pinged = await _senderCircuit.TryToResumeAsync(_cancellation.Token);
 
                 if (pinged)
                 {
-                    await _senderCircuit.ResumeAsync(_cancellation);
+                    await _senderCircuit.ResumeAsync(_cancellation.Token);
                     return;
                 }
             }

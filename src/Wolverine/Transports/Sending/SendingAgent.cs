@@ -52,6 +52,11 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
 
     public virtual async ValueTask DisposeAsync()
     {
+        // Stop the circuit-breaker ping loop before tearing down the sender it pings through --
+        // otherwise it keeps running against a disposed/unreachable destination indefinitely.
+        _circuitWatcher?.SafeDispose();
+        _circuitWatcher = null;
+
         if (_sender is IAsyncDisposable ad)
         {
             await ad.DisposeAsync().ConfigureAwait(false);
