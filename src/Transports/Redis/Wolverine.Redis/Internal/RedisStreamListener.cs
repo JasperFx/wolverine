@@ -28,13 +28,19 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     private Task? _scheduledTask;
     private ListeningStatus _status = ListeningStatus.Stopped;
     private string _consumerName;
+
+    // When non-null, this listener consumes over a tenant's dedicated multiplexer (broker-per-tenant)
+    // instead of the transport's shared connection. GH-3309.
+    private readonly IConnectionMultiplexer? _connection;
+
     public RedisStreamListener(RedisTransport transport, RedisStreamEndpoint endpoint,
-        IWolverineRuntime runtime, IReceiver receiver)
+        IWolverineRuntime runtime, IReceiver receiver, IConnectionMultiplexer? connection = null)
     {
         _transport = transport;
         _endpoint = endpoint;
         _runtime = runtime;
         _receiver = receiver;
+        _connection = connection;
         _logger = runtime.LoggerFactory.CreateLogger<RedisStreamListener>();
         _settings = runtime.DurabilitySettings;
 
@@ -53,9 +59,12 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     // long-lived, auto-reconnecting multiplexer, so this lets external monitors see a listener whose multiplexer is
     // down even though ListeningStatus still reports Accepting.
     public TransportConnectionState ConnectionState =>
-        _transport.GetDatabase(database: _endpoint.DatabaseId).Multiplexer.IsConnected
+        getDatabase().Multiplexer.IsConnected
             ? TransportConnectionState.Connected
             : TransportConnectionState.Disconnected;
+
+    private IDatabase getDatabase() =>
+        _connection?.GetDatabase(_endpoint.DatabaseId) ?? _transport.GetDatabase(database: _endpoint.DatabaseId);
 
     // GH-3236: surface the consumer loop's liveness (heartbeat + faulted/hung detection) for EndpointHealthSnapshot.
     public ReceiveLoopStatus ReceiveLoopStatus => _loop?.ReceiveLoopStatus ?? ReceiveLoopStatus.NotStarted;
@@ -70,7 +79,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     {
         try
         {
-            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var database = getDatabase();
             
             // Serialize the envelope
             var serializedEnvelope = EnvelopeSerializer.Serialize(envelope);
@@ -121,10 +130,12 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     // ISupportNativeScheduling implementation
     public async ValueTask InitializeAsync()
     {
-        // Only create resources at listener init time if AutoProvision is enabled.
+        // Only create resources at listener init time if AutoProvision is enabled. Provision the consumer
+        // group over THIS listener's connection so a tenant listener creates its group on the tenant's own
+        // server (broker-per-tenant), not the shared one. GH-3309.
         if (_transport.AutoProvision)
         {
-            await _endpoint.SetupAsync(_logger);
+            await EnsureGroupExistsAsync(getDatabase());
         }
         else
         {
@@ -133,7 +144,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             {
                 try
                 {
-                    var db = _transport.GetDatabase(database: _endpoint.DatabaseId);
+                    var db = getDatabase();
                     var groups = await db.StreamGroupInfoAsync(_endpoint.StreamKey);
                     var exists = groups?.Any(g => g.Name == _endpoint.ConsumerGroup) ?? false;
                     if (!exists)
@@ -212,7 +223,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 return;
             }
 
-            var db = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var db = getDatabase();
             if (DeleteOnAck)
                 await db.StreamAcknowledgeAndDeleteAsync(_endpoint.StreamKey, _endpoint.ConsumerGroup!, StreamTrimMode.Acknowledged, idString!);
             else
@@ -229,7 +240,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     {
         try
         {
-            var db = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var db = getDatabase();
 
             // 1) Ack the current pending entry if we can
             if (envelope.Headers.TryGetValue(RedisEnvelopeMapper.RedisEntryIdHeader, out var idString) && !string.IsNullOrEmpty(idString))
@@ -328,7 +339,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     // fail-fast behavior as before. Other exceptions propagate to BackgroundReceiveLoop's log-and-backoff policy.
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
-        var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+        var database = getDatabase();
 
         try
         {
@@ -474,7 +485,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
     public async Task<long> MoveScheduledToReadyStreamAsync(CancellationToken cancellationToken)
     {
-        var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+        var database = getDatabase();
         var scheduledKey = _endpoint.ScheduledMessagesKey;
 
         try
@@ -560,7 +571,7 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
     {
         try
         {
-            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var database = getDatabase();
             var scheduledKey = _endpoint.ScheduledMessagesKey;
             
             // Get all messages from the scheduled set to check their expiration

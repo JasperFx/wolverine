@@ -1,5 +1,7 @@
+using System.Linq;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using Wolverine;
 using Wolverine.Configuration;
 using Wolverine.Redis;
 using Wolverine.Runtime;
@@ -153,9 +155,37 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
             throw new InvalidOperationException($"Consumer group is required for listening to Redis stream '{StreamKey}'");
         }
 
-        var listener = new RedisStreamListener(_transport, this, runtime, receiver);
-        await listener.InitializeAsync();
-        return listener;
+        // The shared listener consumes the default connection (plus every tenant that reuses it).
+        var sharedListener = new RedisStreamListener(_transport, this, runtime, receiver);
+        await sharedListener.InitializeAsync();
+
+        // Broker-per-tenant: each tenant with its own connection publishes to a separate Redis server the
+        // shared listener can't see, so consume each over its own connection and stamp the tenant id onto
+        // inbound envelopes via a TenantIdRule. Mirrors the NATS / RabbitMQ CompoundListener pattern;
+        // per-envelope completion routes back to the right connection via Envelope.Listener. GH-3309.
+        var tenantAware = _transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware;
+        var dedicatedTenants = tenantAware
+            ? _transport.Tenants.Where(t => t.HasOwnConnection).ToArray()
+            : [];
+
+        if (dedicatedTenants.Length == 0)
+        {
+            return sharedListener;
+        }
+
+        var compound = new CompoundListener(Uri);
+        compound.Inner.Add(sharedListener);
+
+        foreach (var tenant in dedicatedTenants)
+        {
+            var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+            var tenantListener = new RedisStreamListener(_transport, this, runtime, tenantReceiver,
+                _transport.GetTenantConnection(tenant));
+            await tenantListener.InitializeAsync();
+            compound.Inner.Add(tenantListener);
+        }
+
+        return compound;
     }
     
     public override bool TryBuildDeadLetterSender(IWolverineRuntime runtime, out ISender? deadLetterSender)
@@ -214,7 +244,26 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     protected override ISender CreateSender(IWolverineRuntime runtime)
     {
         EnvelopeMapper ??= BuildMapper(runtime);
-        
+
+        if (_transport.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            // Broker-per-tenant: route by Envelope.TenantId. Both the tenant senders and the default
+            // fallback MUST be the fire-and-forget InlineRedisStreamSender — TenantedSender does not
+            // forward RegisterCallback, so a BatchedSender under it would silently drop every message
+            // (GH-2361). Each tenant sender targets its own dedicated multiplexer.
+            var defaultSender = new InlineRedisStreamSender(_transport, this, runtime);
+            var tenantedSender = new TenantedSender(Uri, _transport.TenantedIdBehavior, defaultSender);
+
+            foreach (var tenant in _transport.Tenants)
+            {
+                var tenantConnection = tenant.HasOwnConnection ? _transport.GetTenantConnection(tenant) : null;
+                var tenantSender = new InlineRedisStreamSender(_transport, this, runtime, tenantConnection);
+                tenantedSender.RegisterSender(tenant.TenantId, tenantSender);
+            }
+
+            return tenantedSender;
+        }
+
         return Mode == EndpointMode.Inline
             ? new InlineRedisStreamSender(_transport, this, runtime)
             : new BatchedSender(this, new RedisSenderProtocol(_transport, this), runtime.Cancellation,

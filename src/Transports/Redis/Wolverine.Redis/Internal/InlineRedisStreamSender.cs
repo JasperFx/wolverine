@@ -12,14 +12,23 @@ public class InlineRedisStreamSender : ISender
     private readonly RedisStreamEndpoint _endpoint;
     private readonly IWolverineRuntime _runtime;
     private readonly ILogger _logger;
-    
-    public InlineRedisStreamSender(RedisTransport transport, RedisStreamEndpoint endpoint, IWolverineRuntime runtime)
+
+    // When non-null, this sender targets a tenant's dedicated multiplexer (broker-per-tenant) instead of the
+    // transport's shared connection. GH-3309.
+    private readonly IConnectionMultiplexer? _connection;
+
+    public InlineRedisStreamSender(RedisTransport transport, RedisStreamEndpoint endpoint, IWolverineRuntime runtime,
+        IConnectionMultiplexer? connection = null)
     {
         _transport = transport;
         _endpoint = endpoint;
         _runtime = runtime;
+        _connection = connection;
         _logger = runtime.LoggerFactory.CreateLogger<InlineRedisStreamSender>();
     }
+
+    private IDatabase getDatabase() =>
+        _connection?.GetDatabase(_endpoint.DatabaseId) ?? _transport.GetDatabase(database: _endpoint.DatabaseId);
 
     public Uri Destination => _endpoint.Uri;
     
@@ -29,7 +38,7 @@ public class InlineRedisStreamSender : ISender
     {
         try
         {
-            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var database = getDatabase();
             // Simple ping to check if Redis is available
             await database.PingAsync();
             return true;
@@ -45,7 +54,7 @@ public class InlineRedisStreamSender : ISender
     {
         try
         {
-            var database = _transport.GetDatabase(database: _endpoint.DatabaseId);
+            var database = getDatabase();
             
             // Check if this is a scheduled message
             if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
