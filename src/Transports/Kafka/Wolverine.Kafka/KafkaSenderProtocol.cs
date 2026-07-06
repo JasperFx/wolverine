@@ -1,4 +1,5 @@
 using Confluent.Kafka;
+using Wolverine.Kafka.Internals;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 
@@ -10,9 +11,19 @@ public class KafkaSenderProtocol : ISenderProtocol, IDisposable
     private readonly IProducer<string, byte[]> _producer;
 
     public KafkaSenderProtocol(KafkaTopic topic)
+        : this(topic, topic.Parent)
+    {
+    }
+
+    // Broker-per-tenant (GH-3303): batch over an explicit transport (a tenant's child transport pointed at its
+    // own cluster) rather than always the topic's parent. When it *is* the parent, behaves exactly as before.
+    internal KafkaSenderProtocol(KafkaTopic topic, KafkaTransport producerTransport)
     {
         _topic = topic;
-        _producer = _topic.Parent.CreateProducer(_topic.GetEffectiveProducerConfig());
+        var config = ReferenceEquals(producerTransport, topic.Parent)
+            ? topic.GetEffectiveProducerConfig()
+            : producerTransport.ProducerConfig;
+        _producer = producerTransport.CreateProducer(config);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)

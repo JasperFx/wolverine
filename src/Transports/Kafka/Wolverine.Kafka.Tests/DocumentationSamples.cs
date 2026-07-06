@@ -3,6 +3,7 @@ using Confluent.Kafka;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using JasperFx.Resources;
+using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
 namespace Wolverine.Kafka.Tests;
@@ -186,6 +187,44 @@ public class DocumentationSamples
                 // Other configuration
             }).StartAsync();
 
+        #endregion
+    }
+
+    public static async Task broker_per_tenant()
+    {
+        #region sample_kafka_broker_per_tenant
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                // The "default" / shared Kafka cluster
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
+                    .AutoProvision()
+
+                    // How should Wolverine route a message whose TenantId is null or
+                    // unknown? FallbackToDefault (the default) uses the shared cluster;
+                    // TenantIdRequired throws; IgnoreUnknownTenants silently drops it.
+                    .TenantIdBehavior(TenantedIdBehavior.FallbackToDefault)
+
+                    // Each tenant gets its OWN dedicated Kafka cluster, but shares the
+                    // topic topology declared below. The tenant inherits the parent's
+                    // client configuration (auth, SASL/SSL, idempotence, DLQ topic, ...)
+                    // with just the bootstrap servers re-pointed.
+                    .AddTenant("tenant-a", "tenant-a-kafka:9092")
+
+                    // Or configure the tenant cluster through the full Kafka surface,
+                    // seeded from the parent settings, when it needs its own credentials:
+                    .AddTenant("tenant-b", tenant => tenant.ConfigureClient(client =>
+                    {
+                        client.BootstrapServers = "tenant-b-kafka:9092";
+                        client.SaslUsername = "tenant-b-user";
+                        client.SaslPassword = "tenant-b-secret";
+                    }));
+
+                // One shared topology; messages are routed to the right cluster at
+                // runtime by Envelope.TenantId (e.g. new DeliveryOptions { TenantId = "tenant-a" }).
+                opts.PublishMessage<ColorMessage>().ToKafkaTopic("colors");
+                opts.ListenToKafkaTopic("colors");
+            }).StartAsync();
         #endregion
     }
 }

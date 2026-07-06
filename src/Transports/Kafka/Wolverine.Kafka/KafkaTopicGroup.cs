@@ -50,6 +50,27 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
 
         var listener = new KafkaTopicGroupListener(this, config,
             Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>());
+
+        // Broker-per-tenant (GH-3303): mirror the single-topic listener treatment — a shared listener on the
+        // default cluster plus one per-tenant listener on each tenant cluster, stamping the tenant id inbound.
+        if (Parent.Tenants.Any() && TenancyBehavior == TenancyBehavior.TenantAware)
+        {
+            var compound = new CompoundListener(Uri);
+            compound.Inner.Add(listener);
+
+            foreach (var tenant in Parent.Tenants)
+            {
+                var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
+                var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                var tenantListener = new KafkaTopicGroupListener(this, tenantConfig,
+                    tenant.Transport.CreateConsumer(tenantConfig), tenantReceiver,
+                    runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(), tenant.Transport);
+                compound.Inner.Add(tenantListener);
+            }
+
+            return ValueTask.FromResult((IListener)compound);
+        }
+
         return ValueTask.FromResult((IListener)listener);
     }
 
@@ -123,6 +144,16 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         if (IsExternallyOwned) return;
 
         using var adminClient = Parent.CreateAdminClient();
+        await SetupOnAsync(adminClient, logger);
+    }
+
+    /// <summary>
+    /// Create every topic in this group on the supplied admin client. Split out from <see cref="SetupAsync"/>
+    /// so the same multi-topic creation logic can be applied against a tenant cluster (broker-per-tenant, GH-3303).
+    /// </summary>
+    internal new async ValueTask SetupOnAsync(IAdminClient adminClient, ILogger logger)
+    {
+        if (IsExternallyOwned) return;
 
         foreach (var topicName in TopicNames)
         {

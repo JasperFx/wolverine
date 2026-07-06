@@ -30,6 +30,13 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
 
     internal List<KafkaTopicGroup> TopicGroups { get; } = new();
 
+    /// <summary>
+    /// Broker-per-tenant registrations (GH-3303). Each tenant owns a child transport pointed at its own Kafka
+    /// cluster; outbound is routed by <see cref="Envelope.TenantId"/> and inbound listeners stamp the tenant id.
+    /// </summary>
+    [IgnoreDescription]
+    internal LightweightCache<string, KafkaTenant> Tenants { get; } = new();
+
     // GH-3269: Confluent's ProducerConfig/ConsumerConfig/AdminClientConfig (ClientConfig) expose SaslUsername,
     // SaslPassword, SslKeyPassword, SslKeystorePassword, … as public properties. Reflecting them into the diagnostic
     // tree (the old [ChildDescription]) leaks those secrets to monitoring consumers, so they are suppressed.
@@ -122,7 +129,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             new TopicRoutingRule()); // t
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
         var namedConnection = runtime.Services.GetService<KafkaNamedConnectionSource>();
         if (namedConnection != null)
@@ -155,7 +162,48 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         warnOnStaticMembership(runtime);
         registerRetryTopicListeners(runtime);
 
-        return ValueTask.CompletedTask;
+        // Broker-per-tenant (GH-3303): clone the (now fully resolved) parent config onto each tenant's child
+        // transport, re-pointing it at the tenant's own cluster. Producers/consumers/admin clients are lazy,
+        // so there is no live connection to open here — but when AutoProvision is on we must create the shared
+        // topic topology (including the DLQ topic) on every tenant cluster, since each is a separate broker.
+        if (Tenants.Any())
+        {
+            foreach (var tenant in Tenants)
+            {
+                tenant.Compile(this, runtime.Options);
+            }
+
+            if (AutoProvision)
+            {
+                await provisionTenantTopicsAsync(runtime);
+            }
+        }
+    }
+
+    // Create the shared application topics (and the DLQ topic) on each tenant's own cluster. Mirrors the specs
+    // the parent would provision via KafkaTopic.SetupAsync, but runs against the tenant admin client.
+    private async Task provisionTenantTopicsAsync(IWolverineRuntime runtime)
+    {
+        var logger = runtime.LoggerFactory.CreateLogger<KafkaTransport>();
+
+        var singleTopics = Topics
+            .Where(t => t.TopicName != KafkaTopic.WolverineTopicsName && !t.IsExternallyOwned)
+            .ToArray();
+
+        foreach (var tenant in Tenants)
+        {
+            using var adminClient = tenant.Transport.CreateAdminClient();
+
+            foreach (var topic in singleTopics)
+            {
+                await topic.SetupOnAsync(adminClient, logger);
+            }
+
+            foreach (var group in TopicGroups.Where(g => !g.IsExternallyOwned))
+            {
+                await group.SetupOnAsync(adminClient, logger);
+            }
+        }
     }
 
     // GH-3148: discover the non-blocking retry-topic policy (MoveToKafkaRetryTopic) in the global failure
