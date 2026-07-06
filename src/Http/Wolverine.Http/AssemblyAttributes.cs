@@ -7,6 +7,9 @@ using JasperFx.Core.TypeScanning;
 // RunJasperFxCommands() in consuming applications. See OpenApiCommand.
 [assembly: JasperFxAssembly]
 
+[assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning")]
+[assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
+
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
 // WolverineFx.Http.Newtonsoft's UseNewtonsoftJsonForSerialization extension
 // needs to call HttpGraph.UseNewtonsoftJson(INewtonsoftHttpCodeGen) and

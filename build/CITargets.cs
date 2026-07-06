@@ -450,6 +450,16 @@ partial class Build
                 .EnableNoBuild());
         });
 
+    Target CIHttpAspVersioning => _ => _
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Http" / "Wolverine.Http.AspVersioning.Tests" / "Wolverine.Http.AspVersioning.Tests.csproj";
+
+            BuildTestProjectsWithFramework("net10.0", tests);
+
+            RunTestProject(tests, frameworkOverride: "net10.0");
+        });
+
     Target CIRabbitMQ => _ => _
         .ProceedAfterFailure()
         .Executes(() =>

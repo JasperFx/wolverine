@@ -1,8 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Linq.Expressions;
-using System.Reflection;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using Asp.Versioning;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -10,7 +5,6 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.CodeGeneration.Services;
 using JasperFx.Core;
-using Wolverine.Http.Antiforgery;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using Microsoft.AspNetCore.Builder;
@@ -20,7 +14,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Wolverine.Configuration;
+using Wolverine.Http.Antiforgery;
 using Wolverine.Http.CodeGen;
 using Wolverine.Http.ContentNegotiation;
 using Wolverine.Http.Metadata;
@@ -859,9 +859,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     /// <summary>
     /// Sets an explicit operation ID (endpoint name) and marks it as explicit so it is used
-    /// as the endpoint name in the ASP.NET Core routing infrastructure. This is used by
-    /// <see cref="ApiVersioning.ApiVersioningPolicy"/> to disambiguate endpoints that share the
-    /// same handler method name after URL-segment version prefixes are applied.
+    /// as the endpoint name in the ASP.NET Core routing infrastructure. This is used by policies
+    /// that need to disambiguate endpoints that share the same handler method name (e.g. 
+    /// <see cref="ApiVersioning.ApiVersioningPolicy"/>).
     /// </summary>
     internal void SetExplicitOperationId(string operationId)
     {

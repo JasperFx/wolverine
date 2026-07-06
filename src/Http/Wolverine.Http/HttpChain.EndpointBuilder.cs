@@ -23,6 +23,16 @@ public partial class HttpChain : IEndpointConventionBuilder
     // ReSharper disable once InconsistentNaming
     public RouteHandlerBuilder Metadata { get; }
 
+    /// <summary>
+    /// Indicates whether the endpoint builder for this chain requires access to the application's
+    /// service provider. Default value is <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// If <see langword="true"/>, the <c>RouteEndpointBuilder</c> used to build this chain's endpoint
+    /// will be instantiated with the service provider exposed by the parent <see cref="HttpGraph"/>.
+    /// </remarks>
+    internal bool RequiresApplicationServices { get; set; }
+
     public void Add(Action<EndpointBuilder> convention)
     {
         _builderConfigurations.Add(convention);
@@ -94,7 +104,10 @@ public partial class HttpChain : IEndpointConventionBuilder
 
         var builder = new RouteEndpointBuilder(requestDelegate, RoutePattern!, Order)
         {
-            DisplayName = DisplayName
+            DisplayName = DisplayName,
+            ApplicationServices = RequiresApplicationServices
+                ? _parent.Container.Services
+                : EmptyServiceProvider.Instance // equivalent to not passing a value at all
         };
 
         establishResourceTypeMetadata(builder);
@@ -182,6 +195,15 @@ public partial class HttpChain : IEndpointConventionBuilder
         {
             T.PopulateMetadata(method, builder);
         }
+    }
+
+    // Copied directly from `Microsoft.AspNetCore.Builder.EndpointBuilder`. Serves as the default
+    // value of `RouteEndpointBuilder.ApplicationServices` when the endpoint does not require the
+    // application's service provider.
+    private sealed class EmptyServiceProvider : IServiceProvider
+    {
+        public static EmptyServiceProvider Instance { get; } = new EmptyServiceProvider();
+        public object? GetService(Type serviceType) => null;
     }
 }
 

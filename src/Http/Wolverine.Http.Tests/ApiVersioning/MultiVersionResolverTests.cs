@@ -56,6 +56,14 @@ internal class BothApiVersionAndMapToHandler
     public void Handle() { }
 }
 
+[ApiVersion("1.0", Deprecated = true)]
+[ApiVersion("2.0")]
+internal class ClassDeprecatedWithMapToHandler
+{
+    [MapToApiVersion("1.0")]
+    public void Handle() { }
+}
+
 public class MultiVersionResolverTests
 {
     private static MethodInfo MethodOf<T>(string name)
@@ -102,6 +110,18 @@ public class MultiVersionResolverTests
 
         versions.Count.ShouldBe(1);
         versions[0].Version.ShouldBe(new ApiVersion(2, 0));
+    }
+
+    [Fact]
+    public void mapto_inherits_class_level_deprecation()
+    {
+        var method = MethodOf<ClassDeprecatedWithMapToHandler>(nameof(ClassDeprecatedWithMapToHandler.Handle));
+        var versions = ApiVersionResolver.ResolveVersions(method);
+
+        // The [MapToApiVersion] subset carries the Deprecated flag declared on the class-level [ApiVersion].
+        versions.Count.ShouldBe(1);
+        versions[0].Version.ShouldBe(new ApiVersion(1, 0));
+        versions[0].IsDeprecated.ShouldBeTrue();
     }
 
     [Fact]
