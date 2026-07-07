@@ -39,32 +39,11 @@ namespace MartenTests.Distribution;
 // joins — the test resolves the owner dynamically and only after the placement holds stable across
 // several assignment-evaluation periods.
 //
-// ── SKIPPED: pinned Marten product bug (frozen per-tenant high-water) ─────────────────────────────────
-// The failover mechanics themselves work (verified from the run logs + diagnostics of this test before
-// it was skipped): the survivor picks up both per-tenant agents, tenant-a's doc and both progression
-// floors come through intact, and nothing ever rewinds. What fails is the LAST leg — the M post-failover
-// tenant-b events never project, because per-tenant high-water detection FREEZES at the first persisted
-// per-tenant high-water row in published Marten 9.13.0-alpha.2:
-//
-//   Marten src/Marten/Events/Daemon/HighWater/HighWaterDetector.cs, loadPerTenantStatistics (:260):
-//       var currentMark = lastSeqId > 0 ? lastSeqId : lastValue;
-//   where lastSeqId = the persisted `HighWaterMark:<tenant>` mt_event_progression row and
-//   lastValue = max(seq_id) of the tenant's events (per #4847). The FIRST poll after a tenant's first
-//   events works (no row yet → lastSeqId = 0 → CurrentMark = max(seq_id)) and then persists the row via
-//   TenantedHighWaterCoordinator.PollAndRouteAsync → MarkHighWaterForTenantAsync. Every subsequent poll
-//   reads the row back as CurrentMark and re-persists the same value — max(seq_id) is never consulted
-//   again (the "per-tenant gap detection not yet wired in (a Phase 3 refinement)" comment right above
-//   that line is the gap). So ANY second batch of events for a tenant stalls forever — not just across
-//   failover; the sibling tests never see it because they all append exactly one batch per tenant.
-//
-// Empirically pinned here (diagnostics from the failing run): tenant-b had 11 committed events
-// (max seq_id = 11 after a probe append), the store-global HighWaterMark row advanced to 11 (global
-// detection + the JasperFx per-tenant poll trigger both fired — JasperFx.Events
-// JasperFxAsyncDaemon.OnNext reuses the global high-water cadence), yet HighWaterMark:tenant-b and
-// PartitionedCounter:All:tenant-b stayed frozen at 6 = the first persisted mark.
-//
-// Unskip (and delete this block) once Marten advances per-tenant CurrentMark past the persisted row
-// (e.g. max(lastSeqId, lastValue) or real per-tenant gap detection).
+// This test was originally skipped against Marten 9.13.0-alpha.2, which froze per-tenant high-water
+// detection at the first persisted `HighWaterMark:<tenant>` row (marten#4867) — any SECOND batch of
+// events per tenant never projected, so the M post-failover tenant-b events below stalled forever.
+// Marten 9.13.0-alpha.3 fixes it (marten#4869: per-tenant CurrentMark advances past the persisted row),
+// which is what unskipped this test.
 public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper output)
     : PostgresqlContext, IAsyncLifetime
 {
@@ -163,11 +142,7 @@ public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper 
         return host;
     }
 
-    [Fact(Skip = "Pinned Marten 9.13.0-alpha.2 bug: per-tenant high-water freezes at the first persisted " +
-                 "HighWaterMark:<tenant> row (HighWaterDetector.loadPerTenantStatistics, " +
-                 "src/Marten/Events/Daemon/HighWater/HighWaterDetector.cs:260 — " +
-                 "`lastSeqId > 0 ? lastSeqId : lastValue`), so any second batch of events per tenant " +
-                 "never projects. See the class comment for the full mechanism; unskip on the Marten fix.")]
+    [Fact]
     public async Task surviving_node_resumes_each_tenant_from_its_progression_floor()
     {
         const int n = 6; // events per tenant before the failover
