@@ -332,5 +332,18 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
         // Marten ancillary side. Without this the ancillary store silently drops projection-published
         // messages.
         options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
+
+        // GH-3290: mirror the primary store (PolecatOverrides) — the ancillary managed
+        // distribution flag lives on the main PolecatIntegration (see the
+        // IProjectionCoordinator<T> factory registration above), so defer to it here too.
+        // ExternallyManaged keeps the runtime posture of Disabled (nothing Polecat-hosted
+        // starts) while recording that the async projections DO run under Wolverine's
+        // distribution. Only upgrades from Disabled — never overrides an explicit user choice.
+        var integration = services.GetService<PolecatIntegration>();
+        if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && options.DaemonSettings.AsyncMode == JasperFx.Events.Daemon.DaemonMode.Disabled)
+        {
+            options.DaemonSettings.AsyncMode = JasperFx.Events.Daemon.DaemonMode.ExternallyManaged;
+        }
     }
 }
