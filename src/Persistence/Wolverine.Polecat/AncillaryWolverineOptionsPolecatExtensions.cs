@@ -77,8 +77,12 @@ public static class AncillaryWolverineOptionsPolecatExtensions
                              runtime.Options.Durability.MessageStorageSchemaName ??
                              "wolverine";
 
+            // Dispatch on database cardinality rather than the tenancy's exact type name — the
+            // name check breaks for DefaultTenancy subclasses (see the Marten twin of this seam,
+            // where marten#4864's TenantPartitionedSingleDatabaseTenancy was misrouted to the
+            // multi-tenanted path and startup failed for lack of a master database).
             if (store.Options.Tenancy != null &&
-                store.Options.Tenancy.GetType().Name != "DefaultTenancy")
+                store.Options.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single)
             {
                 return BuildMultiTenantedMessageDatabase<T>(schemaName, integration.AutoCreate,
                     integration.MainConnectionString, store, runtime);
