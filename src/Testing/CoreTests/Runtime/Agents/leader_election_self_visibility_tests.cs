@@ -166,19 +166,27 @@ public class leader_election_self_visibility_tests
     public async Task reentrancy_guard_prevents_concurrent_DoHealthChecksAsync()
     {
         // Regression coverage for the _lastLockIndex race in lease-based
-        // backends (RavenDB, CosmosDB). The heartbeat loop and 
+        // backends (RavenDB, CosmosDB). The heartbeat loop and
         // CheckAgentHealth message can call DoHealthChecksAsync concurrently.
         // The Interlocked.CompareExchange guard must let only one execution
         // through; the other calls must return AgentCommands.Empty
         // immediately instead of racing on shared mutable state.
 
+        // Park the winning execution inside TryAttainLeadershipLockAsync so
+        // the guard is provably held while the competing calls are made. An
+        // earlier version used Task.Yield() here, but that only *usually*
+        // kept the winner in flight — with a warm thread pool the yielded
+        // continuation could finish and release the guard before the later
+        // calls even started, letting a second call through legitimately.
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         _persistence.HasLeadershipLock().Returns(false);
         _persistence.TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
-                // Yield so the other concurrent DoHealthChecksAsync calls
-                // start before this one completes, exercising the guard.
-                await Task.Yield();
+                entered.TrySetResult();
+                await release.Task;
                 return true;
             });
         _persistence.LoadNodeAgentStateAsync(Arg.Any<CancellationToken>())
@@ -186,11 +194,32 @@ public class leader_election_self_visibility_tests
                 [SelfRow(DateTimeOffset.UtcNow)],
                 new AgentRestrictions()));
 
-        await Task.WhenAll(Enumerable.Repeat(1, 10)
+        var winner = _controller.DoHealthChecksAsync();
+        await entered.Task.WaitAsync(5.Seconds());
+
+        // While the winner is parked inside the guarded section, every other
+        // call must bounce off the guard with AgentCommands.Empty instead of
+        // reaching TryAttainLeadershipLockAsync.
+        var blocked = await Task.WhenAll(Enumerable.Repeat(1, 9)
             .Select(_ => _controller.DoHealthChecksAsync()));
+
+        foreach (var commands in blocked)
+        {
+            commands.ShouldBeEmpty();
+        }
 
         await _persistence.Received(1)
             .TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>());
+
+        release.SetResult();
+        await winner.WaitAsync(5.Seconds());
         _controller.IsLeader.ShouldBeTrue();
+
+        // The guard must be released once the winner completes — a
+        // subsequent health check goes all the way through again.
+        _persistence.HasLeadershipLock().Returns(true);
+        await _controller.DoHealthChecksAsync();
+        await _persistence.Received(2)
+            .TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>());
     }
 }
