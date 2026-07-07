@@ -94,8 +94,12 @@ public static class AncillaryWolverineOptionsMartenExtensions
 
             integration.SchemaName ??= runtime.Options.Durability.MessageStorageSchemaName ?? store.Options.DatabaseSchemaName;
 
-            // TODO -- hacky. Need a way to expose this in Marten
-            if (store.Tenancy.GetType().Name == "DefaultTenancy")
+            // Dispatch on database cardinality, mirroring the main-store integration. The old
+            // exact-type-name check ("DefaultTenancy") misrouted Marten's
+            // TenantPartitionedSingleDatabaseTenancy (marten#4864, a DefaultTenancy subclass for
+            // single-database stores with UseTenantPartitionedEvents) to the multi-tenanted
+            // message-database path, which then failed for lack of a master database.
+            if (store.Tenancy.Cardinality == JasperFx.Descriptors.DatabaseCardinality.Single)
             {
                 return BuildSinglePostgresqlMessageStore<T>(integration.SchemaName, integration.AutoCreate, store, runtime, logger);
             }

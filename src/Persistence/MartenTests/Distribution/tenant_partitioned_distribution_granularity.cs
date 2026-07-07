@@ -26,12 +26,15 @@ namespace MartenTests.Distribution;
 // Phase 2 of the per-tenant-partitioned-events matrix (#3021): projection/subscription distribution
 // granularity under a SINGLE database with Conjoined + Quick + UseTenantPartitionedEvents.
 //
-// The load-bearing caveat this pins: Wolverine-managed event-subscription agents are distributed per
-// (shard × DATABASE), NOT per tenant. With per-tenant *partitioning* the tenants all live in one
-// database, so a single async projection yields exactly ONE agent ("…/all") spanning every tenant
-// partition — not one agent per tenant. ("One agent per tenant" is only true under sharded databases,
-// which is Phase 3.) The single shard still processes every tenant's events into that tenant's own
-// projection document.
+// FLIPPED for Marten 9.13.0-alpha.3 (marten#4862 / marten#4864): this test originally pinned the old
+// behavior — agents distributed per (shard × DATABASE), one store-global "…/all" agent spanning every
+// tenant partition, with "one agent per tenant" true only under sharded databases. That store-global
+// agent's single progression floor silently skipped a lagging tenant's low per-tenant seq_ids (see
+// single_db_tenant_partitioned_distribution for the regression shape). marten#4864 broadens
+// IEventStore.DistributesAgentsPerTenant to ANY tenant-partitioned store and surfaces the managed
+// tenants on the single-DB usage descriptor's TenantIds, so one async projection now fans out one
+// agent PER TENANT ("…/all/{tenant}") even on a single database, each tracking its own per-tenant
+// progression.
 public class tenant_partitioned_distribution_granularity(ITestOutputHelper output) : PostgresqlContext, IAsyncLifetime
 {
     private IHost theHost = null!;
@@ -88,36 +91,41 @@ public class tenant_partitioned_distribution_granularity(ITestOutputHelper outpu
     }
 
     [Fact]
-    public async Task one_async_projection_yields_one_agent_per_shard_not_per_tenant()
+    public async Task one_async_projection_fans_out_one_agent_per_tenant()
     {
         await theHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
 
-        // One async projection over a single database => exactly ONE subscription agent, even though
-        // three tenants (tenant1/tenant2/*DEFAULT*) are registered. Per-tenant would be three.
+        // marten#4862/#4864 (Marten 9.13.0-alpha.3): one async projection over a single
+        // tenant-partitioned database fans out per tenant — three registered tenants
+        // (tenant1/tenant2/*DEFAULT*) => exactly THREE subscription agents. This used to be ONE
+        // store-global agent with no tenant component.
         await theHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theHost, 1);
+            w.ExpectRunningAgents(theHost, 3);
         }, 60.Seconds());
 
         var uris = await GetAgentUrisAsync(theHost);
-        uris.Length.ShouldBe(1);
+        uris.Length.ShouldBe(3);
 
-        // The agent Uri is keyed by (store/database/shard) — no tenant component.
-        var uri = uris.Single();
-        uri.ShouldContain("/all");
-        uri.ShouldNotContain("tenant1");
-        uri.ShouldNotContain("tenant2");
+        // Every agent Uri now carries the tenant in the shard path: "…/all/{tenant}".
+        uris.ShouldAllBe(u => u.Contains("/all"));
+        uris.ShouldContain(u => u.TrimEnd('/').EndsWith("/tenant1", StringComparison.OrdinalIgnoreCase));
+        uris.ShouldContain(u => u.TrimEnd('/').EndsWith("/tenant2", StringComparison.OrdinalIgnoreCase));
+        // ...and the default tenant gets its own agent too (it is a registered managed tenant).
+        uris.ShouldContain(u => !u.TrimEnd('/').EndsWith("/tenant1", StringComparison.OrdinalIgnoreCase)
+                                && !u.TrimEnd('/').EndsWith("/tenant2", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public async Task the_single_shard_projects_every_tenant_partition()
+    public async Task every_tenant_partition_projects_through_its_own_agent()
     {
         await theHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
+        // marten#4864: per-tenant fan-out — three registered tenants => three agents.
         await theHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theHost, 1);
+            w.ExpectRunningAgents(theHost, 3);
         }, 60.Seconds());
 
         var id = "pc-" + Guid.NewGuid().ToString("N");
@@ -126,7 +134,7 @@ public class tenant_partitioned_distribution_granularity(ITestOutputHelper outpu
 
         await theStore.WaitForNonStaleProjectionDataAsync(60.Seconds());
 
-        // The one shard processed both tenant partitions into each tenant's own projection doc.
+        // Each tenant's own agent processed its partition into that tenant's own projection doc.
         (await LoadAsync("tenant1", id))!.Total.ShouldBe(5);
         (await LoadAsync("tenant2", id))!.Total.ShouldBe(11);
     }

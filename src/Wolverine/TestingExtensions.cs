@@ -323,7 +323,13 @@ public static class TestingExtensions
             foreach (var node in nodes.OrderBy(x => x.AssignedNodeNumber))
             {
                 await writer.WriteLineAsync($"Node {node.AssignedNodeNumber} is running:");
-                var runtime = _runtimes[node.NodeId];
+                if (!_runtimes.TryGetValue(node.NodeId, out var runtime))
+                {
+                    // A persisted node this waiter isn't tracking — typically a ghost record
+                    // left behind by a previous test run's hard-stopped host
+                    await writer.WriteLineAsync($"(node {node.NodeId} is not tracked by this waiter)");
+                    continue;
+                }
 
                 foreach (var uri in runtime.AllRunningAgentUris().Select(x => x.ToString()).OrderBy(x => x))
                 {

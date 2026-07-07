@@ -25,11 +25,16 @@ using Xunit.Abstractions;
 
 namespace MartenTests.Distribution;
 
-// Phase 2 of #3021 (multi-node slice): the clustered case of the granularity caveat. Two async
+// Phase 2 of #3021 (multi-node slice): the clustered case of the distribution granularity. Two async
 // projections on a SINGLE database with Conjoined + Quick + UseTenantPartitionedEvents and three
-// managed tenants. Across a two-node cluster the subscription agents distribute per (shard × DATABASE)
-// — two agents total, one per node — NOT per tenant (which would be 2 × 3 = 6). Confirms Wolverine-
-// managed distribution behaves identically under per-tenant partitioning as for a non-partitioned store.
+// managed tenants.
+//
+// FLIPPED for Marten 9.13.0-alpha.3 (marten#4862 / marten#4864): this test originally pinned the old
+// per-(shard × DATABASE) granularity — two agents total, one per node, never per tenant. marten#4864
+// broadens DistributesAgentsPerTenant to any tenant-partitioned store (the single store-global agent
+// skipped lagging tenants — see single_db_tenant_partitioned_distribution), so the cluster now runs
+// 2 projections × 3 tenants = SIX per-tenant agents, spread evenly (single-database stores keep the
+// even blue/green distribution, not database-affine grouping) — three per node on a two-node cluster.
 //
 // This was previously blocked by GH-3037 (a 2nd node's resource-setup threw 42P07 "relation
 // mt_streams_default already exists"), root-caused to Weasel's name-based default-partition
@@ -106,30 +111,36 @@ public class tenant_partitioned_distribution_multinode(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task agents_spread_one_per_node_across_the_cluster_and_stay_per_shard()
+    public async Task agents_spread_evenly_across_the_cluster_per_tenant()
     {
         await theOriginalHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
 
-        // Single node: both shards run here (2 agents, not 2 × 3 tenants).
+        // marten#4862/#4864 (Marten 9.13.0-alpha.3): per-tenant fan-out on a single tenant-partitioned
+        // database. Single node: 2 projections × 3 tenants = SIX agents (previously 2 store-global).
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theOriginalHost, 2);
+            w.ExpectRunningAgents(theOriginalHost, 6);
         }, 60.Seconds());
 
-        // Add a second node — the two shards rebalance one-per-node.
+        // Add a second node — single-database stores keep the even blue/green distribution
+        // (database-affine grouping only applies to multi-database stores), so the six agents
+        // rebalance three-per-node.
         var second = await StartHostAsync();
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theOriginalHost, 1);
-            w.ExpectRunningAgents(second, 1);
+            w.ExpectRunningAgents(theOriginalHost, 3);
+            w.ExpectRunningAgents(second, 3);
         }, 60.Seconds());
 
-        // Exactly two agents cluster-wide, keyed by (store/database/shard) — no tenant component.
+        // Exactly six agents cluster-wide, every one carrying its tenant in the shard path — one per
+        // (projection × tenant): two per non-default tenant (NodeCounterA + NodeCounterB), plus the
+        // default tenant's pair.
         var uris = await GetAgentUrisAsync(theOriginalHost);
-        uris.Length.ShouldBe(2);
-        uris.ShouldAllBe(u => !u.Contains("tenant1") && !u.Contains("tenant2"));
+        uris.Length.ShouldBe(6);
+        uris.Count(u => u.TrimEnd('/').EndsWith("/tenant1", StringComparison.OrdinalIgnoreCase)).ShouldBe(2);
+        uris.Count(u => u.TrimEnd('/').EndsWith("/tenant2", StringComparison.OrdinalIgnoreCase)).ShouldBe(2);
     }
 
     [Fact]
@@ -138,25 +149,26 @@ public class tenant_partitioned_distribution_multinode(ITestOutputHelper output)
         await theOriginalHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
 
         var second = await StartHostAsync();
+        // marten#4864 per-tenant fan-out: 2 projections × 3 tenants = 6 agents, spread 3 + 3.
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theOriginalHost, 1);
-            w.ExpectRunningAgents(second, 1);
+            w.ExpectRunningAgents(theOriginalHost, 3);
+            w.ExpectRunningAgents(second, 3);
         }, 60.Seconds());
 
-        // The second node leaves the cluster — its subscription agent must reassign to the survivor,
-        // and stay per-shard (still two agents total, both now on the original node).
+        // The second node leaves the cluster — its subscription agents must reassign to the survivor
+        // (all six per-tenant agents now on the original node).
         second.GetRuntime().Agents.DisableHealthChecks();
         await second.StopAsync();
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {
             w.AgentScheme = EventSubscriptionAgentFamily.SchemeName;
-            w.ExpectRunningAgents(theOriginalHost, 2);
+            w.ExpectRunningAgents(theOriginalHost, 6);
         }, 60.Seconds());
 
-        (await GetAgentUrisAsync(theOriginalHost)).Length.ShouldBe(2);
+        (await GetAgentUrisAsync(theOriginalHost)).Length.ShouldBe(6);
     }
 
     private static async Task<string[]> GetAgentUrisAsync(IHost host)
