@@ -4,6 +4,7 @@ using Marten.Internal.Operations;
 using Marten.Services;
 using Weasel.Core;
 using Weasel.Postgresql;
+using Weasel.Storage;
 using Wolverine.RDBMS;
 using Wolverine.Runtime.Serialization;
 
@@ -21,7 +22,7 @@ internal class StoreIncomingEnvelope : global::Marten.Internal.Operations.IStora
 
     public Envelope Envelope { get; }
 
-    public void ConfigureCommand(ICommandBuilder builder, IMartenSession session)
+    public void ConfigureCommand(Weasel.Postgresql.ICommandBuilder builder, IStorageSession session)
     {
         builder.Append(
             $"insert into {_incomingTable} ({DatabaseConstants.IncomingFields}) values (");

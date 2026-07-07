@@ -60,6 +60,17 @@ public partial class AssignmentGrid
     }
 
     /// <summary>
+    ///     Same as <see cref="AvailableAgentsForScheme(string)" />, restricted to the agents matching
+    ///     <paramref name="filter" />. Used when one scheme's agents are distributed in independent passes
+    ///     (e.g. per event store; see <see cref="EventSubscriptionAgentFamily.EvaluateAssignmentsAsync" />).
+    /// </summary>
+    public IReadOnlyList<Agent> AvailableAgentsForScheme(string scheme, Func<Uri, bool> filter)
+    {
+        return _agents.Values
+            .Where(x => x.Uri.Scheme.EqualsIgnoreCase(scheme) && !x.IsPaused && filter(x.Uri)).ToList();
+    }
+
+    /// <summary>
     ///     Add an executing node to the grid. Useful for testing custom agent assignment
     ///     schemes
     /// </summary>
@@ -116,7 +127,16 @@ public partial class AssignmentGrid
     /// <returns></returns>
     public IReadOnlyList<Agent> MatchAgentsToCapableNodesFor(string scheme)
     {
-        var agents = AvailableAgentsForScheme(scheme);
+        return MatchAgentsToCapableNodesFor(scheme, _ => true);
+    }
+
+    /// <summary>
+    /// Match up the agents for a particular scheme, restricted by <paramref name="filter" />, to any
+    /// nodes that could run that agent. This is meant for blue/green development
+    /// </summary>
+    public IReadOnlyList<Agent> MatchAgentsToCapableNodesFor(string scheme, Func<Uri, bool> filter)
+    {
+        var agents = AvailableAgentsForScheme(scheme, filter);
         foreach (var agent in agents)
         {
             agent.CandidateNodes.Clear();

@@ -9,7 +9,7 @@ namespace Wolverine.Runtime.Agents;
 /// listener URIs and projects each one through
 /// <see cref="DynamicListenerUriEncoding.ToAgentUri"/>. The cluster's
 /// <see cref="NodeAgentController"/> then uses
-/// <see cref="AssignmentGrid.DistributeEvenly"/> to balance them across the
+/// <see cref="AssignmentGrid.DistributeEvenly(string)"/> to balance them across the
 /// running nodes — one node per listener URI, so registering an MQTT topic
 /// activates exactly one consumer somewhere in the cluster regardless of how
 /// many nodes are alive.

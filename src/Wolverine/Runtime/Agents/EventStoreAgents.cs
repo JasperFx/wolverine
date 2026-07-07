@@ -30,6 +30,16 @@ public class EventStoreAgents : IAsyncDisposable
     
     public EventStoreIdentity Identity { get; }
 
+    /// <summary>
+    /// How many databases back this event store. The distribution in
+    /// <see cref="EventSubscriptionAgentFamily.EvaluateAssignmentsAsync"/> keys off this: a store backed by
+    /// multiple databases (static or dynamic) gets database-affine assignment — all of a database's agents
+    /// kept together on one node so connection pools scale with the number of databases instead of
+    /// nodes × databases — while a single-database store keeps the even blue/green spread.
+    /// See JasperFx/jasperfx#486.
+    /// </summary>
+    public DatabaseCardinality DatabaseCardinality => _store.DatabaseCardinality;
+
     public async ValueTask DisposeAsync()
     {
         foreach (var entry in _daemons.Enumerate())
@@ -87,18 +97,48 @@ public class EventStoreAgents : IAsyncDisposable
         var usage = await _store.TryCreateUsage(cancellation);
         if (usage == null) return list;
 
+        var asyncShards = usage.Subscriptions
+            .Where(x => x.Lifecycle == ProjectionLifecycle.Async)
+            .SelectMany(x => x.ShardNames)
+            .ToArray();
+
+        // wolverine#3280: under sharded databases + per-tenant event partitioning, multiple tenants are
+        // co-located in one shard database and each draws its own event sequence, so a single store-global
+        // agent per (shard, database) cannot track them — fan out one agent per (shard, tenant) instead.
+        // For any other store (or a database with no tenants yet) keep the one store-global agent.
+        void addAgentsForShard(DatabaseDescriptor database, DatabaseId id, ShardName shardName)
+        {
+            if (_store.DistributesAgentsPerTenant && database.TenantIds.Count > 0)
+            {
+                // Tenant ids are matched case-insensitively elsewhere in this class (see
+                // TryResolveTenantDatabaseIdAsync), so dedupe the fan-out the same way, and skip blank ids —
+                // a malformed usage descriptor must not yield duplicate or invalid per-tenant agent URIs.
+                foreach (var tenantId in database.TenantIds
+                             .Where(t => !string.IsNullOrWhiteSpace(t))
+                             .Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    var tenantShard = shardName.ForTenant(tenantId);
+                    _shardNames = _shardNames.AddOrUpdate(tenantShard.RelativeUrl, tenantShard);
+                    list.Add(EventSubscriptionAgentFamily.UriFor(_store.Identity, id, tenantShard));
+                }
+            }
+            else
+            {
+                _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
+                list.Add(EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName));
+            }
+        }
+
         // Using this to keep from double dipping
         var databaseIds = new List<DatabaseId>();
         foreach (var database in usage.Database.Databases)
         {
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             databaseIds.Add(id);
-            
-            foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
+
+            foreach (var shardName in asyncShards)
             {
-                _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
-                var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
-                list.Add(uri);
+                addAgentsForShard(database, id, shardName);
             }
         }
 
@@ -108,11 +148,9 @@ public class EventStoreAgents : IAsyncDisposable
             var id = new DatabaseId(database.ServerName, database.DatabaseName);
             if (!databaseIds.Contains(id))
             {
-                foreach (var shardName in usage.Subscriptions.Where(x => x.Lifecycle == ProjectionLifecycle.Async).SelectMany(x => x.ShardNames))
+                foreach (var shardName in asyncShards)
                 {
-                    _shardNames = _shardNames.AddOrUpdate(shardName.RelativeUrl, shardName);
-                    var uri = EventSubscriptionAgentFamily.UriFor(_store.Identity, id, shardName);
-                    list.Add(uri);
+                    addAgentsForShard(database, id, shardName);
                 }
             }
         }
