@@ -39,7 +39,9 @@ namespace MartenTests.Distribution;
 // tenant-partitioned store, and single-DB store descriptors carry their TenantIds), so managed
 // distribution now fans out one agent per tenant on a single database, each with its own per-tenant
 // progression row — the lag shape is representable and nothing is skipped. This test pins BOTH the
-// per-tenant fan-out (2 tenants -> 2 agents) and the lagging-tenant projection.
+// per-tenant fan-out (2 tenants -> 2 agents) and the lagging-tenant projection. (One residual
+// upstream caveat: the per-tenant high-water POLL still rides the global high-water cadence —
+// jasperfx#492 — so Phase 2 nudges the global mark to trigger it; see the comment there.)
 public class single_db_tenant_partitioned_distribution(ITestOutputHelper output)
     : PostgresqlContext, IAsyncLifetime
 {
@@ -140,8 +142,28 @@ public class single_db_tenant_partitioned_distribution(ITestOutputHelper output)
         await StartStreamAsync(TenantB, id);
         await AppendAsync(TenantB, id, 2);
 
-        // Observe: does the lagging tenant's projection ever appear?
-        var docB = await WaitForProjectionAsync(TenantB, id, x => x.Total >= 3, 45.Seconds());
+        // KNOWN CADENCE GAP (jasperfx#492 — same mitigation family as Marten's own
+        // dynamic_tenant_lifecycle_during_continuous_daemon test): the vectorized per-tenant
+        // high-water poll rides the GLOBAL high-water cadence, and tenant2's events at per-tenant
+        // seq 1..3 do not move the store-global max(seq_id) (still 21 from tenant1), so nothing
+        // triggers the poll that would advance HighWaterMark:tenant2 — the agent idles at ceiling 0.
+        // Mitigation: NUDGE the global mark forward with tenant1 events while waiting; each nudge
+        // (global seq 22, 23, ...) fires the per-tenant poll, which reads tenant2's OWN max(seq_id)
+        // and routes its lagging events. The lag shape this test pins is untouched: under the OLD
+        // single store-global agent (pre-marten#4864) the nudges cannot help — the store-global floor
+        // only climbs FURTHER above tenant2's seq 1..3 — so the regression discrimination stands.
+        // Drop the nudging once jasperfx#492 puts per-tenant polls on the timer instead.
+        PartitionedCounter? docB = null;
+        var deadline = DateTimeOffset.UtcNow + 45.Seconds();
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            await AppendAsync(TenantA, id, 1); // move the global mark -> trigger the per-tenant poll
+            docB = await WaitForProjectionAsync(TenantB, id, x => x.Total >= 3, 3.Seconds());
+            if (docB?.Total >= 3)
+            {
+                break;
+            }
+        }
 
         await DumpProgressionAsync("after waiting for tenant B");
         output.WriteLine($"lagging tenant '{TenantB}' projection doc: {(docB == null ? "MISSING" : $"Total={docB.Total}")}");
