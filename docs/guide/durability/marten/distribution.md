@@ -59,6 +59,29 @@ Some other facts about this integration:
   new versions of a projection or subscription on some application nodes in order to do try ["blue/green deployment."](https://en.wikipedia.org/wiki/Blue%E2%80%93green_deployment)
 * This capability does depend on Wolverine's built-in [leadership election](https://en.wikipedia.org/wiki/Leader_election) -- which fortunately got a _lot_ better in Wolverine 3.0
 
+## Database-Affine Distribution for Multi-Database Stores <Badge type="tip" text="6.x" />
+
+By default Wolverine spreads subscription and projection agents *evenly* across the cluster (with blue/green
+capability matching). That is the right choice for a single-database event store.
+
+It is *not* the right choice for a store backed by many databases. The clearest case is a Marten store that combines
+[sharded multi-tenancy](https://martendb.io/configuration/multitenancy.html#sharded-multi-tenancy-with-database-pooling)
+with [per-tenant event partitioning](https://martendb.io/events/multitenancy.html#per-tenant-event-partitioning). There,
+many tenants are co-located in one shard database and each draws its own event sequence, so Wolverine fans agents out
+one-per-`(shard, tenant)` rather than one-per-database. With hundreds of tenants scattered across many shard databases,
+an even per-agent spread makes *every* node open a connection pool to *nearly every* shard database — so the pool count
+grows as `nodes × databases` and quickly exhausts a shared server's `max_connections`.
+
+So Wolverine keys the distribution off the store itself, with no configuration needed: when a store reports that it is
+backed by multiple databases (its `IEventStore.DatabaseCardinality` is static- or dynamic-multiple — sharded tenancy or
+database-per-tenant), that store's agents are assigned with **database affinity** — every agent for a given database is
+kept together on a single node, so a node only opens pools to the databases it actually owns and the pool count scales
+with the number of databases, not `nodes × databases`. The grouping key is the
+`[event store type]/[event store name]/[database]` prefix of the agent `Uri` (see below), so all of a database's
+agents share one group. Whole groups are still spread across the cluster largest-first, so total agent counts stay
+balanced. A single-database store in the same application keeps the default even distribution — each store is
+distributed in its own pass.
+
 ## Uri Structure
 
 The `Uri` structure for event subscriptions or projections is:

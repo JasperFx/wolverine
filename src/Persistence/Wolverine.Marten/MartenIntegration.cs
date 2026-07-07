@@ -40,8 +40,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     public bool UseFastEventForwarding { get; set; }
     
     /// <summary>
-    /// Use this when using Wolverine to evenly distribute event projection and subscription 
-    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c> 
+    /// Use this when using Wolverine to evenly distribute event projection and subscription
+    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c>
     /// option and should not be used in combination with Marten's own load distribution.
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
