@@ -14,7 +14,11 @@ public interface IAgentCommand
 
 public class AgentCommands : List<IAgentCommand>, ISendMyself
 {
-    public static AgentCommands Empty { get; } = new();
+    // Must hand out a fresh instance every time. AgentCommands is a mutable
+    // List<IAgentCommand> whose mutation members are non-virtual, so a cached
+    // singleton cannot be guarded — any caller that Adds/Pops on a returned
+    // Empty would poison it for every subsequent caller process-wide.
+    public static AgentCommands Empty => new();
 
     public async ValueTask ApplyAsync(IMessageContext context)
     {
