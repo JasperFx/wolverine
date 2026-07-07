@@ -169,7 +169,16 @@ public class AccountHandlerTests
 
             // Again, this is testing against processes, with another IHost
             .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-            
+
+            // Continue tracking until at least this many messages of the
+            // type have finished execution. Use this when messages are
+            // published out-of-band from the tracked execution -- e.g. by a
+            // Marten async daemon subscription or projection side effect --
+            // where the tracked session could otherwise complete during a
+            // momentary lull before every expected message has been published.
+            // Multiple calls combine, requiring every count to be reached.
+            .WaitForExecutionOf<AccountUpdated>(1)
+
             // Wolverine does this automatically, but it's sometimes
             // helpful to tell Wolverine to not track certain message
             // types during testing. Especially messages originating from

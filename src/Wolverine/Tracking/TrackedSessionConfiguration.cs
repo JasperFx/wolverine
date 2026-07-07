@@ -14,6 +14,8 @@ public class TrackedSessionConfiguration
 
     internal TrackedSession Session { get; }
 
+    private WaitForExecutionCount? _executionCounts;
+
     /// <summary>
     ///     Override the default timeout threshold to wait for all
     ///     activity to finish
@@ -180,6 +182,31 @@ public class TrackedSessionConfiguration
     public TrackedSessionConfiguration WaitForCondition(ITrackedCondition condition)
     {
         Session.AddCondition(condition);
+        return this;
+    }
+
+    /// <summary>
+    ///     Continue tracking until at least <paramref name="count" /> distinct messages assignable to
+    ///     <typeparamref name="T" /> have finished execution. Multiple calls combine into a single
+    ///     condition that requires every registered count to be reached. Use this when handled
+    ///     messages are published out-of-band from the tracked execution — e.g. a Marten async
+    ///     daemon subscription or projection side effect relaying messages to Wolverine after its
+    ///     page commits — where the tracked session could otherwise observe a momentary lull in
+    ///     activity and complete before all expected messages have even been published.
+    /// </summary>
+    /// <param name="count">The minimum number of distinct messages of this type that must finish execution</param>
+    /// <typeparam name="T">The expected message type</typeparam>
+    /// <returns></returns>
+    public TrackedSessionConfiguration WaitForExecutionOf<T>(int count = 1)
+    {
+        if (_executionCounts == null)
+        {
+            _executionCounts = new WaitForExecutionCount();
+            Session.AddCondition(_executionCounts);
+        }
+
+        _executionCounts.ExpectMessage<T>(count);
+
         return this;
     }
 
