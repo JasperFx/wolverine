@@ -1,6 +1,12 @@
 # Messaging Transports
 
+## Community Transports
 
+Community-built transports maintained outside this repository:
+
+* [Salesforce Pub/Sub](https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub) — listen to
+  Salesforce platform events (topics, custom channels, and managed event subscriptions) as ordinary
+  Wolverine messages
 
 ## Building a new Transport
 
