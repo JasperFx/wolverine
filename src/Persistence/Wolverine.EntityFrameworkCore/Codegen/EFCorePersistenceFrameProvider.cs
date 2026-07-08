@@ -350,16 +350,25 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType)
     {
-        // GH-3039: For saga chains, defer to the saga's own transaction-support application at codegen
-        // time (SagaChain.DetermineFrames -> the no-entity ApplyTransactionSupport below). That runs
-        // AFTER every IHandlerPolicy, so a transaction mode set on the chain by a user policy
-        // (chain.Tags["TransactionMiddlewareMode"]) is honored. This entity overload is otherwise
-        // invoked by SideEffectPolicy when a handler returns a storage action (Insert<T>/Update<T>/
-        // UnitOfWork<T>/...), which happens DURING policy application - before a marker-interface
-        // IHandlerPolicy has had a chance to set the mode tag. Applying it here would lock in DefaultMode
-        // and the UsingEfCoreTransaction idempotency guard would then block the later, correctly-moded
-        // application - silently dropping the eager transaction for storage-action saga handlers.
-        if (chain is SagaChain) return;
+        // GH-3039: For a saga whose OWN state is persisted by EF Core, defer to the saga's transaction-
+        // support application at codegen time (SagaChain.DetermineFrames -> the no-entity
+        // ApplyTransactionSupport below). That runs AFTER every IHandlerPolicy, so a transaction mode set
+        // on the chain by a user policy (chain.Tags["TransactionMiddlewareMode"]) is honored. This entity
+        // overload is otherwise invoked by SideEffectPolicy when a handler returns a storage action
+        // (Insert<T>/Update<T>/UnitOfWork<T>/...), which happens DURING policy application - before a
+        // marker-interface IHandlerPolicy has had a chance to set the mode tag. Applying it here would
+        // lock in DefaultMode and the UsingEfCoreTransaction idempotency guard would then block the later,
+        // correctly-moded application - silently dropping the eager transaction for storage-action saga
+        // handlers.
+        //
+        // GH-3342: but ONLY defer when EF Core actually persists the saga. When the saga's state lives in
+        // another store (e.g. the SqlServer message store) and it merely RETURNS an EF Core storage
+        // action, SagaChain.DetermineFrames applies THAT other provider's transaction support, never EF
+        // Core's - so this is the only place EF Core's SaveChanges/transaction for the storage action
+        // gets applied. Skipping it there dropped the entity write entirely, and a later [Entity] load of
+        // that entity came back null (a Required=false handler NRE'd on it; a Required handler was
+        // silently skipped). Fall through and apply EF Core's transaction support in that case.
+        if (chain is SagaChain saga && TryDetermineDbContextType(saga.SagaType, container) != null) return;
 
         if (chain.Tags.ContainsKey(UsingEfCoreTransaction)) return;
         chain.Tags.Add(UsingEfCoreTransaction, true);
