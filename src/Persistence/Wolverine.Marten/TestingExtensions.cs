@@ -70,37 +70,11 @@ public static class TestingExtensions
             {
                 MessageType = "CatchUp:Marten:DaemonActivity"
             };
-            
-            runtime.MessageTracking.ExecutionStarted(envelope);
-            
-            // TODO -- be nice if this was in Marten itself
-            var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator>();
-            var daemons = await coordinator.AllDaemonsAsync().ConfigureAwait(false);
-            var subscriptions = new List<IDisposable>();
-            var observer = new TrackedSessionShardWatcher(runtime);
-            foreach (var daemon in daemons)
-            {
-                var subscription = daemon.Tracker.Subscribe(observer);
-                subscriptions.Add(subscription);
-            }
 
-            try
-            {
-                var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync(cancellation, mode);
-                foreach (var exception in exceptions)
-                {
-                    runtime.MessageTracking.LogException(exception);
-                }
-            }
-            finally
-            {
-                foreach (var subscription in subscriptions)
-                {
-                    subscription.SafeDispose();
-                }
-            }
-            
-            runtime.MessageTracking.ExecutionFinished(envelope);
+            var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator>();
+
+            await catchUpThroughCoordinatorAsync(runtime, envelope, coordinator,
+                () => runtime.Services.DocumentStore().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode);
         });
     }
 
@@ -136,38 +110,69 @@ public static class TestingExtensions
             {
                 MessageType = "CatchUp:Marten:DaemonActivity:" + typeof(T).FullNameInCode()
             };
-            
-            runtime.MessageTracking.ExecutionStarted(envelope);
-            
-            // TODO -- be nice if this was in Marten itself
+
             var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator<T>>();
+
+            await catchUpThroughCoordinatorAsync(runtime, envelope, coordinator,
+                () => runtime.Services.DocumentStore<T>().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode);
+        });
+    }
+
+    private static readonly TimeSpan CatchUpTimeout = TimeSpan.FromSeconds(60);
+
+    // GH-3349 / Marten #4904: under Wolverine-managed event-subscription distribution the Marten store is
+    // DaemonMode.ExternallyManaged, so Marten's ForceAllMartenDaemonActivityToCatchUpAsync no longer DRIVES
+    // a paused daemon forward — it degrades to a passive wait for non-stale data (to avoid a
+    // ProgressionProgressOutOfOrderException race with the external supervisor) and explicitly punts active
+    // catch-up to "the external coordinator", i.e. Wolverine. The pre-#4904 helper paused the daemons and
+    // relied on ForceAll to force them; under 9.14.0 that call just waits on the paused agents and blocks
+    // until timeout. Drive catch-up through the Wolverine coordinator instead: resume the agents so they
+    // process the events appended while paused, wait until the projections reach the current high-water
+    // mark, then honor the CatchUpMode (AndDoNothing re-pauses; AndResumeNormally leaves the agents running).
+    // Uniform across a Wolverine-managed coordinator and a Marten-owned one, since both expose the same
+    // IProjectionCoordinator Resume/Pause contract.
+    private static async Task catchUpThroughCoordinatorAsync(
+        IWolverineRuntime runtime,
+        Envelope envelope,
+        global::Marten.Events.Daemon.Coordination.IProjectionCoordinator coordinator,
+        Func<Task> waitForNonStale,
+        CatchUpMode mode)
+    {
+        runtime.MessageTracking.ExecutionStarted(envelope);
+
+        var subscriptions = new List<IDisposable>();
+        var observer = new TrackedSessionShardWatcher(runtime);
+
+        try
+        {
+            await coordinator.ResumeAsync().ConfigureAwait(false);
+
             var daemons = await coordinator.AllDaemonsAsync().ConfigureAwait(false);
-            var subscriptions = new List<IDisposable>();
-            var observer = new TrackedSessionShardWatcher(runtime);
             foreach (var daemon in daemons)
             {
-                var subscription = daemon.Tracker.Subscribe(observer);
-                subscriptions.Add(subscription);
+                subscriptions.Add(daemon.Tracker.Subscribe(observer));
             }
 
-            try
+            await waitForNonStale().ConfigureAwait(false);
+
+            if (mode == CatchUpMode.AndDoNothing)
             {
-                var exceptions = await runtime.Services.ForceAllMartenDaemonActivityToCatchUpAsync<T>(cancellation, mode);
-                foreach (var exception in exceptions)
-                {
-                    runtime.MessageTracking.LogException(exception);
-                }
+                await coordinator.PauseAsync().ConfigureAwait(false);
             }
-            finally
+        }
+        catch (Exception e)
+        {
+            runtime.MessageTracking.LogException(e);
+        }
+        finally
+        {
+            foreach (var subscription in subscriptions)
             {
-                foreach (var subscription in subscriptions)
-                {
-                    subscription.SafeDispose();
-                }
+                subscription.SafeDispose();
             }
-            
-            runtime.MessageTracking.ExecutionFinished(envelope);
-        });
+        }
+
+        runtime.MessageTracking.ExecutionFinished(envelope);
     }
 
     /// <summary>
