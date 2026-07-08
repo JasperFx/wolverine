@@ -1,5 +1,6 @@
 using ImTools;
 using JasperFx.Core;
+using JasperFx.Descriptors;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
@@ -88,6 +89,16 @@ public partial class WolverineRuntime : IAgentRuntime
     public Uri[] AllRunningAgentUris()
     {
         return NodeController?.AllRunningAgentUris() ?? Array.Empty<Uri>();
+    }
+
+    public IReadOnlyList<DatabaseId> AllLocallyOwnedDatabaseIds()
+    {
+        return AllRunningAgentUris()
+            .Select(EventSubscriptionAgentFamily.DatabaseIdOf)
+            .Where(id => id != null)
+            .Select(id => id!)
+            .Distinct()
+            .ToList();
     }
 
     public bool IsLeader()

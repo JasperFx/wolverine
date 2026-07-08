@@ -240,6 +240,24 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         return retired;
     }
 
+    /// <summary>
+    /// Extract the <see cref="DatabaseId" /> of the shard database that an event-subscription agent
+    /// <paramref name="uri" /> belongs to. The URI grammar (see <see cref="UriFor" />) lives here, so
+    /// application code that needs to know which database an agent tracks should call this rather than
+    /// decomposing the URI segments by hand. Returns <c>null</c> for any URI that is not an
+    /// <c>event-subscriptions://</c> agent URI or that does not carry a parseable database segment.
+    /// See GH-3340.
+    /// </summary>
+    public static DatabaseId? DatabaseIdOf(Uri uri)
+    {
+        if (uri.Scheme != SchemeName || uri.Segments.Length < 3)
+        {
+            return null;
+        }
+
+        return DatabaseId.TryParse(uri.Segments[2].Trim('/'), out var id) ? id : null;
+    }
+
     // Agent URIs are event-subscriptions://{type}/{name}/{databaseId}/{shard...} (see UriFor); the
     // (type, name, databaseId) prefix identifies the shard database an agent belongs to, so grouping on it
     // co-locates every tenant/projection agent for one database on the same node.

@@ -162,5 +162,27 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
 
         // And the two databases are actually spread — one per node, not both piled on one.
         byDatabase.Select(g => g.Select(x => x.Node).Distinct().Single()).Distinct().Count().ShouldBe(2);
+
+        // GH-3340: each node exposes the databases it owns via the public API, matching exactly the
+        // databases of the agents actually running on it — so per-node work doesn't fan out to every shard.
+        foreach (var host in _hosts)
+        {
+            var expected = host.GetRuntime().Agents.AllRunningAgentUris()
+                .Where(u => u.Scheme == EventSubscriptionAgentFamily.SchemeName)
+                .Select(EventSubscriptionAgentFamily.DatabaseIdOf)
+                .Where(id => id != null)
+                .Select(id => id!)
+                .Distinct()
+                .ToList();
+
+            var owned = host.GetRuntime().Agents.AllLocallyOwnedDatabaseIds();
+
+            owned.Count.ShouldBe(1, "each node owns exactly one of the two shard databases");
+            owned.ShouldBe(expected);
+        }
+
+        // The two nodes own disjoint database sets that together cover both shard databases.
+        _hosts.SelectMany(h => h.GetRuntime().Agents.AllLocallyOwnedDatabaseIds())
+            .Distinct().Count().ShouldBe(2);
     }
 }

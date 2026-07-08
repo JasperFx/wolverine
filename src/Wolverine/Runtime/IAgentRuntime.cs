@@ -1,3 +1,4 @@
+using JasperFx.Descriptors;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.Runtime;
@@ -11,6 +12,17 @@ public interface IAgentRuntime
 
     Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class;
     Uri[] AllRunningAgentUris();
+
+    /// <summary>
+    /// The distinct set of shard databases whose event-subscription / projection agents are currently
+    /// assigned to and running on THIS node under Wolverine-managed event subscription distribution
+    /// (<c>UseWolverineManagedEventSubscriptionDistribution = true</c>). Under a
+    /// <c>MultiTenantedWithShardedDatabases</c> store with database-affine assignment, a node only runs
+    /// the daemon for the databases it owns; use this to scope per-node work (readiness gates, health
+    /// checks, progress queries) to exactly those databases instead of fanning out a connection pool to
+    /// every shard. Returns an empty list on nodes that own no such agents. See GH-3340.
+    /// </summary>
+    IReadOnlyList<DatabaseId> AllLocallyOwnedDatabaseIds();
 
     /// <summary>
     /// Use with caution! This will force Wolverine into restarting its leadership
