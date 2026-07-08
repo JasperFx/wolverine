@@ -1,4 +1,5 @@
 using Polecat;
+using Polecat.Services;
 
 namespace Wolverine.Polecat;
 
@@ -24,7 +25,7 @@ internal class PublishIncomingEventsBeforeCommit : IDocumentSessionListener
         }
     }
 
-    public Task AfterCommitAsync(IDocumentSession session, CancellationToken token)
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
         return Task.CompletedTask;
     }

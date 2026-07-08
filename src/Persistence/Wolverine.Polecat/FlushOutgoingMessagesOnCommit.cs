@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Polecat;
+using Polecat.Services;
 using Wolverine.Polecat.Persistence.Operations;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -52,7 +53,7 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
         return Task.CompletedTask;
     }
 
-    public Task AfterCommitAsync(IDocumentSession session, CancellationToken token)
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
         return _context.FlushOutgoingMessagesAsync();
     }
