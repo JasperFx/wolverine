@@ -41,7 +41,7 @@ public class Topic : BlockBase<Envelope>
     {
         foreach (var subscription in _subscriptions)
         {
-            await subscription.PostAsync(item);
+            await subscription.PostAsync(SharedMemoryEnvelope.CopyForDelivery(item));
         }
     }
 
@@ -49,7 +49,7 @@ public class Topic : BlockBase<Envelope>
     {
         foreach (var subscription in _subscriptions)
         {
-            subscription.Post(item);
+            subscription.Post(SharedMemoryEnvelope.CopyForDelivery(item));
         }
     }
 }
