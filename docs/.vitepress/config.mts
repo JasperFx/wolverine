@@ -240,7 +240,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
                                 {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
                                 {text: 'Redis', link: '/guide/messaging/transports/redis'},
-                                {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
+                                {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'},
+                                {text: 'Salesforce Pub/Sub (community)', link: 'https://github.com/meyc-v1/wolverinefxcontrib-salesforcepubsub'}
                             ]
                         },
                         {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
