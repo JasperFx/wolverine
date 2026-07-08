@@ -1,5 +1,6 @@
 using JasperFx.Events;
 using Polecat;
+using Polecat.Services;
 using Wolverine.Runtime;
 
 namespace Wolverine.Polecat;
@@ -35,7 +36,7 @@ internal class NotifyObserverOfAppendedEvents : IDocumentSessionListener
         return Task.CompletedTask;
     }
 
-    public Task AfterCommitAsync(IDocumentSession session, CancellationToken token)
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
         return Task.CompletedTask;
     }

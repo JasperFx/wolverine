@@ -22,7 +22,7 @@ internal class WolverineSubscriptionRunner : SubscriptionBase
         Options = subscription.Options;
     }
 
-    public override async Task<global::Polecat.Subscriptions.IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
+    public override async Task<global::Polecat.IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
         var context = new MessageContext(_runtime);
