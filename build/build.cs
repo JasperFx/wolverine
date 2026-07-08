@@ -383,6 +383,7 @@ partial class Build : NukeBuild
                 Solution.Extensions.Wolverine_Newtonsoft,
                 Solution.Extensions.Wolverine_Protobuf,
                 Solution.Http.Wolverine_Http,
+                Solution.Http.Wolverine_Http_AspVersioning,
                 Solution.Http.Wolverine_Http_Newtonsoft,
                 Solution.Http.Wolverine_Http_FluentValidation,
                 Solution.Http.Wolverine_Http_Marten,

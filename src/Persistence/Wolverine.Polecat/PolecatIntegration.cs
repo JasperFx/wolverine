@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using JasperFx.Events.Daemon;
 using Polecat;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.ErrorHandling;
@@ -132,6 +133,21 @@ internal class PolecatOverrides : IConfigurePolecat
         // Wolverine after the projection batch's SQL transaction commits. Mirrors
         // the Marten side at MartenIntegration.cs:153. See wolverine#2774.
         options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
+
+        // GH-3290 (Polecat parity with the Marten side): when Wolverine manages the event
+        // subscription distribution, it replaces Polecat's own daemon/coordinator hosting
+        // outright, but the store's only knowledge of the daemon state is
+        // DaemonSettings.AsyncMode. Record the real state: ExternallyManaged keeps the
+        // store's runtime posture identical to Disabled (nothing Polecat-hosted starts)
+        // while telling any AsyncMode reader that the async projections DO run. Only
+        // upgrades from Disabled — an explicit user AddAsyncDaemon()/AddProjectionCoordinator()
+        // choice is never overwritten, regardless of call order relative to IntegrateWithWolverine.
+        var integration = services.GetService<PolecatIntegration>();
+        if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && options.DaemonSettings.AsyncMode == DaemonMode.Disabled)
+        {
+            options.DaemonSettings.AsyncMode = DaemonMode.ExternallyManaged;
+        }
     }
 }
 

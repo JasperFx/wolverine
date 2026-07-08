@@ -2,6 +2,7 @@ using JasperFx.Core;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
 using Polecat;
+using Polecat.Services;
 using Polecat.Subscriptions;
 using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Runtime;
@@ -26,7 +27,7 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
         Options = subscription.Options;
     }
 
-    public override async Task<global::Polecat.Subscriptions.IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
+    public override async Task<global::Polecat.IChangeListener> ProcessEventsAsync(EventRange page, ISubscriptionController controller, IDocumentOperations operations,
         CancellationToken cancellationToken)
     {
         var context = new MessageContext(_runtime);
@@ -40,7 +41,7 @@ internal class ScopedWolverineSubscriptionRunner<T> : SubscriptionBase where T :
     }
 }
 
-internal class ScopedWolverineCallbackForCascadingMessages : global::Polecat.Subscriptions.IChangeListener
+internal class ScopedWolverineCallbackForCascadingMessages : global::Polecat.IChangeListener
 {
     private readonly IServiceScope _scope;
     private readonly MessageContext _context;
@@ -51,7 +52,7 @@ internal class ScopedWolverineCallbackForCascadingMessages : global::Polecat.Sub
         _context = context;
     }
 
-    public async Task AfterCommitAsync(CancellationToken token)
+    public async Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
         try
         {
@@ -61,5 +62,10 @@ internal class ScopedWolverineCallbackForCascadingMessages : global::Polecat.Sub
         {
             _scope.Dispose();
         }
+    }
+
+    public Task BeforeCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
+    {
+        return Task.CompletedTask;
     }
 }

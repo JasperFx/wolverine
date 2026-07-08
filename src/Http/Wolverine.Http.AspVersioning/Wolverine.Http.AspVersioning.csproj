@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <Description>Asp.Versioning integration for Wolverine HTTP Endpoints</Description>
+	  <PackageId>WolverineFx.Http.AspVersioning</PackageId>
+	  <TargetFrameworks>net10.0</TargetFrameworks>
+	  <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+	  <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+	  <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+	  <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+	  <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+	  <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Asp.Versioning.Http" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj" />
+	</ItemGroup>
+
+</Project>

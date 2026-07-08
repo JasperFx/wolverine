@@ -1,5 +1,6 @@
 using Microsoft.Data.SqlClient;
 using Polecat;
+using Polecat.Services;
 using Wolverine.Polecat.Persistence.Operations;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
@@ -64,7 +65,7 @@ internal class FlushOutgoingMessagesOnCommit : IDocumentSessionListener
         return Task.CompletedTask;
     }
 
-    public Task AfterCommitAsync(IDocumentSession session, CancellationToken token)
+    public Task AfterCommitAsync(IDocumentSession session, IChangeSet commit, CancellationToken token)
     {
         // The queued mark-handled UPDATE is only durable now that the commit
         // succeeded, so it's safe to trust the in-memory optimization flag.

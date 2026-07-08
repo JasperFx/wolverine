@@ -141,7 +141,16 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
 
         // Again, this is testing against processes, with another IHost
         .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
-        
+
+        // Continue tracking until at least this many messages of the
+        // type have finished execution. Use this when messages are
+        // published out-of-band from the tracked execution -- e.g. by a
+        // Marten async daemon subscription or projection side effect --
+        // where the tracked session could otherwise complete during a
+        // momentary lull before every expected message has been published.
+        // Multiple calls combine, requiring every count to be reached.
+        .WaitForExecutionOf<AccountUpdated>(1)
+
         // Wolverine does this automatically, but it's sometimes
         // helpful to tell Wolverine to not track certain message
         // types during testing. Especially messages originating from
@@ -158,7 +167,7 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L189' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.

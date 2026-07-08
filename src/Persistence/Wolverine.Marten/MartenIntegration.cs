@@ -2,6 +2,7 @@ using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using JasperFx.Events.Daemon;
 using Marten;
 using Marten.Events;
 using Marten.Exceptions;
@@ -40,8 +41,8 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     public bool UseFastEventForwarding { get; set; }
     
     /// <summary>
-    /// Use this when using Wolverine to evenly distribute event projection and subscription 
-    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c> 
+    /// Use this when using Wolverine to evenly distribute event projection and subscription
+    /// work of Marten asynchronous projections. This replaces Marten's <c>AddAsyncDaemon(HotCold)</c>
     /// option and should not be used in combination with Marten's own load distribution.
     /// </summary>
     public bool UseWolverineManagedEventSubscriptionDistribution { get; set; }
@@ -167,6 +168,23 @@ internal class MartenOverrides : IConfigureMarten
     public void Configure(IServiceProvider services, StoreOptions options)
     {
         options.Events.MessageOutbox = new MartenToWolverineOutbox(services, StoreType);
+
+        // GH-3290: when Wolverine manages the event subscription distribution, it replaces
+        // Marten's AddAsyncDaemon() registration outright — Marten hosts no coordinator and
+        // starts no agents, but the async projections and subscriptions DO run under
+        // Wolverine's distribution. Marten's only knowledge of the daemon state is
+        // Projections.AsyncMode; left at Disabled, DocumentStore writes a misleading
+        // "The async daemon is disabled ... projections will not be executed" warning at
+        // startup. Record the real state: ExternallyManaged keeps Marten's runtime posture
+        // identical to Disabled (no Marten-side coordination starts) while suppressing the
+        // warning. Only upgrades from Disabled — an explicit user AddAsyncDaemon() choice
+        // is never overwritten, regardless of call order relative to IntegrateWithWolverine.
+        var integration = services.GetService<MartenIntegration>();
+        if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && options.Projections.AsyncMode == DaemonMode.Disabled)
+        {
+            options.Projections.AsyncMode = DaemonMode.ExternallyManaged;
+        }
 
         // Envelope is Wolverine's operational outbox document. Keep it
         // single-tenant and unpartitioned regardless of blanket document

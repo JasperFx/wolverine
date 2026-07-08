@@ -15,6 +15,12 @@
           Requirements). Same chunk AC (Wolverine.Http) approach.
         -->
         <IsAotCompatible>true</IsAotCompatible>
+        <!--
+          NU5104: intentionally consuming a prerelease Marten (9.13.0-alpha.2)
+          from a stable-versioned package while the Marten 9.13 line stabilizes.
+          Remove this suppression when the pin moves back to a stable Marten.
+        -->
+        <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />

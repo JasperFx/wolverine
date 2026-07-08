@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <!-- Swashbuckle pulls in Microsoft.Extensions.ApiDescription.Server, whose build target runs
+             the assembly entry point to emit OpenAPI docs. A test library has no IHost entry point,
+             so disable build-time generation (mirrors WolverineWebApi.csproj). -->
+        <OpenApiGenerateDocumentsOnBuild>false</OpenApiGenerateDocumentsOnBuild>
+    </PropertyGroup>
+    
+    <ItemGroup>
+        <PackageReference Include="Alba" />
+        <PackageReference Include="Asp.Versioning.Http" />
+        <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" />
+        <PackageReference Include="Swashbuckle.AspNetCore" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="Shouldly" />
+        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.runner.visualstudio">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="coverlet.collector">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="..\Wolverine.Http.AspVersioning\Wolverine.Http.AspVersioning.csproj" />
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+</Project>

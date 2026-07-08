@@ -70,8 +70,11 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiter is needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<EventTotalsUpdated>(4)
             .ExecuteAndWaitAsync(writeEvents);
 
         // 4 event types, 4 totals. Might be broken up by page
@@ -128,8 +131,11 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiter is needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<EventTotalsUpdated>(2)
             .ExecuteAndWaitAsync(writeEvents);
 
         // 4 event types, 2 allow list. Might be broken up by page
@@ -267,9 +273,16 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // The subscription flushes its messages to Wolverine *after* the daemon commits
+        // the page + progress, so WaitForNonStaleData returning does not mean the relayed
+        // messages have even been published yet. Without these explicit waiters the tracked
+        // session can complete on a momentary lull after the first message executes.
         var tracked = await host
             .TrackActivity()
-            // TODO -- add a custom waiter here, might be a race condition
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<AEvent>>(6)
+            .WaitForExecutionOf<BEvent>(7)
+            .WaitForExecutionOf<IEvent<DEvent>>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);
@@ -321,8 +334,12 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiters are needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<AEvent>>(6)
+            .WaitForExecutionOf<IEvent<DEvent>>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);
@@ -578,8 +595,12 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiters are needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<AEvent>>(6)
+            .WaitForExecutionOf<TransformedMessage>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<AEvent>>().Count().ShouldBe(6);

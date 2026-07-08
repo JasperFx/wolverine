@@ -246,6 +246,142 @@ public class KafkaListenerConfigurationTests
         effective.GroupId.ShouldBe("topic-group");
         effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
     }
+
+    // The methods below (BeginAtEarliest/BeginAtLatest/UseReadCommitted/UseCooperativeStickyAssignment/
+    // UseStaticMembership/TailFromLatest) all build a fresh per-topic ConsumerConfig containing only the
+    // one property they set, the same as BeginAtEarliest() did for GroupId before it was fixed above.
+    // GetEffectiveConsumerConfig() previously only backfilled BootstrapServers/GroupId from the parent,
+    // silently dropping SecurityProtocol/SaslMechanism/SaslUsername/SaslPassword -- a listener using any
+    // of these methods without a subsequent ExtendConsumerConfiguration() call would connect to a
+    // SASL_SSL broker without credentials and be disconnected during the initial handshake.
+
+    [Fact]
+    public void begin_at_earliest_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslMechanism = SaslMechanism.Plain;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .BeginAtEarliest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void begin_at_latest_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslMechanism = SaslMechanism.Plain;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .BeginAtLatest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslMechanism.ShouldBe(SaslMechanism.Plain);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void use_read_committed_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .UseReadCommitted();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void use_cooperative_sticky_assignment_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .UseCooperativeStickyAssignment();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void use_static_membership_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .UseStaticMembership("node-1");
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void tail_from_latest_inherits_sasl_ssl_settings_from_parent_transport()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+        topic.Parent.ConsumerConfig.SaslUsername = "api-key";
+        topic.Parent.ConsumerConfig.SaslPassword = "api-secret";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .TailFromLatest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SecurityProtocol.ShouldBe(SecurityProtocol.SaslSsl);
+        effective.SaslUsername.ShouldBe("api-key");
+        effective.SaslPassword.ShouldBe("api-secret");
+    }
+
+    [Fact]
+    public void begin_at_earliest_does_not_override_explicitly_set_sasl_username()
+    {
+        var topic = BuildTopic();
+        topic.Parent.ConsumerConfig.SaslUsername = "parent-key";
+
+        var config = new KafkaListenerConfiguration(topic)
+            .ConfigureConsumer(c => c.SaslUsername = "topic-key")
+            .BeginAtEarliest();
+        ((IDelayedEndpointConfiguration)config).Apply();
+
+        var effective = topic.GetEffectiveConsumerConfig();
+        effective.SaslUsername.ShouldBe("topic-key");
+        effective.AutoOffsetReset.ShouldBe(AutoOffsetReset.Earliest);
+    }
 }
 
 public class UseKafkaUsingNamedConnectionTests

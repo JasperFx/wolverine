@@ -77,8 +77,12 @@ public static class AncillaryWolverineOptionsPolecatExtensions
                              runtime.Options.Durability.MessageStorageSchemaName ??
                              "wolverine";
 
+            // Dispatch on database cardinality rather than the tenancy's exact type name — the
+            // name check breaks for DefaultTenancy subclasses (see the Marten twin of this seam,
+            // where marten#4864's TenantPartitionedSingleDatabaseTenancy was misrouted to the
+            // multi-tenanted path and startup failed for lack of a master database).
             if (store.Options.Tenancy != null &&
-                store.Options.Tenancy.GetType().Name != "DefaultTenancy")
+                store.Options.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single)
             {
                 return BuildMultiTenantedMessageDatabase<T>(schemaName, integration.AutoCreate,
                     integration.MainConnectionString, store, runtime);
@@ -332,5 +336,18 @@ internal class PolecatOverrides<T> : IConfigurePolecat<T> where T : IDocumentSto
         // Marten ancillary side. Without this the ancillary store silently drops projection-published
         // messages.
         options.Events.MessageOutbox = new PolecatToWolverineOutbox(services);
+
+        // GH-3290: mirror the primary store (PolecatOverrides) — the ancillary managed
+        // distribution flag lives on the main PolecatIntegration (see the
+        // IProjectionCoordinator<T> factory registration above), so defer to it here too.
+        // ExternallyManaged keeps the runtime posture of Disabled (nothing Polecat-hosted
+        // starts) while recording that the async projections DO run under Wolverine's
+        // distribution. Only upgrades from Disabled — never overrides an explicit user choice.
+        var integration = services.GetService<PolecatIntegration>();
+        if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
+            && options.DaemonSettings.AsyncMode == JasperFx.Events.Daemon.DaemonMode.Disabled)
+        {
+            options.DaemonSettings.AsyncMode = JasperFx.Events.Daemon.DaemonMode.ExternallyManaged;
+        }
     }
 }

@@ -138,7 +138,9 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     }
 
     /// <summary>
-    /// Gets the effective ConsumerConfig for this topic, ensuring BootstrapServers is inherited from parent if not set
+    /// Gets the effective ConsumerConfig for this topic, ensuring BootstrapServers, GroupId, and the
+    /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
+    /// inherited from parent if not set
     /// </summary>
     internal ConsumerConfig GetEffectiveConsumerConfig()
     {
@@ -152,17 +154,59 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             ConsumerConfig.GroupId = Parent.ConsumerConfig.GroupId;
         }
 
+        if (ConsumerConfig != null && ConsumerConfig.SecurityProtocol == null)
+        {
+            ConsumerConfig.SecurityProtocol = Parent.ConsumerConfig.SecurityProtocol;
+        }
+
+        if (ConsumerConfig != null && ConsumerConfig.SaslMechanism == null)
+        {
+            ConsumerConfig.SaslMechanism = Parent.ConsumerConfig.SaslMechanism;
+        }
+
+        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.SaslUsername))
+        {
+            ConsumerConfig.SaslUsername = Parent.ConsumerConfig.SaslUsername;
+        }
+
+        if (ConsumerConfig != null && string.IsNullOrEmpty(ConsumerConfig.SaslPassword))
+        {
+            ConsumerConfig.SaslPassword = Parent.ConsumerConfig.SaslPassword;
+        }
+
         return ConsumerConfig ?? Parent.ConsumerConfig;
     }
 
     /// <summary>
-    /// Gets the effective ProducerConfig for this topic, ensuring BootstrapServers is inherited from parent if not set
+    /// Gets the effective ProducerConfig for this topic, ensuring BootstrapServers and the
+    /// security/SASL settings (SecurityProtocol, SaslMechanism, SaslUsername, SaslPassword) are
+    /// inherited from parent if not set
     /// </summary>
     internal ProducerConfig GetEffectiveProducerConfig()
     {
         if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.BootstrapServers))
         {
             ProducerConfig.BootstrapServers = Parent.ProducerConfig.BootstrapServers;
+        }
+
+        if (ProducerConfig != null && ProducerConfig.SecurityProtocol == null)
+        {
+            ProducerConfig.SecurityProtocol = Parent.ProducerConfig.SecurityProtocol;
+        }
+
+        if (ProducerConfig != null && ProducerConfig.SaslMechanism == null)
+        {
+            ProducerConfig.SaslMechanism = Parent.ProducerConfig.SaslMechanism;
+        }
+
+        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.SaslUsername))
+        {
+            ProducerConfig.SaslUsername = Parent.ProducerConfig.SaslUsername;
+        }
+
+        if (ProducerConfig != null && string.IsNullOrEmpty(ProducerConfig.SaslPassword))
+        {
+            ProducerConfig.SaslPassword = Parent.ProducerConfig.SaslPassword;
         }
 
         return ProducerConfig ?? Parent.ProducerConfig;

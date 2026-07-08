@@ -131,10 +131,15 @@ public class multi_stream_projection_with_side_effects_on_ancillary_store : IAsy
 
         Issue2529SideEffectHandler.SeenStreamIds.Clear();
 
+        // The projection's side-effect messages are flushed to Wolverine *after* the daemon
+        // commits the page + progress, so WaitForNonStaleData returning does not mean the
+        // messages have even been published yet. Without the explicit waiter the tracked
+        // session can complete on a momentary lull after the first message executes.
         var tracked = await _host
             .TrackActivity()
             .Timeout(60.Seconds())
             .IncludeExternalTransports()
+            .WaitForExecutionOf<CounterIncremented>(streamIds.Length)
             .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(_ => AppendAndWaitForProjectionAsync(streamIds)));
 
         var ourStreamIds = streamIds.ToHashSet();
