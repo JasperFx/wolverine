@@ -193,32 +193,52 @@ public partial class AssignmentGrid
 
             if (candidates.Count == 0)
             {
-                // No single node can host the whole group — mirror the blue/green even path's per-agent
-                // behavior: an already-running member stays where it is (minimal disruption), an
-                // unassigned member goes to its least-loaded capable node, and a member no node declares
-                // a capability for is simply left alone (candidate == null there too).
-                foreach (var member in members)
+                // GH-3341: a whole group whose members are all unassigned AND declared by no node is a
+                // stale-snapshot artifact, not a genuine blue/green gap. A node captures its
+                // event-subscription capabilities once at startup (StartLocalAgentProcessingAsync), so a
+                // shard database provisioned after every surviving node started is absent from all their
+                // snapshots even though every node can run it — the agents are still enumerated as
+                // supported by AllKnownAgentsAsync. When such a group's incumbent was a departed node, the
+                // OriginalNode grandfathering above cannot rescue it, and the per-member fallback below
+                // would park every member: the shard silently stops projecting with no running agent, no
+                // log, and no self-heal until a restart refreshes the snapshots. Treat the whole group as
+                // assignable to any node so it always has a home, kept together to preserve the
+                // connection-pool affinity this method exists to provide.
+                if (members.All(m => m.AssignedNode == null && m.CandidateNodes.Count == 0))
                 {
-                    if (member.AssignedNode != null)
+                    candidates = nodes;
+                }
+                else
+                {
+                    // Mixed capabilities (genuine blue/green): an already-running member stays where it is
+                    // (minimal disruption), an unassigned member with a capable node goes to its
+                    // least-loaded one, and an unassigned member no node declares falls back to the
+                    // least-loaded node overall rather than being silently stranded (GH-3341).
+                    foreach (var member in members)
                     {
-                        load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
-                        continue;
-                    }
+                        if (member.AssignedNode != null)
+                        {
+                            load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
+                            continue;
+                        }
 
-                    var candidate = member.CandidateNodes
-                        .OrderBy(n => load.GetValueOrDefault(n))
-                        .ThenBy(n => n.IsLeader)
-                        .ThenBy(n => n.AssignedId)
-                        .FirstOrDefault();
+                        var candidate = member.CandidateNodes
+                            .OrderBy(n => load.GetValueOrDefault(n))
+                            .ThenBy(n => n.IsLeader)
+                            .ThenBy(n => n.AssignedId)
+                            .FirstOrDefault()
+                            ?? nodes
+                                .OrderBy(n => load.GetValueOrDefault(n))
+                                .ThenBy(n => n.IsLeader)
+                                .ThenBy(n => n.AssignedId)
+                                .First();
 
-                    if (candidate != null)
-                    {
                         candidate.Assign(member);
                         load[candidate] += 1;
                     }
-                }
 
-                continue;
+                    continue;
+                }
             }
 
             // Minimal disruption, mirroring DistributeEvenly: the node already running the WHOLE group
