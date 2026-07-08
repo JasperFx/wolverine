@@ -120,8 +120,10 @@ public class distribute_by_group_affinity
     [Fact]
     public void when_no_node_can_host_the_whole_group_members_fall_back_individually()
     {
-        // Mirrors the blue/green even path: no single node is capable of every member, so each member goes
-        // to its own least-loaded capable node, and a member NO node declares stays unassigned (parked).
+        // No single node is capable of every member, so each member goes to its own least-loaded capable
+        // node. A member NO node declares a capability for is NOT parked — for a sharded store an empty
+        // candidate set is a stale-snapshot artifact, so it falls back to the least-loaded node overall
+        // rather than silently stranding the shard (GH-3341).
         var t1 = Agent("db1", "t1");
         var t2 = Agent("db1", "t2");
         var t3 = Agent("db1", "t3");
@@ -136,7 +138,8 @@ public class distribute_by_group_affinity
 
         grid.AgentFor(t1).AssignedNode.ShouldBe(node1);
         grid.AgentFor(t2).AssignedNode.ShouldBe(node2);
-        grid.AgentFor(t3).AssignedNode.ShouldBeNull("an agent no node declares a capability for is parked, exactly like the even path");
+        grid.AgentFor(t3).AssignedNode.ShouldNotBeNull(
+            "an agent no node declares is still assigned to a surviving node, never silently stranded (GH-3341)");
     }
 
     [Fact]
@@ -169,6 +172,42 @@ public class distribute_by_group_affinity
         }).ToList();
 
         hosts.Distinct().Count().ShouldBe(3, "three equal databases across three nodes must land one per node");
+    }
+
+    [Fact]
+    public void a_shard_orphaned_by_a_departed_node_is_reassigned_not_stranded()
+    {
+        // GH-3341: on scale-down, a shard database whose agents ran on a now-departed node — and whose
+        // URIs are absent from every SURVIVING node's capability snapshot (each node captures its
+        // event-subscription capabilities once at startup, so a database provisioned after the survivors
+        // started is missing from their snapshots even though every node can run it) — was left silently
+        // unassigned. The shard stopped projecting with no running agent, no error log, and no self-heal
+        // until a rolling restart. It must instead be reassigned to a surviving node.
+        var db1 = new[] { Agent("db1", "t1"), Agent("db1", "t2") };
+        var orphaned = new[] { Agent("db2", "t1"), Agent("db2", "t2") };
+
+        var grid = new AssignmentGrid();
+        // Two survivors with DIVERGENT snapshots (node 2 started later and also knows db3), so
+        // AllNodesHaveSameCapabilities is false and the capability-matching branch runs. Neither lists db2.
+        var node1 = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(db1);
+        node1.Running(db1);
+        grid.WithNode(2, Guid.NewGuid()).HasCapabilities(db1.Append(Agent("db3", "t1")));
+
+        // db2's agents were running on a 3rd node that just departed; the leader re-enumerates them via
+        // AllKnownAgentsAsync and adds them unassigned. No surviving node declares them as capabilities.
+        grid.WithAgents(orphaned);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var uri in orphaned)
+        {
+            grid.AgentFor(uri).AssignedNode.ShouldNotBeNull(
+                "an orphaned shard must be reassigned to a surviving node, not silently stranded (GH-3341)");
+        }
+
+        // And db2 stays whole on one node — the connection-pool affinity this method exists to provide.
+        orphaned.Select(u => grid.AgentFor(u).AssignedNode).Distinct().Count()
+            .ShouldBe(1, "the orphaned shard's agents must be co-located on a single node");
     }
 
     [Fact]
