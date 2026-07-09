@@ -233,8 +233,6 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new SqlServerTenantedMessageStore(runtime, this, sagaTables){DataSource = ConnectionStringTenancy});
         }
-
-        settings.Role = Role;
         
         var store = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
             logger, sagaTables);
@@ -260,7 +258,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         return new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            Role = MessageStoreRole.Main,
+            Role = Role,
             ConnectionString = ConnectionString,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,

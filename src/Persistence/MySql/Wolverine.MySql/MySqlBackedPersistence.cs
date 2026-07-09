@@ -223,8 +223,6 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
                 new MySqlTenantedMessageStore(runtime, this, sagaTables));
         }
 
-        settings.Role = Role;
-
         return new MySqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
             logger, sagaTables);
     }
@@ -236,7 +234,7 @@ internal class MySqlBackedPersistence : IMySqlBackedPersistence, IWolverineExten
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            Role = MessageStoreRole.Main,
+            Role = Role,
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,

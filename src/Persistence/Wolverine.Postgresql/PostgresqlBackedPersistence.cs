@@ -263,8 +263,6 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new PostgresqlTenantedMessageStore(runtime, this, sagaTables));
         }
-        
-        settings.Role = Role;
 
         return new PostgresqlMessageStore(settings, runtime.DurabilitySettings, mainSource,
             logger, sagaTables);
@@ -277,7 +275,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            Role = MessageStoreRole.Main,
+            Role = Role,
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
