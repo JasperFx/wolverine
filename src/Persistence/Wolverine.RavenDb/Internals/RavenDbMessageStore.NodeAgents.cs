@@ -58,7 +58,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
                 return node.AssignedNodeNumber;
             }
-            catch (Exception e) when (IsNodeSequenceConcurrencyConflict(e))
+            catch (Exception e) when (isNodeSequenceConcurrencyConflict(e))
             {
                 lastConflict = e;
 
@@ -67,7 +67,10 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
                     break;
                 }
 
-                await Task.Delay(TimeSpan.FromMilliseconds(20 * attempt), cancellationToken);
+                // Linear backoff with jitter to avoid synchronized retries (thundering herd)
+                // when many nodes contend for the sequence at startup.
+                var jitter = Random.Shared.Next(0, 20);
+                await Task.Delay(TimeSpan.FromMilliseconds(20 * attempt + jitter), cancellationToken);
             }
         }
 
@@ -76,7 +79,7 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
             lastConflict);
     }
 
-    private static bool IsNodeSequenceConcurrencyConflict(Exception exception)
+    private static bool isNodeSequenceConcurrencyConflict(Exception exception)
     {
         return exception is ClusterTransactionConcurrencyException or ConcurrencyException;
     }
