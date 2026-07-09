@@ -3,12 +3,16 @@ using Raven.Client.Documents;
 using Raven.Client.Documents.Operations;
 using Raven.Client.Documents.Queries;
 using Raven.Client.Documents.Session;
+using Raven.Client.Exceptions;
+using Raven.Client.Exceptions.Documents.Session;
 using Wolverine.Runtime.Agents;
 
 namespace Wolverine.RavenDb.Internals;
 
 public partial class RavenDbMessageStore : INodeAgentPersistence
 {
+    private const int NodePersistenceMaxAttempts = 25;
+
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
         // Shouldn't really get called at runtime, so we're doing it crudely
@@ -29,24 +33,52 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
     {
-        using var session = _store.OpenAsyncSession(new SessionOptions
+        Exception? lastConflict = null;
+
+        for (var attempt = 1; attempt <= NodePersistenceMaxAttempts; attempt++)
         {
-            TransactionMode = TransactionMode.ClusterWide
-        });
-        // RavenDB rejects cluster-wide transactions combined with optimistic concurrency.
-        // Disable it explicitly so a consumer-enabled convention doesn't break this session.
-        session.Advanced.UseOptimisticConcurrency = false;
+            try
+            {
+                using var session = _store.OpenAsyncSession(new SessionOptions
+                {
+                    TransactionMode = TransactionMode.ClusterWide
+                });
+                // RavenDB rejects cluster-wide transactions combined with optimistic concurrency.
+                // Disable it explicitly so a consumer-enabled convention doesn't break this session.
+                session.Advanced.UseOptimisticConcurrency = false;
 
-        var sequence = await session.LoadAsync<NodeSequence>(NodeSequence.SequenceId, cancellationToken);
-        sequence ??= new NodeSequence();
+                var sequence = await session.LoadAsync<NodeSequence>(NodeSequence.SequenceId, cancellationToken);
+                sequence ??= new NodeSequence();
 
-        node.AssignedNodeNumber = ++sequence.Count;
+                node.AssignedNodeNumber = ++sequence.Count;
 
-        await session.StoreAsync(sequence, cancellationToken);
-        await session.StoreAsync(node, cancellationToken);
-        await session.SaveChangesAsync(cancellationToken);
+                await session.StoreAsync(sequence, cancellationToken);
+                await session.StoreAsync(node, cancellationToken);
+                await session.SaveChangesAsync(cancellationToken);
 
-        return node.AssignedNodeNumber;
+                return node.AssignedNodeNumber;
+            }
+            catch (Exception e) when (IsNodeSequenceConcurrencyConflict(e))
+            {
+                lastConflict = e;
+
+                if (attempt == NodePersistenceMaxAttempts)
+                {
+                    break;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(20 * attempt), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to persist Wolverine node {node.NodeId} after {NodePersistenceMaxAttempts} attempts because RavenDB node sequence allocation kept conflicting.",
+            lastConflict);
+    }
+
+    private static bool IsNodeSequenceConcurrencyConflict(Exception exception)
+    {
+        return exception is ClusterTransactionConcurrencyException or ConcurrencyException;
     }
 
     public async Task DeleteAsync(Guid nodeId, int assignedNodeNumber)
