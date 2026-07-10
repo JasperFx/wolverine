@@ -230,7 +230,6 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         }
         else if (isHttpChain(chain)
                  && !isMultiTenanted(container, dbContextType)
-                 && chain.RequiresOutbox()
                  && chain.ShouldFlushOutgoingMessages()
                  && hasDatabaseBackedMessagePersistence(container))
         {
@@ -244,6 +243,13 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
             // Core's EnableRetryOnFailure). Setting enrolledInTransaction = true makes the code below add
             // the CommitEfCoreEnvelopeTransaction postprocessor (which flushes after commit) instead of a
             // standalone, pre-commit FlushOutgoingMessages. Restricted to HttpChain on purpose.
+            //
+            // GH-3358: deliberately NOT gated on chain.RequiresOutbox(). HttpChain.RequiresOutbox() only
+            // reflects an injected IMessageBus/IMessageContext dependency - an endpoint that injects the
+            // DbContext and cascades purely through its return tuple can never satisfy it, and its
+            // cascades were dispatched pre-commit all the same. Enlisting an endpoint that turns out not
+            // to cascade anything is a no-op flush at commit time, so over-enlisting is safe; the
+            // message-database guard above keeps persistence-less applications on send-now.
             chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbContextType));
             enrolledInTransaction = true;
         }
