@@ -199,8 +199,9 @@ criteria are too large or too structured to encode in the query string:
 ```cs
 // QUERY (RFC 10008) is safe and idempotent like GET, but carries a request body — ideal for
 // search endpoints whose criteria are too large or structured for the query string. Wolverine
-// binds the request body just like it would for POST, and — because the endpoint takes no
-// message-bus dependency — no transactional/outbox middleware is applied.
+// binds the request body just like it would for POST. Note that Wolverine's middleware rules
+// are not verb-aware: this endpoint stays free of transactional middleware because it takes
+// no IDocumentSession/DbContext dependency, not because it is a QUERY.
 [WolverineQuery("/search")]
 public static SearchResults Search(SearchRequest request)
 {
@@ -211,16 +212,20 @@ public static SearchResults Search(SearchRequest request)
     return new SearchResults(request.Term, request.Page, hits);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/QueryEndpoints.cs#L11-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_query_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/QueryEndpoints.cs#L14-L30' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_wolverine_query_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The request body binds exactly as it would for a `POST` endpoint.
 
 ::: tip
-Because `QUERY` is a *safe* method, a `QUERY` endpoint follows the same dependency-based rule as every
-other verb for transactional middleware: Wolverine only wraps a handler in transactional/outbox
-middleware when it depends on `IMessageBus`/`IMessageContext`. A plain `QUERY` search endpoint is
-therefore never transactional, even when `AutoApplyTransactions()` is enabled.
+Wolverine applies no verb-specific middleware rules to `QUERY` — the same dependency-based rules apply
+as for every other verb. Outbox middleware is gated on an `IMessageBus`/`IMessageContext` dependency,
+and transactional middleware is gated on a persistence dependency: a `QUERY` endpoint that takes an
+`IDocumentSession` (Marten) or a `DbContext` (EF Core) **is** wrapped in transactional middleware under
+`AutoApplyTransactions()`, exactly as a `POST` with the same dependency would be. To keep a `QUERY`
+endpoint that reads the database free of transactional middleware, take Marten's read-only
+`IQuerySession` instead of an `IDocumentSession`, or decorate the endpoint with `[NonTransactional]`
+when using EF Core.
 :::
 
 ::: warning OpenAPI limitation

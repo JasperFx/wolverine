@@ -50,12 +50,34 @@ public class query_verb_support : IntegrationContext
     [Fact]
     public void query_endpoint_is_not_wrapped_in_transactional_middleware()
     {
-        // QUERY is safe, so it must not be enrolled in transactional/outbox middleware. Wolverine's
-        // rule is dependency-based (no IMessageBus/MessageContext dependency => no outbox), so a plain
-        // QUERY search endpoint stays non-transactional even with AutoApplyTransactions turned on.
+        // Wolverine's middleware rules are dependency-based, not verb-based. This endpoint stays
+        // non-transactional under AutoApplyTransactions because it takes no persistence dependency
+        // (IDocumentSession/DbContext), and outbox-free because it takes no IMessageBus/MessageContext —
+        // NOT because QUERY is a safe verb. See the two tests below for the flip side.
         var chain = HttpChains.Chains.Single(x => x.RoutePattern!.RawText == "/search");
         chain.RequiresOutbox().ShouldBeFalse();
         chain.IsTransactional.ShouldBeFalse();
+    }
+
+    [Fact]
+    public void query_endpoint_with_document_session_is_transactional()
+    {
+        // The dependency-based rule cuts both ways: an IDocumentSession dependency attracts
+        // AutoApplyTransactions on a QUERY endpoint exactly as it would on a POST. There is no
+        // verb-based exemption, and this pins that no verb-based special case sneaks in later.
+        var chain = HttpChains.Chains.Single(x => x.RoutePattern!.RawText == "/search/audited");
+        chain.IsTransactional.ShouldBeTrue();
+        chain.RequiresOutbox().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void query_endpoint_with_query_session_stays_non_transactional()
+    {
+        // IQuerySession is Marten's read-only session — MartenPersistenceFrameProvider.CanApply
+        // ignores it, so this is the dependency to use for a QUERY endpoint that reads the database.
+        var chain = HttpChains.Chains.Single(x => x.RoutePattern!.RawText == "/search/readonly");
+        chain.IsTransactional.ShouldBeFalse();
+        chain.RequiresOutbox().ShouldBeFalse();
     }
 
     [Fact]

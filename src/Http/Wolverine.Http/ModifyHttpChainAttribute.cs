@@ -204,9 +204,10 @@ public class WolverineOptionsAttribute : WolverineHttpMethodAttribute
 ///     Marks a method on a Wolverine endpoint as being a QUERY route. QUERY (RFC 10008) is a safe,
 ///     idempotent method — like GET — that additionally carries a request body, so it is well suited
 ///     to search/query endpoints whose parameters are too large or structured for the query string.
-///     Because it is safe, a QUERY endpoint is not wrapped in transactional/outbox middleware unless it
-///     takes a message-bus dependency (the same dependency-based rule as every other verb); unlike GET,
-///     it is allowed to bind a request body.
+///     Wolverine applies no verb-specific middleware rules: outbox middleware still requires an
+///     IMessageBus/IMessageContext dependency, and transactional middleware is still applied when the
+///     handler takes an IDocumentSession or DbContext dependency. Prefer IQuerySession (Marten) or
+///     [NonTransactional] (EF Core) to keep a QUERY endpoint free of transactional middleware.
 /// </summary>
 public class WolverineQueryAttribute : WolverineHttpMethodAttribute
 {
