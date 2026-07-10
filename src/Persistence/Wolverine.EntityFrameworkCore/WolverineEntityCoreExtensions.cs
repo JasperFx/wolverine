@@ -184,7 +184,14 @@ public static class WolverineEntityCoreExtensions
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-        services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
+        // TryAddEnumerable, NOT TryAddSingleton: TryAddSingleton gates on the service type alone,
+        // so any other integration that had already registered an IWolverineExtension (e.g. Marten's
+        // IntegrateWithWolverine) would silently swallow this registration and the EF Core codegen
+        // integration - persistence provider, batching, query-spec policies - would never apply.
+        // TryAddEnumerable dedupes on the (service, implementation) pair, which is exactly the
+        // idempotency wanted across repeated AddDbContextWithWolverineIntegration calls. See GH-3359.
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>());
 
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();

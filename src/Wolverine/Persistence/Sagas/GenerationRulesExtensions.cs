@@ -62,19 +62,34 @@ public static class GenerationRulesExtensions
         out IPersistenceFrameProvider provider)
     {
         provider = default!;
-        var providers = rules.PersistenceProviders();
+        var providers = rules.OrderedPersistenceProviders();
         if (providers.Any())
         {
             var candidates = providers.Where(x => x.CanPersist(entityType, container, out var _)).ToArray();
-            
+
             if (candidates.Any())
             {
                 provider = candidates.First();
                 return true;
             }
         }
-        
+
         return false;
+    }
+
+    /// <summary>
+    ///     The registered persistence providers in deterministic consultation order: selective
+    ///     providers (whose CanPersist checks the entity type against their own model, like EF Core)
+    ///     ahead of catch-all document stores (whose CanPersist claims any type, like Marten —
+    ///     see <see cref="IPersistenceFrameProvider.IsCatchAll"/>), preserving registration order
+    ///     within each group. Use this instead of PersistenceProviders() whenever the first matching
+    ///     provider wins, so mixed-persistence applications resolve independently of the order in
+    ///     which the integrations were registered.
+    /// </summary>
+    public static IReadOnlyList<IPersistenceFrameProvider> OrderedPersistenceProviders(this GenerationRules rules)
+    {
+        var providers = rules.PersistenceProviders();
+        return providers.Count <= 1 ? providers : providers.OrderBy(x => x.IsCatchAll ? 1 : 0).ToList();
     }
 
     public static List<IPersistenceFrameProvider> PersistenceProviders(this GenerationRules rules)
@@ -94,9 +109,9 @@ public static class GenerationRulesExtensions
     public static IPersistenceFrameProvider GetPersistenceProviders(this GenerationRules rules, IChain chain,
         IServiceContainer container)
     {
-        if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider> list)
+        if (rules.Properties.TryGetValue(PersistenceKey, out var raw) && raw is List<IPersistenceFrameProvider>)
         {
-            return list.FirstOrDefault(x => x.CanApply(chain, container)) ?? _nullo;
+            return rules.OrderedPersistenceProviders().FirstOrDefault(x => x.CanApply(chain, container)) ?? _nullo;
         }
 
         return _nullo;

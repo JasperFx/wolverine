@@ -289,7 +289,7 @@ public class ServiceCapabilities : OptionsDescription
             .ToArray();
         if (sagaTypes.Length == 0) return;
 
-        var providers = runtime.Options.CodeGeneration.PersistenceProviders();
+        var providers = runtime.Options.CodeGeneration.OrderedPersistenceProviders();
         var container = runtime.Options.HandlerGraph.Container;
 
         foreach (var sagaType in sagaTypes)

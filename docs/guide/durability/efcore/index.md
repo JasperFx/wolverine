@@ -89,6 +89,18 @@ builder.UseWolverine(opts =>
 
 Right now, we've tested Wolverine with EF Core using both [SQL Server](/guide/durability/sqlserver) and [PostgreSQL](/guide/durability/postgresql) persistence. 
 
+## Combining EF Core with Marten <Badge type="tip" text="6.18" />
+
+It's completely valid to use both the EF Core and [Marten](/guide/durability/marten) integrations in
+the same application — say, Marten for event sourcing and EF Core for flat relational tables. When
+Wolverine needs a persistence provider for an entity (for [storage side effects](/guide/handlers/side-effects),
+`[Entity]` loading, or [saga](/guide/durability/sagas.html) persistence), the EF Core integration is
+always consulted **before** Marten, no matter which integration was registered first in your
+`Program.cs`: an entity mapped in one of your registered `DbContext` models deterministically
+resolves to EF Core, and every other document falls through to Marten. Marten can genuinely persist
+*any* document, so it acts as the catch-all; EF Core only claims the types its `DbContext` models
+actually map.
+
 ## Development-time usage <Badge type="tip" text="5.32" />
 
 Wolverine + EF Core is designed to keep the dev loop short: fast schema iteration, cheap per-test database resets, declarative seed data. The three pillars below all work together — and all come for free the moment you call `UseEntityFrameworkCoreTransactions()`.

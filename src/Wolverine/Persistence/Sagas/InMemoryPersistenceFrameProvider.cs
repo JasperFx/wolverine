@@ -26,6 +26,10 @@ public class InMemoryPersistenceFrameProvider : IPersistenceFrameProvider
         return false;
     }
 
+    // In-memory storage accepts any entity type, so CanPersist claims everything. Yield to
+    // selective providers for the entity types they actually map
+    public bool IsCatchAll => true;
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = GetType();
