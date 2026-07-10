@@ -207,8 +207,6 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
                 new SqliteTenantedMessageStore(runtime, this, sagaTables));
         }
 
-        settings.Role = Role;
-
         return new SqliteMessageStore(settings, runtime.DurabilitySettings, mainSource,
             logger, sagaTables);
     }
@@ -220,7 +218,7 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            Role = MessageStoreRole.Main,
+            Role = Role,
             ConnectionString = ConnectionString,
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,

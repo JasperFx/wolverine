@@ -183,8 +183,6 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
                 new OracleTenantedMessageStore(runtime, this, sagaTables));
         }
 
-        settings.Role = Role;
-
         return new OracleMessageStore(settings, runtime.DurabilitySettings, dataSource,
             logger, sagaTables);
     }
@@ -196,7 +194,7 @@ internal class OracleBackedPersistence : IOracleBackedPersistence, IWolverineExt
         var settings = new DatabaseSettings
         {
             CommandQueuesEnabled = CommandQueuesEnabled,
-            Role = MessageStoreRole.Main,
+            Role = Role,
             ConnectionString = ConnectionString,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
