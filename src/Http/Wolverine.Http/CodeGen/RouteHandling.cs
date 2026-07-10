@@ -4,8 +4,10 @@ using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Wolverine.Runtime;
 
 namespace Wolverine.Http.CodeGen;
@@ -51,6 +53,17 @@ internal class RouteParameterStrategy : IParameterStrategy
 
     public bool TryMatch(HttpChain chain, IServiceContainer container, ParameterInfo parameter, out Variable? variable)
     {
+        if (parameter.TryGetAttribute<FromRouteAttribute>(out var att) && att.Name.IsNotEmpty())
+        {
+            if (chain.FindRouteVariable(parameter.ParameterType, att.Name!, out variable))
+            {
+                return true;
+            }
+
+            throw new InvalidOperationException(
+                $"Unable to find a route argument '{att.Name}' specified on parameter '{parameter.Name}' of {chain.Method.HandlerType.FullNameInCode()}.{chain.Method.Method.Name}()");
+        }
+
         return chain.FindRouteVariable(parameter, out variable);
     }
 
