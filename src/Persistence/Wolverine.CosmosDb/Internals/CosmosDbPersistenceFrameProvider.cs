@@ -48,6 +48,11 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
         return serviceDependencies.Any(x => x == typeof(Container));
     }
 
+    // CosmosDb can persist any document, so CanPersist claims every type. Yield to selective
+    // providers (EF Core) for the entity types they actually map, regardless of the order the
+    // integrations were registered in
+    public bool IsCatchAll => true;
+
     public bool CanPersist(Type entityType, IServiceContainer container, out Type persistenceService)
     {
         persistenceService = typeof(Container);

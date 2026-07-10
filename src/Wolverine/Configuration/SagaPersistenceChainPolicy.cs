@@ -13,7 +13,7 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
 {
     public void Apply(IReadOnlyList<IChain> chains, GenerationRules rules, IServiceContainer container)
     {
-        var providers = rules.PersistenceProviders();
+        var providers = rules.OrderedPersistenceProviders();
 
         foreach (var chain in chains)
         {
@@ -30,7 +30,7 @@ internal class SagaPersistenceChainPolicy : IChainPolicy
         }
     }
 
-    private static bool attachSagaPersistenceFrame(IServiceContainer container, List<IPersistenceFrameProvider> providers,
+    private static bool attachSagaPersistenceFrame(IServiceContainer container, IReadOnlyList<IPersistenceFrameProvider> providers,
         Variable saga, IChain chain)
     {
         foreach (var provider in providers)

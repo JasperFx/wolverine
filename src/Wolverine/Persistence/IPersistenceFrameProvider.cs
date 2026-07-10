@@ -9,6 +9,17 @@ namespace Wolverine.Persistence;
 
 public interface IPersistenceFrameProvider
 {
+    /// <summary>
+    ///     Whether this provider's <see cref="CanPersist"/> claims every entity type it is asked
+    ///     about — a "catch-all" document store like Marten that can genuinely persist any document —
+    ///     rather than checking the type against its own mapping or model (like EF Core, which only
+    ///     claims types mapped in a registered DbContext). Catch-all providers are consulted after
+    ///     selective providers regardless of registration order, so that an entity mapped by a
+    ///     selective provider deterministically resolves to that provider in mixed-persistence
+    ///     applications.
+    /// </summary>
+    bool IsCatchAll => false;
+
     void ApplyTransactionSupport(IChain chain, IServiceContainer container);
     void ApplyTransactionSupport(IChain chain, IServiceContainer container, Type entityType);
     bool CanApply(IChain chain, IServiceContainer container);
