@@ -452,7 +452,8 @@ public partial class HttpChain
         // lower-cased (e.g. {journeyId}) while the bound member/argument is PascalCased
         // (JourneyId). A case-sensitive match here silently misses and falls back to string,
         // losing the real type (e.g. Guid/int) on the generated OpenAPI parameter. See GH-3135.
-        var variable = _routeVariables.FirstOrDefault(x => x.Usage.EqualsIgnoreCase(routeParameter.Name));
+        var variable = _routeVariables.OfType<CodeGen.HttpElementVariable>()
+            .FirstOrDefault(x => x.Name.EqualsIgnoreCase(routeParameter.Name));
 
         // When no typed argument is bound to the route value (e.g. a plain complex-body endpoint
         // whose body property overlaps a route token, or an aggregate-id route), fall back to the

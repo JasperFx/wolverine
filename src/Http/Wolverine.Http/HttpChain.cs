@@ -788,8 +788,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
     public bool FindRouteVariable(Type variableType, string routeOrParameterName, [NotNullWhen(true)]out Variable? variable)
     {
-        var matched =
-            _routeVariables.FirstOrDefault(x => x.VariableType == variableType && x.Usage.EqualsIgnoreCase(routeOrParameterName));
+        var matched = _routeVariables.OfType<HttpElementVariable>()
+            .FirstOrDefault(x => x.VariableType == variableType && x.Name.EqualsIgnoreCase(routeOrParameterName));
         if (matched is not null)
         {
             variable = matched;
