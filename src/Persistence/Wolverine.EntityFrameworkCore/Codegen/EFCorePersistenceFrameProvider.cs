@@ -14,7 +14,9 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
+using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
+using Wolverine.RDBMS;
 using Wolverine.Runtime;
 
 namespace Wolverine.EntityFrameworkCore.Codegen;
@@ -229,7 +231,8 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         else if (isHttpChain(chain)
                  && !isMultiTenanted(container, dbContextType)
                  && chain.RequiresOutbox()
-                 && chain.ShouldFlushOutgoingMessages())
+                 && chain.ShouldFlushOutgoingMessages()
+                 && hasDatabaseBackedMessagePersistence(container))
         {
             // GH-3291: A Wolverine.Http endpoint has no incoming envelope, so - unlike a message handler,
             // whose MessageContext is enlisted by MessageContext.ReadEnvelope at runtime - its
@@ -341,6 +344,17 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return container.HasRegistrationFor(typeof(IDbContextBuilder<>).MakeGenericType(dbContextType));
     }
 
+    // EnlistDbContextInOutbox generates a runtime EfCoreEnvelopeTransaction, whose constructor throws
+    // unless the application has database-backed message persistence (see
+    // MessageContextExtensions.TryFindMessageDatabase - this mirrors its outer type check). Without a
+    // message database there is no outbox to protect, so leave the chain on its pre-existing send-now
+    // composition rather than generate code that fails on every request.
+    private static bool hasDatabaseBackedMessagePersistence(IServiceContainer container)
+    {
+        var runtime = container.Services.GetRequiredService<IWolverineRuntime>();
+        return runtime.Storage is IMessageDatabase or MultiTenantedMessageStore;
+    }
+
     // HttpChain is the only chain type whose Scoping is HttpEndpoints. Detected via the scoping enum
     // rather than a type reference so Wolverine.EntityFrameworkCore need not depend on Wolverine.Http.
     private static bool isHttpChain(IChain chain)
@@ -393,6 +407,24 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                 chain.Middleware.Insert(0, new EnrollDbContextInTransaction(dbType, chain.Idempotency));
                 enrolledInTransaction = true;
             }
+        }
+        else if (isHttpChain(chain) && !isMultiTenanted(container, dbType)
+                                    && hasDatabaseBackedMessagePersistence(container))
+        {
+            // GH-3353, the storage-action counterpart to the GH-3291 branch in the no-entity overload
+            // above: a Wolverine.Http endpoint has no incoming envelope, so its MessageContext.Transaction
+            // stays null in Lightweight mode and cascaded messages are dispatched by the send-now branch
+            // of MessageBus.PersistOrSendAsync BEFORE the SaveChangesAsync postprocessor commits.
+            //
+            // Unlike that branch, do NOT gate on chain.RequiresOutbox(). This overload runs from
+            // SideEffectPolicy, which the WolverineOptions constructor registers ahead of
+            // OutgoingMessagesPolicy, and HttpChain.RequiresOutbox() only reflects an injected
+            // IMessageBus/MessageContext - an endpoint that cascades purely through its return tuple
+            // (the very shape that returns a storage action instead of injecting the DbContext) can
+            // never satisfy it here. Enlisting when the endpoint turns out not to cascade anything is a
+            // no-op flush at commit time.
+            chain.Middleware.Insert(0, new EnlistDbContextInOutbox(dbType));
+            enrolledInTransaction = true;
         }
 
         var abstractionType = chain.ServiceDependencies(container, Type.EmptyTypes).FirstOrDefault(x => _abstractions.Contains(x));
