@@ -47,6 +47,63 @@ public class add_wolverine_grpc_idempotency_tests
     }
 
     [Fact]
+    public void single_call_registers_propagation_interceptor_exactly_once()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+
+        services.AddWolverineGrpc();
+
+        var grpcOptions = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<GrpcServiceOptions>>().Value;
+
+        grpcOptions.Interceptors.Count(r => r.Type == typeof(WolverineGrpcServicePropagationInterceptor))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public void repeat_calls_do_not_stack_the_propagation_interceptor()
+    {
+        var services = new ServiceCollection();
+        services.AddOptions();
+
+        services.AddWolverineGrpc();
+        services.AddWolverineGrpc();
+        services.AddWolverineGrpc();
+
+        var grpcOptions = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<GrpcServiceOptions>>().Value;
+
+        grpcOptions.Interceptors.Count(r => r.Type == typeof(WolverineGrpcServicePropagationInterceptor))
+            .ShouldBe(1);
+    }
+
+    [Fact]
+    public void exception_interceptor_runs_outermost_of_the_propagation_interceptor()
+    {
+        // Registration order determines wrapping order for grpc-dotnet server interceptors — the
+        // first-added interceptor is outermost. Exception translation must stay outermost so it
+        // can also translate anything the propagation interceptor itself throws, symmetric to the
+        // client-side interceptor order (docs/guide/grpc/client.md "Ordering and composition").
+        var services = new ServiceCollection();
+        services.AddOptions();
+
+        services.AddWolverineGrpc();
+
+        var grpcOptions = services.BuildServiceProvider()
+            .GetRequiredService<IOptions<GrpcServiceOptions>>().Value;
+
+        var exceptionIndex = grpcOptions.Interceptors
+            .ToList()
+            .FindIndex(r => r.Type == typeof(WolverineGrpcExceptionInterceptor));
+        var propagationIndex = grpcOptions.Interceptors
+            .ToList()
+            .FindIndex(r => r.Type == typeof(WolverineGrpcServicePropagationInterceptor));
+
+        exceptionIndex.ShouldBeLessThan(propagationIndex);
+    }
+
+    [Fact]
     public void repeat_calls_do_not_stack_the_grpc_graph_registration()
     {
         var services = new ServiceCollection();

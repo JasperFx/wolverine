@@ -106,9 +106,23 @@ builder.Services.AddWolverineGrpcClient<IPingService>(o =>
 });
 ```
 
-On the server side of a Wolverine→Wolverine hop, the envelope headers are read back in the
-`WolverineGrpcServicePropagationInterceptor` already shipped with the adapter, so a call chain
-spanning multiple Wolverine services keeps a single correlation identity without any user wiring.
+On the server side of a Wolverine→Wolverine hop, `WolverineGrpcServicePropagationInterceptor`
+(registered automatically by `AddWolverineGrpc()`) reads the `correlation-id` and `tenant-id`
+headers back off the inbound call and applies them to the ambient `IMessageContext` before the
+service method runs. Only those two identifiers round-trip this way — `parent-id` and
+`conversation-id` live on an `Envelope`, and there is no envelope yet at this point in the
+pipeline (`IMessageContext.Envelope` is null outside of message handling). Once the service
+method calls `Bus.InvokeAsync(...)`, Wolverine copies the now-set `CorrelationId`/`TenantId` onto
+the freshly created envelope automatically, and Marten/Polecat tenant-scoped session frames pick
+it up the same way they would for any other transport — no further wiring needed.
+
+Cross-process parent/trace correlation for gRPC hops is handled separately by OpenTelemetry
+`Activity` propagation over HTTP/2 (W3C traceparent) — see [How gRPC Handlers Work](./handlers).
+The `parent-id`/`conversation-id` headers still go out on the wire for diagnostic/non-Wolverine
+consumers, but nothing on the Wolverine side reads them back in.
+
+Server-side propagation can be disabled with `WolverineGrpcOptions.PropagateEnvelopeHeaders =
+false`, the counterpart to the client-side `PropagateEnvelopeHeaders` option above.
 
 ## `RpcException` → typed-exception translation
 
@@ -226,6 +240,8 @@ it lands inside both Wolverine interceptors, which is what you almost always wan
 | `WolverineGrpcClientPropagationInterceptor`           | Stamps envelope headers on each call.                                                  |
 | `WolverineGrpcClientExceptionInterceptor`             | Translates `RpcException` to typed .NET exceptions per `MapRpcException` + the default table. |
 | `WolverineGrpcExceptionMapper.MapToException(rpc)`    | Public default mapping table; use from custom interceptors if needed.                  |
+| `WolverineGrpcServicePropagationInterceptor`          | Server-side counterpart — reads `correlation-id`/`tenant-id` off inbound calls onto `IMessageContext`. Registered by `AddWolverineGrpc()`. |
+| `WolverineGrpcOptions.PropagateEnvelopeHeaders`       | Server-side off-switch for the interceptor above. Defaults to `true`.                  |
 
 ## See also
 

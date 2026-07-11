@@ -84,9 +84,14 @@ public static class WolverineGrpcExtensions
             new GrpcEndpointDescriptorSource(sp.GetRequiredService<IGrpcEndpointManifest>()));
 
         services.AddSingleton<WolverineGrpcExceptionInterceptor>();
+        services.AddSingleton<WolverineGrpcServicePropagationInterceptor>();
         services.Configure<GrpcServiceOptions>(opts =>
         {
+            // Exception translation stays outermost so it can also translate anything thrown by
+            // the propagation interceptor itself, symmetric to the client-side interceptor order
+            // (see docs/guide/grpc/client.md "Ordering and composition").
             opts.Interceptors.Add<WolverineGrpcExceptionInterceptor>();
+            opts.Interceptors.Add<WolverineGrpcServicePropagationInterceptor>();
         });
 
         configure?.Invoke(options);
