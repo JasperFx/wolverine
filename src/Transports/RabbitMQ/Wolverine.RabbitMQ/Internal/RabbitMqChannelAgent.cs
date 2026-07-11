@@ -119,7 +119,6 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
             await Locker.WaitAsync();
             try
             {
-                _monitor.Remove(this);
                 try
                 {
                     await teardownChannel();
@@ -136,6 +135,18 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
                 State = AgentState.Connected;
 
                 Logger.LogInformation("Restarted the Rabbit MQ channel");
+            }
+            catch (Exception e)
+            {
+                // The broker is likely unavailable (e.g. a broker roll). Leave this agent registered
+                // with the ConnectionMonitor and marked Disconnected so RecoverySucceededAsync rebuilds
+                // it once the connection returns. Previously the agent was removed from the monitor
+                // before the restart attempt, so a failure here orphaned it permanently: the connection
+                // recovery loop iterates the monitor's tracked agents, so a removed listener is never
+                // rebuilt and its queue is left with zero consumers on an otherwise-healthy process.
+                State = AgentState.Disconnected;
+                Logger.LogWarning(e,
+                    "Could not eagerly restart the Rabbit MQ channel; leaving it for connection recovery");
             }
             finally
             {
