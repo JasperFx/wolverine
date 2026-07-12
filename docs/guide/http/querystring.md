@@ -4,7 +4,11 @@
 Wolverine can handle both nullable types and the primitive values here. So
 `int` and `int?` are both valid. In all cases, if the query string does not exist -- or
 cannot be parsed -- the value passed to your method will be the `default` for whatever that
-type is.
+type is. If you want a *present but unparseable* query string value to return a `400 Bad Request`
+instead (matching ASP.NET Core minimal APIs), opt into
+`WolverineHttpOptions.RejectUnparseableQueryValues` — see
+[Strict Query String Binding](./as-parameters#strict-query-string-binding). The strict behavior
+becomes the default in Wolverine 7.0.
 :::
 
 Wolverine supports passing query string values to your HTTP method arguments for

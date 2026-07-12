@@ -199,6 +199,19 @@ public class WolverineHttpOptions
     /// </summary>
     public RouteWarmup WarmUpRoutes { get; set; } = RouteWarmup.Lazy;
 
+    /// <summary>
+    /// When true, a query string value that is <b>present</b> but cannot be parsed to the expected
+    /// endpoint parameter type (enum, int, Guid, etc.) short-circuits the request with a
+    /// 400 Bad Request and a ProblemDetails body naming the offending query string parameter.
+    /// This matches the behavior of ASP.NET Core minimal API parameter binding. A <b>missing</b>
+    /// query string value still binds the parameter's default / property initializer value in
+    /// either mode. Applies to query string binding for endpoint method arguments and for
+    /// [AsParameters] members bound from the query string. This is currently opt-in
+    /// (default false) to preserve the previous lenient behavior, but the default flips
+    /// to true (strict) in Wolverine 7.0. See https://github.com/JasperFx/wolverine/issues/3372
+    /// </summary>
+    public bool RejectUnparseableQueryValues { get; set; }
+
     internal TenantIdDetection TenantIdDetection { get; } = new();
 
     internal Lazy<JsonSerializerOptions> JsonSerializerOptions { get; set; } = new(() => new JsonSerializerOptions());

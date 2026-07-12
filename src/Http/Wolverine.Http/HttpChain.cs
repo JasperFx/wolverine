@@ -703,7 +703,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 if (RouteParameterStrategy.CanParse(inner))
                 {
                     //variable = new ParsedNullableQueryStringValue(parameterType, parameterName).Variable;
-                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key).Variable;
+                    variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, key,
+                        rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                     variable.Name = key;
                     _querystringVariables.Add(variable);
                 }
@@ -726,7 +727,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             if (RouteParameterStrategy.CanParse(parameterType))
             {
                 //variable = new ParsedQueryStringValue(parameterType, parameterName).Variable;
-                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName).Variable;
+                variable = new ReadHttpFrame(BindingSource.QueryString, parameterType, parameterName,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
