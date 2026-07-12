@@ -34,10 +34,26 @@ internal partial class TrackedSession : ITrackedSession
 
     private Stopwatch _stopwatch = new();
 
-    private readonly List<Func<Type, bool>> _ignoreMessageRules = [t => t.CanBeCastTo<IAgentCommand>()];
+    private readonly List<Func<Type, bool>> _ignoreMessageRules = [isFrameworkTraffic];
     private CancellationTokenSource _cancellation = new();
 
     private TrackingStatus _status = TrackingStatus.Active;
+
+    // Framework/infrastructure traffic should never hold a tracked session open. That's
+    // Wolverine's own agent commands plus anything marked INotToBeRouted — which covers
+    // continuously-published telemetry like the CritterWatch monitoring messages that would
+    // otherwise keep IsCompleted() false until the session times out. Acknowledgements are
+    // deliberately still tracked: the session has first-class acknowledgement semantics
+    // (SendMessageAndWaitForAcknowledgementAsync, AssertAnyFailureAcknowledgements).
+    private static bool isFrameworkTraffic(Type type)
+    {
+        if (type == typeof(Acknowledgement) || type == typeof(FailureAcknowledgement))
+        {
+            return false;
+        }
+
+        return type.CanBeCastTo<IAgentCommand>() || type.CanBeCastTo<INotToBeRouted>();
+    }
 
     public TrackedSession(IHost host)
     {
