@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
@@ -98,11 +99,17 @@ public class PersistenceMetricsSweeper
                 continue;
             }
 
-            // One database at a time, spaced so the pass fills the UpdateMetricsPeriod window:
-            // at most one metrics query (and its pooled connection) is in flight per node.
+            // One database at a time, paced against deadlines so the pass fills the
+            // UpdateMetricsPeriod window: at most one metrics query (and its pooled
+            // connection) is in flight per node. Each store's next-poll target is
+            // passStart + (i + 1) * (period / count), so fetch time is absorbed into the
+            // spacing rather than stretching the effective polling interval, and the last
+            // target IS the end of the pass — no extra idle delay on top of the period.
             var spacing = period / pass.Length;
-            foreach (var registration in pass)
+            var passStart = Stopwatch.GetTimestamp();
+            for (var i = 0; i < pass.Length; i++)
             {
+                var registration = pass[i];
                 try
                 {
                     var counts = await registration.Store.Admin.FetchCountsAsync().ConfigureAwait(false);
@@ -119,7 +126,11 @@ public class PersistenceMetricsSweeper
                         registration.Store.Uri);
                 }
 
-                await Task.Delay(spacing, cancellation).ConfigureAwait(false);
+                var remaining = spacing * (i + 1) - Stopwatch.GetElapsedTime(passStart);
+                if (remaining > TimeSpan.Zero)
+                {
+                    await Task.Delay(remaining, cancellation).ConfigureAwait(false);
+                }
             }
         }
     }
