@@ -155,6 +155,23 @@ public class batched_load_entity_frame_codegen_tests
     }
 
     [Fact]
+    public void batched_load_frame_accepts_a_load_profile()
+    {
+        var sagaIdVar = Variable.For<Guid>();
+        var frame = new BatchedLoadEntityFrame(
+            typeof(ItemsDbContext),
+            typeof(Item),
+            sagaIdVar,
+            "Id",
+            profile: "full");
+
+        // Profiled batched loads still create the same Saga / pending-Task variables as the
+        // plain batched load; the profile only changes the root query the by-key filter runs on.
+        frame.Saga.VariableType.ShouldBe(typeof(Item));
+        frame.SagaTask.VariableType.ShouldBe(typeof(Task<Item>));
+    }
+
+    [Fact]
     public void create_batch_query_frame_creates_batch_variable()
     {
         var frame = new CreateBatchQueryFrame(typeof(ItemsDbContext));

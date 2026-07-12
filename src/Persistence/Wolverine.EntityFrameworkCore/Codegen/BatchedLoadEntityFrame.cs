@@ -28,14 +28,16 @@ internal class BatchedLoadEntityFrame : SyncFrame
     private readonly Type _dbContextType;
     private readonly Variable _sagaId;
     private readonly string _pkPropertyName;
+    private readonly string? _profile;
     private Variable? _context;
     private Variable? _batchQuery;
 
-    public BatchedLoadEntityFrame(Type dbContextType, Type sagaType, Variable sagaId, string pkPropertyName)
+    public BatchedLoadEntityFrame(Type dbContextType, Type sagaType, Variable sagaId, string pkPropertyName, string? profile = null)
     {
         _dbContextType = dbContextType;
         _sagaId = sagaId;
         _pkPropertyName = pkPropertyName;
+        _profile = profile;
 
         Saga = new Variable(sagaType, this);
         // The task that will be awaited by ExecuteBatchQueryFrame
@@ -73,7 +75,7 @@ internal class BatchedLoadEntityFrame : SyncFrame
         {
             writer.WriteLine(
                 $"var {SagaTask.Usage} = {_batchQuery.Usage}.{nameof(BatchedQuery.QuerySingle)}(" +
-                $"{_context!.Usage}.{nameof(DbContext.Set)}<{Saga.VariableType.FullNameInCode()}>().Where(x => x.{_pkPropertyName} == {_sagaId.Usage}));");
+                $"{rootQuery()}.Where(x => x.{_pkPropertyName} == {_sagaId.Usage}));");
         }
         else
         {
@@ -82,10 +84,23 @@ internal class BatchedLoadEntityFrame : SyncFrame
                 $"var {Saga.VariableType.Name.ToLowerInvariant()}Batch = {_context!.Usage}.{nameof(BatchQueryExtensions.CreateBatchQuery)}();");
             writer.WriteLine(
                 $"var {SagaTask.Usage} = {Saga.VariableType.Name.ToLowerInvariant()}Batch.{nameof(BatchedQuery.QuerySingle)}(" +
-                $"{_context!.Usage}.{nameof(DbContext.Set)}<{Saga.VariableType.FullNameInCode()}>().Where(x => x.{_pkPropertyName} == {_sagaId.Usage}));");
+                $"{rootQuery()}.Where(x => x.{_pkPropertyName} == {_sagaId.Usage}));");
         }
 
         Next?.GenerateCode(method, writer);
+    }
+
+    // Root query the by-key filter is applied to: the plain DbSet, or — when a load profile is
+    // requested — the profile's include graph via EfCoreLoadProfiles.QueryFor. Both are IQueryable<T>,
+    // so batching (QuerySingle) is identical either way.
+    private string rootQuery()
+    {
+        if (_profile is null)
+        {
+            return $"{_context!.Usage}.{nameof(DbContext.Set)}<{Saga.VariableType.FullNameInCode()}>()";
+        }
+
+        return $"{typeof(EfCoreLoadProfiles).FullNameInCode()}.{nameof(EfCoreLoadProfiles.QueryFor)}<{Saga.VariableType.FullNameInCode()}>({_context!.Usage}, \"{_profile}\")";
     }
 }
 
