@@ -27,6 +27,7 @@ internal class DurabilityAgent : IAgent
     private readonly DurabilitySettings _settings;
     private Timer? _expirationTimer;
     private PersistenceMetrics _metrics = null!;
+    private IDisposable? _metricsRegistration;
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
     private Timer? _handledCleanupTimer;
@@ -80,7 +81,11 @@ internal class DurabilityAgent : IAgent
 
         if (_settings.DurabilityMetricsEnabled)
         {
-            _metrics.StartPolling(_runtime.LoggerFactory.CreateLogger<PersistenceMetrics>(), _database);
+            // GH-3375: register with the node's single sequential metrics sweeper instead of
+            // running a per-database PeriodicTimer. At high database counts the in-phase
+            // per-agent pollers each pinned a pooled connection; the sweeper walks the node's
+            // databases one at a time across the UpdateMetricsPeriod window.
+            _metricsRegistration = PersistenceMetricsSweeper.For(_runtime).Register(_database, _metrics);
         }
 
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
@@ -140,6 +145,7 @@ internal class DurabilityAgent : IAgent
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _runningBlock.Complete();
+        _metricsRegistration?.Dispose();
         _metrics.SafeDispose();
 
         if (_scheduledJobTimer != null)
