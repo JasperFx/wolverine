@@ -299,6 +299,12 @@ asynchronous Wolverine extension) will not appear. This matches the goal of buil
 is worth knowing if you add endpoints dynamically.
 :::
 
+The same holds in-process: Wolverine's endpoint descriptions are complete on the very first
+ApiExplorer read after `MapWolverineEndpoints()` has run, even before the host starts. Only
+Wolverine's descriptions are start-independent — ASP.NET's own minimal API descriptions still
+compose at server start — so applications mixing the two should defer early ApiExplorer reads
+until after startup.
+
 ## With Microsoft.Extensions.ApiDescription.Server
 
 ::: tip
