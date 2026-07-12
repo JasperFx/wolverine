@@ -9,15 +9,21 @@ namespace Wolverine.Grpc.Tests.SagaOverGrpc;
 ///     message-identified saga can be started and continued over gRPC exactly like the HTTP endpoint
 ///     equivalent.
 /// </summary>
+#region sample_grpc_saga_service
+
 public class ReservationSagaGrpcService : WolverineGrpcServiceBase, IReservationSagaService
 {
     public ReservationSagaGrpcService(IMessageBus bus) : base(bus)
     {
     }
 
+    // Nothing here is saga-aware -- the saga mechanics all happen
+    // in the Wolverine handler pipeline behind InvokeAsync()
     public Task<ReservationBookedReply> Start(StartReservationRequest request, CallContext context = default)
         => Bus.InvokeAsync<ReservationBookedReply>(request, context.CancellationToken);
 
     public Task<BookReservationReply> Book(BookReservationRequest request, CallContext context = default)
         => Bus.InvokeAsync<BookReservationReply>(request, context.CancellationToken);
 }
+
+#endregion

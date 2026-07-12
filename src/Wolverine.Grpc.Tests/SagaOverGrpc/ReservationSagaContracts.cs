@@ -12,6 +12,8 @@ namespace Wolverine.Grpc.Tests.SagaOverGrpc;
 ///     <c>InvokeAsync</c> pipeline. Mirrors
 ///     <c>Wolverine.Http.Tests.building_a_saga_and_publishing_other_messages_from_http_endpoint</c>.
 /// </summary>
+#region sample_grpc_saga_contracts
+
 [ServiceContract]
 public interface IReservationSagaService
 {
@@ -22,8 +24,8 @@ public interface IReservationSagaService
 [ProtoContract]
 public class StartReservationRequest
 {
-    // Resolves to the saga id: "Reservation" is the ReservationSaga name minus the "Saga" suffix,
-    // so "ReservationId" is matched by SagaChain.DetermineSagaIdMember off the message body.
+    // "ReservationId" matches the ReservationSaga type name minus the "Saga"
+    // suffix, so Wolverine resolves the saga identity from this member
     [ProtoMember(1)]
     public string? ReservationId { get; set; }
 }
@@ -38,6 +40,7 @@ public class ReservationBookedReply
 [ProtoContract]
 public class BookReservationRequest
 {
+    // "Id" is also matched as the saga identity by convention
     [ProtoMember(1)]
     public string? Id { get; set; }
 }
@@ -48,3 +51,5 @@ public class BookReservationReply
     [ProtoMember(1)]
     public bool Completed { get; set; }
 }
+
+#endregion
