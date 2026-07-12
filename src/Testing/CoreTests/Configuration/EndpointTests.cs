@@ -1,7 +1,9 @@
+using JasperFx.Core;
 using NSubstitute;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Configuration;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
@@ -97,6 +99,83 @@ public class EndpointTests
         
         endpoint.MaybeWrapReceiver(inner)
             .ShouldBeSameAs(inner);
+    }
+
+    [Fact]
+    public void describe_properties_reports_the_failure_count_before_circuit_breaks()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.Application)
+        {
+            FailuresBeforeCircuitBreaks = 7,
+            PingIntervalForCircuitResume = 9.Seconds()
+        };
+
+        var properties = endpoint.DescribeProperties();
+
+        properties[nameof(Endpoint.FailuresBeforeCircuitBreaks)].ShouldBe(7);
+        properties[nameof(Endpoint.PingIntervalForCircuitResume)].ShouldBe(9.Seconds());
+    }
+
+    [Theory]
+    [InlineData(EndpointMode.BufferedInMemory)]
+    [InlineData(EndpointMode.Durable)]
+    public void describe_properties_includes_buffering_limits_when_back_pressure_applies(EndpointMode mode)
+    {
+        var endpoint = new TestEndpoint(EndpointRole.Application)
+        {
+            Mode = mode,
+            BufferingLimits = new BufferingLimits(2000, 800)
+        };
+
+        var properties = endpoint.DescribeProperties();
+
+        properties["BufferingLimits.Maximum"].ShouldBe(2000);
+        properties["BufferingLimits.Restart"].ShouldBe(800);
+    }
+
+    [Fact]
+    public void describe_properties_omits_buffering_limits_for_inline_endpoints()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.Application)
+        {
+            SupportsInlineListeners = true,
+            Mode = EndpointMode.Inline
+        };
+
+        var properties = endpoint.DescribeProperties();
+
+        properties.ContainsKey("BufferingLimits.Maximum").ShouldBeFalse();
+        properties.ContainsKey("BufferingLimits.Restart").ShouldBeFalse();
+    }
+
+    [Fact]
+    public void describe_properties_includes_circuit_breaker_options_when_configured()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.Application)
+        {
+            CircuitBreakerOptions = new CircuitBreakerOptions
+            {
+                FailurePercentageThreshold = 40,
+                PauseTime = 2.Minutes()
+            }
+        };
+
+        var properties = endpoint.DescribeProperties();
+
+        properties["CircuitBreakerOptions.FailurePercentageThreshold"].ShouldBe(40);
+        properties["CircuitBreakerOptions.PauseTime"].ShouldBe(2.Minutes());
+    }
+
+    [Fact]
+    public void describe_properties_omits_circuit_breaker_options_when_not_configured()
+    {
+        var endpoint = new TestEndpoint(EndpointRole.Application);
+        endpoint.CircuitBreakerOptions.ShouldBeNull();
+
+        var properties = endpoint.DescribeProperties();
+
+        properties.ContainsKey("CircuitBreakerOptions.FailurePercentageThreshold").ShouldBeFalse();
+        properties.ContainsKey("CircuitBreakerOptions.PauseTime").ShouldBeFalse();
     }
 
     [Fact]
