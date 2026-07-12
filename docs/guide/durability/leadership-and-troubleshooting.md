@@ -114,3 +114,21 @@ using var host = await Host.CreateDefaultBuilder()
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L203-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_persistence_metrics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Metrics polling with many tenant databases
+
+The counts behind these metrics come from polling each message database. With database-per-tenant
+multi-tenancy every tenant database gets its own poller on every node, so at high database counts the
+polling itself becomes a real connection load: hundreds of databases means hundreds of near-simultaneous
+queries every `UpdateMetricsPeriod`, each pinning a pooled connection per database per node — and if your
+connection strings use a short `Connection Idle Lifetime`, constant open/close churn on top of that
+(see [GH-3375](https://github.com/JasperFx/wolverine/issues/3375)).
+
+For deployments with dozens to hundreds of tenant databases, the current mitigations are:
+
+1. **Disable the durability metrics** entirely with `opts.Durability.DurabilityMetricsEnabled = false`
+   if you don't consume the inbox/outbox/scheduled gauges. Nothing else in Wolverine depends on them —
+   this only turns off the observability polling, never the durability agents themselves.
+2. **Raise `opts.Durability.UpdateMetricsPeriod`** (default: 5 seconds) to something like 1–5 minutes.
+   Queue-depth gauges at tenant-database granularity rarely need 5-second resolution, and the connection
+   cost scales directly with the polling frequency.
