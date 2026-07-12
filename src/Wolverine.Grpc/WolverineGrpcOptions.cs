@@ -1,5 +1,8 @@
+using System.Diagnostics;
 using Grpc.Core;
+using JasperFx.Core;
 using Wolverine.Configuration;
+using Wolverine.Grpc.MultiTenancy;
 using Wolverine.Middleware;
 
 namespace Wolverine.Grpc;
@@ -14,7 +17,58 @@ namespace Wolverine.Grpc;
 /// </summary>
 public sealed class WolverineGrpcOptions
 {
+    public WolverineGrpcOptions()
+    {
+        TenantIdDetection = new GrpcTenantIdDetection(this);
+        Policies.Add(TenantIdDetection);
+    }
+
     internal MiddlewarePolicy Middleware { get; } = new();
+
+    internal GrpcTenantIdDetection TenantIdDetection { get; }
+
+    /// <summary>
+    ///     Configure server-side tenant id detection for Wolverine-managed gRPC services — the
+    ///     gRPC counterpart to <c>WolverineHttpOptions.TenantId</c>. Strategies are tried in
+    ///     registration order and the first non-empty tenant id wins; the detected value is
+    ///     written to the <c>tenantId</c> code-generation variable consumed by Marten/Polecat
+    ///     session-opening frames and applied to the scoped <see cref="IMessageBus"/> before the
+    ///     RPC forwards to any Wolverine handler.
+    ///     <para>
+    ///         Zero-config default: when nothing is configured here and
+    ///         <see cref="PropagateEnvelopeHeaders"/> is <c>true</c> (the default), Wolverine
+    ///         detects the <c>tenant-id</c> metadata header that
+    ///         <c>WolverineGrpcClientPropagationInterceptor</c> stamps on outgoing calls — so a
+    ///         Wolverine-to-Wolverine hop round-trips the tenant id with no server configuration.
+    ///     </para>
+    /// </summary>
+    public IGrpcTenantDetectionPolicies TenantId => TenantIdDetection;
+
+    /// <summary>
+    ///     Runs the configured tenant detection strategies against the current call and returns
+    ///     the first non-empty tenant id found, or null. Called from generated gRPC service
+    ///     wrappers; accepts null (a code-first <c>CallContext</c> outside a server call has no
+    ///     <see cref="ServerCallContext"/>) and returns null in that case.
+    /// </summary>
+    public async ValueTask<string?> TryDetectTenantIdAsync(ServerCallContext? callContext)
+    {
+        if (callContext == null)
+        {
+            return null;
+        }
+
+        foreach (var strategy in TenantIdDetection.Strategies)
+        {
+            var tenantId = await strategy.DetectTenant(callContext);
+            if (tenantId.IsNotEmpty())
+            {
+                Activity.Current?.SetTag(MetricsConstants.TenantIdKey, tenantId);
+                return tenantId;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     ///     Whether <see cref="WolverineGrpcServicePropagationInterceptor"/> reads the

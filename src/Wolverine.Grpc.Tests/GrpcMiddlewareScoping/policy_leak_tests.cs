@@ -89,13 +89,18 @@ public sealed class HandlerOnlyMiddleware
 /// </summary>
 public class wolverine_grpc_options_add_policy_tests
 {
+    // GH-3368: WolverineGrpcOptions now registers the built-in tenant id detection policy in its
+    // constructor (mirroring WolverineHttpOptions registering TenantIdDetection), so user-added
+    // policies land AFTER that built-in entry.
+
     [Fact]
     public void add_policy_generic_registers_instance_in_policies_list()
     {
         var opts = new WolverineGrpcOptions();
         opts.AddPolicy<RecordingGrpcChainPolicy>();
 
-        opts.Policies.ShouldHaveSingleItem().ShouldBeOfType<RecordingGrpcChainPolicy>();
+        opts.Policies.OfType<RecordingGrpcChainPolicy>().ShouldHaveSingleItem();
+        opts.Policies.Last().ShouldBeOfType<RecordingGrpcChainPolicy>();
     }
 
     [Fact]
@@ -105,7 +110,7 @@ public class wolverine_grpc_options_add_policy_tests
         var policy = new RecordingGrpcChainPolicy();
         opts.AddPolicy(policy);
 
-        opts.Policies.ShouldHaveSingleItem().ShouldBeSameAs(policy);
+        opts.Policies.OfType<RecordingGrpcChainPolicy>().ShouldHaveSingleItem().ShouldBeSameAs(policy);
     }
 
     [Fact]
@@ -124,9 +129,10 @@ public class wolverine_grpc_options_add_policy_tests
 
         opts.AddPolicy(first).AddPolicy(second);
 
-        opts.Policies.Count.ShouldBe(2);
-        opts.Policies[0].ShouldBeSameAs(first);
-        opts.Policies[1].ShouldBeSameAs(second);
+        var userPolicies = opts.Policies.OfType<RecordingGrpcChainPolicy>().ToArray();
+        userPolicies.Length.ShouldBe(2);
+        userPolicies[0].ShouldBeSameAs(first);
+        userPolicies[1].ShouldBeSameAs(second);
     }
 }
 

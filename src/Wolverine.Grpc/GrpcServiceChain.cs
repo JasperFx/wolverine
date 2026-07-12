@@ -7,6 +7,7 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Grpc.MultiTenancy;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 
@@ -144,6 +145,14 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
 
     /// <summary>
+    ///     Set by <see cref="GrpcTenantIdDetection"/> (the built-in <see cref="IGrpcChainPolicy"/>
+    ///     behind <see cref="WolverineGrpcOptions.TenantId"/>) when tenant detection strategies are
+    ///     active, so <c>AssembleTypes</c> weaves a <see cref="DetectGrpcTenantIdFrame"/> at the
+    ///     top of every generated RPC method.
+    /// </summary>
+    internal GrpcTenantIdDetection? TenantDetection { get; set; }
+
+    /// <summary>
     ///     Applies a disambiguated <see cref="TypeName"/> on a chain whose default name collides
     ///     with another discovered chain. Called exclusively from
     ///     <see cref="GrpcGraph.DisambiguateCollidingTypeNames"/>.
@@ -213,12 +222,34 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
         var busField = new InjectedField(typeof(IMessageBus), "bus");
         _generatedType.AllInjectedFields.Add(busField);
 
+        InjectedField? tenantOptionsField = null;
+        if (TenantDetection != null)
+        {
+            tenantOptionsField = new InjectedField(typeof(WolverineGrpcOptions), "grpcOptions");
+            _generatedType.AllInjectedFields.Add(tenantOptionsField);
+        }
+
         var befores = DiscoveredBefores;
         var afters = DiscoveredAfters;
 
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
+
+            // Tenant detection runs first — every proto-first RPC shape ends with a
+            // ServerCallContext parameter, so detection applies to all of them (including bidi,
+            // which otherwise skips per-call middleware: detection needs no TRequest in scope).
+            if (tenantOptionsField != null)
+            {
+                var rpcParameters = rpc.Method.GetParameters();
+                var contextName = ForwardUnaryToMessageBusFrame.ParameterName(rpcParameters, rpcParameters.Length - 1);
+
+                // The detection frame awaits, so the method body must be async even for the
+                // unary shape that would otherwise return the bus task directly.
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+                generatedMethod.Frames.Add(new DetectGrpcTenantIdFrame(TenantDetection!, tenantOptionsField,
+                    contextName, busField, null));
+            }
 
             // Before-frames (including Validate short-circuit) require a concrete TRequest
             // in scope when the method begins. Bidi methods start with an IAsyncStreamReader<T>
@@ -246,7 +277,12 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
                 case GrpcMethodKind.Unary:
                     if (afters.Count > 0 || Postprocessors.Count > 0)
                         generatedMethod.AsyncMode = AsyncMode.AsyncTask;
-                    generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField));
+                    generatedMethod.Frames.Add(new ForwardUnaryToMessageBusFrame(rpc.Method, busField)
+                    {
+                        // When tenant detection made the method async, 'return _bus.InvokeAsync(...)'
+                        // would no longer compile — the forward frame must await instead.
+                        ForceAwait = tenantOptionsField != null
+                    });
                     break;
 
                 case GrpcMethodKind.ServerStreaming:
@@ -504,6 +540,13 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
         _busField = busField;
     }
 
+    /// <summary>
+    ///     Set when an earlier frame (tenant detection) forced the generated method into
+    ///     <see cref="AsyncMode.AsyncTask"/> — the frame must then await the bus call rather than
+    ///     returning the task directly, even when it is the last frame in the method.
+    /// </summary>
+    public bool ForceAwait { get; init; }
+
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
         var parameters = _rpc.GetParameters();
@@ -514,15 +557,16 @@ internal sealed class ForwardUnaryToMessageBusFrame : SyncFrame
         var busInvoke =
             $"{_busField.Usage}.{nameof(IMessageBus.InvokeAsync)}<{responseType.FullNameInCode()}>({requestName}, {cancellation})";
 
-        if (Next == null)
+        if (Next == null && !ForceAwait)
         {
             writer.Write($"return {busInvoke};");
         }
         else
         {
-            // After-frames are present — await so they can run before the return.
+            // After-frames are present (or an earlier async frame forced AsyncMode) —
+            // await so the method body stays valid and after-frames can run before the return.
             writer.Write($"var result = await {busInvoke};");
-            Next.GenerateCode(method, writer);
+            Next?.GenerateCode(method, writer);
             writer.Write("return result;");
         }
     }

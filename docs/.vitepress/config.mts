@@ -297,6 +297,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Error Handling', link: '/guide/grpc/errors'},
                                 {text: 'Streaming', link: '/guide/grpc/streaming'},
                                 {text: 'Typed gRPC Clients', link: '/guide/grpc/client'},
+                                {text: 'Multi-Tenancy', link: '/guide/grpc/multi-tenancy'},
                                 {text: 'Samples', link: '/guide/grpc/samples'}
                             ]
                         }
