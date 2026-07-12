@@ -37,6 +37,9 @@ building:
 - [Typed gRPC Clients](./client) — `AddWolverineGrpcClient<T>()`, the Wolverine-flavored wrapper over
   `Grpc.Net.ClientFactory` that adds envelope-header propagation and `RpcException` → typed-exception
   translation on the consuming side.
+- [Multi-Tenancy](./multi-tenancy) — server-side tenant id detection (metadata headers, claims, or
+  custom strategies) mirroring Wolverine.HTTP's `TenantId` API, including the zero-config
+  round-trip default for Wolverine-to-Wolverine hops.
 - [Samples](./samples) — runnable end-to-end samples with pointers to the equivalent official
   [grpc-dotnet examples](https://github.com/grpc/grpc-dotnet/tree/master/examples) for comparison.
 

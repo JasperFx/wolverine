@@ -106,15 +106,25 @@ builder.Services.AddWolverineGrpcClient<IPingService>(o =>
 });
 ```
 
-On the server side of a Wolverine→Wolverine hop, `WolverineGrpcServicePropagationInterceptor`
-(registered automatically by `AddWolverineGrpc()`) reads the `correlation-id` and `tenant-id`
-headers back off the inbound call and applies them to the ambient `IMessageContext` before the
-service method runs. Only those two identifiers round-trip this way — `parent-id` and
-`conversation-id` live on an `Envelope`, and there is no envelope yet at this point in the
-pipeline (`IMessageContext.Envelope` is null outside of message handling). Once the service
-method calls `Bus.InvokeAsync(...)`, Wolverine copies the now-set `CorrelationId`/`TenantId` onto
-the freshly created envelope automatically, and Marten/Polecat tenant-scoped session frames pick
-it up the same way they would for any other transport — no further wiring needed.
+On the server side of a Wolverine→Wolverine hop, propagation is fully **round-trip** — two
+complementary server-side mechanisms read the stamped headers back in:
+
+1. `WolverineGrpcServicePropagationInterceptor` (registered automatically by `AddWolverineGrpc()`)
+   reads the `correlation-id` and `tenant-id` headers off the inbound call and applies them to the
+   ambient `IMessageContext` before the service method runs. Only those two identifiers round-trip
+   this way — `parent-id` and `conversation-id` live on an `Envelope`, and there is no envelope yet
+   at this point in the pipeline (`IMessageContext.Envelope` is null outside of message handling).
+   Once the service method calls `Bus.InvokeAsync(...)`, Wolverine copies the now-set
+   `CorrelationId`/`TenantId` onto the freshly created envelope automatically, and Marten/Polecat
+   tenant-scoped session frames pick it up the same way they would for any other transport — no
+   further wiring needed.
+2. For the tenant id specifically, Wolverine-generated gRPC service wrappers additionally run
+   [server-side tenant id detection](./multi-tenancy) as part of the generated code. With no
+   configuration at all, the detection defaults to reading the same `tenant-id` header the client
+   interceptor stamps, assigning it to the scoped `IMessageBus.TenantId` and to the `tenantId`
+   code-generation variable that persistence middleware consumes — structurally, without relying
+   on the ambient context. Custom detection (other headers, claims, your own strategy) is
+   configured on `WolverineGrpcOptions.TenantId`.
 
 Cross-process parent/trace correlation for gRPC hops is handled separately by OpenTelemetry
 `Activity` propagation over HTTP/2 (W3C traceparent) — see [How gRPC Handlers Work](./handlers).
@@ -122,7 +132,10 @@ The `parent-id`/`conversation-id` headers still go out on the wire for diagnosti
 consumers, but nothing on the Wolverine side reads them back in.
 
 Server-side propagation can be disabled with `WolverineGrpcOptions.PropagateEnvelopeHeaders =
-false`, the counterpart to the client-side `PropagateEnvelopeHeaders` option above.
+false`, the counterpart to the client-side `PropagateEnvelopeHeaders` option above. Disabling it
+turns off both the server interceptor and the zero-config `tenant-id` detection default — though
+explicitly configured tenant detection strategies keep working (see
+[Multi-Tenancy and gRPC](./multi-tenancy)).
 
 ## `RpcException` → typed-exception translation
 

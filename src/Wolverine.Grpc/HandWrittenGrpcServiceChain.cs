@@ -9,6 +9,7 @@ using JasperFx.Core.Reflection;
 using ProtoBuf.Grpc;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Grpc.MultiTenancy;
 using Wolverine.Middleware;
 using Wolverine.Persistence;
 
@@ -70,6 +71,18 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
     public override string Description { get; }
     public override MiddlewareScoping Scoping => MiddlewareScoping.Grpc;
     public override IdempotencyStyle Idempotency { get; set; } = IdempotencyStyle.None;
+
+    /// <summary>
+    ///     Set by <see cref="GrpcTenantIdDetection"/> (the built-in <see cref="IGrpcChainPolicy"/>
+    ///     behind <see cref="WolverineGrpcOptions.TenantId"/>) when tenant detection strategies are
+    ///     active. Detection is woven into unary methods that declare a <see cref="CallContext"/>
+    ///     parameter. Because the delegation wrapper has no <see cref="IMessageBus"/> field of its
+    ///     own, the detected tenant is applied to the request-scoped <see cref="IMessageContext"/>
+    ///     via the wrapper's <see cref="IServiceProvider"/> so the user's inner service (and any
+    ///     bus it resolves) observes it.
+    /// </summary>
+    internal GrpcTenantIdDetection? TenantDetection { get; set; }
+
     public override Type? InputType() => null;
     public override bool ShouldFlushOutgoingMessages() => false;
     public override bool RequiresOutbox() => false;
@@ -142,12 +155,39 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
         var spField = new InjectedField(typeof(IServiceProvider), "serviceProvider");
         _generatedType.AllInjectedFields.Add(spField);
 
+        InjectedField? tenantOptionsField = null;
+
         var befores = DiscoveredBefores;
         var afters = DiscoveredAfters;
 
         foreach (var rpc in SupportedMethods)
         {
             var generatedMethod = _generatedType.MethodFor(rpc.Method.Name);
+
+            // Tenant detection first. Only unary methods with a CallContext parameter qualify:
+            // the CallContext is the sole route to ServerCallContext/request metadata in the
+            // code-first shape, and streaming/bidi methods return IAsyncEnumerable<T> directly so
+            // their bodies cannot await the detection call.
+            var contextParam = rpc.Method.GetParameters()
+                .FirstOrDefault(p => p.ParameterType == typeof(CallContext));
+            var detectTenantId = TenantDetection != null
+                                 && rpc.Kind == HandWrittenMethodKind.Unary
+                                 && contextParam != null;
+
+            if (detectTenantId)
+            {
+                if (tenantOptionsField == null)
+                {
+                    tenantOptionsField = new InjectedField(typeof(WolverineGrpcOptions), "grpcOptions");
+                    _generatedType.AllInjectedFields.Add(tenantOptionsField);
+                }
+
+                // Detection awaits, so the method body must be async — the delegation frame is
+                // told to await the inner call rather than returning its task directly.
+                generatedMethod.AsyncMode = AsyncMode.AsyncTask;
+                generatedMethod.Frames.Add(new DetectGrpcTenantIdFrame(TenantDetection!, tenantOptionsField,
+                    $"{contextParam!.Name}.{nameof(CallContext.ServerCallContext)}", null, spField));
+            }
 
             // Before-frames require a concrete TRequest in scope. Skip for bidi methods where
             // the first parameter is IAsyncEnumerable<T> rather than a single message instance.
@@ -178,7 +218,10 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
             if (hasAfters)
                 generatedMethod.AsyncMode = AsyncMode.AsyncTask;
 
-            generatedMethod.Frames.Add(new DelegateToInnerServiceFrame(rpc.Method, spField, ServiceClassType, hasAfters));
+            // Tenant detection forces the method async, so the delegation frame must await the
+            // inner call even when there are no after-frames.
+            generatedMethod.Frames.Add(new DelegateToInnerServiceFrame(rpc.Method, spField, ServiceClassType,
+                hasAfters || detectTenantId));
 
             if (hasAfters)
             {
