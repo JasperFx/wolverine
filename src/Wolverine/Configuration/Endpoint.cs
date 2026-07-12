@@ -455,12 +455,26 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
             { nameof(EndpointName), EndpointName },
             { nameof(Mode), Mode },
             { nameof(PingIntervalForCircuitResume), PingIntervalForCircuitResume },
-            { nameof(FailuresBeforeCircuitBreaks), PingIntervalForCircuitResume }
+            { nameof(FailuresBeforeCircuitBreaks), FailuresBeforeCircuitBreaks }
         };
 
         if (Mode == EndpointMode.BufferedInMemory)
         {
             dict.Add(nameof(MaximumEnvelopeRetryStorage), MaximumEnvelopeRetryStorage);
+        }
+
+        if (ShouldEnforceBackPressure())
+        {
+            dict.Add($"{nameof(BufferingLimits)}.{nameof(BufferingLimits.Maximum)}", BufferingLimits.Maximum);
+            dict.Add($"{nameof(BufferingLimits)}.{nameof(BufferingLimits.Restart)}", BufferingLimits.Restart);
+        }
+
+        if (CircuitBreakerOptions != null)
+        {
+            dict.Add($"{nameof(CircuitBreakerOptions)}.{nameof(CircuitBreakerOptions.FailurePercentageThreshold)}",
+                CircuitBreakerOptions.FailurePercentageThreshold);
+            dict.Add($"{nameof(CircuitBreakerOptions)}.{nameof(CircuitBreakerOptions.PauseTime)}",
+                CircuitBreakerOptions.PauseTime);
         }
 
         return dict;
