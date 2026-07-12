@@ -218,6 +218,47 @@ public static class AsParameterRecordEndpoint
 <!-- endSnippet -->
 
 
+## Strict Query String Binding <Badge type="tip" text="6.18" />
+
+By default in Wolverine 6.x, a query string value that is *present* but cannot be parsed to the
+target member type (an enum, `int`, `Guid`, etc.) is silently ignored — the member simply keeps
+its default or property initializer value. ASP.NET Core's own minimal API `[AsParameters]` binder
+returns `400 Bad Request` for the same input, and the lenient behavior makes a typo'd query value
+indistinguishable from an absent one (not even FluentValidation can catch it downstream, because
+the bound value looks legitimate).
+
+You can opt into the strict, minimal-API-compatible behavior with
+`WolverineHttpOptions.RejectUnparseableQueryValues`:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // Return 400 with a ProblemDetails body naming the offending parameter
+    // when a query string value is present but unparseable
+    opts.RejectUnparseableQueryValues = true;
+});
+```
+
+The behavior matrix for a bound query string member (for example
+`[FromQuery] public SortField SortBy { get; set; } = SortField.Date;` on `GET /search`):
+
+| Request | Flag off (default) | Flag on |
+| --- | --- | --- |
+| `GET /search?SortBy=Name` | `200` — binds `Name` | `200` — binds `Name` |
+| `GET /search` (missing) | `200` — keeps the initializer (`Date`) | `200` — keeps the initializer (`Date`) |
+| `GET /search?SortBy=bogus` (malformed) | `200` — keeps the initializer (`Date`) | `400` — ProblemDetails naming `SortBy` |
+
+Only a *present but unparseable* value triggers the `400`; a *missing* query string value keeps the
+member's default / initializer in both modes. The flag applies to query string binding for
+`[AsParameters]` members and for endpoint method arguments bound from the query string alike.
+Route argument binding is unaffected (an unparseable route value already returns `404`).
+
+::: warning
+`RejectUnparseableQueryValues` is opt-in (defaults to `false`) throughout Wolverine 6.x to preserve
+the previous lenient behavior, but the default flips to `true` (strict) in Wolverine 7.0. If you
+depend on the lenient behavior, set the flag explicitly to be ready for 7.0.
+:::
+
 The [Fluent Validation middleware](./fluentvalidation) for Wolverine.HTTP is able to validate against request types
 bound with `[AsParameters]`:
 

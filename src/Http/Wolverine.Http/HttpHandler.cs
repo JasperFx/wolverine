@@ -232,4 +232,26 @@ public abstract class HttpHandler
     {
         return Results.Problem(details).ExecuteAsync(context);
     }
+
+    /// <summary>
+    /// Called by generated code when <see cref="WolverineHttpOptions.RejectUnparseableQueryValues"/>
+    /// is enabled and a query string value is present but cannot be parsed to the expected
+    /// parameter type. Writes a 400 ProblemDetails response naming the offending query string
+    /// parameter, matching ASP.NET Core minimal API binding behavior. GH-3372.
+    /// </summary>
+    public static Task WriteQueryValueParsingProblem(HttpContext context, string parameterName, string? rawValue,
+        string expectedType)
+    {
+        var details = new ProblemDetails
+        {
+            Status = 400,
+            Title = "Invalid query string value",
+            Detail =
+                $"Query string parameter '{parameterName}' has the value '{rawValue}' which cannot be parsed to the expected type {expectedType}"
+        };
+
+        details.Extensions["parameter"] = parameterName;
+
+        return Results.Problem(details).ExecuteAsync(context);
+    }
 }

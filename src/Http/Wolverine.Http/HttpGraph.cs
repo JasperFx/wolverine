@@ -61,6 +61,14 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
     /// </summary>
     internal bool AutoAntiforgeryOnFormEndpoints { get; set; }
 
+    /// <summary>
+    /// When true, generated query string binding emits a 400 + ProblemDetails short circuit
+    /// for query string values that are present but unparseable. Mirrors
+    /// <see cref="WolverineHttpOptions.RejectUnparseableQueryValues"/>; transferred before
+    /// endpoint discovery so chain construction sees the final value. GH-3372.
+    /// </summary>
+    internal bool RejectUnparseableQueryValues { get; set; }
+
     internal IEnumerable<IResourceWriterPolicy> WriterPolicies => _optionsWriterPolicies.Concat(_builtInWriterPolicies);
 
     public override IReadOnlyList<Endpoint> Endpoints => _endpoints;
