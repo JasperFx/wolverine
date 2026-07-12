@@ -24,10 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          # CIAWS temporarily disabled: the LocalStack SNS/SQS suite chronically exceeds the 20-minute
-          # job timeout on CI runners (the tests themselves pass — verified locally). Tracked in #3350;
-          # re-enable once the AWS job timing is addressed.
-          # - CIAWS
+          - CIAWS
           - CIAzureServiceBus
           - CICosmosDb
           - CIEfCore

@@ -118,10 +118,12 @@ public class AmazonSnsPerTenantConnectionTests : IAsyncLifetime
 
     private static void configureTransport(WolverineOptions opts)
     {
-        opts.UseAmazonSnsTransport(c =>
+        opts.UseAmazonSnsTransport((sns, sqs) =>
             {
-                c.ServiceURL = ServiceUrl;
-                c.AuthenticationRegion = SharedRegion;
+                sns.ServiceURL = ServiceUrl;
+                sns.AuthenticationRegion = SharedRegion;
+                sqs.ServiceURL = ServiceUrl;
+                sqs.AuthenticationRegion = SharedRegion;
             })
             .Credentials(new BasicAWSCredentials("ignore", "ignore"))
             .AutoProvision()
