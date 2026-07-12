@@ -2,7 +2,6 @@ using Grpc.Net.Client;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using ProtoBuf.Grpc.Client;
 using ProtoBuf.Grpc.Server;
 using Xunit;
