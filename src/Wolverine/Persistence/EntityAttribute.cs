@@ -110,6 +110,16 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
     /// </summary>
     public bool Required { get; set; } = true;
 
+    /// <summary>
+    /// Optional named "load profile" — selects which pre-declared include/fetch graph to apply when
+    /// loading this entity, so different handlers on the same aggregate can pull different depths of
+    /// the graph. Only supported by persistence providers that implement
+    /// <see cref="ILoadProfileFrameProvider" /> (currently EF Core, via
+    /// <c>modelBuilder.Entity&lt;T&gt;().HasLoadProfile("name", q =&gt; q.Include(...))</c>). An unknown
+    /// profile fails fast at codegen.
+    /// </summary>
+    public string? Profile { get; set; }
+
     public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
@@ -162,7 +172,24 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
             chain.Middleware.Add(identity.Creator);
         }
 
-        var frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
+        Frame frame;
+        if (!string.IsNullOrEmpty(Profile))
+        {
+            if (provider is ILoadProfileFrameProvider profiled)
+            {
+                frame = profiled.DetermineLoadFrame(container, parameter.ParameterType, identity, Profile);
+            }
+            else
+            {
+                throw new InvalidOperationException(
+                    $"[Entity(Profile = \"{Profile}\")] on {parameter.ParameterType.FullNameInCode()} requires a persistence " +
+                    $"provider with load-profile support (EF Core). {provider.GetType().Name} does not support load profiles.");
+            }
+        }
+        else
+        {
+            frame = provider.DetermineLoadFrame(container, parameter.ParameterType, identity);
+        }
 
         var entity = frame.Creates.First(x => x.VariableType == parameter.ParameterType);
         entity.OverrideName(parameter.Name!);

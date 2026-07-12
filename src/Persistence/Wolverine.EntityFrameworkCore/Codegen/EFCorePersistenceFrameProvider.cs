@@ -40,7 +40,7 @@ namespace Wolverine.EntityFrameworkCore.Codegen;
     Justification = "EFCore codegen frame provider — DbContext.SaveChangesAsync etc. lookups on statically-rooted DbContext types. See AOT guide.")]
 [UnconditionalSuppressMessage("AOT", "IL3050",
     Justification = "EFCore codegen frame provider — closed generics over runtime DbContext / entity types at codegen time. See AOT guide.")]
-internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
+internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider, ILoadProfileFrameProvider
 {
     public const string UsingEfCoreTransaction = "uses_efcore_transaction";
     public const string TransactionModeKey = "TransactionMiddlewareMode";
@@ -132,6 +132,42 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
     {
         var dbContextType = DetermineDbContextType(sagaType, container);
         return new LoadEntityFrame(dbContextType, sagaType, sagaId);
+    }
+
+    // ILoadProfileFrameProvider — profile-aware load for [Entity(Profile = "...")]. Validates the
+    // profile against the EF model NOW (codegen/startup) so an unknown name fails fast instead of
+    // silently loading nothing, then rides the same AsyncFrame emission as the plain load.
+    public Frame DetermineLoadFrame(IServiceContainer container, Type entityType, Variable identity, string profile)
+    {
+        var dbContextType = DetermineDbContextType(entityType, container);
+
+        using var scope = container.Services.CreateScope();
+        var context = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
+
+        var config = context.Model.FindEntityType(entityType)
+                     ?? throw new InvalidOperationException(
+                         $"Could not find entity configuration for {entityType.FullNameInCode()} in DbContext {dbContextType.Name}");
+
+        var profiles = config.LoadProfiles();
+        if (profiles is null || !profiles.ContainsKey(profile))
+        {
+            var known = profiles is null || profiles.Count == 0
+                ? "none are declared"
+                : "known: " + string.Join(", ", profiles.Keys);
+            throw new InvalidOperationException(
+                $"No '{profile}' load profile is declared for {entityType.FullNameInCode()} ({known}). " +
+                $"Declare it on the model, e.g. modelBuilder.Entity<{entityType.Name}>().HasLoadProfile(\"{profile}\", q => q.Include(...)).");
+        }
+
+        var key = config.FindPrimaryKey()
+                  ?? throw new InvalidOperationException($"No known primary key for {entityType.FullNameInCode()}");
+        if (key.Properties.Count != 1)
+        {
+            throw new InvalidOperationException(
+                $"[Entity(Profile = \"{profile}\")] on {entityType.FullNameInCode()} requires a single-column primary key.");
+        }
+
+        return new ProfileLoadEntityFrame(dbContextType, entityType, identity, profile, key.Properties[0].Name);
     }
 
     public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
