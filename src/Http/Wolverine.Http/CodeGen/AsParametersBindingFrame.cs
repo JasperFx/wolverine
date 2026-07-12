@@ -30,6 +30,17 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
             return false;
         }
 
+        // A chain gets exactly one binding frame per [AsParameters] type. A second consumer —
+        // typically a compound handler LoadAsync/Before method taking the same [AsParameters]
+        // parameter as the main endpoint method — must reuse the already-built variable, or the
+        // binding frame is emitted once per consuming method scope and the duplicated locals
+        // don't compile. See GH-3374.
+        if (chain.AsParametersVariable != null && chain.AsParametersVariable.VariableType == parameter.ParameterType)
+        {
+            variable = chain.AsParametersVariable;
+            return true;
+        }
+
         if (IsClassOrNullableClassNotCollection(parameter.ParameterType))
         {
             chain.RequestType = parameter.ParameterType;
@@ -111,6 +122,7 @@ internal class AsParametersBindingFrame : SyncFrame
                 if (variable!.Creator != null)
                 {
                     _parameterFrames.Add(variable.Creator);
+                    absorbBindingFrame(variable);
                 }
             }
         }
@@ -123,6 +135,7 @@ internal class AsParametersBindingFrame : SyncFrame
                 {
                     frame.AssignToProperty($"{Variable.Usage}.{propertyInfo.Name}");
                     _props.Add(variable.Creator);
+                    absorbBindingFrame(variable);
                 }
                 else
                 {
@@ -149,6 +162,21 @@ internal class AsParametersBindingFrame : SyncFrame
         }
     }
     
+    /// <summary>
+    /// This frame generates any absorbed ReadHttpFrame (route/query string/form/header binding)
+    /// inline, so the variable it reads must be re-homed to this frame. Otherwise a second consumer
+    /// of the same variable — a compound handler LoadAsync/Before method binding the same route
+    /// value, for example — makes the arranger schedule the absorbed frame a second time as a
+    /// top-level frame, and the duplicated locals don't compile. See GH-3374.
+    /// </summary>
+    private void absorbBindingFrame(Variable variable)
+    {
+        if (variable is HttpElementVariable element && variable.Creator != null)
+        {
+            element.ReassignCreator(this);
+        }
+    }
+
     private bool tryCreateFrame(ParameterInfo parameter, HttpChain chain, IServiceContainer container, out Variable? variable)
     {
         variable = default;
