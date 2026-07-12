@@ -17,6 +17,14 @@ public sealed class WolverineGrpcOptions
     internal MiddlewarePolicy Middleware { get; } = new();
 
     /// <summary>
+    ///     Whether <see cref="WolverineGrpcServicePropagationInterceptor"/> reads the
+    ///     <c>correlation-id</c>/<c>tenant-id</c> envelope headers off inbound calls onto the
+    ///     ambient <see cref="IMessageContext"/> before the service method runs. Defaults to
+    ///     <c>true</c>. The client-side counterpart is <c>WolverineGrpcClientOptions.PropagateEnvelopeHeaders</c>.
+    /// </summary>
+    public bool PropagateEnvelopeHeaders { get; set; } = true;
+
+    /// <summary>
     ///     Structural policies applied to all discovered gRPC chains during bootstrapping.
     ///     Analogous to <c>WolverineHttpOptions.Policies</c> — use when you need typed access
     ///     to chain properties beyond what <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/>

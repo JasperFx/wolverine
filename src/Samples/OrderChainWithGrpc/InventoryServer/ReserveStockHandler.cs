@@ -7,11 +7,14 @@ namespace OrderChainWithGrpc.InventoryServer;
 ///     Wolverine handler for <see cref="ReserveStock"/>. The gRPC service forwards to the bus
 ///     and the bus invokes this handler — the handler itself has no gRPC coupling.
 ///     <para>
-///         The envelope identifiers read from <see cref="IMessageContext"/> below were *not*
-///         stamped by code in this process. They were unpacked from inbound gRPC metadata by
-///         <c>WolverineGrpcServicePropagationInterceptor</c>, which is wired up automatically
-///         by <c>AddWolverineGrpc()</c>. Echoing them back on the reply is what lets the sample
-///         visually prove the chain preserved identity end-to-end.
+///         <see cref="IMessageContext.CorrelationId"/> and <see cref="IMessageContext.TenantId"/>
+///         below were *not* stamped by code in this process. They were unpacked from inbound gRPC
+///         metadata by <c>WolverineGrpcServicePropagationInterceptor</c>, which is wired up
+///         automatically by <c>AddWolverineGrpc()</c>, before <c>Bus.InvokeAsync</c> ran this
+///         handler. Echoing them back on the reply is what lets the sample visually prove those two
+///         identifiers preserved identity end-to-end. <c>ParentIdFromUpstream</c> is a different
+///         mechanism — it reflects OpenTelemetry <see cref="System.Diagnostics.Activity"/>
+///         propagation over the HTTP/2 <c>traceparent</c> header, not this interceptor.
 ///     </para>
 /// </summary>
 public static class ReserveStockHandler
