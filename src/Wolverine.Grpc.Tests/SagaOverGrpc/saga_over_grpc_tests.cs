@@ -32,6 +32,8 @@ public class saga_over_grpc_tests : IClassFixture<SagaOverGrpcFixture>
         _fixture = fixture;
     }
 
+    #region sample_starting_and_continuing_saga_over_grpc
+
     [Fact]
     public async Task can_start_and_continue_a_message_identified_saga_over_grpc()
     {
@@ -54,6 +56,8 @@ public class saga_over_grpc_tests : IClassFixture<SagaOverGrpcFixture>
         // Handle(BookReservationRequest) marked the saga completed, so its state is deleted.
         persistor.Load<ReservationSaga>("dinner").ShouldBeNull();
     }
+
+    #endregion
 
     [Fact]
     public async Task starting_a_header_identified_saga_over_grpc_fails_with_opaque_status_today()

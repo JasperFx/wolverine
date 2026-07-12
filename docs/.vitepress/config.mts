@@ -298,6 +298,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Streaming', link: '/guide/grpc/streaming'},
                                 {text: 'Typed gRPC Clients', link: '/guide/grpc/client'},
                                 {text: 'Multi-Tenancy', link: '/guide/grpc/multi-tenancy'},
+                                {text: 'Integration with Sagas', link: '/guide/grpc/sagas'},
                                 {text: 'Samples', link: '/guide/grpc/samples'}
                             ]
                         }
