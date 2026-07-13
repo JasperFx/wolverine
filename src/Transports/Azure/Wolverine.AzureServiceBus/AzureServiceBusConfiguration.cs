@@ -30,6 +30,20 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     }
     
     /// <summary>
+    /// CAUTION!!! This directs Wolverine to delete *every* queue and topic in the connected Azure Service
+    /// Bus namespace at application start up, before any objects are provisioned. This is destructive and
+    /// irreversible, and is only meant for local development or automated testing against the Azure Service
+    /// Bus emulator. Never enable this against a real Azure Service Bus namespace that holds anything you
+    /// care about.
+    /// </summary>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration DeleteAllExistingObjectsOnStartup()
+    {
+        Transport.DeleteAllExistingObjectsOnStartup = true;
+        return this;
+    }
+
+    /// <summary>
     /// Override the sending logic behavior for unknown or missing tenant ids when
     /// using multi-tenanted namespaces
     /// </summary>
