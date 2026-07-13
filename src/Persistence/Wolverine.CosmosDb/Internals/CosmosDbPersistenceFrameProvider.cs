@@ -165,6 +165,14 @@ internal class CosmosDbUpsertFrame : AsyncFrame
             $"await {_container!.Usage}.UpsertItemAsync({_document.Usage}).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // UpsertItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
+        writer.Write($"let! _ = {_container!.FSharpUsage}.UpsertItemAsync({_document.FSharpUsage})");
+        writer.Write("()");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
 
 internal class CosmosDbDeleteDocumentFrame : AsyncFrame
@@ -193,6 +201,15 @@ internal class CosmosDbDeleteDocumentFrame : AsyncFrame
             $"await {_container!.Usage}.DeleteItemAsync<{_saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {typeof(PartitionKey).FullNameInCode()}.None).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // DeleteItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
+        writer.Write(
+            $"let! _ = {_container!.FSharpUsage}.DeleteItemAsync<{_saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None)");
+        writer.Write("()");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
 
 internal class CosmosDbDeleteByVariableFrame : AsyncFrame
@@ -217,5 +234,14 @@ internal class CosmosDbDeleteByVariableFrame : AsyncFrame
         writer.Write(
             $"await {_container!.Usage}.DeleteItemAsync<{_variable.VariableType.FullNameInCode()}>({_variable.Usage}.ToString(), {typeof(PartitionKey).FullNameInCode()}.None).ConfigureAwait(false);");
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        // DeleteItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
+        writer.Write(
+            $"let! _ = {_container!.FSharpUsage}.DeleteItemAsync<{_variable.VariableType.FSharpName()}>({_variable.FSharpUsage}.ToString(), {typeof(PartitionKey).FSharpName()}.None)");
+        writer.Write("()");
+        Next?.GenerateFSharpCode(method, writer);
     }
 }
