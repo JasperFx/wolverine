@@ -167,6 +167,35 @@ private static async Task using_tracked_sessions_advanced(IHost otherWolverineSy
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
+
+::: tip
+As of 6.17.3, tracked sessions ignore Wolverine's own framework traffic by default — anything marked
+`INotToBeRouted`, which covers agent commands and the telemetry a monitored host publishes to
+CritterWatch. Before 6.17.3 that telemetry could be picked up by a tracked session and keep it
+waiting on messages your test never sent. If you are on an older version and see that, filter it
+yourself:
+
+```csharp
+.IgnoreMessagesMatchingType(type => type.CanBeCastTo<INotToBeRouted>())
+```
+
+`Acknowledgement` and `FailureAcknowledgement` are deliberately still tracked — the session's own
+acknowledgement APIs depend on them.
+:::
+
+### Timeouts govern the whole session
+
+`Timeout()` bounds the *entire* tracked session, including any stage it runs — so a stage that does
+slow work, like `PauseThenCatchUpOnMartenDaemonActivity()` waiting for projections to catch up, is
+capped by the session's timeout and **not** by any budget internal to that stage. The default is only
+5 seconds. Projection catch-up against a cold daemon, a large event backlog, or a busy CI machine
+routinely needs more:
+
+```csharp
+await host.TrackActivity().Timeout(30.Seconds())
+    .PauseThenCatchUpOnMartenDaemonActivity()
+    .InvokeMessageAndWaitAsync(command);
+```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
