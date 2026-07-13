@@ -122,21 +122,51 @@ public class Bug_3290_misleading_daemon_disabled_warning : PostgresqlContext
         console.ShouldContain("The async daemon is disabled");
     }
 
+    // GH-3388 — these two used to assert that an explicit Solo/HotCold daemon choice SURVIVES
+    // alongside Wolverine-managed distribution ("an explicit user choice is never overwritten").
+    // That contract turned out to be the footgun: the combination is never valid. Marten hosts its
+    // own ProjectionCoordinator (an IHostedService) which starts the shards, while Wolverine's
+    // distribution drives the same daemon through its own coordinator. The two compete, and the
+    // symptom is not an error but a HANG — a tracked catch-up that never completes. A user lost a
+    // day to it, and nothing in the stalling code points back at the registration that caused it.
+    // Preserving the choice silently is strictly worse than refusing it, so it is now refused.
+    // Rejected at host START, not at store construction: Marten applies AddAsyncDaemon's mode
+    // through ConfigureMarten, which runs in registration order, so a daemon choice made AFTER
+    // IntegrateWithWolverine is not yet visible while the integration configures. By start-up the
+    // options are final — which is why BOTH call orders below are caught.
     [Fact]
-    public void explicit_add_async_daemon_choice_after_integration_is_not_overwritten()
+    public async Task explicit_solo_daemon_after_integration_is_rejected()
     {
         using var host = configureHost(useWolverineManagedDistribution: true, DaemonMode.Solo).Build();
 
-        var (store, _) = buildStoreCapturingConsole(host);
+        var ex = await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
 
-        store.Options.Projections.AsyncMode.ShouldBe(DaemonMode.Solo);
+        ex.Message.ShouldContain("UseWolverineManagedEventSubscriptionDistribution");
+        ex.Message.ShouldContain("MartenDaemonModeIsSolo");
     }
 
     [Fact]
-    public void explicit_add_async_daemon_choice_before_integration_is_not_overwritten()
+    public async Task explicit_solo_daemon_before_integration_is_rejected()
     {
         using var host = configureHost(useWolverineManagedDistribution: true, DaemonMode.Solo,
             explicitDaemonBeforeIntegration: true).Build();
+
+        await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+    }
+
+    [Fact]
+    public async Task explicit_hotcold_daemon_is_rejected_too()
+    {
+        using var host = configureHost(useWolverineManagedDistribution: true, DaemonMode.HotCold).Build();
+
+        await Should.ThrowAsync<InvalidOperationException>(() => host.StartAsync());
+    }
+
+    [Fact]
+    public void an_explicit_daemon_choice_is_fine_without_managed_distribution()
+    {
+        // Nothing to compete with, so the user's choice stands exactly as before.
+        using var host = configureHost(useWolverineManagedDistribution: false, DaemonMode.Solo).Build();
 
         var (store, _) = buildStoreCapturingConsole(host);
 

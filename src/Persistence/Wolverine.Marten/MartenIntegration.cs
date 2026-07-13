@@ -179,6 +179,15 @@ internal class MartenOverrides : IConfigureMarten
         // identical to Disabled (no Marten-side coordination starts) while suppressing the
         // warning. Only upgrades from Disabled — an explicit user AddAsyncDaemon() choice
         // is never overwritten, regardless of call order relative to IntegrateWithWolverine.
+        // Marten's only knowledge of the daemon state is Projections.AsyncMode; left at Disabled,
+        // DocumentStore writes a misleading "The async daemon is disabled ... projections will not
+        // be executed" warning at startup. Record the real state: ExternallyManaged keeps Marten's
+        // runtime posture identical to Disabled (no Marten-side coordination starts) while
+        // suppressing the warning. Only upgrades from Disabled — an explicit Solo/HotCold choice is
+        // left alone HERE because AddAsyncDaemon applies its mode through ConfigureMarten, which
+        // runs in registration order, so a choice made after IntegrateWithWolverine is not yet
+        // visible at this point. That combination is invalid and is rejected at host start by
+        // ManagedDistributionDaemonModeValidator (GH-3388), where the options are final.
         var integration = services.GetService<MartenIntegration>();
         if (integration is { UseWolverineManagedEventSubscriptionDistribution: true }
             && options.Projections.AsyncMode == DaemonMode.Disabled)

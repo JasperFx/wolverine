@@ -10,6 +10,7 @@ using Marten.Events.Daemon.Coordination;
 using Marten.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Weasel.Core;
@@ -146,6 +147,10 @@ public static class WolverineOptionsMartenExtensions
             expression.Services.AddSingleton<IAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IEventSubscriptionAgentFamily>(s => s.GetRequiredService<EventSubscriptionAgentFamily>());
             expression.Services.AddSingleton<IProjectionCoordinator, WolverineProjectionCoordinator>();
+
+            // GH-3388 — refuse a competing Marten-side daemon (Solo/HotCold) at host start, where
+            // the store's options are final regardless of the order AddAsyncDaemon() was called in.
+            expression.Services.AddSingleton<IHostedService, ManagedDistributionDaemonModeValidator>();
         }
 
         expression.Services.AddType(typeof(IDatabaseSource), typeof(MessageDatabaseDiscovery),

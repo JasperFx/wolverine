@@ -40,7 +40,9 @@ public class reset_data_first : IAsyncLifetime
                     m.DatabaseSchemaName = "letters";
 
                     m.Projections.Add<LetterCountsProjection>(ProjectionLifecycle.Async);
-                }).AddAsyncDaemon(DaemonMode.Solo).IntegrateWithWolverine();
+                }).IntegrateWithWolverine(); // GH-3388: no AddAsyncDaemon here — this is the SAME main store
+                              // that enabled UseWolverineManagedEventSubscriptionDistribution above,
+                              // and Wolverine runs its daemon.
                 
                 opts.Services.AddMartenStore<ILetterStore>(m =>
                 {
