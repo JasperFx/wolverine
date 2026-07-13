@@ -712,14 +712,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
-                variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, key,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
             if (ParsedCollectionQueryStringValue.CanParse(parameterType))
             {
-                variable = new ParsedCollectionQueryStringValue(parameterType, key).Variable;
+                variable = new ParsedCollectionQueryStringValue(parameterType, key,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
