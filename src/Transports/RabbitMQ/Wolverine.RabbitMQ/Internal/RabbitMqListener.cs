@@ -55,6 +55,11 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     private readonly IWolverineRuntime _runtime;
     private readonly Lazy<ISender> _sender;
     private readonly RabbitMqTransport _transport;
+
+    // Serializes the three rebuild triggers -- connection recovery, an unexpected channel-only
+    // shutdown (#3171), and a channel callback exception (#3391). A burst of callback exceptions
+    // otherwise races two rebuilds onto the same channel and leaves duplicate consumers behind.
+    private readonly SemaphoreSlim _reconnectLock = new(1, 1);
     private WorkerQueueMessageConsumer? _consumer;
     private string? _consumerId;
 
@@ -252,25 +257,46 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         });
     }
 
+    /// <summary>
+    /// Defer the callback-exception eager restart to the full listener rebuild (#3391). The base
+    /// implementation only swaps in a fresh channel, which is enough for a sender but leaves a
+    /// listener sitting on an open channel with ZERO consumers while reporting Connected — a
+    /// silently dead listener. ReconnectedAsync already does the correct work (cancel any surviving
+    /// consumer, tear the channel down, re-declare and re-consume), so we route through it rather
+    /// than duplicating a consume path here.
+    /// </summary>
+    protected override Task restartAfterCallbackExceptionAsync()
+    {
+        return ReconnectedAsync();
+    }
+
     internal override async Task ReconnectedAsync()
     {
+        await _reconnectLock.WaitAsync();
         try
         {
-            await StopAsync();
+            try
+            {
+                await StopAsync();
+            }
+            catch (Exception e)
+            {
+                // The channel may already be dead, in which case cancelling the consumers throws.
+                // That's fine — we're about to tear it down and rebuild anyway.
+                Logger.LogDebug(e,
+                    "Error cancelling consumers on a dead channel for {Uri} during reconnect; continuing with rebuild",
+                    Address);
+            }
+
+            await teardownChannel();
+            await CreateAsync();
+
+            await base.ReconnectedAsync();
         }
-        catch (Exception e)
+        finally
         {
-            // The channel may already be dead, in which case cancelling the consumers throws.
-            // That's fine — we're about to tear it down and rebuild anyway.
-            Logger.LogDebug(e,
-                "Error cancelling consumers on a dead channel for {Uri} during reconnect; continuing with rebuild",
-                Address);
+            _reconnectLock.Release();
         }
-
-        await teardownChannel();
-        await CreateAsync();
-
-        await base.ReconnectedAsync();
     }
 
     public override string ToString()
