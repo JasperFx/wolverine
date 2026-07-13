@@ -49,6 +49,21 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     protected readonly List<HandlerChain> _byEndpoint = [];
 
+    /// <summary>
+    /// Compose the name of a generated handler class for a type in a way that is guaranteed to be a legal
+    /// C# identifier. <see cref="TypeNameExtensions.ToSuffixedTypeName"/> only strips the generic arity
+    /// (the backtick suffix), so array types like <c>ItemDeleted[]</c> would otherwise leak the brackets
+    /// straight into the generated class name and fail compilation. See GH-3399.
+    /// </summary>
+    /// <remarks>
+    /// Uniqueness is unaffected: ToSuffixedTypeName appends a stable hash of the type's *full* name, and
+    /// T and T[] have different full names, so their generated names cannot collide after sanitizing.
+    /// </remarks>
+    internal static string GeneratedTypeNameFor(Type type, string suffix)
+    {
+        return type.ToSuffixedTypeName(suffix).Replace("[]", "Array").Sanitize();
+    }
+
     private readonly List<Endpoint> _endpoints = [];
 
     private readonly HandlerGraph _parent;
@@ -66,7 +81,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
         _parent = parent;
         MessageType = messageType ?? throw new ArgumentNullException(nameof(messageType));
 
-        TypeName = messageType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
+        TypeName = GeneratedTypeNameFor(messageType, HandlerSuffix);
 
         Description = "Message Handler for " + MessageType.FullNameInCode();
 
@@ -82,7 +97,7 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
     {
         foreach (var endpoint in endpoints) RegisterEndpoint(endpoint);
 
-        TypeName = call.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
+        TypeName = GeneratedTypeNameFor(call.HandlerType, HandlerSuffix);
 
         Description = $"Message Handler for {MessageType.FullNameInCode()} using {call}";
     }

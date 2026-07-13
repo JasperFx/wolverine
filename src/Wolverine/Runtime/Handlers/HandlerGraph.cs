@@ -386,8 +386,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         {
             foreach (var chain in @group)
             {
+                // Both halves have to be sanitized into legal C# identifiers -- the message type may well be
+                // an array (batched messages are handled as T[]), which would otherwise emit brackets into
+                // the generated class name and blow up compilation. See GH-3399.
                 chain.TypeName =
-                    $"{chain.MessageType.ToSuffixedTypeName("")}_{chain.HandlerCalls().First().HandlerType.ToSuffixedTypeName("Handler")}";
+                    $"{HandlerChain.GeneratedTypeNameFor(chain.MessageType, "")}_{HandlerChain.GeneratedTypeNameFor(chain.HandlerCalls().First().HandlerType, "Handler")}";
             }
         }
 
