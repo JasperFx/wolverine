@@ -1,4 +1,5 @@
 using Grpc.Core;
+using Wolverine.Persistence.Sagas;
 
 namespace Wolverine.Grpc;
 
@@ -33,6 +34,14 @@ public static class WolverineGrpcExceptionMapper
             RpcException rpc => rpc.StatusCode,
             OperationCanceledException => StatusCode.Cancelled,
             TimeoutException => StatusCode.DeadlineExceeded,
+
+            // GH-3385. The request reached a saga handler that identifies its saga from the envelope
+            // (a `saga-id` header or [SagaIdentity] on a header), and no saga id could be resolved.
+            // Over a gRPC hop that is not a transient server fault — it is a contract problem that
+            // the caller cannot fix by retrying, because the header never crosses the hop at all.
+            // InvalidArgument per AIP-193, with a detail that says what to do about it.
+            IndeterminateSagaStateIdException => StatusCode.InvalidArgument,
+
             ArgumentException => StatusCode.InvalidArgument,
             KeyNotFoundException => StatusCode.NotFound,
             FileNotFoundException => StatusCode.NotFound,
@@ -59,8 +68,23 @@ public static class WolverineGrpcExceptionMapper
             return existing;
         }
 
-        var status = new Status(Map(exception), exception.Message);
+        var status = new Status(Map(exception), detailFor(exception));
         return new RpcException(status);
+    }
+
+    // GH-3385: the core exception's message ("Could not determine a valid saga state id for
+    // Envelope ...") is true but useless to someone calling a gRPC service — it names no cause and
+    // no remedy, and the remedy is not obvious, because the reason the id is missing is that the
+    // saga-id header does not cross a gRPC hop at all. Say that, and say what to do instead.
+    private static string detailFor(Exception exception)
+    {
+        if (exception is IndeterminateSagaStateIdException)
+        {
+            return
+                "Could not determine a saga id for this request. A saga started or continued over a gRPC hop must carry its identity ON THE MESSAGE BODY: the 'saga-id' envelope header is not propagated across a gRPC call, so a header-identified saga cannot work over gRPC. Put the saga identity on the request message itself (a property Wolverine can match to the saga id, or one marked with [SagaIdentity]). See https://wolverinefx.net/guide/grpc/sagas.html";
+        }
+
+        return exception.Message;
     }
 
     /// <summary>
