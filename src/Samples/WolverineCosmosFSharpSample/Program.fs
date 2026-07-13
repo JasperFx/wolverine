@@ -21,8 +21,13 @@ let connectionString =
 let databaseName = "wolverine_fsharp_cosmos"
 
 // CosmosClient configured for the local emulator (Gateway mode + accept its self-signed cert).
+// CamelCase naming policy is required so that F# record/class Id properties serialize to the
+// lowercase "id" field that Cosmos DB mandates on every document.
 let private buildClient () =
-    let options = CosmosClientOptions(ConnectionMode = ConnectionMode.Gateway)
+    let options =
+        CosmosClientOptions(
+            ConnectionMode = ConnectionMode.Gateway,
+            SerializerOptions = CosmosSerializationOptions(PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase))
     options.HttpClientFactory <-
         Func<HttpClient>(fun () ->
             new HttpClient(
