@@ -141,6 +141,35 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }, 60.Seconds());
     }
 
+    [Fact]
+    public async Task pausing_an_agent_stops_it_immediately()
+    {
+        await _originalHost.WaitUntilAssignmentsChangeTo(w => w.ExpectRunningAgents(_originalHost, 12), 30.Seconds());
+
+        var runtime = _originalHost.GetRuntime();
+
+        // Health checks are disabled for the rest of this test on purpose. The health-check loop
+        // re-reads restrictions from the database and would eventually stop the agent anyway, which
+        // would mask the defect: GH-698 / CritterWatch#698 is that ApplyRestrictionsAsync persisted
+        // the restriction and then DISCARDED the StopRemoteAgent that EvaluateAssignmentsAsync
+        // returned, so the pause had no *immediate* effect. Isolating that path is the whole point.
+        runtime.Agents.DisableHealthChecks();
+
+        var uri = runtime.Agents.AllRunningAgentUris().First();
+
+        var restrictions = new AgentRestrictions([]);
+        restrictions.PauseAgent(uri);
+
+        await runtime.Agents.ApplyRestrictionsAsync(restrictions, CancellationToken.None);
+
+        // No polling: by the time ApplyRestrictionsAsync returns, the stop must have been carried out.
+        runtime.Agents.AllRunningAgentUris().ShouldNotContain(uri);
+
+        // ...and the in-memory copy that ListeningAgent consults must reflect it too, otherwise a
+        // paused listener would just restart itself on the next attempt.
+        runtime.Restrictions.FindPausedAgentUris().ShouldContain(uri);
+    }
+
     /***** NEW TESTS END HERE **********************************************/
 
     [Fact]

@@ -134,12 +134,41 @@ public partial class WolverineRuntime : IAgentRuntime
     public async Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken)
     {
         await KickstartHealthDetectionAsync();
-        
+
         var (nodes, assignments) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
         assignments.MergeChanges(restrictions);
         await Storage.Nodes.PersistAgentRestrictionsAsync(assignments.FindChanges(), cancellationToken);
 
-        await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
+        // GH-3396 / CritterWatch GH-698: EvaluateAssignmentsAsync *returns* the commands that carry
+        // the restriction out to the cluster — pausing an agent detaches it from the grid, which
+        // produces a StopRemoteAgent. Discarding that return value meant the pause was persisted and
+        // then had NO immediate effect: the agent kept running until some later leader heartbeat
+        // happened to re-read restrictions from the database. Every other caller of
+        // EvaluateAssignmentsAsync pumps these commands; so does this one now.
+        var commands = await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
+        await executeAgentCommandsAsync(commands, cancellationToken);
+
+        // The in-memory copy is otherwise only ever loaded at startup, but ListeningAgent reads it
+        // on every start attempt to decide whether a listener is meant to stay paused — so without
+        // this a listener paused through restrictions would keep restarting until the node did.
+        Restrictions = assignments;
+    }
+
+    // Drains an AgentCommands cascade through the message bus. Commands can yield further commands,
+    // so this keeps pumping until the queue is empty.
+    private async Task executeAgentCommandsAsync(AgentCommands commands, CancellationToken cancellationToken)
+    {
+        var bus = new MessageBus(this);
+
+        while (commands.Any())
+        {
+            var command = commands.Pop();
+            var additional = await bus.InvokeAsync<AgentCommands>(command, cancellationToken);
+            if (additional != null)
+            {
+                commands.AddRange(additional);
+            }
+        }
     }
 
     public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
@@ -244,19 +273,9 @@ public partial class WolverineRuntime : IAgentRuntime
                 try
                 {
 
-                    var commands = await NodeController.DoHealthChecksAsync();
-                    var bus = new MessageBus(this);
-
                     // TODO -- try to parallelize this later!!!
-                    while (commands.Any())
-                    {
-                        var command = commands.Pop();
-                        var additional = await bus.InvokeAsync<AgentCommands>(command, Cancellation);
-                        if (additional != null)
-                        {
-                            commands.AddRange(additional);
-                        }
-                    }
+                    var commands = await NodeController.DoHealthChecksAsync();
+                    await executeAgentCommandsAsync(commands, Cancellation);
                 }
                 catch (OperationCanceledException)
                 {
