@@ -15,16 +15,19 @@ jobs:
   test:
     name: ${{ matrix.target }}
     runs-on: ubuntu-latest
-    # CIPolecat is the heaviest persistence suite (234 serial SqlServer integration tests incl. DCB +
-    # distribution + sagas). It passes in ~10 min in the good case but can exceed 20 when a couple of
-    # flaky saga/storage tests retry on a slow runner (the tests themselves pass — no hang; ~7.5 min
-    # locally). Give it more wall-clock so the retry logic can finish instead of being cut off. See #3350.
-    timeout-minutes: ${{ matrix.target == 'CIPolecat' && 30 || 20 }}
+    # The 20 minute cap is deliberately a REAL signal: a job that needs longer than this is a job that
+    # needs to be split, not a job that needs a bigger number. The two suites that used to blow through it
+    # (CIAWS and CIPolecat) are now sharded across parallel jobs instead. See #3350.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         target:
-          - CIAWS
+          # AWS is split three ways: the SQS project is far and away the heavier of the two, so it is further
+          # split into its compliance batteries and everything else. See #3350.
+          - CIAWSSqs
+          - CIAWSSqsCompliance
+          - CIAWSSns
           - CIAzureServiceBus
           - CICosmosDb
           - CIEfCore
@@ -36,7 +39,11 @@ jobs:
           - CINATS
           - CIOracle
           - CIPersistence
+          # PolecatTests is one serial SqlServer project sharded three ways by namespace. CIPolecat is the
+          # "everything else" shard, so a newly added namespace still runs somewhere. See #3350.
           - CIPolecat
+          - CIPolecatWorkflow
+          - CIPolecatSagas
           - CIPubsub
           - CIPulsar
           - CIRabbitMQ
