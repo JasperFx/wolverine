@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
 using IntegrationTests;
@@ -71,6 +72,48 @@ public class publish_and_receive_raw_json : IAsyncLifetime
 
         session.Received.SingleMessage<ColorMessage>()
             .Color.ShouldBe("yellow");
+    }
+
+    [Fact]
+    public async Task stamps_envelope_sent_at_from_the_kafka_record_timestamp()
+    {
+        var session = await _sender.TrackActivity()
+            .AlsoTrack(_receiver)
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new ColorMessage("yellow"));
+
+        // The JsonOnlyMapper stamps Envelope.SentAt from the Kafka record timestamp,
+        // which the broker assigns at produce time, so it should be a recent instant.
+        var received = session.Received.SingleEnvelope<ColorMessage>();
+        received.SentAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.Subtract(5.Minutes()));
+    }
+
+    [Fact]
+    public async Task copies_kafka_headers_onto_the_received_envelope()
+    {
+        // PublishRawJson only writes the body, so an external producer is used here to
+        // put a custom header on the Kafka record. The JsonOnlyMapper should copy that
+        // header onto the received Envelope without clobbering anything Wolverine set.
+        var transport = _receiver.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
+
+        var session = await _receiver.TrackActivity()
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
+            {
+                using var producer = new ProducerBuilder<string, byte[]>(transport.ProducerConfig).Build();
+                await producer.ProduceAsync("json", new Message<string, byte[]>
+                {
+                    Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ColorMessage("green"))),
+                    Headers = new Headers
+                    {
+                        { "tenant-id", "acme"u8.ToArray() }
+                    }
+                });
+                producer.Flush();
+            }));
+
+        var received = session.Received.SingleEnvelope<ColorMessage>();
+        received.Headers["tenant-id"].ShouldBe("acme");
     }
 
     [Fact]

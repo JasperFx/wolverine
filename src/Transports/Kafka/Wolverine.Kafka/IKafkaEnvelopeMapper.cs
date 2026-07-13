@@ -60,6 +60,22 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
         envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
+
+        if (incoming.Timestamp.Type is TimestampType.CreateTime or TimestampType.LogAppendTime)
+        {
+            envelope.SentAt = incoming.Timestamp.UtcDateTime;
+        }
+
+        if (incoming.Headers is null)
+            return;
+
+        foreach (var header in incoming.Headers)
+        {
+            if (TryReadHeader(incoming, header.Key, out var headerValue))
+            {
+                envelope.Headers.TryAdd(header.Key, headerValue);
+            }
+        }
     }
 
     private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string value)

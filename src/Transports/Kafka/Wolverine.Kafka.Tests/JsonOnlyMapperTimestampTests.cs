@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Kafka.Internals;
@@ -40,13 +41,69 @@ public class JsonOnlyMapperTimestampTests
         envelope.SentAt.ShouldBe(originalSentAt);
     }
 
+    [Fact]
+    public void CopiesIncomingKafkaHeadersToEnvelope()
+    {
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Timestamp = Timestamp.Default,
+            Headers = new Headers
+            {
+                { "tenant-id", "acme"u8.ToArray() },
+                { "correlation", "abc-123"u8.ToArray() }
+            }
+        };
+        var envelope = new Envelope();
+
+        buildMapper().MapIncomingToEnvelope(envelope, incoming);
+
+        envelope.Headers["tenant-id"].ShouldBe("acme");
+        envelope.Headers["correlation"].ShouldBe("abc-123");
+    }
+
+    [Fact]
+    public void DoesNotOverwriteExistingEnvelopeHeaders()
+    {
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Timestamp = Timestamp.Default,
+            Headers = new Headers
+            {
+                { "tenant-id", "from-kafka"u8.ToArray() }
+            }
+        };
+        var envelope = new Envelope();
+        envelope.Headers["tenant-id"] = "already-set";
+
+        buildMapper().MapIncomingToEnvelope(envelope, incoming);
+
+        envelope.Headers["tenant-id"].ShouldBe("already-set");
+    }
+
+    [Fact]
+    public void LeavesEnvelopeHeadersUntouchedWhenIncomingHasNone()
+    {
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Timestamp = Timestamp.Default
+        };
+        var envelope = new Envelope();
+
+        buildMapper().MapIncomingToEnvelope(envelope, incoming);
+
+        envelope.Headers.ShouldBeEmpty();
+    }
+
     private static JsonOnlyMapper buildMapper()
     {
         var topic = new KafkaTopic(
             new KafkaTransport(),
             "timestamp-mapping",
-            Wolverine.Configuration.EndpointRole.Application);
+            Configuration.EndpointRole.Application);
 
-        return new JsonOnlyMapper(topic, new System.Text.Json.JsonSerializerOptions());
+        return new JsonOnlyMapper(topic, new JsonSerializerOptions());
     }
 }
