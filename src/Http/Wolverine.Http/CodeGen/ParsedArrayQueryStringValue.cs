@@ -8,10 +8,20 @@ namespace Wolverine.Http.CodeGen;
 internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private string? _property;
+    private readonly bool _rejectUnparseableValue;
 
-    public ParsedArrayQueryStringValue(Type parameterType, string parameterName) 
+    public ParsedArrayQueryStringValue(Type parameterType, string parameterName, bool rejectUnparseableValue = false)
     {
         Variable = new HttpElementVariable(parameterType, parameterName!, this);
+
+        // GH-3398 strict query string binding for collections: only meaningful for parsed
+        // (non-string) elements. The 400 + ProblemDetails short circuit writes the response
+        // asynchronously, so the frame has to force the generated method into async mode.
+        _rejectUnparseableValue = rejectUnparseableValue && parameterType.GetElementType() != typeof(string);
+        if (_rejectUnparseableValue)
+        {
+            IsAsync = true;
+        }
     }
 
     public void AssignToProperty(string usage)
@@ -63,8 +73,10 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
             writer.Write($"{Variable.Usage}_List.Add({Variable.Usage}ValueParsed);");
             writer.FinishBlock(); // parsing block
 
+            writeRejectionBlock(method, writer, $"{Variable.Usage}Value", elementAlias);
+
             writer.FinishBlock(); // foreach blobck
-            
+
             if (Mode == AssignMode.WriteToVariable)
             {
                 writer.Write($"var {Variable.Usage} = {Variable.Usage}_List.ToArray();");
@@ -76,5 +88,16 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
         }
         
         Next?.GenerateCode(method, writer);
+    }
+
+    private void writeRejectionBlock(GeneratedMethod method, ISourceWriter writer, string valueUsage,
+        string elementAlias)
+    {
+        if (!_rejectUnparseableValue)
+        {
+            return;
+        }
+
+        StrictQueryBinding.WriteRejectionBlock(method, writer, Variable.Name, valueUsage, elementAlias);
     }
 }

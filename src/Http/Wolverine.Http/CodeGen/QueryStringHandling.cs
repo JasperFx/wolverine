@@ -21,14 +21,48 @@ public interface IGeneratesCode
     void GenerateCode(GeneratedMethod method, ISourceWriter writer);
 }
 
+/// <summary>
+/// Shared emission for the GH-3372 / GH-3398 opt-in strict query string binding. A query string
+/// value that is present but cannot be parsed short circuits the request with a 400 ProblemDetails
+/// naming the offending parameter, matching ASP.NET Core minimal API binding.
+/// </summary>
+internal static class StrictQueryBinding
+{
+    /// <summary>
+    /// Emits the "else" arm of a collection element's TryParse: a present but unparseable element
+    /// rejects the entire binding. All-or-nothing is deliberate -- keeping the parseable elements
+    /// and dropping the bad one would still hand the endpoint a silently wrong filter (GH-3398).
+    /// </summary>
+    public static void WriteRejectionBlock(GeneratedMethod method, ISourceWriter writer, string parameterName,
+        string valueUsage, string elementAlias)
+    {
+        writer.Write($"BLOCK:else if (!string.IsNullOrEmpty({valueUsage}))");
+        writer.Write(
+            $"await {nameof(HttpHandler.WriteQueryValueParsingProblem)}(httpContext, \"{parameterName}\", {valueUsage}, \"{elementAlias}\").ConfigureAwait(false);");
+        writer.Write(method.ToExitStatement());
+        writer.FinishBlock();
+    }
+}
+
 internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
 {
     private readonly Type _collectionElementType;
+    private readonly bool _rejectUnparseableValue;
 
-    public ParsedCollectionQueryStringValue(Type parameterType, string parameterName)
+    public ParsedCollectionQueryStringValue(Type parameterType, string parameterName,
+        bool rejectUnparseableValue = false)
     {
         Variable = new HttpElementVariable(parameterType, parameterName!, this);
         _collectionElementType = GetCollectionElementType(parameterType);
+
+        // GH-3398 strict query string binding for collections: only meaningful for parsed
+        // (non-string) elements. The 400 + ProblemDetails short circuit writes the response
+        // asynchronously, so the frame has to force the generated method into async mode.
+        _rejectUnparseableValue = rejectUnparseableValue && _collectionElementType != typeof(string);
+        if (_rejectUnparseableValue)
+        {
+            IsAsync = true;
+        }
     }
 
     public HttpElementVariable Variable { get; }
@@ -71,6 +105,12 @@ internal class ParsedCollectionQueryStringValue : SyncFrame, IReadHttpFrame
 
             writer.Write($"{Variable.Usage}.Add({Variable.Name}ValueParsed);");
             writer.FinishBlock(); // parsing block
+
+            if (_rejectUnparseableValue)
+            {
+                StrictQueryBinding.WriteRejectionBlock(method, writer, Variable.Name, $"{Variable.Name}Value",
+                    elementAlias);
+            }
 
             writer.FinishBlock(); // foreach blobck
         }
