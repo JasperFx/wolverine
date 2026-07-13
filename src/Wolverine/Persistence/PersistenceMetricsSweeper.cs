@@ -39,7 +39,15 @@ public class PersistenceMetricsSweeper
         _logger = runtime.LoggerFactory.CreateLogger<PersistenceMetricsSweeper>();
     }
 
-    private sealed record Registration(IMessageStore Store, PersistenceMetrics Metrics);
+    // A class, not a record: unregistration removes the exact registration *instance* it
+    // created, and that identity check relies on reference equality. A record's value
+    // equality would let a stale agent's Dispose match — and drop — the live registration
+    // that replaced it for the same database.
+    private sealed class Registration(IMessageStore store, PersistenceMetrics metrics)
+    {
+        public IMessageStore Store { get; } = store;
+        public PersistenceMetrics Metrics { get; } = metrics;
+    }
 
     /// <summary>
     /// Add a store to the node's metrics sweep. Dispose the returned handle to remove it
@@ -48,9 +56,10 @@ public class PersistenceMetricsSweeper
     /// </summary>
     public IDisposable Register(IMessageStore store, PersistenceMetrics metrics)
     {
-        _registrations[store.Uri] = new Registration(store, metrics);
+        var registration = new Registration(store, metrics);
+        _registrations[store.Uri] = registration;
         ensureStarted();
-        return new Unregistration(this, store.Uri);
+        return new Unregistration(this, store.Uri, registration);
     }
 
     private void ensureStarted()
@@ -139,16 +148,23 @@ public class PersistenceMetricsSweeper
     {
         private readonly PersistenceMetricsSweeper _parent;
         private readonly Uri _uri;
+        private readonly Registration _registration;
 
-        public Unregistration(PersistenceMetricsSweeper parent, Uri uri)
+        public Unregistration(PersistenceMetricsSweeper parent, Uri uri, Registration registration)
         {
             _parent = parent;
             _uri = uri;
+            _registration = registration;
         }
 
         public void Dispose()
         {
-            _parent._registrations.TryRemove(_uri, out _);
+            // Remove only if this exact registration is still the live one. A blind
+            // remove-by-URI would silently evict a newer agent's registration for the same
+            // database when a stopping agent's Dispose interleaves after the replacement
+            // registers — and that database would then go unpolled until the next restart.
+            _parent._registrations.TryRemove(
+                new KeyValuePair<Uri, Registration>(_uri, _registration));
         }
     }
 }

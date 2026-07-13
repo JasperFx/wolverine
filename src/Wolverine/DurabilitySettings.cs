@@ -253,11 +253,31 @@ public class DurabilitySettings : IDescribeMyself
     /// </summary>
     public TimeSpan TenantCheckPeriod { get; set; } = 5.Seconds();
 
+    private TimeSpan _updateMetricsPeriod = 5.Seconds();
+
     /// <summary>
     /// If using any kind of message persistence, this is the polling time
-    /// to update the metrics on the persisted envelope counts. Default is 5 seconds
+    /// to update the metrics on the persisted envelope counts. Default is 5 seconds.
+    /// Must be greater than zero. Use <see cref="DurabilityMetricsEnabled"/> to turn
+    /// the polling off entirely.
     /// </summary>
-    public TimeSpan UpdateMetricsPeriod { get; set; } = 5.Seconds();
+    public TimeSpan UpdateMetricsPeriod
+    {
+        get => _updateMetricsPeriod;
+        set
+        {
+            // The metrics sweeper paces its pass with Task.Delay, so a non-positive period
+            // would hot-spin the sweep loop against every registered database rather than
+            // fail. Reject it at configuration time instead.
+            if (value <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(UpdateMetricsPeriod), value,
+                    $"{nameof(UpdateMetricsPeriod)} must be greater than zero. Set {nameof(DurabilityMetricsEnabled)} to false to disable durability metrics polling.");
+            }
+
+            _updateMetricsPeriod = value;
+        }
+    }
 
     /// <summary>
     /// Is the polling for durability metrics enabled? Default is true
