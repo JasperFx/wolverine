@@ -42,6 +42,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         IdentifierDelimiter = ".";
     }
 
+    /// <summary>
+    /// CAUTION!!! If set to true, Wolverine will delete *every* queue and topic in the connected
+    /// Azure Service Bus namespace at application start up before provisioning any objects. This is
+    /// opt in, and is only intended for local development or testing against the Azure Service Bus
+    /// emulator. See <see cref="AzureServiceBusConfiguration.DeleteAllExistingObjectsOnStartup"/>
+    /// </summary>
+    public bool DeleteAllExistingObjectsOnStartup { get; set; }
+
     public async Task DeleteAllObjectsAsync()
     {
         var topics = _managementClient.Value.GetTopicsAsync();
@@ -324,10 +332,18 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         throw new ArgumentOutOfRangeException(nameof(uri));
     }
 
-    public override ValueTask ConnectAsync(IWolverineRuntime runtime)
+    public override async ValueTask ConnectAsync(IWolverineRuntime runtime)
     {
-        // we're going to use a client per endpoint
-        return ValueTask.CompletedTask;
+        if (DeleteAllExistingObjectsOnStartup)
+        {
+            runtime.Logger.LogWarning(
+                "Deleting all existing queues and topics in the Azure Service Bus namespace at {Broker} because DeleteAllExistingObjectsOnStartup() was enabled",
+                DescribeEndpoint());
+
+            await DeleteAllObjectsAsync();
+        }
+
+        // otherwise, we're going to use a client per endpoint
     }
 
     public WolverineTransportHealthCheck BuildHealthCheck(IWolverineRuntime runtime)

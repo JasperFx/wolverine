@@ -1,4 +1,3 @@
-using Azure.Messaging.ServiceBus.Administration;
 using IntegrationTests;
 
 namespace Wolverine.AzureServiceBus.Tests;
@@ -7,6 +6,11 @@ public static class AzureServiceBusTesting
 {
     private static bool _cleaned;
 
+    /// <summary>
+    /// Connect to the Azure Service Bus emulator from Wolverine's own docker-compose setup. This delegates
+    /// to the shipping UseAzureServiceBusEmulator() API, but adds a one time cleanup of any objects left
+    /// behind by previous test runs.
+    /// </summary>
     public static AzureServiceBusConfiguration UseAzureServiceBusTesting(this WolverineOptions options)
     {
         if (!_cleaned)
@@ -17,32 +21,21 @@ public static class AzureServiceBusTesting
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         }
 
-        var config = options.UseAzureServiceBus(Servers.AzureServiceBusConnectionString);
-
-        var transport = options.Transports.GetOrCreate<AzureServiceBusTransport>();
-        transport.ManagementConnectionString = Servers.AzureServiceBusManagementConnectionString;
-
-        return config.AutoProvision();
+        return options
+            .UseAzureServiceBusEmulator(Servers.AzureServiceBusConnectionString,
+                Servers.AzureServiceBusManagementConnectionString)
+            .AutoProvision();
     }
 
-    public static async Task DeleteAllEmulatorObjectsAsync()
-        => await DeleteAllEmulatorObjectsAsync(Servers.AzureServiceBusManagementConnectionString);
+    public static Task DeleteAllEmulatorObjectsAsync()
+    {
+        return DeleteAllEmulatorObjectsAsync(Servers.AzureServiceBusManagementConnectionString);
+    }
 
     public static async Task DeleteAllEmulatorObjectsAsync(string connectionString)
     {
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        var ct = cts.Token;
 
-        var client = new ServiceBusAdministrationClient(connectionString);
-
-        await foreach (var topic in client.GetTopicsAsync().WithCancellation(ct))
-        {
-            await client.DeleteTopicAsync(topic.Name, ct);
-        }
-
-        await foreach (var queue in client.GetQueuesAsync().WithCancellation(ct))
-        {
-            await client.DeleteQueueAsync(queue.Name, ct);
-        }
+        await AzureServiceBusEmulatorExtensions.DeleteAllAzureServiceBusObjectsAsync(connectionString, cts.Token);
     }
 }

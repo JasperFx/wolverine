@@ -43,6 +43,163 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task bootstrapping_with_the_emulator()
+    {
+        #region sample_using_azure_service_bus_emulator
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // Connect to a locally running Azure Service Bus emulator using the
+            // standard emulator ports (AMQP on 5672, management on 5300)
+            opts.UseAzureServiceBusEmulator()
+
+                // The emulator starts out empty, so let Wolverine build
+                // any queues, topics, or subscriptions it needs
+                .AutoProvision()
+                .AutoPurgeOnStartup();
+
+            opts.ListenToAzureServiceBusQueue("my-queue");
+            opts.PublishAllMessages().ToAzureServiceBusQueue("my-queue");
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task bootstrapping_with_the_emulator_and_explicit_connection_strings()
+    {
+        #region sample_using_azure_service_bus_emulator_with_connection_strings
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // If you've mapped the emulator to non-standard ports, pass both the
+            // messaging (AMQP) and management (HTTP) connection strings explicitly
+            opts.UseAzureServiceBusEmulator(
+                    "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+                    "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;")
+                .AutoProvision()
+                .AutoPurgeOnStartup();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task bootstrapping_with_the_emulator_and_cleanup()
+    {
+        #region sample_using_azure_service_bus_emulator_with_cleanup
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UseAzureServiceBusEmulator()
+
+                // CAUTION! This deletes *every* queue and topic in the connected
+                // namespace at startup. It is opt in, and is only meant for the
+                // emulator or a throwaway namespace. Never turn this on against
+                // a real Azure Service Bus namespace you care about
+                .DeleteAllExistingObjectsOnStartup()
+
+                .AutoProvision();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
+    public async Task azure_service_bus_session_identifiers()
+    {
+        #region sample_using_azure_service_bus_session_identifiers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBusEmulator()
+                    .AutoProvision().AutoPurgeOnStartup();
+
+                opts.ListenToAzureServiceBusQueue("send_and_receive");
+                opts.PublishMessage<AsbMessage1>().ToAzureServiceBusQueue("send_and_receive");
+
+                opts.ListenToAzureServiceBusQueue("fifo1")
+
+                    // Require session identifiers with this queue
+                    .RequireSessions()
+
+                    // This controls the Wolverine handling to force it to process
+                    // messages sequentially
+                    .Sequential();
+
+                opts.PublishMessage<AsbMessage2>()
+                    .ToAzureServiceBusQueue("fifo1");
+
+                opts.PublishMessage<AsbMessage3>().ToAzureServiceBusTopic("asb3").SendInline();
+                opts.ListenToAzureServiceBusSubscription("asb3")
+                    .FromTopic("asb3")
+
+                    // Require sessions on this subscription
+                    .RequireSessions(1)
+
+                    .ProcessInline();
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task disable_system_queues()
+    {
+        #region sample_disable_system_queues_in_azure_service_bus
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBus("some connection string")
+                    .AutoProvision().AutoPurgeOnStartup()
+                    .SystemQueuesAreEnabled(false);
+
+                opts.ListenToAzureServiceBusQueue("send_and_receive");
+
+                opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
+            }).StartAsync();
+
+        #endregion
+    }
+
+    public async Task topic_and_subscription_conventional_routing()
+    {
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                #region sample_using_topic_and_subscription_conventional_routing_with_azure_service_bus
+
+                opts.UseAzureServiceBusEmulator()
+                    .UseTopicAndSubscriptionConventionalRouting(convention =>
+                    {
+                        // Optionally control every aspect of the convention and
+                        // its applicability to types
+                        // as well as overriding any listener, sender, topic, or subscription
+                        // options
+
+                        // Can't use the full name because of limitations on name length
+                        convention.SubscriptionNameForListener(t => t.Name.ToLowerInvariant());
+                        convention.TopicNameForListener(t => t.Name.ToLowerInvariant());
+                        convention.TopicNameForSender(t => t.Name.ToLowerInvariant());
+                    })
+
+                    .AutoProvision()
+                    .AutoPurgeOnStartup();
+
+                #endregion
+            }).StartAsync();
+    }
+
     public async Task configuring_queues()
     {
         #region sample_configuring_azure_service_bus_queues

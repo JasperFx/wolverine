@@ -90,14 +90,37 @@ builder.UseWolverine(opts =>
 });
 ```
 
-When using the Azure Service Bus emulator for local development, use `UseAzureServiceBusTesting()` instead:
+When using the [Azure Service Bus emulator](/guide/messaging/transports/azureservicebus/emulator) for local development or testing,
+use `UseAzureServiceBusEmulator()` instead. It connects to the emulator's messaging (AMQP) port *and* its separate management (HTTP)
+port for you:
 
-```csharp
-// For local development with the Azure Service Bus emulator
-opts.UseAzureServiceBusTesting()
-    .AutoProvision()
-    .AutoPurgeOnStartup();
+<!-- snippet: sample_using_azure_service_bus_emulator -->
+<a id='snippet-sample_using_azure_service_bus_emulator'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // Connect to a locally running Azure Service Bus emulator using the
+    // standard emulator ports (AMQP on 5672, management on 5300)
+    opts.UseAzureServiceBusEmulator()
+
+        // The emulator starts out empty, so let Wolverine build
+        // any queues, topics, or subscriptions it needs
+        .AutoProvision()
+        .AutoPurgeOnStartup();
+
+    opts.ListenToAzureServiceBusQueue("my-queue");
+    opts.PublishAllMessages().ToAzureServiceBusQueue("my-queue");
+});
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L48-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_emulator' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+See [Using the Azure Service Bus Emulator](/guide/messaging/transports/azureservicebus/emulator) for the Docker Compose setup, the
+overload that takes explicit connection strings, and the opt in namespace cleanup.
 
 ## Request/Reply
 
@@ -138,7 +161,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L187-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L379-L401' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Disabling System Queues
@@ -149,10 +172,10 @@ to disable system queues to avoid having some annoying error messages popping up
 <!-- snippet: sample_disable_system_queues_in_azure_service_bus -->
 <a id='snippet-sample_disable_system_queues_in_azure_service_bus'></a>
 ```cs
-var host = await Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseAzureServiceBusTesting()
+        opts.UseAzureServiceBus("some connection string")
             .AutoProvision().AutoPurgeOnStartup()
             .SystemQueuesAreEnabled(false);
 
@@ -161,7 +184,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L86-L99' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L158-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />

@@ -10,15 +10,16 @@ Wolverine when sessions are required on any listening endpoint so that it can op
 :::
 
 You can now take advantage of [sessions and first-in, first out queues in Azure Service Bus](https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-sessions) with Wolverine. 
-To tell Wolverine that an Azure Service Bus queue or subscription should require sessions, you have this syntax shown in an internal test:
+To tell Wolverine that an Azure Service Bus queue or subscription should require sessions, use this syntax (shown here against the
+[Azure Service Bus emulator](/guide/messaging/transports/azureservicebus/emulator), but identical against a real namespace):
 
 <!-- snippet: sample_using_azure_service_bus_session_identifiers -->
 <a id='snippet-sample_using_azure_service_bus_session_identifiers'></a>
 ```cs
-_host = await Host.CreateDefaultBuilder()
+using var host = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
-        opts.UseAzureServiceBusTesting()
+        opts.UseAzureServiceBusEmulator()
             .AutoProvision().AutoPurgeOnStartup();
 
         opts.ListenToAzureServiceBusQueue("send_and_receive");
@@ -44,18 +45,9 @@ _host = await Host.CreateDefaultBuilder()
             .RequireSessions(1)
 
             .ProcessInline();
-
-        opts.PublishMessage<AsbMessage4>().ToAzureServiceBusTopic("asb4").BufferedInMemory();
-        opts.ListenToAzureServiceBusSubscription("asb4")
-            .FromTopic("asb4")
-
-            // Require sessions on this subscription
-            .RequireSessions(1)
-
-            .ProcessInline();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L19-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L120-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_session_identifiers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To publish messages to Azure Service Bus with a session id, you will need to of course supply the session id:
@@ -68,7 +60,7 @@ await bus.SendAsync(new AsbMessage3("Red"), new DeliveryOptions { GroupId = "2" 
 await bus.SendAsync(new AsbMessage3("Green"), new DeliveryOptions { GroupId = "2" });
 await bus.SendAsync(new AsbMessage3("Refactor"), new DeliveryOptions { GroupId = "2" });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L151-L157' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end.cs#L144-L150' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sending_with_session_identifier' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: info
