@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using FluentValidation;
+using Shouldly;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Azure.Cosmos;
@@ -65,10 +66,13 @@ public static class CosmosFSharpCodegenSample
                 .OrderBy(c => c.MessageType.Name)
                 .ToArray();
 
-            if (chains.Length == 0)
-            {
-                throw new InvalidOperationException("No handler chains were built for the sample assembly.");
-            }
+            // Expect exactly 3 chains: CreateThing + ContinueThing + StartThingSaga.
+            // A wrong count means saga discovery for F# types broke (or IncludeType<ThingSaga>()
+            // stopped resolving), which would silently drop LoadDocumentFrame coverage.
+            chains.Length.ShouldBe(3);
+            handlerGraph.ChainFor(typeof(CreateThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(ContinueThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(StartThingSaga)).ShouldNotBeNull();
 
             foreach (var chain in chains)
             {
