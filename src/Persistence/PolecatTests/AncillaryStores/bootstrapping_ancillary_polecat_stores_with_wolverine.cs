@@ -97,6 +97,27 @@ public class bootstrapping_ancillary_polecat_stores_with_wolverine : IAsyncLifet
     }
 
     [Fact]
+    public void does_not_register_any_event_store_twice()
+    {
+        // GH-3365: the primary Polecat store used to surface TWICE from GetServices<IEventStore>() as the
+        // very same DocumentStore instance — Polecat's own AddPolecat() registers IEventStore, and
+        // Wolverine's IntegrateWithWolverine() was bridging it a second time. Anything enumerating the
+        // registered stores then double-counted the primary. Assert on REFERENCE distinctness, not just
+        // the count, so a genuinely distinct store never trips this and a duplicated instance always does.
+        var stores = theHost.Services.GetServices<IEventStore>().ToArray();
+
+        var primary = (IEventStore)theHost.Services.GetRequiredService<IDocumentStore>();
+        var ancillary = (IEventStore)theHost.Services.GetRequiredService<IPlayerStore>();
+
+        stores.Cast<object>().Distinct(ReferenceEqualityComparer.Instance).Count()
+            .ShouldBe(stores.Length);
+
+        stores.Count(x => ReferenceEquals(x, primary)).ShouldBe(1);
+        stores.Count(x => ReferenceEquals(x, ancillary)).ShouldBe(1);
+        stores.Length.ShouldBe(2);
+    }
+
+    [Fact]
     public async Task try_to_use_the_session_transactional_middleware_end_to_end()
     {
         var message = new PlayerMessage(Guid.NewGuid().ToString());
