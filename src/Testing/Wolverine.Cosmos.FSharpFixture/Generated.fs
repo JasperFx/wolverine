@@ -35,7 +35,7 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
                 let! _cosmosResponse = _container.ReadItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, cancellationToken = cancellation)
                 thingSaga <- _cosmosResponse.Resource
             with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.NotFound ->
-                thingSaga <- Unchecked.defaultof<WolverineCosmosFSharpSample.ThingSaga>
+                ()
             if isNull thingSaga then
                 raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<WolverineCosmosFSharpSample.ThingSaga>, sagaId))
             else

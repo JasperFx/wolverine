@@ -64,7 +64,7 @@ internal class LoadDocumentFrame : AsyncFrame
         // Single-case with; guard ensures non-404 CosmosExceptions propagate.
         writer.Write(
             $"BLOCK:with :? {typeof(CosmosException).FSharpName()} as e when e.StatusCode = System.Net.HttpStatusCode.NotFound ->");
-        writer.Write($"{Saga.FSharpUsage} <- Unchecked.defaultof<{Saga.VariableType.FSharpName()}>");
+        writer.Write("()");
         writer.FinishBlock();
 
         Next?.GenerateFSharpCode(method, writer);
