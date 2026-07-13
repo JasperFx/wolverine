@@ -74,7 +74,8 @@ public static class TestingExtensions
             var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator>();
 
             await catchUpThroughCoordinatorAsync(runtime, envelope, coordinator,
-                () => runtime.Services.DocumentStore().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode);
+                () => runtime.Services.DocumentStore().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode,
+                "the main Marten store", cancellation);
         });
     }
 
@@ -114,7 +115,8 @@ public static class TestingExtensions
             var coordinator = runtime.Services.GetRequiredService<IProjectionCoordinator<T>>();
 
             await catchUpThroughCoordinatorAsync(runtime, envelope, coordinator,
-                () => runtime.Services.DocumentStore<T>().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode);
+                () => runtime.Services.DocumentStore<T>().WaitForNonStaleProjectionDataAsync(CatchUpTimeout), mode,
+                $"the ancillary Marten store {typeof(T).NameInCode()}", cancellation);
         });
     }
 
@@ -136,7 +138,9 @@ public static class TestingExtensions
         Envelope envelope,
         global::Marten.Events.Daemon.Coordination.IProjectionCoordinator coordinator,
         Func<Task> waitForNonStale,
-        CatchUpMode mode)
+        CatchUpMode mode,
+        string storeDescription,
+        CancellationToken cancellation)
     {
         runtime.MessageTracking.ExecutionStarted(envelope);
 
@@ -153,7 +157,21 @@ public static class TestingExtensions
                 subscriptions.Add(daemon.Tracker.Subscribe(observer));
             }
 
-            await waitForNonStale().ConfigureAwait(false);
+            // GH-3388: the tracked session that owns this stage cancels at its OWN timeout
+            // (TrackedSession.Timeout, 5 seconds by default), which is far shorter than
+            // CatchUpTimeout. Waiting on the un-cancellable inner task meant the session gave up
+            // first and the catch-up envelope was simply left un-finished — surfacing as an opaque
+            // "started but never finished" hang rather than something a user could act on. Honor
+            // the session's token and say plainly what to do about it.
+            try
+            {
+                await waitForNonStale().WaitAsync(cancellation).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+            {
+                throw new TimeoutException(
+                    $"The tracked session timed out before the Marten projections for {storeDescription} caught up. The catch-up itself is allowed {CatchUpTimeout.TotalSeconds:N0} seconds, but the tracked session's own Timeout governs it. Raise it with TrackActivity().Timeout(...) — projection catch-up on a cold daemon, a large event backlog, or a busy CI machine routinely needs more than the 5 second default.");
+            }
 
             if (mode == CatchUpMode.AndDoNothing)
             {
