@@ -84,12 +84,16 @@ partial class Build
     /// <summary>
     /// Runs multiple test project with flaky retry.
     /// </summary>
-    void RunTestProjects(string[] projectPaths, string frameworkOverride = null)
+    /// <param name="testFilter">
+    /// Optional vstest filter expression ANDed onto the standard <c>Category!=Flaky</c> filter. Used by the
+    /// sharded CI targets (see #3350) to split one heavy test project across several parallel CI jobs.
+    /// </param>
+    void RunTestProjects(string[] projectPaths, string frameworkOverride = null, string testFilter = null)
     {
         var failedProjects = new List<string>();
         foreach (var projectPath in projectPaths)
         {
-            if (!RunWithFlakyRetry(projectPath, frameworkOverride: frameworkOverride))
+            if (!RunWithFlakyRetry(projectPath, frameworkOverride: frameworkOverride, testFilter: testFilter))
                 failedProjects.Add(projectPath);
         }
 
@@ -100,9 +104,19 @@ partial class Build
     /// <summary>
     /// Runs single test project with flaky retry.
     /// </summary>
-    void RunTestProject(string projectPath, string frameworkOverride = null)
+    void RunTestProject(string projectPath, string frameworkOverride = null, string testFilter = null)
     {
-        RunTestProjects([projectPath], frameworkOverride: frameworkOverride);
+        RunTestProjects([projectPath], frameworkOverride: frameworkOverride, testFilter: testFilter);
+    }
+
+    /// <summary>
+    /// Combines the always-on "skip the Flaky category" filter with an optional shard filter.
+    /// </summary>
+    static string combineFilters(string testFilter)
+    {
+        return string.IsNullOrWhiteSpace(testFilter)
+            ? "Category!=Flaky"
+            : $"Category!=Flaky&({testFilter})";
     }
 
     /// <summary>
@@ -154,12 +168,14 @@ partial class Build
     /// Flaky tests (pass on retry) are logged separately from hard failures.
     /// Returns true only if all tests pass (possibly after retries).
     /// </summary>
-    bool RunWithFlakyRetry(string projectPath, int maxAttempts = 2, string frameworkOverride = null)
+    bool RunWithFlakyRetry(string projectPath, int maxAttempts = 2, string frameworkOverride = null,
+        string testFilter = null)
     {
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var framework = frameworkOverride ?? Framework;
+        var filter = combineFilters(testFilter);
 
-        Log.Information("=== {Project}: Running all tests ===", projectName);
+        Log.Information("=== {Project}: Running all tests (filter: {Filter}) ===", projectName, filter);
         try
         {
             DotNetTest(c => c
@@ -168,7 +184,7 @@ partial class Build
                 .EnableNoBuild()
                 .EnableNoRestore()
                 .SetFramework(framework)
-                .SetFilter("Category!=Flaky")
+                .SetFilter(filter)
                 .AddLoggers($"trx;LogFilePrefix={projectName}"));
 
             Log.Information("=== {Project}: All tests passed ===", projectName);
