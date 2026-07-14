@@ -11,10 +11,16 @@ public class MetricsConstants
 
     public const string Milliseconds = "Milliseconds";
     public const string Messages = "Messages";
+    public const string Connections = "Connections";
 
     public const string InboxCount = "wolverine-inbox-count";
     public const string OutboxCount = "wolverine-outbox-count";
     public const string ScheduledCount = "wolverine-scheduled-count";
+
+    // Connection budget, tagged by ServerKey. Server-scoped rather than database-scoped: the
+    // connections are a resource of the server, shared by every database on it. See #3397.
+    public const string DatabaseConnectionCount = "wolverine-database-connection-count";
+    public const string DatabaseConnectionBudget = "wolverine-database-connection-budget";
 
     public const string MessageTypeKey = "message.type";
     public const string MessageDestinationKey = "message.destination";
@@ -24,4 +30,5 @@ public class MetricsConstants
     public const string ExceptionType = "exception.type";
     public const string SourceKey = "source";
     public const string DatabaseKey = "database";
+    public const string ServerKey = "server";
 }
