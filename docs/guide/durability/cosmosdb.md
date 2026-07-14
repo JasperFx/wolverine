@@ -15,7 +15,14 @@ var builder = Host.CreateApplicationBuilder();
 // Register CosmosClient with DI
 builder.Services.AddSingleton(new CosmosClient(
     "your-connection-string",
-    new CosmosClientOptions { /* options */ }
+    new CosmosClientOptions
+    {
+        // Required if you use CosmosDB saga persistence. See "Serializer Configuration" below
+        SerializerOptions = new CosmosSerializationOptions
+        {
+            PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+        }
+    }
 ));
 
 builder.UseWolverine(opts =>
@@ -28,6 +35,62 @@ builder.UseWolverine(opts =>
     opts.Policies.AutoApplyTransactions();
 });
 ```
+
+## Serializer Configuration
+
+::: warning
+If you use CosmosDB **saga persistence**, the `CosmosClient` you register **must** be configured to camel
+case its property names. Wolverine refuses to start otherwise.
+:::
+
+CosmosDB rejects any document that does not carry a lowercase `id` property. The CosmosDB SDK's default
+serializer writes .NET property names verbatim, so a saga with the usual PascalCase `Id` is serialized as
+`"Id"` — and CosmosDB will not store it. Tell the client to camel case its property names:
+
+```cs
+var client = new CosmosClient("your-connection-string", new CosmosClientOptions
+{
+    SerializerOptions = new CosmosSerializationOptions
+    {
+        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+    }
+});
+```
+
+Skip this and the first saga persist fails with:
+
+```
+400 Bad Request: The input content is invalid because the required properties - 'id; ' - are missing
+```
+
+Worse, because the saga was never stored, every follow-up message for that saga then fails with an
+`UnknownSagaException` — which looks like an unrelated bug and sends you looking in the wrong place.
+
+To keep that from ever reaching production, Wolverine checks the registered `CosmosClient` at startup: it
+serializes a probe instance of each saga with the client's own serializer, and throws an actionable
+`InvalidOperationException` naming the offending saga types if the resulting document would have no `id`.
+Applications that use CosmosDB only for message persistence are unaffected — every document Wolverine
+writes itself already carries an explicit `id` mapping — and start regardless of the naming policy.
+
+If you would rather not change the naming policy for the whole client, map the saga's identity member onto
+the document id yourself instead:
+
+```cs
+public class OrderSaga : Saga
+{
+    // The SDK's default serializer is Newtonsoft based, so use Newtonsoft's [JsonProperty] here. A
+    // System.Text.Json [JsonPropertyName] only has an effect if you also register a System.Text.Json
+    // based CosmosSerializer on the client
+    [JsonProperty("id")]
+    public string Id { get; set; }
+
+    // ... rest of the saga
+}
+```
+
+The same rule applies to any of your own documents that Wolverine writes for you through
+[`ICosmosDbOp`](#storage-side-effects-icosmosdbop) or the [transactional middleware](#transactional-middleware):
+they need a lowercase `id` in the JSON too, whether from camel casing or an explicit mapping.
 
 ## Aspire Integration
 
@@ -51,7 +114,15 @@ var builder = Host.CreateApplicationBuilder(args);
 
 // Aspire.Azure.Data.Cosmos reads the connection from configuration and
 // registers CosmosClient in DI — Wolverine picks it up automatically
-builder.AddAzureCosmosClient("cosmos");
+builder.AddAzureCosmosClient("cosmos", configureClientOptions: options =>
+{
+    // Aspire builds the client for you, so this is where saga persistence gets its
+    // camel casing. See "Serializer Configuration" above
+    options.SerializerOptions = new CosmosSerializationOptions
+    {
+        PropertyNamingPolicy = CosmosPropertyNamingPolicy.CamelCase
+    };
+});
 
 builder.UseWolverine(opts =>
 {
@@ -93,6 +164,10 @@ and the ability to replay designated messages in the dead letter queue storage.
 
 The CosmosDB integration can serve as a [Wolverine Saga persistence mechanism](/guide/durability/sagas). The only limitation is that
 all saga identity values must be `string` types. The saga id is used as both the CosmosDB document id and partition key.
+
+Because it is the document id, the saga's identity member has to serialize as the lowercase `id` CosmosDB
+requires — which means the registered `CosmosClient` needs the camel case naming policy described in
+[Serializer Configuration](#serializer-configuration). Wolverine enforces this at startup.
 
 ### Optimistic Concurrency
 
