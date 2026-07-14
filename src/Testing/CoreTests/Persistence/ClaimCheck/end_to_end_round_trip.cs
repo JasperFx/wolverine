@@ -25,6 +25,12 @@ public class end_to_end_round_trip : IAsyncLifetime
 
         _publisher = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            // Pin the application assembly. Inferring it is a stack walk, and from inside an async
+            // InitializeAsync that walk does not reliably land on CoreTests — it can resolve to
+            // xunit.execution.dotnet, leaving the receiver with no discovered handler and the test
+            // failing as "no messages were received". See GH-3423.
+            opts.ApplicationAssembly = typeof(end_to_end_round_trip).Assembly;
+
             opts.UseClaimCheck(c => c.UseFileSystem(_claimCheckDirectory));
             opts.PublishMessage<BlobByteArrayMessage>().ToPort(port);
             opts.PublishMessage<BlobStringMessage>().ToPort(port);
@@ -34,6 +40,8 @@ public class end_to_end_round_trip : IAsyncLifetime
 
         _receiver = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            opts.ApplicationAssembly = typeof(end_to_end_round_trip).Assembly;
+
             opts.UseClaimCheck(c => c.UseFileSystem(_claimCheckDirectory));
             opts.ListenAtPort(port);
         }).StartAsync();

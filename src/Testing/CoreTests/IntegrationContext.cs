@@ -23,9 +23,18 @@ public class DefaultApp : IDisposable
         Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // Pin the application assembly rather than letting Wolverine infer it. The fallback
+                // is a stack walk (WolverineOptions.determineCallingAssembly) that takes the first
+                // non-System/Microsoft frame outside Wolverine — and under xUnit that frame is not
+                // reliably CoreTests. Depending on what ran before this fixture is built, it can
+                // resolve to xunit.execution.dotnet, at which point conventional discovery scans
+                // xUnit, finds no handlers, and every test here fails with an unrelated-looking
+                // IndeterminateRoutesException. See GH-3423.
+                opts.ApplicationAssembly = typeof(DefaultApp).Assembly;
+
                 opts.Policies.MessageExecutionLogLevel(LogLevel.Information);
                 opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
-                
+
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
 
