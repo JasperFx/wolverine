@@ -1,5 +1,6 @@
 using Microsoft.Azure.Cosmos;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Wolverine.CosmosDb.Internals;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
@@ -31,6 +32,12 @@ public static class WolverineCosmosDbExtensions
             var client = sp.GetRequiredService<CosmosClient>();
             return client.GetDatabase(databaseName).GetContainer(DocumentTypes.ContainerName);
         });
+
+        // GH-3416 -- CosmosDB requires a lowercase "id" on every document. A saga's PascalCase Id only
+        // serializes that way if the CosmosClient is set to camel case its property names, and nothing
+        // else in the system says so until the first saga write comes back a 400. Refuse at host start,
+        // where the client is resolvable and the saga types are known.
+        options.Services.AddSingleton<IHostedService, CosmosDbSagaSerializationValidator>();
 
         options.CodeGeneration.InsertFirstPersistenceStrategy<CosmosDbPersistenceFrameProvider>();
         options.CodeGeneration.ReferenceAssembly(typeof(WolverineCosmosDbExtensions).Assembly);
