@@ -18,6 +18,26 @@ public static class WolverineCosmosDbExtensions
     /// <returns></returns>
     public static WolverineOptions UseCosmosDbPersistence(this WolverineOptions options, string databaseName)
     {
+        return options.UseCosmosDbPersistence(databaseName, _ => { });
+    }
+
+    /// <summary>
+    /// Utilize CosmosDb for envelope and saga storage with this system.
+    /// Requires a CosmosClient and database name to be configured.
+    /// </summary>
+    /// <param name="options"></param>
+    /// <param name="databaseName">The CosmosDB database name to use</param>
+    /// <param name="configure">Optional configuration of the CosmosDB integration itself</param>
+    /// <returns></returns>
+    public static WolverineOptions UseCosmosDbPersistence(this WolverineOptions options, string databaseName,
+        Action<CosmosDbConfiguration> configure)
+    {
+        var configuration = new CosmosDbConfiguration();
+        configure(configuration);
+
+        // Read back by CosmosDbPersistenceFrameProvider when the saga frames are generated
+        options.Services.AddSingleton(configuration);
+
         options.Services.AddSingleton<IMessageStore>(sp =>
         {
             var client = sp.GetRequiredService<CosmosClient>();

@@ -163,11 +163,69 @@ and the ability to replay designated messages in the dead letter queue storage.
 ## Saga Persistence
 
 The CosmosDB integration can serve as a [Wolverine Saga persistence mechanism](/guide/durability/sagas). The only limitation is that
-all saga identity values must be `string` types. The saga id is used as both the CosmosDB document id and partition key.
+all saga identity values must be `string` types. The saga id is used as the CosmosDB document id.
 
 Because it is the document id, the saga's identity member has to serialize as the lowercase `id` CosmosDB
 requires — which means the registered `CosmosClient` needs the camel case naming policy described in
 [Serializer Configuration](#serializer-configuration). Wolverine enforces this at startup.
+
+### Saga Partitioning
+
+By default, **every saga in your application shares a single logical partition**. A saga is your own class, so
+nothing writes the container's `/partitionKey` property into it, and CosmosDB puts a document with no partition
+key value into one "undefined" partition. Wolverine reads and writes sagas there consistently, so this works —
+but a CosmosDB logical partition is capped at **20 GB** and **10,000 RU/s**, and that cap therefore applies to
+your application's entire saga workload no matter how far the container itself is scaled out. The symptom, if
+you reach it, is 429 throttling that does *not* improve when you add RU/s, because the limit is per logical
+partition rather than per container.
+
+Opt into a partition per saga, keyed by the saga id, with `PartitionSagasById()`:
+
+```csharp
+builder.UseWolverine(opts =>
+{
+    opts.UseCosmosDbPersistence("your-database-name", cosmos =>
+    {
+        // Each saga document gets its own logical partition, keyed by the saga id
+        cosmos.PartitionSagasById();
+    });
+});
+```
+
+With this on, Wolverine stamps `partitionKey` = the saga id onto the document as it writes it, so loading,
+updating and deleting a saga is a single-partition point operation — the access pattern CosmosDB is at its best
+on — and sagas spread across every physical partition the container has.
+
+::: warning
+This changes **where a saga document lives**, so it is opt in rather than the default. Saga documents written
+before you turned it on stay in the undefined partition, where a point read keyed on the saga id will not find
+them: an in-flight saga would look like it had never been started. Turn it on for a new application, or migrate
+your existing saga documents first.
+:::
+
+Migrating means rewriting each existing saga document with its partition key, then removing the copy in the
+undefined partition. Wolverine deliberately does not do this for you: saga documents carry no `docType`
+discriminator, so nothing in the container distinguishes them from the documents your own code and
+`Storage.Store()` side effects put in that same undefined partition, and a blanket migration would re-home
+those too. Only your application knows which documents are its sagas — for example, by saga id:
+
+```csharp
+async Task MigrateSagaAsync<T>(Container container, string sagaId)
+{
+    // The legacy copy, in the undefined partition
+    var response = await container.ReadItemAsync<JObject>(sagaId, PartitionKey.None);
+    var document = response.Resource;
+
+    document["partitionKey"] = sagaId;
+
+    await container.UpsertItemAsync(document, new PartitionKey(sagaId));
+    await container.DeleteItemAsync<JObject>(sagaId, PartitionKey.None,
+        new ItemRequestOptions { IfMatchEtag = response.ETag });
+}
+```
+
+Run it with the application's saga traffic stopped, so that nothing writes a new revision of the legacy document
+between the copy and the delete.
 
 ### Optimistic Concurrency
 

@@ -14,6 +14,7 @@ public static class DocumentTypes
 
     public const string ContainerName = "wolverine";
     public const string PartitionKeyPath = "/partitionKey";
+    public const string PartitionKeyProperty = "partitionKey";
 
     public const string ControlMessage = "control-message";
     public const string ControlPartitionPrefix = "control-";

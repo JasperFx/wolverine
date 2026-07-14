@@ -8,17 +8,38 @@ namespace Wolverine.CosmosDb.Internals;
 
 internal class LoadDocumentFrame : AsyncFrame
 {
+    private readonly bool _partitionById;
     private readonly Variable _sagaId;
     private Variable? _cancellation;
     private Variable? _container;
 
-    public LoadDocumentFrame(Type sagaType, Variable sagaId)
+    public LoadDocumentFrame(Type sagaType, Variable sagaId, bool partitionById = false)
     {
         _sagaId = sagaId;
+        _partitionById = partitionById;
         Saga = new Variable(sagaType, this);
     }
 
     public Variable Saga { get; }
+
+    /// <summary>
+    ///     The partition the document lives in: its own, keyed by the saga id, when the application opted into
+    ///     <see cref="CosmosDbConfiguration.PartitionSagasById" /> — otherwise CosmosDB's single "undefined"
+    ///     partition, which is where a document with no partition key value lands (GH-3415).
+    /// </summary>
+    public static string PartitionKeyExpression(Variable id, bool partitionById)
+    {
+        return partitionById
+            ? $"new {typeof(PartitionKey).FullNameInCode()}({id.Usage})"
+            : $"{typeof(PartitionKey).FullNameInCode()}.None";
+    }
+
+    public static string FSharpPartitionKeyExpression(Variable id, bool partitionById)
+    {
+        return partitionById
+            ? $"{typeof(PartitionKey).FSharpName()}({id.FSharpUsage})"
+            : $"{typeof(PartitionKey).FSharpName()}.None";
+    }
 
     /// <summary>
     ///     Name of the local variable that carries the CosmosDB ETag captured when the saga document
@@ -73,7 +94,7 @@ internal class LoadDocumentFrame : AsyncFrame
         writer.Write($"try");
         writer.Write($"{{");
         writer.Write(
-            $"    var _cosmosResponse = await {_container!.Usage}.ReadItemAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {typeof(PartitionKey).FullNameInCode()}.None, cancellationToken: {_cancellation!.Usage}).ConfigureAwait(false);");
+            $"    var _cosmosResponse = await {_container!.Usage}.ReadItemAsync<{Saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {PartitionKeyExpression(_sagaId, _partitionById)}, cancellationToken: {_cancellation!.Usage}).ConfigureAwait(false);");
         writer.Write($"    {Saga.Usage} = _cosmosResponse.Resource;");
 
         if (capturesEtag)
@@ -110,7 +131,7 @@ internal class LoadDocumentFrame : AsyncFrame
 
         writer.Write("BLOCK:try");
         writer.Write(
-            $"let! _cosmosResponse = {_container!.FSharpUsage}.ReadItemAsync<{Saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None, cancellationToken = {_cancellation!.FSharpUsage})");
+            $"let! _cosmosResponse = {_container!.FSharpUsage}.ReadItemAsync<{Saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {FSharpPartitionKeyExpression(_sagaId, _partitionById)}, cancellationToken = {_cancellation!.FSharpUsage})");
         writer.Write($"{Saga.FSharpUsage} <- _cosmosResponse.Resource");
 
         if (capturesEtag)
