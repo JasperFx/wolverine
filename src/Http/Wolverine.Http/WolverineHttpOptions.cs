@@ -5,6 +5,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Wolverine.Configuration;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
@@ -232,6 +233,13 @@ public class WolverineHttpOptions
     internal object? NewtonsoftSettingsConfiguration { get; set; }
 
     internal HttpGraph? Endpoints { get; set; }
+
+    /// <summary>
+    ///     The route builder MapWolverineEndpoints() was called on. Its DataSources collection is the
+    ///     only place the host's minimal API / MVC endpoints can be seen before the host starts, which
+    ///     an ApiExplorer read that early depends on. See <see cref="HostEndpointDataSources" />.
+    /// </summary>
+    internal IEndpointRouteBuilder? RouteBuilder { get; set; }
 
     internal MiddlewarePolicy Middleware { get; } = new();
 
