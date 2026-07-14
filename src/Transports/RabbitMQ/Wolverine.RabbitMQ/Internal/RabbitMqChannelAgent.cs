@@ -116,23 +116,9 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
         Task.Run(async () =>
 #pragma warning restore VSTHRD110
         {
-            await Locker.WaitAsync();
             try
             {
-                try
-                {
-                    await teardownChannel();
-                }
-                catch (Exception e)
-                {
-                    Logger.LogError(e, "Error when trying to tear down a blocked channel");
-                }
-
-                Channel = null;
-
-                // EnsureInitiated can be used here as Locker(SemaphoreSlim) is not re-entrant
-                await startNewChannel();
-                State = AgentState.Connected;
+                await restartAfterCallbackExceptionAsync();
 
                 Logger.LogInformation("Restarted the Rabbit MQ channel");
             }
@@ -148,13 +134,41 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
                 Logger.LogWarning(e,
                     "Could not eagerly restart the Rabbit MQ channel; leaving it for connection recovery");
             }
-            finally
-            {
-                Locker.Release();
-            }
         });
 
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Eagerly rebuild this agent after a channel callback exception. The base behavior is
+    /// sender-shaped: a fresh channel is all a sender needs. Agents that own broker-side state
+    /// on the channel — a listener's consumer, above all — must override this, because a bare
+    /// channel swap would leave them "Connected" on an open channel with nothing consuming.
+    /// </summary>
+    protected virtual async Task restartAfterCallbackExceptionAsync()
+    {
+        await Locker.WaitAsync();
+        try
+        {
+            try
+            {
+                await teardownChannel();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Error when trying to tear down a blocked channel");
+            }
+
+            Channel = null;
+
+            // EnsureInitiated cannot be used here as Locker(SemaphoreSlim) is not re-entrant
+            await startNewChannel();
+            State = AgentState.Connected;
+        }
+        finally
+        {
+            Locker.Release();
+        }
     }
 
     private Task HandleChannelShutdownAsync(object? sender, ShutdownEventArgs e)
