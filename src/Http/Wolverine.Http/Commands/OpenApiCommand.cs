@@ -1,12 +1,7 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Text;
 using JasperFx.CommandLine;
 using JasperFx.Core;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using Spectre.Console;
 using Wolverine.Http.Commands;
 
@@ -174,7 +169,18 @@ public class OpenApiCommand : JasperFxAsyncCommand<OpenApiInput>
         // MapWolverineEndpoints) are normally merged into the global EndpointDataSource by the
         // routing middleware's UseEndpoints step, which only runs once the host starts. We replicate
         // just that merge here so generation sees every endpoint while skipping host startup entirely.
-        ComposeEndpointDataSources(host);
+        if (!HostEndpointDataSources.TryPublish(host))
+        {
+            // Refuse rather than write a document that would omit every minimal API and MVC route while
+            // looking perfectly well-formed. This command exists to be run in a build, and a partial spec
+            // that exits 0 is exactly how a generated client SDK silently loses half an API.
+            throw new InvalidOperationException(
+                "Wolverine could not make this application's endpoints visible to the OpenAPI document " +
+                "provider without starting the host, so the generated document would describe Wolverine's " +
+                "HTTP endpoints while silently omitting any minimal API or MVC endpoint. This means ASP.NET " +
+                "Core has moved the internal collection Wolverine publishes to; please report it against " +
+                "Wolverine.");
+        }
 
         return OpenApiDocumentProvider.Resolve(host.Services);
     }
@@ -211,40 +217,6 @@ public class OpenApiCommand : JasperFxAsyncCommand<OpenApiInput>
         foreach (var path in paths)
         {
             AnsiConsole.MarkupLine($"  [grey]{Markup.Escape(path)}[/]");
-        }
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2075",
-        Justification = "Dev/build-time 'openapi' CLI command. RouteOptions.EndpointDataSources is an internal collection populated identically by ASP.NET Core's own UseEndpoints; reflecting it here only runs interactively, never on an AOT-published hot path.")]
-    private static void ComposeEndpointDataSources(IHost host)
-    {
-        if (host is not IEndpointRouteBuilder routeBuilder || routeBuilder.DataSources.Count == 0)
-        {
-            return;
-        }
-
-        var routeOptions = host.Services.GetService<IOptions<RouteOptions>>();
-        if (routeOptions?.Value == null)
-        {
-            return;
-        }
-
-        var property = typeof(RouteOptions).GetProperty("EndpointDataSources",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-        if (property?.GetValue(routeOptions.Value) is not ICollection<EndpointDataSource> sources)
-        {
-            return;
-        }
-
-        // Mirror EndpointRoutingApplicationBuilderExtensions.UseEndpoints: add every data source the
-        // application mapped, de-duplicating so a later real start (if any) stays correct.
-        foreach (var dataSource in routeBuilder.DataSources)
-        {
-            if (!sources.Contains(dataSource))
-            {
-                sources.Add(dataSource);
-            }
         }
     }
 

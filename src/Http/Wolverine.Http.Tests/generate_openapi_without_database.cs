@@ -24,6 +24,24 @@ public class generate_openapi_without_database
         json.ShouldContain("/validate2/user");
     }
 
+    // The command never starts the host, and ASP.NET Core does not surface an application's endpoints to
+    // its own description providers until it does — so a hybrid host (Wolverine HTTP endpoints alongside
+    // minimal API routes) is where a document quietly reduced to "Wolverine's routes only" would show up.
+    // The command already merged the endpoint data sources itself to avoid that; GH-3421 lifted that merge
+    // into HostEndpointDataSources so an in-process ApiExplorer read gets it too. Pin the behavior here,
+    // now that the command depends on shared code to keep it.
+    [Fact]
+    public async Task generates_the_whole_route_table_on_a_hybrid_host()
+    {
+        var json = await GenerateDocumentWithoutDatabaseAsync(app =>
+        {
+            app.MapGet("/minimal/hello", () => "Hello");
+        });
+
+        json.ShouldContain("/validate2/customer");
+        json.ShouldContain("/minimal/hello");
+    }
+
     [Fact]
     public async Task route_filter_keeps_only_matching_routes_and_their_schemas()
     {
@@ -52,7 +70,7 @@ public class generate_openapi_without_database
         OpenApiRouteFilter.ListPaths(json).ShouldContain("/validate2/customer");
     }
 
-    private static async Task<string> GenerateDocumentWithoutDatabaseAsync()
+    private static async Task<string> GenerateDocumentWithoutDatabaseAsync(Action<WebApplication>? configure = null)
     {
         // Build in the Development environment, which is what the CI runner uses and which turns on DI
         // scope validation by default. This reproduces GH-2911: the Microsoft.AspNetCore.OpenApi
@@ -89,6 +107,8 @@ public class generate_openapi_without_database
 
         await using var app = builder.Build();
         app.MapWolverineEndpoints();
+
+        configure?.Invoke(app);
 
         // Exercise the exact no-startup path the `openapi` command uses. Note: no app.StartAsync().
         var documentProvider = OpenApiCommand.PrepareDocumentProvider(app);

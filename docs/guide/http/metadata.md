@@ -299,11 +299,31 @@ asynchronous Wolverine extension) will not appear. This matches the goal of buil
 is worth knowing if you add endpoints dynamically.
 :::
 
-The same holds in-process: Wolverine's endpoint descriptions are complete on the very first
-ApiExplorer read after `MapWolverineEndpoints()` has run, even before the host starts. Only
-Wolverine's descriptions are start-independent — ASP.NET's own minimal API descriptions still
-compose at server start — so applications mixing the two should defer early ApiExplorer reads
-until after startup.
+## Reading the ApiExplorer Before the Host Starts
+
+The `openapi` command is one case of a more general rule: the API descriptions are complete on the very
+first ApiExplorer read after `MapWolverineEndpoints()` has run, even before the host starts.
+
+This matters because ASP.NET Core **caches the first ApiExplorer read for the lifetime of the host** —
+nothing that happens later, host startup included, invalidates it. Whatever that first read sees is what
+your application serves from then on, and the read can happen surprisingly early: build-time OpenAPI
+generation, a monitoring agent taking a capability snapshot, or the `openapi` command above.
+
+The completeness covers the whole route table, not just Wolverine's share of it. On a **hybrid host** —
+Wolverine HTTP endpoints alongside minimal API and/or MVC routes — ASP.NET Core does not publish the
+application's endpoints to its own description providers until the server starts, so a read before that
+would otherwise describe Wolverine's endpoints while silently omitting every other route. Wolverine
+publishes them ahead of the read instead, exactly as ASP.NET Core's `UseEndpoints()` does at startup, so
+an early read still yields every route in the application.
+
+::: warning
+This one shape is the exception: if you call `MapWolverineEndpoints()` on a **route group** rather than on
+the `WebApplication` itself, Wolverine cannot publish the application's endpoints early — a group only
+knows its own, and ASP.NET Core publishes those itself at startup. An ApiExplorer read before the host
+starts will then describe Wolverine's endpoints and omit the rest, and Wolverine logs a warning saying so.
+Either map Wolverine's endpoints on the `WebApplication` (using `RoutePrefix()` if you wanted the prefix a
+group would have given you), or read the ApiExplorer after the host has started.
+:::
 
 ## With Microsoft.Extensions.ApiDescription.Server
 
