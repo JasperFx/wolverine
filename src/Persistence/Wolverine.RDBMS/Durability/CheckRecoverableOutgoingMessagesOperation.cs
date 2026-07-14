@@ -54,8 +54,11 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
             }
             catch (Exception e)
             {
+                // Keep going. A destination this node cannot resolve -- say, a leftover row for a
+                // transport that was removed -- should not stop the other destinations in the
+                // outbox from being recovered. See https://github.com/JasperFx/wolverine/issues/3413.
                 _logger.LogError(e, "Error trying to find a sending agent for {Destination}", destination);
-                yield break;
+                continue;
             }
 
             if (!sendingAgent.Latched)
