@@ -49,4 +49,24 @@ internal class LoadDocumentFrame : AsyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.BlankLine();
+        writer.WriteComment("Try to load the existing saga document from CosmosDB");
+        // Declare as mutable so it can be assigned in either the try or the with branch.
+        writer.Write($"let mutable {Saga.FSharpUsage} = Unchecked.defaultof<{Saga.VariableType.FSharpName()}>");
+        writer.Write("BLOCK:try");
+        writer.Write(
+            $"let! _cosmosResponse = {_container!.FSharpUsage}.ReadItemAsync<{Saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None, cancellationToken = {_cancellation!.FSharpUsage})");
+        writer.Write($"{Saga.FSharpUsage} <- _cosmosResponse.Resource");
+        writer.FinishBlock();
+        // Single-case with; guard ensures non-404 CosmosExceptions propagate.
+        writer.Write(
+            $"BLOCK:with :? {typeof(CosmosException).FSharpName()} as e when e.StatusCode = System.Net.HttpStatusCode.NotFound ->");
+        writer.Write("()");
+        writer.FinishBlock();
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

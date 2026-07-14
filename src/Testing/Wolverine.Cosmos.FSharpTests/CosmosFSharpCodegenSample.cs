@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using FluentValidation;
+using Shouldly;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Azure.Cosmos;
@@ -44,6 +45,9 @@ public static class CosmosFSharpCodegenSample
 
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Discovery.IncludeType<CreateThingHandler>();
+                    // ThingSaga exercises LoadDocumentFrame.GenerateFSharpCode (GH-2969):
+                    // its Handle chain loads the saga document from CosmosDB before calling the method.
+                    opts.Discovery.IncludeType<ThingSaga>();
                 })
                 .Build();
 
@@ -51,12 +55,29 @@ public static class CosmosFSharpCodegenSample
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
             var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
-            var chain = handlerGraph.ChainFor(typeof(CreateThing))
-                        ?? throw new InvalidOperationException("No handler chain was built for CreateThing.");
-
             var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
             var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
-            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+
+            // Render all chains from the sample assembly so the compile gate covers both the
+            // FluentValidation+CosmosDB handler and the saga (which exercises LoadDocumentFrame).
+            var sampleAssembly = typeof(CreateThingHandler).Assembly;
+            var chains = handlerGraph.AllChains()
+                .Where(c => c.MessageType.Assembly == sampleAssembly)
+                .OrderBy(c => c.MessageType.Name)
+                .ToArray();
+
+            // Expect exactly 3 chains: CreateThing + ContinueThing + StartThingSaga.
+            // A wrong count means saga discovery for F# types broke (or IncludeType<ThingSaga>()
+            // stopped resolving), which would silently drop LoadDocumentFrame coverage.
+            chains.Length.ShouldBe(3);
+            handlerGraph.ChainFor(typeof(CreateThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(ContinueThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(StartThingSaga)).ShouldNotBeNull();
+
+            foreach (var chain in chains)
+            {
+                ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+            }
 
             return generatedAssembly.GenerateFSharpCode(serviceVariableSource);
         }
