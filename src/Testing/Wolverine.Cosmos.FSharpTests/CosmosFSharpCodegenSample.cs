@@ -28,7 +28,13 @@ public static class CosmosFSharpCodegenSample
     private const string ConnectionString =
         "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
-    public static string GenerateCode()
+    /// <param name="partitionSagasById">
+    ///     Render the saga frames as they are emitted for an application that opted into
+    ///     <see cref="CosmosDbConfiguration.PartitionSagasById" /> (GH-3415), which reads and deletes the saga in
+    ///     the partition keyed by its id and writes it through <c>CosmosSagaStorage</c> rather than the typed
+    ///     <c>UpsertItemAsync&lt;T&gt;</c>. Different F#, so it needs the same compile gate as the default.
+    /// </param>
+    public static string GenerateCode(bool partitionSagasById = false)
     {
         DynamicCodeBuilder.WithinCodegenCommand = true;
         try
@@ -40,7 +46,13 @@ public static class CosmosFSharpCodegenSample
                     opts.Services.AddScoped<IValidator<CreateThing>, CreateThingValidator>();
 
                     opts.UseFluentValidation();
-                    opts.UseCosmosDbPersistence("wolverine_fsharp_cosmos");
+                    opts.UseCosmosDbPersistence("wolverine_fsharp_cosmos", cosmos =>
+                    {
+                        if (partitionSagasById)
+                        {
+                            cosmos.PartitionSagasById();
+                        }
+                    });
                     opts.Policies.AutoApplyTransactions();
 
                     opts.Discovery.DisableConventionalDiscovery();
