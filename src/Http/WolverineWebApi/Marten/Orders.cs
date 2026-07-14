@@ -6,12 +6,14 @@ using Marten.Events;
 using Marten.Linq;
 using Marten.Pagination;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.OpenApi.Models;
 using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
 using Wolverine.Http;
 using Wolverine.Http.Marten;
 using Wolverine.Marten;
 using Wolverine.Runtime.Handlers;
+using WolverineWebApi.TestSupport;
 
 namespace WolverineWebApi.Marten;
 
@@ -280,8 +282,12 @@ public static class MarkItemEndpoint
         );
     }
 
+    // GH-3420: {id} has no route constraint and appears nowhere in the method signature -- it is the
+    // Order aggregate's identity, which only the Marten aggregate workflow knows about.
     [AggregateHandler]
     [WolverinePost("/orders/{id}/confirm")]
+    [ExpectParameter("id", ParameterLocation.Path, Type = "string", Format = "uuid", Required = true)]
+    [ExpectParameterCount(1)]
     public static (AcceptResponse, Events) Confirm(ConfirmOrder command, Order order)
     {
         return (
