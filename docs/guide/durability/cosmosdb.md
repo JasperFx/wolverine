@@ -94,6 +94,25 @@ and the ability to replay designated messages in the dead letter queue storage.
 The CosmosDB integration can serve as a [Wolverine Saga persistence mechanism](/guide/durability/sagas). The only limitation is that
 all saga identity values must be `string` types. The saga id is used as both the CosmosDB document id and partition key.
 
+### Optimistic Concurrency
+
+Saga writes are protected by optimistic concurrency. Wolverine captures the document's `ETag` when it reads the saga
+and passes it back as an `IfMatchEtag` on the subsequent write, so updating (or deleting, when the saga completes)
+a saga is a compare-and-swap rather than a blind upsert. If another message changed the same saga in between,
+CosmosDB rejects the write with a `412 Precondition Failed` and Wolverine raises a `SagaConcurrencyException`.
+Without this, two messages for one saga id arriving at the same time on two nodes would both read the same
+revision and the slower write would silently overwrite the faster one.
+
+Because a concurrency violation just means "you read a stale copy, go read it again", the usual response is to
+retry the message — the retry re-reads the saga and re-applies the change against the current state:
+
+```cs
+opts.Policies.OnException<SagaConcurrencyException>().RetryTimes(3);
+```
+
+If you do not configure a policy for it, `SagaConcurrencyException` is treated like any other unhandled exception
+and the message will eventually be moved to the dead letter queue.
+
 ## Transactional Middleware
 
 Wolverine's CosmosDB integration supports [transactional middleware](/guide/durability/marten/transactional-middleware)

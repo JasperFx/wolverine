@@ -49,6 +49,14 @@ public class SagaConcurrencyException : Exception
     public SagaConcurrencyException(string message) : base(message)
     {
     }
+
+    /// <summary>
+    /// Keeps the underlying store's own concurrency failure (say, a CosmosDB 412 Precondition Failed)
+    /// attached, so error handling policies and logs can still see what the database actually said
+    /// </summary>
+    public SagaConcurrencyException(string message, Exception innerException) : base(message, innerException)
+    {
+    }
 }
 
 public interface SequencedMessage
