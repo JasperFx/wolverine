@@ -169,7 +169,7 @@ Because it is the document id, the saga's identity member has to serialize as th
 requires — which means the registered `CosmosClient` needs the camel case naming policy described in
 [Serializer Configuration](#serializer-configuration). Wolverine enforces this at startup.
 
-### Saga Partitioning
+### Saga Partitioning <Badge type="tip" text="6.19" />
 
 By default, **every saga in your application shares a single logical partition**. A saga is your own class, so
 nothing writes the container's `/partitionKey` property into it, and CosmosDB puts a document with no partition
@@ -181,16 +181,17 @@ partition rather than per container.
 
 Opt into a partition per saga, keyed by the saga id, with `PartitionSagasById()`:
 
-```csharp
-builder.UseWolverine(opts =>
+<!-- snippet: sample_cosmos_partition_sagas_by_id -->
+<a id='snippet-sample_cosmos_partition_sagas_by_id'></a>
+```cs
+opts.UseCosmosDbPersistence("your-database-name", cosmos =>
 {
-    opts.UseCosmosDbPersistence("your-database-name", cosmos =>
-    {
-        // Each saga document gets its own logical partition, keyed by the saga id
-        cosmos.PartitionSagasById();
-    });
+    // Each saga document gets its own logical partition, keyed by the saga id
+    cosmos.PartitionSagasById();
 });
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/CosmosDbTests/DocumentationSamples.cs#L16-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cosmos_partition_sagas_by_id' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 With this on, Wolverine stamps `partitionKey` = the saga id onto the document as it writes it, so loading,
 updating and deleting a saga is a single-partition point operation — the access pattern CosmosDB is at its best
@@ -209,8 +210,10 @@ discriminator, so nothing in the container distinguishes them from the documents
 `Storage.Store()` side effects put in that same undefined partition, and a blanket migration would re-home
 those too. Only your application knows which documents are its sagas — for example, by saga id:
 
-```csharp
-async Task MigrateSagaAsync<T>(Container container, string sagaId)
+<!-- snippet: sample_cosmos_migrate_saga_to_its_own_partition -->
+<a id='snippet-sample_cosmos_migrate_saga_to_its_own_partition'></a>
+```cs
+public static async Task MigrateSagaAsync(Container container, string sagaId)
 {
     // The legacy copy, in the undefined partition
     var response = await container.ReadItemAsync<JObject>(sagaId, PartitionKey.None);
@@ -223,6 +226,8 @@ async Task MigrateSagaAsync<T>(Container container, string sagaId)
         new ItemRequestOptions { IfMatchEtag = response.ETag });
 }
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/CosmosDbTests/DocumentationSamples.cs#L28-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_cosmos_migrate_saga_to_its_own_partition' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Run it with the application's saga traffic stopped, so that nothing writes a new revision of the legacy document
 between the copy and the delete.
