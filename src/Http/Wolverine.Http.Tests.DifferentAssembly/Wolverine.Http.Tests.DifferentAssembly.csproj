@@ -3,6 +3,9 @@
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Http\Wolverine.Http.csproj"/>
         <ProjectReference Include="..\Wolverine.Http.FluentValidation\Wolverine.Http.FluentValidation.csproj"/>
+        <!-- For the GH-3420 aggregate OpenAPI shapes. Marten's IDocumentStore answers "what is this
+             aggregate's id type?" without ever connecting, so the shape harness stays infrastructure-free. -->
+        <ProjectReference Include="..\Wolverine.Http.Marten\Wolverine.Http.Marten.csproj"/>
     </ItemGroup>
 
 </Project>

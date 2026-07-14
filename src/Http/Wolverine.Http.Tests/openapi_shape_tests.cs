@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.OpenApi;
+using Wolverine.Marten;
 
 namespace Wolverine.Http.Tests;
 
@@ -39,6 +41,16 @@ public class OpenApiShapeFixture : IAsyncLifetime
             // Pin endpoint discovery to the isolated, infrastructure-free assembly
             opts.ApplicationAssembly = typeof(CompoundRouteOnlyEndpoint).Assembly;
         });
+
+        // The GH-3420 aggregate shapes need Marten to answer "what is this aggregate's id type?" while the
+        // chains are built. Point it at an unreachable database (nothing listens on port 9999) so this
+        // fixture stays infrastructure-free by construction: if rendering the document ever opened a
+        // connection, every test in here would fail rather than quietly depend on a running Postgres.
+        builder.Services.AddMarten(opts =>
+        {
+            opts.Connection(
+                "Host=localhost;Port=9999;Database=does_not_exist;Username=nobody;Password=nobody;Timeout=2;Command Timeout=2");
+        }).IntegrateWithWolverine();
 
         builder.Services.AddOpenApi();
         builder.Services.AddWolverineHttp();
@@ -173,6 +185,31 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
                 new ParameterShape("order-id", "path", true, "integer", "int64"),
                 new ParameterShape("Filter", "query", false, "string", null)
             ]);
+    }
+
+    [Fact]
+    public void marten_aggregate_handler_types_an_unconstrained_route_id_from_the_aggregate()
+    {
+        // GH-3420: {id} carries no route constraint and appears nowhere in the endpoint signature. Its type
+        // is the Order aggregate's identity, which only Marten knows about.
+        ParametersFor("/shapes/marten/orders/{id}/confirm", "post")
+            .ShouldBe([new ParameterShape("id", "path", true, "string", "uuid")]);
+
+        HasRequestBody("/shapes/marten/orders/{id}/confirm", "post").ShouldBeTrue();
+    }
+
+    [Fact]
+    public void marten_aggregate_handler_types_the_conventional_aggregate_id_route_token()
+    {
+        ParametersFor("/shapes/marten/orders/{shapeOrderId}/confirm-by-convention", "post")
+            .ShouldBe([new ParameterShape("shapeOrderId", "path", true, "string", "uuid")]);
+    }
+
+    [Fact]
+    public void write_aggregate_binds_and_types_the_route_id_itself()
+    {
+        ParametersFor("/shapes/marten/orders/{id}/ship", "post")
+            .ShouldBe([new ParameterShape("id", "path", true, "string", "uuid")]);
     }
 
     #region harness helpers

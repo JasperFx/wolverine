@@ -488,12 +488,18 @@ public partial class HttpChain
         // method signatures rather than relying on a resolved variable. See GH-3380.
         //
         // When nothing in the chain binds the route value (e.g. a plain complex-body endpoint whose body
-        // property overlaps a route token, or a Marten aggregate-id route resolved during codegen), fall
-        // back to the route constraint (`{id:guid}`, `{n:int}`, ...) so the parameter still gets its real
-        // type/format, and finally to string. Both OpenAPI stacks schematize from .Type.
+        // property overlaps a route token), fall back to the route constraint (`{id:guid}`, `{n:int}`, ...)
+        // so the parameter still gets its real type/format.
+        //
+        // Failing that, honor any type declared through IRoutedChain by middleware that binds the route
+        // value through its own frames — the Marten/Polecat aggregate handler workflow declaring the
+        // aggregate's identity type for an unconstrained {id}, which is domain knowledge Wolverine.Http
+        // cannot infer from the method signatures. Then, finally, string. See GH-3380 and GH-3420.
+        // Both OpenAPI stacks schematize from .Type.
         var parameterType = variable?.VariableType
                             ?? typeFromBindingChain(routeParameter.Name)
                             ?? TypeFromRouteConstraint(routeParameter)
+                            ?? declaredRouteParameterType(routeParameter.Name)
                             ?? typeof(string);
 
         var parameter = new ApiParameterDescription

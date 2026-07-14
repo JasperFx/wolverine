@@ -1,8 +1,10 @@
+using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Http.Tests.DifferentAssembly.Validation;
+using Wolverine.Marten;
 
 namespace Wolverine.Http.Tests;
 
@@ -15,6 +17,15 @@ public class api_explorer_before_host_start
     public async Task api_descriptions_are_complete_before_the_host_starts()
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development" });
+
+        // "DifferentAssembly" also carries the Marten aggregate endpoints used by openapi_shape_tests, so
+        // any host discovering it needs Marten registered to resolve the aggregates' id types. Pointed at
+        // an unreachable database (nothing listens on port 9999) to keep this test free of infrastructure.
+        builder.Services.AddMarten(opts =>
+        {
+            opts.Connection(
+                "Host=localhost;Port=9999;Database=does_not_exist;Username=nobody;Password=nobody;Timeout=2;Command Timeout=2");
+        }).IntegrateWithWolverine();
 
         builder.Host.UseWolverine(opts =>
         {
