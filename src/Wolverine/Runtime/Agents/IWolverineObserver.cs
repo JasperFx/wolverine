@@ -2,6 +2,7 @@ using JasperFx.Events;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
@@ -62,6 +63,20 @@ public interface IWolverineObserver
     /// existing observers are unaffected.
     /// </summary>
     void EventsAppended(IReadOnlyList<IEvent> events)
+    {
+        // Default no-op implementation
+    }
+
+    /// <summary>
+    /// Called once per database *server* per metrics sweep with the connections currently open on
+    /// it and the budget they're measured against. A sibling of <see cref="PersistedCounts"/> rather
+    /// than a member of it, because connections are a server-scoped resource while the envelope
+    /// counts are database-scoped — in a sharded deployment many databases report against one
+    /// budget. Only fired when the budget machinery is active (see
+    /// <c>DurabilitySettings.ConnectionBudgets</c>). Default no-op so existing observers are
+    /// unaffected. See #3397.
+    /// </summary>
+    void ConnectionBudget(ConnectionBudgetSnapshot snapshot)
     {
         // Default no-op implementation
     }
