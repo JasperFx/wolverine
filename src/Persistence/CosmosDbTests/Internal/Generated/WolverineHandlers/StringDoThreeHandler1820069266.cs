@@ -32,10 +32,13 @@ namespace Internal.Generated.WolverineHandlers
             
             // Try to load the existing saga document from CosmosDB
             Wolverine.ComplianceTests.Sagas.StringBasicWorkflow stringBasicWorkflow = default;
+            // Capture the ETag so the eventual write can be a compare-and-swap against this exact revision
+            string stringBasicWorkflow_Etag = null;
             try
             {
                 var _cosmosResponse = await _container.ReadItemAsync<Wolverine.ComplianceTests.Sagas.StringBasicWorkflow>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, cancellationToken: cancellation).ConfigureAwait(false);
                 stringBasicWorkflow = _cosmosResponse.Resource;
+                stringBasicWorkflow_Etag = _cosmosResponse.ETag;
             }
             catch (Microsoft.Azure.Cosmos.CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
@@ -49,6 +52,8 @@ namespace Internal.Generated.WolverineHandlers
             else
             {
                 context.SetSagaId(sagaId);
+                System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.id", sagaId.ToString());
+                System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.type", "Wolverine.ComplianceTests.Sagas.StringBasicWorkflow");
                 
                 // The actual message execution
                 stringBasicWorkflow.Handles(stringDoThree);
@@ -56,12 +61,32 @@ namespace Internal.Generated.WolverineHandlers
                 // Delete the saga if completed, otherwise update it
                 if (stringBasicWorkflow.IsCompleted())
                 {
-                    await _container.DeleteItemAsync<Wolverine.ComplianceTests.Sagas.StringBasicWorkflow>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None).ConfigureAwait(false);
+                    try
+                    {
+                        await _container.DeleteItemAsync<Wolverine.ComplianceTests.Sagas.StringBasicWorkflow>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, requestOptions: new Microsoft.Azure.Cosmos.ItemRequestOptions{ IfMatchEtag = stringBasicWorkflow_Etag }).ConfigureAwait(false);
+                    }
+
+                    catch (Microsoft.Azure.Cosmos.CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                    {
+                        // The saga document was changed by another message since it was read
+                        throw new Wolverine.SagaConcurrencyException($"Saga of type Wolverine.ComplianceTests.Sagas.StringBasicWorkflow and id {sagaId} cannot be updated because of optimistic concurrency violations", e);
+                    }
+
                 }
 
                 else
                 {
-                    await _container.UpsertItemAsync(stringBasicWorkflow).ConfigureAwait(false);
+                    try
+                    {
+                        await _container.UpsertItemAsync(stringBasicWorkflow, requestOptions: new Microsoft.Azure.Cosmos.ItemRequestOptions{ IfMatchEtag = stringBasicWorkflow_Etag }).ConfigureAwait(false);
+                    }
+
+                    catch (Microsoft.Azure.Cosmos.CosmosException e) when (e.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)
+                    {
+                        // The saga document was changed by another message since it was read
+                        throw new Wolverine.SagaConcurrencyException($"Saga of type Wolverine.ComplianceTests.Sagas.StringBasicWorkflow and id {sagaId} cannot be updated because of optimistic concurrency violations", e);
+                    }
+
                 }
 
                 

@@ -71,6 +71,7 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineInsertFrame(Variable saga, IServiceContainer container)
     {
+        // A brand new document has no ETag to match against, so there is nothing to be optimistic about
         return new CosmosDbUpsertFrame(saga);
     }
 
@@ -82,17 +83,22 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
 
     public Frame DetermineUpdateFrame(Variable saga, IServiceContainer container)
     {
-        return new CosmosDbUpsertFrame(saga);
+        // Updating a saga document is a compare-and-swap against the ETag captured by LoadDocumentFrame
+        // when the saga was read. Without it, two messages for the same saga id racing on separate nodes
+        // both upsert blindly and the second one silently overwrites the first. See GH-3414.
+        return new CosmosDbUpsertFrame(saga, LoadDocumentFrame.UsesOptimisticConcurrency(saga));
     }
 
     public Frame DetermineDeleteFrame(Variable sagaId, Variable saga, IServiceContainer container)
     {
-        return new CosmosDbDeleteDocumentFrame(sagaId, saga);
+        return new CosmosDbDeleteDocumentFrame(sagaId, saga, LoadDocumentFrame.UsesOptimisticConcurrency(saga));
     }
 
     public Frame DetermineStoreFrame(Variable saga, IServiceContainer container)
     {
-        return DetermineUpdateFrame(saga, container);
+        // Storage.Store() is an explicit "just write it" side effect on an arbitrary document, not the
+        // saga update path, so it deliberately stays a blind upsert
+        return new CosmosDbUpsertFrame(saga);
     }
 
     public Frame DetermineDeleteFrame(Variable variable, IServiceContainer container)
@@ -142,14 +148,56 @@ public static class CosmosDbStorageActionApplier
     }
 }
 
+/// <summary>
+///     Emits the compare-and-swap plumbing that turns a 412 Precondition Failed from CosmosDB into the
+///     <see cref="SagaConcurrencyException" /> Wolverine's saga retry machinery already understands. Shared
+///     by the saga upsert and delete frames so both report the violation identically.
+/// </summary>
+internal static class CosmosDbConcurrency
+{
+    public static string RequestOptions(string etagVariable)
+    {
+        return
+            $"requestOptions: new {typeof(ItemRequestOptions).FullNameInCode()}{{ IfMatchEtag = {etagVariable} }}";
+    }
+
+    public static string FSharpRequestOptions(string etagVariable)
+    {
+        return
+            $"requestOptions = {typeof(ItemRequestOptions).FSharpName()}(IfMatchEtag = {etagVariable})";
+    }
+
+    public static void WriteCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
+    {
+        writer.Write(
+            $"BLOCK:catch ({typeof(CosmosException).FullNameInCode()} e) when (e.StatusCode == System.Net.HttpStatusCode.PreconditionFailed)");
+        writer.WriteComment("The saga document was changed by another message since it was read");
+        writer.Write(
+            $"throw new {typeof(SagaConcurrencyException).FullNameInCode()}($\"Saga of type {sagaType.FullNameInCode()} and id {{{identityExpression}}} cannot be updated because of optimistic concurrency violations\", e);");
+        writer.FinishBlock();
+    }
+
+    public static void WriteFSharpCatchBlock(ISourceWriter writer, Type sagaType, string identityExpression)
+    {
+        writer.Write(
+            $"BLOCK:with :? {typeof(CosmosException).FSharpName()} as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->");
+        writer.WriteComment("The saga document was changed by another message since it was read");
+        writer.Write(
+            $"raise ({typeof(SagaConcurrencyException).FSharpName()}(sprintf \"Saga of type {sagaType.FullNameInCode()} and id %O cannot be updated because of optimistic concurrency violations\" {identityExpression}, e))");
+        writer.FinishBlock();
+    }
+}
+
 internal class CosmosDbUpsertFrame : AsyncFrame
 {
     private readonly Variable _document;
+    private readonly bool _optimisticConcurrency;
     private Variable? _container;
 
-    public CosmosDbUpsertFrame(Variable document)
+    public CosmosDbUpsertFrame(Variable document, bool optimisticConcurrency = false)
     {
         _document = document;
+        _optimisticConcurrency = optimisticConcurrency;
         uses.Add(_document);
     }
 
@@ -161,16 +209,45 @@ internal class CosmosDbUpsertFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write(
-            $"await {_container!.Usage}.UpsertItemAsync({_document.Usage}).ConfigureAwait(false);");
+        if (_optimisticConcurrency)
+        {
+            var etag = LoadDocumentFrame.EtagVariableName(_document);
+
+            writer.Write("BLOCK:try");
+            writer.Write(
+                $"await {_container!.Usage}.UpsertItemAsync({_document.Usage}, {CosmosDbConcurrency.RequestOptions(etag)}).ConfigureAwait(false);");
+            writer.FinishBlock();
+            CosmosDbConcurrency.WriteCatchBlock(writer, _document.VariableType, SagaChain.SagaIdVariableName);
+        }
+        else
+        {
+            writer.Write(
+                $"await {_container!.Usage}.UpsertItemAsync({_document.Usage}).ConfigureAwait(false);");
+        }
+
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         // UpsertItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
-        writer.Write($"let! _ = {_container!.FSharpUsage}.UpsertItemAsync({_document.FSharpUsage})");
-        writer.Write("()");
+        if (_optimisticConcurrency)
+        {
+            var etag = LoadDocumentFrame.EtagVariableName(_document);
+
+            writer.Write("BLOCK:try");
+            writer.Write(
+                $"let! _ = {_container!.FSharpUsage}.UpsertItemAsync({_document.FSharpUsage}, {CosmosDbConcurrency.FSharpRequestOptions(etag)})");
+            writer.Write("()");
+            writer.FinishBlock();
+            CosmosDbConcurrency.WriteFSharpCatchBlock(writer, _document.VariableType, SagaChain.SagaIdVariableName);
+        }
+        else
+        {
+            writer.Write($"let! _ = {_container!.FSharpUsage}.UpsertItemAsync({_document.FSharpUsage})");
+            writer.Write("()");
+        }
+
         Next?.GenerateFSharpCode(method, writer);
     }
 }
@@ -179,12 +256,14 @@ internal class CosmosDbDeleteDocumentFrame : AsyncFrame
 {
     private readonly Variable _sagaId;
     private readonly Variable _saga;
+    private readonly bool _optimisticConcurrency;
     private Variable? _container;
 
-    public CosmosDbDeleteDocumentFrame(Variable sagaId, Variable saga)
+    public CosmosDbDeleteDocumentFrame(Variable sagaId, Variable saga, bool optimisticConcurrency = false)
     {
         _sagaId = sagaId;
         _saga = saga;
+        _optimisticConcurrency = optimisticConcurrency;
         uses.Add(_sagaId);
         uses.Add(_saga);
     }
@@ -197,17 +276,48 @@ internal class CosmosDbDeleteDocumentFrame : AsyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.Write(
-            $"await {_container!.Usage}.DeleteItemAsync<{_saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {typeof(PartitionKey).FullNameInCode()}.None).ConfigureAwait(false);");
+        if (_optimisticConcurrency)
+        {
+            // Completing a saga is just as destructive as updating it: a blind delete would drop a
+            // concurrent write that landed after this message read the document
+            var etag = LoadDocumentFrame.EtagVariableName(_saga);
+
+            writer.Write("BLOCK:try");
+            writer.Write(
+                $"await {_container!.Usage}.DeleteItemAsync<{_saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {typeof(PartitionKey).FullNameInCode()}.None, {CosmosDbConcurrency.RequestOptions(etag)}).ConfigureAwait(false);");
+            writer.FinishBlock();
+            CosmosDbConcurrency.WriteCatchBlock(writer, _saga.VariableType, _sagaId.Usage);
+        }
+        else
+        {
+            writer.Write(
+                $"await {_container!.Usage}.DeleteItemAsync<{_saga.VariableType.FullNameInCode()}>({_sagaId.Usage}, {typeof(PartitionKey).FullNameInCode()}.None).ConfigureAwait(false);");
+        }
+
         Next?.GenerateCode(method, writer);
     }
 
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         // DeleteItemAsync returns Task<ItemResponse<T>>, not Task; use let! _ = to discard the result.
-        writer.Write(
-            $"let! _ = {_container!.FSharpUsage}.DeleteItemAsync<{_saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None)");
-        writer.Write("()");
+        if (_optimisticConcurrency)
+        {
+            var etag = LoadDocumentFrame.EtagVariableName(_saga);
+
+            writer.Write("BLOCK:try");
+            writer.Write(
+                $"let! _ = {_container!.FSharpUsage}.DeleteItemAsync<{_saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None, {CosmosDbConcurrency.FSharpRequestOptions(etag)})");
+            writer.Write("()");
+            writer.FinishBlock();
+            CosmosDbConcurrency.WriteFSharpCatchBlock(writer, _saga.VariableType, _sagaId.FSharpUsage);
+        }
+        else
+        {
+            writer.Write(
+                $"let! _ = {_container!.FSharpUsage}.DeleteItemAsync<{_saga.VariableType.FSharpName()}>({_sagaId.FSharpUsage}, {typeof(PartitionKey).FSharpName()}.None)");
+            writer.Write("()");
+        }
+
         Next?.GenerateFSharpCode(method, writer);
     }
 }

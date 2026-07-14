@@ -31,9 +31,12 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
 
             // Try to load the existing saga document from CosmosDB
             let mutable thingSaga = Unchecked.defaultof<WolverineCosmosFSharpSample.ThingSaga>
+            // Capture the ETag so the eventual write can be a compare-and-swap against this exact revision
+            let mutable thingSaga_Etag : string = null
             try
                 let! _cosmosResponse = _container.ReadItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, cancellationToken = cancellation)
                 thingSaga <- _cosmosResponse.Resource
+                thingSaga_Etag <- _cosmosResponse.ETag
             with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.NotFound ->
                 ()
             if isNull thingSaga then
@@ -49,11 +52,19 @@ type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) 
 
                 // Delete the saga if completed, otherwise update it
                 if thingSaga.IsCompleted() then
-                    let! _ = _container.DeleteItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None)
-                    ()
+                    try
+                        let! _ = _container.DeleteItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, requestOptions = Microsoft.Azure.Cosmos.ItemRequestOptions(IfMatchEtag = thingSaga_Etag))
+                        ()
+                    with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->
+                        // The saga document was changed by another message since it was read
+                        raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
                 else
-                    let! _ = _container.UpsertItemAsync(thingSaga)
-                    ()
+                    try
+                        let! _ = _container.UpsertItemAsync(thingSaga, requestOptions = Microsoft.Azure.Cosmos.ItemRequestOptions(IfMatchEtag = thingSaga_Etag))
+                        ()
+                    with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->
+                        // The saga document was changed by another message since it was read
+                        raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
                 
                 // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
                 do! context.FlushOutgoingMessagesAsync()
