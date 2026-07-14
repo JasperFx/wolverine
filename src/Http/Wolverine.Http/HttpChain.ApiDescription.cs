@@ -118,6 +118,11 @@ public partial class HttpChain
 
         fillKnownHeaderParameters(apiDescription);
 
+        // Query string and header values that are only ever bound by another method in the chain
+        // (a compound handler's Load/LoadAsync/Before, an After/Finally postprocessor, a middleware
+        // method applied by a policy) are still part of this endpoint's contract. See GH-3380.
+        fillChainBoundParameters(apiDescription);
+
         fillResponseTypes(apiDescription);
 
         foreach (var parameter in FileParameters)
@@ -446,6 +451,27 @@ public partial class HttpChain
         }
     }
 
+    /// <summary>
+    /// Every method that participates in this endpoint's binding chain: the endpoint method itself plus
+    /// every middleware / postprocessor <see cref="MethodCall"/> — compound handler Load/LoadAsync/Before
+    /// methods, After/Finally postprocessors, and middleware applied by attributes or policies. The
+    /// OpenAPI description is derived from all of them, not just the endpoint method signature. See GH-3380.
+    /// </summary>
+    private IEnumerable<MethodCall> allMethodCalls()
+    {
+        yield return Method;
+
+        foreach (var call in Middleware.OfType<MethodCall>())
+        {
+            yield return call;
+        }
+
+        foreach (var call in Postprocessors.OfType<MethodCall>())
+        {
+            yield return call;
+        }
+    }
+
     private ApiParameterDescription buildParameterDescription(RoutePatternParameterPart routeParameter)
     {
         // Match the bound route variable case-insensitively: route tokens are conventionally
@@ -455,11 +481,21 @@ public partial class HttpChain
         var variable = _routeVariables.OfType<CodeGen.HttpElementVariable>()
             .FirstOrDefault(x => x.Name.EqualsIgnoreCase(routeParameter.Name));
 
-        // When no typed argument is bound to the route value (e.g. a plain complex-body endpoint
-        // whose body property overlaps a route token, or an aggregate-id route), fall back to the
-        // route constraint (`{id:guid}`, `{n:int}`, ...) so the parameter still gets its real
-        // type/format instead of defaulting to string. Both OpenAPI stacks schematize from .Type.
-        var parameterType = variable?.VariableType ?? TypeFromRouteConstraint(routeParameter) ?? typeof(string);
+        // Route values may also be bound *only* by another method in the chain (a compound handler's
+        // LoadAsync, an After postprocessor, middleware applied by a policy). Those frames may not have
+        // been resolved yet when the API description is assembled — ASP.NET Core caches the first
+        // ApiExplorer read, which can happen long before codegen — so read the binding straight off the
+        // method signatures rather than relying on a resolved variable. See GH-3380.
+        //
+        // When nothing in the chain binds the route value (e.g. a plain complex-body endpoint whose body
+        // property overlaps a route token, or a Marten aggregate-id route resolved during codegen), fall
+        // back to the route constraint (`{id:guid}`, `{n:int}`, ...) so the parameter still gets its real
+        // type/format, and finally to string. Both OpenAPI stacks schematize from .Type.
+        var parameterType = variable?.VariableType
+                            ?? typeFromBindingChain(routeParameter.Name)
+                            ?? TypeFromRouteConstraint(routeParameter)
+                            ?? typeof(string);
+
         var parameter = new ApiParameterDescription
         {
             Name = routeParameter.Name,
@@ -475,6 +511,144 @@ public partial class HttpChain
             }
         };
         return parameter;
+    }
+
+    /// <summary>
+    /// Walks every method in the binding chain looking for an argument — or an [AsParameters] container
+    /// member — bound to the named route value, and returns the CLR type it binds to. See GH-3380.
+    /// </summary>
+    private Type? typeFromBindingChain(string routeName)
+    {
+        foreach (var call in allMethodCalls())
+        {
+            foreach (var parameter in call.Method.GetParameters())
+            {
+                if (parameter.HasAttribute<AsParametersAttribute>())
+                {
+                    var memberType = routeTypeFromAsParametersMembers(parameter.ParameterType, routeName);
+                    if (memberType != null)
+                    {
+                        return memberType;
+                    }
+
+                    continue;
+                }
+
+                if (tryDetermineRouteBinding(parameter, routeName, out var parameterType))
+                {
+                    return parameterType;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static Type? routeTypeFromAsParametersMembers(Type containerType, string routeName)
+    {
+        foreach (var property in containerType.GetProperties().Where(x => x.CanRead))
+        {
+            if (matchesRouteName(property, property.Name, routeName) && isBindableRouteType(property.PropertyType))
+            {
+                return unwrapNullable(property.PropertyType);
+            }
+        }
+
+        foreach (var field in containerType.GetFields())
+        {
+            if (matchesRouteName(field, field.Name, routeName) && isBindableRouteType(field.FieldType))
+            {
+                return unwrapNullable(field.FieldType);
+            }
+        }
+
+        return null;
+    }
+
+    private static bool tryDetermineRouteBinding(ParameterInfo parameter, string routeName, out Type? parameterType)
+    {
+        parameterType = null;
+
+        if (!matchesRouteName(parameter, parameter.Name, routeName))
+        {
+            return false;
+        }
+
+        // Only a type that Wolverine could actually bind from a route value counts. This guards against
+        // a coincidental name collision with a service or HttpContext element argument.
+        if (!isBindableRouteType(parameter.ParameterType))
+        {
+            return false;
+        }
+
+        parameterType = unwrapNullable(parameter.ParameterType);
+        return true;
+    }
+
+    // An explicit [FromRoute(Name = "order-id")] wins over the member name, matching the runtime binding.
+    private static bool matchesRouteName(ICustomAttributeProvider provider, string? memberName, string routeName)
+    {
+        var attribute = provider.GetCustomAttributes(typeof(FromRouteAttribute), true)
+            .OfType<FromRouteAttribute>().FirstOrDefault();
+
+        var boundName = attribute?.Name.IsNotEmpty() == true ? attribute.Name : memberName;
+
+        return boundName != null && boundName.EqualsIgnoreCase(routeName);
+    }
+
+    private static bool isBindableRouteType(Type type)
+    {
+        var inner = unwrapNullable(type);
+        return inner == typeof(string) || CodeGen.RouteParameterStrategy.CanParse(inner);
+    }
+
+    private static Type unwrapNullable(Type type)
+    {
+        return type.IsNullable() ? type.GetInnerTypeFromNullable() : type;
+    }
+
+    /// <summary>
+    /// Adds query string and header parameters that are bound *only* by another method in the binding
+    /// chain — a compound handler's Load/LoadAsync/Before, an After/Finally postprocessor, or a middleware
+    /// method applied by a policy — and therefore never show up in the endpoint method's own variables.
+    /// See GH-3380.
+    /// </summary>
+    private void fillChainBoundParameters(ApiDescription apiDescription)
+    {
+        foreach (var call in allMethodCalls())
+        {
+            foreach (var parameter in call.Method.GetParameters())
+            {
+                if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
+                {
+                    var name = fromQuery.Name.IsNotEmpty() ? fromQuery.Name! : parameter.Name!;
+                    addChainBoundParameter(apiDescription, name, parameter.ParameterType, BindingSource.Query);
+                }
+                else if (parameter.TryGetAttribute<FromHeaderAttribute>(out var fromHeader))
+                {
+                    var name = fromHeader.Name.IsNotEmpty() ? fromHeader.Name! : parameter.Name!;
+                    addChainBoundParameter(apiDescription, name, parameter.ParameterType, BindingSource.Header);
+                }
+            }
+        }
+    }
+
+    private static void addChainBoundParameter(ApiDescription apiDescription, string name, Type parameterType,
+        BindingSource source)
+    {
+        if (apiDescription.ParameterDescriptions.Any(x => x.Source == source && x.Name.EqualsIgnoreCase(name)))
+        {
+            return;
+        }
+
+        apiDescription.ParameterDescriptions.Add(new ApiParameterDescription
+        {
+            Name = name,
+            ModelMetadata = new EndpointModelMetadata(parameterType),
+            Source = source,
+            Type = parameterType,
+            IsRequired = false
+        });
     }
 
     // Maps an inline route constraint to the CLR type ASP.NET's own route binding would use, so the
