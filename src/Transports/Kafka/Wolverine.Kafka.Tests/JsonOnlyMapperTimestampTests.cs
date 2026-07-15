@@ -115,6 +115,25 @@ public class JsonOnlyMapperTimestampTests
         envelope.Headers.ContainsKey(EnvelopeConstants.TenantIdKey).ShouldBeFalse();
     }
 
+    [Fact]
+    public void null_custom_header_maps_to_envelope_without_failing()
+    {
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Headers = new Headers
+            {
+                { "optional-header", null! }
+            }
+        };
+        var envelope = new Envelope();
+
+        buildMapper().MapIncomingToEnvelope(envelope, incoming);
+
+        envelope.Headers.ContainsKey("optional-header").ShouldBeTrue();
+        envelope.Headers["optional-header"].ShouldBeNull();
+    }
+
     [Theory]
     [MemberData(nameof(ReservedHeaderKeys))]
     public void each_reserved_kafka_header_is_skipped(string key)

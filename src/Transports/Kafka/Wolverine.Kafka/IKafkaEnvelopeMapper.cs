@@ -86,15 +86,15 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         }
     }
 
-    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string value)
+    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string? value)
     {
         if (incoming.Headers != null && incoming.Headers.TryGetLastBytes(key, out var bytes))
         {
-            value = Encoding.UTF8.GetString(bytes);
+            value = bytes is null ? null : Encoding.UTF8.GetString(bytes);
             return true;
         }
 
-        value = default!;
+        value = null;
         return false;
     }
 }
