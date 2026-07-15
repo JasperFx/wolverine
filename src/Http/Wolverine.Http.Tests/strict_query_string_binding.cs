@@ -247,12 +247,176 @@ public class strict_query_string_binding : IClassFixture<StrictQueryBindingFixtu
         response.PageSize.ShouldBe(5);
         response.Token.ShouldBe(StrictQueryModel.DefaultToken);
     }
+
+    // GH-3398: the collection case. An unparseable *element* of a multi-valued query string
+    // parameter was silently dropped, taking the whole collection to null/empty. That is worse
+    // than a plain 400: an optional filter predicate silently disappears and the endpoint answers
+    // 200 with an unfiltered result set.
+
+    private Task<IScenarioResult> expectCollection400(Action<Alba.Scenario> configure)
+    {
+        return _fixture.StrictHost.Scenario(x =>
+        {
+            configure(x);
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+    }
+
+    [Fact]
+    public async Task malformed_enum_array_element_returns_400()
+    {
+        var result = await expectCollection400(x =>
+            x.Get.Url("/strict/collections").QueryString("Colours", "Purple"));
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldContain("Colours");
+        text.ShouldContain("Purple");
+    }
+
+    [Fact]
+    public async Task one_bad_element_rejects_the_whole_collection()
+    {
+        // All-or-nothing: a valid element does not rescue the request. Silently keeping "Red" and
+        // dropping "Purple" would still be a silently wrong answer.
+        var result = await _fixture.StrictHost.Scenario(x =>
+        {
+            x.Get.Url("/strict/collections?Colours=Red&Colours=Purple");
+            x.StatusCodeShouldBe(400);
+            x.ContentTypeShouldBe("application/problem+json");
+        });
+
+        var text = await result.ReadAsTextAsync();
+        text.ShouldContain("Colours");
+        text.ShouldContain("Purple");
+    }
+
+    [Fact]
+    public async Task malformed_int_array_element_returns_400()
+    {
+        var result = await expectCollection400(x =>
+            x.Get.Url("/strict/collections").QueryString("Ids", "abc"));
+
+        (await result.ReadAsTextAsync()).ShouldContain("Ids");
+    }
+
+    [Fact]
+    public async Task malformed_guid_array_element_returns_400()
+    {
+        var result = await expectCollection400(x =>
+            x.Get.Url("/strict/collections").QueryString("Tokens", "not-a-guid"));
+
+        (await result.ReadAsTextAsync()).ShouldContain("Tokens");
+    }
+
+    [Fact]
+    public async Task malformed_generic_list_element_returns_400()
+    {
+        var result = await expectCollection400(x =>
+            x.Get.Url("/strict/collections").QueryString("Pages", "abc"));
+
+        (await result.ReadAsTextAsync()).ShouldContain("Pages");
+    }
+
+    [Fact]
+    public async Task malformed_collection_element_on_direct_method_argument_returns_400()
+    {
+        var result = await expectCollection400(x =>
+            x.Get.Url("/strict/collections/direct").QueryString("numbers", "abc"));
+
+        (await result.ReadAsTextAsync()).ShouldContain("numbers");
+    }
+
+    [Fact]
+    public async Task valid_collection_values_bind_in_strict_mode()
+    {
+        var token = Guid.NewGuid();
+
+        var result = await _fixture.StrictHost.Scenario(x =>
+        {
+            x.Get.Url($"/strict/collections?Colours=Red&Colours=Blue&Ids=1&Ids=2&Tokens={token}&Pages=3");
+            x.StatusCodeShouldBe(200);
+        });
+
+        var response = await result.ReadAsJsonAsync<StrictCollectionQueryModel>();
+        response.Colours.ShouldBe([StrictColour.Red, StrictColour.Blue]);
+        response.Ids.ShouldBe([1, 2]);
+        response.Tokens.ShouldBe([token]);
+        response.Pages.ShouldBe([3]);
+    }
+
+    [Fact]
+    public async Task omitted_collections_keep_initializers_in_strict_mode()
+    {
+        var result = await _fixture.StrictHost.Scenario(x =>
+        {
+            x.Get.Url("/strict/collections");
+            x.StatusCodeShouldBe(200);
+        });
+
+        var response = await result.ReadAsJsonAsync<StrictCollectionQueryModel>();
+        response.Colours.ShouldBeNull();
+        response.Ids.ShouldBeNull();
+        response.Tokens.ShouldBeNull();
+        response.Pages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task malformed_collection_values_are_lenient_when_flag_is_off()
+    {
+        // The pre-3398 lenient behavior is preserved by default in 6.x: bad elements are dropped
+        var result = await _fixture.LenientHost.Scenario(x =>
+        {
+            x.Get.Url("/strict/collections?Colours=Purple&Ids=abc&Pages=abc");
+            x.StatusCodeShouldBe(200);
+        });
+
+        var response = await result.ReadAsJsonAsync<StrictCollectionQueryModel>();
+        response.Colours.ShouldBeNull();
+        response.Ids.ShouldBeNull();
+        response.Pages.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task partially_malformed_collection_values_are_lenient_when_flag_is_off()
+    {
+        var result = await _fixture.LenientHost.Scenario(x =>
+        {
+            x.Get.Url("/strict/collections?Colours=Red&Colours=Purple");
+            x.StatusCodeShouldBe(200);
+        });
+
+        var response = await result.ReadAsJsonAsync<StrictCollectionQueryModel>();
+        response.Colours.ShouldBe([StrictColour.Red]);
+    }
 }
 
 public enum StrictSortOrder
 {
     Name = 1,
     Date = 2
+}
+
+public enum StrictColour
+{
+    Red,
+    Green,
+    Blue
+}
+
+public class StrictCollectionQueryModel
+{
+    [FromQuery]
+    public StrictColour[]? Colours { get; set; }
+
+    [FromQuery]
+    public int[]? Ids { get; set; }
+
+    [FromQuery]
+    public Guid[]? Tokens { get; set; }
+
+    [FromQuery]
+    public List<int> Pages { get; set; } = [];
 }
 
 public class StrictQueryModel
@@ -290,5 +454,17 @@ public static class StrictQueryBindingEndpoints
     public static string GetDirect(int number)
     {
         return number.ToString();
+    }
+
+    [WolverineGet("/strict/collections")]
+    public static StrictCollectionQueryModel GetCollections([AsParameters] StrictCollectionQueryModel query)
+    {
+        return query;
+    }
+
+    [WolverineGet("/strict/collections/direct")]
+    public static string GetCollectionDirect(int[] numbers)
+    {
+        return numbers.Length.ToString();
     }
 }

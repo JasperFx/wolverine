@@ -8,6 +8,18 @@ using WolverineWebApi.TestSupport;
 
 namespace Wolverine.Http.Tests;
 
+/// <summary>
+/// The attribute-driven OpenAPI *shape* harness on the Swashbuckle stack: any endpoint in WolverineWebApi
+/// annotated with an <see cref="OpenApiExpectationAttribute"/> ([ExpectParameter], [ExpectParameterCount],
+/// [ExpectRequestBody], [ExpectNoRequestBody], [ExpectProduces], [ExpectStatusCodes], [ExpectMatch]) is fed
+/// through <see cref="verify_open_api_expectations"/>, which resolves the *rendered* OpenAPI document and
+/// validates the expectations against the real operation.
+///
+/// TO ADD A SHAPE: annotate an endpoint method in WolverineWebApi with the Expect* attributes describing
+/// what the operation must look like. No test code required — this theory picks it up automatically.
+///
+/// The Microsoft.AspNetCore.OpenApi half of the shape coverage lives in openapi_shape_tests.cs.
+/// </summary>
 public class open_api_generation : IntegrationContext
 {
     public open_api_generation(AppFixture fixture) : base(fixture)

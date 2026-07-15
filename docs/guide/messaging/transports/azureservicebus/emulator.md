@@ -1,6 +1,8 @@
 # Using the Azure Service Bus Emulator
 
-The [Azure Service Bus Emulator](https://learn.microsoft.com/en-us/azure/service-bus-messaging/overview-emulator) allows you to run integration tests against a local emulator instance instead of a real Azure Service Bus namespace. This is exactly what Wolverine uses internally for its own test suite.
+The [Azure Service Bus Emulator](https://learn.microsoft.com/en-us/azure/service-bus-messaging/overview-emulator) lets you run
+Wolverine against a local emulator instance instead of a real Azure Service Bus namespace, either for local development or for
+integration testing. This is exactly what Wolverine uses internally for its own test suite.
 
 ## Docker Compose Setup
 
@@ -24,7 +26,7 @@ services:
     volumes:
       - ./docker/asb/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
     ports:
-      - "5673:5672"   # AMQP messaging
+      - "5672:5672"   # AMQP messaging
       - "5300:5300"   # HTTP management
     environment:
       SQL_SERVER: asb-sql
@@ -38,7 +40,9 @@ services:
 ```
 
 ::: tip
-The emulator exposes two ports: the AMQP port (5672) for sending and receiving messages, and an HTTP management port (5300) for queue/topic administration. These must be mapped to different host ports.
+The emulator exposes two ports: the AMQP port (5672) for sending and receiving messages, and an HTTP management port (5300) for
+queue and topic administration. Wolverine's own `docker-compose.yml` maps the AMQP port to host port **5673** to avoid colliding
+with RabbitMQ, which is why Wolverine's own tests pass explicit connection strings as shown below.
 :::
 
 ## Emulator Configuration File
@@ -101,101 +105,119 @@ You can also pre-configure queues and topics in this file if needed:
 }
 ```
 
-## Connection Strings
+## Connecting Wolverine to the Emulator <Badge type="tip" text="6.18" />
 
-The emulator uses standard Azure Service Bus connection strings with `UseDevelopmentEmulator=true`:
+The emulator uses one connection string for messaging (AMQP) and a *separate* one for management (HTTP), where real Azure Service
+Bus uses a single connection string for both. `UseAzureServiceBusEmulator()` hides that split. With the standard emulator ports it
+takes no arguments at all:
 
-```cs
-// AMQP connection for sending/receiving messages
-var messagingConnectionString =
-    "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-
-// HTTP connection for management operations (creating queues, topics, etc.)
-var managementConnectionString =
-    "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-```
-
-::: warning
-The emulator uses separate ports for messaging (AMQP) and management (HTTP) operations. In production Azure Service Bus, a single connection string handles both, but the emulator requires you to configure these separately.
-:::
-
-## Configuring Wolverine with the Emulator
-
-The key to using the emulator with Wolverine is setting both the primary connection string (for AMQP messaging) and the `ManagementConnectionString` (for HTTP administration) on the transport:
-
+<!-- snippet: sample_using_azure_service_bus_emulator -->
+<a id='snippet-sample_using_azure_service_bus_emulator'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 builder.UseWolverine(opts =>
 {
-    opts.UseAzureServiceBus(messagingConnectionString)
+    // Connect to a locally running Azure Service Bus emulator using the
+    // standard emulator ports (AMQP on 5672, management on 5300)
+    opts.UseAzureServiceBusEmulator()
+
+        // The emulator starts out empty, so let Wolverine build
+        // any queues, topics, or subscriptions it needs
         .AutoProvision()
         .AutoPurgeOnStartup();
 
-    // Required for the emulator: set the management connection string
-    // to the HTTP port since it differs from the AMQP port
-    var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
-    transport.ManagementConnectionString = managementConnectionString;
-
-    // Configure your queues, topics, etc. as normal
     opts.ListenToAzureServiceBusQueue("my-queue");
     opts.PublishAllMessages().ToAzureServiceBusQueue("my-queue");
 });
+
+using var host = builder.Build();
+await host.StartAsync();
 ```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L48-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_emulator' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
-## Creating a Test Helper
+The parameterless version uses the defaults below, which are also exposed as the constants
+`AzureServiceBusEmulatorExtensions.DefaultEmulatorConnectionString` and
+`AzureServiceBusEmulatorExtensions.DefaultEmulatorManagementConnectionString`:
 
-Wolverine's own test suite uses a static helper extension method to standardize emulator configuration across all tests. Here's the pattern:
+| Purpose | Default connection string |
+| --- | --- |
+| Messaging (AMQP) | `Endpoint=sb://localhost:5672;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;` |
+| Management (HTTP) | `Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;` |
+
+If you have mapped the emulator to different host ports, pass both connection strings explicitly:
+
+<!-- snippet: sample_using_azure_service_bus_emulator_with_connection_strings -->
+<a id='snippet-sample_using_azure_service_bus_emulator_with_connection_strings'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    // If you've mapped the emulator to non-standard ports, pass both the
+    // messaging (AMQP) and management (HTTP) connection strings explicitly
+    opts.UseAzureServiceBusEmulator(
+            "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;",
+            "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;")
+        .AutoProvision()
+        .AutoPurgeOnStartup();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L74-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_emulator_with_connection_strings' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+`UseAzureServiceBusEmulator()` returns the same `AzureServiceBusConfiguration` as `UseAzureServiceBus()`, so everything else --
+`AutoProvision()`, `AutoPurgeOnStartup()`, conventional routing, queue and topic configuration -- chains off of it exactly as it
+would against a real namespace.
+
+## Deleting All Existing Objects at Startup
+
+The emulator is a long lived, shared resource, and leftover queues or topics from earlier runs can leak into later ones. Wolverine
+can wipe the namespace clean at application startup, but this behavior is strictly **opt in**:
+
+<!-- snippet: sample_using_azure_service_bus_emulator_with_cleanup -->
+<a id='snippet-sample_using_azure_service_bus_emulator_with_cleanup'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UseAzureServiceBusEmulator()
+
+        // CAUTION! This deletes *every* queue and topic in the connected
+        // namespace at startup. It is opt in, and is only meant for the
+        // emulator or a throwaway namespace. Never turn this on against
+        // a real Azure Service Bus namespace you care about
+        .DeleteAllExistingObjectsOnStartup()
+
+        .AutoProvision();
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L96-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_azure_service_bus_emulator_with_cleanup' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+::: danger
+`DeleteAllExistingObjectsOnStartup()` deletes **every** queue and topic -- and therefore every message and subscription -- in the
+connected namespace each time the application starts. It is irreversible, and it is never turned on for you. It exists for the
+emulator and for throwaway namespaces. Never enable it against a real Azure Service Bus namespace that holds anything you care
+about. If you only want to drain messages out of the endpoints Wolverine itself knows about, use `AutoPurgeOnStartup()` instead.
+:::
+
+If you would rather clean up out of band -- say, once per test run rather than once per host -- call the standalone helper. It
+takes the *management* connection string, and defaults to the standard emulator one:
 
 ```cs
-public static class AzureServiceBusTesting
-{
-    // Connection strings pointing at the emulator
-    public static readonly string MessagingConnectionString =
-        "Endpoint=sb://localhost:5673;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-
-    public static readonly string ManagementConnectionString =
-        "Endpoint=sb://localhost:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;";
-
-    private static bool _cleaned;
-
-    public static AzureServiceBusConfiguration UseAzureServiceBusTesting(
-        this WolverineOptions options)
-    {
-        // Delete all queues and topics on first usage to start clean
-        if (!_cleaned)
-        {
-            _cleaned = true;
-            DeleteAllEmulatorObjectsAsync().GetAwaiter().GetResult();
-        }
-
-        var config = options.UseAzureServiceBus(MessagingConnectionString);
-
-        var transport = options.Transports.GetOrCreate<AzureServiceBusTransport>();
-        transport.ManagementConnectionString = ManagementConnectionString;
-
-        return config.AutoProvision();
-    }
-
-    public static async Task DeleteAllEmulatorObjectsAsync()
-    {
-        var client = new ServiceBusAdministrationClient(ManagementConnectionString);
-
-        await foreach (var topic in client.GetTopicsAsync())
-        {
-            await client.DeleteTopicAsync(topic.Name);
-        }
-
-        await foreach (var queue in client.GetQueuesAsync())
-        {
-            await client.DeleteQueueAsync(queue.Name);
-        }
-    }
-}
+// Same destructive semantics: this drops every queue and topic in the namespace
+await AzureServiceBusEmulatorExtensions.DeleteAllAzureServiceBusObjectsAsync();
 ```
 
 ## Writing Integration Tests
 
-With the helper in place, integration tests become straightforward:
+Integration tests against the emulator are just normal Wolverine tests:
 
 ```cs
 public class when_sending_messages : IAsyncLifetime
@@ -207,7 +229,8 @@ public class when_sending_messages : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAzureServiceBusTesting()
+                opts.UseAzureServiceBusEmulator()
+                    .AutoProvision()
                     .AutoPurgeOnStartup();
 
                 opts.ListenToAzureServiceBusQueue("send_and_receive");
@@ -238,12 +261,14 @@ public class when_sending_messages : IAsyncLifetime
 ```
 
 ::: tip
-Use `.IncludeExternalTransports()` on the tracked session so Wolverine waits for messages that travel through Azure Service Bus rather than only tracking in-memory activity.
+Use `.IncludeExternalTransports()` on the tracked session so Wolverine waits for messages that travel through Azure Service Bus
+rather than only tracking in-memory activity.
 :::
 
 ## Disabling Parallel Test Execution
 
-Because the emulator is a shared resource, tests that create and tear down queues or topics can interfere with each other when run in parallel. Wolverine's own test suite disables parallel execution for its Azure Service Bus tests:
+Because the emulator is a shared resource, tests that create and tear down queues or topics can interfere with each other when run
+in parallel. Wolverine's own test suite disables parallel execution for its Azure Service Bus tests:
 
 ```cs
 // Add to a file like NoParallelization.cs in your test project

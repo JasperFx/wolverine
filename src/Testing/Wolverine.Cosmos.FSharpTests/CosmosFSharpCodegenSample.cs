@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using FluentValidation;
+using Shouldly;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Model;
 using Microsoft.Azure.Cosmos;
@@ -27,7 +28,13 @@ public static class CosmosFSharpCodegenSample
     private const string ConnectionString =
         "AccountEndpoint=https://localhost:8081/;AccountKey=C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
-    public static string GenerateCode()
+    /// <param name="partitionSagasById">
+    ///     Render the saga frames as they are emitted for an application that opted into
+    ///     <see cref="CosmosDbConfiguration.PartitionSagasById" /> (GH-3415), which reads and deletes the saga in
+    ///     the partition keyed by its id and writes it through <c>CosmosSagaStorage</c> rather than the typed
+    ///     <c>UpsertItemAsync&lt;T&gt;</c>. Different F#, so it needs the same compile gate as the default.
+    /// </param>
+    public static string GenerateCode(bool partitionSagasById = false)
     {
         DynamicCodeBuilder.WithinCodegenCommand = true;
         try
@@ -39,11 +46,20 @@ public static class CosmosFSharpCodegenSample
                     opts.Services.AddScoped<IValidator<CreateThing>, CreateThingValidator>();
 
                     opts.UseFluentValidation();
-                    opts.UseCosmosDbPersistence("wolverine_fsharp_cosmos");
+                    opts.UseCosmosDbPersistence("wolverine_fsharp_cosmos", cosmos =>
+                    {
+                        if (partitionSagasById)
+                        {
+                            cosmos.PartitionSagasById();
+                        }
+                    });
                     opts.Policies.AutoApplyTransactions();
 
                     opts.Discovery.DisableConventionalDiscovery();
                     opts.Discovery.IncludeType<CreateThingHandler>();
+                    // ThingSaga exercises LoadDocumentFrame.GenerateFSharpCode (GH-2969):
+                    // its Handle chain loads the saga document from CosmosDB before calling the method.
+                    opts.Discovery.IncludeType<ThingSaga>();
                 })
                 .Build();
 
@@ -51,12 +67,29 @@ public static class CosmosFSharpCodegenSample
             _ = host.Services.GetServices<ICodeFileCollection>().ToArray();
 
             var handlerGraph = host.Services.GetRequiredService<HandlerGraph>();
-            var chain = handlerGraph.ChainFor(typeof(CreateThing))
-                        ?? throw new InvalidOperationException("No handler chain was built for CreateThing.");
-
             var serviceVariableSource = host.Services.GetService<IServiceVariableSource>();
             var generatedAssembly = handlerGraph.StartAssembly(handlerGraph.Rules);
-            ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+
+            // Render all chains from the sample assembly so the compile gate covers both the
+            // FluentValidation+CosmosDB handler and the saga (which exercises LoadDocumentFrame).
+            var sampleAssembly = typeof(CreateThingHandler).Assembly;
+            var chains = handlerGraph.AllChains()
+                .Where(c => c.MessageType.Assembly == sampleAssembly)
+                .OrderBy(c => c.MessageType.Name)
+                .ToArray();
+
+            // Expect exactly 3 chains: CreateThing + ContinueThing + StartThingSaga.
+            // A wrong count means saga discovery for F# types broke (or IncludeType<ThingSaga>()
+            // stopped resolving), which would silently drop LoadDocumentFrame coverage.
+            chains.Length.ShouldBe(3);
+            handlerGraph.ChainFor(typeof(CreateThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(ContinueThing)).ShouldNotBeNull();
+            handlerGraph.ChainFor(typeof(StartThingSaga)).ShouldNotBeNull();
+
+            foreach (var chain in chains)
+            {
+                ((ICodeFile)chain).AssembleTypes(generatedAssembly);
+            }
 
             return generatedAssembly.GenerateFSharpCode(serviceVariableSource);
         }

@@ -20,6 +20,20 @@ public class ExpectParameterAttribute : OpenApiExpectationAttribute
     /// <summary>Expected schema <c>format</c> (e.g. "uuid", "int32", "date-time"). Null = don't assert.</summary>
     public string? Format { get; set; }
 
+    /// <summary>When set, asserts the parameter's <c>required</c> flag. Unset = don't assert.</summary>
+    public bool RequiredSet { get; private set; }
+    private bool _required;
+
+    public bool Required
+    {
+        get => _required;
+        set
+        {
+            _required = value;
+            RequiredSet = true;
+        }
+    }
+
     public ExpectParameterAttribute(string name, ParameterLocation @in)
     {
         Name = name;
@@ -44,6 +58,11 @@ public class ExpectParameterAttribute : OpenApiExpectationAttribute
         {
             parameter.Schema.ShouldNotBeNull($"Parameter '{Name}' has no schema");
             parameter.Schema.Format.ShouldBe(Format, $"Parameter '{Name}' schema format");
+        }
+
+        if (RequiredSet)
+        {
+            parameter.Required.ShouldBe(Required, $"Parameter '{Name}' required flag");
         }
     }
 }

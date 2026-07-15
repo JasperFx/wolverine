@@ -106,14 +106,20 @@ public static class WolverineOptionsPolecatExtensions
                 s.GetRequiredService<IWolverineRuntime>(),
                 (IMessageDatabase)s.GetRequiredService<IMessageStore>()));
 
-        // GH-3133 / GH-3219, Gap 2: Polecat's AddPolecat registers IDocumentStore but not the
-        // store-agnostic JasperFx.Events.IEventStore (the Polecat DocumentStore implements
-        // IEventStore<IDocumentSession, IQuerySession>). Bridge it UNCONDITIONALLY so the store is
-        // discoverable via GetServices<IEventStore>() regardless of whether managed distribution is
-        // enabled — the EventSubscriptionAgentFamily resolves stores this way (when managed distribution
-        // is on) AND so does the read-only capabilities / CritterWatch projection-explorer surface
-        // (always). Marten registers IEventStore unconditionally in its own AddMarten.
-        expression.Services.AddSingleton<IEventStore>(s => (IEventStore)s.GetRequiredService<IDocumentStore>());
+        // GH-3365: do NOT bridge the primary store to the store-agnostic JasperFx.Events.IEventStore
+        // here. Polecat's own AddPolecat() registers IEventStore for the primary DocumentStore on every
+        // overload (verified against the 4.8.0 floor of our package range), exactly the way AddMarten
+        // does — which is why Wolverine.Marten registers nothing of the sort for its primary store
+        // either. An earlier Polecat did not, so GH-3133 / GH-3219 added a bridge here; once Polecat
+        // started registering it, the two stacked and GetServices<IEventStore>() handed back the very
+        // same DocumentStore instance twice. Everything enumerating the registered stores then
+        // double-counted the primary (e.g. CritterWatch's EventProgressionPoller polling it twice per
+        // pass). `bootstrapping_ancillary_polecat_stores_with_wolverine` pins the resulting shape —
+        // primary once, each ancillary once — so this fails loudly should Polecat ever drop its own
+        // registration.
+        //
+        // The ancillary bridge in AncillaryWolverineOptionsPolecatExtensions IS still required:
+        // AddPolecatStore<T>() does not register IEventStore for the T store.
 
         if (integration.UseWolverineManagedEventSubscriptionDistribution)
         {

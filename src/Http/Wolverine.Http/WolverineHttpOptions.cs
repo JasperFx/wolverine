@@ -5,6 +5,7 @@ using JasperFx.Core.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Wolverine.Configuration;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
@@ -206,9 +207,12 @@ public class WolverineHttpOptions
     /// This matches the behavior of ASP.NET Core minimal API parameter binding. A <b>missing</b>
     /// query string value still binds the parameter's default / property initializer value in
     /// either mode. Applies to query string binding for endpoint method arguments and for
-    /// [AsParameters] members bound from the query string. This is currently opt-in
+    /// [AsParameters] members bound from the query string, including collection parameters
+    /// (arrays, List&lt;T&gt;, IEnumerable&lt;T&gt;, etc.) where a single unparseable element rejects the
+    /// entire binding. This is currently opt-in
     /// (default false) to preserve the previous lenient behavior, but the default flips
     /// to true (strict) in Wolverine 7.0. See https://github.com/JasperFx/wolverine/issues/3372
+    /// and https://github.com/JasperFx/wolverine/issues/3398
     /// </summary>
     public bool RejectUnparseableQueryValues { get; set; }
 
@@ -229,6 +233,13 @@ public class WolverineHttpOptions
     internal object? NewtonsoftSettingsConfiguration { get; set; }
 
     internal HttpGraph? Endpoints { get; set; }
+
+    /// <summary>
+    ///     The route builder MapWolverineEndpoints() was called on. Its DataSources collection is the
+    ///     only place the host's minimal API / MVC endpoints can be seen before the host starts, which
+    ///     an ApiExplorer read that early depends on. See <see cref="HostEndpointDataSources" />.
+    /// </summary>
+    internal IEndpointRouteBuilder? RouteBuilder { get; set; }
 
     internal MiddlewarePolicy Middleware { get; } = new();
 

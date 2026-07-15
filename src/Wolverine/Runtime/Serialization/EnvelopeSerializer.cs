@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Globalization;
 using System.Xml;
 
@@ -5,6 +6,44 @@ namespace Wolverine.Runtime.Serialization;
 
 public static class EnvelopeSerializer
 {
+    /// <summary>
+    ///     The header keys that <see cref="ReadDataElement" /> promotes straight back into a typed
+    ///     <see cref="Envelope" /> property instead of leaving in <see cref="Envelope.Headers" />.
+    ///     These are skipped when the loose <see cref="Envelope.Headers" /> are written to the wire
+    ///     format so that a reserved key sitting in <c>Headers</c> — put there by a custom
+    ///     <c>IEnvelopeMapper</c> copying raw broker headers, or by user code — can never overwrite
+    ///     the authoritative typed property on the next read. See GH-3408.
+    ///     Note that this deliberately does NOT include every constant on <see cref="EnvelopeConstants" />:
+    ///     <c>causation-id</c> is intentionally carried in <c>Headers</c> (see <c>DeliveryOptions</c>) and
+    ///     is never promoted by the reader, so it must keep round-tripping as an ordinary header.
+    /// </summary>
+    internal static readonly FrozenSet<string> ReservedHeaderKeys = new[]
+    {
+        EnvelopeConstants.SourceKey,
+        EnvelopeConstants.MessageTypeKey,
+        EnvelopeConstants.ReplyUriKey,
+        EnvelopeConstants.ContentTypeKey,
+        EnvelopeConstants.CorrelationIdKey,
+        EnvelopeConstants.SagaIdKey,
+        EnvelopeConstants.ConversationIdKey,
+        EnvelopeConstants.DestinationKey,
+        EnvelopeConstants.AcceptedContentTypesKey,
+        EnvelopeConstants.IdKey,
+        EnvelopeConstants.ParentIdKey,
+        EnvelopeConstants.GroupIdKey,
+        EnvelopeConstants.ReplyRequestedKey,
+        EnvelopeConstants.AckRequestedKey,
+        EnvelopeConstants.IsResponseKey,
+        EnvelopeConstants.ExecutionTimeKey,
+        EnvelopeConstants.KeepUntilKey,
+        EnvelopeConstants.AttemptsKey,
+        EnvelopeConstants.DeliverByKey,
+        EnvelopeConstants.TenantIdKey,
+        EnvelopeConstants.TopicNameKey,
+        EnvelopeConstants.UserNameKey,
+        EnvelopeConstants.PartitionKey
+    }.ToFrozenSet(StringComparer.Ordinal);
+
     /// <summary>
     /// Caps applied to inbound envelopes during deserialization. Defaults to
     /// <see cref="EnvelopeReaderLimits.Default"/>. Wolverine publishes the
@@ -338,6 +377,15 @@ public static class EnvelopeSerializer
         foreach (var pair in env.Headers)
         {
             if (pair.Value is null)
+            {
+                continue;
+            }
+
+            // A reserved key sitting in the loose Headers would be written *after* the typed
+            // properties above, and the reader promotes reserved keys straight back into those
+            // typed properties -- so writing it would let the header silently overwrite the real
+            // TenantId/SagaId/Id/etc. Skip it instead. See GH-3408.
+            if (ReservedHeaderKeys.Contains(pair.Key))
             {
                 continue;
             }

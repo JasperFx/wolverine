@@ -15,7 +15,6 @@ public class end_to_end : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        #region sample_using_azure_service_bus_session_identifiers
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -55,8 +54,6 @@ public class end_to_end : IAsyncLifetime
 
                     .ProcessInline();
             }).StartAsync();
-
-        #endregion
     }
 
     public async Task DisposeAsync()
@@ -82,7 +79,6 @@ public class end_to_end : IAsyncLifetime
     [Fact]
     public async Task disable_system_queues()
     {
-        #region sample_disable_system_queues_in_azure_service_bus
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
@@ -94,8 +90,6 @@ public class end_to_end : IAsyncLifetime
 
                 opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
             }).StartAsync();
-
-        #endregion
 
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<AzureServiceBusTransport>();
 

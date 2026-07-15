@@ -23,9 +23,18 @@ public class DefaultApp : IDisposable
         Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
+                // Pin the application assembly rather than letting Wolverine infer it. The fallback
+                // is a stack walk (WolverineOptions.determineCallingAssembly) that takes the first
+                // non-System/Microsoft frame outside Wolverine — and under xUnit that frame is not
+                // reliably CoreTests. Depending on what ran before this fixture is built, it can
+                // resolve to xunit.execution.dotnet, at which point conventional discovery scans
+                // xUnit, finds no handlers, and every test here fails with an unrelated-looking
+                // IndeterminateRoutesException. See GH-3423.
+                opts.ApplicationAssembly = typeof(DefaultApp).Assembly;
+
                 opts.Policies.MessageExecutionLogLevel(LogLevel.Information);
                 opts.Policies.MessageSuccessLogLevel(LogLevel.Debug);
-                
+
                 opts.IncludeType<MessageConsumer>();
                 opts.IncludeType<InvokedMessageHandler>();
 
@@ -45,16 +54,7 @@ public class DefaultApp : IDisposable
 
     public void Dispose()
     {
-        Host?.Dispose();
-        Host = null!;
-    }
-
-    public void RecycleIfNecessary()
-    {
-        if (Host == null)
-        {
-            Host = WolverineHost.Basic();
-        }
+        Host.Dispose();
     }
 
     public HandlerChain ChainFor<T>()
@@ -67,10 +67,13 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 {
     private readonly DefaultApp _default;
 
+    // Only set when a test opts out of the shared fixture via with(). That host belongs to the
+    // test and has to be disposed with it; the DefaultApp fixture does not, and must not be.
+    private IHost? _ownedHost;
+
     public IntegrationContext(DefaultApp @default)
     {
         _default = @default;
-        _default.RecycleIfNecessary();
 
         Host = _default.Host;
     }
@@ -84,12 +87,21 @@ public class IntegrationContext : IDisposable, IClassFixture<DefaultApp>
 
     public virtual void Dispose()
     {
-        _default.Dispose();
+        // Dispose only what this test built for itself. DefaultApp is an IClassFixture, so xUnit
+        // owns its lifetime and disposes it once the class finishes. Tearing it down here — after
+        // every test method — left the *shared* host disposed for the tests that followed, and the
+        // guard that papered over that silently rebuilt it as a WolverineHost.Basic() carrying none
+        // of DefaultApp's handler/service registrations. Tests then passed or failed on ordering.
+        // See GH-3423.
+        _ownedHost?.Dispose();
     }
 
     protected async Task with(Action<WolverineOptions> configuration)
     {
-        Host = await WolverineHost.ForAsync(configuration);
+        _ownedHost?.Dispose();
+
+        _ownedHost = await WolverineHost.ForAsync(configuration);
+        Host = _ownedHost;
     }
 
     protected HandlerChain chainFor<T>()

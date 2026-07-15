@@ -229,6 +229,10 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         options.TenantIdDetection.Services = serviceProvider; // Hokey, but let this go
         options.Endpoints = new HttpGraph(runtime.Options, serviceProvider.GetRequiredService<IServiceContainer>());
 
+        // Held rather than read now: endpoints mapped *after* this call still land in the same live
+        // DataSources collection, and an ApiExplorer read is the only thing that needs them. See GH-3421.
+        options.RouteBuilder = endpoints;
+
         configure?.Invoke(options);
 
         options.Policies.Add(new ProblemDetailsFromMiddleware());

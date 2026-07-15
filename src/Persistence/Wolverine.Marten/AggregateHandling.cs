@@ -40,6 +40,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
     {
         Store(chain);
 
+        declareAggregateIdRouteParameter(chain);
+
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
 
         var loader = new LoadAggregateFrame(this);
@@ -71,6 +73,44 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
         
         return aggregate;
+    }
+
+    /// <summary>
+    /// Tell an HTTP chain the CLR type of the route parameter that names this aggregate, so that the
+    /// generated OpenAPI parameter carries the identity's real schema.
+    ///
+    /// On the <c>[AggregateHandler]</c> shape the aggregate id is read off the command rather than off the
+    /// route, so an unconstrained token — the <c>{id}</c> in <c>[WolverinePost("/orders/{id}/confirm")]</c>
+    /// paired with <c>Handle(ConfirmOrder command, Order order)</c> — is bound by nothing in the endpoint
+    /// signature and would otherwise be described as a plain <c>string</c>. The identity type is Marten
+    /// domain knowledge that Wolverine.Http cannot infer on its own. See GH-3420.
+    /// </summary>
+    private void declareAggregateIdRouteParameter(IChain chain)
+    {
+        if (chain is not IRoutedChain routed || AggregateId == null || AggregateType == null) return;
+
+        var routeParameterNames = routed.RouteParameterNames;
+        if (routeParameterNames.Count == 0) return;
+
+        // Same precedence as WriteAggregateAttribute.FindIdentity()
+        string?[] candidates =
+        [
+            (Requirement as WriteAggregateAttribute)?.RouteOrParameterName,
+            $"{AggregateType.Name.ToCamelCase()}Id",
+            "id"
+        ];
+
+        foreach (var candidate in candidates)
+        {
+            if (candidate.IsEmpty()) continue;
+
+            var match = routeParameterNames.FirstOrDefault(x => x.EqualsIgnoreCase(candidate!));
+            if (match != null)
+            {
+                routed.DeclareRouteParameterType(match, AggregateId.VariableType);
+                return;
+            }
+        }
     }
 
     public void Store(IChain chain)

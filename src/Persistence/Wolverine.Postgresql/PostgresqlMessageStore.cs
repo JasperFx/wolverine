@@ -12,6 +12,7 @@ using Weasel.Core;
 using Weasel.Core.Migrations;
 using Weasel.Postgresql;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Schema;
 using Wolverine.Postgresql.Util;
@@ -28,12 +29,13 @@ using Table = Weasel.Postgresql.Tables.Table;
 
 namespace Wolverine.Postgresql;
 
-internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>
+internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConnectionBudgetProbe
 {
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _reassignIncomingSql;
+    private DatabaseServerId? _serverId;
 
     private readonly List<ISchemaObject> _externalTables = new();
 
@@ -547,6 +549,48 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         }
         
         await conn.CloseAsync();
+    }
+
+    /// <summary>
+    /// The Postgres cluster this database lives on (#3397). The port is carried explicitly rather
+    /// than left implicit in the host, because <see cref="DatabaseDescriptor.ServerName"/> is
+    /// host-only and two clusters co-hosted on one box would otherwise collide onto a single budget.
+    /// </summary>
+    public DatabaseServerId ServerId
+    {
+        get
+        {
+            if (_serverId.HasValue)
+            {
+                return _serverId.Value;
+            }
+
+            var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
+            _serverId = new DatabaseServerId("PostgreSQL", builder.Host ?? string.Empty, builder.Port);
+
+            return _serverId.Value;
+        }
+    }
+
+    public async ValueTask<int> CountServerConnectionsAsync(CancellationToken token)
+    {
+        // Server-wide, and deliberately not filtered to this database or this application:
+        // connections are a resource of the cluster, and a budget that ignored the other tenants
+        // (or the other applications) sharing it would be measuring the wrong thing. Note that
+        // behind a transaction-pooling pgBouncer this counts pooler-to-server backends rather than
+        // client sessions — see the connection-budget docs.
+        var raw = await CreateCommand("select coalesce(sum(numbackends), 0)::int from pg_catalog.pg_stat_database")
+            .ExecuteScalarAsync(token).ConfigureAwait(false);
+
+        return raw is int count ? count : 0;
+    }
+
+    public async ValueTask<int?> ProbeMaxConnectionsAsync(CancellationToken token)
+    {
+        var raw = await CreateCommand("select current_setting('max_connections')::int")
+            .ExecuteScalarAsync(token).ConfigureAwait(false);
+
+        return raw is int max && max > 0 ? max : null;
     }
 
     public override DatabaseDescriptor Describe()

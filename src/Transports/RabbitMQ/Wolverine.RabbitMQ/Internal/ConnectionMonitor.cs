@@ -110,6 +110,21 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
             _agents.Add(agent);
     }
 
+    /// <summary>
+    /// The channel agents currently tracked by this monitor. Only agents in this list are
+    /// rebuilt by <see cref="connectionOnRecoverySucceededAsync"/>, so an agent that falls out
+    /// of it is one connection drop away from being permanently ghosted (see #3370). Exposed
+    /// for regression coverage of that invariant.
+    /// </summary>
+    internal IReadOnlyList<RabbitMqChannelAgent> TrackedAgents
+    {
+        get
+        {
+            lock (_agentsLock)
+                return [.. _agents];
+        }
+    }
+
     private async Task connectionOnRecoverySucceededAsync(object sender, AsyncEventArgs @event)
     {
         IsConnected = true;

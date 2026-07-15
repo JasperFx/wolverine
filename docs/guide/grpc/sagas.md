@@ -176,13 +176,24 @@ Wolverine has two ways to resolve which saga state a message belongs to:
 2. **Header-identified** — the message carries no identity member, and Wolverine falls back to the
    envelope's `saga-id` header.
 
-**Only message-identified sagas are supported over a gRPC service hop today.** The `saga-id`
-envelope header does not cross the hop — neither the client nor server propagation interceptor
-carries it, so a header-identified saga invoked through a gRPC service fails with an
-`IndeterminateSagaStateIdException` (surfaced to the caller as a `StatusCode.Internal`
-`RpcException`). This is tracked in
-[GH-3385](https://github.com/JasperFx/wolverine/issues/3385); the practical guidance is simple and
-is the better design anyway:
+**Only message-identified sagas are supported over a gRPC service hop.** The `saga-id` envelope
+header does not cross the hop — neither the client nor server propagation interceptor carries it —
+so a header-identified saga invoked through a gRPC service cannot resolve an id at all.
+
+As of 6.18.0 that fails with an explicit diagnostic rather than an opaque one: the caller gets a
+`StatusCode.InvalidArgument` `RpcException` whose detail names both the cause and the fix.
+
+> Could not determine a saga id for this request. A saga started or continued over a gRPC hop must
+> carry its identity ON THE MESSAGE BODY: the 'saga-id' envelope header is not propagated across a
+> gRPC call, so a header-identified saga cannot work over gRPC. Put the saga identity on the request
+> message itself (a property Wolverine can match to the saga id, or one marked with
+> `[SagaIdentity]`).
+
+`InvalidArgument` rather than `Internal` is deliberate ([AIP-193](https://google.aip.dev/193)): the
+request cannot succeed as sent, and no amount of retrying will change that — it is a contract
+problem, not a transient server fault.
+
+The practical guidance is simple, and is the better design anyway:
 
 ::: tip
 Put the saga identity on the request DTO. It makes the contract self-describing for non-Wolverine

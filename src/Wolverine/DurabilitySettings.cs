@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
+using Wolverine.Persistence;
 
 namespace Wolverine;
 
@@ -283,6 +284,20 @@ public class DurabilitySettings : IDescribeMyself
     /// Is the polling for durability metrics enabled? Default is true
     /// </summary>
     public bool DurabilityMetricsEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Declares how many connections this application may take against each database server, and
+    /// surfaces how many are actually in use. Rides the same sweep as the durability metrics, so
+    /// it is silent unless <see cref="DurabilityMetricsEnabled"/> is true. See #3397.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// opts.Durability.ConnectionBudgets
+    ///     .ForServer("pg-shard-a", 5432, maxConnections: 400)
+    ///     .ForServer("pg-shard-b", 5432, maxConnections: 200);
+    /// </code>
+    /// </example>
+    public ConnectionBudgets ConnectionBudgets { get; } = new();
 
     /// <summary>
     /// If DeadLetterQueueExpirationEnabled is true, this governs how long persisted

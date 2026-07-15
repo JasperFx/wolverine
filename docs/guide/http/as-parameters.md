@@ -253,6 +253,28 @@ member's default / initializer in both modes. The flag applies to query string b
 `[AsParameters]` members and for endpoint method arguments bound from the query string alike.
 Route argument binding is unaffected (an unparseable route value already returns `404`).
 
+### Collections <Badge type="tip" text="6.18" />
+
+The flag covers **collection** query string parameters (`T[]`, `List<T>`, `IList<T>`,
+`IReadOnlyList<T>`, `IEnumerable<T>`) too. With the flag off, an element that fails to parse is
+silently dropped, which is especially dangerous for an optional filter: the endpoint sees `null`
+(or a partial collection) and quietly returns an *unfiltered* `200` while the caller believes the
+results were filtered.
+
+With the flag on, binding a collection is **all or nothing** — a single unparseable element
+rejects the whole request with a `400` naming the parameter, rather than silently dropping the bad
+element and keeping the good ones. For
+`[FromQuery] public Colour[]? Colours { get; set; }` on `GET /widgets`:
+
+| Request | Flag off (default) | Flag on |
+| --- | --- | --- |
+| `GET /widgets?Colours=Red&Colours=Blue` | `200` — binds `[Red, Blue]` | `200` — binds `[Red, Blue]` |
+| `GET /widgets` (missing) | `200` — keeps the initializer (`null`) | `200` — keeps the initializer (`null`) |
+| `GET /widgets?Colours=Purple` | `200` — `Colours` is `null` | `400` — ProblemDetails naming `Colours` |
+| `GET /widgets?Colours=Red&Colours=Purple` | `200` — binds only `[Red]` | `400` — ProblemDetails naming `Colours` |
+
+String collections are unaffected in both modes, as there is nothing to parse.
+
 ::: warning
 `RejectUnparseableQueryValues` is opt-in (defaults to `false`) throughout Wolverine 6.x to preserve
 the previous lenient behavior, but the default flips to `true` (strict) in Wolverine 7.0. If you

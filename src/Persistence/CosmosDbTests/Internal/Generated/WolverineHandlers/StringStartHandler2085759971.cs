@@ -33,6 +33,8 @@ namespace Internal.Generated.WolverineHandlers
             stringBasicWorkflow.Start(stringStart);
 
             context.SetSagaId(stringStart.Id);
+            System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.id", stringStart.Id.ToString());
+            System.Diagnostics.Activity.Current?.SetTag("wolverine.saga.type", "Wolverine.ComplianceTests.Sagas.StringBasicWorkflow");
             if (!stringBasicWorkflow.IsCompleted())
             {
                 await _container.UpsertItemAsync(stringBasicWorkflow).ConfigureAwait(false);

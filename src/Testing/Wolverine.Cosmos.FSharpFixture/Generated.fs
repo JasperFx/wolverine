@@ -10,6 +10,67 @@ open Wolverine.FluentValidation
 open Wolverine.Runtime
 open Wolverine.Runtime.Handlers
 
+type ContinueThingHandler603355368(container: Microsoft.Azure.Cosmos.Container) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _container = container
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // The actual message body
+            let continueThing = context.Envelope.Message :?> WolverineCosmosFSharpSample.ContinueThing
+
+            // Application-specific Open Telemetry auditing
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("SagaId", continueThing.SagaId) |> ignore
+
+            // Enlist in CosmosDB outbox transaction
+            context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
+            let sagaId = if isNull continueThing.SagaId then context.Envelope.SagaId else continueThing.SagaId
+            if System.String.IsNullOrEmpty(sagaId) then
+                raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope))
+
+            // Try to load the existing saga document from CosmosDB
+            let mutable thingSaga = Unchecked.defaultof<WolverineCosmosFSharpSample.ThingSaga>
+            // Capture the ETag so the eventual write can be a compare-and-swap against this exact revision
+            let mutable thingSaga_Etag : string = null
+            try
+                let! _cosmosResponse = _container.ReadItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, cancellationToken = cancellation)
+                thingSaga <- _cosmosResponse.Resource
+                thingSaga_Etag <- _cosmosResponse.ETag
+            with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.NotFound ->
+                ()
+            if isNull thingSaga then
+                raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<WolverineCosmosFSharpSample.ThingSaga>, sagaId))
+            else
+                context.SetSagaId(sagaId)
+                if not (isNull System.Diagnostics.Activity.Current) then
+                    System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", sagaId.ToString()) |> ignore
+                    System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+                
+                // The actual message execution
+                thingSaga.Handle(continueThing)
+
+                // Delete the saga if completed, otherwise update it
+                if thingSaga.IsCompleted() then
+                    try
+                        let! _ = _container.DeleteItemAsync<WolverineCosmosFSharpSample.ThingSaga>(sagaId, Microsoft.Azure.Cosmos.PartitionKey.None, requestOptions = Microsoft.Azure.Cosmos.ItemRequestOptions(IfMatchEtag = thingSaga_Etag))
+                        ()
+                    with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->
+                        // The saga document was changed by another message since it was read
+                        raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
+                else
+                    try
+                        let! _ = _container.UpsertItemAsync(thingSaga, requestOptions = Microsoft.Azure.Cosmos.ItemRequestOptions(IfMatchEtag = thingSaga_Etag))
+                        ()
+                    with :? Microsoft.Azure.Cosmos.CosmosException as e when e.StatusCode = System.Net.HttpStatusCode.PreconditionFailed ->
+                        // The saga document was changed by another message since it was read
+                        raise (Wolverine.SagaConcurrencyException(sprintf "Saga of type WolverineCosmosFSharpSample.ThingSaga and id %O cannot be updated because of optimistic concurrency violations" sagaId, e))
+                
+                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+                do! context.FlushOutgoingMessagesAsync()
+
+        }
+
 type CreateThingHandler2004325667(container: Microsoft.Azure.Cosmos.Container, failureActionOfCreateThing: Wolverine.FluentValidation.IFailureAction<WolverineCosmosFSharpSample.CreateThing>) =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _container = container
@@ -37,6 +98,38 @@ type CreateThingHandler2004325667(container: Microsoft.Azure.Cosmos.Container, f
                 // Placed by Wolverine's ISideEffect policy
                 do! outgoing1.Execute(_container)
 
+            
+            // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+            do! context.FlushOutgoingMessagesAsync()
+
+        }
+
+type StartThingSagaHandler963364493(container: Microsoft.Azure.Cosmos.Container) =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    let _container = container
+
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        task {
+            // The actual message body
+            let startThingSaga = context.Envelope.Message :?> WolverineCosmosFSharpSample.StartThingSaga
+
+            // Application-specific Open Telemetry auditing
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("Id", startThingSaga.Id) |> ignore
+
+            // Enlist in CosmosDB outbox transaction
+            context.EnlistInOutbox(Wolverine.CosmosDb.Internals.CosmosDbEnvelopeTransaction(_container, context))
+            
+            // The actual message execution
+            let outgoing1 = WolverineCosmosFSharpSample.ThingSaga.Start(startThingSaga)
+
+            context.SetSagaId(startThingSaga.Id)
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.id", startThingSaga.Id.ToString()) |> ignore
+                System.Diagnostics.Activity.Current.SetTag("wolverine.saga.type", "WolverineCosmosFSharpSample.ThingSaga") |> ignore
+            if not (outgoing1.IsCompleted()) then
+                let! _ = _container.UpsertItemAsync(outgoing1)
+                ()
             
             // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
             do! context.FlushOutgoingMessagesAsync()

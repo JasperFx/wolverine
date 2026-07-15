@@ -55,6 +55,11 @@ public class local_queue_round_trip : IAsyncLifetime
     {
         return await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
+            // Pin the application assembly rather than letting the stack-walk fallback infer it;
+            // from an async host builder it can resolve to xunit.execution.dotnet and leave this
+            // host with no discovered handlers. See GH-3423.
+            opts.ApplicationAssembly = typeof(local_queue_round_trip).Assembly;
+
             opts.UseClaimCheck(c => c.UseFileSystem(_claimCheckDirectory));
 
             // Durable local queues serialize the envelope on store, which is the path that

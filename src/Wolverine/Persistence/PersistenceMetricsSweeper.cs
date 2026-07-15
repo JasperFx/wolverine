@@ -33,10 +33,26 @@ public class PersistenceMetricsSweeper
     private readonly object _startLock = new();
     private Task? _loop;
 
+    // Connection-budget state (#3397). Only ever touched from the single sweep loop, so a plain
+    // Dictionary is right — no concurrency to defend against.
+    private readonly Dictionary<DatabaseServerId, ServerBudgetState> _servers = new();
+    private ConnectionBudgetMetrics? _budgetMetrics;
+
     private PersistenceMetricsSweeper(IWolverineRuntime runtime)
     {
         _runtime = runtime;
         _logger = runtime.LoggerFactory.CreateLogger<PersistenceMetricsSweeper>();
+    }
+
+    private sealed class ServerBudgetState
+    {
+        /// <summary>The server's own limit, read at most once per process — it doesn't move at runtime.</summary>
+        public int? ProbedMax { get; set; }
+
+        public bool HasProbedMax { get; set; }
+
+        /// <summary>Latches the "couldn't count connections" log so a persistently failing probe doesn't flood.</summary>
+        public bool CountFailureLogged { get; set; }
     }
 
     // A class, not a record: unregistration removes the exact registration *instance* it
@@ -108,6 +124,12 @@ public class PersistenceMetricsSweeper
                 continue;
             }
 
+            // Connection budgets first, and deliberately outside the deadline window below: this is
+            // one query per *server*, not per database, so it costs a fixed handful of queries no
+            // matter how many tenant databases this node owns. Doing it before passStart leaves the
+            // database pacing exactly as it was.
+            await probeConnectionBudgetsAsync(pass, cancellation).ConfigureAwait(false);
+
             // One database at a time, paced against deadlines so the pass fills the
             // UpdateMetricsPeriod window: at most one metrics query (and its pooled
             // connection) is in flight per node. Each store's next-poll target is
@@ -142,6 +164,145 @@ public class PersistenceMetricsSweeper
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Probe each distinct database server behind this pass's registrations exactly once and publish
+    /// its connection budget. The dedupe is the entire point: in the sharded-tenancy deployment this
+    /// exists for (#3397), a node can own hundreds of tenant databases that all live on a handful of
+    /// servers, and connections are a resource of the server. Probing per database would multiply
+    /// the very pressure the number is meant to reveal.
+    /// </summary>
+    private async Task probeConnectionBudgetsAsync(Registration[] pass, CancellationToken cancellation)
+    {
+        var budgets = _runtime.Options.Durability.ConnectionBudgets;
+        if (!budgets.IsActive(_runtime.Stores.Cardinality()))
+        {
+            return;
+        }
+
+        // Distinct servers, not distinct stores. A provider with no cheap server-wide connection
+        // count simply doesn't implement the probe and drops out here.
+        var probes = pass
+            .Select(x => x.Store)
+            .OfType<IConnectionBudgetProbe>()
+            .GroupBy(x => x.ServerId)
+            .ToArray();
+
+        if (probes.Length == 0)
+        {
+            return;
+        }
+
+        _budgetMetrics ??= new ConnectionBudgetMetrics(_runtime);
+
+        foreach (var group in probes)
+        {
+            cancellation.ThrowIfCancellationRequested();
+
+            var serverId = group.Key;
+
+            // Any one of the stores on this server can answer for it; they share the connection
+            // pool's destination. Take the first — if it's unhealthy the whole server is suspect
+            // anyway, and that's a signal, not an accident.
+            var probe = group.First();
+
+            if (!_servers.TryGetValue(serverId, out var state))
+            {
+                state = new ServerBudgetState();
+                _servers[serverId] = state;
+            }
+
+            int used;
+            try
+            {
+                used = await probe.CountServerConnectionsAsync(cancellation).ConfigureAwait(false);
+                state.CountFailureLogged = false;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                // Phase 1 is observability only, so a failed probe publishes nothing and the sweep
+                // carries on. (The adaptive phase will read repeated failure here as *maximal*
+                // pressure rather than missing data — a probe that cannot get a connection is the
+                // strongest signal there is. Deliberately not acted on yet.)
+                if (!state.CountFailureLogged)
+                {
+                    state.CountFailureLogged = true;
+                    _logger.LogWarning(e,
+                        "Unable to count the open connections on database server {Server}. The connection budget for this server will not be reported until the probe succeeds.",
+                        serverId);
+                }
+
+                continue;
+            }
+
+            var (max, source) = await resolveBudgetAsync(serverId, probe, state, budgets, cancellation)
+                .ConfigureAwait(false);
+
+            var snapshot = new ConnectionBudgetSnapshot(serverId, used, max, source);
+
+            _budgetMetrics.Update(snapshot);
+
+            try
+            {
+                _runtime.Observer.ConnectionBudget(snapshot);
+            }
+            catch (Exception e)
+            {
+                // A misbehaving observer must not take down the metrics sweep for every database
+                // on the node.
+                _logger.LogError(e, "Error publishing the connection budget for database server {Server}", serverId);
+            }
+        }
+    }
+
+    private async ValueTask<(int? Max, ConnectionBudgetSource Source)> resolveBudgetAsync(
+        DatabaseServerId serverId,
+        IConnectionBudgetProbe probe,
+        ServerBudgetState state,
+        ConnectionBudgets budgets,
+        CancellationToken cancellation)
+    {
+        // Configuration wins, always. Behind a pooler the server's own max_connections describes
+        // what the *pooler* may open, not what this application is entitled to — so a declared
+        // budget is the only one that means anything in that topology.
+        var configured = budgets.MaxFor(serverId);
+        if (configured.HasValue)
+        {
+            return (configured.Value, ConnectionBudgetSource.Configured);
+        }
+
+        if (!state.HasProbedMax)
+        {
+            state.HasProbedMax = true;
+
+            try
+            {
+                state.ProbedMax = await probe.ProbeMaxConnectionsAsync(cancellation).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Leave HasProbedMax latched false-ish for the next pass rather than caching a
+                // shutdown as a permanent "unknown".
+                state.HasProbedMax = false;
+                throw;
+            }
+            catch (Exception e)
+            {
+                state.ProbedMax = null;
+                _logger.LogWarning(e,
+                    "Unable to read the connection limit from database server {Server}. Reporting its connection budget as unknown. Declare one explicitly with Durability.ConnectionBudgets.ForServer(...) to get a utilization reading.",
+                    serverId);
+            }
+        }
+
+        return state.ProbedMax.HasValue
+            ? (state.ProbedMax, ConnectionBudgetSource.Probed)
+            : (null, ConnectionBudgetSource.Unknown);
     }
 
     private sealed class Unregistration : IDisposable

@@ -236,8 +236,14 @@ public class registration_of_message_stores : IAsyncLifetime
     [Fact]
     public async Task using_dynamic_multi_tenancy()
     {
-        // THIS SHOULD TAKE CARE OF THE TEST RERUNS, but for some reason doesn't
         await dropWolverineSchema();
+
+        // This test ends by registering t3 and t4, so it poisons its own next run. Marten reads the
+        // master tenant table as the host boots and MessageStoreCollection.InitializeAsync() caches
+        // whatever it finds, so clearing the records *after* startHost() -- which is what this test
+        // used to do -- is already too late: the leftover tenant databases are in memory by then.
+        // Reset the table before anything reads it.
+        await dropTenantDatabaseTable();
 
         var collection = await startHost(opts =>
         {
@@ -245,12 +251,10 @@ public class registration_of_message_stores : IAsyncLifetime
             opts.Services.AddMarten(m =>
             {
                 m.MultiTenantedDatabasesWithMasterDatabaseTable(Servers.PostgresConnectionString);
-                
+
 
             }).IntegrateWithWolverine(w => w.MainDatabaseConnectionString = Servers.PostgresConnectionString);
         });
-
-        await _host.ClearAllTenantDatabaseRecordsAsync();
 
         await _host.AddTenantDatabaseAsync("t1", connectionString1);
         await _host.AddTenantDatabaseAsync("t2", connectionString2);
@@ -289,6 +293,19 @@ public class registration_of_message_stores : IAsyncLifetime
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync("wolverine");
+        await conn.CloseAsync();
+    }
+
+    /// <summary>
+    /// Marten recreates this on startup through AddResourceSetupOnStartup(). This test is the only
+    /// user of the master tenant table in the default schema -- the Marten suite's tenancy tests all
+    /// pin their own "tenants" schema -- so dropping it cannot disturb anything else.
+    /// </summary>
+    private static async Task dropTenantDatabaseTable()
+    {
+        using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand("drop table if exists public.mt_tenant_databases;").ExecuteNonQueryAsync();
         await conn.CloseAsync();
     }
 

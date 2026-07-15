@@ -32,7 +32,7 @@ using ServiceContainer = JasperFx.ServiceContainer;
 
 namespace Wolverine.Http;
 
-public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile, IEndpointNameMetadata, IEndpointSummaryMetadata, IEndpointDescriptionMetadata, IDescribeMyself
+public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICodeFile, IEndpointNameMetadata, IEndpointSummaryMetadata, IEndpointDescriptionMetadata, IDescribeMyself, IRoutedChain
 {
     public static bool IsValidResponseType(Type type)
     {
@@ -712,14 +712,16 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
             if (parameterType.IsArray && RouteParameterStrategy.CanParse(parameterType.GetElementType()!))
             {
-                variable = new ParsedArrayQueryStringValue(parameterType, key).Variable;
+                variable = new ParsedArrayQueryStringValue(parameterType, key,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
 
             if (ParsedCollectionQueryStringValue.CanParse(parameterType))
             {
-                variable = new ParsedCollectionQueryStringValue(parameterType, key).Variable;
+                variable = new ParsedCollectionQueryStringValue(parameterType, key,
+                    rejectUnparseableValue: _parent.RejectUnparseableQueryValues).Variable;
                 variable.Name = key;
                 _querystringVariables.Add(variable);
             }
@@ -740,6 +742,29 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
 
         return variable;
+    }
+
+    private readonly Dictionary<string, Type> _declaredRouteParameterTypes = new(StringComparer.OrdinalIgnoreCase);
+
+    IReadOnlyList<string> IRoutedChain.RouteParameterNames =>
+        RoutePattern?.Parameters.Select(x => x.Name).ToArray() ?? [];
+
+    void IRoutedChain.DeclareRouteParameterType(string routeParameterName, Type parameterType)
+    {
+        if (RoutePattern == null) return;
+        if (!RoutePattern.Parameters.Any(x => x.Name.EqualsIgnoreCase(routeParameterName))) return;
+
+        _declaredRouteParameterTypes[routeParameterName] = parameterType;
+    }
+
+    /// <summary>
+    /// The CLR type declared for a route parameter by middleware that binds it outside of the endpoint
+    /// method signature — see <see cref="IRoutedChain.DeclareRouteParameterType"/>. Only consulted when
+    /// nothing else in the chain, and no route constraint, can type the parameter. See GH-3420.
+    /// </summary>
+    private Type? declaredRouteParameterType(string routeParameterName)
+    {
+        return _declaredRouteParameterTypes.TryGetValue(routeParameterName, out var type) ? type : null;
     }
 
     public bool FindRouteVariable(ParameterInfo parameter, [NotNullWhen(true)]out Variable? variable)

@@ -163,7 +163,7 @@ public class SagaChain : HandlerChain
             AuditedMembers.Add(new AuditedMember(SagaIdMember, SagaIdMember.Name, SagaIdMember.Name));
         }
 
-        TypeName = saga.HandlerType.ToSuffixedTypeName(HandlerSuffix).Replace("[]", "Array");
+        TypeName = GeneratedTypeNameFor(saga.HandlerType, HandlerSuffix);
     }
 
     public override bool TryInferMessageIdentity(out PropertyInfo? property)

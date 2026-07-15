@@ -23,11 +23,21 @@ public class CosmosFSharpCompileGate
     [Fact]
     public async Task generated_fsharp_compiles_via_dotnet_build()
     {
-        var code = CosmosFSharpCodegenSample.GenerateCode();
+        // Both saga storage layouts, because they emit different F#: the partitioned one (GH-3415) reads and
+        // deletes the saga in the partition keyed by its id and writes it through CosmosSagaStorage. The
+        // default is rendered last so that the checked-in Generated.fs stays the one the fixture describes.
+        await assertCompilesAsync(partitionSagasById: true);
+        await assertCompilesAsync(partitionSagasById: false);
+    }
+
+    private async Task assertCompilesAsync(bool partitionSagasById)
+    {
+        var code = CosmosFSharpCodegenSample.GenerateCode(partitionSagasById);
         var generatedFile = CosmosFSharpCodegenSample.DefaultGeneratedFilePath();
         File.WriteAllText(generatedFile, code);
 
         File.Exists(generatedFile).ShouldBeTrue();
+        _output.WriteLine($"PartitionSagasById: {partitionSagasById}");
         _output.WriteLine(code);
 
         var fixtureProject = CosmosFSharpCodegenSample.FixtureProjectPath();

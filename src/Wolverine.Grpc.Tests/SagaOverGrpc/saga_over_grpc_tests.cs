@@ -60,17 +60,24 @@ public class saga_over_grpc_tests : IClassFixture<SagaOverGrpcFixture>
     #endregion
 
     [Fact]
-    public async Task starting_a_header_identified_saga_over_grpc_fails_with_opaque_status_today()
+    public async Task starting_a_header_identified_saga_over_grpc_fails_with_an_actionable_diagnostic()
     {
         var client = _fixture.CreateClient();
 
         var ex = await Should.ThrowAsync<RpcException>(async () =>
             await client.Start(new StartCountingRequest { Label = "first" }));
 
-        // CHARACTERIZATION of current behavior (GH-3385). saga-id is not propagated across a gRPC
-        // hop, so PullSagaIdFromEnvelopeFrame throws IndeterminateSagaStateIdException, which maps to
-        // Internal with a message that doesn't tell the developer what to do about it.
-        ex.StatusCode.ShouldBe(StatusCode.Internal);
-        ex.Status.Detail.ShouldContain("saga state id");
+        // GH-3385. A header-identified saga still cannot work over a gRPC hop — the 'saga-id' header
+        // is not propagated across the call, so no id can be resolved. That is a caller-side contract
+        // problem, not a transient server fault, so it is InvalidArgument (AIP-193) rather than the
+        // Internal it used to report...
+        ex.StatusCode.ShouldBe(StatusCode.InvalidArgument);
+
+        // ...and the detail now names the cause AND the remedy, instead of the bare
+        // "Could not determine a valid saga state id for Envelope ..." that told the developer
+        // nothing they could act on.
+        ex.Status.Detail.ShouldContain("ON THE MESSAGE BODY");
+        ex.Status.Detail.ShouldContain("[SagaIdentity]");
+        ex.Status.Detail.ShouldContain("wolverinefx.net/guide/grpc/sagas");
     }
 }

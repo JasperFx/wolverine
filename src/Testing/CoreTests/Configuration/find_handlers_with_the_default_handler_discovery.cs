@@ -17,7 +17,6 @@ public class find_handlers_with_the_default_handler_discovery : IntegrationConte
     public find_handlers_with_the_default_handler_discovery(DefaultApp @default, ITestOutputHelper output) : base(@default)
     {
         _output = output;
-        @default.RecycleIfNecessary();
     }
 
     [Fact]

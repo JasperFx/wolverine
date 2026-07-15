@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.SqlServer;
 using Wolverine.Logging;
+using Wolverine.Persistence;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Persistence.Durability.ScheduledMessageManagement;
@@ -30,10 +31,11 @@ using Table = Weasel.SqlServer.Tables.Table;
 
 namespace Wolverine.SqlServer.Persistence;
 
-public class SqlServerMessageStore : MessageDatabase<SqlConnection>
+public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnectionBudgetProbe
 {
     private readonly string _findAtLargeEnvelopesSql;
     private readonly string _scheduledLockId;
+    private DatabaseServerId? _serverId;
     private ImHashMap<Type, IDatabaseSagaSchema> _sagaStorage = ImHashMap<Type, IDatabaseSagaSchema>.Empty;
     
     private readonly List<ISchemaObject> _externalTables = new();
@@ -457,6 +459,53 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
         {
             await conn.CloseAsync();
         }
+    }
+
+    /// <summary>
+    /// The SQL Server instance this database lives on (#3397). Unlike PostgreSQL, the port is left
+    /// null: SQL Server's <c>Data Source</c> already carries it (<c>host,1433</c>) or a named
+    /// instance (<c>host\SQLEXPRESS</c>), so it is kept whole and is already unique.
+    /// </summary>
+    public DatabaseServerId ServerId
+    {
+        get
+        {
+            if (_serverId.HasValue)
+            {
+                return _serverId.Value;
+            }
+
+            var builder = new SqlConnectionStringBuilder(_settings.ConnectionString);
+            _serverId = new DatabaseServerId("SqlServer", builder.DataSource ?? string.Empty, null);
+
+            return _serverId.Value;
+        }
+    }
+
+    /// <summary>
+    /// Note that this needs the <c>VIEW SERVER STATE</c> permission, which locked-down hosting does
+    /// not always grant. The sweeper degrades to "budget unknown" (one warning, then silence) rather
+    /// than failing the metrics pass when it is missing — see #3397.
+    /// </summary>
+    public async ValueTask<int> CountServerConnectionsAsync(CancellationToken token)
+    {
+        // Server-wide, across every database and application on the instance — connections are an
+        // instance-scoped resource, so scoping the count to this database would measure the wrong
+        // thing.
+        var raw = await CreateCommand("select count(*) from sys.dm_exec_connections")
+            .ExecuteScalarAsync(token).ConfigureAwait(false);
+
+        return raw is int count ? count : 0;
+    }
+
+    public async ValueTask<int?> ProbeMaxConnectionsAsync(CancellationToken token)
+    {
+        var raw = await CreateCommand("select @@MAX_CONNECTIONS")
+            .ExecuteScalarAsync(token).ConfigureAwait(false);
+
+        // Zero means "unlimited, SQL Server sizes it dynamically" — which is not a budget, so report
+        // it as unknown rather than charting a limit of nothing.
+        return raw is int max && max > 0 ? max : null;
     }
 
     public override DatabaseDescriptor Describe()

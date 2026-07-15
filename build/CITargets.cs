@@ -348,18 +348,61 @@ partial class Build
 
     // ─── Transport CI Targets ──────────────────────────────────────────
 
+    // ─── AWS CI Targets ────────────────────────────────────────────────
+    //
+    // CIAWS used to run the SQS project and then the SNS project back to back in a single job, which chronically
+    // blew past the 20 minute job timeout on CI runners. It is now split three ways so the shards run as parallel
+    // jobs. Measured locally (Release, net9.0, serial, LocalStack in docker):
+    //
+    //   whole SQS project  199 tests  6m27s   <- the real hog
+    //   whole SNS project  118 tests  1m30s
+    //
+    // Within SQS, the wall-clock is concentrated in a handful of end-to-end classes (send_and_receive alone is
+    // ~121s for 2 tests, end_to_end_with_named_broker ~60s for 1), while the four *SendingAndReceivingCompliance
+    // batteries are ~93 tests / ~77s. Peeling the compliance batteries off into their own shard splits the project
+    // into ~191s + ~77s of test time. CIAWS is retained as an aggregate so "./build.sh CIAWS" still runs everything.
+    // See #3350.
+
+    // The four batteries are named Buffered/Inline/Durable/PrefixedSendingAndReceivingCompliance, so a single
+    // substring selects (and its negation excludes) all of them.
+    const string ComplianceBatteries = "FullyQualifiedName~SendingAndReceivingCompliance";
+    const string NotComplianceBatteries = "FullyQualifiedName!~SendingAndReceivingCompliance";
+
+    AbsolutePath AmazonSqsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSqs.Tests" / "Wolverine.AmazonSqs.Tests.csproj";
+    AbsolutePath AmazonSnsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
+
+    void runAwsShard(AbsolutePath project, string testFilter = null)
+    {
+        BuildTestProjects(project);
+        StartDockerServices("localstack", "postgresql");
+
+        RunTestProject(project, testFilter: testFilter);
+    }
+
+    /// <summary>
+    /// AWS shard 1: the SQS project, minus the sending/receiving compliance batteries.
+    /// </summary>
+    Target CIAWSSqs => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runAwsShard(AmazonSqsTests, NotComplianceBatteries));
+
+    /// <summary>
+    /// AWS shard 2: the SQS Buffered/Inline/Durable/Prefixed sending and receiving compliance batteries.
+    /// </summary>
+    Target CIAWSSqsCompliance => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runAwsShard(AmazonSqsTests, ComplianceBatteries));
+
+    /// <summary>
+    /// AWS shard 3: the whole SNS project, which is small enough not to need splitting.
+    /// </summary>
+    Target CIAWSSns => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runAwsShard(AmazonSnsTests));
+
     Target CIAWS => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var sqsTests = RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSqs.Tests" / "Wolverine.AmazonSqs.Tests.csproj";
-            var snsTests = RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
-
-            BuildTestProjects(sqsTests, snsTests);
-            StartDockerServices("localstack", "postgresql");
-
-            RunTestProjects([sqsTests, snsTests]);
-        });
+        .DependsOn(CIAWSSqs, CIAWSSqsCompliance, CIAWSSns);
 
     Target CIKafka => _ => _
         .ProceedAfterFailure()
@@ -587,15 +630,81 @@ partial class Build
             RunTestProject(tests);
         });
 
+    // ─── Polecat CI Targets ────────────────────────────────────────────
+    //
+    // PolecatTests is a single project of serial (NoParallelization) SqlServer integration tests. As one job it sat
+    // right at — and frequently over — the 20 minute CI job timeout, so it is sharded across three parallel jobs.
+    //
+    // Measured locally (Release, net10.0, serial, SqlServer in docker): the whole project is 235 tests in 8m14s,
+    // but the test bodies themselves only account for ~173s of that. The other ~2/3 of the wall-clock is per-CLASS
+    // fixture cost (Wolverine + Polecat host bootstrap and SqlServer schema application). The shards are therefore
+    // balanced by test-CLASS count, not by test count or test duration:
+    //
+    //   CIPolecatWorkflow   AggregateHandlerWorkflow + Bugs                            20 classes / 82 tests
+    //   CIPolecatSagas      Sagas, Distribution, Subscriptions, Dcb, Publishing        19 classes / 70 tests
+    //   CIPolecat           everything else (root namespace, AncillaryStores, ...)     18 classes / 83 tests
+    //
+    // The shards are defined ONCE below: the two named shards list their namespaces, and CIPolecat is the
+    // *negation* of both lists. A brand new namespace therefore lands in CIPolecat automatically rather than
+    // being silently dropped from CI. See #3350.
+
+    AbsolutePath PolecatTests => RootDirectory / "src" / "Persistence" / "PolecatTests" / "PolecatTests.csproj";
+
+    static readonly string[] PolecatWorkflowNamespaces =
+    [
+        "PolecatTests.AggregateHandlerWorkflow",
+        "PolecatTests.Bugs"
+    ];
+
+    static readonly string[] PolecatSagaNamespaces =
+    [
+        "PolecatTests.Sagas",
+        "PolecatTests.Distribution",
+        "PolecatTests.Subscriptions",
+        "PolecatTests.Dcb",
+        "PolecatTests.Publishing"
+    ];
+
+    // A trailing '.' keeps "PolecatTests.Sagas" from also matching a future "PolecatTests.SagasSomethingElse".
+    static string includeNamespaces(params string[] namespaces)
+    {
+        return string.Join("|", namespaces.Select(n => $"FullyQualifiedName~{n}."));
+    }
+
+    static string excludeNamespaces(params string[] namespaces)
+    {
+        return string.Join("&", namespaces.Select(n => $"FullyQualifiedName!~{n}."));
+    }
+
+    void runPolecatShard(string testFilter)
+    {
+        BuildTestProjectsWithFramework("net10.0", PolecatTests);
+        StartDockerServices("sqlserver");
+
+        RunTestProject(PolecatTests, frameworkOverride: "net10.0", testFilter: testFilter);
+    }
+
+    /// <summary>
+    /// Polecat shard 1: the aggregate handler workflow tests and the Bugs regressions (mostly aggregate handler
+    /// regressions themselves).
+    /// </summary>
+    Target CIPolecatWorkflow => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runPolecatShard(includeNamespaces(PolecatWorkflowNamespaces)));
+
+    /// <summary>
+    /// Polecat shard 2: sagas, multi-node distribution, subscriptions, DCB and outbox publishing.
+    /// </summary>
+    Target CIPolecatSagas => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runPolecatShard(includeNamespaces(PolecatSagaNamespaces)));
+
+    /// <summary>
+    /// Polecat shard 3: everything not claimed by CIPolecatWorkflow or CIPolecatSagas — including any newly
+    /// added namespace, which lands here by default.
+    /// </summary>
     Target CIPolecat => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var polecatTests = RootDirectory / "src" / "Persistence" / "PolecatTests" / "PolecatTests.csproj";
-
-            BuildTestProjectsWithFramework("net10.0", polecatTests);
-            StartDockerServices("sqlserver");
-
-            RunTestProject(polecatTests, frameworkOverride: "net10.0");
-        });
+        .Executes(() => runPolecatShard(
+            excludeNamespaces([..PolecatWorkflowNamespaces, ..PolecatSagaNamespaces])));
 }
