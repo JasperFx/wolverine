@@ -21,16 +21,21 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     private readonly string? _messageTypeName;
     private readonly ILogger _logger;
     private readonly KafkaOffsetCommitter _committer;
+    // GH-3434: bounded drain budget for shutdown so StopAsync/Dispose can never block forever waiting on a
+    // consume loop whose blocking IConsumer.Consume(token) hasn't observed cancellation. Sourced from
+    // DurabilitySettings.DrainTimeout (default 30s), matching the SQS and RDBMS listeners.
+    private readonly TimeSpan _drainTimeout;
     // Broker-per-tenant (GH-3303): the cluster this listener's DLQ records are produced to. Null for the shared
     // (default-cluster) listener, which falls back to the topic's parent transport.
     private readonly KafkaTransport? _tenantTransport;
 
     public KafkaListener(KafkaTopic topic, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
-        ILogger<KafkaListener> logger, KafkaTransport? tenantTransport = null)
+        ILogger<KafkaListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
     {
         _endpoint = topic;
         _logger = logger;
+        _drainTimeout = drainTimeout;
         _tenantTransport = tenantTransport;
         Address = topic.Uri;
         _consumer = consumer;
@@ -145,9 +150,11 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     public async ValueTask StopAsync()
     {
         await _cancellation.CancelAsync();
-        // Await the loop fully (Infinite) so the consume loop has exited and consumer access is single-threaded
-        // before we flush offsets and close (GH-3150) — matching the previous "await _runner" semantics.
-        await _loop.StopAsync(Timeout.InfiniteTimeSpan);
+        // Drain the loop within a bounded budget so shutdown can never hang (GH-3434). On a clean drain the consume
+        // loop has exited and consumer access is single-threaded before we flush + close (GH-3150). If the loop is
+        // wedged in a blocking Consume that ignored cancellation, the drain logs and returns, and the _consumer.Close()
+        // below forces that Consume to unwind — bounded teardown instead of an infinite await.
+        await _loop.StopAsync(_drainTimeout);
 
         _committer.Flush();
         try
@@ -208,7 +215,7 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     {
         _cancellation.Cancel();
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-        _loop.StopAsync(Timeout.InfiniteTimeSpan).GetAwaiter().GetResult();
+        _loop.StopAsync(_drainTimeout).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
         _committer.Flush();
         _cancellation.Dispose();
