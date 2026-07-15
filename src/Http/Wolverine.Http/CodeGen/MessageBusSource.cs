@@ -68,6 +68,17 @@ internal class CreateMessageContextWithMaybeTenantFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"{Variable.FSharpAssignmentUsage} = {typeof(MessageContext).FSharpName()}({_runtime!.FSharpUsage})");
+        if (_tenantId != null)
+        {
+            writer.Write($"{Variable.FSharpUsage}.{nameof(IMessageBus.TenantId)} <- {_tenantId.FSharpUsage}");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _runtime = chain.FindVariable(typeof(IWolverineRuntime));
