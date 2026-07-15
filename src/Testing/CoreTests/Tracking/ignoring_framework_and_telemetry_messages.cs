@@ -32,14 +32,34 @@ public class ignoring_framework_and_telemetry_messages : IDisposable
     }
 
     [Fact]
-    public void telemetry_messages_marked_with_INotToBeRouted_are_not_tracked()
+    public void system_commands_are_not_tracked_by_default()
     {
-        // Continuously published framework telemetry (e.g. the CritterWatch
-        // monitoring messages) would otherwise hold a tracked session open
-        // until it times out
-        record(new FakeTelemetryMessage());
+        // Continuously published system/monitoring telemetry (e.g. the CritterWatch monitoring
+        // messages) would otherwise hold a tracked session open until it times out.
+        record(new FakeSystemCommand());
 
         theSession.AllRecordsInOrder().ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void system_commands_are_tracked_once_included()
+    {
+        theSession.IncludeSystemCommands();
+
+        record(new FakeSystemCommand());
+
+        theSession.AllRecordsInOrder().Length.ShouldBe(1);
+    }
+
+    [Fact]
+    public void not_to_be_routed_is_not_by_itself_a_reason_to_ignore()
+    {
+        // INotToBeRouted governs conventional routing, NOT tracking. A real message can be
+        // explicitly routed while carrying it (CritterWatch's monitoring commands do), and such a
+        // message must remain trackable. Only ISystemCommand suppresses tracking.
+        record(new FakeNotRoutedMessage());
+
+        theSession.AllRecordsInOrder().Length.ShouldBe(1);
     }
 
     [Fact]
@@ -51,11 +71,20 @@ public class ignoring_framework_and_telemetry_messages : IDisposable
     }
 
     [Fact]
+    public void agent_commands_are_ignored_even_when_system_commands_are_included()
+    {
+        theSession.IncludeSystemCommands();
+
+        record(new FakeAgentCommand());
+
+        theSession.AllRecordsInOrder().ShouldBeEmpty();
+    }
+
+    [Fact]
     public void acknowledgements_are_still_tracked()
     {
         // The tracked session has first-class acknowledgement semantics
-        // (SendMessageAndWaitForAcknowledgementAsync), so acks must keep
-        // being recorded even though Acknowledgement is INotToBeRouted
+        // (SendMessageAndWaitForAcknowledgementAsync), so acks must keep being recorded.
         record(new Acknowledgement());
 
         theSession.AllRecordsInOrder().Length.ShouldBe(1);
@@ -78,7 +107,9 @@ public class ignoring_framework_and_telemetry_messages : IDisposable
         theSession.AllRecordsInOrder().Length.ShouldBe(1);
     }
 
-    private class FakeTelemetryMessage : INotToBeRouted;
+    private class FakeSystemCommand : ISystemCommand;
+
+    private class FakeNotRoutedMessage : INotToBeRouted;
 
     private class FakeApplicationMessage;
 
