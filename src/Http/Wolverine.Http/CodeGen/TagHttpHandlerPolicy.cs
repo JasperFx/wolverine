@@ -35,4 +35,14 @@ internal class TagHttpHandlerFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var handlerTypeName = _chain.Method.HandlerType.FSharpName();
+        var current = $"{typeof(Activity).FSharpName()}.{nameof(Activity.Current)}";
+        writer.Write(
+            $"if not (isNull {current}) then {current}.{nameof(Activity.SetTag)}(\"{WolverineTracing.HandlerType}\", \"{handlerTypeName}\") |> ignore");
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
