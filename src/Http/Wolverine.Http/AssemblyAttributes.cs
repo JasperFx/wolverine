@@ -11,6 +11,7 @@ using JasperFx.Core.TypeScanning;
 [assembly: InternalsVisibleTo("Wolverine.Http.AspVersioning.Tests")]
 
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
+[assembly: InternalsVisibleTo("Wolverine.Http.FSharpTests")]
 // WolverineFx.Http.Newtonsoft's UseNewtonsoftJsonForSerialization extension
 // needs to call HttpGraph.UseNewtonsoftJson(INewtonsoftHttpCodeGen) and
 // implement INewtonsoftHttpCodeGen — both internal so the public surface

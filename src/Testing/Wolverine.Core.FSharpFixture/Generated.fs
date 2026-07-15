@@ -149,3 +149,26 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
         // No unit of work
         System.Threading.Tasks.Task.CompletedTask
 
+type TickHandler1778389912() =
+    inherit Wolverine.Runtime.Handlers.MessageHandler()
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+        // The actual message body
+        let tick = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.Tick
+
+        Wolverine.Runtime.WolverineTracing.ApplyExecutionDiagnosticTags(System.Diagnostics.Activity.Current, context.Envelope)
+        let tickMiddleware = Wolverine.Core.FSharpContracts.TickMiddleware()
+        tickMiddleware.Before()
+        try
+            if not (isNull System.Diagnostics.Activity.Current) then
+                System.Diagnostics.Activity.Current.SetTag("message.handler", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
+                System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Core.FSharpContracts.TickHandler") |> ignore
+            let tickHandler = Wolverine.Core.FSharpContracts.TickHandler()
+            
+            // The actual message execution
+            tickHandler.Handle(tick)
+
+            this.RecordCauseAndEffect(context, context.Runtime.Observer)
+        finally
+            tickMiddleware.Finally()
+        System.Threading.Tasks.Task.CompletedTask
+

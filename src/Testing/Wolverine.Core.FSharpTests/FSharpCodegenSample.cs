@@ -35,6 +35,11 @@ public static class FSharpCodegenSample
                     opts.Discovery.IncludeType<CheckThingHandler>();
                     opts.Discovery.IncludeType<GateHandler>();
                     opts.Discovery.IncludeType<CountingSaga>();
+                    opts.Discovery.IncludeType<TickHandler>();
+
+                    // TickMiddleware has both Before() and Finally() methods. When applied to
+                    // the TickHandler chain it triggers TryFinallyWrapperFrame code generation.
+                    opts.Policies.AddMiddleware<TickMiddleware>(c => c.MessageType == typeof(Tick));
 
                     // Inserts ApplyExecutionDiagnosticTagsFrame at the head of every chain.
                     opts.Tracking.HandlerExecutionDiagnosticsEnabled = true;

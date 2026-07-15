@@ -8,6 +8,7 @@ open System
 open System.Linq
 open System.Threading.Tasks
 open Wolverine.Http
+open Wolverine.Runtime
 
 type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
     inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
@@ -15,6 +16,11 @@ type GET_fsharp_hello(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
             
             // The actual HTTP request handler execution
@@ -29,6 +35,11 @@ type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             // Reading the request body via JSON deserialization
             let! (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
             if jsonContinue = Wolverine.HandlerContinuation.Stop then
@@ -49,6 +60,11 @@ type GET_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOpti
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             let id = (httpContext.GetRouteValue("id") :?> string)
             if isNull id then
                 httpContext.Response.StatusCode <- 404
@@ -68,6 +84,11 @@ type GET_fsharp_search(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             let q = httpContext.Request.Query.["q"].ToString()
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
             
@@ -83,6 +104,11 @@ type GET_fsharp_things_id_items_count(wolverineHttpOptions: Wolverine.Http.Wolve
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             let id = (httpContext.GetRouteValue("id") :?> string)
             if isNull id then
                 httpContext.Response.StatusCode <- 404
@@ -112,6 +138,11 @@ type GET_fsharp_paged(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions)
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
         task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             let page_rawValue = httpContext.Request.Query.["page"].ToString()
             let page = match System.Int32.TryParse(page_rawValue, System.Globalization.CultureInfo.InvariantCulture) with | true, v -> v | _ -> Unchecked.defaultof<int>
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
@@ -127,15 +158,135 @@ type GET_fsharp_result_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOpti
     let _wolverineHttpOptions = wolverineHttpOptions
 
     override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
-        let id = (httpContext.GetRouteValue("id") :?> string)
-        if isNull id then
-            httpContext.Response.StatusCode <- 404
-            System.Threading.Tasks.Task.CompletedTask
-        else
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            let id = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                let result = thingEndpoints.GetResult(id)
+
+                do! result.ExecuteAsync(httpContext)
+        }
+
+type DELETE_fsharp_things_id(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            let id = (httpContext.GetRouteValue("id") :?> string)
+            if isNull id then
+                httpContext.Response.StatusCode <- 404
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                thingEndpoints.Delete(id)
+
+                // Wolverine automatically sets the status code to 204 for empty responses
+                if not httpContext.Response.HasStarted && httpContext.Response.StatusCode = 200 then
+                    httpContext.Response.StatusCode <- 204
+        }
+
+type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions, wolverineRuntime: Wolverine.Runtime.IWolverineRuntime) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+    let _wolverineRuntime = wolverineRuntime
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            let messageContext = Wolverine.Runtime.MessageContext(_wolverineRuntime)
+            messageContext.TenantId <- tenantId
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            // Reading the request body via JSON deserialization
+            let! (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
+            if jsonContinue = Wolverine.HandlerContinuation.Stop then
+                ()
+            else
+                let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
+                
+                // The actual HTTP request handler execution
+                let thingCreated_response = thingEndpoints.Publish(command, messageContext)
+
+                // Writing the response body to JSON because this was the first 'return variable' in the method signature
+                do! this.WriteJsonAsync(httpContext, thingCreated_response)
+                
+                // Have to flush outgoing messages just in case Marten did nothing because of https://github.com/JasperFx/wolverine/issues/536
+                do! messageContext.FlushOutgoingMessagesAsync()
+
+        }
+
+type GET_fsharp_filter(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+            let MaxResults_rawValue = httpContext.Request.Query.["MaxResults"].ToString()
+            let MaxResults = match System.Int32.TryParse(MaxResults_rawValue, System.Globalization.CultureInfo.InvariantCulture) with | true, v -> v | _ -> Unchecked.defaultof<int>
+            let Name = httpContext.Request.Query.["Name"].ToString()
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
+            // Binding QueryString values to the argument marked with [FromQuery]
+            let thingFilter = Wolverine.Http.FSharpContracts.ThingFilter(Name, MaxResults)
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
             
             // The actual HTTP request handler execution
-            let result = thingEndpoints.GetResult(id)
+            let thingCreated_response = thingEndpoints.Filter(thingFilter)
 
-            result.ExecuteAsync(httpContext)
+            // Writing the response body to JSON because this was the first 'return variable' in the method signature
+            do! this.WriteJsonAsync(httpContext, thingCreated_response)
+        }
+
+type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions) =
+    inherit Wolverine.Http.HttpHandler(wolverineHttpOptions)
+    let _wolverineHttpOptions = wolverineHttpOptions
+
+    override this.Handle(httpContext: Microsoft.AspNetCore.Http.HttpContext) : System.Threading.Tasks.Task =
+        task {
+
+            // Tenant Id detection
+            // 1. Tenant Id is request header 'x-tenant-id'
+            let! tenantId = this.TryDetectTenantId(httpContext)
+            if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.AuthedEndpoints") |> ignore
+            let result1 = Wolverine.Http.FSharpContracts.AuthHelpers.CheckAuth()
+            // Evaluate whether or not the execution should be stopped based on the IResult value
+            if not (isNull (result1 :> obj)) && not (result1 :? Wolverine.Http.WolverineContinue) then
+                do! result1.ExecuteAsync(httpContext)
+                return ()
+
+            let authedEndpoints = Wolverine.Http.FSharpContracts.AuthedEndpoints()
+            
+            // The actual HTTP request handler execution
+            let result_of_Get = authedEndpoints.Get()
+
+            do! Wolverine.Http.HttpHandler.WriteString(httpContext, result_of_Get)
+        }
+
+type GeneratedHttpEndpointRegistry() =
+    inherit Wolverine.Http.HttpEndpointRegistry()
+    override this.EndpointTypes() : System.Type[] =
+        [| typeof<Wolverine.Http.FSharpContracts.AuthedEndpoints>; typeof<Wolverine.Http.FSharpContracts.ThingEndpoints> |]
 
