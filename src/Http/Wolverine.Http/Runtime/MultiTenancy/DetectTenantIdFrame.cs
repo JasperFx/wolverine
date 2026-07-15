@@ -49,4 +49,26 @@ internal class DetectTenantIdFrame : AsyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.BlankLine();
+        writer.WriteComment("Tenant Id detection");
+        for (int i = 0; i < _options.Strategies.Count; i++)
+        {
+            writer.WriteComment($"{i + 1}. {_options.Strategies[i]}");
+        }
+
+        writer.Write($"let! {TenantId.Usage} = this.{nameof(HttpHandler.TryDetectTenantId)}({_httpContext!.Usage})");
+
+        if (_options.ShouldAssertTenantIdExists(_chain))
+        {
+            writer.Write($"BLOCK:if System.String.{nameof(string.IsNullOrEmpty)}({TenantId.Usage}) then");
+            writer.Write($"do! this.{nameof(HttpHandler.WriteTenantIdNotFound)}({_httpContext.Usage})");
+            writer.Write("return ()");
+            writer.FinishBlock();
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

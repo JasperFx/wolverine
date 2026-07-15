@@ -74,8 +74,22 @@ public class MaybeEndWithResultFrame : AsyncFrame
         Next?.GenerateCode(method, writer);
     }
 
-    // NOTE: F# emit for MaybeEndWithResultFrame is deferred. The frame is added by ResultContinuationPolicy
-    // during a full endpoint compile (MapWolverineEndpoints); the no-host ChainFor harness used by the F#
-    // fixture doesn't apply continuation policies, so it can't exercise this frame yet. It will be done
-    // with the behavioural (host-based) harness (GH-2969).
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (Next is MaybeEndWithResultFrame next && ReferenceEquals(next.Result, Result))
+        {
+            Next?.GenerateFSharpCode(method, writer);
+            return;
+        }
+
+        writer.WriteComment("Evaluate whether or not the execution should be stopped based on the IResult value");
+        writer.Write(
+            $"BLOCK:if not (isNull ({Result.FSharpUsage} :> obj)) && not ({Result.FSharpUsage} :? {typeof(WolverineContinue).FSharpName()}) then");
+        writer.Write($"do! {Result.FSharpUsage}.{nameof(IResult.ExecuteAsync)}({_context!.FSharpUsage})");
+        writer.Write("return ()");
+        writer.FinishBlock();
+        writer.BlankLine();
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }

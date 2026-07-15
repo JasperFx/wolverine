@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Wolverine;
 
 namespace Wolverine.Http.FSharpContracts;
 
@@ -7,6 +9,9 @@ public record CreateThing(string Name);
 
 /// <summary>The JSON result returned by <see cref="ThingEndpoints.Create" />.</summary>
 public record ThingCreated(string Name);
+
+/// <summary>Complex query string type exercising <c>QueryStringBindingFrame</c>.</summary>
+public record ThingFilter(string? Name, int MaxResults);
 
 /// <summary>
 ///     The "smallest viable" Wolverine.Http endpoints for the F# code-generation audit
@@ -63,4 +68,42 @@ public class ThingEndpoints
     {
         return string.IsNullOrEmpty(id) ? Results.NotFound() : Results.Ok($"thing {id}");
     }
+
+    // Void (204) return: exercises WriteEmptyBodyStatusCode.GenerateFSharpCode.
+    [WolverineDelete("/fsharp/things/{id}")]
+    public void Delete(string id) { }
+
+    // IMessageBus parameter: exercises UseMessageBusFrame and CreateMessageContextWithMaybeTenantFrame.
+    [WolverinePost("/fsharp/publish")]
+    public ThingCreated Publish(CreateThing command, IMessageBus bus)
+    {
+        return new ThingCreated(command.Name);
+    }
+
+    // Complex [FromQuery] type: exercises QueryStringBindingFrame.
+    [WolverineGet("/fsharp/filter")]
+    public ThingCreated Filter([FromQuery] ThingFilter filter)
+    {
+        return new ThingCreated(filter.Name ?? "");
+    }
+}
+
+/// <summary>
+///     A minimal endpoint for exercising <c>MaybeEndWithResultFrame.GenerateFSharpCode</c>:
+///     the codegen sample manually prepends a static auth-check call and wraps its IResult
+///     return in <c>MaybeEndWithResultFrame</c>.
+/// </summary>
+public class AuthedEndpoints
+{
+    [WolverineGet("/fsharp/authed")]
+    public string Get() => "authed";
+}
+
+/// <summary>
+///     Static helper whose return value (<c>IResult</c>) is used by the codegen sample to
+///     construct a <c>MaybeEndWithResultFrame</c> without registering <c>ResultContinuationPolicy</c>.
+/// </summary>
+public static class AuthHelpers
+{
+    public static IResult CheckAuth() => WolverineContinue.Result();
 }

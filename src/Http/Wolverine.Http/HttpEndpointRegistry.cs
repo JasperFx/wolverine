@@ -142,4 +142,19 @@ internal class WriteEndpointTypesFrame : SyncFrame
 
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        if (_types.Length == 0)
+        {
+            writer.Write($"System.Array.Empty<{typeof(Type).FSharpName()}>()");
+        }
+        else
+        {
+            var literals = string.Join("; ", _types.Select(t => $"typeof<{t.FSharpName()}>"));
+            writer.Write($"[| {literals} |]");
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
