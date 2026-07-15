@@ -32,6 +32,17 @@ internal class WriteEmptyBodyStatusCode : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Wolverine automatically sets the status code to 204 for empty responses");
+        var response = $"{_context!.FSharpUsage}.{nameof(HttpContext.Response)}";
+        writer.Write(
+            $"BLOCK:if not {response}.{nameof(HttpResponse.HasStarted)} && {response}.{nameof(HttpResponse.StatusCode)} = 200 then");
+        writer.Write($"{response}.{nameof(HttpResponse.StatusCode)} <- 204");
+        writer.FinishBlock();
+        Next?.GenerateFSharpCode(method, writer);
+    }
+
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
         _context = chain.FindVariable(typeof(HttpContext));
