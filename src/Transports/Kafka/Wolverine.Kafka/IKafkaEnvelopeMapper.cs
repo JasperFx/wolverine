@@ -68,7 +68,9 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
         }
 
         if (incoming.Headers is null)
+        {
             return;
+        }
 
         foreach (var header in incoming.Headers)
         {

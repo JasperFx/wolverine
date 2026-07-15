@@ -143,15 +143,15 @@ public class JsonOnlyMapperTimestampTests
             Timestamp = Timestamp.Default,
             Headers = new Headers
             {
-                { "tenant-id", "from-kafka"u8.ToArray() }
+                { "color-source", "from-kafka"u8.ToArray() }
             }
         };
         var envelope = new Envelope();
-        envelope.Headers["tenant-id"] = "already-set";
+        envelope.Headers["color-source"] = "already-set";
 
         buildMapper().MapIncomingToEnvelope(envelope, incoming);
 
-        envelope.Headers["tenant-id"].ShouldBe("already-set");
+        envelope.Headers["color-source"].ShouldBe("already-set");
     }
 
     [Fact]

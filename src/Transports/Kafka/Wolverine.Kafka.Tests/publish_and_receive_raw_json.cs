@@ -77,15 +77,28 @@ public class publish_and_receive_raw_json : IAsyncLifetime
     [Fact]
     public async Task stamps_envelope_sent_at_from_the_kafka_record_timestamp()
     {
-        var session = await _sender.TrackActivity()
-            .AlsoTrack(_receiver)
-            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
-            .PublishMessageAndWaitAsync(new ColorMessage("yellow"));
+        // Envelope.SentAt defaults to UtcNow at construction, so a "recent" assertion would
+        // pass without this mapper. Produce with an explicit CreateTime an hour ago so we
+        // can distinguish broker-record time from the constructor default.
+        var transport = _receiver.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
+        var sentAt = DateTimeOffset.UtcNow.Subtract(1.Hours()).ToUnixTimeMilliseconds();
+        var expectedSentAt = DateTimeOffset.FromUnixTimeMilliseconds(sentAt);
 
-        // The JsonOnlyMapper stamps Envelope.SentAt from the Kafka record timestamp,
-        // which the broker assigns at produce time, so it should be a recent instant.
+        var session = await _receiver.TrackActivity()
+            .WaitForMessageToBeReceivedAt<ColorMessage>(_receiver)
+            .ExecuteAndWaitAsync((Func<IMessageContext, Task>)(async _ =>
+            {
+                using var producer = new ProducerBuilder<string, byte[]>(transport.ProducerConfig).Build();
+                await producer.ProduceAsync("json", new Message<string, byte[]>
+                {
+                    Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ColorMessage("yellow"))),
+                    Timestamp = new Timestamp(sentAt, TimestampType.CreateTime)
+                });
+                producer.Flush();
+            }));
+
         var received = session.Received.SingleEnvelope<ColorMessage>();
-        received.SentAt.ShouldBeGreaterThan(DateTimeOffset.UtcNow.Subtract(5.Minutes()));
+        received.SentAt.ShouldBe(expectedSentAt);
     }
 
     [Fact]
@@ -94,6 +107,8 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         // PublishRawJson only writes the body, so an external producer is used here to
         // put a custom header on the Kafka record. The JsonOnlyMapper should copy that
         // header onto the received Envelope without clobbering anything Wolverine set.
+        // Use a non-reserved key — reserved Wolverine keys (tenant-id, saga-id, id, ...)
+        // are deliberately skipped so an untrusted producer cannot hijack typed props.
         var transport = _receiver.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
 
         var session = await _receiver.TrackActivity()
@@ -106,14 +121,22 @@ public class publish_and_receive_raw_json : IAsyncLifetime
                     Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new ColorMessage("green"))),
                     Headers = new Headers
                     {
-                        { "tenant-id", "acme"u8.ToArray() }
+                        { "color-source", "acme"u8.ToArray() },
+                        { "tenant-id", "hijacked"u8.ToArray() },
+                        { "saga-id", "hijacked"u8.ToArray() },
+                        { "id", Encoding.UTF8.GetBytes(Guid.NewGuid().ToString()) }
                     }
                 });
                 producer.Flush();
             }));
 
         var received = session.Received.SingleEnvelope<ColorMessage>();
-        received.Headers["tenant-id"].ShouldBe("acme");
+        received.Headers["color-source"].ShouldBe("acme");
+        received.Headers.ContainsKey("tenant-id").ShouldBeFalse();
+        received.Headers.ContainsKey("saga-id").ShouldBeFalse();
+        received.Headers.ContainsKey("id").ShouldBeFalse();
+        received.TenantId.ShouldBeNull();
+        received.SagaId.ShouldBeNull();
     }
 
     [Fact]
