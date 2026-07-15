@@ -105,6 +105,31 @@ public class GateHandler
 // against the default in-memory saga store — no external persistence.
 // -----------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------
+// TryFinallyWrapperFrame exercise (issue GH-2969): registering TickMiddleware
+// with both Before and Finally methods against TickHandler triggers the
+// TryFinallyWrapperFrame code path in MiddlewarePolicy.wrapBeforeFrame.
+// -----------------------------------------------------------------------------
+
+/// <summary>Command handled by <see cref="TickHandler" />.</summary>
+public record Tick(int Id);
+
+/// <summary>
+///     Middleware with a <c>Finally</c> method; when registered against <see cref="TickHandler" />
+///     it causes <see cref="Wolverine.Middleware.TryFinallyWrapperFrame" /> to wrap the Before call.
+/// </summary>
+public class TickMiddleware
+{
+    public void Before() { }
+    public void Finally() { }
+}
+
+/// <summary>Minimal handler to produce a chain that receives <see cref="TickMiddleware" />.</summary>
+public class TickHandler
+{
+    public void Handle(Tick command) { }
+}
+
 /// <summary>Starts a <see cref="CountingSaga" />.</summary>
 public record StartCount(string Id);
 
