@@ -112,6 +112,38 @@ public class background_receive_loop_3236
         await theLoop.DisposeAsync();
     }
 
+    // GH-3434: the Kafka listener used to await this loop with Timeout.InfiniteTimeSpan, so a consume loop wedged
+    // in a blocking IConsumer.Consume(token) that never observed cancellation hung host shutdown forever. StopAsync
+    // must honor its finite budget and return even when the iteration ignores the token entirely.
+    [Fact]
+    public async Task stop_async_returns_within_budget_when_iteration_ignores_cancellation()
+    {
+        using var release = new ManualResetEventSlim(false);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var theLoop = loop(_ =>
+        {
+            entered.TrySetResult();
+            // Block synchronously, ignoring the cancellation token — exactly the wedged Consume shape.
+            release.Wait();
+            return Task.FromResult(true);
+        });
+
+        theLoop.Start();
+        await entered.Task.WaitAsync(5.Seconds());
+
+        var stopwatch = Stopwatch.StartNew();
+        await theLoop.StopAsync(200.Milliseconds());
+        stopwatch.Stop();
+
+        // Before the fix an infinite await never returned; now the finite budget bounds it.
+        stopwatch.Elapsed.ShouldBeLessThan(2.Seconds());
+
+        // Let the wedged iteration unwind so the background task can exit cleanly.
+        release.Set();
+        await theLoop.DisposeAsync();
+    }
+
     private static async Task waitUntil(Func<bool> condition, int timeoutMs = 5000)
     {
         var stopwatch = Stopwatch.StartNew();

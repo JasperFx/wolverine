@@ -49,7 +49,8 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
         var listener = new KafkaTopicGroupListener(this, config,
-            Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>());
+            Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
+            runtime.DurabilitySettings.DrainTimeout);
 
         // Broker-per-tenant (GH-3303): mirror the single-topic listener treatment — a shared listener on the
         // default cluster plus one per-tenant listener on each tenant cluster, stamping the tenant id inbound.
@@ -64,7 +65,8 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
                 var tenantListener = new KafkaTopicGroupListener(this, tenantConfig,
                     tenant.Transport.CreateConsumer(tenantConfig), tenantReceiver,
-                    runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(), tenant.Transport);
+                    runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
+                    runtime.DurabilitySettings.DrainTimeout, tenant.Transport);
                 compound.Inner.Add(tenantListener);
             }
 
