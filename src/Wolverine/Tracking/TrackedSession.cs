@@ -34,25 +34,56 @@ internal partial class TrackedSession : ITrackedSession
 
     private Stopwatch _stopwatch = new();
 
-    private readonly List<Func<Type, bool>> _ignoreMessageRules = [isFrameworkTraffic];
+    // Custom, test-supplied ignore rules (via IgnoreMessageTypes). Framework + system-command
+    // filtering is handled directly in isIgnoredMessageType so the system-command rule can be
+    // toggled off by IncludeSystemCommands().
+    private readonly List<Func<Type, bool>> _ignoreMessageRules = [];
+    private bool _ignoreSystemCommands = true;
     private CancellationTokenSource _cancellation = new();
 
     private TrackingStatus _status = TrackingStatus.Active;
 
-    // Framework/infrastructure traffic should never hold a tracked session open. That's
-    // Wolverine's own agent commands plus anything marked INotToBeRouted — which covers
-    // continuously-published telemetry like the CritterWatch monitoring messages that would
-    // otherwise keep IsCompleted() false until the session times out. Acknowledgements are
-    // deliberately still tracked: the session has first-class acknowledgement semantics
-    // (SendMessageAndWaitForAcknowledgementAsync, AssertAnyFailureAcknowledgements).
-    private static bool isFrameworkTraffic(Type type)
+    // Framework/infrastructure traffic should never hold a tracked session open.
+    private bool isIgnoredMessageType(Type? messageType)
     {
-        if (type == typeof(Acknowledgement) || type == typeof(FailureAcknowledgement))
+        if (messageType == null)
         {
             return false;
         }
 
-        return type.CanBeCastTo<IAgentCommand>() || type.CanBeCastTo<INotToBeRouted>();
+        // Acknowledgements are always tracked: the session's acknowledgement APIs
+        // (SendMessageAndWaitForAcknowledgementAsync, AssertAnyFailureAcknowledgements) depend on them.
+        if (messageType == typeof(Acknowledgement) || messageType == typeof(FailureAcknowledgement))
+        {
+            return false;
+        }
+
+        // Wolverine's own agent commands are framework chatter, never test-relevant activity.
+        if (messageType.CanBeCastTo<IAgentCommand>())
+        {
+            return true;
+        }
+
+        // System commands — e.g. continuously-published monitoring telemetry — are ignored by default
+        // so a never-ending feed can't keep IsCompleted() false until the session times out.
+        // IncludeSystemCommands() opts them back in for tests that assert on that traffic. NOTE: this is
+        // deliberately NOT keyed off INotToBeRouted; that marker governs conventional routing, not
+        // tracking, and real messages (e.g. CritterWatch's monitoring commands) legitimately carry it
+        // while still needing to be trackable.
+        if (_ignoreSystemCommands && messageType.CanBeCastTo<ISystemCommand>())
+        {
+            return true;
+        }
+
+        return _ignoreMessageRules.Any(x => x(messageType));
+    }
+
+    /// <summary>
+    /// Stop ignoring <see cref="ISystemCommand"/> traffic so this session tracks and can assert on it.
+    /// </summary>
+    public void IncludeSystemCommands()
+    {
+        _ignoreSystemCommands = false;
     }
 
     public TrackedSession(IHost host)
@@ -474,11 +505,11 @@ internal partial class TrackedSession : ITrackedSession
 
         // Ignore these
         var messageType = envelope.Message?.GetType();
-        if (_ignoreMessageRules.Any(x => x(messageType!)))
+        if (isIgnoredMessageType(messageType))
         {
             return;
         }
-        
+
         // Really just doing this idempotently
         var history = _envelopes[envelope.Id];
         if (history.Records.Any(r =>
@@ -495,7 +526,7 @@ internal partial class TrackedSession : ITrackedSession
     {
         // Ignore these
         var messageType = envelope.Message?.GetType();
-        if (messageType != null && _ignoreMessageRules.Any(x => x(messageType)))
+        if (isIgnoredMessageType(messageType))
         {
             return;
         }

@@ -80,9 +80,22 @@ public class TrackedSessionConfiguration
     /// </summary>
     /// <param name="filter"></param>
     /// <returns></returns>
-    public TrackedSessionConfiguration IgnoreMessagesMatchingType(Func<Type, bool> filter)  
+    public TrackedSessionConfiguration IgnoreMessagesMatchingType(Func<Type, bool> filter)
     {
         Session.IgnoreMessageTypes(filter);
+        return this;
+    }
+
+    /// <summary>
+    /// Track — and allow assertions on — messages marked <see cref="ISystemCommand"/>, which a tracked
+    /// session ignores by default. Use this when the traffic under test IS the system/monitoring traffic
+    /// (e.g. asserting a monitoring host received a telemetry message). A never-ending system feed can
+    /// still hold the session open, so pair this with <see cref="IgnoreMessagesMatchingType"/> for any
+    /// continuously-published types you don't want to wait on.
+    /// </summary>
+    public TrackedSessionConfiguration IncludeSystemCommands()
+    {
+        Session.IncludeSystemCommands();
         return this;
     }
 
