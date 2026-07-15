@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -71,6 +72,11 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
         foreach (var header in incoming.Headers)
         {
+            if (EnvelopeSerializer.ReservedHeaderKeys.Contains(header.Key))
+            {
+                continue;
+            }
+
             if (TryReadHeader(incoming, header.Key, out var headerValue))
             {
                 envelope.Headers.TryAdd(header.Key, headerValue);

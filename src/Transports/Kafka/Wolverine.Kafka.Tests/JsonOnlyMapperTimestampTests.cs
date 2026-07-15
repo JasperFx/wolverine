@@ -2,6 +2,7 @@ using System.Text.Json;
 using Confluent.Kafka;
 using Shouldly;
 using Wolverine.Kafka.Internals;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Kafka.Tests;
 
@@ -10,7 +11,7 @@ public class JsonOnlyMapperTimestampTests
     [Theory]
     [InlineData(TimestampType.CreateTime)]
     [InlineData(TimestampType.LogAppendTime)]
-    public void MapsAvailableKafkaTimestampToEnvelopeSentAt(TimestampType timestampType)
+    public void maps_available_kafka_timestamp_to_envelope_sent_at(TimestampType timestampType)
     {
         var timestamp = new DateTime(2026, 7, 13, 11, 15, 30, DateTimeKind.Utc);
         var incoming = new Message<string, byte[]>
@@ -26,7 +27,7 @@ public class JsonOnlyMapperTimestampTests
     }
 
     [Fact]
-    public void LeavesEnvelopeSentAtUnchangedWhenKafkaTimestampIsUnavailable()
+    public void leaves_envelope_sent_at_unchanged_when_kafka_timestamp_is_unavailable()
     {
         var originalSentAt = new DateTimeOffset(2026, 7, 13, 10, 0, 0, TimeSpan.Zero);
         var incoming = new Message<string, byte[]>
@@ -42,7 +43,57 @@ public class JsonOnlyMapperTimestampTests
     }
 
     [Fact]
-    public void CopiesIncomingKafkaHeadersToEnvelope()
+    public void all_reserved_kafka_headers_leave_every_typed_property_alone()
+    {
+        var headers = new Headers();
+        foreach (var key in EnvelopeSerializer.ReservedHeaderKeys)
+        {
+            headers.Add(key, "hijacked"u8.ToArray());
+        }
+
+        var timestamp = new DateTime(2026, 7, 13, 11, 15, 30, DateTimeKind.Utc);
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Timestamp = new Timestamp(timestamp, TimestampType.CreateTime),
+            Headers = headers
+        };
+        var id = Guid.NewGuid();
+        var destination = new Uri("kafka://localhost/expected");
+        var expected = new Envelope
+        {
+            Id = id,
+            Destination = destination,
+            TenantId = "real-tenant",
+            SagaId = "real-saga"
+        };
+        var actual = new Envelope
+        {
+            Id = id,
+            Destination = destination,
+            TenantId = "real-tenant",
+            SagaId = "real-saga"
+        };
+        var mapper = buildMapper(typeof(JsonOnlyMapperTimestampTests));
+
+        mapper.MapIncomingToEnvelope(expected, new Message<string, byte[]>
+        {
+            Value = [],
+            Timestamp = incoming.Timestamp
+        });
+        mapper.MapIncomingToEnvelope(actual, incoming);
+
+        actual.TenantId.ShouldBe(expected.TenantId);
+        actual.SagaId.ShouldBe(expected.SagaId);
+        actual.MessageType.ShouldBe(expected.MessageType);
+        actual.Id.ShouldBe(expected.Id);
+        actual.Destination.ShouldBe(expected.Destination);
+        actual.SentAt.ShouldBe(expected.SentAt);
+        actual.Headers.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void non_reserved_custom_headers_still_map_to_envelope()
     {
         var incoming = new Message<string, byte[]>
         {
@@ -50,20 +101,41 @@ public class JsonOnlyMapperTimestampTests
             Timestamp = Timestamp.Default,
             Headers = new Headers
             {
-                { "tenant-id", "acme"u8.ToArray() },
-                { "correlation", "abc-123"u8.ToArray() }
+                { "name", "Jeremy"u8.ToArray() },
+                { "state", "Texas"u8.ToArray() },
+                { EnvelopeConstants.TenantIdKey, "hijacked-tenant"u8.ToArray() }
             }
         };
         var envelope = new Envelope();
 
         buildMapper().MapIncomingToEnvelope(envelope, incoming);
 
-        envelope.Headers["tenant-id"].ShouldBe("acme");
-        envelope.Headers["correlation"].ShouldBe("abc-123");
+        envelope.Headers["name"].ShouldBe("Jeremy");
+        envelope.Headers["state"].ShouldBe("Texas");
+        envelope.Headers.ContainsKey(EnvelopeConstants.TenantIdKey).ShouldBeFalse();
+    }
+
+    [Theory]
+    [MemberData(nameof(ReservedHeaderKeys))]
+    public void each_reserved_kafka_header_is_skipped(string key)
+    {
+        var incoming = new Message<string, byte[]>
+        {
+            Value = [],
+            Headers = new Headers
+            {
+                { key, "hijacked"u8.ToArray() }
+            }
+        };
+        var envelope = new Envelope();
+
+        buildMapper().MapIncomingToEnvelope(envelope, incoming);
+
+        envelope.Headers.ContainsKey(key).ShouldBeFalse();
     }
 
     [Fact]
-    public void DoesNotOverwriteExistingEnvelopeHeaders()
+    public void does_not_overwrite_existing_envelope_headers()
     {
         var incoming = new Message<string, byte[]>
         {
@@ -83,7 +155,7 @@ public class JsonOnlyMapperTimestampTests
     }
 
     [Fact]
-    public void LeavesEnvelopeHeadersUntouchedWhenIncomingHasNone()
+    public void leaves_envelope_headers_untouched_when_incoming_has_none()
     {
         var incoming = new Message<string, byte[]>
         {
@@ -97,12 +169,20 @@ public class JsonOnlyMapperTimestampTests
         envelope.Headers.ShouldBeEmpty();
     }
 
-    private static JsonOnlyMapper buildMapper()
+    public static IEnumerable<object[]> ReservedHeaderKeys()
+    {
+        return EnvelopeSerializer.ReservedHeaderKeys.Select(key => new object[] { key });
+    }
+
+    private static JsonOnlyMapper buildMapper(Type? messageType = null)
     {
         var topic = new KafkaTopic(
             new KafkaTransport(),
             "timestamp-mapping",
-            Configuration.EndpointRole.Application);
+            Configuration.EndpointRole.Application)
+        {
+            MessageType = messageType
+        };
 
         return new JsonOnlyMapper(topic, new JsonSerializerOptions());
     }
