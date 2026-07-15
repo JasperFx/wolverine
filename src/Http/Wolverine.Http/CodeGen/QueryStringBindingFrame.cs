@@ -96,8 +96,23 @@ internal class QueryStringBindingFrame : SyncFrame
         {
             frame.GenerateCode(method, writer);
         }
-        
+
         Next?.GenerateCode(method, writer);
+    }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.WriteComment("Binding QueryString values to the argument marked with [FromQuery]");
+        var arguments = _parameters.Select(x => x.FSharpUsage).Join(", ");
+
+        writer.Write($"{Variable.FSharpAssignmentUsage} = {Variable.VariableType.FSharpName()}({arguments})");
+
+        foreach (var frame in _props.OfType<Frame>())
+        {
+            frame.GenerateFSharpCode(method, writer);
+        }
+
+        Next?.GenerateFSharpCode(method, writer);
     }
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
