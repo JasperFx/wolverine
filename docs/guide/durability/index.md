@@ -83,11 +83,12 @@ storage and processed when the system is restarted. Wolverine does this through 
 [IHostedService](https://docs.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-6.0&tabs=visual-studio) runtime that is automatically registered in your system through the `UseWolverine()` extension method.
 
 ::: tip
-At the moment, Wolverine only supports Postgresql, Sql Server, and RavenDb as the underlying database and either [Marten](/guide/durability/marten) or
+Wolverine supports PostgreSQL, Sql Server, MySQL, SQLite, Oracle, RavenDb, and CosmosDB as the underlying message storage,
+and [Marten](/guide/durability/marten), [Polecat](/guide/durability/polecat/), or
 [Entity Framework Core](/guide/durability/efcore) as the application persistence framework.
 :::
 
-There are four things you need to enable for the transactional outbox (and inbox for incoming messages):
+There are three things you need to enable for the transactional outbox (and inbox for incoming messages):
 
 1. Set up message storage in your application, and manage the storage schema objects -- don't worry though, Wolverine comes with a lot of tooling to help you with that
 2. Enroll outgoing subscriber or listener endpoints in the durable storage at configuration time
@@ -155,7 +156,7 @@ times, but it's always best to not make your system work so hard.
 
 It should *not* be possible for there to be any path where a message gets "stuck" in the outbox tables without eventually
 being sent by the originating node or recovered by a different node if the original node goes down first. However, it's 
-an imperfect world. If you are using one of the relational backed message stores for Wolverine (SQL Server or PostgreSQL at this point),
+an imperfect world. If you are using one of the relational backed message stores for Wolverine (PostgreSQL, SQL Server, MySQL, SQLite, or Oracle),
 you can "bump" a persisted record in the `wolverine_outgoing_envelopes` to be recovered and sent by the outbox by
 setting the `owner_id` field to zero.
 

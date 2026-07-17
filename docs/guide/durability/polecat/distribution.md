@@ -67,5 +67,8 @@ clustered Wolverine service. Wolverine will utilize a "database control queue" f
 
 Other requirements:
 
-* You cannot disable external transports with `StubAllExternalTransports()`
-* `WolverineOptions.Durability.Mode` must be `Balanced`
+* `WolverineOptions.Durability.Mode` must be `Balanced` **to spread the work across multiple nodes**, since that is
+  what enables leader election and the control queue. In `Solo` mode every projection and subscription agent still
+  runs — just all of them on the single node. `Serverless` and `MediatorOnly` start no agents at all.
+* In `Balanced` mode you cannot disable external transports with `StubAllExternalTransports()`, because the nodes
+  need the control queue to communicate

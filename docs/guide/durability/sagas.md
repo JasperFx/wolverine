@@ -625,7 +625,7 @@ a handful of things to know about this:
   flag
 * The lightweight saga storage supports optimistic concurrency by default and will throw a `SagaConcurrencyException` in
   the case of a `Saga` being modified by another `Saga` command while the current command is being processed
-* The lightweight saga storage is supported by both the [PostgreSQL](/guide/durability/postgresql.html) and [Sql Server](/guide/durability/sqlserver.html) integration
+* The lightweight saga storage is supported by the [PostgreSQL](/guide/durability/postgresql.html), [Sql Server](/guide/durability/sqlserver.html), [MySQL](/guide/durability/mysql.html), [SQLite](/guide/durability/sqlite.html), and [Oracle](/guide/durability/oracle.html) integrations
 * If the Marten integration is active, Marten will take precedence for the `Saga` storage for each type
 * If the EF Core integration is active, the EF Core `DbContext` backed `Saga` persistence will take precedence *if* Wolverine
   can find a `DbContext` that has a mapping for that `Saga` type

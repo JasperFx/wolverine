@@ -5,7 +5,7 @@ Wolverine will automatically check for the existence of necessary database table
 configured message storage, and will also apply any necessary database changes to comply with the configuration automatically.
 :::
 
-Wolverine uses the [Oakton "Stateful Resource"](https://jasperfx.github.io/oakton/guide/host/resources.html) model for managing
+Wolverine uses the [JasperFx "Stateful Resource"](https://github.com/JasperFx/jasperfx) model for managing
 infrastructure configuration at development or even deployment time for configured items like the database-backed message storage or
 message broker queues.
 
@@ -80,8 +80,8 @@ builder.Host.UseResourceSetupOnStartup();
 
 ## Command Line Management
 
-Assuming that you are using [Oakton](https://jasperfx.github.io/oakton) as your command line parser in your Wolverine application as
-shown in this last line of a .NET 6/7 `Program` code file:
+Assuming that you are using [JasperFx](https://github.com/JasperFx/jasperfx) as your command line parser in your Wolverine application as
+shown in this last line of a `Program` code file:
 
 <!-- snippet: sample_using_jasperfx_for_command_line_parsing -->
 <a id='snippet-sample_using_jasperfx_for_command_line_parsing'></a>

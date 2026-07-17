@@ -15,11 +15,13 @@ The first step is to just install the `WolverineFx.EntityFrameworkCore` Nuget:
 dotnet add package WolverineFx.EntityFrameworkCore
 ```
 
-::: warning
-For right now, it's perfectly possible to use multiple `DbContext` types with one Wolverine application and Wolverine
-is perfectly capable of using the correct `DbContext` type for `Saga` types. **But**, Wolverine can only use the transactional
-inbox/outbox with a single database registration. This limitation will be lifted later as folks are going to eventually hit
-this limitation with modular monolith approaches.
+::: tip
+It's perfectly possible to use multiple `DbContext` types with one Wolverine application, and Wolverine is perfectly
+capable of using the correct `DbContext` type for `Saga` types.
+
+Each `DbContext` can also have its own transactional inbox/outbox by enrolling it with an *ancillary* message store —
+`PersistMessagesWithSqlServer(connectionString, role: MessageStoreRole.Ancillary).Enroll<MyDbContext>()` — which is the
+supported approach for modular monolith applications. See [Ancillary Message Stores](/guide/durability/marten/ancillary-stores).
 :::
 
 With that in place, there's two basic things you need in order to fully use EF Core with Wolverine as shown below:

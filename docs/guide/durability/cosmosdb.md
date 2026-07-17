@@ -151,7 +151,10 @@ All Wolverine document types are stored in the same container, differentiated by
 - `outgoing` - Outgoing message envelopes
 - `deadletter` - Dead letter queue messages
 - `node` - Node registration documents
+- `node-record` - Node event history records
+- `node-sequence` - Node number assignment
 - `agent-assignment` - Agent assignment documents
+- `agent-restriction` - Agent restriction documents
 - `lock` - Distributed lock documents
 
 ## Message Persistence

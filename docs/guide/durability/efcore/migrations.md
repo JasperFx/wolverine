@@ -4,7 +4,7 @@ Wolverine uses [Weasel](https://weasel.jasperfx.net/) for schema management of E
 
 ## How It Works
 
-When you register a `DbContext` with Wolverine using `AddDbContextWithWolverineIntegration<T>()` or call `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine will:
+When you register a `DbContext` with Wolverine using `AddDbContextWithWolverineIntegration<T>()` and call `UseEntityFrameworkCoreWolverineManagedMigrations()`, Wolverine will:
 
 1. **Read the EF Core model** — Wolverine inspects your `DbContext`'s entity types, properties, and relationships to build a Weasel schema representation
 2. **Compare against the actual database** — Weasel connects to the database and compares the expected schema with the current state

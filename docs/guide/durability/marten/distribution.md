@@ -29,9 +29,13 @@ opts.Services.AddMarten(m =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/Support/SingleTenantContext.cs#L60-L79' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_opt_into_wolverine_managed_subscription_distribution' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-::: tip
-This option replaces the Marten `AddAsyncDaemon(HotCold)` option and should not be used in combination
-with Marten's own load distribution.
+::: warning
+This option **replaces** Marten's own daemon coordination — remove any `AddAsyncDaemon(DaemonMode.HotCold)`,
+`AddAsyncDaemon(DaemonMode.Solo)`, or `MartenDaemonModeIsSolo()` call. Wolverine sets Marten's async mode to
+`ExternallyManaged` itself, so no daemon registration is needed at all.
+
+Combining the two would leave competing coordinators running against the same daemon, so Wolverine **throws at
+startup** rather than let the projections silently stall. See [GH-3388](https://github.com/JasperFx/wolverine/issues/3388).
 :::
 
 With this option, Wolverine is going to ensure that every single known asynchronous [event projection](https://martendb.io/events/projections/) and every [event
@@ -113,8 +117,12 @@ control queue mechanism.
 
 Other requirements:
 
-* You cannot disable external transports with the `StubAllExternalTransports()`
-* `WolverineOptions.Durability.Mode` must be `Balanced`
+* `WolverineOptions.Durability.Mode` must be `Balanced` **to spread the work across multiple nodes**, since that is
+  what enables leader election and the control queue. In `Solo` mode every projection and subscription agent still
+  runs — just all of them on the single node, which is why `Solo` is a reasonable development-time setting (see
+  below). `Serverless` and `MediatorOnly` start no agents at all.
+* In `Balanced` mode you cannot disable external transports with `StubAllExternalTransports()`, because the nodes
+  need the control queue to communicate
 
 If you are seeing any issues with timeouts due to the Wolverine load distribution, you can try:
 
