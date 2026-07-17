@@ -132,3 +132,66 @@ For deployments with dozens to hundreds of tenant databases, the current mitigat
 2. **Raise `opts.Durability.UpdateMetricsPeriod`** (default: 5 seconds) to something like 1–5 minutes.
    Queue-depth gauges at tenant-database granularity rarely need 5-second resolution, and the connection
    cost scales directly with the polling frequency.
+
+## Scheduled Message Polling <Badge type="tip" text="6.20" />
+
+A durable scheduled message is just a persisted envelope with a future `execution_time`, so something has
+to periodically ask each message database "is anything due yet?". That polling happens every
+`opts.Durability.ScheduledJobPollingTime` (default: 5 seconds), and **which node does the polling depends
+on the database's role**:
+
+| Store | Polled by | Starts |
+|-------|-----------|--------|
+| Main and ancillary stores | **Every node** | Immediately at startup |
+| Tenant databases (database-per-tenant) | **Only the node that owns that database's durability agent** | Once agent assignment completes |
+
+Either way a due message executes exactly once. Where every node polls, the poll takes a per-database lock
+first, so only one node does the work; the rest find the lock taken and move on.
+
+### Why tenant databases are polled by only one node
+
+Before 6.20, *every* node polled *every* tenant database. The lock meant the work was only done once, but it
+didn't stop the connection: each losing node still opened a connection, started a transaction, failed to
+take the lock, and rolled back — every 5 seconds, against every tenant database. With hundreds of tenant
+databases that parks a connection per database per node, and adding a node *multiplied* the polling load
+rather than dividing it (see [GH-3376](https://github.com/JasperFx/wolverine/issues/3376)).
+
+Tenant scheduled polling now rides the per-database durability agent, which Wolverine's agent distribution
+assigns to exactly one node. The tenant polling load is now spread across your nodes instead of duplicated
+on each of them, and adding a node divides it.
+
+Main and ancillary stores deliberately keep polling from every node. There are only a handful of them and
+every node already holds connections to them anyway — for heartbeats, leader election, and the control
+queues — so there is nothing to save, and polling from every node means scheduled messages start flowing
+the moment a host boots rather than waiting on leader election.
+
+### What this means for your deployment
+
+* **Connection footprint from scheduled polling scales with the number of databases, not `databases × nodes`.**
+* **Tenant scheduled polling pauses briefly during failover.** If a node goes down, its tenant databases
+  aren't polled until their durability agents are reassigned to a surviving node. Nothing is lost — the
+  messages are still persisted, and execute once the new owner picks them up. This is the same behavior
+  the durable inbox/outbox recovery already has. Main and ancillary stores are unaffected.
+* **Tenant databases added at runtime** get scheduled polling automatically as soon as their durability
+  agent is assigned.
+* **`Solo` mode** runs every agent on the single node, so that node polls every database.
+* **Hosts with `opts.Durability.DurabilityAgentEnabled = false`** have no agents at all, so they keep
+  polling every database from every node regardless of role.
+
+The tenant durability agents are ordinary Wolverine agents, so you can see who owns what the same way you
+inspect any other assignment — they use the `wolverinedb://` URI scheme. If tenant scheduled messages seem
+late, confirm the database's agent is actually assigned and running somewhere before looking at
+`ScheduledJobPollingTime`.
+
+If your scheduled message latency requirements are loose, raising `ScheduledJobPollingTime` is still the
+cheapest way to cut the remaining polling cost:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        // The default is 5 seconds. Raising this trades scheduled message
+        // latency for fewer polling queries against every message database.
+        opts.Durability.ScheduledJobPollingTime = 1.Minutes();
+    }).StartAsync();
+```
