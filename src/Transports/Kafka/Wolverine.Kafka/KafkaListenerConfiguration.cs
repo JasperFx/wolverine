@@ -273,6 +273,10 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
     {
         DefaultIncomingMessage(messageType);
+
+        // The parameter order matters here! (e, _) would bind to the Action<TEndpoint, TConcreteMapper>
+        // customization overload of UseInterop, silently discarding the JsonOnlyMapper and leaving the
+        // default KafkaEnvelopeMapper in effect. See GH-3407.
         return UseInterop((_, e) => new JsonOnlyMapper(e, options ?? new()));
     }
     

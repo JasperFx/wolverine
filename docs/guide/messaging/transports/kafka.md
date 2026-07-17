@@ -651,6 +651,26 @@ _sender = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: warning
+Wolverine versions from 5.0 up to and including 6.19 had a bug where `ReceiveRawJson()` and `PublishRawJson()`
+silently ran the *default* Kafka envelope mapper instead of the raw-JSON mapper. If you are upgrading, be aware
+of these behavioral corrections:
+
+* **Incoming records no longer promote Wolverine's reserved header names.** Previously, a record header named
+  `tenant-id`, `saga-id`, `id`, `correlation-id`, etc. was mapped straight onto the matching `Envelope` property —
+  meaning any external producer could set the tenant id or saga identity of your messages. These reserved names
+  are now deliberately ignored on raw-JSON listeners. All *other* record headers are copied into
+  `Envelope.Headers`, and `Envelope.SentAt` is read from the Kafka record timestamp.
+* **Outgoing records are now genuinely raw.** `PublishRawJson()` previously stamped the full set of Wolverine
+  protocol headers (`message-type`, `correlation-id`, and friends) onto every record. Those headers are no longer
+  written. The body bytes are unchanged — messages are still serialized by the endpoint's JSON serializer
+  (camel-cased property names by default), so downstream consumers parsing the JSON are unaffected.
+
+If you have a *trusted* upstream producer that intentionally sets `tenant-id` (or another reserved header) and you
+depend on that promotion, register a custom mapper with `UseInterop((runtime, endpoint) => ...)` in place of
+`ReceiveRawJson()` to keep that behavior as an explicit opt-in.
+:::
+
 ## Confluent Schema Registry Serializers <Badge type="tip" text="5.27" />
 
 When you need to interoperate with other Kafka clients that use the [Confluent Schema Registry](https://docs.confluent.io/platform/current/schema-registry/index.html)
