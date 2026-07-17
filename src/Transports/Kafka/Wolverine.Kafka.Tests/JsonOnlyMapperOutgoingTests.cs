@@ -71,6 +71,6 @@ public class JsonOnlyMapperOutgoingTests
             MessageType = typeof(ColorMessage)
         };
 
-        return new JsonOnlyMapper(topic, new JsonSerializerOptions());
+        return new JsonOnlyMapper(topic);
     }
 }

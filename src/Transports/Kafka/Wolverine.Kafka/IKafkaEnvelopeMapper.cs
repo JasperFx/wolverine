@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using Confluent.Kafka;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
@@ -14,13 +13,12 @@ public interface IKafkaEnvelopeMapper : IEnvelopeMapper<Message<string, byte[]>,
 /// </summary>
 internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 {
-    private readonly JsonSerializerOptions _options;
+    private readonly KafkaTopic _topic;
     private readonly string? _messageTypeName;
 
-    public JsonOnlyMapper(KafkaTopic topic, JsonSerializerOptions options)
+    public JsonOnlyMapper(KafkaTopic topic)
     {
-        _options = options;
-
+        _topic = topic;
         _messageTypeName = topic.MessageType?.ToMessageTypeName();
     }
 
@@ -40,13 +38,11 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
             return;
         }
 
+        // Envelope.Data lazily serializes the message through the endpoint's serializer,
+        // so this covers both pre-serialized (durable/forwarded) and live-message sends.
         if (envelope.Data != null && envelope.Data.Any())
         {
             outgoing.Value = envelope.Data;
-        }
-        else if (envelope.Message != null)
-        {
-            outgoing.Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(envelope.Message, _options));
         }
         else
         {
@@ -73,6 +69,18 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
         envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
+
+        // Raw records carry no content-type, which routes deserialization to the *global*
+        // default serializer (HandlerPipeline.serializerFor) — stamping the endpoint's own
+        // serializer here is what lets ReceiveRawJson's JsonSerializerOptions take effect.
+        // ContentType is stamped too so a durable-inbox recovery replay, which loses the
+        // transient Serializer reference, still resolves this endpoint's serializer through
+        // the content-type lookup.
+        if (_topic.DefaultSerializer != null)
+        {
+            envelope.Serializer = _topic.DefaultSerializer;
+            envelope.ContentType = _topic.DefaultSerializer.ContentType;
+        }
 
         if (incoming.Timestamp.Type is TimestampType.CreateTime or TimestampType.LogAppendTime)
         {

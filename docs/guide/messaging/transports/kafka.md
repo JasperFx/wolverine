@@ -663,8 +663,15 @@ of these behavioral corrections:
   `Envelope.Headers`, and `Envelope.SentAt` is read from the Kafka record timestamp.
 * **Outgoing records are now genuinely raw.** `PublishRawJson()` previously stamped the full set of Wolverine
   protocol headers (`message-type`, `correlation-id`, and friends) onto every record. Those headers are no longer
-  written. The body bytes are unchanged — messages are still serialized by the endpoint's JSON serializer
-  (camel-cased property names by default), so downstream consumers parsing the JSON are unaffected.
+  written. When no `JsonSerializerOptions` are passed, the body bytes are unchanged — messages are still serialized
+  by the endpoint's JSON serializer (camel-cased property names by default), so downstream consumers parsing the
+  JSON are unaffected.
+* **The `JsonSerializerOptions` argument now works.** Previously the options passed to either method were silently
+  ignored on every code path. Supplying options now sets that endpoint's default JSON serialization — driving
+  deserialization of incoming bodies on `ReceiveRawJson()` (e.g. snake_cased payloads via
+  `PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower`) and serialization of outgoing bodies on
+  `PublishRawJson()`. Omitting the argument keeps Wolverine's defaults (camel-cased, case-insensitive reads),
+  so existing callers see no change.
 
 If you have a *trusted* upstream producer that intentionally sets `tenant-id` (or another reserved header) and you
 depend on that promotion, register a custom mapper with `UseInterop((runtime, endpoint) => ...)` in place of
