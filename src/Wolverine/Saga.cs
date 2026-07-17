@@ -42,9 +42,13 @@ public abstract class Saga
 #endregion
 
 /// <summary>
-/// Optimistic concurrency exception from Wolverine saga operations
+/// Optimistic concurrency exception from Wolverine saga operations. Inherits
+/// <see cref="JasperFx.ConcurrencyException"/> (GH-3444) so that a single
+/// <c>OnException&lt;ConcurrencyException&gt;()</c> policy catches saga concurrency failures across every
+/// storage provider — Marten already surfaces JasperFx's type, and the EF Core / lightweight / CosmosDb
+/// saga paths throw this one.
 /// </summary>
-public class SagaConcurrencyException : Exception
+public class SagaConcurrencyException : JasperFx.ConcurrencyException
 {
     public SagaConcurrencyException(string message) : base(message)
     {
