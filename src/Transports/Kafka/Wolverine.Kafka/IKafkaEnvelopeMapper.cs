@@ -28,6 +28,18 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
     {
         outgoing.Key = envelope.GroupId!;
 
+        // Sender liveness pings must stay recognizable on the receiving side. A raw-JSON
+        // listener identifies pings solely by the message-type header (see the guard in
+        // MapIncomingToEnvelope / GH-2838), so that one header still has to ride along even
+        // though this mapper strips all other Wolverine metadata off the record.
+        if (envelope.MessageType == Envelope.PingMessageType)
+        {
+            outgoing.Headers ??= new Headers();
+            outgoing.Headers.Add(EnvelopeConstants.MessageTypeKey, Encoding.UTF8.GetBytes(Envelope.PingMessageType));
+            outgoing.Value = envelope.Data ?? [];
+            return;
+        }
+
         if (envelope.Data != null && envelope.Data.Any())
         {
             outgoing.Value = envelope.Data;

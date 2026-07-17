@@ -56,7 +56,10 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// <returns></returns>
     public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
     {
-        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
+        // The parameter order matters here! (e, _) would bind to the Action<TEndpoint, TConcreteMapper>
+        // customization overload of UseInterop, silently discarding the JsonOnlyMapper and leaving the
+        // default KafkaEnvelopeMapper (and all of its Wolverine protocol headers) in effect. See GH-3407.
+        return UseInterop((_, e) => new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
     }
 
     /// <summary>
