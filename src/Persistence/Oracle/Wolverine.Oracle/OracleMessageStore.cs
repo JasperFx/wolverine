@@ -179,13 +179,24 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new DurabilityAgent(runtime, this);
+        return new DurabilityAgent(runtime, this)
+        {
+            // GH-3376: polling rides the distributed agent, one node per database
+            AutoStartScheduledJobPolling = true
+        };
     }
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
         var agent = new DurabilityAgent(runtime, this);
-        agent.StartScheduledJobPolling();
+
+        // GH-3376: see MessageDatabase.StartScheduledJobs - this node-wide fan-out would otherwise
+        // poll every database from every node. Only hosts without durability agents still need it.
+        if (!runtime.Options.Durability.DurabilityAgentEnabled)
+        {
+            agent.StartScheduledJobPolling();
+        }
+
         return agent;
     }
 

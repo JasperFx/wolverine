@@ -119,7 +119,12 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new DurabilityAgent(runtime, this);
+        return new DurabilityAgent(runtime, this)
+        {
+            // GH-3376: scheduled job polling belongs to this agent, which managed distribution
+            // assigns to exactly one node per database. See StartScheduledJobs() below.
+            AutoStartScheduledJobPolling = true
+        };
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
@@ -308,7 +313,21 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
         var agent = new DurabilityAgent(runtime, this);
-        agent.StartScheduledJobPolling();
+
+        // GH-3376: this node-wide fan-out runs on every node for every known database, outside the
+        // agent distribution machinery. Starting a poller here meant every node polled every tenant
+        // database every ScheduledJobPollingTime; the per-database advisory lock deduped the work but
+        // not the connection, so each losing node still opened a connection, began a transaction, and
+        // rolled back - parking `databases x nodes` connections. Polling now rides the distributed
+        // durability agent (BuildAgent above), which owns exactly one node per database. This mirrors
+        // what the RavenDb and CosmosDb stores already do for the same reason (#2623).
+        //
+        // The exception: hosts with durability agents turned off have no NodeAgentController and so
+        // never build a durability agent. For them this fan-out remains the only scheduled message pump.
+        if (!runtime.Options.Durability.DurabilityAgentEnabled)
+        {
+            agent.StartScheduledJobPolling();
+        }
 
         return agent;
     }
