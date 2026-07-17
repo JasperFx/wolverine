@@ -179,13 +179,26 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new DurabilityAgent(runtime, this);
+        return new DurabilityAgent(runtime, this)
+        {
+            // GH-3376: a tenant database's polling rides the distributed agent, one node per database
+            AutoStartScheduledJobPolling = Role == MessageStoreRole.Tenant
+        };
     }
 
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
         var agent = new DurabilityAgent(runtime, this);
-        agent.StartScheduledJobPolling();
+
+        // GH-3376: see MessageDatabase.StartScheduledJobs - this node-wide fan-out would otherwise poll
+        // every tenant database from every node. Main / ancillary stores keep polling here (every node
+        // already connects to them, and this starts at boot rather than after agent assignment), as do
+        // hosts running without durability agents, where this is the only pump.
+        if (!runtime.Options.Durability.DurabilityAgentEnabled || Role != MessageStoreRole.Tenant)
+        {
+            agent.StartScheduledJobPolling();
+        }
+
         return agent;
     }
 

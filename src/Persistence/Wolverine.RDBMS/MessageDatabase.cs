@@ -119,7 +119,13 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new DurabilityAgent(runtime, this);
+        return new DurabilityAgent(runtime, this)
+        {
+            // GH-3376: a tenant database's scheduled job polling belongs to this agent, which managed
+            // distribution assigns to exactly one node. Main / ancillary stores keep polling from the
+            // node-wide fan-out instead - see StartScheduledJobs() below.
+            AutoStartScheduledJobPolling = Role == MessageStoreRole.Tenant
+        };
     }
 
     public Uri Uri { get; protected set; } = new Uri("null://null");
@@ -308,7 +314,28 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     public IAgent StartScheduledJobs(IWolverineRuntime runtime)
     {
         var agent = new DurabilityAgent(runtime, this);
-        agent.StartScheduledJobPolling();
+
+        // GH-3376: this node-wide fan-out runs on every node for every known database, outside the
+        // agent distribution machinery. Starting a poller here meant every node polled every TENANT
+        // database every ScheduledJobPollingTime; the per-database advisory lock deduped the work but
+        // not the connection, so each losing node still opened a connection, began a transaction, and
+        // rolled back - parking `tenants x nodes` connections, and each added node multiplied the
+        // polling load instead of dividing it. Tenant polling now rides the distributed durability
+        // agent (BuildAgent above), which managed distribution assigns to exactly one node. That
+        // mirrors what the RavenDb and CosmosDb stores already do for the same reason (#2623).
+        //
+        // Main and ancillary stores deliberately keep polling here, on every node:
+        //  - There are a handful of them, and every node already holds connections to them anyway for
+        //    heartbeats, leader election, and the control queues, so scoping them saves nothing.
+        //  - Polling from here starts immediately at boot. Waiting for leader election and agent
+        //    assignment instead would delay scheduled messages by >10s on every startup.
+        //
+        // Hosts with durability agents turned off have no NodeAgentController and so never build a
+        // durability agent. For them this fan-out is the only scheduled message pump, whatever the role.
+        if (!runtime.Options.Durability.DurabilityAgentEnabled || Role != MessageStoreRole.Tenant)
+        {
+            agent.StartScheduledJobPolling();
+        }
 
         return agent;
     }
