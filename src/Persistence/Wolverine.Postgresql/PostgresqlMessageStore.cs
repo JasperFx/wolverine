@@ -565,8 +565,9 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
                 return _serverId.Value;
             }
 
-            var builder = new NpgsqlConnectionStringBuilder(DataSource?.ConnectionString ?? Settings.ConnectionString);
-            _serverId = new DatabaseServerId("PostgreSQL", builder.Host ?? string.Empty, builder.Port);
+            // Sourced from Describe() so the server id and the diagnostic descriptor can't disagree
+            // about the host/port. Cached, so the descriptor is only built once.
+            _serverId = DatabaseServerId.For(Describe());
 
             return _serverId.Value;
         }
@@ -600,6 +601,9 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         {
             Engine = "PostgreSQL",
             ServerName = builder.Host ?? string.Empty,
+            // PostgreSQL carries the port separately from the host, and it matters for connection
+            // budgeting: two clusters co-hosted on one box would otherwise collide onto one budget.
+            Port = builder.Port,
             DatabaseName = builder.Database ?? string.Empty,
             Subject = GetType().FullNameInCode(),
             SubjectUri = SubjectUri,

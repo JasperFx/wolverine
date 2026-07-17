@@ -475,8 +475,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
                 return _serverId.Value;
             }
 
-            var builder = new SqlConnectionStringBuilder(_settings.ConnectionString);
-            _serverId = new DatabaseServerId("SqlServer", builder.DataSource ?? string.Empty, null);
+            // Sourced from Describe() so the server id and the diagnostic descriptor can't disagree
+            // about the host. Cached, so the descriptor is only built once.
+            _serverId = DatabaseServerId.For(Describe());
 
             return _serverId.Value;
         }
@@ -515,6 +516,9 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         {
             Engine = "SqlServer",
             ServerName = builder.DataSource ?? string.Empty,
+            // Deliberately null: SqlServer's Data Source already carries the port (host,1433) or a
+            // named instance (host\SQLEXPRESS), so splitting it back out would only invent ambiguity.
+            Port = null,
             DatabaseName = builder.InitialCatalog ?? string.Empty,
             Subject = GetType().FullNameInCode(),
             SchemaOrNamespace = _settings.SchemaName!,
