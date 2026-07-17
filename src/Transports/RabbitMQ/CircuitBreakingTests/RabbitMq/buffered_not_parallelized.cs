@@ -9,6 +9,12 @@ namespace CircuitBreakingTests.RabbitMq;
 public class buffered_not_parallelized(ITestOutputHelper output)
     : CircuitBreakerIntegrationContext(output)
 {
+    // GH-3137: buffered mode acks each message to the broker on receipt and holds it in memory, so the
+    // few messages in flight when the breaker tears the listener down on a trip are lost (already acked,
+    // never persisted). Require the bulk rather than exact delivery — the trip/restart behavior is still
+    // asserted. Durable/inline keep the full-1200 requirement from the base class.
+    protected override int RequiredProcessedCountOnTrip => 1150;
+
     protected override void configureListener(WolverineOptions opts)
     {
         // Requeue failed messages.
