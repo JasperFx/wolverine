@@ -273,7 +273,7 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
     {
         DefaultIncomingMessage(messageType);
-        return UseInterop((e, _) => new JsonOnlyMapper(e, options ?? new()));
+        return UseInterop((_, e) => new JsonOnlyMapper(e, options ?? new()));
     }
     
     /// <summary>

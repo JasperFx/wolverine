@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Confluent.Kafka;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
 
@@ -60,17 +61,40 @@ internal class JsonOnlyMapper : IKafkaEnvelopeMapper
 
         envelope.Data = incoming.Value;
         envelope.MessageType = _messageTypeName;
+
+        if (incoming.Timestamp.Type is TimestampType.CreateTime or TimestampType.LogAppendTime)
+        {
+            envelope.SentAt = incoming.Timestamp.UtcDateTime;
+        }
+
+        if (incoming.Headers is null)
+        {
+            return;
+        }
+
+        foreach (var header in incoming.Headers)
+        {
+            if (EnvelopeSerializer.ReservedHeaderKeys.Contains(header.Key))
+            {
+                continue;
+            }
+
+            if (TryReadHeader(incoming, header.Key, out var headerValue))
+            {
+                envelope.Headers.TryAdd(header.Key, headerValue);
+            }
+        }
     }
 
-    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string value)
+    private static bool TryReadHeader(Message<string, byte[]> incoming, string key, out string? value)
     {
         if (incoming.Headers != null && incoming.Headers.TryGetLastBytes(key, out var bytes))
         {
-            value = Encoding.UTF8.GetString(bytes);
+            value = bytes is null ? null : Encoding.UTF8.GetString(bytes);
             return true;
         }
 
-        value = default!;
+        value = null;
         return false;
     }
 }
