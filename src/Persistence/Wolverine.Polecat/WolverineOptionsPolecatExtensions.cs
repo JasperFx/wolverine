@@ -81,6 +81,19 @@ public static class WolverineOptionsPolecatExtensions
                              store.Options.DatabaseSchemaName ??
                              "wolverine";
 
+            // GH-3445: honor Polecat's database-per-tenant on the primary store just like the ancillary
+            // path (and the Marten twin at WolverineOptionsMartenExtensions.cs) — build a
+            // MultiTenantedMessageStore over a PolecatMessageDatabaseSource so each tenant's envelope
+            // storage lands in that tenant's database, with a "main" store for tenant-neutral operations.
+            // Dispatch on cardinality rather than the tenancy's type name (see the ancillary seam's note
+            // on marten#4864). This is where MainDatabaseConnectionString is finally read.
+            if (store.Options.Tenancy != null &&
+                store.Options.Tenancy.Cardinality != JasperFx.Descriptors.DatabaseCardinality.Single)
+            {
+                return BuildMultiTenantedMessageStore(schemaName, store, runtime,
+                    integration.MainDatabaseConnectionString);
+            }
+
             return BuildSqlServerMessageStore(schemaName, store, runtime, logger);
         });
 
@@ -152,6 +165,48 @@ public static class WolverineOptionsPolecatExtensions
 
         var sagaTypes = runtime.Services.GetServices<SagaTableDefinition>();
         return new SqlServerMessageStore(settings, runtime.Options.Durability, logger, sagaTypes);
+    }
+
+    // GH-3445: primary-store database-per-tenant. Mirrors the ancillary
+    // BuildMultiTenantedMessageDatabase<T> and the Marten twin BuildMultiTenantedMessageDatabase, but
+    // with Role.Main for the master store. The master holds tenant-neutral state (nodes, assignments,
+    // dead letters) and each tenant's envelope tables live in that tenant's own SQL Server database via
+    // PolecatMessageDatabaseSource.
+    internal static IMessageStore BuildMultiTenantedMessageStore(
+        string schemaName,
+        IDocumentStore store,
+        IWolverineRuntime runtime,
+        string? masterDatabaseConnectionString)
+    {
+        var connectionString = masterDatabaseConnectionString ?? store.Options.ConnectionString;
+
+        if (connectionString.IsEmpty())
+        {
+            throw new ArgumentOutOfRangeException(nameof(masterDatabaseConnectionString),
+                $"Wolverine requires a main message store database even if the current Polecat tenancy model does not. Configure it via {nameof(PolecatIntegration)}.{nameof(PolecatIntegration.MainDatabaseConnectionString)} in the IntegrateWithWolverine() configuration.");
+        }
+
+        var masterSettings = new DatabaseSettings
+        {
+            SchemaName = schemaName,
+            AutoCreate = AutoCreate.CreateOrUpdate,
+            Role = MessageStoreRole.Main,
+            CommandQueuesEnabled = true,
+            ConnectionString = connectionString
+        };
+
+        var sagaTypes = runtime.Services.GetServices<SagaTableDefinition>();
+        var main = new SqlServerMessageStore(masterSettings, runtime.Options.Durability,
+            runtime.LoggerFactory.CreateLogger<SqlServerMessageStore>(), sagaTypes)
+        {
+            Name = "Main"
+        };
+
+        var source = new PolecatMessageDatabaseSource(schemaName, AutoCreate.CreateOrUpdate, store, runtime);
+
+        main.Initialize(runtime);
+
+        return new MultiTenantedMessageStore(main, runtime, source);
     }
 
     /// <summary>
