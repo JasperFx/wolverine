@@ -15,6 +15,16 @@ public class EventStoreAgents : IAsyncDisposable
     private readonly SemaphoreSlim _daemonLock = new(1);
     private ImHashMap<DatabaseId, IProjectionDaemon> _daemons = ImHashMap<DatabaseId, IProjectionDaemon>.Empty;
 
+    // The observer subscriptions taken out against each database's daemon Tracker, so they can be
+    // disposed when this node stops owning that database instead of living until the whole store is
+    // disposed. Absence of an entry means "not currently subscribed" - FindDaemonAsync re-subscribes a
+    // cached daemon on reuse, so a database revoked and later reassigned still feeds its observers.
+    private ImHashMap<DatabaseId, IDisposable[]> _observerSubscriptions = ImHashMap<DatabaseId, IDisposable[]>.Empty;
+
+    // How many of each database's subscription agents are running on this node right now, so the 1->0
+    // transition is detectable. Only mutated under _daemonLock.
+    private ImHashMap<DatabaseId, int> _runningAgentCounts = ImHashMap<DatabaseId, int>.Empty;
+
     // Keyed by ShardName.RelativeUrl. Populated as a side effect of SupportedAgentsAsync, but also resolved
     // on demand by BuildAgentAsync (a node assigned an agent may never have enumerated its own shards). An
     // ImHashMap so the enumeration writes and the BuildAgentAsync reads are lock-free across threads. See
@@ -42,6 +52,16 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        foreach (var entry in _observerSubscriptions.Enumerate())
+        {
+            foreach (var subscription in entry.Value)
+            {
+                subscription.SafeDispose();
+            }
+        }
+
+        _observerSubscriptions = ImHashMap<DatabaseId, IDisposable[]>.Empty;
+
         foreach (var entry in _daemons.Enumerate())
         {
             try
@@ -60,7 +80,10 @@ public class EventStoreAgents : IAsyncDisposable
 
     public async ValueTask<IProjectionDaemon> FindDaemonAsync(DatabaseId databaseId)
     {
-        if (_daemons.TryFind(databaseId, out var daemon))
+        // Fast path only when the daemon is cached AND currently subscribed - a daemon whose
+        // subscriptions were released at the 1->0 transition has to go through the lock to be
+        // re-subscribed before it's handed back out.
+        if (_daemons.TryFind(databaseId, out var daemon) && _observerSubscriptions.TryFind(databaseId, out _))
         {
             return daemon;
         }
@@ -69,19 +92,13 @@ public class EventStoreAgents : IAsyncDisposable
         try
         {
             // Gotta do the double lock thing
-            if (_daemons.TryFind(databaseId, out daemon))
+            if (!_daemons.TryFind(databaseId, out daemon))
             {
-                return daemon;
+                daemon = await _store.BuildProjectionDaemonAsync(databaseId);
+                _daemons = _daemons.AddOrUpdate(databaseId, daemon);
             }
 
-            daemon = await _store.BuildProjectionDaemonAsync(databaseId);
-            foreach (var observer in _observers)
-            {
-                // TODO -- do we need to care about un-subscribing?
-                daemon.Tracker.Subscribe(observer);
-            }
-            
-            _daemons = _daemons.AddOrUpdate(databaseId, daemon);
+            subscribeObservers(databaseId, daemon);
         }
         finally
         {
@@ -89,6 +106,66 @@ public class EventStoreAgents : IAsyncDisposable
         }
 
         return daemon;
+    }
+
+    // Callers must hold _daemonLock.
+    private void subscribeObservers(DatabaseId databaseId, IProjectionDaemon daemon)
+    {
+        if (_observerSubscriptions.TryFind(databaseId, out _)) return;
+
+        var subscriptions = _observers.Select(x => daemon.Tracker.Subscribe(x)).ToArray();
+        _observerSubscriptions = _observerSubscriptions.AddOrUpdate(databaseId, subscriptions);
+    }
+
+    private async ValueTask agentStartedAsync(DatabaseId databaseId)
+    {
+        await _daemonLock.WaitAsync();
+        try
+        {
+            _runningAgentCounts.TryFind(databaseId, out var count);
+            _runningAgentCounts = _runningAgentCounts.AddOrUpdate(databaseId, count + 1);
+        }
+        finally
+        {
+            _daemonLock.Release();
+        }
+    }
+
+    // The 1->0 transition: this node just stopped the last of a database's subscription agents, so it
+    // has no further interest in that database's tracker. Drop the observer subscriptions rather than
+    // holding them until the store is disposed (the standing TODO in FindDaemonAsync).
+    //
+    // The daemon itself is deliberately left cached and undisposed. It is shared - AllDaemonsAsync()
+    // hands it to Polecat's IProjectionCoordinator, and TryRebuildRegisteredProjectionAsync holds it
+    // across a rebuild - so disposing it here would be a use-after-dispose for anyone mid-borrow, and
+    // removing it from _daemons would strand it from the disposal sweep in DisposeAsync. Fully
+    // releasing the daemon needs a quiesce hook on the JasperFx side; see GH-3376.
+    private async ValueTask agentStoppedAsync(DatabaseId databaseId)
+    {
+        await _daemonLock.WaitAsync();
+        try
+        {
+            _runningAgentCounts.TryFind(databaseId, out var count);
+
+            // Clamp: a stop without a matching successful start must not drive this negative
+            var remaining = Math.Max(0, count - 1);
+            _runningAgentCounts = _runningAgentCounts.AddOrUpdate(databaseId, remaining);
+
+            if (remaining > 0) return;
+
+            if (_observerSubscriptions.TryFind(databaseId, out var subscriptions))
+            {
+                _observerSubscriptions = _observerSubscriptions.Remove(databaseId);
+                foreach (var subscription in subscriptions)
+                {
+                    subscription.SafeDispose();
+                }
+            }
+        }
+        finally
+        {
+            _daemonLock.Release();
+        }
     }
 
     public async ValueTask<IReadOnlyList<Uri>> SupportedAgentsAsync(CancellationToken cancellation)
@@ -191,7 +268,11 @@ public class EventStoreAgents : IAsyncDisposable
 
         var daemon = await FindDaemonAsync(databaseId);
 
-        return new EventSubscriptionAgent(uri, shardName, daemon);
+        return new EventSubscriptionAgent(uri, shardName, daemon)
+        {
+            OnStarted = () => agentStartedAsync(databaseId),
+            OnStopped = () => agentStoppedAsync(databaseId)
+        };
     }
 
     /// <summary>
