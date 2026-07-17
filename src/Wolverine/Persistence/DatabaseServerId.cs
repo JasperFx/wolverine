@@ -1,3 +1,5 @@
+using JasperFx.Descriptors;
+
 namespace Wolverine.Persistence;
 
 /// <summary>
@@ -17,6 +19,19 @@ namespace Wolverine.Persistence;
 /// </param>
 public readonly record struct DatabaseServerId(string Engine, string ServerName, int? Port)
 {
+    /// <summary>
+    /// Build the server id from a <see cref="DatabaseDescriptor"/>. The descriptor is the single source
+    /// of the server's <see cref="DatabaseDescriptor.Engine"/> / <see cref="DatabaseDescriptor.ServerName"/>
+    /// / <see cref="DatabaseDescriptor.Port"/> (jasperfx#514), so a provider populates those once in its
+    /// <c>Describe()</c> and both the connection-budget key and the diagnostic descriptor agree — rather
+    /// than each re-parsing the connection string. Port carries the engine's own convention: PostgreSQL
+    /// sets it, SqlServer leaves it null because the port is already folded into the server name.
+    /// </summary>
+    public static DatabaseServerId For(DatabaseDescriptor descriptor)
+    {
+        return new DatabaseServerId(descriptor.Engine, descriptor.ServerName, descriptor.Port);
+    }
+
     /// <summary>
     /// The value used as the <c>server</c> metric tag and in diagnostic output. The engine is
     /// deliberately left out — a host:port pair is already unique, and operators recognize it.
