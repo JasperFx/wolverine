@@ -99,6 +99,50 @@ public class persistence_provider_precedence
         provider.ShouldBeSameAs(catchAll);
     }
 
+    // GH-3443: the real lightweight saga provider claims every saga, so it must be treated as a
+    // catch-all like Marten - otherwise it sorts ahead of Marten and steals sagas Marten should own.
+    [Fact]
+    public void the_lightweight_saga_provider_is_a_catch_all()
+    {
+        // Cast to the interface deliberately: IsCatchAll is a default interface member, so reading it off
+        // the concrete type would only compile when the override is present. Through the interface it
+        // reads the default (false) when the override is missing, which is the real regression.
+        ((IPersistenceFrameProvider)new LightweightSagaPersistenceFrameProvider()).IsCatchAll.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void marten_sorts_ahead_of_the_lightweight_saga_provider()
+    {
+        // A relational message store registers the lightweight provider (appended); Marten registers
+        // via InsertFirstPersistenceStrategy, landing at index 0. This is that raw order.
+        var martenLike = new CatchAllProvider();
+        var lightweight = new LightweightSagaPersistenceFrameProvider();
+
+        var rules = rulesWith(martenLike, lightweight);
+
+        var ordered = rules.OrderedPersistenceProviders();
+
+        // Both are catch-alls, so the stable sort preserves the raw order: Marten first, lightweight
+        // last. Before the fix, lightweight (mis-reported as non-catch-all) sorted FIRST and won every
+        // saga, silently moving Marten-owned sagas onto the lightweight tables.
+        ordered[0].ShouldBeSameAs(martenLike);
+        ordered[^1].ShouldBeSameAs(lightweight);
+    }
+
+    [Fact]
+    public void an_ef_core_like_selective_provider_still_outranks_marten_and_lightweight()
+    {
+        // The GH-3359 rule must survive the fix: a selective provider (EF Core, keyed on a DbContext
+        // mapping) is consulted before either catch-all.
+        var efCoreLike = new SelectiveProvider(typeof(MappedEntity));
+        var martenLike = new CatchAllProvider();
+        var lightweight = new LightweightSagaPersistenceFrameProvider();
+
+        var rules = rulesWith(martenLike, lightweight, efCoreLike);
+
+        rules.OrderedPersistenceProviders()[0].ShouldBeSameAs(efCoreLike);
+    }
+
     public class MappedEntity;
 
     public class UnmappedDocument;
