@@ -58,7 +58,15 @@ The `Uri` structure for event subscriptions or projections is:
 event-subscriptions://[event store type]/[event store name]/[database server].[database name]/[relative path of the shard]
 ```
 
-For example: `event-subscriptions://polecat/main/localhost.mydb/day/all`
+For an example from the tests: `event-subscriptions://sqlserver/main/localhost.mydb/day/all` where:
+
+* "sqlserver" is the event store *type*. Polecat reports its `IEventStore.Identity.Type` as its underlying
+  storage engine — `"SqlServer"`, lowercased by the URI — rather than "polecat", so this is where the
+  authority differs from the Marten page's `marten` example
+* "main" refers to this projection being in the primary Polecat store added from `AddPolecat()`. Otherwise
+  this value would be the type name of an ancillary store type in all lower case
+* "localhost" is the database server and "mydb" is the name of the database
+* "day/all" refers to a projection with the `ShardName` of "Day:All"
 
 ## Requirements
 

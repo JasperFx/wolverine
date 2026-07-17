@@ -20,9 +20,9 @@ builder.Services.AddPolecat(m =>
     {
         m.MultiTenantedDatabases(tenancy =>
         {
-            tenancy.AddSingleTenantDatabase("Server=localhost;Database=tenant1;...", "tenant1");
-            tenancy.AddSingleTenantDatabase("Server=localhost;Database=tenant2;...", "tenant2");
-            tenancy.AddSingleTenantDatabase("Server=localhost;Database=tenant3;...", "tenant3");
+            tenancy.AddTenant("tenant1", "Server=localhost;Database=tenant1;...");
+            tenancy.AddTenant("tenant2", "Server=localhost;Database=tenant2;...");
+            tenancy.AddTenant("tenant3", "Server=localhost;Database=tenant3;...");
         });
     })
     .IntegrateWithWolverine(x => x.MainDatabaseConnectionString = connectionString);
