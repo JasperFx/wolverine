@@ -203,6 +203,6 @@ public class JsonOnlyMapperTimestampTests
             MessageType = messageType
         };
 
-        return new JsonOnlyMapper(topic, new JsonSerializerOptions());
+        return new JsonOnlyMapper(topic);
     }
 }

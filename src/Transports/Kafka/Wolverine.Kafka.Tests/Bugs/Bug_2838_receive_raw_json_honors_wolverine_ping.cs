@@ -23,7 +23,7 @@ public class Bug_2838_receive_raw_json_honors_wolverine_ping
             MessageType = typeof(Msg2838)
         };
 
-        var mapper = new JsonOnlyMapper(topic, new System.Text.Json.JsonSerializerOptions());
+        var mapper = new JsonOnlyMapper(topic);
 
         var incoming = new Message<string, byte[]>
         {
@@ -52,7 +52,7 @@ public class Bug_2838_receive_raw_json_honors_wolverine_ping
             MessageType = typeof(Msg2838)
         };
 
-        var mapper = new JsonOnlyMapper(topic, new System.Text.Json.JsonSerializerOptions());
+        var mapper = new JsonOnlyMapper(topic);
 
         var payload = Encoding.UTF8.GetBytes("{\"name\":\"hi\"}");
         var incoming = new Message<string, byte[]>

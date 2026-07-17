@@ -3,6 +3,7 @@ using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
 using Wolverine.Kafka.Internals;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Kafka;
 
@@ -52,14 +53,26 @@ public class KafkaSubscriberConfiguration : InteroperableSubscriberConfiguration
     /// Publish only the raw, serialized JSON representation of messages to the downstream
     /// Kafka subscribers
     /// </summary>
-    /// <param name="options"></param>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings for outgoing
+    /// message bodies. When omitted, Wolverine's default System.Text.Json settings
+    /// (camel-cased property names) apply.
+    /// </param>
     /// <returns></returns>
     public KafkaSubscriberConfiguration PublishRawJson(JsonSerializerOptions? options = null)
     {
+        if (options != null)
+        {
+            // Envelope.Data serializes outgoing message bodies through the endpoint's
+            // serializer before the mapper runs, so the endpoint's default serializer is
+            // the one true place these options can take effect.
+            add(e => e.DefaultSerializer = new SystemTextJsonSerializer(options));
+        }
+
         // The parameter order matters here! (e, _) would bind to the Action<TEndpoint, TConcreteMapper>
         // customization overload of UseInterop, silently discarding the JsonOnlyMapper and leaving the
         // default KafkaEnvelopeMapper (and all of its Wolverine protocol headers) in effect. See GH-3407.
-        return UseInterop((_, e) => new JsonOnlyMapper(e, options ?? new JsonSerializerOptions()));
+        return UseInterop((_, e) => new JsonOnlyMapper(e));
     }
 
     /// <summary>

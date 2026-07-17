@@ -4,6 +4,7 @@ using Confluent.Kafka.Admin;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Kafka.Internals;
+using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.Kafka;
 
@@ -254,12 +255,16 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     /// JSON message bodies. This option maybe be necessary to receive
     /// messages from non-Wolverine applications
     /// </summary>
-    /// <param name="options"></param>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings for both
+    /// deserializing incoming bodies and serializing outgoing ones. When omitted, Wolverine's
+    /// default System.Text.Json settings (camel-cased, case-insensitive reads) apply.
+    /// </param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public KafkaListenerConfiguration ReceiveRawJson<T>(JsonSerializerOptions? options = null)
     {
-        return ReceiveRawJson(typeof(T));
+        return ReceiveRawJson(typeof(T), options);
     }
 
     /// <summary>
@@ -268,16 +273,29 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     /// messages from non-Wolverine applications
     /// </summary>
     /// <param name="messageType"></param>
-    /// <param name="options"></param>
+    /// <param name="options">
+    /// When supplied, becomes this endpoint's default JSON serialization settings for both
+    /// deserializing incoming bodies and serializing outgoing ones. When omitted, Wolverine's
+    /// default System.Text.Json settings (camel-cased, case-insensitive reads) apply.
+    /// </param>
     /// <returns></returns>
     public KafkaListenerConfiguration ReceiveRawJson(Type messageType, JsonSerializerOptions? options = null)
     {
         DefaultIncomingMessage(messageType);
 
+        if (options != null)
+        {
+            // The mapper leaves deserialization to the endpoint's serializer (see
+            // HandlerPipeline.serializerFor), and Envelope.Data serializes outgoing message
+            // bodies through the same serializer — so the endpoint's default serializer is
+            // the one true place these options can take effect.
+            add(e => e.DefaultSerializer = new SystemTextJsonSerializer(options));
+        }
+
         // The parameter order matters here! (e, _) would bind to the Action<TEndpoint, TConcreteMapper>
         // customization overload of UseInterop, silently discarding the JsonOnlyMapper and leaving the
         // default KafkaEnvelopeMapper in effect. See GH-3407.
-        return UseInterop((_, e) => new JsonOnlyMapper(e, options ?? new()));
+        return UseInterop((_, e) => new JsonOnlyMapper(e));
     }
     
     /// <summary>
