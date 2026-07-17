@@ -118,10 +118,34 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
         return Task.WhenAll(_tasks);
     }
 
+    // GH-3137: how long we allow the listener to churn through the published messages (with requeues,
+    // and, in the trip test, a 10s circuit pause eating into the window). These assertions are about
+    // circuit-breaker *behavior*, not throughput — on a slow/contended CI runner the old 1-minute
+    // budget was itself the thing that failed. Kept generous so processing time is never under test.
+    protected static readonly TimeSpan ProcessingBudget = 3.Minutes();
+
+    // GH-3137: how many of the 1200 published messages must be processed for the trip test to pass.
+    // Buffered variants override this below 1200 — buffered mode acks each message to the broker the
+    // moment it lands in the in-memory buffer, so the handful caught in the listener teardown when the
+    // breaker trips are lost (already acked, never persisted). That is buffered mode's documented
+    // non-durable tradeoff; durable persists and inline has no buffer, so both still require all 1200.
+    // The trip/restart *behavior* is still asserted for every variant.
+    protected virtual int RequiredProcessedCountOnTrip => 1200;
+
+    // GH-3137: the circuit's Accepting transition after a trip is emitted by the Restarter, PauseTime
+    // (10s) after the trip and fully decoupled from message completion — the backlog can drain (and the
+    // waiter resolve) while the listener is still paused. Synchronize to the listener's real lifecycle
+    // instead of snapshotting RecordedStates at the instant messages happen to finish. Returns
+    // immediately if the listener is already Accepting.
+    protected Task waitForListenerToResumeAsync(TimeSpan timeout)
+    {
+        return _runtime.Tracker.WaitForListenerStatusAsync(_queueName, ListeningStatus.Accepting, timeout);
+    }
+
     [Fact]
     public async Task everything_is_wonderful_even_though_there_are_some_failures_so_do_not_ever_trip()
     {
-        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 1.Minutes());
+        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, ProcessingBudget);
 
         publishHundredMessagesNow(5);
         publishHundredMessagesNow(5);
@@ -146,7 +170,7 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
     [Fact]
     public async Task the_circuit_breaker_should_trip_and_restart()
     {
-        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(1200, 1.Minutes());
+        var messageWaiter = _recorder.WaitForMessagesToBeProcessed(RequiredProcessedCountOnTrip, ProcessingBudget);
 
         publishHundredMessagesNow(10);
         publishHundredMessagesNow(80);
@@ -172,8 +196,13 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
 
         await messageWaiter;
 
+        // It tripped at least once...
         _observer.RecordedStates.ShouldContain(ListeningStatus.Stopped);
-        _observer.RecordedStates.Last().ShouldBe(ListeningStatus.Accepting);
+
+        // ...and it recovers. Wait for the actual restart rather than asserting RecordedStates.Last()
+        // at the instant messages finish — that snapshot races the Restarter's post-pause Accepting
+        // (see waitForListenerToResumeAsync / GH-3137).
+        await waitForListenerToResumeAsync(1.Minutes());
     }
 }
 
