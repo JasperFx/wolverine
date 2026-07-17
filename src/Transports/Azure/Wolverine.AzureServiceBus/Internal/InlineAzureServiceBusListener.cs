@@ -9,9 +9,14 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
-public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling
+public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue, ISupportNativeScheduling,
+    IReportConnectionState
 {
     private readonly CancellationTokenSource _cancellation = new();
+
+    // GH-3237: derived only from ProcessErrorAsync (degrade-only). A successful delivery clears back to
+    // Unknown — never Connected, because the SDK cannot prove the AMQP link is up without traffic.
+    private volatile TransportConnectionState _connectionState = TransportConnectionState.Unknown;
     private readonly RetryBlock<AzureServiceBusEnvelope> _complete;
     private readonly RetryBlock<AzureServiceBusEnvelope> _deadLetter;
     private readonly RetryBlock<AzureServiceBusEnvelope> _defer;
@@ -60,6 +65,8 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
     }
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
+
+    public TransportConnectionState ConnectionState => _connectionState;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {
@@ -136,12 +143,24 @@ public class InlineAzureServiceBusListener : IListener, ISupportDeadLetterQueue,
 
     private Task processErrorAsync(ProcessErrorEventArgs arg)
     {
+        var degraded = AzureServiceBusConnectionStateMapper.StateForError(arg.Exception);
+        if (degraded.HasValue)
+        {
+            _connectionState = degraded.Value;
+        }
+
         _logger.LogError(arg.Exception, "Error trying to receive Azure Service Bus message at {Uri}", _endpoint.Uri);
         return Task.CompletedTask;
     }
 
     private async Task processMessageAsync(ProcessMessageEventArgs arg)
     {
+        if (_connectionState != TransportConnectionState.Unknown)
+        {
+            // Messages are flowing again, so any previously derived trouble state is stale
+            _connectionState = TransportConnectionState.Unknown;
+        }
+
         try
         {
             var envelope = new AzureServiceBusEnvelope(arg);
