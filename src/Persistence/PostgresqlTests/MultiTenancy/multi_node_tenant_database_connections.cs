@@ -150,23 +150,28 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
             }
         }
 
-        // Open a measurement window and let the scheduled-job pollers (1s cadence) turn over
-        // several times inside it.
-        var windowStart = await ServerNowAsync();
-        await Task.Delay(6.Seconds());
+        // Sample two consecutive windows and only count a node that polled in BOTH. The bug is
+        // *sustained* polling - every node hitting every tenant database on a fixed cadence forever.
+        // A single window can't tell that apart from a one-off touch, and a tenant's agent legitimately
+        // migrating between nodes mid-test leaves exactly such a touch. Requiring a node to show up in
+        // both windows keeps the assertion pointed at pollers.
+        var windowOne = await PollersDuringWindowAsync(4.Seconds());
+        var windowTwo = await PollersDuringWindowAsync(4.Seconds());
 
         var offenders = new List<string>();
 
         foreach (var tenant in theTenants)
         {
             var databaseName = TenantDatabase(tenant);
-            var nodes = await FindActiveNodesSinceAsync(databaseName, windowStart);
+            var sustained = windowOne[databaseName].Intersect(windowTwo[databaseName]).OrderBy(x => x).ToList();
 
-            _output.WriteLine($"{databaseName}: queried by [{nodes.Join(", ")}]");
+            _output.WriteLine(
+                $"{databaseName}: window1=[{windowOne[databaseName].Join(", ")}] " +
+                $"window2=[{windowTwo[databaseName].Join(", ")}] sustained=[{sustained.Join(", ")}]");
 
-            if (nodes.Count > 1)
+            if (sustained.Count > 1)
             {
-                offenders.Add($"{databaseName} was queried by {nodes.Count} nodes: {nodes.Join(", ")}");
+                offenders.Add($"{databaseName} is polled by {sustained.Count} nodes: {sustained.Join(", ")}");
             }
         }
 
@@ -210,6 +215,22 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
         }
 
         return condition();
+    }
+
+    // Which nodes queried each tenant database during a window of the given length?
+    private async Task<Dictionary<string, List<string>>> PollersDuringWindowAsync(TimeSpan length)
+    {
+        var windowStart = await ServerNowAsync();
+        await Task.Delay(length);
+
+        var results = new Dictionary<string, List<string>>();
+        foreach (var tenant in theTenants)
+        {
+            var databaseName = TenantDatabase(tenant);
+            results[databaseName] = await FindActiveNodesSinceAsync(databaseName, windowStart);
+        }
+
+        return results;
     }
 
     private async Task<DateTime> ServerNowAsync()
