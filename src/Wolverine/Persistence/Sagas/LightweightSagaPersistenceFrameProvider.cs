@@ -10,6 +10,12 @@ namespace Wolverine.Persistence.Sagas;
 
 public class LightweightSagaPersistenceFrameProvider : IPersistenceFrameProvider
 {
+    // GH-3443: this provider claims EVERY saga (CanApply is true for any SagaChain, CanPersist for any
+    // Saga type), so it is a catch-all exactly like the Marten / RavenDb / Polecat / CosmosDb / in-memory
+    // providers - all of which set this. It was the one that missed the override, which left it sorting
+    // AHEAD of Marten in OrderedPersistenceProviders and silently stealing sagas Marten should own.
+    public bool IsCatchAll => true;
+
     // ApplyTransactionSupport closes EnrollAndFetchSagaStorageFrame<,> over
     // (idType, sagaType) at codegen time; CanPersist closes ISagaStorage<,>
     // over the same. AOT-clean apps in TypeLoadMode.Static run pre-generated
