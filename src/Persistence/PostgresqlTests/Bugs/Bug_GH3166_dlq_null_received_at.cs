@@ -46,6 +46,12 @@ public class Bug_GH3166_dlq_null_received_at : IAsyncLifetime
         await marten.Advanced.Clean.CompletelyRemoveAllAsync();
 
         _store = _host.Services.GetRequiredService<IWolverineRuntime>().Storage;
+
+        // Marten's clean only removes Marten's own schema objects - Wolverine's envelope tables
+        // survive it with their rows intact. Without this the dead letter written below accumulates
+        // across runs against the same database, and the counts asserted at the end climb with every
+        // run: this test passed on CI (fresh database) while failing on any second local run.
+        await _store.Admin.ClearAllAsync();
     }
 
     public async Task DisposeAsync() => await _host.StopAsync();
