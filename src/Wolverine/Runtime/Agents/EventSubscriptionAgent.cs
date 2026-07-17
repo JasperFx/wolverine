@@ -35,6 +35,15 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     /// </summary>
     public Action<string, string, DateTimeOffset>? OnRestarted { get; set; }
 
+    /// <summary>
+    /// Set by <see cref="EventStoreAgents.BuildAgentAsync"/> so the owning store can count how many of a
+    /// database's agents are running on this node, and let go of that database's tracker subscriptions
+    /// when the last one stops.
+    /// </summary>
+    internal Func<ValueTask>? OnStarted { get; set; }
+
+    internal Func<ValueTask>? OnStopped { get; set; }
+
     public EventSubscriptionAgent(Uri uri, ShardName shardName, IProjectionDaemon daemon, ILogger logger)
     {
         _shardName = shardName;
@@ -52,12 +61,23 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     {
         _innerAgent = await _daemon.StartAgentAsync(_shardName, cancellationToken);
         Status = AgentStatus.Running;
+
+        // Only count an agent that actually started - a throw above leaves the count untouched
+        if (OnStarted != null)
+        {
+            await OnStarted();
+        }
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         await _daemon.StopAgentAsync(_shardName);
         Status = AgentStatus.Stopped;
+
+        if (OnStopped != null)
+        {
+            await OnStopped();
+        }
     }
 
     public async Task RebuildAsync(CancellationToken cancellationToken)
