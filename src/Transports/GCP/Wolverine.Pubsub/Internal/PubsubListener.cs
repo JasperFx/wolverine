@@ -10,7 +10,7 @@ using Wolverine.Transports;
 
 namespace Wolverine.Pubsub.Internal;
 
-public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
+public abstract class PubsubListener : IListener, ISupportDeadLetterQueue, IReportConnectionState
 {
     protected readonly CancellationTokenSource _cancellation = new();
     protected readonly RetryBlock<Envelope> _deadLetter;
@@ -23,6 +23,13 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
     protected readonly PubsubTransport _transport;
 
     protected Task _task;
+
+    // GH-3237: the Pub/Sub SDK hides the streaming-pull connection, so this state is derived only from the
+    // retry loop below and may only ever degrade (Reconnecting/Disconnected). Never Connected — the resting
+    // state for a healthy listener is Unknown; use LastQueueActivityAt/loop-health for liveness.
+    private volatile TransportConnectionState _connectionState = TransportConnectionState.Unknown;
+
+    public TransportConnectionState ConnectionState => _connectionState;
 
     /// <summary>
     /// The connection (default or per-tenant) this listener consumes and, for requeue/dead-letter, re-publishes over.
@@ -134,6 +141,9 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
         {
             try
             {
+                // Back to the resting state for each fresh attempt; only a real failure below may degrade it
+                _connectionState = TransportConnectionState.Unknown;
+
                 await listenAsync();
             }
             catch (TaskCanceledException) when (_cancellation.IsCancellationRequested)
@@ -147,6 +157,8 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
             // https://stackoverflow.com/questions/60012138/google-cloud-function-pulling-from-pub-sub-subscription-throws-exception-deadl
             catch (RpcException ex) when (ex.StatusCode == StatusCode.DeadlineExceeded)
             {
+                _connectionState = TransportConnectionState.Reconnecting;
+
                 _logger.LogError(ex,
                     "{Uri}: Google Cloud Platform Pub/Sub returned \"DEADLINE_EXCEEDED\", attempting to restart listener.",
                     _endpoint.Uri);
@@ -168,11 +180,15 @@ public abstract class PubsubListener : IListener, ISupportDeadLetterQueue
 
                 if (retryCount > _endpoint.Client.RetryPolicy.MaxRetryCount)
                 {
+                    _connectionState = TransportConnectionState.Disconnected;
+
                     _logger.LogError(ex, "{Uri}: Max retry attempts reached, unable to restart listener.",
                         _endpoint.Uri);
 
                     throw;
                 }
+
+                _connectionState = TransportConnectionState.Reconnecting;
 
                 _logger.LogError(
                     ex,
