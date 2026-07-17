@@ -8,8 +8,12 @@ using Wolverine.Util;
 
 namespace Wolverine.Kafka.Internals;
 
-public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLetterQueue, IReportReceiveLoopHealth
+public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLetterQueue, IReportReceiveLoopHealth,
+    IReportConnectionState
 {
+    // GH-3454: degrade-only connection state derived from the consumer's error callback; a successful
+    // consume clears back to Unknown. Never Connected — see KafkaConnectionStateTracker.
+    private readonly KafkaConnectionStateTracker _connectionState;
     private readonly KafkaTopicGroup _endpoint;
     private readonly IConsumer<string, byte[]> _consumer;
     private CancellationTokenSource _cancellation = new();
@@ -30,7 +34,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
     public KafkaTopicGroupListener(KafkaTopicGroup endpoint, ConsumerConfig config,
         IConsumer<string, byte[]> consumer, IReceiver receiver,
-        ILogger<KafkaTopicGroupListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null)
+        ILogger<KafkaTopicGroupListener> logger, TimeSpan drainTimeout, KafkaTransport? tenantTransport = null,
+        KafkaConnectionStateTracker? connectionState = null)
     {
         _endpoint = endpoint;
         _logger = logger;
@@ -38,6 +43,14 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
         _tenantTransport = tenantTransport;
         Address = endpoint.Uri;
         _consumer = consumer;
+
+        _connectionState = connectionState ?? new KafkaConnectionStateTracker();
+        if (_connectionState.ErrorHandlerSuppressed)
+        {
+            _logger.LogInformation(
+                "Kafka connection-state reporting is disabled for {Uri} because user configuration already registers an error handler through ConfigureConsumerBuilders; ConnectionState will remain Unknown",
+                Address);
+        }
 
         Config = config;
         _receiver = receiver;
@@ -56,6 +69,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     private async Task<bool> consumeOnceAsync(CancellationToken token)
     {
         var result = _consumer.Consume(token);
+
+        _connectionState.MarkSuccessfulConsume();
 
         try
         {
@@ -104,6 +119,8 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
     // GH-3236: surface the consume loop's liveness (heartbeat + faulted/hung detection) for EndpointHealthSnapshot.
     public ReceiveLoopStatus ReceiveLoopStatus => _loop.ReceiveLoopStatus;
     public DateTimeOffset? LastReceiveLoopActivityAt => _loop.LastReceiveLoopActivityAt;
+
+    public TransportConnectionState ConnectionState => _connectionState.ConnectionState;
 
     public ValueTask CompleteAsync(Envelope envelope)
     {

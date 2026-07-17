@@ -234,9 +234,12 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         // on Kafka's background committer flushing manually stored offsets.
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
+        // GH-3454: the tracker is wired into the consumer's error callback (when not claimed by user
+        // configuration) and handed to the listener for IReportConnectionState
+        var tracker = new KafkaConnectionStateTracker();
         var listener = new KafkaListener(this, config,
-            Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>(),
-            runtime.DurabilitySettings.DrainTimeout);
+            Parent.CreateConsumer(config, tracker), receiver, runtime.LoggerFactory.CreateLogger<KafkaListener>(),
+            runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
 
         // Broker-per-tenant (GH-3303): the shared listener consumes the default cluster. Each tenant runs its
         // own listener on its own cluster, stamping the tenant id onto inbound envelopes via TenantIdRule.
@@ -251,10 +254,11 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
             {
                 var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                var tenantTracker = new KafkaConnectionStateTracker();
                 var tenantListener = new KafkaListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig), tenantReceiver,
+                    tenant.Transport.CreateConsumer(tenantConfig, tenantTracker), tenantReceiver,
                     runtime.LoggerFactory.CreateLogger<KafkaListener>(), runtime.DurabilitySettings.DrainTimeout,
-                    tenant.Transport);
+                    tenant.Transport, tenantTracker);
                 compound.Inner.Add(tenantListener);
             }
 

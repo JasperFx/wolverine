@@ -321,10 +321,27 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
         return producerBuilder.Build();
     }
 
-    internal IConsumer<string, byte[]> CreateConsumer(ConsumerConfig? config)
+    internal IConsumer<string, byte[]> CreateConsumer(ConsumerConfig? config,
+        KafkaConnectionStateTracker? tracker = null)
     {
         var consumerBuilder = new ConsumerBuilder<string, byte[]>(config ?? ConsumerConfig);
         ConfigureConsumerBuilders(consumerBuilder);
+
+        if (tracker != null)
+        {
+            // GH-3454: registered after the user's ConfigureConsumerBuilders callback because Confluent's
+            // builder throws on double registration. If the user already claimed the error handler, their
+            // registration stands and this consumer's connection state simply rests at Unknown.
+            try
+            {
+                consumerBuilder.SetErrorHandler((_, error) => tracker.ApplyError(error));
+            }
+            catch (InvalidOperationException)
+            {
+                tracker.ErrorHandlerSuppressed = true;
+            }
+        }
+
         return consumerBuilder.Build();
     }
 

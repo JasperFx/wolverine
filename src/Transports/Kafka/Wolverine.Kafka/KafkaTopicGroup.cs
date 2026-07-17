@@ -48,9 +48,13 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
         // Wire the Kafka client for the configured commit strategy (GH-3150).
         KafkaOffsetCommitter.ApplyTo(config, CommitMode);
 
+        // GH-3454: the tracker is wired into the consumer's error callback (when not claimed by user
+        // configuration) and handed to the listener for IReportConnectionState
+        var tracker = new KafkaConnectionStateTracker();
         var listener = new KafkaTopicGroupListener(this, config,
-            Parent.CreateConsumer(config), receiver, runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
-            runtime.DurabilitySettings.DrainTimeout);
+            Parent.CreateConsumer(config, tracker), receiver,
+            runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
+            runtime.DurabilitySettings.DrainTimeout, connectionState: tracker);
 
         // Broker-per-tenant (GH-3303): mirror the single-topic listener treatment — a shared listener on the
         // default cluster plus one per-tenant listener on each tenant cluster, stamping the tenant id inbound.
@@ -63,10 +67,11 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
             {
                 var tenantConfig = cloneConsumerConfigForTenant(config, tenant);
                 var tenantReceiver = new ReceiverWithRules(receiver, [new TenantIdRule(tenant.TenantId)]);
+                var tenantTracker = new KafkaConnectionStateTracker();
                 var tenantListener = new KafkaTopicGroupListener(this, tenantConfig,
-                    tenant.Transport.CreateConsumer(tenantConfig), tenantReceiver,
+                    tenant.Transport.CreateConsumer(tenantConfig, tenantTracker), tenantReceiver,
                     runtime.LoggerFactory.CreateLogger<KafkaTopicGroupListener>(),
-                    runtime.DurabilitySettings.DrainTimeout, tenant.Transport);
+                    runtime.DurabilitySettings.DrainTimeout, tenant.Transport, tenantTracker);
                 compound.Inner.Add(tenantListener);
             }
 
