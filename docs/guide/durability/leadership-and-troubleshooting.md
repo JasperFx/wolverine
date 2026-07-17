@@ -115,23 +115,40 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L203-L219' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_persistence_metrics' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-### Metrics polling with many tenant databases
+### Metrics polling with many tenant databases <Badge type="tip" text="6.18" />
 
-The counts behind these metrics come from polling each message database. With database-per-tenant
-multi-tenancy every tenant database gets its own poller on every node, so at high database counts the
-polling itself becomes a real connection load: hundreds of databases means hundreds of near-simultaneous
-queries every `UpdateMetricsPeriod`, each pinning a pooled connection per database per node — and if your
-connection strings use a short `Connection Idle Lifetime`, constant open/close churn on top of that
-(see [GH-3375](https://github.com/JasperFx/wolverine/issues/3375)).
+The counts behind these metrics come from polling each message database, which matters at high database
+counts: with database-per-tenant multi-tenancy, hundreds of tenant databases means hundreds of queries
+every `UpdateMetricsPeriod`.
 
-For deployments with dozens to hundreds of tenant databases, the current mitigations are:
+Two things bound that cost:
+
+1. **Each node only polls the databases it owns.** A database's metrics are gathered by its durability
+   agent, and Wolverine's agent distribution assigns that agent to exactly one node. Databases join and
+   leave a node's sweep automatically as agents are redistributed.
+2. **Each node polls one database at a time.** Rather than a timer per database all firing together, a
+   single sweeper per node walks that node's databases sequentially, spreading them across the
+   `UpdateMetricsPeriod` window. **At most one metrics query — and one pooled connection for it — is in
+   flight per node, regardless of how many databases that node owns** (see
+   [GH-3375](https://github.com/JasperFx/wolverine/issues/3375)).
+
+::: tip
+Before 6.18 every database ran its own in-phase poller, so the metrics polling itself could become
+significant connection pressure at high database counts — hundreds of near-simultaneous queries each
+pinning a connection, plus open/close churn if your connection strings use a short
+`Connection Idle Lifetime`. If you are on an older version and see that pattern, upgrading is the fix.
+:::
+
+Each database is still polled once per `UpdateMetricsPeriod`; the sweeper changes how the queries are
+spaced, not how often any one database is sampled. If you want to reduce the cost further:
 
 1. **Disable the durability metrics** entirely with `opts.Durability.DurabilityMetricsEnabled = false`
    if you don't consume the inbox/outbox/scheduled gauges. Nothing else in Wolverine depends on them —
    this only turns off the observability polling, never the durability agents themselves.
 2. **Raise `opts.Durability.UpdateMetricsPeriod`** (default: 5 seconds) to something like 1–5 minutes.
-   Queue-depth gauges at tenant-database granularity rarely need 5-second resolution, and the connection
-   cost scales directly with the polling frequency.
+   Queue-depth gauges at tenant-database granularity rarely need 5-second resolution, and the polling
+   cost scales directly with the frequency. Raising it also widens the window the sweeper spaces a
+   node's databases across.
 
 ## Scheduled Message Polling <Badge type="tip" text="6.20" />
 
