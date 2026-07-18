@@ -523,6 +523,8 @@ Each supported transport has its own extension method for configuring the extern
 | NATS | `UseShardedNatsSubjects()` | [NATS Global Partitioning](/guide/messaging/transports/nats#global-partitioning) |
 | Redis Streams | `UseShardedRedisStreams()` | [Redis Global Partitioning](/guide/messaging/transports/redis#global-partitioning) |
 
+All eight extension methods share the same signature, `(string baseName, int numberOfEndpoints)`, and create endpoints named `baseName1`, `baseName2`, and so on, with matching companion local queues. Swap the RabbitMQ call in the example below for any of the others to use a different transport, for example `topology.UseShardedAzureServiceBusQueues("sequenced", 5)` or `topology.UseShardedNatsSubjects("sequenced", 5)`.
+
 A couple of transport-specific notes:
 
 * **Kafka** -- all nodes listening to the sharded topics share a single Kafka consumer group named after the base name so that Kafka assigns each topic's partitions exclusively to one consumer at a time. Wolverine stamps that consumer group id onto the `GroupId` of incoming envelopes by default, which you can turn off per listener with `DisableConsumerGroupIdStamping()` when the consumer group name is not meaningful as envelope metadata (e.g. when combined with `PropagateGroupIdToPartitionKey()`).
