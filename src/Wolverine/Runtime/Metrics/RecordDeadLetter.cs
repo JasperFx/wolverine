@@ -2,7 +2,8 @@ namespace Wolverine.Runtime.Metrics;
 
 /// <summary>
 /// Records that a message was moved to the dead-letter queue after exhausting all retry
-/// policies. Posted when <c>MovedToErrorQueue</c> or <c>MessageFailed</c> is called.
+/// policies. Posted only when <c>MovedToErrorQueue</c> is called — a plain
+/// <c>MessageFailed</c> is not a dead letter (CritterWatch GH-721).
 /// Increments the dead-letter count for <see cref="ExceptionType"/> in
 /// <see cref="PerTenantTracking.DeadLetterCounts"/>.
 /// </summary>
