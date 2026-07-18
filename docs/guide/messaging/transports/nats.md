@@ -703,6 +703,32 @@ docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:latest --jetstream -m 8
 docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.12-alpine --jetstream -m 8222
 ```
 
+## Global Partitioning
+
+NATS subjects can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded NATS subjects with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedNatsSubjects()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseNats("nats://localhost:4222").AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded NATS subjects named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedNatsSubjects("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates NATS subjects named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
 ## URI reference
 
 The `NatsEndpointUri` helper class builds canonical endpoint URIs:

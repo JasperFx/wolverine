@@ -379,8 +379,22 @@ application cluster while guaranteeing that messages within a group id are proce
 parallelism between message groups.
 :::
 
-At this point Wolverine has direct support for partitioned routing to Rabbit MQ or Amazon SQS. Note that in both
-of the following examples, Wolverine is both setting up publishing rules out to these queues, and also configuring
+Wolverine has direct support for partitioned routing to all eight of the transports that support the
+[global partitioning](#global-partitioning) topology through a `PublishToSharded*()` companion to each
+`UseSharded*()` extension method:
+
+| Transport | Extension Method |
+|-----------|-----------------|
+| RabbitMQ | `PublishToShardedRabbitQueues()` |
+| Kafka | `PublishToShardedKafkaTopics()` |
+| Amazon SQS | `PublishToShardedAmazonSqsQueues()` |
+| Pulsar | `PublishToShardedPulsarTopics()` |
+| Azure Service Bus | `PublishToShardedAzureServiceBusQueues()` |
+| GCP Pub/Sub | `PublishToShardedPubsubTopics()` |
+| NATS | `PublishToShardedNatsSubjects()` |
+| Redis Streams | `PublishToShardedRedisStreams()` |
+
+Note that in both of the following examples, Wolverine is both setting up publishing rules out to these queues, and also configuring
 listeners for the queues. Beyond that, Wolverine is making each queue be "exclusive," meaning that only one node
 within a cluster is actively listening and processing messages from each partitioned queue at any one time.
 
@@ -504,6 +518,15 @@ Each supported transport has its own extension method for configuring the extern
 | Kafka | `UseShardedKafkaTopics()` | [Kafka Global Partitioning](/guide/messaging/transports/kafka#global-partitioning) |
 | Amazon SQS | `UseShardedAmazonSqsQueues()` | [SQS Global Partitioning](/guide/messaging/transports/sqs/#global-partitioning) |
 | Pulsar | `UseShardedPulsarTopics()` | [Pulsar Global Partitioning](/guide/messaging/transports/pulsar#global-partitioning) |
+| Azure Service Bus | `UseShardedAzureServiceBusQueues()` | [Azure Service Bus Global Partitioning](/guide/messaging/transports/azureservicebus/#global-partitioning) |
+| GCP Pub/Sub | `UseShardedPubsubTopics()` | [GCP Pub/Sub Global Partitioning](/guide/messaging/transports/gcp-pubsub/#global-partitioning) |
+| NATS | `UseShardedNatsSubjects()` | [NATS Global Partitioning](/guide/messaging/transports/nats#global-partitioning) |
+| Redis Streams | `UseShardedRedisStreams()` | [Redis Global Partitioning](/guide/messaging/transports/redis#global-partitioning) |
+
+A couple of transport-specific notes:
+
+* **Kafka** -- all nodes listening to the sharded topics share a single Kafka consumer group named after the base name so that Kafka assigns each topic's partitions exclusively to one consumer at a time. Wolverine stamps that consumer group id onto the `GroupId` of incoming envelopes by default, which you can turn off per listener with `DisableConsumerGroupIdStamping()` when the consumer group name is not meaningful as envelope metadata (e.g. when combined with `PropagateGroupIdToPartitionKey()`).
+* **Azure Service Bus** -- the broker's native [session identifiers](/guide/messaging/transports/azureservicebus/session-identifiers) provide strictly ordered, per-session processing with a single queue and may be a simpler alternative if you are exclusively on Azure Service Bus. Global partitioning is the transport-agnostic option that behaves the same way across every broker in the table above.
 
 ### Example with RabbitMQ
 
