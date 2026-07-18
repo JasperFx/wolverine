@@ -159,6 +159,7 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
             dlqTopic.Compile(runtime);
         }
 
+        sanitizeGroupProtocolConflicts(runtime);
         warnOnStaticMembership(runtime);
         registerRetryTopicListeners(runtime);
 
@@ -262,7 +263,11 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                 tierTopic.ConsumerConfig = new ConsumerConfig
                 {
                     GroupId = $"{runtime.Options.ServiceName}-retry",
-                    AutoOffsetReset = AutoOffsetReset.Earliest
+                    AutoOffsetReset = AutoOffsetReset.Earliest,
+                    // Follow the transport's rebalance protocol choice (GH-3473). The transport-level
+                    // config was already sanitized, and this fresh config carries no conflicting
+                    // classic-protocol settings. Assigning null is a no-op.
+                    GroupProtocol = ConsumerConfig.GroupProtocol
                 };
                 tierTopic.Compile(runtime);
 
@@ -270,6 +275,42 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                     tierTopic.TopicName, delay);
             }
         }
+    }
+
+    // GH-3473: with the KIP-848 next-generation rebalance protocol enabled, librdkafka rejects the
+    // classic-protocol client-side settings at consumer creation — which would otherwise fail every
+    // listener mid-startup. Clear them here (with a logged warning apiece) before any consumer is built.
+    // Runs before the tenant transports are compiled so broker-per-tenant clones inherit the sanitized
+    // config, and covers per-topic ConsumerConfig overrides, which replace the transport-level config
+    // wholesale and are therefore sanitized individually.
+    private void sanitizeGroupProtocolConflicts(IWolverineRuntime runtime)
+    {
+        var logger = runtime.LoggerFactory.CreateLogger<KafkaTransport>();
+
+        KafkaGroupProtocolGuard.Sanitize(ConsumerConfig, "transport", logger);
+
+        foreach (var topic in Topics.Where(x => x.ConsumerConfig != null))
+        {
+            inheritGroupProtocol(topic.ConsumerConfig!);
+            KafkaGroupProtocolGuard.Sanitize(topic.ConsumerConfig!, $"topic '{topic.TopicName}'", logger);
+        }
+
+        foreach (var group in TopicGroups.Where(x => x.ConsumerConfig != null))
+        {
+            inheritGroupProtocol(group.ConsumerConfig!);
+            KafkaGroupProtocolGuard.Sanitize(group.ConsumerConfig!, $"topic group '{group.EndpointName}'", logger);
+        }
+    }
+
+    // A per-topic ConsumerConfig replaces the transport-level config wholesale, but it also inherits the
+    // transport's GroupId when it doesn't set one — so if group.protocol did NOT flow down with it, a topic
+    // override would silently join the *same* consumer group over the classic protocol while the other
+    // listeners join it via KIP-848, leaving the group permanently stuck mid-migration with mixed member
+    // kinds. Inherit the transport's group.protocol exactly like GroupId/SASL unless the topic config sets
+    // its own value explicitly.
+    private void inheritGroupProtocol(ConsumerConfig config)
+    {
+        config.GroupProtocol ??= ConsumerConfig.GroupProtocol;
     }
 
     // GH-3139: surface the resolved group.instance.id so operators can verify per-node uniqueness, and
