@@ -9,6 +9,9 @@
     <ItemGroup>
         <ProjectReference Include="..\Messages\Messages.csproj"/>
         <ProjectReference Include="..\..\..\Wolverine.Grpc\Wolverine.Grpc.csproj"/>
+        <!-- The sample relies on dynamic codegen for the generated gRPC wrapper; since the
+             Wolverine 6.0 Roslyn decoupling that requires the opt-in runtime-compilation module. -->
+        <ProjectReference Include="..\..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

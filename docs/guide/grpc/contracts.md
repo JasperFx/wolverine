@@ -101,11 +101,13 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 sample demonstrates this end-to-end. See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 
-::: warning Bidirectional streaming is not supported on the generated-implementation path
+::: warning Bidirectional and client streaming are not supported on the generated-implementation path
 The generated implementation recognises **unary** (`Task<TResponse>`) and **server streaming**
 (`IAsyncEnumerable<TResponse>`) method shapes. An interface method with an `IAsyncEnumerable<TRequest>`
-*parameter* (bidirectional streaming) is silently skipped — no startup error, but the method will
-not be mapped. Use a hand-written service class for bidi RPCs on code-first contracts.
+*parameter* (bidirectional or client streaming) is silently skipped — no startup error, but the
+method will not be mapped. Use a hand-written service class for bidi or client-streaming RPCs on
+code-first contracts. Proto-first stubs code-generate all four shapes, including
+[client streaming](./streaming#client-streaming-proto-first).
 :::
 
 ::: warning No conflict allowed
@@ -265,6 +267,36 @@ Notice that the handler is identical between code-first and proto-first — only
 declaration changes. Cancellation from the client propagates into the handler's `CancellationToken`
 in both styles, so mid-stream cancellation cleanly unwinds. For the broader streaming story
 (bidirectional, limitations, timing) see [Streaming](./streaming).
+
+## Client streaming (proto-first)
+
+A `stream TRequest → TResponse` RPC is code-generated on the proto-first path only. The handler
+receives the whole inbound stream as `IAsyncEnumerable<TRequest>` — the message type Wolverine's
+[`IMessageBus.InvokeStreamAsync`](/guide/messaging/message-bus.html#streaming-requests) dispatches
+on — and returns the single response:
+
+```proto
+service Greeter {
+    rpc CollectGreetings (stream HelloRequest) returns (GreetingSummary);
+}
+```
+
+```csharp
+public static class GreeterHandler
+{
+    public static async Task<GreetingSummary> Handle(
+        IAsyncEnumerable<HelloRequest> requests,
+        CancellationToken cancellationToken)
+    {
+        var count = 0;
+        await foreach (var request in requests.WithCancellation(cancellationToken)) count++;
+        return new GreetingSummary { Count = count };
+    }
+}
+```
+
+See [Streaming — Client streaming](./streaming#client-streaming-proto-first) for the generated
+wrapper shape and middleware caveats.
 
 ## Mixing both in one host
 

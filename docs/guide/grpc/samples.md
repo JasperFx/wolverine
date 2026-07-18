@@ -24,7 +24,7 @@ changes is whether your business code knows about gRPC.
 | [PingPongWithGrpc](#pingpongwithgrpc)                     | Unary                | Code-first (hand-written)  | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [PingPongWithGrpcStreaming](#pingpongwithgrpcstreaming)   | Server streaming     | Code-first (hand-written)  | [Counter](https://github.com/grpc/grpc-dotnet/tree/master/examples#counter) |
 | [GreeterCodeFirstGrpc](#greetercodefirstgrpc)             | Unary + server streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
-| [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
+| [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + client streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [RacerWithGrpc](#racerwithgrpc)                           | Bidirectional streaming | Code-first (hand-written) | [Racer](https://github.com/grpc/grpc-dotnet/tree/master/examples#racer) |
 | [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first (hand-written) | (no direct equivalent — closest is Greeter + a custom interceptor) |
 | [ProgressTrackerWithGrpc](#progresstrackerwithgrpc)       | Server streaming + cancellation | Code-first (generated) | [Progressor](https://github.com/grpc/grpc-dotnet/tree/master/examples#progressor) |
@@ -195,10 +195,10 @@ cancellation story are identical on the wire; only the authoring model differs.
 Layout: [`src/Samples/GreeterProtoFirstGrpc/`](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)
 with `Messages`, `Server`, `Client`.
 
-A proto-first sample that exercises three things at once: unary RPC, server streaming, and the
-default exception → `StatusCode` mapping. The `.proto` declares `SayHello` (unary) and
-`StreamGreetings` (server streaming); Grpc.Tools generates `Greeter.GreeterBase`; a single line
-hands the rest to Wolverine:
+A proto-first sample that exercises four things at once: unary RPC, server streaming, client
+streaming, and the default exception → `StatusCode` mapping. The `.proto` declares `SayHello`
+(unary), `StreamGreetings` (server streaming), and `CollectGreetings` (client streaming);
+Grpc.Tools generates `Greeter.GreeterBase`; a single line hands the rest to Wolverine:
 
 ```csharp
 [WolverineGrpcService]
@@ -206,11 +206,15 @@ public abstract class GreeterGrpcService : Greeter.GreeterBase;
 ```
 
 That's the whole service. Wolverine generates the concrete `GreeterGrpcHandler` wrapper at
-startup, and the `Handle` methods on `GreeterHandler` supply the behaviour.
+startup, and the `Handle` methods on `GreeterHandler` supply the behaviour — including the
+client-streaming handler, which receives the whole inbound stream as
+`IAsyncEnumerable<HelloRequest>` and folds it into one `GreetingSummary` (see
+[Streaming — Client streaming](./streaming#client-streaming-proto-first)).
 
-**What to copy**: the abstract-stub pattern for proto-first, plus how throwing
-`ArgumentException` / `KeyNotFoundException` / `InvalidOperationException` from a handler yields
-the matching gRPC `StatusCode` on the client (see [Error Handling](./errors)).
+**What to copy**: the abstract-stub pattern for proto-first, the
+`IAsyncEnumerable<TRequest> → Task<TResponse>` handler shape for client streaming, plus how
+throwing `ArgumentException` / `KeyNotFoundException` / `InvalidOperationException` from a handler
+yields the matching gRPC `StatusCode` on the client (see [Error Handling](./errors)).
 
 ### Compared to grpc-dotnet's Greeter
 

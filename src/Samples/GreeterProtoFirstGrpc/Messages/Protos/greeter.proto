@@ -5,11 +5,12 @@ option csharp_namespace = "GreeterProtoFirstGrpc.Messages";
 package greet;
 
 // Proto-first service exercising Wolverine's GrpcServiceChain code generation.
-// Covers unary and server-streaming shapes.
+// Covers unary, server-streaming, and client-streaming shapes.
 service Greeter {
     rpc SayHello (HelloRequest) returns (HelloReply);
     rpc SayGoodbye (GoodbyeRequest) returns (GoodbyeReply);
     rpc StreamGreetings (StreamGreetingsRequest) returns (stream HelloReply);
+    rpc CollectGreetings (stream HelloRequest) returns (GreetingSummary);
     rpc Fault (FaultRequest) returns (FaultReply);
 }
 
@@ -32,6 +33,13 @@ message GoodbyeReply {
 message StreamGreetingsRequest {
     string name = 1;
     int32 count = 2;
+}
+
+// Single reply folding a client-streamed batch of HelloRequests — the handler
+// receives the whole inbound stream as IAsyncEnumerable<HelloRequest>.
+message GreetingSummary {
+    int32 count = 1;
+    string message = 2;
 }
 
 // Exercises the gRPC exception interceptor + mapper by asking the handler to

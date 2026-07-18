@@ -135,6 +135,37 @@ public interface ICommandBus
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
     IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, DeliveryOptions options, CancellationToken cancellation = default);
+
+    /// <summary>
+    ///     Execute the message handling for an inbound stream of messages right now and wait for the
+    ///     single response. The handler must accept <see cref="IAsyncEnumerable{TRequest}"/> as its
+    ///     message type, e.g. <c>Task&lt;TResponse&gt; Handle(IAsyncEnumerable&lt;TRequest&gt; messages, CancellationToken token)</c>.
+    ///     Only supported for locally-handled messages.
+    /// </summary>
+    /// <param name="messages"></param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <typeparam name="TRequest"></typeparam>
+    /// <typeparam name="TResponse"></typeparam>
+    /// <returns></returns>
+    Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        CancellationToken cancellation = default, TimeSpan? timeout = default);
+
+    /// <summary>
+    ///     Execute the message handling for an inbound stream of messages right now and wait for the
+    ///     single response. The handler must accept <see cref="IAsyncEnumerable{TRequest}"/> as its
+    ///     message type, e.g. <c>Task&lt;TResponse&gt; Handle(IAsyncEnumerable&lt;TRequest&gt; messages, CancellationToken token)</c>.
+    ///     Only supported for locally-handled messages.
+    /// </summary>
+    /// <param name="messages"></param>
+    /// <param name="options">Use to pass in extra metadata like headers or group id or correlation information to the command execution</param>
+    /// <param name="cancellation"></param>
+    /// <param name="timeout">Optional timeout</param>
+    /// <typeparam name="TRequest"></typeparam>
+    /// <typeparam name="TResponse"></typeparam>
+    /// <returns></returns>
+    Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default);
 }
 
 /// <summary>

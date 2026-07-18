@@ -155,4 +155,12 @@ internal class SendingEnvelopeLifecycle : IEnvelopeLifecycle
     public IAsyncEnumerable<TResponse> StreamAsync<TResponse>(object message, DeliveryOptions options,
         CancellationToken cancellation = default)
         => _bus.StreamAsync<TResponse>(message, options, cancellation);
+
+    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        CancellationToken cancellation = default, TimeSpan? timeout = default)
+        => _bus.InvokeStreamAsync<TRequest, TResponse>(messages, cancellation, timeout);
+
+    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default)
+        => _bus.InvokeStreamAsync<TRequest, TResponse>(messages, options, cancellation, timeout);
 }

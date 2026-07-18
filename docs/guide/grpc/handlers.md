@@ -156,8 +156,8 @@ public Task<OrderReply> PlaceOrder(PlaceOrderRequest request, CallContext contex
 - `ValidateAsync` returning `Task<Status?>` is also supported when the check is asynchronous.
 - Validate is matched **per request type**: a `Validate(PlaceOrderRequest)` does not fire for
   RPC methods whose first parameter is a different request type on the same service class.
-- Validate is not woven for **bidirectional streaming** methods — there is no single request
-  instance in scope before the streaming loop begins.
+- Validate is not woven for **bidirectional or client streaming** methods — there is no single
+  request instance in scope before the stream is consumed.
 - Validation runs **before** any `[WolverineBefore]` middleware that is not itself a validate hook.
 
 ::: tip

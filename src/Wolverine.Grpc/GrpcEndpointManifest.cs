@@ -60,8 +60,7 @@ internal sealed class GrpcEndpointManifest : IGrpcEndpointManifest
         var descriptors = new List<GrpcEndpointDescriptor>();
 
         // Proto-first: every RPC kind Wolverine forwards to the bus. The chain pre-classifies its methods into
-        // unary / server-streaming / bidirectional-streaming lists (client-streaming is rejected at construction,
-        // so it never reaches here).
+        // unary / server-streaming / client-streaming / bidirectional-streaming lists.
         foreach (var chain in graph.Chains)
         {
             // Unary: Task<TResponse> Name(TRequest, ServerCallContext) → InvokeAsync(request).
@@ -109,6 +108,25 @@ internal sealed class GrpcEndpointManifest : IGrpcEndpointManifest
                     chain.StubType,
                     GrpcServiceDiscoveryMode.ProtoFirst,
                     GrpcRpcStreamKind.BidirectionalStreaming));
+            }
+
+            // Client-streaming: Task<TResponse> Name(IAsyncStreamReader<TRequest>, ServerCallContext).
+            // The whole inbound stream is forwarded via InvokeStreamAsync, so the surfaced request type is the
+            // per-item element type of the request stream (the actual bus message is IAsyncEnumerable<TRequest>).
+            foreach (var method in chain.ClientStreamingMethods)
+            {
+                var p = method.GetParameters();
+                var requestType = genericArgument(p[0].ParameterType);
+                if (requestType == null) continue; // defensive: a client-streaming reader always has an element type
+
+                descriptors.Add(new GrpcEndpointDescriptor(
+                    chain.ProtoServiceName,
+                    method.Name,
+                    requestType,
+                    genericArgument(method.ReturnType),
+                    chain.StubType,
+                    GrpcServiceDiscoveryMode.ProtoFirst,
+                    GrpcRpcStreamKind.ClientStreaming));
             }
         }
 

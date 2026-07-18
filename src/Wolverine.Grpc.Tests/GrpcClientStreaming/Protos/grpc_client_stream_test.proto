@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option csharp_namespace = "Wolverine.Grpc.Tests.GrpcClientStreaming.Generated";
+
+package wolverine.grpc.tests.client_streaming;
+
+// Test-only service exercising the client-streaming generated wrapper for proto-first
+// Wolverine gRPC stubs. The client streams NumberRequest messages; the generated wrapper
+// forwards the whole stream to IMessageBus.InvokeStreamAsync and the handler folds it into
+// a single SumReply so tests can assert the many-in/one-out contract.
+service CollectTest {
+  rpc Collect (stream NumberRequest) returns (SumReply);
+}
+
+message NumberRequest {
+  int32 value = 1;
+}
+
+message SumReply {
+  int32 total = 1;
+  int32 count = 2;
+}

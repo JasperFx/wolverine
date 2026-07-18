@@ -192,6 +192,24 @@ public class grpc_capabilities_3267_bidi_and_absent
         }
 
         [Fact]
+        public async Task capabilities_include_the_client_streaming_origin()
+        {
+            var runtime = _fixture.Services.GetRequiredService<IWolverineRuntime>();
+            var capabilities = await ServiceCapabilities.ReadFrom(runtime, null, CancellationToken.None);
+
+            var collect = capabilities.GrpcEndpoints.Single(e =>
+                e.ServiceName == "CollectTest" && e.MethodName == "Collect");
+
+            collect.StreamKind.ShouldBe(GrpcRpcStreamKind.ClientStreaming);
+            collect.Mode.ShouldBe(GrpcServiceDiscoveryMode.ProtoFirst);
+            // The surfaced message is the per-item element type of the inbound request stream; the actual bus
+            // message is IAsyncEnumerable<NumberRequest>. The response is unwrapped from Task<SumReply>.
+            collect.RequestType!.FullName.ShouldBe(typeof(GrpcClientStreaming.Generated.NumberRequest).FullName);
+            collect.ResponseType!.FullName.ShouldBe(typeof(GrpcClientStreaming.Generated.SumReply).FullName);
+            collect.Tags.ShouldContain("grpc");
+        }
+
+        [Fact]
         public async Task capabilities_only_surface_bus_forwarding_modes()
         {
             // Even in an assembly packed with hand-written + direct-mapped services, GrpcEndpoints only reports the

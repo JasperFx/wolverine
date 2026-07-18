@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using JasperFx.Core;
+using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Routing;
@@ -212,6 +213,47 @@ public partial class MessageBus : IMessageBus, IMessageContext
         Runtime.AssertHasStarted();
 
         return Runtime.FindInvoker(message.GetType()).StreamAsync<TResponse>(message, this, cancellation, options);
+    }
+
+    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        CancellationToken cancellation = default, TimeSpan? timeout = default)
+    {
+        if (messages == null)
+        {
+            throw new ArgumentNullException(nameof(messages));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return findStreamInvoker<TRequest>().InvokeAsync<TResponse>(messages, this, cancellation, timeout);
+    }
+
+    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default)
+    {
+        if (messages == null)
+        {
+            throw new ArgumentNullException(nameof(messages));
+        }
+
+        Runtime.AssertHasStarted();
+
+        return findStreamInvoker<TRequest>().InvokeAsync<TResponse>(messages, this, cancellation, timeout, options);
+    }
+
+    private IMessageInvoker findStreamInvoker<TRequest>()
+    {
+        // The concrete runtime type of an IAsyncEnumerable<TRequest> instance is a compiler-generated
+        // iterator, so dispatch must key off the declared stream type rather than message.GetType()
+        var messageType = typeof(IAsyncEnumerable<TRequest>);
+        if (!Runtime.Options.HandlerGraph.CanHandle(messageType))
+        {
+            throw new NotSupportedException(
+                $"InvokeStreamAsync is only supported for locally-handled message streams, and no handler accepts {messageType.FullNameInCode()} as its message type. " +
+                $"Define a handler like 'Task<TResponse> Handle(IAsyncEnumerable<{typeof(TRequest).FullNameInCode()}> messages, CancellationToken token)'.");
+        }
+
+        return Runtime.FindInvoker(messageType);
     }
 
     public IReadOnlyList<Envelope> PreviewSubscriptions(object message)

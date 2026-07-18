@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+### WolverineFx (core)
+
+- **New `IMessageBus.InvokeStreamAsync<TRequest, TResponse>` primitive for streaming requests.**
+  The mirror image of `StreamAsync<T>`: a caller hands one handler invocation an
+  `IAsyncEnumerable<TRequest>` stream of messages and awaits a single `TResponse`. The handler
+  declares `IAsyncEnumerable<TRequest>` as its message type
+  (`Task<TResponse> Handle(IAsyncEnumerable<TRequest> messages, CancellationToken token)`) and
+  consumes the stream incrementally — nothing is materialized by the framework. Local invocation
+  only; a missing handler fails fast with a `NotSupportedException` naming the expected signature.
+  Cascading messages and `DeliveryOptions` work as with any invoked handler. See the
+  [message bus guide](https://wolverinefx.net/guide/messaging/message-bus.html#streaming-requests).
+  Note: this adds two members to `ICommandBus`, which is source-breaking for custom
+  `IMessageBus`/`ICommandBus` implementors (same precedent as the original `StreamAsync` addition).
+
+### WolverineFx.Grpc
+
+- **Proto-first client-streaming RPCs (`stream TRequest → TResponse`) are now code-generated.**
+  A `[WolverineGrpcService]` stub declaring the fourth canonical gRPC shape no longer fails fast at
+  startup — Wolverine generates a wrapper that adapts the inbound `IAsyncStreamReader<TRequest>` to
+  `IAsyncEnumerable<TRequest>` and forwards it to the new `IMessageBus.InvokeStreamAsync` for a
+  single response. Tenant-id detection applies to client-streaming methods; before/after middleware
+  and the `Validate` convention are not woven (same constraint as bidirectional streaming). The
+  server-side exception interceptor now also translates exceptions from client-streaming handlers
+  per AIP-193, and `IGrpcEndpointManifest` surfaces the new `GrpcRpcStreamKind.ClientStreaming`
+  descriptors. The code-first (protobuf-net.Grpc) path is unchanged and still skips this shape. See
+  the [gRPC streaming guide](https://wolverinefx.net/guide/grpc/streaming.html).
+
 ### WolverineFx.Http
 
 - **New `openapi` command for build-time OpenAPI generation without starting the host.**

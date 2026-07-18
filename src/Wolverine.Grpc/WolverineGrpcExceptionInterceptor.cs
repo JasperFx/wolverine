@@ -33,9 +33,10 @@ namespace Wolverine.Grpc;
 ///     </para>
 ///     <para>
 ///         Applies to both code-first (protobuf-net.Grpc) and proto-first (Grpc.Tools) services,
-///         since both route through the same ASP.NET Core gRPC pipeline. Unary and server-streaming
-///         RPCs are intercepted; client-streaming and bidirectional are deferred pending the
-///         matching <c>IMessageBus</c> overloads.
+///         since both route through the same ASP.NET Core gRPC pipeline. Unary, server-streaming,
+///         and client-streaming RPCs are intercepted; bidirectional remains deferred — its generated
+///         wrapper streams responses incrementally, so a trailing exception translation would arrive
+///         after items have already been written.
 ///     </para>
 /// </remarks>
 public sealed class WolverineGrpcExceptionInterceptor : Interceptor
@@ -59,6 +60,21 @@ public sealed class WolverineGrpcExceptionInterceptor : Interceptor
         try
         {
             return await continuation(request, context);
+        }
+        catch (Exception ex) when (ex is not RpcException)
+        {
+            throw Translate(ex, context);
+        }
+    }
+
+    public override async Task<TResponse> ClientStreamingServerHandler<TRequest, TResponse>(
+        IAsyncStreamReader<TRequest> requestStream,
+        ServerCallContext context,
+        ClientStreamingServerMethod<TRequest, TResponse> continuation)
+    {
+        try
+        {
+            return await continuation(requestStream, context);
         }
         catch (Exception ex) when (ex is not RpcException)
         {
