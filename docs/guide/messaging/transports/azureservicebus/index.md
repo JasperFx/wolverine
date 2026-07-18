@@ -213,6 +213,36 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Global Partitioning
+
+Azure Service Bus queues can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Azure Service Bus queues with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedAzureServiceBusQueues()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Azure Service Bus queues named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedAzureServiceBusQueues("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Azure Service Bus queues named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
+::: tip
+Azure Service Bus also has a native, broker-side alternative to this feature. [Session identifiers](/guide/messaging/transports/azureservicebus/session-identifiers) provide strictly ordered processing per session id with a single queue and no sharded topology. Consider sessions first if you are exclusively on Azure Service Bus; global partitioning is the transport-agnostic option that behaves identically across every supported broker.
+:::
+
 ## URI reference
 
 The `AzureServiceBusEndpointUri` helper class builds canonical endpoint URIs:

@@ -28,7 +28,7 @@ var host = await Host.CreateDefaultBuilder()
             .AutoPurgeOnStartup();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L15-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_setup_to_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L18-L32' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_basic_setup_to_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you'd like to connect to a GCP Pub/Sub emulator running on your development box,
@@ -48,7 +48,7 @@ var host = await Host.CreateDefaultBuilder()
             .UseEmulatorDetection();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L34-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_pubsub_emulator' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L37-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_connect_to_pubsub_emulator' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Authentication / Credentials
@@ -89,7 +89,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.ListenToPubsubTopicOnNamedBroker(new BrokerName("americas"), "colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L67-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_pubsub_broker' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L67-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_pubsub_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Note that the `Uri` scheme within Wolverine for any endpoint on a *named* GCP Pub/Sub broker is the broker name you supply, not `pubsub`. So in the example above you would see `Uri` values like `americas://americas-project-id/colors`.
@@ -135,7 +135,7 @@ var host = await Host.CreateDefaultBuilder()
         opts.ListenToPubsubTopic("colors");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L91-L122' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L91-L124' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_pubsub_broker_per_tenant' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To route a specific message to a tenant's project, stamp the tenant id on the send:
@@ -168,7 +168,7 @@ var host = await Host.CreateDefaultBuilder()
             .EnableSystemEndpoints();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L51-L59' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_system_endpoints_in_pubsub' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L54-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enable_system_endpoints_in_pubsub' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Identifier Prefixing for Shared Environments
@@ -199,6 +199,32 @@ opts.UsePubsub("your-project-id")
 ```
 
 The default delimiter between the prefix and the original name is `.` for GCP Pub/Sub (e.g., `dev-john.orders`).
+
+## Global Partitioning
+
+GCP Pub/Sub topics can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Pub/Sub topics with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedPubsubTopics()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePubsub("your-project-id").AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Pub/Sub topics named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedPubsubTopics("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Pub/Sub topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
 ## URI reference
 

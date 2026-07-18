@@ -403,6 +403,32 @@ using var host = await builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Global Partitioning
+
+Redis streams can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Redis streams with companion local queues for sequential processing across a multi-node cluster.
+
+Use `UseShardedRedisStreams()` within a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseRedisTransport("localhost:6379").AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IMyMessage>(x => x.GroupId);
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates 4 sharded Redis streams named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedRedisStreams("orders", 4);
+            topology.MessagesImplementing<IMyMessage>();
+        });
+    }).StartAsync();
+```
+
+This creates Redis streams named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+
 ## URI reference
 
 The `RedisEndpointUri` helper class builds canonical endpoint URIs:
