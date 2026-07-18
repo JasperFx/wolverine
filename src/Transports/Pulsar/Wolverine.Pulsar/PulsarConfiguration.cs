@@ -45,6 +45,21 @@ public class PulsarConfiguration
     }
 
     /// <summary>
+    /// GH-3470: opt out of Pulsar broker-native delayed delivery for scheduled/delayed sends on this
+    /// transport. By default Wolverine stamps DotPulsar's deliver-at message metadata from
+    /// <see cref="Envelope.ScheduledTime"/> so the broker itself holds the message until it is due
+    /// (Pulsar delayed message delivery, enabled by default on brokers since Pulsar 2.4). Call this
+    /// when the target broker is configured with <c>delayedDeliveryEnabled=false</c> — Wolverine then
+    /// falls back to its own durable scheduled-message scheduler for this transport's endpoints,
+    /// exactly as for transports without native scheduling support.
+    /// </summary>
+    public PulsarConfiguration DisableNativeScheduledSend()
+    {
+        _transport.NativeScheduledSendEnabled = false;
+        return this;
+    }
+
+    /// <summary>
     /// Register a Wolverine tenant that is served by its own dedicated Pulsar <b>cluster</b> (GH-3308), while
     /// sharing the topic topology declared on this transport. Outbound messages whose
     /// <see cref="Envelope.TenantId"/> matches <paramref name="tenantId"/> are routed to that cluster; inbound

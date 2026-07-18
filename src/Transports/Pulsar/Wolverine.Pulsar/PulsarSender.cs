@@ -14,6 +14,7 @@ public class PulsarSender : ISender, IAsyncDisposable
     private readonly IPulsarEnvelopeMapper _mapper;
     private readonly IProducer<ReadOnlySequence<byte>> _producer;
     private readonly Schemas.IPulsarMessageCodec? _codec;
+    private readonly bool _nativeScheduledSendEnabled;
 
     // GH-3185: producer deduplication state.
     private const int SequenceCacheLimit = 100_000;
@@ -27,6 +28,7 @@ public class PulsarSender : ISender, IAsyncDisposable
         var endpoint1 = endpoint;
         _cancellation = cancellation;
         _codec = endpoint.MessageCodec;
+        _nativeScheduledSendEnabled = transport.NativeScheduledSendEnabled;
 
         // GH-3183: when an endpoint schema is configured, create the producer with it so the broker
         // registers the schema for the topic. The schema is a pass-through over Wolverine's bytes, so the
@@ -63,7 +65,11 @@ public class PulsarSender : ISender, IAsyncDisposable
         return _producer.DisposeAsync();
     }
 
-    public bool SupportsNativeScheduledSend => true;
+    // GH-3470: scheduled/delayed sends are honored natively by stamping Pulsar's deliver-at
+    // metadata in SendAsync. Can be turned off transport-wide (e.g. a broker with
+    // delayedDeliveryEnabled=false) via DisableNativeScheduledSend(), which makes Wolverine
+    // fall back to its own durable scheduled-message storage instead.
+    public bool SupportsNativeScheduledSend => _nativeScheduledSendEnabled;
     public Uri Destination { get; }
 
     public async Task<bool> PingAsync()
@@ -87,6 +93,11 @@ public class PulsarSender : ISender, IAsyncDisposable
 
         _mapper.MapEnvelopeToOutgoing(envelope, message);
 
+        if (_nativeScheduledSendEnabled)
+        {
+            ApplyScheduledDelivery(envelope, message);
+        }
+
         if (_deduplicationEnabled && _sequenceIds != null)
         {
             // Reuse the same sequence id for repeat sends of the same envelope (e.g. outbox resends) so
@@ -109,5 +120,30 @@ public class PulsarSender : ISender, IAsyncDisposable
         }
 
         await _producer.Send(message, new ReadOnlySequence<byte>(envelope.Data!), _cancellation);
+    }
+
+    /// <summary>
+    ///     GH-3470: map <see cref="Envelope.ScheduledTime"/> onto Pulsar's broker-native delayed
+    ///     delivery metadata (DeliverAt) so the broker itself holds the message until it is due,
+    ///     instead of publishing immediately and relying on the receiving node to delay execution.
+    ///     Runs after the envelope mapper so a custom <see cref="IPulsarEnvelopeMapper"/> that has
+    ///     already stamped its own deliver-at metadata is left alone. Note that the Pulsar broker
+    ///     only honors deliver-at for Shared / KeyShared subscriptions on the consuming side —
+    ///     Exclusive / Failover consumers see the message immediately, in which case Wolverine
+    ///     listeners still fall back to holding the envelope locally until its scheduled time via
+    ///     the round-tripped scheduled-time header.
+    /// </summary>
+    internal static void ApplyScheduledDelivery(Envelope envelope, MessageMetadata outgoing)
+    {
+        // Respect deliver-at metadata a custom interop mapper may have stamped itself
+        if (outgoing.DeliverAtTime != 0)
+        {
+            return;
+        }
+
+        if (envelope.ScheduledTime.HasValue)
+        {
+            outgoing.DeliverAtTimeAsDateTimeOffset = envelope.ScheduledTime.Value.ToUniversalTime();
+        }
     }
 }

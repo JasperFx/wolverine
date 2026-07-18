@@ -77,6 +77,21 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
     /// </summary>
     public RetryLetterTopic? RetryLetterTopic { get; internal set; }
 
+    /// <summary>
+    /// GH-3470: when true (the default), scheduled/delayed sends are honored by the Pulsar broker itself —
+    /// Wolverine stamps DotPulsar's deliver-at message metadata from <see cref="Envelope.ScheduledTime"/>,
+    /// so the broker holds the message until it is due (Pulsar delayed message delivery, available and
+    /// enabled by default since Pulsar 2.4). Set to false via
+    /// <see cref="PulsarConfiguration.DisableNativeScheduledSend"/> for brokers configured with
+    /// <c>delayedDeliveryEnabled=false</c>; Wolverine then falls back to its durable scheduled-message
+    /// scheduler for this transport's endpoints.
+    ///
+    /// Note the broker only honors deliver-at for Shared / KeyShared subscriptions on the consuming side;
+    /// Exclusive / Failover consumers receive delayed messages immediately, and Wolverine listeners then
+    /// fall back to holding the envelope locally until its scheduled time.
+    /// </summary>
+    public bool NativeScheduledSendEnabled { get; internal set; } = true;
+
 
     //private IEnumerable<DeadLetterTopic> enabledDeadLetterTopics()
     //{
