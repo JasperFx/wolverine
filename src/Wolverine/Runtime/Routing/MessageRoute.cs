@@ -173,7 +173,8 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
             envelope.TopicName = TopicRouting.DetermineTopicName(envelope);
         }
 
-        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+        var utcNow = DateTimeOffset.UtcNow;
+        if (envelope.IsScheduledForLater(utcNow))
         {
             if (IsLocal)
             {
@@ -181,9 +182,9 @@ public class MessageRoute : IMessageRoute, IMessageInvoker
                 envelope.OwnerId = TransportConstants.AnyNode;
                 runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) marked as Scheduled for local execution at {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
             }
-            else if (!sender.SupportsNativeScheduledSend)
+            else if (!sender.SupportsNativeScheduledSendFor(envelope, utcNow))
             {
-                runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) wrapped for durable scheduled send to {Destination} (transport does not support native scheduling)", envelope.Id, envelope.MessageType, envelope.Destination);
+                runtime.Logger.LogDebug("Envelope {EnvelopeId} ({MessageType}) wrapped for durable scheduled send to {Destination} (transport does not support native scheduling for this envelope)", envelope.Id, envelope.MessageType, envelope.Destination);
                 return envelope.ForScheduledSend(localDurableQueue);
             }
             else

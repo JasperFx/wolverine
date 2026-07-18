@@ -12,6 +12,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 using Wolverine.Util;
 
 namespace Wolverine.Runtime;
@@ -172,11 +173,12 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
 
             try
             {
-                if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow))
+                var utcNow = DateTimeOffset.UtcNow;
+                if (envelope.IsScheduledForLater(utcNow))
                 {
                     if (!envelope.Sender!.IsDurable)
                     {
-                        if (envelope.Sender!.SupportsNativeScheduledSend)
+                        if (envelope.Sender!.SupportsNativeScheduledSendFor(envelope, utcNow))
                         {
                             Runtime.Logger.LogDebug("Sending scheduled envelope {EnvelopeId} ({MessageType}) via native scheduled send to {Destination}", envelope.Id, envelope.MessageType, envelope.Destination);
                             await sendEnvelopeAsync(envelope).ConfigureAwait(false);

@@ -211,6 +211,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                     ]},
                                 {text: 'Amazon SQS', link: '/guide/messaging/transports/sqs/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/sqs/publishing'},
+                                        {text: 'Scheduled Delivery', link:'/guide/messaging/transports/sqs/scheduled'},
                                         {text: 'Listening', link:'/guide/messaging/transports/sqs/listening'},
                                         {text: 'Dead Letter Queues', link:'/guide/messaging/transports/sqs/deadletterqueues'},
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},

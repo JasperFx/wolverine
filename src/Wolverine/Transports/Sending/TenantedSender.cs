@@ -58,7 +58,7 @@ internal class InvalidTenantSender : ISender
 /// which explicitly calls MarkSuccessfulAsync after a successful send.
 /// See https://github.com/JasperFx/wolverine/issues/2361
 /// </summary>
-public class TenantedSender : ISender, IDisposable, IAsyncDisposable
+public class TenantedSender : ISender, IDisposable, IAsyncDisposable, IConditionalNativeScheduling
 {
     public TenantedIdBehavior TenantedIdBehavior { get; }
     private readonly ISender _defaultSender = null!;
@@ -83,6 +83,14 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable
     }
 
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
+
+    bool IConditionalNativeScheduling.CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
+    {
+        // Tenant senders are siblings of the default sender against the same queue/topic
+        // topology, so the default sender's answer holds for every tenant
+        return _defaultSender is not IConditionalNativeScheduling conditional ||
+               conditional.CanScheduleNatively(envelope, utcNow);
+    }
     public Uri Destination { get; }
     public async Task<bool> PingAsync()
     {

@@ -14,6 +14,13 @@ namespace Wolverine.AmazonSqs.Internal;
 
 public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoint
 {
+    /// <summary>
+    ///     Hard Amazon SQS limit for the per-message DelaySeconds parameter (15 minutes). Scheduled
+    ///     sends within this window to a standard queue are delayed natively by SQS; anything past it
+    ///     falls back to Wolverine's own message scheduling
+    /// </summary>
+    public const int MaximumSqsDelaySeconds = 900;
+
     private readonly AmazonSqsTransport _parent;
 
     private bool _initialized;
@@ -244,6 +251,58 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         return new DefaultSqsEnvelopeMapper();
     }
 
+    /// <summary>
+    ///     Can the requested delivery time of this envelope be honored natively by SQS through the
+    ///     per-message DelaySeconds parameter? Standard queues only (FIFO queues support just a
+    ///     queue-level delay), and only within the 15 minute SQS maximum
+    /// </summary>
+    internal bool CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
+    {
+        if (IsFifoQueue)
+        {
+            return false;
+        }
+
+        if (envelope.ScheduledTime is not { } scheduledTime)
+        {
+            return true;
+        }
+
+        return scheduledTime.Subtract(utcNow).TotalSeconds <= MaximumSqsDelaySeconds;
+    }
+
+    /// <summary>
+    ///     The DelaySeconds value to stamp on an outgoing SQS message for this envelope, or 0 for
+    ///     "send immediately". Only applies to standard queues; SQS rejects per-message delays on
+    ///     FIFO queues
+    /// </summary>
+    internal int NativeDelaySecondsFor(Envelope envelope, DateTimeOffset utcNow, ILogger logger)
+    {
+        if (IsFifoQueue || envelope.ScheduledTime is not { } scheduledTime)
+        {
+            return 0;
+        }
+
+        var remaining = scheduledTime.Subtract(utcNow);
+        if (remaining <= TimeSpan.Zero)
+        {
+            return 0;
+        }
+
+        var seconds = (int)Math.Ceiling(remaining.TotalSeconds);
+        if (seconds <= MaximumSqsDelaySeconds)
+        {
+            return seconds;
+        }
+
+        // Defensive only. Wolverine's routing falls back to its own message scheduling for
+        // delays past the SQS maximum, so this should be unreachable through normal publishing
+        logger.LogWarning(
+            "Envelope {EnvelopeId} reached the SQS sender for queue {Queue} with a scheduled delay of {Seconds}s, which exceeds the SQS maximum of {MaximumSeconds}s. The message will be delivered after the maximum delay instead",
+            envelope.Id, QueueName, seconds, MaximumSqsDelaySeconds);
+        return MaximumSqsDelaySeconds;
+    }
+
     internal async Task SendMessageAsync(Envelope envelope, ILogger logger)
     {
         if (!_initialized)
@@ -283,6 +342,12 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         {
             request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
+        }
+
+        var delaySeconds = NativeDelaySecondsFor(envelope, DateTimeOffset.UtcNow, logger);
+        if (delaySeconds > 0)
+        {
+            request.DelaySeconds = delaySeconds;
         }
 
         await _parent.Client!.SendMessageAsync(request);
@@ -454,8 +519,17 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
         var protocol = new SqsSenderProtocol(runtime, this,
             _parent.Client ?? throw new InvalidOperationException("Parent transport has not been initialized"));
-        return new BatchedSender(this, protocol, runtime.Cancellation,
+        var sender = new BatchedSender(this, protocol, runtime.Cancellation,
             runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>());
+
+        // FIFO queues only support a queue-level delay, never the per-message DelaySeconds, so
+        // scheduled sends to a FIFO queue always fall back to Wolverine's own message scheduling
+        if (IsFifoQueue)
+        {
+            sender.SupportsNativeScheduledSend = false;
+        }
+
+        return sender;
     }
 
     /// <summary>

@@ -54,6 +54,13 @@ await messageBus.PublishAsync(new OrderPlaced(orderId), new DeliveryOptions
 
 If you enable `ContentBasedDeduplication` on the queue (as shown above), you can omit the `DeduplicationId` and SQS will generate one based on the message body.
 
+## Scheduled Messages and FIFO Queues
+
+SQS does not allow per-message delays (`DelaySeconds`) on FIFO queues — only a queue-level delay
+that applies to every message. For that reason, Wolverine never uses native SQS delays for
+scheduled sends to a FIFO queue and always falls back to its own message scheduling instead. See
+[Scheduled Delivery](/guide/messaging/transports/sqs/scheduled) for the details.
+
 ## Dead Letter Queues for FIFO
 
 When using dead letter queues with FIFO queues, the dead letter queue must also be a FIFO queue. Make sure to name it with a `.fifo` suffix:

@@ -8,7 +8,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class SqsSenderProtocol :ISenderProtocol
+internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditionalNativeScheduling
 {
     private readonly ILogger _logger;
     private readonly AmazonSqsQueue _queue;
@@ -21,6 +21,13 @@ internal class SqsSenderProtocol :ISenderProtocol
         _logger = runtime.LoggerFactory.CreateLogger<SqsSenderProtocol>();
 
         _queue.Mapper ??= _queue.BuildMapper(runtime);
+    }
+
+    // Standard queues can delay individual messages natively (DelaySeconds, max 15 minutes);
+    // FIFO queues only support a queue-level delay, so they never schedule natively
+    bool IConditionalNativeScheduling.CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
+    {
+        return _queue.CanScheduleNatively(envelope, utcNow);
     }
 
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
@@ -86,6 +93,12 @@ internal class OutgoingSqsBatch
                 {
                     entry.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
                     entry.MessageAttributes.Add(attribute.Key, attribute.Value);
+                }
+
+                var delaySeconds = queue.NativeDelaySecondsFor(envelope, DateTimeOffset.UtcNow, logger);
+                if (delaySeconds > 0)
+                {
+                    entry.DelaySeconds = delaySeconds;
                 }
 
                 entries.Add(entry);
