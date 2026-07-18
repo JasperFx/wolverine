@@ -93,6 +93,31 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     /// </summary>
     public bool SystemQueuesEnabled { get; set; } = true;
 
+    private int _prefetchCount;
+
+    /// <summary>
+    ///     The transport-wide default for the number of messages that the underlying Azure Service
+    ///     Bus receivers eagerly buffer on the client ahead of any ReceiveMessagesAsync() calls.
+    ///     Applied to every listening endpoint that does not override PrefetchCount itself. The
+    ///     default is 0 (prefetch is disabled). Be aware that prefetched messages age against the
+    ///     queue's message lock duration while they sit in the client buffer, so an oversized
+    ///     prefetch combined with slow handlers leads to lock-lost redeliveries.
+    /// </summary>
+    public int PrefetchCount
+    {
+        get => _prefetchCount;
+        set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value,
+                    "PrefetchCount cannot be negative");
+            }
+
+            _prefetchCount = value;
+        }
+    }
+
     [IgnoreDescription]
     public LightweightCache<string, AzureServiceBusQueue> Queues { get; }
     [IgnoreDescription]

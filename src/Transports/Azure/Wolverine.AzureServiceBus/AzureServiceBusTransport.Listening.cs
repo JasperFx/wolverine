@@ -14,13 +14,14 @@ public partial class AzureServiceBusTransport
     {
         if (endpoint is AzureServiceBusQueue queue)
         {
-            return BusClient.AcceptNextSessionAsync(queue.QueueName, cancellationToken: cancellationToken);
+            return BusClient.AcceptNextSessionAsync(queue.QueueName, BuildSessionReceiverOptions(queue),
+                cancellationToken);
         }
 
         if (endpoint is AzureServiceBusSubscription subscription)
         {
             return BusClient.AcceptNextSessionAsync(subscription.Topic.TopicName, subscription.SubscriptionName,
-                cancellationToken: cancellationToken);
+                BuildSessionReceiverOptions(subscription), cancellationToken);
         }
 
         throw new ArgumentOutOfRangeException(nameof(endpoint),
@@ -78,7 +79,7 @@ public partial class AzureServiceBusTransport
             return inlineListener;
         }
 
-        var messageReceiver = BusClient.CreateReceiver(queue.QueueName);
+        var messageReceiver = BusClient.CreateReceiver(queue.QueueName, BuildReceiverOptions(queue));
         var logger = runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>();
         var listener = new BatchedAzureServiceBusListener(queue, logger, receiver, messageReceiver, mapper, requeue);
 
@@ -132,7 +133,8 @@ public partial class AzureServiceBusTransport
             return inlineListener;
         }
 
-        var messageReceiver = BusClient.CreateReceiver(subscription.Topic.TopicName, subscription.SubscriptionName);
+        var messageReceiver = BusClient.CreateReceiver(subscription.Topic.TopicName, subscription.SubscriptionName,
+            BuildReceiverOptions(subscription));
 
         var listener = new BatchedAzureServiceBusListener(subscription, runtime.LoggerFactory.CreateLogger<BatchedAzureServiceBusListener>(), receiver, messageReceiver, mapper, requeue);
 
@@ -147,7 +149,13 @@ public partial class AzureServiceBusTransport
     // dead lettering and deferral.
     internal static ServiceBusProcessorOptions BuildProcessorOptions(AzureServiceBusEndpoint endpoint)
     {
-        var options = new ServiceBusProcessorOptions();
+        var options = new ServiceBusProcessorOptions
+        {
+            // Seeded from the endpoint (or the transport-wide default), but deliberately applied
+            // before ConfigureProcessor so a user customization can still override it for inline
+            // listeners.
+            PrefetchCount = endpoint.PrefetchCount
+        };
 
         endpoint.ConfigureProcessor?.Invoke(options);
 
@@ -156,5 +164,25 @@ public partial class AzureServiceBusTransport
         options.ReceiveMode = ServiceBusReceiveMode.PeekLock;
 
         return options;
+    }
+
+    // Builds the ServiceBusReceiverOptions for the batched (buffered/durable) listeners, carrying
+    // the endpoint's client-side prefetch configuration onto the receiver
+    internal static ServiceBusReceiverOptions BuildReceiverOptions(AzureServiceBusEndpoint endpoint)
+    {
+        return new ServiceBusReceiverOptions
+        {
+            PrefetchCount = endpoint.PrefetchCount
+        };
+    }
+
+    // Builds the ServiceBusSessionReceiverOptions for session-based listeners, carrying the
+    // endpoint's client-side prefetch configuration onto the session receiver
+    internal static ServiceBusSessionReceiverOptions BuildSessionReceiverOptions(AzureServiceBusEndpoint endpoint)
+    {
+        return new ServiceBusSessionReceiverOptions
+        {
+            PrefetchCount = endpoint.PrefetchCount
+        };
     }
 }

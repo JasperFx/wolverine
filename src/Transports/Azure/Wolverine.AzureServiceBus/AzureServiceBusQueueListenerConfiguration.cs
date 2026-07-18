@@ -104,6 +104,28 @@ public class
     }
 
     /// <summary>
+    ///     The number of messages that the underlying Azure Service Bus receiver eagerly buffers
+    ///     on the client ahead of processing for this queue. The default is 0 (prefetch is
+    ///     disabled), or the transport-wide default set through
+    ///     <c>UseAzureServiceBus(...).PrefetchCount()</c>. Prefetched messages age against the
+    ///     queue's message lock duration while they sit in the client buffer, so size this
+    ///     relative to MaximumMessagesToReceive and your handler latency
+    /// </summary>
+    /// <param name="prefetchCount">The client-side prefetch count. Must be non-negative</param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration PrefetchCount(int prefetchCount)
+    {
+        if (prefetchCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(prefetchCount), prefetchCount,
+                "PrefetchCount cannot be negative");
+        }
+
+        add(e => e.PrefetchCount = prefetchCount);
+        return this;
+    }
+
+    /// <summary>
     /// Completely disable all SQS dead letter queueing for just this queue
     /// </summary>
     /// <returns></returns>
