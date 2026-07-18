@@ -289,9 +289,10 @@ when the caller wants to consume the items directly.
 
 ## Streaming Requests
 
-`StreamAsync<T>` has a mirror image: `InvokeStreamAsync<TRequest, TResponse>` sends a **stream of
-request messages** to one handler invocation and awaits a **single** response. The handler declares
-`IAsyncEnumerable<TRequest>` as its message type and folds the stream however it likes:
+`StreamAsync` also has an inverse overload: `StreamAsync<TRequest, TResponse>` sends a **stream of
+request messages** to one handler invocation and awaits a **single** `Task<TResponse>` — the arity
+tells the two apart (one type argument streams responses out; two stream requests in). The handler
+declares `IAsyncEnumerable<TRequest>` as its message type and folds the stream however it likes:
 
 ```cs
 public static class LocationIngestHandler
@@ -312,12 +313,12 @@ public static class LocationIngestHandler
 
 public static async Task ingest(IMessageBus bus, IAsyncEnumerable<LocationPing> pings, CancellationToken ct)
 {
-    var ack = await bus.InvokeStreamAsync<LocationPing, LocationIngestAck>(pings, ct);
+    var ack = await bus.StreamAsync<LocationPing, LocationIngestAck>(pings, ct);
     Console.WriteLine($"Ingested {ack.Count} pings");
 }
 ```
 
-A few things worth knowing about `InvokeStreamAsync<TRequest, TResponse>`:
+A few things worth knowing about `StreamAsync<TRequest, TResponse>`:
 
 - **The handler's message type is `IAsyncEnumerable<TRequest>` itself.** Discovery and dispatch key off
   that closed generic type, so exactly one handler per element type receives the whole stream.
@@ -332,7 +333,7 @@ A few things worth knowing about `InvokeStreamAsync<TRequest, TResponse>`:
 - **Cascading messages work as usual.** Return a tuple to both answer the caller and publish follow-on
   messages, exactly like any other invoked handler.
 - **`DeliveryOptions` is supported** for headers, tenant id, and correlation metadata via the overload
-  `InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages, DeliveryOptions options, ...)`.
+  `StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages, DeliveryOptions options, ...)`.
 
 This is the primitive behind gRPC client streaming — see
 [gRPC Services / Streaming](/guide/grpc/streaming#client-streaming-proto-first) for exposing a

@@ -148,7 +148,7 @@ public interface ICommandBus
     /// <typeparam name="TRequest"></typeparam>
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
-    Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+    Task<TResponse> StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
         CancellationToken cancellation = default, TimeSpan? timeout = default);
 
     /// <summary>
@@ -164,7 +164,7 @@ public interface ICommandBus
     /// <typeparam name="TRequest"></typeparam>
     /// <typeparam name="TResponse"></typeparam>
     /// <returns></returns>
-    Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+    Task<TResponse> StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
         DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default);
 }
 

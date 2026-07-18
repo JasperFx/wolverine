@@ -41,7 +41,7 @@ public enum GrpcRpcStreamKind
 
     /// <summary>
     /// Client-streaming RPC — the inbound request stream is forwarded as a whole via
-    /// <c>IMessageBus.InvokeStreamAsync</c> for a single response. Only proto-first services reach this shape today.
+    /// <c>IMessageBus.StreamAsync</c> for a single response. Only proto-first services reach this shape today.
     /// </summary>
     ClientStreaming
 }
@@ -51,7 +51,7 @@ public enum GrpcRpcStreamKind
 /// code-first services the generated wrapper forwards the request to the bus, so <see cref="RequestType"/> is the
 /// published Wolverine message. Unary RPCs forward via <c>IMessageBus.InvokeAsync</c>; server- and
 /// bidirectional-streaming RPCs forward via <c>IMessageBus.StreamAsync</c>; client-streaming RPCs forward the whole
-/// inbound stream via <c>IMessageBus.InvokeStreamAsync</c>. Hand-written and direct-mapped services
+/// inbound stream via <c>IMessageBus.StreamAsync</c>. Hand-written and direct-mapped services
 /// are excluded — Wolverine does not own their dispatch, so there is no reliable message-publishing origin to surface.
 /// </summary>
 /// <param name="ServiceName">The service name — the proto service's simple name for proto-first, or the contract's

@@ -111,7 +111,7 @@ internal sealed class GrpcEndpointManifest : IGrpcEndpointManifest
             }
 
             // Client-streaming: Task<TResponse> Name(IAsyncStreamReader<TRequest>, ServerCallContext).
-            // The whole inbound stream is forwarded via InvokeStreamAsync, so the surfaced request type is the
+            // The whole inbound stream is forwarded via StreamAsync, so the surfaced request type is the
             // per-item element type of the request stream (the actual bus message is IAsyncEnumerable<TRequest>).
             foreach (var method in chain.ClientStreamingMethods)
             {

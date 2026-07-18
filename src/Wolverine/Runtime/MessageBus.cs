@@ -215,7 +215,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         return Runtime.FindInvoker(message.GetType()).StreamAsync<TResponse>(message, this, cancellation, options);
     }
 
-    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+    public Task<TResponse> StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
         CancellationToken cancellation = default, TimeSpan? timeout = default)
     {
         if (messages == null)
@@ -228,7 +228,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         return findStreamInvoker<TRequest>().InvokeAsync<TResponse>(messages, this, cancellation, timeout);
     }
 
-    public Task<TResponse> InvokeStreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+    public Task<TResponse> StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
         DeliveryOptions options, CancellationToken cancellation = default, TimeSpan? timeout = default)
     {
         if (messages == null)
@@ -249,7 +249,7 @@ public partial class MessageBus : IMessageBus, IMessageContext
         if (!Runtime.Options.HandlerGraph.CanHandle(messageType))
         {
             throw new NotSupportedException(
-                $"InvokeStreamAsync is only supported for locally-handled message streams, and no handler accepts {messageType.FullNameInCode()} as its message type. " +
+                $"StreamAsync is only supported for locally-handled message streams, and no handler accepts {messageType.FullNameInCode()} as its message type. " +
                 $"Define a handler like 'Task<TResponse> Handle(IAsyncEnumerable<{typeof(TRequest).FullNameInCode()}> messages, CancellationToken token)'.");
         }
 

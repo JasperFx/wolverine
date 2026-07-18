@@ -4,7 +4,7 @@
 
 ### WolverineFx (core)
 
-- **New `IMessageBus.InvokeStreamAsync<TRequest, TResponse>` primitive for streaming requests.**
+- **New `IMessageBus.StreamAsync<TRequest, TResponse>` primitive for streaming requests.**
   The mirror image of `StreamAsync<T>`: a caller hands one handler invocation an
   `IAsyncEnumerable<TRequest>` stream of messages and awaits a single `TResponse`. The handler
   declares `IAsyncEnumerable<TRequest>` as its message type
@@ -21,7 +21,7 @@
 - **Proto-first client-streaming RPCs (`stream TRequest → TResponse`) are now code-generated.**
   A `[WolverineGrpcService]` stub declaring the fourth canonical gRPC shape no longer fails fast at
   startup — Wolverine generates a wrapper that adapts the inbound `IAsyncStreamReader<TRequest>` to
-  `IAsyncEnumerable<TRequest>` and forwards it to the new `IMessageBus.InvokeStreamAsync` for a
+  `IAsyncEnumerable<TRequest>` and forwards it to the new `IMessageBus.StreamAsync` for a
   single response. Tenant-id detection applies to client-streaming methods; before/after middleware
   and the `Validate` convention are not woven (same constraint as bidirectional streaming). The
   server-side exception interceptor now also translates exceptions from client-streaming handlers

@@ -19,7 +19,7 @@ namespace Wolverine.Grpc;
 ///     overridden to forward to the matching <see cref="IMessageBus"/> operation for its shape:
 ///     unary → <see cref="IMessageBus.InvokeAsync{T}"/>, server/bidirectional streaming →
 ///     <see cref="IMessageBus.StreamAsync{T}"/>, client streaming →
-///     <see cref="IMessageBus.InvokeStreamAsync{TRequest, TResponse}"/>.
+///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/>.
 /// </summary>
 public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAttribute>, ICodeFile
 {
@@ -102,7 +102,7 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
     /// <summary>
     ///     Client-streaming RPC methods (<c>Task&lt;TResponse&gt; Name(IAsyncStreamReader&lt;TRequest&gt;, ServerCallContext)</c>)
     ///     that adapt the inbound stream to <see cref="IAsyncEnumerable{T}"/> and forward it to
-    ///     <see cref="IMessageBus.InvokeStreamAsync{TRequest, TResponse}"/> for a single response.
+    ///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/> for a single response.
     /// </summary>
     public IReadOnlyList<MethodInfo> ClientStreamingMethods { get; }
 
@@ -502,7 +502,7 @@ public enum GrpcMethodKind
     /// <summary>
     ///     Client-streaming RPC: <c>Task&lt;TResponse&gt; Name(IAsyncStreamReader&lt;TRequest&gt;, ServerCallContext)</c>.
     ///     The inbound stream is adapted to <see cref="IAsyncEnumerable{T}"/> and forwarded to
-    ///     <see cref="IMessageBus.InvokeStreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>
+    ///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>
     ///     for a single response.
     /// </summary>
     ClientStreaming,
@@ -668,14 +668,14 @@ internal sealed class ForwardBidiStreamToMessageBusFrame : AsyncFrame
 
 /// <summary>
 ///     Emits a call bridging a gRPC client-streaming RPC to Wolverine's
-///     <see cref="IMessageBus.InvokeStreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>:
+///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>:
 ///     the <see cref="IAsyncStreamReader{T}"/> is adapted to <see cref="IAsyncEnumerable{T}"/> via
 ///     <see cref="WolverineGrpcStreamAdapters.ReadAllAsync{T}"/> and the single response is returned.
 /// </summary>
 /// <remarks>
 ///     Generated code shape:
 ///     <code>
-///         return await _bus.InvokeStreamAsync&lt;TRequest, TResponse&gt;(
+///         return await _bus.StreamAsync&lt;TRequest, TResponse&gt;(
 ///             WolverineGrpcStreamAdapters.ReadAllAsync(requestStream, context.CancellationToken),
 ///             context.CancellationToken);
 ///     </code>
@@ -706,7 +706,7 @@ internal sealed class ForwardClientStreamToMessageBusFrame : AsyncFrame
         var cancellation = $"{contextName}.{nameof(ServerCallContext.CancellationToken)}";
 
         var busInvoke =
-            $"{_busField.Usage}.{nameof(IMessageBus.InvokeStreamAsync)}<{requestType.FullNameInCode()}, {responseType.FullNameInCode()}>" +
+            $"{_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{requestType.FullNameInCode()}, {responseType.FullNameInCode()}>" +
             $"({typeof(WolverineGrpcStreamAdapters).FullNameInCode()}.{nameof(WolverineGrpcStreamAdapters.ReadAllAsync)}({readerName}, {cancellation}), {cancellation})";
 
         if (Next == null)

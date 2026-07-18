@@ -16,7 +16,7 @@ gRPC gives you another edge protocol for the same handlers. Benefits:
   contracts that never leave C#.
 - **Streaming** first-class — server and bidirectional streaming play naturally with Wolverine's
   [`IMessageBus.StreamAsync<T>`](/guide/messaging/message-bus.html#streaming-responses), and client
-  streaming with [`IMessageBus.InvokeStreamAsync`](/guide/messaging/message-bus.html#streaming-requests).
+  streaming with [`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests).
 - **Wolverine handler reuse** — the same handler can back a REST endpoint, an async message, and a
   gRPC call without duplication.
 - **Canonical error semantics** — ordinary .NET exceptions thrown by a handler are mapped to the
@@ -127,7 +127,7 @@ and comparisons to the official `grpc-dotnet` examples.
 
 - **Client streaming is proto-first only.** The code-first (protobuf-net.Grpc)
   generated-implementation path does not recognize the `IAsyncEnumerable<TRequest> → Task<TResponse>`
-  shape — implement those methods by hand against `IMessageBus.InvokeStreamAsync`. All four RPC
+  shape — implement those methods by hand against `IMessageBus.StreamAsync`. All four RPC
   shapes are code-generated for proto-first stubs — see [Streaming](./streaming).
 
 ## Roadmap

@@ -118,7 +118,7 @@ public class grpc_bidi_discovery_tests
 
 /// <summary>
 ///     Client-streaming stubs were rejected at chain construction with <see cref="NotSupportedException"/>
-///     until the <c>IMessageBus.InvokeStreamAsync</c> adapter path existed. These tests pin the
+///     until the <c>IMessageBus.StreamAsync</c> adapter path existed. These tests pin the
 ///     inverted contract: construction succeeds and the RPC is classified onto
 ///     <see cref="GrpcServiceChain.ClientStreamingMethods"/>. The end-to-end wire behavior lives in
 ///     <c>GrpcClientStreaming/grpc_client_streaming_tests</c>.

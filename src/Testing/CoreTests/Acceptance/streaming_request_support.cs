@@ -120,7 +120,7 @@ public static class FaultingNumberStreamHandler
 // Tests
 // ---------------------------------------------------------------------------
 
-public class invoke_stream_async_support
+public class streaming_request_support
 {
     private static async IAsyncEnumerable<T> toStream<T>(IEnumerable<T> items)
     {
@@ -132,7 +132,7 @@ public class invoke_stream_async_support
     }
 
     [Fact]
-    public async Task invoke_stream_returns_aggregated_response()
+    public async Task stream_request_returns_aggregated_response()
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
@@ -141,7 +141,7 @@ public class invoke_stream_async_support
         var bus = host.MessageBus();
 
         var numbers = toStream(Enumerable.Range(1, 4).Select(i => new NumberToSum(i)));
-        var sum = await bus.InvokeStreamAsync<NumberToSum, NumberSum>(numbers);
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers);
 
         sum.Total.ShouldBe(10);
         sum.Count.ShouldBe(4);
@@ -156,7 +156,7 @@ public class invoke_stream_async_support
 
         var bus = host.MessageBus();
 
-        var sum = await bus.InvokeStreamAsync<NumberToSum, NumberSum>(toStream(Array.Empty<NumberToSum>()));
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(toStream(Array.Empty<NumberToSum>()));
 
         sum.Total.ShouldBe(0);
         sum.Count.ShouldBe(0);
@@ -172,7 +172,7 @@ public class invoke_stream_async_support
         var bus = host.MessageBus();
 
         var numbers = toStream([new PlainNumber(5), new PlainNumber(7)]);
-        var sum = await bus.InvokeStreamAsync<PlainNumber, NumberSum>(numbers);
+        var sum = await bus.StreamAsync<PlainNumber, NumberSum>(numbers);
 
         sum.Total.ShouldBe(12);
         sum.Count.ShouldBe(2);
@@ -189,7 +189,7 @@ public class invoke_stream_async_support
 
         var ex = await Should.ThrowAsync<NotSupportedException>(async () =>
         {
-            await bus.InvokeStreamAsync<UnhandledNumber, NumberSum>(toStream([new UnhandledNumber(1)]));
+            await bus.StreamAsync<UnhandledNumber, NumberSum>(toStream([new UnhandledNumber(1)]));
         });
 
         ex.Message.ShouldContain(nameof(UnhandledNumber));
@@ -208,7 +208,7 @@ public class invoke_stream_async_support
         var numbers = toStream(Enumerable.Range(0, 10).Select(i => new FaultingNumber(i)));
         var ex = await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
-            await bus.InvokeStreamAsync<FaultingNumber, NumberSum>(numbers);
+            await bus.StreamAsync<FaultingNumber, NumberSum>(numbers);
         });
 
         ex.Message.ShouldBe("stream handler faulted mid-drain");
@@ -245,7 +245,7 @@ public class invoke_stream_async_support
 
         await Should.ThrowAsync<OperationCanceledException>(async () =>
         {
-            await bus.InvokeStreamAsync<NumberToSum, NumberSum>(infinite(), cts.Token);
+            await bus.StreamAsync<NumberToSum, NumberSum>(infinite(), cts.Token);
         });
     }
 
@@ -265,7 +265,7 @@ public class invoke_stream_async_support
         await host.ExecuteAndWaitAsync(async context =>
         {
             var numbers = toStream([new CascadingNumber(2), new CascadingNumber(3)]);
-            sum = await context.InvokeStreamAsync<CascadingNumber, NumberSum>(numbers);
+            sum = await context.StreamAsync<CascadingNumber, NumberSum>(numbers);
         });
 
         sum.ShouldNotBeNull();
@@ -277,7 +277,7 @@ public class invoke_stream_async_support
     }
 
     [Fact]
-    public async Task invoke_stream_with_delivery_options()
+    public async Task stream_request_with_delivery_options()
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
@@ -287,7 +287,7 @@ public class invoke_stream_async_support
         var options = new DeliveryOptions();
 
         var numbers = toStream([new NumberToSum(1), new NumberToSum(2)]);
-        var sum = await bus.InvokeStreamAsync<NumberToSum, NumberSum>(numbers, options);
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers, options);
 
         sum.Total.ShouldBe(3);
     }

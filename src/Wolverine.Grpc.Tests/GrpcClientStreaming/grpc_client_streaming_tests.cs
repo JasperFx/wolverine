@@ -10,7 +10,7 @@ namespace Wolverine.Grpc.Tests.GrpcClientStreaming;
 ///     End-to-end tests for the proto-first client-streaming generated wrapper. Verifies that
 ///     the generated code adapts the inbound <see cref="NumberRequest"/> stream to
 ///     <c>IAsyncEnumerable&lt;NumberRequest&gt;</c>, forwards it to
-///     <c>IMessageBus.InvokeStreamAsync</c>, and returns the handler's single <see cref="SumReply"/>.
+///     <c>IMessageBus.StreamAsync</c>, and returns the handler's single <see cref="SumReply"/>.
 /// </summary>
 public class grpc_client_streaming_tests : IClassFixture<ClientStreamingFixture>
 {

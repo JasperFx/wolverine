@@ -17,7 +17,7 @@ public static class WolverineGrpcStreamAdapters
     /// <summary>
     ///     Exposes an <see cref="IAsyncStreamReader{T}"/> as an <see cref="IAsyncEnumerable{T}"/> so a
     ///     client-streaming RPC's inbound stream can be handed to
-    ///     <see cref="IMessageBus.InvokeStreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>.
+    ///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>.
     /// </summary>
     public static async IAsyncEnumerable<T> ReadAllAsync<T>(IAsyncStreamReader<T> reader,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)

@@ -272,7 +272,7 @@ in both styles, so mid-stream cancellation cleanly unwinds. For the broader stre
 
 A `stream TRequest → TResponse` RPC is code-generated on the proto-first path only. The handler
 receives the whole inbound stream as `IAsyncEnumerable<TRequest>` — the message type Wolverine's
-[`IMessageBus.InvokeStreamAsync`](/guide/messaging/message-bus.html#streaming-requests) dispatches
+[`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests) dispatches
 on — and returns the single response:
 
 ```proto

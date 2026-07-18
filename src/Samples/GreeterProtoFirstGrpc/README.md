@@ -46,7 +46,7 @@ Fault('key') -> RpcException: NotFound (missing key)
 The `CollectGreetings` line demonstrates client streaming: the client streams
 several `HelloRequest` messages, and the generated wrapper hands the whole
 inbound stream to a Wolverine handler as `IAsyncEnumerable<HelloRequest>` via
-`IMessageBus.InvokeStreamAsync`, which folds it into a single
+`IMessageBus.StreamAsync`, which folds it into a single
 `GreetingSummary` reply.
 
 The `Fault('key')` line comes from a handler that throws

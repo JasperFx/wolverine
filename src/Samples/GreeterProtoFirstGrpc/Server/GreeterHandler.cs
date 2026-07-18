@@ -29,7 +29,7 @@ public static class GreeterHandler
     }
 
     // Client streaming: the generated wrapper adapts the RPC's inbound stream to
-    // IAsyncEnumerable<HelloRequest> and forwards it via IMessageBus.InvokeStreamAsync,
+    // IAsyncEnumerable<HelloRequest> and forwards it via IMessageBus.StreamAsync,
     // so the handler folds N requests into one reply.
     public static async Task<GreetingSummary> Handle(
         IAsyncEnumerable<HelloRequest> requests,
