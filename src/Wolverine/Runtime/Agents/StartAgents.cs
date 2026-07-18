@@ -19,7 +19,8 @@ internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes).Split(',').Select(x => new Uri(x)).ToArray();
+        var uris = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => new Uri(x)).ToArray();
         return new AgentsStarted(uris);
     }
 }
@@ -110,7 +111,7 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var agents = Encoding.UTF8.GetString(bytes).Split(',')
+        var agents = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(x => new Uri(x)).ToArray();
         return new StartAgents(agents);
     }
@@ -130,7 +131,8 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes).Split(',').Select(x => new Uri(x)).ToArray();
+        var uris = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => new Uri(x)).ToArray();
         return new AgentsStopped(uris);
     }
 }
@@ -189,7 +191,7 @@ internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public static object Read(byte[] bytes)
     {
-        var agents = Encoding.UTF8.GetString(bytes).Split(',')
+        var agents = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
             .Select(x => new Uri(x)).ToArray();
         return new StopAgents(agents);
     }
