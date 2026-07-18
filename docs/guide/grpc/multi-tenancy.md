@@ -153,5 +153,6 @@ Core authorization, which will surface as `Unauthenticated`/`PermissionDenied`.
   `CallContext` parameter — that's the only route to the underlying `ServerCallContext` and its
   request metadata. Methods without one fall back to the runtime interceptor.
 - Code-first **server-streaming** methods (returning `IAsyncEnumerable<T>` directly) can't host
-  the async detection step; proto-first server-streaming and bidirectional methods (returning
-  `Task`) are fully covered.
+  the async detection step; proto-first server-streaming, client-streaming, and bidirectional
+  methods are fully covered — every proto-first RPC shape ends with a `ServerCallContext`
+  parameter, which is all detection needs.

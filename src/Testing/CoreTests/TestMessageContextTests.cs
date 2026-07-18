@@ -257,6 +257,36 @@ public class TestMessageContextTests
     }
 
     [Fact]
+    public async Task stream_request_records_invocation_and_returns_configured_response()
+    {
+        var response = new NumberResponse(21);
+        theSpy.WhenInvokedMessageOf<IAsyncEnumerable<NumberRequest>>().RespondWith(response);
+
+        var stream = numberRequests();
+        (await theContext.StreamAsync<NumberRequest, NumberResponse>(stream))
+            .ShouldBeSameAs(response);
+
+        theSpy.Invoked.Single().ShouldBeSameAs(stream);
+    }
+
+    [Fact]
+    public async Task stream_request_with_expected_response_miss()
+    {
+        var ex = await Should.ThrowAsync<Exception>(async () =>
+        {
+            await theContext.StreamAsync<NumberRequest, NumberResponse>(numberRequests());
+        });
+
+        ex.Message.ShouldStartWith("There is no matching expectation for the request message");
+    }
+
+    private static async IAsyncEnumerable<NumberRequest> numberRequests()
+    {
+        yield return new NumberRequest(1, 2);
+        await Task.Yield();
+    }
+
+    [Fact]
     public async Task invoke_with_expected_response_no_filter_hit_to_endpoint_by_uri()
     {
         var response1 = new NumberResponse(11);

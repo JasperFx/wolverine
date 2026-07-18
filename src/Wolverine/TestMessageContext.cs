@@ -237,6 +237,27 @@ public class TestMessageContext : IMessageContext
         return EmptyAsyncEnumerable<TResponse>(cancellation);
     }
 
+    Task<TResponse> ICommandBus.StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        CancellationToken cancellation, TimeSpan? timeout)
+    {
+        _invoked.Add(messages);
+
+        var response = findResponse<TResponse>(messages);
+        return Task.FromResult(response);
+    }
+
+    Task<TResponse> ICommandBus.StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages,
+        DeliveryOptions options, CancellationToken cancellation, TimeSpan? timeout)
+    {
+        var envelope = new Envelope(messages);
+        options.Override(envelope);
+
+        _invoked.Add(envelope);
+
+        var response = findResponse<TResponse>(messages);
+        return Task.FromResult(response);
+    }
+
     private static async IAsyncEnumerable<T> EmptyAsyncEnumerable<T>(
         [EnumeratorCancellation] CancellationToken cancellation = default)
     {

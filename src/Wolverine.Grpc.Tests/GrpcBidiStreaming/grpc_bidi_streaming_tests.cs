@@ -117,17 +117,17 @@ public class grpc_bidi_discovery_tests
 }
 
 /// <summary>
-///     Verifies the fail-fast contract: constructing a <see cref="GrpcServiceChain"/> from a
-///     proto-first stub that declares a client-streaming RPC must throw
-///     <see cref="NotSupportedException"/> immediately, before any code generation runs.
-///     This prevents silent no-ops at runtime (the generated wrapper would have no method to
-///     delegate client-streaming requests to).
+///     Client-streaming stubs were rejected at chain construction with <see cref="NotSupportedException"/>
+///     until the <c>IMessageBus.StreamAsync</c> adapter path existed. These tests pin the
+///     inverted contract: construction succeeds and the RPC is classified onto
+///     <see cref="GrpcServiceChain.ClientStreamingMethods"/>. The end-to-end wire behavior lives in
+///     <c>GrpcClientStreaming/grpc_client_streaming_tests</c>.
 /// </summary>
 [Collection("GrpcSerialTests")]
-public class grpc_client_streaming_fail_fast_tests
+public class grpc_client_streaming_chain_construction_tests
 {
     [Fact]
-    public async Task stub_with_client_streaming_method_throws_not_supported_at_chain_construction()
+    public async Task stub_with_client_streaming_method_builds_a_chain_with_the_method_classified()
     {
         DynamicCodeBuilder.WithinCodegenCommand = true;
         try
@@ -139,13 +139,13 @@ public class grpc_client_streaming_fail_fast_tests
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
 
-            var ex = Should.Throw<NotSupportedException>(
-                () => new GrpcServiceChain(typeof(ClientStreamingOnlyStub), graph));
+            var chain = new GrpcServiceChain(typeof(ClientStreamingOnlyStub), graph);
 
-            // Message must name the unsupported shape and the offending method so
-            // the user can immediately identify what to fix.
-            ex.Message.ShouldContain("Client-streaming");
-            ex.Message.ShouldContain("Collect");
+            chain.ClientStreamingMethods.Count.ShouldBe(1);
+            chain.ClientStreamingMethods[0].Name.ShouldBe("Collect");
+            chain.UnaryMethods.ShouldBeEmpty();
+            chain.ServerStreamingMethods.ShouldBeEmpty();
+            chain.BidirectionalStreamingMethods.ShouldBeEmpty();
         }
         finally
         {
@@ -155,5 +155,5 @@ public class grpc_client_streaming_fail_fast_tests
 }
 
 // Internal so GetExportedTypes() skips it — it must never land in the proto-first
-// discovery scan and break the BidiStreamingFixture that shares this assembly.
+// discovery scan and change what the BidiStreamingFixture that shares this assembly maps.
 internal abstract class ClientStreamingOnlyStub : ClientStreamTest.ClientStreamTestBase;

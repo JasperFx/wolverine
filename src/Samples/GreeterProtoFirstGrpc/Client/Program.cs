@@ -26,6 +26,17 @@ await foreach (var reply in call.ResponseStream.ReadAllAsync())
     Console.WriteLine($"  {reply.Message}");
 }
 
+// Client streaming: stream several HelloRequests, get back one folded GreetingSummary.
+using var collect = client.CollectGreetings();
+foreach (var name in new[] { "Erik", "Ripley", "Newt" })
+{
+    await collect.RequestStream.WriteAsync(new HelloRequest { Name = name });
+}
+
+await collect.RequestStream.CompleteAsync();
+var summary = await collect;
+Console.WriteLine($"CollectGreetings -> {summary.Message} ({summary.Count} greetings)");
+
 // Exception mapping (AIP-193): handler throws KeyNotFoundException → client sees NotFound.
 try
 {

@@ -22,8 +22,8 @@ public enum GrpcServiceDiscoveryMode
 
 /// <summary>
 /// The RPC cardinality of a discovered gRPC endpoint — the dimension CritterWatch needs to render the right
-/// chain-detail affordance for a gRPC origin. Only the kinds whose generated wrapper forwards the request to the
-/// Wolverine message bus are represented; client-streaming has no Wolverine forwarding path and never appears.
+/// chain-detail affordance for a gRPC origin. Every kind's generated wrapper forwards the request(s) to the
+/// Wolverine message bus.
 /// </summary>
 public enum GrpcRpcStreamKind
 {
@@ -37,14 +37,21 @@ public enum GrpcRpcStreamKind
     /// Bidirectional-streaming RPC — each inbound request-stream item is forwarded via <c>IMessageBus.StreamAsync</c>.
     /// Only proto-first services reach this shape today.
     /// </summary>
-    BidirectionalStreaming
+    BidirectionalStreaming,
+
+    /// <summary>
+    /// Client-streaming RPC — the inbound request stream is forwarded as a whole via
+    /// <c>IMessageBus.StreamAsync</c> for a single response. Only proto-first services reach this shape today.
+    /// </summary>
+    ClientStreaming
 }
 
 /// <summary>
 /// A discovered gRPC endpoint and the Wolverine message type it forwards to the message bus. For proto-first and
 /// code-first services the generated wrapper forwards the request to the bus, so <see cref="RequestType"/> is the
 /// published Wolverine message. Unary RPCs forward via <c>IMessageBus.InvokeAsync</c>; server- and
-/// bidirectional-streaming RPCs forward via <c>IMessageBus.StreamAsync</c>. Hand-written and direct-mapped services
+/// bidirectional-streaming RPCs forward via <c>IMessageBus.StreamAsync</c>; client-streaming RPCs forward the whole
+/// inbound stream via <c>IMessageBus.StreamAsync</c>. Hand-written and direct-mapped services
 /// are excluded — Wolverine does not own their dispatch, so there is no reliable message-publishing origin to surface.
 /// </summary>
 /// <param name="ServiceName">The service name — the proto service's simple name for proto-first, or the contract's
@@ -52,12 +59,14 @@ public enum GrpcRpcStreamKind
 /// <param name="MethodName">The RPC method name.</param>
 /// <param name="RequestType">The request type — the Wolverine message forwarded to the bus. For unary and
 /// server-streaming RPCs this is the request parameter; for bidirectional-streaming it is the per-item element type of
-/// the inbound request stream (each item is forwarded individually).</param>
-/// <param name="ResponseType">The response type — unwrapped from <c>Task&lt;T&gt;</c> for unary RPCs, or the element
-/// type of the outbound response stream for streaming RPCs; <c>null</c> for a method with no typed response.</param>
+/// the inbound request stream (each item is forwarded individually); for client-streaming it is the element type of
+/// the inbound stream (the actual bus message is <c>IAsyncEnumerable&lt;RequestType&gt;</c>).</param>
+/// <param name="ResponseType">The response type — unwrapped from <c>Task&lt;T&gt;</c> for unary and client-streaming
+/// RPCs, or the element type of the outbound response stream for server-/bidirectional-streaming RPCs; <c>null</c>
+/// for a method with no typed response.</param>
 /// <param name="HandlerType">The identity of the discovered service (stub or contract type).</param>
 /// <param name="Mode">How the service was discovered.</param>
-/// <param name="StreamKind">The RPC cardinality (unary, server-streaming, or bidirectional-streaming).</param>
+/// <param name="StreamKind">The RPC cardinality (unary, server-streaming, client-streaming, or bidirectional-streaming).</param>
 public sealed record GrpcEndpointDescriptor(
     string ServiceName,
     string MethodName,
@@ -76,8 +85,8 @@ public interface IGrpcEndpointManifest
 {
     /// <summary>
     /// The discovered gRPC endpoints whose generated wrapper forwards the request to the message bus — unary,
-    /// server-streaming, and bidirectional-streaming RPCs across proto-first and code-first services. Empty when
-    /// gRPC is enabled but no such services were discovered.
+    /// server-streaming, client-streaming, and bidirectional-streaming RPCs across proto-first and code-first
+    /// services. Empty when gRPC is enabled but no such services were discovered.
     /// </summary>
     IReadOnlyList<GrpcEndpointDescriptor> Endpoints { get; }
 }

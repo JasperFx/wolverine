@@ -14,7 +14,9 @@ gRPC gives you another edge protocol for the same handlers. Benefits:
 
 - **Strongly-typed contracts** shared across .NET and non-.NET services via `.proto` files, or code-first
   contracts that never leave C#.
-- **Streaming** first-class — plays naturally with Wolverine's [`IMessageBus.StreamAsync<T>`](/guide/messaging/message-bus.html#streaming-responses).
+- **Streaming** first-class — server and bidirectional streaming play naturally with Wolverine's
+  [`IMessageBus.StreamAsync<T>`](/guide/messaging/message-bus.html#streaming-responses), and client
+  streaming with [`IMessageBus.StreamAsync`](/guide/messaging/message-bus.html#streaming-requests).
 - **Wolverine handler reuse** — the same handler can back a REST endpoint, an async message, and a
   gRPC call without duplication.
 - **Canonical error semantics** — ordinary .NET exceptions thrown by a handler are mapped to the
@@ -32,8 +34,8 @@ building:
   can pick (or mix) them.
 - [Error Handling](./errors) — the default AIP-193 exception → `StatusCode` table plus the opt-in
   `google.rpc.Status` pipeline for rich, structured details.
-- [Streaming](./streaming) — server streaming today, bidirectional via a manual bridge, and the
-  shape of the cancellation contract.
+- [Streaming](./streaming) — server, client, and bidirectional streaming, and the shape of the
+  cancellation contract.
 - [Typed gRPC Clients](./client) — `AddWolverineGrpcClient<T>()`, the Wolverine-flavored wrapper over
   `Grpc.Net.ClientFactory` that adds envelope-header propagation and `RpcException` → typed-exception
   translation on the consuming side.
@@ -89,7 +91,7 @@ and comparisons to the official `grpc-dotnet` examples.
 | [PingPongWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpc)                     | Code-first **unary** | `[ServiceContract]` + `WolverineGrpcServiceBase` forwarding to a plain handler |
 | [PingPongWithGrpcStreaming](https://github.com/JasperFx/wolverine/tree/main/src/Samples/PingPongWithGrpcStreaming)   | Code-first **server streaming** | Handler returning `IAsyncEnumerable<T>`, forwarded via `Bus.StreamAsync<T>` |
 | [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)             | Code-first **generated implementation** | `[WolverineGrpcService]` on an interface — Wolverine generates the service class; no concrete class written |
-| [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
+| [GreeterProtoFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterProtoFirstGrpc)           | **Proto-first** unary + server streaming + client streaming + exception mapping | Abstract `[WolverineGrpcService]` stub subclassing a generated `*Base` + handlers |
 | [RacerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/RacerWithGrpc)                           | Code-first **bidirectional streaming** | Per-update bridge: client `IAsyncEnumerable<TReq>` → `Bus.StreamAsync<TResp>` for each item |
 | [GreeterWithGrpcErrors](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterWithGrpcErrors)           | Code-first **rich error details** | FluentValidation → `BadRequest` plus inline `MapException` → `PreconditionFailure`, with a client that unpacks both |
 | [ProgressTrackerWithGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ProgressTrackerWithGrpc)       | Code-first **server streaming + cancellation** | Realistic job-progress stream: handler yields `JobProgress` updates; client cancels mid-stream |
@@ -123,9 +125,10 @@ and comparisons to the official `grpc-dotnet` examples.
 
 ## Current Limitations
 
-- **Pure client streaming** (`stream TRequest → TResponse`) has no out-of-the-box adapter path yet.
-  Proto-first stubs that declare this shape fail fast at startup with a clear error rather than
-  silently skipping. Bidirectional streaming is fully supported — see [Streaming](./streaming).
+- **Client streaming is proto-first only.** The code-first (protobuf-net.Grpc)
+  generated-implementation path does not recognize the `IAsyncEnumerable<TRequest> → Task<TResponse>`
+  shape — implement those methods by hand against `IMessageBus.StreamAsync`. All four RPC
+  shapes are code-generated for proto-first stubs — see [Streaming](./streaming).
 
 ## Roadmap
 

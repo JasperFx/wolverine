@@ -11,8 +11,9 @@ service BidiEchoTest {
   rpc Echo (stream EchoRequest) returns (stream EchoReply);
 }
 
-// Client-streaming service — used only by unit tests that verify the fail-fast error message
-// when a proto-first stub declares a client-streaming RPC. Never registered with a host.
+// Client-streaming service — used only by classification/chain-construction unit tests.
+// Never registered with a host; the end-to-end client-streaming coverage lives in
+// GrpcClientStreaming/Protos/grpc_client_stream_test.proto.
 service ClientStreamTest {
   rpc Collect (stream EchoRequest) returns (EchoReply);
 }

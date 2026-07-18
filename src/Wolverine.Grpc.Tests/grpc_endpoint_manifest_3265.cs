@@ -134,6 +134,22 @@ public class grpc_endpoint_manifest_3265 : IClassFixture<GreeterManifestFixture>
         e.HandlerType.ShouldBe(typeof(GreeterGrpcService));
     }
 
+    // --- proto-first: client-streaming -----------------------------------------------------------------------------
+
+    [Fact]
+    public void proto_first_client_streaming_collect_greetings()
+    {
+        var e = protoFirst("CollectGreetings");
+        e.StreamKind.ShouldBe(GrpcRpcStreamKind.ClientStreaming);
+        e.ServiceName.ShouldBe("Greeter");
+        // The surfaced message is the per-item element type of the inbound request stream; the actual bus
+        // message is IAsyncEnumerable<HelloRequest>.
+        e.RequestType.ShouldBe(typeof(HelloRequest));
+        // The response is unwrapped from Task<GreetingSummary>.
+        e.ResponseType.ShouldBe(typeof(GreetingSummary));
+        e.HandlerType.ShouldBe(typeof(GreeterGrpcService));
+    }
+
     // --- code-first: unary -----------------------------------------------------------------------------------------
 
     [Fact]
@@ -262,12 +278,30 @@ public class grpc_endpoint_manifest_3265_bidi_and_exclusions : IClassFixture<Bid
     }
 
     [Fact]
+    public void proto_first_client_streaming_collect_is_surfaced()
+    {
+        var collect = Endpoints.Single(e =>
+            e.Mode == GrpcServiceDiscoveryMode.ProtoFirst
+            && e.ServiceName == "CollectTest"
+            && e.MethodName == "Collect");
+
+        collect.StreamKind.ShouldBe(GrpcRpcStreamKind.ClientStreaming);
+        // The surfaced message is the per-item element type of the inbound request stream — NumberRequest — NOT
+        // the IAsyncStreamReader<NumberRequest> wrapper (the actual bus message is IAsyncEnumerable<NumberRequest>).
+        collect.RequestType.ShouldBe(typeof(GrpcClientStreaming.Generated.NumberRequest));
+        // The response is unwrapped from Task<SumReply>.
+        collect.ResponseType.ShouldBe(typeof(GrpcClientStreaming.Generated.SumReply));
+        collect.HandlerType.ShouldBe(typeof(GrpcClientStreaming.CollectStub));
+    }
+
+    [Fact]
     public void every_surfaced_endpoint_carries_a_request_message_and_known_stream_kind()
     {
         Endpoints.ShouldAllBe(e =>
             e.RequestType != null
             && (e.StreamKind == GrpcRpcStreamKind.Unary
                 || e.StreamKind == GrpcRpcStreamKind.ServerStreaming
-                || e.StreamKind == GrpcRpcStreamKind.BidirectionalStreaming));
+                || e.StreamKind == GrpcRpcStreamKind.BidirectionalStreaming
+                || e.StreamKind == GrpcRpcStreamKind.ClientStreaming));
     }
 }

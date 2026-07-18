@@ -72,6 +72,22 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     }
 
     [Fact]
+    public async Task round_trip_client_streaming_call_through_generated_wrapper()
+    {
+        var client = new Greeter.GreeterClient(_fixture.Channel);
+
+        using var call = client.CollectGreetings();
+        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Erik" });
+        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Ripley" });
+        await call.RequestStream.CompleteAsync();
+
+        var summary = await call;
+
+        summary.Count.ShouldBe(2);
+        summary.Message.ShouldBe("Hello, Erik & Ripley");
+    }
+
+    [Fact]
     public async Task mid_stream_cancellation_stops_enumeration_early()
     {
         var client = new Greeter.GreeterClient(_fixture.Channel);
@@ -172,7 +188,7 @@ public class proto_first_discovery_tests
     }
 
     [Fact]
-    public void classifies_unary_and_server_streaming_methods_distinctly()
+    public void classifies_unary_and_streaming_methods_distinctly()
     {
         var classified = GrpcServiceChain.DiscoverSupportedMethods(typeof(Greeter.GreeterBase))
             .ToDictionary(m => m.Method.Name, m => m.Kind);
@@ -180,6 +196,7 @@ public class proto_first_discovery_tests
         classified["SayHello"].ShouldBe(GrpcMethodKind.Unary);
         classified["SayGoodbye"].ShouldBe(GrpcMethodKind.Unary);
         classified["StreamGreetings"].ShouldBe(GrpcMethodKind.ServerStreaming);
+        classified["CollectGreetings"].ShouldBe(GrpcMethodKind.ClientStreaming);
     }
 
     [Fact]
@@ -191,7 +208,7 @@ public class proto_first_discovery_tests
             .Select(m => m.Method.Name)
             .ToList();
 
-        names.ShouldBe(["Fault", "SayGoodbye", "SayHello", "StreamGreetings"]);
+        names.ShouldBe(["CollectGreetings", "Fault", "SayGoodbye", "SayHello", "StreamGreetings"]);
     }
 
     [Fact]

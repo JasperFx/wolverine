@@ -77,7 +77,8 @@ couples the handler to the gRPC transport and prevents it from being reused over
 
 1. **Code-first (hand-written with wrapper)**: any concrete class whose name ends in `GrpcService` (or
    that carries `[WolverineGrpcService]`) and implements a `[ServiceContract]` interface gets a
-   generated **delegation wrapper**. Wolverine emits `{ClassName}GrpcHandler` that implements the same
+   generated **delegation wrapper**. Wolverine emits a wrapper named by stripping any `GrpcService`
+   suffix and appending `GrpcHandler` (`PingGrpcService` → `PingGrpcHandler`) that implements the same
    contract interface, weaves any `Validate` / `[WolverineBefore]` middleware, then delegates each call
    to the inner class via `ActivatorUtilities`. The inner class does not need an explicit DI registration.
 2. **Code-first (generated implementation)**: any **interface** carrying both `[WolverineGrpcService]`
@@ -104,7 +105,7 @@ dotnet run -- wolverine-diagnostics codegen-preview --grpc Greeter
 If you're debugging discovery, `describe` proves Wolverine found the stub; `codegen-preview --grpc`
 shows the exact generated override and the handler method each RPC forwards to. See
 [`codegen-preview`](/guide/command-line#codegen-preview) for the full set of accepted identifiers
-(bare proto service name, stub class name, or short `-g` alias).
+(bare proto service name, stub class name, or generated wrapper name, plus the short `-g` flag alias).
 
 ## Validate convention
 
@@ -156,8 +157,8 @@ public Task<OrderReply> PlaceOrder(PlaceOrderRequest request, CallContext contex
 - `ValidateAsync` returning `Task<Status?>` is also supported when the check is asynchronous.
 - Validate is matched **per request type**: a `Validate(PlaceOrderRequest)` does not fire for
   RPC methods whose first parameter is a different request type on the same service class.
-- Validate is not woven for **bidirectional streaming** methods — there is no single request
-  instance in scope before the streaming loop begins.
+- Validate is not woven for **bidirectional or client streaming** methods — there is no single
+  request instance in scope before the stream is consumed.
 - Validation runs **before** any `[WolverineBefore]` middleware that is not itself a validate hook.
 
 ::: tip

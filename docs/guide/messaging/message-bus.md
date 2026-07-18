@@ -287,6 +287,58 @@ Wolverine iterates the sequence and cascades each item as a new message. `Stream
 when the caller wants to consume the items directly.
 :::
 
+## Streaming Requests
+
+`StreamAsync` also has an inverse overload: `StreamAsync<TRequest, TResponse>` sends a **stream of
+request messages** to one handler invocation and awaits a **single** `Task<TResponse>` — the arity
+tells the two apart (one type argument streams responses out; two stream requests in). The handler
+declares `IAsyncEnumerable<TRequest>` as its message type and folds the stream however it likes:
+
+```cs
+public static class LocationIngestHandler
+{
+    public static async Task<LocationIngestAck> Handle(
+        IAsyncEnumerable<LocationPing> pings,
+        CancellationToken cancellationToken)
+    {
+        var count = 0;
+        await foreach (var ping in pings.WithCancellation(cancellationToken))
+        {
+            count++; // process incrementally — nothing is buffered by the framework
+        }
+
+        return new LocationIngestAck(count);
+    }
+}
+
+public static async Task ingest(IMessageBus bus, IAsyncEnumerable<LocationPing> pings, CancellationToken ct)
+{
+    var ack = await bus.StreamAsync<LocationPing, LocationIngestAck>(pings, ct);
+    Console.WriteLine($"Ingested {ack.Count} pings");
+}
+```
+
+A few things worth knowing about `StreamAsync<TRequest, TResponse>`:
+
+- **The handler's message type is `IAsyncEnumerable<TRequest>` itself.** Discovery and dispatch key off
+  that closed generic type, so exactly one handler per element type receives the whole stream.
+- **Locally-handled messages only.** A stream can't be serialized to a remote endpoint. If no local handler
+  accepts `IAsyncEnumerable<TRequest>`, the call fails fast with a `NotSupportedException` naming the
+  expected handler signature.
+- **Consumption is incremental.** Wolverine hands the live stream to the handler without materializing
+  it — memory stays constant no matter how many items the caller streams. An empty stream still invokes
+  the handler, which returns its response from a zero-item drain.
+- **Cancellation propagates into the handler** through the handler's `CancellationToken` parameter, and
+  from there into the stream via `WithCancellation`.
+- **Cascading messages work as usual.** Return a tuple to both answer the caller and publish follow-on
+  messages, exactly like any other invoked handler.
+- **`DeliveryOptions` is supported** for headers, tenant id, and correlation metadata via the overload
+  `StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages, DeliveryOptions options, ...)`.
+
+This is the primitive behind gRPC client streaming — see
+[gRPC Services / Streaming](/guide/grpc/streaming#client-streaming-proto-first) for exposing a
+stream-folding handler over the wire.
+
 ## Sending or Publishing Messages
 
 [Publish/Subscribe](https://docs.microsoft.com/en-us/azure/architecture/patterns/publisher-subscriber) is a messaging pattern where the senders of messages do not need to specifically know what the specific subscribers are for a given message. In this case, some kind of middleware or infrastructure is responsible for either allowing subscribers to express interest in what messages they need to receive or apply routing rules to send the published messages to the right places. Wolverine's messaging support was largely built to support the publish/subscribe messaging pattern.

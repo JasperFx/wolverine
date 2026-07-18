@@ -6,8 +6,8 @@ abstract `[WolverineGrpcService] abstract class GreeterGrpcService : Greeter.Gre
 — Wolverine generates the concrete subclass at startup that forwards each RPC
 to the bus.
 
-Covers unary RPCs, a server-streaming RPC, and the AIP-193
-exception-to-StatusCode mapping.
+Covers unary RPCs, a server-streaming RPC, a client-streaming RPC, and the
+AIP-193 exception-to-StatusCode mapping.
 
 - `Messages` — `greeter.proto` (`GrpcServices="Both"` generates both sides).
 - `Server` — ASP.NET Core + Wolverine host. Handlers are plain Wolverine
@@ -39,8 +39,15 @@ StreamGreetings ->
   Hello, Erik [2]
   Hello, Erik [3]
   Hello, Erik [4]
+CollectGreetings -> Hello, Erik & Ripley & Newt (3 greetings)
 Fault('key') -> RpcException: NotFound (missing key)
 ```
+
+The `CollectGreetings` line demonstrates client streaming: the client streams
+several `HelloRequest` messages, and the generated wrapper hands the whole
+inbound stream to a Wolverine handler as `IAsyncEnumerable<HelloRequest>` via
+`IMessageBus.StreamAsync`, which folds it into a single
+`GreetingSummary` reply.
 
 The `Fault('key')` line comes from a handler that throws
 `KeyNotFoundException`. The built-in interceptor maps it to
