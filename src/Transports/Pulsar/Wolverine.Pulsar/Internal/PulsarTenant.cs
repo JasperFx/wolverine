@@ -49,6 +49,7 @@ internal class PulsarTenant
     {
         Transport.DeadLetterTopic = parent.DeadLetterTopic;
         Transport.RetryLetterTopic = parent.RetryLetterTopic;
+        Transport.NativeScheduledSendEnabled = parent.NativeScheduledSendEnabled;
 
         Configure(Transport.Builder);
     }

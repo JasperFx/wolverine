@@ -170,6 +170,60 @@ When a pattern is configured it takes precedence, and the topic the listener was
 used only as the Wolverine endpoint identity. Pattern subscriptions match topics that exist at
 subscription time and pick up newly created matching topics as Pulsar discovers them.
 
+## Scheduled Delivery <Badge type="tip" text="6.21" />
+
+The Pulsar transport supports [scheduled message delivery](/guide/messaging/message-bus.html#scheduling-message-delivery-or-execution)
+natively at the broker. When you schedule or delay a message:
+
+```csharp
+// Send in 10 minutes
+await bus.ScheduleAsync(new OrderReminder(orderId), 10.Minutes());
+
+// Or at a specific time
+await bus.ScheduleAsync(new OrderReminder(orderId), DateTimeOffset.UtcNow.AddHours(4));
+
+// Or with delivery options on a plain send
+await bus.SendAsync(new OrderReminder(orderId), new DeliveryOptions { ScheduleDelay = 10.Minutes() });
+```
+
+Wolverine stamps the envelope's scheduled time onto the outgoing Pulsar message as
+[deliver-at metadata](https://pulsar.apache.org/docs/next/concepts-messaging/#delayed-message-delivery)
+(`DeliverAt` / `DeliverAfter`), so the **broker itself** holds the message until it is due. Nothing extra
+needs to be configured — this also works for storage-less applications with no message persistence, and the
+pending message survives application restarts because it is parked on the broker, not in the sending or
+receiving process. Delayed message delivery has been available (and enabled by default) on Pulsar brokers
+since Pulsar 2.4.
+
+::: warning The broker only honors delayed delivery for Shared / Key_Shared subscriptions
+Pulsar dispatches delayed messages only on `Shared` / `KeyShared` subscriptions — the same constraint as the
+retry-letter topics. An `Exclusive` or `Failover` consumer (and Wolverine's Pulsar listeners default to
+`Exclusive`) receives the message **immediately**. Wolverine listeners handle that gracefully: the scheduled
+time also round-trips as an envelope header, so a Wolverine listener that receives a not-yet-due message
+holds it locally and executes it at the right time (durable listeners park it in the durable inbox;
+buffered listeners hold it in memory). But if you want the message parked **on the broker** — or the
+consumer is a non-Wolverine application that knows nothing about Wolverine's envelope headers — configure the
+listening subscription as `Shared` or `KeyShared`:
+
+```csharp
+opts.ListenToPulsarTopic("persistent://public/default/reminders")
+    .SubscriptionType(SubscriptionType.Shared);
+```
+:::
+
+If your broker is configured with delayed delivery disabled (`delayedDeliveryEnabled=false`), opt out of the
+native path and let Wolverine fall back to its own durable message scheduling:
+
+```csharp
+opts.UsePulsar(c => c.ServiceUrl(pulsarUri))
+    // Scheduled sends to Pulsar endpoints now go through Wolverine's
+    // durable scheduled message storage instead of broker deliver-at
+    .DisableNativeScheduledSend();
+```
+
+Scheduled delivery is independent of the [tiered retry-letter machinery](#tiered-retry-letter-policy) —
+retry-letter redelivery delays are stamped by the listener on its own retry-topic producer and are unaffected
+by this setting.
+
 ## Per-Message Redelivery
 
 By default, when a message fails and is requeued, the Pulsar listener acknowledges it and
