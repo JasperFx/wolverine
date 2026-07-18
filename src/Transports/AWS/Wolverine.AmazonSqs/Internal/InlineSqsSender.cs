@@ -4,7 +4,7 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Internal;
 
-internal class InlineSqsSender : ISender
+internal class InlineSqsSender : ISender, IConditionalNativeScheduling
 {
     private readonly ILogger _logger;
     private readonly AmazonSqsQueue _queue;
@@ -15,7 +15,15 @@ internal class InlineSqsSender : ISender
         _logger = runtime.LoggerFactory.CreateLogger<InlineSqsSender>();
     }
 
-    public bool SupportsNativeScheduledSend => false;
+    // Standard queues can delay individual messages natively (DelaySeconds, max 15 minutes);
+    // FIFO queues only support a queue-level delay, so they never schedule natively
+    public bool SupportsNativeScheduledSend => !_queue.IsFifoQueue;
+
+    bool IConditionalNativeScheduling.CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
+    {
+        return _queue.CanScheduleNatively(envelope, utcNow);
+    }
+
     public Uri Destination => _queue.Uri;
 
     public async Task<bool> PingAsync()

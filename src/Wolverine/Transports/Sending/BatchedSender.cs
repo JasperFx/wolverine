@@ -6,7 +6,7 @@ using Wolverine.Logging;
 
 namespace Wolverine.Transports.Sending;
 
-public class BatchedSender : ISender, ISenderRequiresCallback
+public class BatchedSender : ISender, ISenderRequiresCallback, IConditionalNativeScheduling
 {
     private readonly CancellationToken _cancellation;
     private readonly ILogger _logger;
@@ -70,6 +70,12 @@ public class BatchedSender : ISender, ISenderRequiresCallback
     }
 
     public bool SupportsNativeScheduledSend { get; set; }
+
+    bool IConditionalNativeScheduling.CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
+    {
+        return _protocol is not IConditionalNativeScheduling conditional ||
+               conditional.CanScheduleNatively(envelope, utcNow);
+    }
 
     public ValueTask SendAsync(Envelope message)
     {

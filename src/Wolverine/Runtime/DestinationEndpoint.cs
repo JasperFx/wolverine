@@ -4,6 +4,7 @@ using Wolverine.Configuration;
 using Wolverine.Runtime.RemoteInvocation;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Transports;
+using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime;
 
@@ -47,7 +48,8 @@ internal class DestinationEndpoint : IDestinationEndpoint
         options?.Override(envelope);
 
         // adjust for local, scheduled send
-        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow) && !_endpoint.Agent!.SupportsNativeScheduledSend)
+        var utcNow = DateTimeOffset.UtcNow;
+        if (envelope.IsScheduledForLater(utcNow) && !_endpoint.Agent!.SupportsNativeScheduledSendFor(envelope, utcNow))
         {
             var localDurableQueue =
                 _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
@@ -89,7 +91,8 @@ internal class DestinationEndpoint : IDestinationEndpoint
         configure?.Invoke(envelope);
         
         // adjust for local, scheduled send
-        if (envelope.IsScheduledForLater(DateTimeOffset.UtcNow) && !_endpoint.Agent!.SupportsNativeScheduledSend)
+        var utcNow = DateTimeOffset.UtcNow;
+        if (envelope.IsScheduledForLater(utcNow) && !_endpoint.Agent!.SupportsNativeScheduledSendFor(envelope, utcNow))
         {
             var localDurableQueue =
                 _parent.Runtime.Endpoints.GetOrBuildSendingAgent(TransportConstants.DurableLocalUri);
