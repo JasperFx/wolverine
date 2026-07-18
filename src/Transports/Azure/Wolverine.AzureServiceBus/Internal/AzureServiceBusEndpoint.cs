@@ -23,10 +23,21 @@ public interface IAzureServiceBusListeningEndpoint
     ///     with an empty list of messages. Default is 5 seconds.
     /// </summary>
     public TimeSpan MaximumWaitTime { get; set; }
+
+    /// <summary>
+    ///     The number of messages that the underlying Azure Service Bus receiver eagerly buffers
+    ///     on the client ahead of any ReceiveMessagesAsync() calls. The default is 0 (prefetch is
+    ///     disabled). Be aware that prefetched messages age against the queue's message lock
+    ///     duration while they sit in the client buffer, so an oversized prefetch combined with
+    ///     slow handlers leads to lock-lost redeliveries.
+    /// </summary>
+    public int PrefetchCount { get; set; }
 }
 
 public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelopeMapper, AzureServiceBusEnvelopeMapper>, IBrokerEndpoint, IAzureServiceBusListeningEndpoint
 {
+    private int? _prefetchCount;
+
     public AzureServiceBusEndpoint(AzureServiceBusTransport parent, Uri uri, EndpointRole role) : base(uri, role)
     {
         Parent = parent;
@@ -48,6 +59,30 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     ///     with an empty list of messages. Default is 5 seconds.
     /// </summary>
     public TimeSpan MaximumWaitTime { get; set; } = 5.Seconds();
+
+    /// <summary>
+    ///     The number of messages that the underlying Azure Service Bus receiver eagerly buffers
+    ///     on the client ahead of any ReceiveMessagesAsync() calls. Falls back to the transport-wide
+    ///     default (see AzureServiceBusTransport.PrefetchCount) unless explicitly set on this
+    ///     endpoint. The ultimate default is 0 (prefetch is disabled). Be aware that prefetched
+    ///     messages age against the queue's message lock duration while they sit in the client
+    ///     buffer, so an oversized prefetch combined with slow handlers leads to lock-lost
+    ///     redeliveries.
+    /// </summary>
+    public int PrefetchCount
+    {
+        get => _prefetchCount ?? Parent.PrefetchCount;
+        set
+        {
+            if (value < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value,
+                    "PrefetchCount cannot be negative");
+            }
+
+            _prefetchCount = value;
+        }
+    }
 
     /// <summary>
     ///     Optional customization of the Azure Service Bus <see cref="ServiceBusProcessorOptions" /> used

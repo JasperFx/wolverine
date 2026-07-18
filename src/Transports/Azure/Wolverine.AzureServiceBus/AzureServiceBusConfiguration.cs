@@ -44,6 +44,22 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     }
 
     /// <summary>
+    ///     Set the transport-wide default for the number of messages that the underlying Azure
+    ///     Service Bus receivers eagerly buffer on the client ahead of processing. Applies to every
+    ///     Azure Service Bus listening endpoint that does not override PrefetchCount itself. The
+    ///     default is 0 (prefetch is disabled). Prefetched messages age against the message lock
+    ///     duration while they sit in the client buffer, so size this relative to
+    ///     MaximumMessagesToReceive and your handler latency
+    /// </summary>
+    /// <param name="prefetchCount">The client-side prefetch count. Must be non-negative</param>
+    /// <returns></returns>
+    public AzureServiceBusConfiguration PrefetchCount(int prefetchCount)
+    {
+        Transport.PrefetchCount = prefetchCount;
+        return this;
+    }
+
+    /// <summary>
     /// Override the sending logic behavior for unknown or missing tenant ids when
     /// using multi-tenanted namespaces
     /// </summary>

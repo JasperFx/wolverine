@@ -311,6 +311,42 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task configuring_prefetch_count()
+    {
+        #region sample_configuring_azure_service_bus_prefetch_count
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // One way or another, you're probably pulling the Azure Service Bus
+            // connection string out of configuration
+            var azureServiceBusConnectionString = builder
+                .Configuration
+                .GetConnectionString("azure-service-bus")!;
+
+            opts.UseAzureServiceBus(azureServiceBusConnectionString).AutoProvision()
+
+                // Optionally set a transport-wide default prefetch count that every
+                // Azure Service Bus listener will inherit unless overridden
+                .PrefetchCount(50);
+
+            opts.ListenToAzureServiceBusQueue("incoming")
+
+                // Have the Azure Service Bus client eagerly buffer up to 100 messages
+                // on the client for just this queue, overriding the transport default.
+                // Size this relative to MaximumMessagesToReceive and how fast your
+                // handlers actually are -- prefetched messages age against the message
+                // lock duration while they wait in the client buffer!
+                .PrefetchCount(100)
+                .MaximumMessagesToReceive(100)
+                .BufferedInMemory();
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
     public async Task configure_buffered_listener()
     {
         var builder = Host.CreateApplicationBuilder();

@@ -127,6 +127,28 @@ public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableLis
     }
 
     /// <summary>
+    ///     The number of messages that the underlying Azure Service Bus receiver eagerly buffers
+    ///     on the client ahead of processing for this subscription. The default is 0 (prefetch is
+    ///     disabled), or the transport-wide default set through
+    ///     <c>UseAzureServiceBus(...).PrefetchCount()</c>. Prefetched messages age against the
+    ///     subscription's message lock duration while they sit in the client buffer, so size this
+    ///     relative to MaximumMessagesToReceive and your handler latency
+    /// </summary>
+    /// <param name="prefetchCount">The client-side prefetch count. Must be non-negative</param>
+    /// <returns></returns>
+    public AzureServiceBusSubscriptionListenerConfiguration PrefetchCount(int prefetchCount)
+    {
+        if (prefetchCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(prefetchCount), prefetchCount,
+                "PrefetchCount cannot be negative");
+        }
+
+        add(e => e.PrefetchCount = prefetchCount);
+        return this;
+    }
+
+    /// <summary>
     /// Force this subscription listener to require session identifiers. Use this for FIFO semantics
     /// </summary>
     /// <param name="listenerCount">The maximum number of parallel sessions that can be processed at any one time</param>
