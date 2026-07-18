@@ -7,8 +7,10 @@ computes the current standings on every update and streams back a
 
 Architecturally: the gRPC service consumes the client stream itself and
 calls `IMessageBus.StreamAsync<T>(update)` per inbound item, re-yielding
-each `RacePosition` the handler produces. Bidi "just works" without
-Wolverine accepting an inbound `IAsyncEnumerable` on the bus.
+each `RacePosition` the handler produces. Bidi "just works" without a
+bidi-shaped primitive on the bus — `IMessageBus.StreamAsync<TRequest, TResponse>`
+accepts an inbound stream, but folds it into a single response (client
+streaming), so the per-item bridge is still the bidi pattern.
 
 - `RacerContracts` — `[ServiceContract] IRacingService.RaceAsync(IAsyncEnumerable<RacerUpdate>)`.
 - `RacerServer` — host with a singleton `RaceState` and `RaceStreamHandler`.

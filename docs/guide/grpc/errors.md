@@ -15,7 +15,10 @@ through to the default table.
 ## Default mapping (AIP-193)
 
 `WolverineGrpcExceptionInterceptor` is registered automatically by `AddWolverineGrpc` and applies to
-both code-first and proto-first services. It translates ordinary .NET exceptions thrown by handlers
+both code-first and proto-first services. It intercepts **unary**, **server-streaming**, and
+**client-streaming** RPCs; bidirectional streaming is deliberately not intercepted today, since a
+bidi wrapper streams responses incrementally and a trailing translation would arrive after items
+had already been written. It translates ordinary .NET exceptions thrown by handlers
 into `RpcException` with the canonical status code from the table below. See
 [Overriding the default table](#overriding-the-default-table) if the defaults don't match your domain model.
 

@@ -250,8 +250,9 @@ public async IAsyncEnumerable<RaceUpdate> Race(
 }
 ```
 
-**What to copy**: the "one Wolverine stream per incoming command" shape. It's the path to bidi
-today until `IMessageBus.StreamAsync<TRequest, TResponse>` lands.
+**What to copy**: the "one Wolverine stream per incoming command" shape. It's still the path to
+bidi — `IMessageBus.StreamAsync<TRequest, TResponse>` exists, but it's the *client-streaming*
+primitive (a stream of requests folded into a **single** response), not a bidi loop.
 
 ### Compared to grpc-dotnet's Racer
 

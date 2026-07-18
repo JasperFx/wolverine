@@ -149,8 +149,9 @@ public static class PingHandler
 Any class whose name ends in `GrpcService` is picked up by `MapWolverineGrpcServices()`. If the
 suffix convention doesn't fit, apply `[WolverineGrpcService]` instead.
 
-Wolverine generates a thin **delegation wrapper** around the class at startup (named
-`{ClassName}GrpcHandler`). The wrapper implements the same `[ServiceContract]` interface, weaves
+Wolverine generates a thin **delegation wrapper** around the class at startup, named by stripping
+any `GrpcService` suffix and appending `GrpcHandler` (`PingGrpcService` → `PingGrpcHandler`).
+The wrapper implements the same `[ServiceContract]` interface, weaves
 any `Validate` / `[WolverineBefore]` middleware defined on the service class, then calls into the
 inner class — which Wolverine resolves from the DI container or constructs via
 `ActivatorUtilities` if no explicit registration exists. This gives hand-written service classes
