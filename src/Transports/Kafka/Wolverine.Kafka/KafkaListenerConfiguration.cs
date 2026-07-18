@@ -90,6 +90,26 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// Opt this listener's consumer into the KIP-848 next-generation consumer rebalance protocol
+    /// (<c>group.protocol = consumer</c>): broker-driven, incremental rebalances with no stop-the-world
+    /// JoinGroup/SyncGroup barrier. Requires a Kafka 4.0+ broker. Client-side assignors and group timings
+    /// don't apply under KIP-848 — Wolverine clears any conflicting <c>partition.assignment.strategy</c>,
+    /// <c>session.timeout.ms</c>, <c>heartbeat.interval.ms</c>, or <c>group.protocol.type</c> settings at
+    /// bootstrap with a logged warning. Static membership is still supported. Call after
+    /// <see cref="ConfigureConsumer"/> if you also use that (it replaces the whole consumer config).
+    /// See GH-3473.
+    /// </summary>
+    public KafkaListenerConfiguration UseNextGenerationRebalanceProtocol()
+    {
+        add(topic =>
+        {
+            topic.ConsumerConfig ??= new ConsumerConfig();
+            topic.ConsumerConfig.GroupProtocol = GroupProtocol.Consumer;
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Enable Kafka static group membership (<c>group.instance.id</c>) for this listener so rolling
     /// restarts of the same node don't churn partitions. The id is resolved from
     /// <paramref name="instanceId"/> if supplied, otherwise from <c>POD_NAME</c>, then <c>HOSTNAME</c>,

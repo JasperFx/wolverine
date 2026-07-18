@@ -88,6 +88,25 @@ public class KafkaTransportExpression : BrokerExpression<KafkaTransport, KafkaTo
     }
 
     /// <summary>
+    /// Opt every Kafka consumer on this node into the KIP-848 next-generation consumer rebalance protocol
+    /// (<c>group.protocol = consumer</c>): broker-driven, incremental rebalances with no stop-the-world
+    /// JoinGroup/SyncGroup barrier. Requires a Kafka 4.0+ broker (where the protocol is GA and enabled by
+    /// default). Under KIP-848 the client-side assignors and group timings no longer apply — partition
+    /// assignment is broker-driven (<c>group.remote.assignor</c>) and session/heartbeat are defined broker
+    /// side — so Wolverine clears any conflicting <c>partition.assignment.strategy</c>,
+    /// <c>session.timeout.ms</c>, <c>heartbeat.interval.ms</c>, or <c>group.protocol.type</c> settings at
+    /// bootstrap with a logged warning (librdkafka would otherwise reject the consumer outright). Static
+    /// membership (<see cref="UseStaticMembership(string)"/>) is still fully supported and unaffected.
+    /// Opt-in: don't flip an existing, running consumer group during a live rolling upgrade — the classic
+    /// and consumer protocols can only coexist in one group during a broker-managed migration. See GH-3473.
+    /// </summary>
+    public KafkaTransportExpression UseNextGenerationRebalanceProtocol()
+    {
+        _transport.ConsumerConfig.GroupProtocol = GroupProtocol.Consumer;
+        return this;
+    }
+
+    /// <summary>
     /// Enable Kafka static group membership (<c>group.instance.id</c>) so rolling restarts/deploys of the
     /// same node don't trigger partition churn. The id is resolved from <paramref name="instanceId"/> if
     /// supplied, otherwise from <c>POD_NAME</c>, then <c>HOSTNAME</c>, then the machine name. The id MUST

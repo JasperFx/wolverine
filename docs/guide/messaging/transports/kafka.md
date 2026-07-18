@@ -348,6 +348,10 @@ opts.UseKafka(connectionString)
 Both are also available per-listener on `ListenToKafkaTopic(...)` (`UseCooperativeStickyAssignment()` /
 `UseStaticMembership(...)`).
 
+On a **Kafka 4.x cluster**, prefer the [next-generation rebalance protocol](#next-generation-rebalance-protocol-kip-848)
+below over cooperative-sticky — broker-driven incremental rebalancing subsumes what the client-side
+cooperative assignor provides. Static membership pairs with either protocol.
+
 ::: warning group.instance.id must be unique per node and stable across restarts
 Static membership only works when each node uses a **distinct** `group.instance.id` that **stays the same**
 across restarts of that node. Two nodes sharing one id makes Kafka treat them as a single member and fence
@@ -367,6 +371,56 @@ Don't flip an existing, running group straight from the default (eager) assignor
 group must not mix eager and cooperative members. Do a two-step deploy: first roll out a build that lists
 **both** strategies (`[CooperativeSticky, Range]`) so every member supports cooperative, then a second
 deploy that drops the eager strategy.
+:::
+
+### Next-Generation Rebalance Protocol (KIP-848) <Badge type="tip" text="6.21" />
+
+Kafka 4.0 brokers ship the **next-generation consumer rebalance protocol**
+([KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol))
+as GA and enabled by default. Rebalances become **broker-driven and incremental**: the group coordinator
+computes assignments server side and reconciles members one partition at a time over the heartbeat, so there
+is no stop-the-world JoinGroup/SyncGroup barrier and rebalance pauses drop dramatically. On a Kafka 4.x
+cluster this is the recommended way to run Wolverine's Kafka consumers:
+
+```csharp
+opts.UseKafka(connectionString)
+    // KIP-848: group.protocol = consumer. Requires a Kafka 4.0+ broker.
+    .UseNextGenerationRebalanceProtocol();
+```
+
+Also available per-listener as `ListenToKafkaTopic(...).UseNextGenerationRebalanceProtocol()` (remember that
+`ConfigureConsumer(...)` replaces the whole per-topic consumer config, so call this after it). Unlike most
+settings, the transport-level `group.protocol` *is* inherited by per-topic `ConfigureConsumer(...)` overrides
+that don't set their own — those overrides also inherit the transport's consumer group id, and a group must
+not run members of both rebalance protocols outside of an active migration. Set
+`GroupProtocol = GroupProtocol.Classic` explicitly on a per-topic config to opt a topic back out.
+
+What changes under KIP-848:
+
+- **Kafka 4.0+ broker required.** Against an older broker the consumer cannot join its group. The protocol
+  is GA on 4.0+ brokers and enabled by default (`group.coordinator.rebalance.protocols=classic,consumer`).
+- **Client-side assignors no longer apply.** Partition assignment is computed on the broker — the
+  server-side assignor is chosen with the broker/group config `group.remote.assignor` (`uniform` by
+  default, or `range`). `UseCooperativeStickyAssignment()` / `partition.assignment.strategy` is a
+  classic-protocol setting; incremental, cooperative-style rebalancing is inherent to KIP-848 anyway.
+- **Session timeout and heartbeat interval are broker-controlled**
+  (`group.consumer.session.timeout.ms` / `group.consumer.heartbeat.interval.ms` on the broker). The
+  client-side `session.timeout.ms` and `heartbeat.interval.ms` settings don't apply.
+- **Static membership still works.** `UseStaticMembership(...)` / `group.instance.id` is fully supported
+  under KIP-848 and remains the right tool for churn-free rolling restarts.
+
+librdkafka outright *rejects* a consumer configured with `group.protocol=consumer` plus any of the
+inapplicable classic-protocol settings (`partition.assignment.strategy`, `session.timeout.ms`,
+`heartbeat.interval.ms`, `group.protocol.type`) — which would otherwise fail every listener at startup. When
+the next-generation protocol is enabled, Wolverine clears any of those conflicting settings during
+bootstrap and logs a warning for each one, so e.g. an existing `UseCooperativeStickyAssignment()` call can
+coexist with `UseNextGenerationRebalanceProtocol()` while you migrate configuration.
+
+::: tip Migrating an existing consumer group
+A consumer group is upgraded from the classic to the consumer protocol by rolling its members — the broker
+supports both member kinds in one group *during* the migration and converts the group when the last classic
+member leaves (and can downgrade the same way). Roll all nodes of a service rather than running mixed
+protocols indefinitely, and don't combine this migration with other consumer-group changes in one deploy.
 :::
 
 ### By-Key Concurrency Within a Partition <Badge type="tip" text="6.8" />

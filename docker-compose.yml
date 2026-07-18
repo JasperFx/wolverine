@@ -97,7 +97,10 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   kafka:
-    image: confluentinc/confluent-local:7.7.1
+    # Kafka 4.0 broker (Confluent Platform 8.0.x) — required for the KIP-848 next-generation
+    # consumer rebalance protocol (group.protocol=consumer), which is GA and enabled by default
+    # on 4.0+ brokers. See GH-3473.
+    image: confluentinc/confluent-local:8.0.6
     ports:
       - "8082:8082"
       - "9092:9092"
