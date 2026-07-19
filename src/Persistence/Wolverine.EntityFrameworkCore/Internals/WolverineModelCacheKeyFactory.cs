@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Wolverine.RDBMS;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
@@ -16,15 +17,8 @@ public class WolverineModelCacheKeyFactory : IModelCacheKeyFactory
 {
     public object Create(DbContext context, bool designTime)
     {
-        string? schemaName = null;
-        try
-        {
-            schemaName = context.Database.GetService<DatabaseSettings>()?.SchemaName;
-        }
-        catch (InvalidOperationException)
-        {
-            // No Wolverine database settings in play -- fall back to type-only caching
-        }
+        // No Wolverine database settings (no message store) -- type-only caching
+        var schemaName = WolverineModelCustomizer.TryResolveDatabaseSettings(context)?.SchemaName;
 
         return (context.GetType(), schemaName, designTime);
     }

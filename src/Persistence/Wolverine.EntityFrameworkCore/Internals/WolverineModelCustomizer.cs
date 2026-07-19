@@ -1,6 +1,7 @@
 using JasperFx.Core.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Wolverine.RDBMS;
 
@@ -16,11 +17,29 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
     {
         base.Customize(modelBuilder, context);
 
-        var settings = context.Database.GetService<DatabaseSettings>();
-
-        modelBuilder.MapWolverineEnvelopeStorage(settings.SchemaName);
+        // An EF Core application without database-backed message persistence has no
+        // envelope tables to map. Before GH-3497 gave each Wolverine schema its own
+        // model cache entry, hosts like that accidentally borrowed a model built by
+        // a message-persistence host in the same process, so the hard dependency on
+        // DatabaseSettings here never surfaced
+        var settings = TryResolveDatabaseSettings(context);
+        if (settings != null)
+        {
+            modelBuilder.MapWolverineEnvelopeStorage(settings.SchemaName);
+        }
 
         markSagaIdentifiersAsApplicationAssigned(modelBuilder);
+    }
+
+    // Resolves through the application service provider (like EF's own throwing
+    // GetService fallback) but returns null instead of throwing when the host has
+    // no Wolverine database settings
+    internal static DatabaseSettings? TryResolveDatabaseSettings(DbContext context)
+    {
+        return context.GetService<IDbContextOptions>()
+            .FindExtension<CoreOptionsExtension>()?
+            .ApplicationServiceProvider?
+            .GetService<DatabaseSettings>();
     }
 
     // Wolverine assigns saga identities application-side (the id travels on the
