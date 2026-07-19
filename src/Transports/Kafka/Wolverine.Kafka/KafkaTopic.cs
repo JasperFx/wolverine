@@ -64,6 +64,14 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
     public CommitMode CommitMode { get; set; } = CommitMode.StoreThenAutoFlush;
 
     /// <summary>
+    /// For durable (inbox-backed) listeners, the maximum number of already-fetched records the
+    /// consume loop will drain in one pass so the inbox can persist them with one batched
+    /// insert instead of one insert per record. 1 reverts to strict record-at-a-time consumption.
+    /// Ignored for Buffered/Inline endpoints and retry-tier topics. Default 100. See GH-3490.
+    /// </summary>
+    public int MaximumMessagesToReceive { get; set; } = 100;
+
+    /// <summary>
     /// Number of completed messages between commits when <see cref="CommitMode"/> is
     /// <see cref="Kafka.CommitMode.BatchCount"/>. Default 100.
     /// </summary>

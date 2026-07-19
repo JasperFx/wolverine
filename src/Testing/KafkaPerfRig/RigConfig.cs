@@ -46,6 +46,17 @@ public class RigConfig
 
     public string PostgresSchema { get; } = env("RIG_PG_SCHEMA", "kafka_rig");
 
+    // 0 = leave the endpoint's default listener count
+    public int ListenerCount { get; } = envInt("RIG_LISTENER_COUNT", 0);
+
+    // --- RabbitMQ (GH-3492) ---
+    public string RabbitUri { get; } = env("RIG_RABBIT_URI", "amqp://guest:guest@localhost:5672");
+    public string SmallQueue => $"rig-small-{RunId}";
+    public string LargeQueue => $"rig-large-{RunId}";
+
+    // native Rabbit twin prefetch; match Wolverine's listener PreFetchCount default of 100
+    public ushort RabbitPrefetch { get; } = (ushort)envInt("RIG_RABBIT_PREFETCH", 100);
+
     private static string env(string key, string fallback)
     {
         return Environment.GetEnvironmentVariable(key) is { Length: > 0 } value ? value : fallback;

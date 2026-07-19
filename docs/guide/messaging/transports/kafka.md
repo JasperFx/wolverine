@@ -1282,11 +1282,15 @@ transport, and the factors behind them.
   as a message is buffered, *before* it is handled — an ungraceful process crash can lose
   buffered messages (effectively at-most-once). Use it when throughput matters and your
   handlers are idempotent or losses on crash are tolerable.
-- **Durable** (`UseDurableInbox()`) writes each incoming message to the database inbox before
-  the offset advances. The inbox write happens on the consume loop, so your database's write
-  latency directly gates consumption throughput on that listener. Plan for the inbox database
-  to be close (latency-wise) and lightly contended, and scale with `ListenerCount` when a
-  single listener's insert rate becomes the ceiling.
+- **Durable** (`UseDurableInbox()`) writes incoming messages to the database inbox before
+  the offset advances. The consume loop drains up to `MaximumMessagesToReceive` (default 100)
+  already-fetched records at a time and persists them with a single batched insert, so under
+  load the inbox cost is paid per batch rather than per record — measured locally this took a
+  2,000 msg/s stream from unbounded backlog to a steady ~32ms delivery p50 (GH-3490). Your
+  database's write latency still gates the ceiling; plan for the inbox database to be close
+  (latency-wise) and lightly contended, set `MaximumMessagesToReceive(1)` if you need strict
+  record-at-a-time consumption, and scale with `ListenerCount` when a single listener's insert
+  rate becomes the ceiling.
 - **Inline** (`ProcessInline()`) processes one message at a time per consumer, end to end, and
   only then stores the offset. Strongest per-partition guarantees, lowest throughput per
   listener — scale with `ListenerCount` (bounded by the topic's partition count).

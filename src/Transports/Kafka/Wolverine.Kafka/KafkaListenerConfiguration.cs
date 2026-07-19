@@ -36,6 +36,23 @@ public class KafkaListenerConfiguration : InteroperableListenerConfiguration<Kaf
     }
 
     /// <summary>
+    /// For durable (inbox-backed) listeners, the maximum number of already-fetched records the
+    /// consume loop drains in one pass so the inbox persists them with one batched insert
+    /// instead of one insert per record. 1 reverts to strict record-at-a-time consumption.
+    /// Ignored for Buffered/Inline endpoints and retry-tier topics. Default 100. See GH-3490.
+    /// </summary>
+    public KafkaListenerConfiguration MaximumMessagesToReceive(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(topic => topic.MaximumMessagesToReceive = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Choose how this listener commits consumer offsets back to Kafka. Defaults to
     /// <see cref="CommitMode.StoreThenAutoFlush"/> (non-blocking, idiomatic high throughput). See GH-3150.
     /// </summary>

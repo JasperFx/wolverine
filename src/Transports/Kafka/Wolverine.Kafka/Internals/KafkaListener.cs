@@ -2,6 +2,7 @@ using System.Text;
 using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Runtime;
 using Wolverine.Transports;
 using Wolverine.Util;
@@ -69,6 +70,12 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
     // OperationCanceledException ends the loop; any other Consume error flows to BackgroundReceiveLoop's
     // log -> backoff -> continue (previously this hot-looped on every error). A processing error AFTER a
     // successful consume is a poison pill — advance past its offset and continue, exactly as before.
+    //
+    // GH-3490: durable endpoints additionally drain whatever records librdkafka has already
+    // fetched (up to MaximumMessagesToReceive) and hand them to the receiver as one array, so
+    // the durable inbox persists them with a single batched insert instead of gating the
+    // consume loop on one INSERT round trip per record. Measured locally, the per-record path
+    // capped a durable listener around ~1-2k msg/s while the broker backlog grew unbounded.
     private async Task<bool> consumeOnceAsync(CancellationToken token)
     {
         var result = _consumer.Consume(token);
@@ -77,41 +84,18 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
 
         try
         {
-            var message = result.Message;
-
-            // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
-            // commit past this still-in-flight offset (GH-3161).
-            _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
-
-            // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to when the record was
-            // produced before reprocessing. Records in a tier are time-ordered, so the head record gates the rest.
-            if (_endpoint.RetryTierDelay is { } retryDelay)
+            // Retry-tier topics gate on per-record produce timestamps and durable batching only
+            // helps inbox-backed endpoints, so everything else keeps strict one-at-a-time consumption.
+            if (_endpoint.Mode == EndpointMode.Durable
+                && _endpoint.MaximumMessagesToReceive > 1
+                && _endpoint.RetryTierDelay == null)
             {
-                var due = message.Timestamp.UtcDateTime + retryDelay;
-                var wait = due - DateTime.UtcNow;
-                if (wait > TimeSpan.Zero)
-                {
-                    await Task.Delay(wait, token);
-                }
+                await consumeManyAsync(result);
             }
-
-            var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, message);
-            envelope.TopicName = result.Topic;
-            envelope.Offset = result.Offset.Value;
-            envelope.PartitionId = result.Partition.Value;
-            envelope.MessageType ??= _messageTypeName;
-
-            if (_endpoint.GroupByMessageKey)
+            else
             {
-                // GH-3140: shard by-key processing on the Kafka message key.
-                envelope.GroupId = message.Key;
+                await consumeSingleAsync(result, token);
             }
-            else if (_endpoint.StampConsumerGroupIdOnEnvelope)
-            {
-                envelope.GroupId = Config.GroupId;
-            }
-
-            await _receiver.ReceivedAsync(this, envelope);
         }
         catch (OperationCanceledException)
         {
@@ -126,6 +110,102 @@ public class KafkaListener : IListener, IDisposable, ISupportDeadLetterQueue, IR
         }
 
         return true;
+    }
+
+    private async Task consumeSingleAsync(ConsumeResult<string, byte[]> result, CancellationToken token)
+    {
+        var message = result.Message;
+
+        // Seed the offset watermark in consume (in-order) order so out-of-order handler completion can never
+        // commit past this still-in-flight offset (GH-3161).
+        _committer.Track(result.Topic, result.Partition.Value, result.Offset.Value);
+
+        // Non-blocking retry-tier topic (GH-3148): wait out the fixed delay relative to when the record was
+        // produced before reprocessing. Records in a tier are time-ordered, so the head record gates the rest.
+        if (_endpoint.RetryTierDelay is { } retryDelay)
+        {
+            var due = message.Timestamp.UtcDateTime + retryDelay;
+            var wait = due - DateTime.UtcNow;
+            if (wait > TimeSpan.Zero)
+            {
+                await Task.Delay(wait, token);
+            }
+        }
+
+        var envelope = buildEnvelope(result);
+        await _receiver.ReceivedAsync(this, envelope);
+    }
+
+    private async Task consumeManyAsync(ConsumeResult<string, byte[]> first)
+    {
+        var envelopes = new List<Envelope>(Math.Min(_endpoint.MaximumMessagesToReceive, 32));
+        var current = first;
+
+        while (true)
+        {
+            // Track in consume order BEFORE dispatch so the watermark can never commit past an
+            // in-flight record (GH-3161), poison pills included.
+            _committer.Track(current.Topic, current.Partition.Value, current.Offset.Value);
+
+            try
+            {
+                envelopes.Add(buildEnvelope(current));
+            }
+            catch (Exception e)
+            {
+                // Poison pill mid-batch: advance past its offset, keep the rest of the batch.
+                _committer.Complete(current.Topic, current.Partition.Value, current.Offset.Value);
+                _logger.LogError(e, "Error trying to map Kafka message to a Wolverine envelope");
+            }
+
+            if (envelopes.Count >= _endpoint.MaximumMessagesToReceive)
+            {
+                break;
+            }
+
+            // Zero-timeout poll: only drains records librdkafka already holds locally — never
+            // waits on the broker, so a quiet topic still processes each record immediately.
+            var next = _consumer.Consume(TimeSpan.Zero);
+            if (next == null)
+            {
+                break;
+            }
+
+            current = next;
+        }
+
+        switch (envelopes.Count)
+        {
+            case 0:
+                return;
+            case 1:
+                await _receiver.ReceivedAsync(this, envelopes[0]);
+                return;
+            default:
+                await _receiver.ReceivedAsync(this, envelopes.ToArray());
+                return;
+        }
+    }
+
+    private Envelope buildEnvelope(ConsumeResult<string, byte[]> result)
+    {
+        var envelope = _endpoint.EnvelopeMapper!.CreateEnvelope(result.Topic, result.Message);
+        envelope.TopicName = result.Topic;
+        envelope.Offset = result.Offset.Value;
+        envelope.PartitionId = result.Partition.Value;
+        envelope.MessageType ??= _messageTypeName;
+
+        if (_endpoint.GroupByMessageKey)
+        {
+            // GH-3140: shard by-key processing on the Kafka message key.
+            envelope.GroupId = result.Message.Key;
+        }
+        else if (_endpoint.StampConsumerGroupIdOnEnvelope)
+        {
+            envelope.GroupId = Config.GroupId;
+        }
+
+        return envelope;
     }
 
     public ConsumerConfig Config { get; }

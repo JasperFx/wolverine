@@ -79,9 +79,36 @@ public static class PublishLoops
 
         async Task<int> loopAsync(double rate, Func<string, int, long, bool, Task> publish)
         {
-            if (rate <= 0)
+            if (rate == 0)
             {
                 return 0;
+            }
+
+            // rate < 0 = max-throughput mode: publish as fast as the publisher can sustain.
+            // The consumer-side sustained receive rate is the measurement.
+            if (rate < 0)
+            {
+                var sent = 0;
+                while (!cancellation.IsCancellationRequested)
+                {
+                    var gameId = games[sent % games.Length];
+                    try
+                    {
+                        await publish(gameId, sent, Stopwatch.GetTimestamp(), inWarmup());
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+
+                    sent++;
+                    if (sent % 50_000 == 0)
+                    {
+                        Console.WriteLine($"[rig] published {sent}");
+                    }
+                }
+
+                return sent;
             }
 
             var count = 0;
