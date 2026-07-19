@@ -72,7 +72,9 @@ public partial class WolverineRuntime
         {
             var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
             _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
-            _sink.Post(new RecordDeadLetter(ex.GetType().FullNameInCode(), envelope.TenantId!));
+            // Deliberately NOT posting RecordDeadLetter here — see the identical
+            // note in WolverineRuntime.DirectMetrics.MessageFailed (CritterWatch
+            // GH-721): only MovedToErrorQueue marks a real dead letter.
 
             _runtime.MessageFailed(envelope, ex);
         }
