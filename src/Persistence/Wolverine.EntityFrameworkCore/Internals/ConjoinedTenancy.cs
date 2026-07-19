@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
+using ImTools;
 using JasperFx;
+using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
+using Wolverine.RDBMS.MultiTenancy;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -21,7 +24,52 @@ public static class ConjoinedTenancy
     /// </summary>
     public const string QueryFilterName = "wolverine_conjoined_tenancy";
 
+    /// <summary>
+    ///     Name of the shadow property mapped for the SQL Server tenant ordinal
+    ///     column on partitioned entities
+    /// </summary>
+    public const string TenantOrdinalPropertyName = "TenantOrdinal";
+
     private static readonly ConditionalWeakTable<DbContext, string> _tenants = new();
+
+    private static ImHashMap<Type, ConjoinedTenancyOptions> _optionsByContextType =
+        ImHashMap<Type, ConjoinedTenancyOptions>.Empty;
+
+    private static ImHashMap<Type, ITenantPartitioning> _partitioningByContextType =
+        ImHashMap<Type, ITenantPartitioning>.Empty;
+
+    internal static void SetOptions(Type contextType, ConjoinedTenancyOptions options)
+    {
+        _optionsByContextType = _optionsByContextType.AddOrUpdate(contextType, options);
+    }
+
+    /// <summary>
+    ///     The conjoined tenancy options this DbContext type was registered with
+    /// </summary>
+    public static ConjoinedTenancyOptions OptionsFor(Type contextType)
+    {
+        return _optionsByContextType.TryFind(contextType, out var options) ? options : new ConjoinedTenancyOptions();
+    }
+
+    internal static void RegisterPartitioning(Type contextType, ITenantPartitioning partitioning)
+    {
+        _partitioningByContextType = _partitioningByContextType.AddOrUpdate(contextType, partitioning);
+    }
+
+    internal static ITenantPartitioning? PartitioningFor(Type contextType)
+    {
+        return _partitioningByContextType.TryFind(contextType, out var partitioning) ? partitioning : null;
+    }
+
+    internal static bool IsPartitionedEntity(Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType entityType)
+    {
+        // Sagas stay unpartitioned in this release -- the composite primary key
+        // that partitioning requires would change the generated saga load frames
+        return entityType.ClrType.CanBeCastTo<ITenanted>()
+               && !entityType.ClrType.CanBeCastTo<Saga>()
+               && !entityType.IsOwned()
+               && entityType.BaseType == null;
+    }
 
     internal static void Pin(DbContext context, string? tenantId)
     {

@@ -62,6 +62,42 @@ public class ConjoinedTenancyModelCustomizer : WolverineModelCustomizer
             entity.HasQueryFilter(filter);
 #endif
         }
+
+        applyTenantPartitioning(modelBuilder, context);
+    }
+
+    // With PartitionPerTenant(), the DATABASE primary key of every partitioned
+    // entity becomes composite -- the partition column joins it inside the Weasel
+    // table customization (ITenantPartitioning.ApplyToTable) -- but the EF model
+    // keeps the user's own single key so FindAsync/Attach call shapes and saga
+    // loads are unchanged. Here the model only gains what must exist as a mapped
+    // column: SQL Server's int tenant ordinal, stamped by the tenant interceptor
+    private static void applyTenantPartitioning(ModelBuilder modelBuilder, DbContext context)
+    {
+        var options = ConjoinedTenancy.OptionsFor(context.GetType());
+        if (!options.PartitioningEnabled)
+        {
+            return;
+        }
+
+        var usesOrdinal = context.Database.ProviderName?.Contains("SqlServer", StringComparison.OrdinalIgnoreCase)
+                          ?? false;
+        if (!usesOrdinal)
+        {
+            return;
+        }
+
+        var partitioned = modelBuilder.Model.GetEntityTypes()
+            .Where(ConjoinedTenancy.IsPartitionedEntity)
+            .ToArray();
+
+        foreach (var entityType in partitioned)
+        {
+            modelBuilder.Entity(entityType.ClrType)
+                .Property<int>(ConjoinedTenancy.TenantOrdinalPropertyName)
+                .HasColumnName(options.Partitioning!.TenantOrdinalColumn)
+                .ValueGeneratedNever();
+        }
     }
 
     private static LambdaExpression buildTenantFilter(Type entityType, DbContext context)

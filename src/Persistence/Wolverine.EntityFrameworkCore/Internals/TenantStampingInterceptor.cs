@@ -59,8 +59,36 @@ public class TenantStampingInterceptor : SaveChangesInterceptor
                             contextTenantId, entry.State);
                     }
 
+                    stampTenantOrdinal(context, entry, tenanted);
+
                     break;
             }
         }
+    }
+
+    // With PartitionPerTenant() on SQL Server, partitioned rows carry the compact
+    // tenant ordinal in a shadow column; the ordinal comes from the pre-hydrated
+    // Weasel partition registry
+    private static void stampTenantOrdinal(DbContext context,
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry entry, ITenanted tenanted)
+    {
+        var partitioning = ConjoinedTenancy.PartitioningFor(context.GetType());
+        if (partitioning is not { RequiresTenantOrdinalColumn: true })
+        {
+            return;
+        }
+
+        if (entry.Metadata.FindProperty(ConjoinedTenancy.TenantOrdinalPropertyName) == null)
+        {
+            return;
+        }
+
+        if (!partitioning.TryGetOrdinal(tenanted.TenantId!, out var ordinal))
+        {
+            throw new InvalidOperationException(
+                $"No tenant partition is registered for tenant '{tenanted.TenantId}'. Add the tenant first through IConjoinedTenantPartitions<{context.GetType().Name}>.AddTenantAsync()");
+        }
+
+        entry.Property(ConjoinedTenancy.TenantOrdinalPropertyName).CurrentValue = ordinal;
     }
 }

@@ -123,8 +123,19 @@ public static class WolverineEntityCoreExtensions
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
     public static IServiceCollection AddDbContextWithWolverineManagedConjoinedTenancy<T>(this IServiceCollection services,
-        Action<DbContextOptionsBuilder<T>, ConnectionString> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
+        Action<DbContextOptionsBuilder<T>, ConnectionString> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None,
+        Action<ConjoinedTenancyOptions>? tenancy = null) where T : DbContext
     {
+        var conjoinedOptions = new ConjoinedTenancyOptions();
+        tenancy?.Invoke(conjoinedOptions);
+        ConjoinedTenancy.SetOptions(typeof(T), conjoinedOptions);
+
+        if (conjoinedOptions.PartitioningEnabled)
+        {
+            services.AddSingleton<IConjoinedTenantPartitions<T>, ConjoinedTenantPartitions<T>>();
+            services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService, ConjoinedPartitionsActivator<T>>();
+        }
+
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
         registerEFCoreSagaStoreDiagnostics(services);
 

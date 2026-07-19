@@ -8,6 +8,7 @@ using JasperFx.Descriptors;
 using JasperFx.MultiTenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core;
 using Weasel.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals.Migrations;
@@ -97,6 +98,20 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
     {
         var context = build(StorageConstants.DefaultTenantId);
         await _serviceProvider.EnsureDatabaseExistsAsync(context);
+
+        var options = ConjoinedTenancy.OptionsFor(typeof(T));
+        if (options.PartitioningEnabled)
+        {
+            // Partitioned conjoined tables migrate through a Weasel database object so
+            // the partition manager's initializer hydrates the tenant map before deltas
+            // are computed, and the partition control table migrates with the entity tables
+            var partitions = (ConjoinedTenantPartitions<T>)_serviceProvider
+                .GetRequiredService<IConjoinedTenantPartitions<T>>();
+            var database = await partitions.BuildWeaselDatabaseAsync(CancellationToken.None);
+            await database.ApplyAllConfiguredChangesToDatabaseAsync(AutoCreate.CreateOrUpdate);
+            return;
+        }
+
         await using var migration = await _serviceProvider.CreateMigrationAsync(context, CancellationToken.None);
         await migration.ExecuteAsync(AutoCreate.CreateOrUpdate, CancellationToken.None);
     }
