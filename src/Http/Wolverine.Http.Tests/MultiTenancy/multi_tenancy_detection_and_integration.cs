@@ -524,7 +524,7 @@ public class MauveTenantDetection : ITenantDetection
 
 public record CreateTodo(string Id, string Description);
 
-public class TenantTodo : ITenanted
+public class TenantTodo : global::Marten.Metadata.ITenanted
 {
     public string Id { get; set; } = null!;
     public string Description { get; set; } = null!;
