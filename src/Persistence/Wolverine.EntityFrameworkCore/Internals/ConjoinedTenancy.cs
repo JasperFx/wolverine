@@ -43,6 +43,11 @@ public static class ConjoinedTenancy
         _optionsByContextType = _optionsByContextType.AddOrUpdate(contextType, options);
     }
 
+    internal static bool IsConjoined(Type contextType)
+    {
+        return _optionsByContextType.TryFind(contextType, out _);
+    }
+
     /// <summary>
     ///     The conjoined tenancy options this DbContext type was registered with
     /// </summary>
@@ -59,6 +64,34 @@ public static class ConjoinedTenancy
     internal static ITenantPartitioning? PartitioningFor(Type contextType)
     {
         return _partitioningByContextType.TryFind(contextType, out var partitioning) ? partitioning : null;
+    }
+
+    private static ImHashMap<Type, ImHashMap<string, bool>> _disabledTenantsByContextType =
+        ImHashMap<Type, ImHashMap<string, bool>>.Empty;
+
+    internal static void SetDisabledTenants(Type contextType, IEnumerable<string> disabledTenantIds)
+    {
+        var map = ImHashMap<string, bool>.Empty;
+        foreach (var tenantId in disabledTenantIds)
+        {
+            map = map.AddOrUpdate(tenantId, true);
+        }
+
+        _disabledTenantsByContextType = _disabledTenantsByContextType.AddOrUpdate(contextType, map);
+    }
+
+    internal static void SetTenantDisabled(Type contextType, string tenantId, bool disabled)
+    {
+        _disabledTenantsByContextType.TryFind(contextType, out var map);
+        map ??= ImHashMap<string, bool>.Empty;
+        map = disabled ? map.AddOrUpdate(tenantId, true) : map.Remove(tenantId);
+        _disabledTenantsByContextType = _disabledTenantsByContextType.AddOrUpdate(contextType, map);
+    }
+
+    internal static bool IsTenantDisabled(Type contextType, string tenantId)
+    {
+        return _disabledTenantsByContextType.TryFind(contextType, out var map)
+               && map.TryFind(tenantId, out var disabled) && disabled;
     }
 
     internal static bool IsPartitionedEntity(Microsoft.EntityFrameworkCore.Metadata.IReadOnlyEntityType entityType)

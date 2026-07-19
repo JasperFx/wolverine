@@ -36,6 +36,11 @@ public class TenantStampingInterceptor : SaveChangesInterceptor
 
         var contextTenantId = ConjoinedTenancy.TenantIdOf(context);
 
+        if (ConjoinedTenancy.IsTenantDisabled(context.GetType(), contextTenantId))
+        {
+            throw new UnknownTenantIdException(contextTenantId);
+        }
+
         foreach (var entry in context.ChangeTracker.Entries())
         {
             if (entry.Entity is not ITenanted tenanted)

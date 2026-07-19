@@ -286,7 +286,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             ScheduledJobLockId = ScheduledJobLockId,
             MigrationLockId = MigrationLockId,
             SchemaName = EnvelopeStorageSchemaName,
-            AddTenantLookupTable = UseMasterTableTenancy,
+            AddTenantLookupTable = UseMasterTableTenancy || _options.Durability.TenantRegistryRequired,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780). Without this,
             // OverrideAutoCreateResources(autoCreate) mutated the wrapper's

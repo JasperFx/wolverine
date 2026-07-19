@@ -48,6 +48,13 @@ internal class EntityFrameworkCoreBackedPersistence<T> : IWolverineExtension whe
         options.CodeGeneration.InsertFirstPersistenceStrategy<EFCorePersistenceFrameProvider>();
         options.CodeGeneration.Sources.Add(new TenantedDbContextSource<T>());
 
+        if (ConjoinedTenancy.IsConjoined(typeof(T)))
+        {
+            // Conjoined tenancy keeps its authoritative tenant list in the message
+            // store's wolverine_tenants registry table
+            options.Durability.TenantRegistryRequired = true;
+        }
+
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreQuerySpecificationPolicy());
         options.CodeGeneration.MethodPreCompilation.Add(new EFCoreBatchingPolicy());
 

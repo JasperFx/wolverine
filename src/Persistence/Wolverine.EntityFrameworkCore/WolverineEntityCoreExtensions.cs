@@ -136,6 +136,12 @@ public static class WolverineEntityCoreExtensions
             services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService, ConjoinedPartitionsActivator<T>>();
         }
 
+        // Authoritative tenant registry (wolverine_tenants) + dynamic tenant source.
+        // Registering IDynamicTenantSource<string> is what lights up CritterWatch's
+        // tenant management for this application
+        services.AddSingleton<ConjoinedTenantSource<T>>();
+        services.AddSingleton<IDynamicTenantSource<string>>(s => s.GetRequiredService<ConjoinedTenantSource<T>>());
+
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
         registerEFCoreSagaStoreDiagnostics(services);
 

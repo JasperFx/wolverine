@@ -268,7 +268,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
             ConnectionString = ConnectionString,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
-            AddTenantLookupTable = UseMasterTableTenancy,
+            AddTenantLookupTable = UseMasterTableTenancy || _options.Durability.TenantRegistryRequired,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780).
             AutoCreate = AutoCreate
