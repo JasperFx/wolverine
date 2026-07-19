@@ -65,6 +65,12 @@ public class RabbitMqEnvelopeMapper : EnvelopeMapper<IReadOnlyBasicProperties, I
             (e, props) => props.Type = e.MessageType);
     }
 
+    // writeIncomingHeaders below copies every incoming header with the exact same conversion as
+    // tryReadIncomingHeader (byte[] -> UTF8, else ToString), so the typed reserved-header readers
+    // can reuse those already-decoded values instead of re-reading and re-decoding the raw header
+    // dictionary per property (GH-3492, same seam as Kafka in GH-3490).
+    protected override bool preferCopiedIncomingHeaders => true;
+
     protected override void writeOutgoingHeader(IBasicProperties outgoing, string key, string value)
     {
         outgoing.Headers![key] = value;

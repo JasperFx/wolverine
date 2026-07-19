@@ -612,7 +612,82 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
+        // A latched receiver must apply the full single-envelope semantics (persist as
+        // owner 0 + defer back to the listener), so route through the one-at-a-time path
+        // which already implements them (GH-3492).
+        if (_latched)
+        {
+            foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope).ConfigureAwait(false);
+            return;
+        }
+
         foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
+
+        // Per-envelope guards that the single-envelope path (receiveOneAsync) has always
+        // applied but this batch path historically skipped (GH-3492): serializer unwrap
+        // (MassTransit-style interop), missing id/message-type dead-lettering, and expiry.
+        // Envelopes that fail a guard are handled individually and drop out of the batch.
+        var survivors = new List<Envelope>(envelopes.Length);
+        foreach (var envelope in envelopes)
+        {
+            if (ShouldPersistBeforeProcessing && !envelope.IsFromLocalDurableQueue())
+            {
+                try
+                {
+                    envelope.Serializer?.UnwrapEnvelopeIfNecessary(envelope);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogInformation(e,
+                        "Failed to unwrap metadata for Envelope {Id} received at durable {Destination}. Moving to dead letter queue",
+                        envelope.Id, envelope.Destination);
+
+                    if (envelope.Id == Guid.Empty)
+                    {
+                        envelope.Id = Envelope.IdGenerator();
+                    }
+
+                    envelope.MessageType ??= $"unknown/{e.GetType().Name}";
+                    envelope.Failure = e;
+                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    continue;
+                }
+
+                if (envelope.Id == Guid.Empty)
+                {
+                    envelope.Id = Envelope.IdGenerator();
+                }
+
+                if (envelope.MessageType.IsEmpty())
+                {
+                    _logger.LogInformation(
+                        "Empty or missing message type name for Envelope {Id} received at durable {Destination}. Moving to dead letter queue",
+                        envelope.Id, envelope.Destination);
+                    await _moveToErrors.PostAsync(envelope).ConfigureAwait(false);
+                    await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                    continue;
+                }
+            }
+
+            if (envelope.IsExpired())
+            {
+                await _completeBlock.PostAsync(envelope).ConfigureAwait(false);
+                continue;
+            }
+
+            survivors.Add(envelope);
+        }
+
+        if (survivors.Count == 0)
+        {
+            return;
+        }
+
+        if (survivors.Count != envelopes.Length)
+        {
+            envelopes = survivors.ToArray();
+        }
 
         var batchSucceeded = false;
         if (ShouldPersistBeforeProcessing)

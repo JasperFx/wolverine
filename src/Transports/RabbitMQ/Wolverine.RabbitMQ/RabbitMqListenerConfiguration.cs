@@ -113,6 +113,23 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     }
 
     /// <summary>
+    /// For durable (inbox-backed) listeners, the maximum number of prefetched deliveries the
+    /// consumer coalesces into one batched inbox insert (5ms max accumulation age). 1 reverts
+    /// to strict message-at-a-time persistence. Ignored for Buffered/Inline endpoints.
+    /// Default 100. See GH-3492.
+    /// </summary>
+    public RabbitMqListenerConfiguration MaximumMessagesToReceive(int maximum)
+    {
+        if (maximum < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), "Must be at least 1");
+        }
+
+        add(e => e.MaximumMessagesToReceive = maximum);
+        return this;
+    }
+
+    /// <summary>
     /// Mark this queue as owned by an external system. Wolverine will not declare (create) the queue
     /// at startup or delete it during <c>resources teardown</c>, even when <c>AutoProvision()</c> is
     /// enabled, and will not set up or tear down its bindings. Use this when the calling identity lacks
