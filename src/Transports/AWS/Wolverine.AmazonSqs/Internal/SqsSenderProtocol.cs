@@ -35,21 +35,94 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
         await _queue.InitializeAsync(_logger);
 
         // SQS has a hard limit of 10 messages per batch request
-        var chunks = batch.Messages.Chunk(10);
+        var chunks = batch.Messages.Chunk(10).ToArray();
 
-        try
+        var successes = new List<Envelope>();
+        var failures = new List<Envelope>();
+
+        for (var i = 0; i < chunks.Length; i++)
         {
-            foreach (var chunk in chunks)
-            {
-                var sqsBatch = new OutgoingSqsBatch(_queue, _logger, chunk);
-                await _sqs.SendMessageBatchAsync(sqsBatch.Request);
-            }
+            var chunk = chunks[i];
+            var sqsBatch = new OutgoingSqsBatch(_queue, _logger, chunk);
 
+            try
+            {
+                var response = await _sqs.SendMessageBatchAsync(sqsBatch.Request);
+                sortChunkResults(sqsBatch, chunk, response, successes, failures);
+            }
+            catch (Exception e)
+            {
+                // This chunk (and any chunk after it) never made it to SQS, but earlier
+                // chunks may already have been accepted, so only fail what actually failed
+                var unsent = chunks.Skip(i).SelectMany(x => x);
+
+                if (successes.Count != 0)
+                {
+                    await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
+                }
+
+                await callback.MarkProcessingFailureAsync(
+                    new OutgoingMessageBatch(batch.Destination, failures.Concat(unsent).ToList()), e);
+
+                return;
+            }
+        }
+
+        if (failures.Count == 0)
+        {
             await callback.MarkSuccessfulAsync(batch);
         }
-        catch (Exception e)
+        else
         {
-            await callback.MarkProcessingFailureAsync(batch, e);
+            if (successes.Count != 0)
+            {
+                await callback.MarkSuccessfulAsync(new OutgoingMessageBatch(batch.Destination, successes));
+            }
+
+            await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failures));
+        }
+    }
+
+    // SendMessageBatchAsync is not transactional -- SQS can accept some entries and reject
+    // others (throttling, oversized message, etc.) in the very same 200 response, so every
+    // entry in response.Failed has to be routed back through the sender callback for retry
+    private void sortChunkResults(OutgoingSqsBatch sqsBatch, Envelope[] chunk, SendMessageBatchResponse response,
+        List<Envelope> successes, List<Envelope> failures)
+    {
+        if (response.Failed == null || response.Failed.Count == 0)
+        {
+            successes.AddRange(chunk);
+            return;
+        }
+
+        var failed = new HashSet<Envelope>();
+        foreach (var entry in response.Failed)
+        {
+            if (sqsBatch.TryGetEnvelope(entry.Id, out var envelope))
+            {
+                _logger.LogError(
+                    "SQS batch send to {Uri} failed for message {Id}: {Code} - {Message} (SenderFault: {SenderFault}). The message will be retried",
+                    _queue.Uri, entry.Id, entry.Code, entry.Message, entry.SenderFault);
+                failed.Add(envelope);
+            }
+            else
+            {
+                _logger.LogError(
+                    "SQS batch send to {Uri} reported a failed entry with unrecognized Id {Id}: {Code} - {Message}",
+                    _queue.Uri, entry.Id, entry.Code, entry.Message);
+            }
+        }
+
+        foreach (var envelope in chunk)
+        {
+            if (failed.Contains(envelope))
+            {
+                failures.Add(envelope);
+            }
+            else
+            {
+                successes.Add(envelope);
+            }
         }
     }
 }
