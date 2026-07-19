@@ -76,6 +76,8 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
 
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+        // Cache models per (context type, wolverine schema) -- GH-3497
+        builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         _configuration(builder, dataSource, new TenantId(messaging.TenantId!));
         
         var dbContext = _constructor(builder.Options);
@@ -173,6 +175,8 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+        // Cache models per (context type, wolverine schema) -- GH-3497
+        builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         
         _configuration(builder, connectionString, new TenantId(tenantId));
         var dbContext = _constructor(builder.Options);
@@ -192,6 +196,8 @@ public class TenantedDbContextBuilderByDbDataSource<T> : IDbContextBuilder<T> wh
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+        // Cache models per (context type, wolverine schema) -- GH-3497
+        builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         _configuration(builder, dataSource!, new TenantId(StorageConstants.DefaultTenantId));
         return builder.Options;
     }

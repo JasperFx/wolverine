@@ -12,6 +12,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 
@@ -213,4 +214,108 @@ public class MyMessageHandler
 #endregion
 
 public record CreateItem(string Name);
+
+public class ConjoinedTenancyDocumentationSamples
+{
+    public async Task conjoined_postgresql()
+    {
+        #region sample_conjoined_tenancy_with_postgresql
+        var builder = Host.CreateApplicationBuilder();
+
+        var configuration = builder.Configuration;
+
+        builder.UseWolverine(opts =>
+        {
+            // One single database for messaging persistence *and*
+            // all tenanted application data
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!);
+
+            // Conjoined multi-tenancy: every entity implementing
+            // JasperFx.MultiTenancy.ITenanted is mapped with a tenant_id column,
+            // filtered by the current tenant on every query, stamped with the
+            // ambient tenant id on inserts, and guarded against cross-tenant
+            // updates and deletes
+            opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+                (builder, connectionString) =>
+                {
+                    builder.UseNpgsql(connectionString.Value);
+                }, AutoCreate.CreateOrUpdate);
+        });
+
+        #endregion
+    }
+
+    public async Task conjoined_partitioned_postgresql()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        var configuration = builder.Configuration;
+
+        builder.UseWolverine(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!);
+
+            #region sample_conjoined_tenancy_with_partitioning
+            opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+                (builder, connectionString) => builder.UseNpgsql(connectionString.Value),
+                AutoCreate.CreateOrUpdate,
+
+                // Weasel-managed physical partitioning: one partition (or shared
+                // bucket) per tenant on every non-saga ITenanted entity table
+                tenancy => tenancy.PartitionPerTenant());
+            #endregion
+        });
+    }
+
+    public static async Task conjoined_tenant_management(IHost host)
+    {
+        #region sample_conjoined_partitioning_tenant_management
+        var partitions = host.Services
+            .GetRequiredService<IConjoinedTenantPartitions<ConjoinedTenancy.ConjoinedItemsDbContext>>();
+
+        // Each tenant gets its own physical partition
+        await partitions.AddTenantAsync("tenant1");
+
+        // Or share one partition between small tenants ("bucketing") --
+        // requires AllowPartitionSharing on the partitioning options
+        await partitions.AddTenantAsync("small-tenant-a", "shared_bucket");
+        await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
+
+        // Dropping a tenant's partition removes its rows
+        await partitions.DropTenantAsync("tenant1", deleteData: true);
+        #endregion
+
+        #region sample_conjoined_tenant_registry
+        var tenants = host.Services.GetRequiredService<IDynamicTenantSource<string>>();
+
+        // Registers the tenant in wolverine_tenants (and creates its
+        // partitions when partitioning is enabled)
+        await tenants.AddTenantAsync("tenant1", CancellationToken.None);
+
+        // Soft delete: the tenant's data stays, but writes are rejected
+        await tenants.DisableTenantAsync("tenant1");
+        await tenants.EnableTenantAsync("tenant1");
+
+        // Hard delete: registry record removed; with partitioning enabled the
+        // tenant's partition is dropped along with its rows
+        await tenants.RemoveTenantAsync("tenant1");
+        #endregion
+    }
+
+    #region sample_conjoined_tenanted_entity
+
+    // Implementing the JasperFx.MultiTenancy.ITenanted interface --
+    // the same marker interface Marten uses for conjoined tenancy --
+    // opts this entity into Wolverine's conjoined multi-tenancy
+    public class TenantedItem : ITenanted
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = null!;
+
+        // Wolverine maps, stamps, and hydrates this for you. Treat the
+        // value as framework-managed
+        public string? TenantId { get; set; }
+    }
+
+    #endregion
+}
 

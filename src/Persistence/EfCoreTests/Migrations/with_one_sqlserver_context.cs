@@ -105,7 +105,11 @@ public class with_one_sqlserver_context : IAsyncLifetime
 
 public class Blog
 {
+    // The did_apply test assigns the id explicitly; without this, EF's convention
+    // makes the int key an identity column and Weasel >= 9.18's faithful
+    // translation creates the table that way (weasel#382), rejecting explicit ids
     [Column("id")]
+    [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public int BlogId { get; set; }
     
     [Column("url")]

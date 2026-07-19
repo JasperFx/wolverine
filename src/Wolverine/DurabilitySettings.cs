@@ -77,6 +77,13 @@ public class DurabilitySettings : IDescribeMyself
     internal bool TenantIdStyleHasChanged { get; set; }
 
     /// <summary>
+    ///     Set by tenancy integrations (e.g. Wolverine's conjoined EF Core multi-tenancy)
+    ///     that need the message store to provision its wolverine_tenants registry table
+    ///     even without database-per-tenant master table tenancy
+    /// </summary>
+    public bool TenantRegistryRequired { get; set; }
+
+    /// <summary>
     /// If set, this establishes a default database schema name for all registered message
     /// storage databases. Use this with a modular monolith approach where all modules target the same physical database. The default is null.
     /// </summary>

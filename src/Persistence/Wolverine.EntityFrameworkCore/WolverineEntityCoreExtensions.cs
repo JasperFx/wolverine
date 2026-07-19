@@ -110,6 +110,89 @@ public static class WolverineEntityCoreExtensions
     }
 
     /// <summary>
+    /// Register a DbContext type that should use Wolverine managed conjoined multi-tenancy -- a single,
+    /// shared database (the application's Wolverine message store database) where every entity implementing
+    /// JasperFx.MultiTenancy.ITenanted is mapped with a tenant_id column, filtered by the current tenant
+    /// through a global query filter, stamped with the ambient tenant id on insert, and guarded against
+    /// cross-tenant updates and deletes
+    /// </summary>
+    /// <param name="services"></param>
+    /// <param name="dbContextConfiguration"></param>
+    /// <param name="autoCreate">Should this application try to create the database and apply missing migrations at application startup? Default is None, all other options will create the database.</param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
+    public static IServiceCollection AddDbContextWithWolverineManagedConjoinedTenancy<T>(this IServiceCollection services,
+        Action<DbContextOptionsBuilder<T>, ConnectionString> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None,
+        Action<ConjoinedTenancyOptions>? tenancy = null) where T : DbContext
+    {
+        var conjoinedOptions = new ConjoinedTenancyOptions();
+        tenancy?.Invoke(conjoinedOptions);
+        ConjoinedTenancy.SetOptions(typeof(T), conjoinedOptions);
+
+        if (conjoinedOptions.PartitioningEnabled)
+        {
+            services.AddSingleton<IConjoinedTenantPartitions<T>, ConjoinedTenantPartitions<T>>();
+            services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService, ConjoinedPartitionsActivator<T>>();
+        }
+
+        // Authoritative tenant registry (wolverine_tenants) + dynamic tenant source.
+        // Registering IDynamicTenantSource<string> is what lights up CritterWatch's
+        // tenant management for this application
+        services.AddSingleton<ConjoinedTenantSource<T>>();
+        services.AddSingleton<IDynamicTenantSource<string>>(s => s.GetRequiredService<ConjoinedTenantSource<T>>());
+
+        services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
+        registerEFCoreSagaStoreDiagnostics(services);
+
+        // For code generation
+        services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
+
+        // STRICTLY FOR EF CORE MIGRATIONS!!!!
+        services.AddScoped<T>(s =>
+        {
+            return (T)s.GetRequiredService<IDbContextBuilder<T>>().BuildForMain();
+        });
+
+        services.AddSingleton<DbContextOptions<T>>(s =>
+        {
+            var builder = s.GetRequiredService<IDbContextBuilder<T>>();
+            return builder.BuildOptionsForMain();
+        });
+
+        services.AddSingleton<IDbContextBuilder<T>>(s =>
+        {
+            var store = s.GetRequiredService<IMessageStore>();
+            if (store is MultiTenantedMessageStore)
+            {
+                throw new InvalidOperationException(
+                    $"Conjoined multi-tenancy for {typeof(T).FullNameInCode()} uses a single, shared database, but Wolverine is configured with multi-tenanted (separate database per tenant) message storage. Use AddDbContextWithWolverineManagedMultiTenancy() for database per tenant multi-tenancy instead.");
+            }
+
+            if (store is not IMessageDatabase database)
+            {
+                throw new InvalidOperationException(
+                    $"Conjoined multi-tenancy for {typeof(T).FullNameInCode()} requires Wolverine to be configured with relational database message storage");
+            }
+
+            return new ConjoinedDbContextBuilder<T>(s, database, dbContextConfiguration, s.GetServices<IDomainEventScraper>());
+        });
+
+        services.AddSingleton<IDbContextBuilder>(s => s.GetRequiredService<IDbContextBuilder<T>>());
+
+        // CritterWatch (#102): single-database snapshot, same masked descriptor
+        // shape as the tenanted variants
+        services.AddSingleton<IDbContextUsageSource, TenantedDbContextUsageSource<T>>();
+
+        if (autoCreate != AutoCreate.None)
+        {
+            services.AddSingleton<IResourceCreator, TenantedDbContextInitializer<T>>();
+        }
+
+        return services;
+    }
+
+    /// <summary>
     /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
     /// for separate databases per tenant using DbDataSource. This option is necessary when using EF Core *with*
     /// Marten managed Multi-Tenancy
@@ -182,6 +265,8 @@ public static class WolverineEntityCoreExtensions
         {
             configure(s, b);
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+        // Cache models per (context type, wolverine schema) -- GH-3497
+        b.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         // TryAddEnumerable, NOT TryAddSingleton: TryAddSingleton gates on the service type alone,

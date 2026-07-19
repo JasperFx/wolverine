@@ -6,6 +6,7 @@ using JasperFx.Core.Reflection;
 using JasperFx.MultiTenancy;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Weasel.Core.Migrations;
@@ -176,6 +177,11 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
 
+        // Weasel-managed tenant partitioning support for conjoined EF Core multi-tenancy
+        options.Services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<ITenantPartitioningProviderFactory, Wolverine.SqlServer.MultiTenancy.
+                SqlServerTenantPartitioningProviderFactory>());
+
         options.Services.AddSingleton<Migrator, SqlServerMigrator>();
         
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
@@ -262,7 +268,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
             ConnectionString = ConnectionString,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
-            AddTenantLookupTable = UseMasterTableTenancy,
+            AddTenantLookupTable = UseMasterTableTenancy || _options.Durability.TenantRegistryRequired,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780).
             AutoCreate = AutoCreate

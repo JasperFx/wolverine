@@ -207,6 +207,11 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
 
+        // Weasel-managed tenant partitioning support for conjoined EF Core multi-tenancy
+        options.Services.TryAddEnumerable(ServiceDescriptor
+            .Singleton<ITenantPartitioningProviderFactory, Wolverine.Postgresql.MultiTenancy.
+                PostgresqlTenantPartitioningProviderFactory>());
+
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();
@@ -281,7 +286,7 @@ internal class PostgresqlBackedPersistence : IPostgresqlBackedPersistence, IWolv
             ScheduledJobLockId = ScheduledJobLockId,
             MigrationLockId = MigrationLockId,
             SchemaName = EnvelopeStorageSchemaName,
-            AddTenantLookupTable = UseMasterTableTenancy,
+            AddTenantLookupTable = UseMasterTableTenancy || _options.Durability.TenantRegistryRequired,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780). Without this,
             // OverrideAutoCreateResources(autoCreate) mutated the wrapper's
