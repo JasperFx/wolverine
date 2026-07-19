@@ -1,3 +1,4 @@
+using Wolverine.Runtime;
 using Wolverine.SignalR.Internals;
 
 namespace Wolverine.SignalR;
@@ -11,9 +12,27 @@ namespace Wolverine.SignalR;
 /// <typeparam name="T"></typeparam>
 public record SignalRMessage<T>(T Message, WebSocketRouting.ILocator Locator) : ISendMyself
 {
-    ValueTask ISendMyself.ApplyAsync(IMessageContext context)
+    async ValueTask ISendMyself.ApplyAsync(IMessageContext context)
     {
-        return context.PublishAsync(Message,
-            new DeliveryOptions() { SagaId = Locator.ToString(), RoutingInformation = Locator });
+        var options = new DeliveryOptions { SagaId = Locator.ToString(), RoutingInformation = Locator };
+
+        // GH-3499 -- if the handler's context has already flushed its outgoing
+        // messages (e.g. an explicit SaveChangesAsync() on an outboxed session
+        // drained it), enqueueing here would be silently dropped by the
+        // MultiFlushMode.OnlyOnce guard. Send through a fresh context instead
+        if (context is MessageContext { HasFlushed: true } flushed)
+        {
+            var fresh = new MessageContext(flushed.Runtime)
+            {
+                TenantId = flushed.TenantId,
+                CorrelationId = flushed.CorrelationId
+            };
+
+            await fresh.PublishAsync(Message, options);
+            await fresh.FlushOutgoingMessagesAsync();
+            return;
+        }
+
+        await context.PublishAsync(Message, options);
     }
 }
