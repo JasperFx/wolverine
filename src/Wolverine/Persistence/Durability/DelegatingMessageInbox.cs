@@ -40,11 +40,27 @@ internal class DelegatingMessageInbox : IMessageInbox
         return (envelope.Store?.Inbox ?? _inner).StoreIncomingAsync(envelope);
     }
 
-    // This would only be coming from a batch receipt and not from any kind of 
+    // This would only be coming from a batch receipt and not from any kind of
     // local queueing
-    public Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
+    public async Task StoreIncomingAsync(IReadOnlyList<Envelope> envelopes)
     {
-        return _inner.StoreIncomingAsync(envelopes);
+        // Route by ancillary store exactly like the single-envelope overload above —
+        // this overload used to send the whole batch to the main store, which put
+        // ancillary-owned envelopes in the wrong inbox (and mark-as-handled, which DOES
+        // route by store, then updated the other database, leaving the misplaced row
+        // stuck as Incoming). Surfaced by the GH-3492 durable delivery coalescing;
+        // mirrors MarkIncomingEnvelopeAsHandledAsync below (GH-3492).
+        var groups = envelopes.GroupBy(x => x.Store).ToList();
+        if (groups.Count == 1)
+        {
+            await (groups[0].Key?.Inbox ?? _inner).StoreIncomingAsync(envelopes);
+            return;
+        }
+
+        foreach (var group in groups)
+        {
+            await (group.Key?.Inbox ?? _inner).StoreIncomingAsync(group.ToList());
+        }
     }
 
     public Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
