@@ -12,6 +12,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Scheduling;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 
@@ -241,6 +242,62 @@ public class ConjoinedTenancyDocumentationSamples
                 }, AutoCreate.CreateOrUpdate);
         });
 
+        #endregion
+    }
+
+    public async Task conjoined_partitioned_postgresql()
+    {
+        var builder = Host.CreateApplicationBuilder();
+        var configuration = builder.Configuration;
+
+        builder.UseWolverine(opts =>
+        {
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!);
+
+            #region sample_conjoined_tenancy_with_partitioning
+            opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+                (builder, connectionString) => builder.UseNpgsql(connectionString.Value),
+                AutoCreate.CreateOrUpdate,
+
+                // Weasel-managed physical partitioning: one partition (or shared
+                // bucket) per tenant on every non-saga ITenanted entity table
+                tenancy => tenancy.PartitionPerTenant());
+            #endregion
+        });
+    }
+
+    public static async Task conjoined_tenant_management(IHost host)
+    {
+        #region sample_conjoined_partitioning_tenant_management
+        var partitions = host.Services
+            .GetRequiredService<IConjoinedTenantPartitions<ConjoinedTenancy.ConjoinedItemsDbContext>>();
+
+        // Each tenant gets its own physical partition
+        await partitions.AddTenantAsync("tenant1");
+
+        // Or share one partition between small tenants ("bucketing") --
+        // requires AllowPartitionSharing on the partitioning options
+        await partitions.AddTenantAsync("small-tenant-a", "shared_bucket");
+        await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
+
+        // Dropping a tenant's partition removes its rows
+        await partitions.DropTenantAsync("tenant1", deleteData: true);
+        #endregion
+
+        #region sample_conjoined_tenant_registry
+        var tenants = host.Services.GetRequiredService<IDynamicTenantSource<string>>();
+
+        // Registers the tenant in wolverine_tenants (and creates its
+        // partitions when partitioning is enabled)
+        await tenants.AddTenantAsync("tenant1", CancellationToken.None);
+
+        // Soft delete: the tenant's data stays, but writes are rejected
+        await tenants.DisableTenantAsync("tenant1");
+        await tenants.EnableTenantAsync("tenant1");
+
+        // Hard delete: registry record removed; with partitioning enabled the
+        // tenant's partition is dropped along with its rows
+        await tenants.RemoveTenantAsync("tenant1");
         #endregion
     }
 
