@@ -78,9 +78,11 @@ public partial class WolverineRuntime
         public void ExecutionFinished(Envelope envelope)
         {
             var executionTime = envelope.StopTiming();
-            if (executionTime > 0)
+            if (executionTime >= 0)
             {
-                _sink.Post(new RecordExecutionTime(executionTime, envelope.TenantId!));
+                // RecordExecutionTime stays whole-ms (it's on the CritterWatch wire); rounding
+                // instead of the old truncate-then-drop keeps sub-millisecond executions counted
+                _sink.Post(new RecordExecutionTime((long)Math.Round(executionTime), envelope.TenantId!));
             }
 
             _runtime.ActiveSession?.Record(MessageEventType.ExecutionFinished, envelope, _serviceName, _uniqueNodeId);

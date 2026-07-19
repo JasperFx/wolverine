@@ -702,7 +702,7 @@ _sender = await Host.CreateDefaultBuilder()
             .PublishRawJson(new JsonSerializerOptions());
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L21-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Kafka/Wolverine.Kafka.Tests/publish_and_receive_raw_json.cs#L22-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_raw_json_sending_and_receiving_with_kafka' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: warning
@@ -1200,7 +1200,13 @@ using var host = await Host.CreateDefaultBuilder()
 When publishing to Kafka through the default (buffered) sender, Wolverine coalesces outgoing envelopes into batches before handing them to the Kafka producer. A batch is flushed when **either** of two thresholds is hit:
 
 - the batch reaches `MessageBatchSize` envelopes (default **100**), or
-- the `MessageBatchTimeout` elapses since the first envelope entered the batch (default **250 ms**).
+- the `MessageBatchTimeout` elapses since the **most recent** envelope entered the batch (default **250 ms**).
+
+Note that the timeout is a *debounce* — every new envelope resets the timer. A lone message
+always waits the full timeout before hitting the wire, and a steady trickle of messages arriving
+faster than the timeout will keep postponing the flush until `MessageBatchSize` accumulates. If
+you have a low-rate stream where per-message latency matters, shrink `MessageBatchTimeout` (or
+`MessageBatchSize`) rather than assuming the timeout bounds total wait.
 
 The relevant settings on a publisher route:
 
@@ -1263,6 +1269,100 @@ await bus.BroadcastToTopicAsync("my-topic", new KafkaTombstone("record-key-to-de
 When Wolverine encounters a `KafkaTombstone` message, it produces a Kafka message with the specified key and a `null` value. This signals to Kafka's log compaction process that the record with that key should be removed during the next compaction cycle.
 
 This is useful when your Kafka topics use [log compaction](https://docs.confluent.io/platform/current/kafka/design.html#log-compaction) to maintain a key-value snapshot of the latest state. Publishing a tombstone ensures that deleted records are eventually cleaned up from the topic.
+
+## Performance Tuning
+
+This section collects the levers that matter most for throughput and latency with the Kafka
+transport, and the factors behind them.
+
+### Choose the endpoint mode deliberately
+
+- **Buffered** (the default) is the fastest mode: the consume loop hands messages to an
+  in-memory worker queue and keeps consuming. The trade-off is that offsets are stored as soon
+  as a message is buffered, *before* it is handled — an ungraceful process crash can lose
+  buffered messages (effectively at-most-once). Use it when throughput matters and your
+  handlers are idempotent or losses on crash are tolerable.
+- **Durable** (`UseDurableInbox()`) writes each incoming message to the database inbox before
+  the offset advances. The inbox write happens on the consume loop, so your database's write
+  latency directly gates consumption throughput on that listener. Plan for the inbox database
+  to be close (latency-wise) and lightly contended, and scale with `ListenerCount` when a
+  single listener's insert rate becomes the ceiling.
+- **Inline** (`ProcessInline()`) processes one message at a time per consumer, end to end, and
+  only then stores the offset. Strongest per-partition guarantees, lowest throughput per
+  listener — scale with `ListenerCount` (bounded by the topic's partition count).
+
+### Consumption parallelism
+
+- `MaximumParallelMessages(n)` (`MaxDegreeOfParallelism`, default = max(processor count, 5))
+  sets how many handlers run concurrently for a Buffered/Durable listener. It does nothing for
+  Inline endpoints.
+- `ListenerCount(n)` creates *n* independent Kafka consumers in the same group. This only helps
+  if the topic has at least *n* partitions — **note that Wolverine's auto-provisioning creates
+  topics with the broker default partition count (usually 1) unless you set
+  `.Specification(spec => spec.NumPartitions = ...)`.** A single-partition topic cannot scale
+  consumption no matter what you configure on the Wolverine side.
+- For per-key ordering *with* parallelism across keys, prefer `ProcessConcurrentlyByKey()` or
+  `PartitionProcessingByGroupId(...)` over hand-rolled locking in handlers — Wolverine's
+  sharded execution keeps same-key messages sequential while unrelated keys proceed in
+  parallel, without tying up worker slots in custom middleware waits. Custom middleware that
+  blocks (semaphores, locks) both occupies a worker slot and inflates the
+  `wolverine-execution-time` metric, since execution time is measured around the whole
+  middleware chain.
+
+### Offset commits
+
+The default `CommitMode.StoreThenAutoFlush` stores offsets non-blockingly and lets the client's
+auto-committer flush them in the background — keep it unless you have a specific reason.
+`CommitMode.PerMessage` performs a synchronous broker round trip per message and is by far the
+slowest option; use it only where its stronger guarantee is genuinely required.
+
+### Back pressure
+
+Buffered and Durable listeners stop receiving when more than `BufferingLimits.Maximum`
+(default 1,000) messages are queued in memory, and resume below the restart threshold
+(default 500). On Kafka, stopping the listener closes the consumer — which means **leaving the
+consumer group and triggering a rebalance**, and another when it rejoins. If your load
+regularly crosses the limit you can see a sawtooth of multi-second pauses. For sustained
+high-throughput consumers, either raise `BufferingLimits` so normal bursts fit in memory, or
+increase processing parallelism so the queue drains faster than it fills.
+
+### Publishing
+
+See [Publisher Batching](#publisher-batching) above. `MessageBatchTimeout` is the latency
+floor batching adds to a route: a batch is sent when it reaches `MessageBatchSize` or when
+the timeout elapses, so for low-rate streams every message waits up to the timeout (default
+250ms) before hitting the wire. Latency-sensitive routes should shrink both knobs — in
+GH-3490's load rig, going from `(100, 250ms)` to `(1, 1ms)` on a steady 8 msg/s stream took
+publish-to-consume p50 from seconds to parity with a raw Confluent.Kafka producer, and
+`SendInline()` measured at native latency as well.
+
+::: warning
+On versions before the JasperFx fix for wolverine#3490, the batch timeout behaved as a
+*debounce*: every published message reset the timer, so a steady stream arriving faster than
+the timeout would not flush until a full batch accumulated — measured at 5.8s p50 delivery
+latency for an 8 msg/s stream on the default `(100, 250ms)` settings. If you see multi-second
+Kafka delivery latency on a low-rate route, tighten `MessageBatchSize`/`MessageBatchTimeout`
+or upgrade.
+:::
+
+Raising `MessageBatchMaxDegreeOfParallelism` above its default of 1 allows multiple batches
+in flight to the broker.
+
+### Serialization and headers
+
+Every message sent with the default envelope mapper carries the full set of Wolverine envelope
+headers (roughly 18 headers, written and parsed per message). For very high-volume topics
+where you control both ends — or interop scenarios — a raw JSON mapper (`ReceiveRawJson()` /
+`PublishRawJson()`) or a custom `IKafkaEnvelopeMapper` that carries only what you need reduces
+per-message overhead and payload size.
+
+### Interpreting Wolverine's metrics
+
+When comparing Wolverine's numbers to your own measurements, note the interval definitions:
+`wolverine-execution-time` measures the handler *and all middleware* (including any time
+blocked inside middleware), while `wolverine-effective-time` is wall-clock from the producer's
+`SentAt` stamp through handling, cascading message flush, *and* the final acknowledgement —
+and it is sensitive to clock skew between producing and consuming machines.
 
 ## URI reference
 

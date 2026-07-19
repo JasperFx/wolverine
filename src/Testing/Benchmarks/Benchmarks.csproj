@@ -2,31 +2,32 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <Optimize>true</Optimize>
-        <LangVersion>10</LangVersion>
+        <!-- Standalone benchmark harness; deliberately NOT in either .slnx solution.
+             Single-TFM on purpose: `dotnet build src/Testing/Benchmarks -f net9.0` -->
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\..\Persistence\Wolverine.Marten\Wolverine.Marten.csproj"/>
-        <ProjectReference Include="..\..\Persistence\Wolverine.SqlServer\Wolverine.SqlServer.csproj"/>
-        <ProjectReference Include="..\..\Transports\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj"/>
-        <ProjectReference Include="..\TestingSupport\TestingSupport.csproj"/>
+        <ProjectReference Include="..\..\Wolverine\Wolverine.csproj"/>
+        <ProjectReference Include="..\..\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj"/>
+        <!-- Core WolverineFx no longer ships the Roslyn runtime compiler (GH-2876); the
+             GlobalSetup host runs in TypeLoadMode.Dynamic and needs it registered. -->
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="BenchmarkDotNet"/>
+        <!-- Directory.Packages.props pins 0.13.1 (pre-net9.0); override locally so this
+             dormant project can track a current BenchmarkDotNet without touching CPM. -->
+        <PackageReference Include="BenchmarkDotNet" VersionOverride="0.15.2"/>
     </ItemGroup>
 
     <ItemGroup>
-        <None Update="targets.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Compile Include="..\..\Servers.cs">
-            <Link>Servers.cs</Link>
-        </Compile>
+        <!-- Parked pre-6.0 runners (RabbitMQ/Marten/SqlServer invoke drivers) that no
+             longer compile against current TestingSupport. Kept for reference only. -->
+        <Compile Remove="attic\**"/>
+        <None Include="attic\**"/>
     </ItemGroup>
 
 </Project>

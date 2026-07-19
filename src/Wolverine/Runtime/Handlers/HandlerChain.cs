@@ -172,9 +172,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
 
     /// <summary>
     ///     At what level should Wolverine log messages of this type about messages succeeding? The default
-    ///     is Information
+    ///     is Debug (changed from Information in 6.21/GH-3490 — a per-message Information log is a real
+    ///     throughput tax on hot listeners; opt back in with Policies.MessageSuccessLogLevel(LogLevel.Information))
     /// </summary>
-    public LogLevel SuccessLogLevel { get; set; } = LogLevel.Information;
+    public LogLevel SuccessLogLevel { get; set; } = LogLevel.Debug;
 
     /// <summary>
     ///     At what level should processing starting and finishing be logged for this message type?

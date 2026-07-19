@@ -77,6 +77,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     private readonly Dictionary<PropertyInfo, Action<Envelope, TIncoming>> _incomingToEnvelope = new();
     private readonly Lazy<Action<Envelope, TIncoming>> _mapIncoming;
     private readonly Lazy<Action<Envelope, TOutgoing>> _mapOutgoing;
+    private HashSet<string>? _reservedHeaderKeys;
 
     public EnvelopeMapper(Endpoint endpoint)
     {
@@ -256,11 +257,40 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
             actions.Add(pair.Value);
         }
 
+        // Configuration is frozen once the Lazy dispatch is built, so the reserved-key set
+        // used by writeOutgoingOtherHeaders can be computed once here instead of allocating
+        // Values.ToArray() on every outgoing message (GH-3490).
+        _reservedHeaderKeys = new HashSet<string>(_envelopeToHeader.Values);
+
         var array = actions.ToArray();
         return (envelope, outgoing) =>
         {
             for (var i = 0; i < array.Length; i++) array[i](envelope, outgoing);
         };
+    }
+
+    /// <summary>
+    /// When true, the per-property incoming readers first consult <see cref="Envelope.Headers"/> —
+    /// which <see cref="writeIncomingHeaders"/> has already populated by decoding every incoming
+    /// header — and only fall back to <see cref="tryReadIncomingHeader"/> on a miss. This removes
+    /// the "double decode" where every reserved header is decoded once into the dictionary and
+    /// then again by its typed reader's scan over the raw transport message (GH-3490). Only safe
+    /// to enable when the mapper's <see cref="writeIncomingHeaders"/> copies header values
+    /// verbatim (same keys, same stringification as <see cref="tryReadIncomingHeader"/>), so it
+    /// is opt-in per transport mapper.
+    /// </summary>
+    protected virtual bool preferCopiedIncomingHeaders => false;
+
+    private delegate bool ReadHeader(Envelope env, TIncoming incoming, string key, out string? value);
+
+    private bool tryReadCopiedOrIncomingHeader(Envelope env, TIncoming incoming, string key, out string? value)
+    {
+        if (env.Headers.TryGetValue(key, out value) && value != null)
+        {
+            return true;
+        }
+
+        return tryReadIncomingHeader(incoming, key, out value);
     }
 
     /// <summary>
@@ -278,52 +308,72 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
         var propType = prop.PropertyType;
 
+        // The raw read: either straight off the transport message, or (opt-in) the value
+        // writeIncomingHeaders already decoded into Envelope.Headers, avoiding a second
+        // scan + decode of the same bytes. Parse semantics below are identical to the
+        // read* helpers either way.
+        ReadHeader read = preferCopiedIncomingHeaders
+            ? tryReadCopiedOrIncomingHeader
+            : (Envelope _, TIncoming inc, string key, out string? value) =>
+                tryReadIncomingHeader(inc, key, out value);
+
         if (propType == typeof(string))
         {
             var typed = (Action<Envelope, string?>)setter.CreateDelegate(typeof(Action<Envelope, string?>));
-            return (env, inc) => typed(env, readString(inc, headerKey));
+            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw) ? raw : null);
         }
         if (propType == typeof(Uri))
         {
             var typed = (Action<Envelope, Uri?>)setter.CreateDelegate(typeof(Action<Envelope, Uri?>));
-            return (env, inc) => typed(env, readUri(inc, headerKey));
+            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw) ? new Uri(raw!) : null);
         }
         if (propType == typeof(Guid))
         {
             var typed = (Action<Envelope, Guid>)setter.CreateDelegate(typeof(Action<Envelope, Guid>));
-            return (env, inc) => typed(env, readGuid(inc, headerKey));
+            return (env, inc) => typed(env,
+                read(env, inc, headerKey, out var raw) && Guid.TryParse(raw, out var uuid) ? uuid : Guid.Empty);
         }
         if (propType == typeof(bool))
         {
             var typed = (Action<Envelope, bool>)setter.CreateDelegate(typeof(Action<Envelope, bool>));
-            return (env, inc) => typed(env, readBoolean(inc, headerKey));
+            return (env, inc) => typed(env,
+                read(env, inc, headerKey, out var raw) && bool.TryParse(raw, out var flag) && flag);
         }
         if (propType == typeof(DateTimeOffset))
         {
             var typed = (Action<Envelope, DateTimeOffset>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset>));
-            return (env, inc) => typed(env, readDateTimeOffset(inc, headerKey));
+            return (env, inc) => typed(env,
+                read(env, inc, headerKey, out var raw) && DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat,
+                    null, DateTimeStyles.AssumeUniversal, out var time)
+                    ? time
+                    : default);
         }
         if (propType == typeof(DateTimeOffset?))
         {
             var typed = (Action<Envelope, DateTimeOffset?>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset?>));
-            return (env, inc) => typed(env, readNullableDateTimeOffset(inc, headerKey));
+            return (env, inc) => typed(env,
+                read(env, inc, headerKey, out var raw) && DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat,
+                    null, DateTimeStyles.AssumeUniversal, out var time)
+                    ? time
+                    : null);
         }
         if (propType == typeof(int))
         {
             var typed = (Action<Envelope, int>)setter.CreateDelegate(typeof(Action<Envelope, int>));
-            return (env, inc) => typed(env, readInt(inc, headerKey));
+            return (env, inc) => typed(env,
+                read(env, inc, headerKey, out var raw) && int.TryParse(raw, out var number) ? number : default);
         }
         if (propType == typeof(string[]))
         {
             var typed = (Action<Envelope, string[]>)setter.CreateDelegate(typeof(Action<Envelope, string[]>));
-            return (env, inc) => typed(env, readStringArray(inc, headerKey));
+            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw) ? raw!.Split(',') : []);
         }
 
         // Fallback: treat as string — matches the original expression-tree code
         // which defaulted to readString for unknown property types.
         {
             var typed = (Action<Envelope, string?>)setter.CreateDelegate(typeof(Action<Envelope, string?>));
-            return (env, inc) => typed(env, readString(inc, headerKey));
+            return (env, inc) => typed(env, read(env, inc, headerKey, out var raw) ? raw : null);
         }
     }
 
@@ -390,10 +440,20 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
 
     protected void writeOutgoingOtherHeaders(TOutgoing outgoing, Envelope envelope)
     {
-        var reserved = _envelopeToHeader.Values.ToArray();
+        if (envelope.Headers.Count == 0)
+        {
+            return;
+        }
 
-        foreach (var header in envelope.Headers.Where(x => !reserved.Contains(x.Key)))
-            writeOutgoingHeader(outgoing, header.Key, header.Value!);
+        var reserved = _reservedHeaderKeys ??= new HashSet<string>(_envelopeToHeader.Values);
+
+        foreach (var header in envelope.Headers)
+        {
+            if (!reserved.Contains(header.Key))
+            {
+                writeOutgoingHeader(outgoing, header.Key, header.Value!);
+            }
+        }
     }
 
     protected abstract void writeOutgoingHeader(TOutgoing outgoing, string key, string value);
