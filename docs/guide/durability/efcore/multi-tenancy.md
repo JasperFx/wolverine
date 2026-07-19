@@ -215,3 +215,84 @@ public class MyMessageHandler
 The important thing to note above is just that this pattern and service will work with any .NET code and not just within Wolverine
 handlers or HTTP endpoints. This is your primary mechanism most likely to start transforming an existing AspNetCore system that isn't
 using Wolverine.HTTP. 
+
+## Conjoined Multi-Tenancy <Badge type="tip" text="6.21" />
+
+::: tip
+Conjoined tenancy is the same model Marten calls ["conjoined" multi-tenancy](https://martendb.io/documents/multi-tenancy.html) —
+one shared database and schema, with each row tagged and filtered by a `tenant_id` column. The `ITenanted` marker interface is
+shared across the whole Critter Stack from `JasperFx.MultiTenancy`, so the exact same marker drives conjoined behavior in
+Marten, Polecat, and Wolverine's EF Core integration.
+:::
+
+The database-per-tenant model above isn't the right fit for every system. If you want all tenants in a **single, shared
+database** — one connection string, one set of tables, a `tenant_id` discriminator column — use Wolverine's *conjoined*
+multi-tenancy for EF Core. Marking an entity with `JasperFx.MultiTenancy.ITenanted` is all it takes:
+
+<!-- snippet: sample_conjoined_tenanted_entity -->
+<a id='snippet-sample_conjoined_tenanted_entity'></a>
+```cs
+// Implementing the JasperFx.MultiTenancy.ITenanted interface --
+// the same marker interface Marten uses for conjoined tenancy --
+// opts this entity into Wolverine's conjoined multi-tenancy
+public class TenantedItem : ITenanted
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = null!;
+
+    // Wolverine maps, stamps, and hydrates this for you. Treat the
+    // value as framework-managed
+    public string? TenantId { get; set; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L247-L262' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenanted_entity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+and registering the `DbContext` with conjoined tenancy:
+
+<!-- snippet: sample_conjoined_tenancy_with_postgresql -->
+<a id='snippet-sample_conjoined_tenancy_with_postgresql'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+var configuration = builder.Configuration;
+
+builder.UseWolverine(opts =>
+{
+    // One single database for messaging persistence *and*
+    // all tenanted application data
+    opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!);
+
+    // Conjoined multi-tenancy: every entity implementing
+    // JasperFx.MultiTenancy.ITenanted is mapped with a tenant_id column,
+    // filtered by the current tenant on every query, stamped with the
+    // ambient tenant id on inserts, and guarded against cross-tenant
+    // updates and deletes
+    opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+        (builder, connectionString) =>
+        {
+            builder.UseNpgsql(connectionString.Value);
+        }, AutoCreate.CreateOrUpdate);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L221-L244' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_postgresql' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+With that registration, Wolverine takes over all the mechanical multi-tenancy chores you would otherwise hand-roll
+with EF Core query filters:
+
+* Every `ITenanted` entity is mapped with a `tenant_id` column (defaulted to Wolverine's `*DEFAULT*` tenant sentinel) and an index on that column
+* A global query filter binds every query to the tenant of the current message or HTTP request — there are no named filters for your team to remember, and no "one forgotten `IgnoreQueryFilters()`" data leakage from ad hoc LINQ
+* On `SaveChanges`, inserted entities are stamped with the ambient tenant id (after any `TenantIdStyle` correction)
+* Updates or deletes against an entity belonging to a *different* tenant throw `CrossTenantWriteException` instead of quietly crossing tenant boundaries
+* Sagas implementing `ITenanted` get tenant-scoped loads — the same saga id in two different tenants are two different sagas as far as loading is concerned
+* All of Wolverine's existing tenant id detection (message `TenantId`, [HTTP tenant detection](/guide/http/multi-tenancy.html#tenant-id-detection), `InvokeForTenantAsync()`) flows through unchanged
+
+Because conjoined tenancy is a single database, the messaging storage is just the plain, non-tenanted message store —
+there's no per-tenant inbox/outbox to manage, and the transactional middleware and outbox work exactly as they do in
+a single-tenant application.
+
+Note that a `DbContext` type registered with conjoined tenancy is pinned to the tenant id of the message being handled
+at the time it's created. If you need to query across tenants for administrative functions, use `IgnoreQueryFilters()`
+in your LINQ queries — but remember that the write-side guards will still stop you from modifying another tenant's data
+through a tenant-pinned `DbContext`.

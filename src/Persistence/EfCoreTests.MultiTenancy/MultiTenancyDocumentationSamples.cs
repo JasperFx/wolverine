@@ -214,3 +214,51 @@ public class MyMessageHandler
 
 public record CreateItem(string Name);
 
+public class ConjoinedTenancyDocumentationSamples
+{
+    public async Task conjoined_postgresql()
+    {
+        #region sample_conjoined_tenancy_with_postgresql
+        var builder = Host.CreateApplicationBuilder();
+
+        var configuration = builder.Configuration;
+
+        builder.UseWolverine(opts =>
+        {
+            // One single database for messaging persistence *and*
+            // all tenanted application data
+            opts.PersistMessagesWithPostgresql(configuration.GetConnectionString("main")!);
+
+            // Conjoined multi-tenancy: every entity implementing
+            // JasperFx.MultiTenancy.ITenanted is mapped with a tenant_id column,
+            // filtered by the current tenant on every query, stamped with the
+            // ambient tenant id on inserts, and guarded against cross-tenant
+            // updates and deletes
+            opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.ConjoinedItemsDbContext>(
+                (builder, connectionString) =>
+                {
+                    builder.UseNpgsql(connectionString.Value);
+                }, AutoCreate.CreateOrUpdate);
+        });
+
+        #endregion
+    }
+
+    #region sample_conjoined_tenanted_entity
+
+    // Implementing the JasperFx.MultiTenancy.ITenanted interface --
+    // the same marker interface Marten uses for conjoined tenancy --
+    // opts this entity into Wolverine's conjoined multi-tenancy
+    public class TenantedItem : ITenanted
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = null!;
+
+        // Wolverine maps, stamps, and hydrates this for you. Treat the
+        // value as framework-managed
+        public string? TenantId { get; set; }
+    }
+
+    #endregion
+}
+
