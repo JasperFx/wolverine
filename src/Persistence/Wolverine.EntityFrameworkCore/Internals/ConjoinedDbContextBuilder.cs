@@ -148,6 +148,8 @@ public class ConjoinedDbContextBuilder<T> : IDbContextBuilder<T> where T : DbCon
         var builder = new DbContextOptionsBuilder<T>();
         builder.UseApplicationServiceProvider(_serviceProvider);
         builder.ReplaceService<IModelCustomizer, ConjoinedTenancyModelCustomizer>();
+        // Cache models per (context type, wolverine schema) -- GH-3497
+        builder.ReplaceService<IModelCacheKeyFactory, WolverineModelCacheKeyFactory>();
         builder.AddInterceptors(TenantStampingInterceptor.Instance);
         _configuration(builder, new ConnectionString(connectionString!));
 
