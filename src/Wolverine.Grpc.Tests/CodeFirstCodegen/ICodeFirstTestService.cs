@@ -17,6 +17,7 @@ public interface ICodeFirstTestService
 {
     Task<CodeFirstReply> Echo(CodeFirstRequest request, CallContext context = default);
     IAsyncEnumerable<CodeFirstReply> EchoStream(CodeFirstStreamRequest request, CallContext context = default);
+    Task<CodeFirstSumReply> SumStream(IAsyncEnumerable<CodeFirstNumber> numbers, CallContext context = default);
 }
 
 [ProtoContract]
@@ -36,6 +37,38 @@ public class CodeFirstStreamRequest
 public class CodeFirstReply
 {
     [ProtoMember(1)] public string Echo { get; set; } = string.Empty;
+}
+
+[ProtoContract]
+public class CodeFirstNumber
+{
+    [ProtoMember(1)] public int Value { get; set; }
+}
+
+[ProtoContract]
+public class CodeFirstSumReply
+{
+    [ProtoMember(1)] public int Total { get; set; }
+    [ProtoMember(2)] public int Count { get; set; }
+}
+
+/// <summary>
+///     Code-first client-streaming contract whose element type has NO Wolverine handler.
+///     Generation must still succeed (the classifier and codegen don't require a handler);
+///     calling the RPC surfaces the bus's <see cref="NotSupportedException"/> as
+///     <c>Unimplemented</c> through the default exception mapping.
+/// </summary>
+[ServiceContract]
+[WolverineGrpcService]
+public interface ICodeFirstOrphanStreamService
+{
+    Task<CodeFirstSumReply> Collect(IAsyncEnumerable<CodeFirstOrphanNumber> numbers, CallContext context = default);
+}
+
+[ProtoContract]
+public class CodeFirstOrphanNumber
+{
+    [ProtoMember(1)] public int Value { get; set; }
 }
 
 /// <summary>

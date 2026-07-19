@@ -47,6 +47,11 @@ public class tenant_detection_codegen_tests
         // onto the envelope — structurally, without relying on the ambient IMessageContext.
         echoChain.SourceCode.ShouldContain(".TenantId = tenantId");
 
+        // Detection is woven per RPC method — once into the unary Echo AND once into the
+        // client-streaming EchoStreamed (which returns Task<TResponse>, so its body can await
+        // the detection call before draining the inbound stream).
+        (echoChain.SourceCode.Split("TryDetectTenantIdAsync").Length - 1).ShouldBe(2);
+
         graph.HandWrittenChains.ShouldNotBeEmpty();
         var handWritten = graph.HandWrittenChains.Single(c => c.ServiceClassType == typeof(PropagationEchoGrpcService));
         handWritten.SourceCode.ShouldNotBeNull();
@@ -104,6 +109,34 @@ public class tenant_detection_codegen_tests
             new CallContext(new CallOptions(headers: new Metadata { { "x-tenant", "structural" } })));
 
         reply.TenantId.ShouldBe("structural");
+    }
+
+    [Fact]
+    public async Task client_streaming_detection_reaches_the_handler_end_to_end()
+    {
+        // Same proof as explicit_detection_works_even_with_the_propagation_interceptor_disabled,
+        // but through the code-first client-streaming shape: with the runtime interceptor off,
+        // only the detection frame woven into the generated EchoStreamed body can move the
+        // header value onto the scoped bus before the stream is forwarded.
+        await using var host = await TenantDetectionHost.StartAsync(o =>
+        {
+            o.PropagateEnvelopeHeaders = false;
+            o.TenantId.IsRequestHeaderValue("x-tenant");
+        });
+
+        var client = host.CreateClient<ITenantEchoService>();
+
+        static async IAsyncEnumerable<TenantEchoRequest> requests()
+        {
+            yield return new TenantEchoRequest();
+            yield return new TenantEchoRequest();
+            await Task.Yield();
+        }
+
+        var reply = await client.EchoStreamed(requests(),
+            new CallContext(new CallOptions(headers: new Metadata { { "x-tenant", "streamed-tenant" } })));
+
+        reply.TenantId.ShouldBe("streamed-tenant");
     }
 
     [Fact]

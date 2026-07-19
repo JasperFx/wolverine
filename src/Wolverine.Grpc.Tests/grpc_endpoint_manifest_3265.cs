@@ -11,6 +11,8 @@ using Wolverine.Grpc.Tests.HandWrittenChain;
 using Xunit;
 using ProtoStreamGreetingsRequest = GreeterProtoFirstGrpc.Messages.StreamGreetingsRequest;
 using CodeFirstStreamGreetingsRequest = GreeterCodeFirstGrpc.Messages.StreamGreetingsRequest;
+using ProtoGreetingSummary = GreeterProtoFirstGrpc.Messages.GreetingSummary;
+using CodeFirstGreetingSummary = GreeterCodeFirstGrpc.Messages.GreetingSummary;
 
 namespace Wolverine.Grpc.Tests;
 
@@ -18,17 +20,19 @@ namespace Wolverine.Grpc.Tests;
 // supports, so CritterWatch can populate PublisherKind.GrpcEndpoint for each message-publishing origin.
 //
 // The manifest surfaces every RPC kind whose Wolverine-generated wrapper forwards the request to the message bus:
-//   * proto-first  — unary (InvokeAsync), server-streaming (StreamAsync), bidirectional-streaming (StreamAsync)
-//   * code-first   — unary (InvokeAsync), server-streaming (StreamAsync)
+//   * proto-first  — unary (InvokeAsync), server-streaming (StreamAsync), client-streaming (StreamAsync),
+//                    bidirectional-streaming (StreamAsync)
+//   * code-first   — unary (InvokeAsync), server-streaming (StreamAsync), client-streaming (StreamAsync)
 // and deliberately EXCLUDES the two discovery modes Wolverine does not forward to the bus:
 //   * hand-written — the generated wrapper delegates to the user's own service class
 //   * direct-mapped — mapped with no Wolverine chain at all
 // For those two there is no reliable message-publishing origin, so they must never appear in the manifest.
 
 /// <summary>
-///     Shared host discovering the proto-first <c>Greeter</c> sample (unary + server-streaming) and the code-first
-///     <c>IGreeterCodeFirstService</c> contract (unary + server-streaming). Built once for the whole class so the
-///     per-fact assertions stay fast and isolated from the other gRPC services living in the test assembly.
+///     Shared host discovering the proto-first <c>Greeter</c> sample (unary + server- + client-streaming) and the
+///     code-first <c>IGreeterCodeFirstService</c> contract (unary + server- + client-streaming). Built once for the
+///     whole class so the per-fact assertions stay fast and isolated from the other gRPC services living in the
+///     test assembly.
 /// </summary>
 public sealed class GreeterManifestFixture : IAsyncLifetime
 {
@@ -146,7 +150,7 @@ public class grpc_endpoint_manifest_3265 : IClassFixture<GreeterManifestFixture>
         // message is IAsyncEnumerable<HelloRequest>.
         e.RequestType.ShouldBe(typeof(HelloRequest));
         // The response is unwrapped from Task<GreetingSummary>.
-        e.ResponseType.ShouldBe(typeof(GreetingSummary));
+        e.ResponseType.ShouldBe(typeof(ProtoGreetingSummary));
         e.HandlerType.ShouldBe(typeof(GreeterGrpcService));
     }
 
@@ -175,6 +179,33 @@ public class grpc_endpoint_manifest_3265 : IClassFixture<GreeterManifestFixture>
         // Code-first server-streaming returns IAsyncEnumerable<GreetReply>; the response is its element type.
         e.ResponseType.ShouldBe(typeof(GreetReply));
         e.HandlerType.ShouldBe(typeof(IGreeterCodeFirstService));
+    }
+
+    // --- code-first: client-streaming ------------------------------------------------------------------------------
+
+    [Fact]
+    public void code_first_client_streaming_collect_greetings()
+    {
+        var e = codeFirst("CollectGreetings");
+        e.StreamKind.ShouldBe(GrpcRpcStreamKind.ClientStreaming);
+        e.ServiceName.ShouldBe("GreeterCodeFirstService");
+        // The surfaced message is the per-item element type of the inbound request stream; the actual bus
+        // message is IAsyncEnumerable<GreetRequest> — parity with the proto-first client-streaming descriptor.
+        e.RequestType.ShouldBe(typeof(GreetRequest));
+        // The response is unwrapped from Task<GreetingSummary>.
+        e.ResponseType.ShouldBe(typeof(CodeFirstGreetingSummary));
+        e.HandlerType.ShouldBe(typeof(IGreeterCodeFirstService));
+    }
+
+    [Fact]
+    public void collect_greetings_is_surfaced_once_per_discovery_mode()
+    {
+        // Both the proto-first and code-first contracts declare a CollectGreetings RPC; each is its own origin.
+        var collectGreetings = _endpoints.Where(e => e.MethodName == "CollectGreetings").ToArray();
+        collectGreetings.Length.ShouldBe(2);
+        collectGreetings.ShouldAllBe(e => e.StreamKind == GrpcRpcStreamKind.ClientStreaming);
+        collectGreetings.Select(e => e.Mode).OrderBy(m => m)
+            .ShouldBe([GrpcServiceDiscoveryMode.ProtoFirst, GrpcServiceDiscoveryMode.CodeFirst]);
     }
 
     // --- invariants across the whole manifest ----------------------------------------------------------------------

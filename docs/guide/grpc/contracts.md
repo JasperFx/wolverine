@@ -101,13 +101,15 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
 The [GreeterCodeFirstGrpc](https://github.com/JasperFx/wolverine/tree/main/src/Samples/GreeterCodeFirstGrpc)
 sample demonstrates this end-to-end. See [Samples](./samples#greetercodefirstgrpc) for a walkthrough.
 
-::: warning Bidirectional and client streaming are not supported on the generated-implementation path
-The generated implementation recognises **unary** (`Task<TResponse>`) and **server streaming**
-(`IAsyncEnumerable<TResponse>`) method shapes. An interface method with an `IAsyncEnumerable<TRequest>`
-*parameter* (bidirectional or client streaming) is silently skipped — no startup error, but the
-method will not be mapped. Use a hand-written service class for bidi or client-streaming RPCs on
-code-first contracts. Proto-first stubs code-generate all four shapes, including
-[client streaming](./streaming#client-streaming-proto-first).
+::: warning Bidirectional streaming is not generated on the generated-implementation path
+The generated implementation recognises **unary** (`Task<TResponse> Name(TRequest[, CallContext])`),
+**server streaming** (`IAsyncEnumerable<TResponse> Name(TRequest[, CallContext])`), and
+**client streaming** (`Task<TResponse> Name(IAsyncEnumerable<TRequest>[, CallContext])`) method
+shapes. The bidirectional shape — an `IAsyncEnumerable<TRequest>` *parameter* combined with an
+`IAsyncEnumerable<TResponse>` *return* — is silently skipped: no startup error, but the method will
+not be mapped. Use a hand-written service class for bidi RPCs on code-first contracts. Proto-first
+stubs code-generate all four shapes, including
+[bidirectional streaming](./streaming#bidirectional-streaming).
 :::
 
 ::: warning No conflict allowed
@@ -296,8 +298,8 @@ public static class GreeterHandler
 }
 ```
 
-See [Streaming — Client streaming](./streaming#client-streaming-proto-first) for the generated
-wrapper shape and middleware caveats.
+See [Streaming — Client streaming](./streaming#client-streaming) for the generated
+wrapper shape (both contract styles) and middleware caveats.
 
 ## Mixing both in one host
 

@@ -24,6 +24,8 @@ namespace Wolverine.Grpc;
 ///             <see cref="IMessageBus.InvokeAsync{T}"/></item>
 ///       <item>Server-streaming <c>IAsyncEnumerable&lt;TResponse&gt; Name(TRequest[, CallContext])</c> →
 ///             <see cref="IMessageBus.StreamAsync{TResponse}"/></item>
+///       <item>Client-streaming <c>Task&lt;TResponse&gt; Name(IAsyncEnumerable&lt;TRequest&gt;[, CallContext])</c> →
+///             <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/></item>
 ///     </list>
 /// </summary>
 public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, ModifyCodeFirstGrpcServiceChainAttribute>,
@@ -127,9 +129,11 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
     /// <summary>
     ///     Set by <see cref="GrpcTenantIdDetection"/> (the built-in <see cref="IGrpcChainPolicy"/>
     ///     behind <see cref="WolverineGrpcOptions.TenantId"/>) when tenant detection strategies are
-    ///     active. Detection is woven into unary methods that declare a <see cref="CallContext"/>
-    ///     parameter — that is the only route to the underlying <see cref="ServerCallContext"/>
-    ///     (and its request metadata) in the code-first shape. Server-streaming methods return
+    ///     active. Detection is woven into unary and client-streaming methods that declare a
+    ///     <see cref="CallContext"/> parameter — that is the only route to the underlying
+    ///     <see cref="ServerCallContext"/> (and its request metadata) in the code-first shape, and
+    ///     both shapes return <see cref="Task{TResult}"/> so the generated body can await the
+    ///     detection call before dispatching. Server-streaming methods return
     ///     <see cref="IAsyncEnumerable{T}"/> directly and cannot host the async detection call.
     /// </summary>
     internal GrpcTenantIdDetection? TenantDetection { get; set; }
@@ -193,12 +197,13 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
             if (contextArg != null)
                 generatedMethod.Sources.Add(new CallContextCancellationTokenSource(contextArg));
 
-            // Tenant detection first. Only unary methods with a CallContext parameter qualify:
-            // the CallContext is the sole route to ServerCallContext/request metadata here, and a
-            // server-streaming method returns IAsyncEnumerable<T> directly so its body cannot
-            // await the detection call.
+            // Tenant detection first. Only unary and client-streaming methods with a CallContext
+            // parameter qualify: the CallContext is the sole route to ServerCallContext/request
+            // metadata here, and both shapes return Task<TResponse> so the body can await the
+            // detection call. A server-streaming method returns IAsyncEnumerable<T> directly so
+            // its body cannot await the detection call.
             var detectTenantId = TenantDetection != null
-                                 && rpc.Kind == CodeFirstMethodKind.Unary
+                                 && rpc.Kind is CodeFirstMethodKind.Unary or CodeFirstMethodKind.ClientStreaming
                                  && contextArg != null;
 
             if (detectTenantId)
@@ -212,39 +217,49 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                     $"{contextArg!.Usage}.{nameof(CallContext.ServerCallContext)}", busField, null));
             }
 
-            // Global middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
-            // because Frame instances hold per-method mutable state (Next pointer, variable bindings).
-            foreach (var frame in CloneFrames(Middleware))
-                generatedMethod.Frames.Add(frame);
+            // Per-call middleware (including the Validate short-circuit) requires a concrete
+            // TRequest in scope when the method begins. A client-streaming method starts with an
+            // IAsyncEnumerable<TRequest> rather than a single TRequest, so — matching the
+            // proto-first rationale — no middleware is woven for that shape.
+            var weaveMiddleware = rpc.Kind != CodeFirstMethodKind.ClientStreaming;
 
-            // Per-method handler-type discovery: find the Wolverine handler class(es) for this
-            // RPC's request type and scan them for [WolverineBefore]/[WolverineAfter] hooks.
-            // This is the same idiom as HandlerChain — middleware lives on the handler class.
-            var rpcRequestType = rpc.Method.GetParameters()[0].ParameterType;
-            var handlerTypes = HandlerTypesFor(rpcRequestType).ToArray();
-
-            var befores = handlerTypes
-                .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(
-                                      this, ht.GetMethods(), MiddlewarePolicy.BeforeMethodNames))
-                .OrderBy(m => m.Name, StringComparer.Ordinal)
-                .ToArray();
-
-            var afters = handlerTypes
-                .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(
-                                      this, ht.GetMethods(), MiddlewarePolicy.AfterMethodNames))
-                .OrderBy(m => m.Name, StringComparer.Ordinal)
-                .ToArray();
-
-            foreach (var before in befores)
+            var afters = Array.Empty<MethodInfo>();
+            if (weaveMiddleware)
             {
-                if (!IsBeforeApplicable(before, rpcRequestType)) continue;
+                // Global middleware befores (from grpc.AddMiddleware<T>()) — cloned per method
+                // because Frame instances hold per-method mutable state (Next pointer, variable bindings).
+                foreach (var frame in CloneFrames(Middleware))
+                    generatedMethod.Frames.Add(frame);
 
-                var call = new MethodCall(before.DeclaringType!, before);
-                generatedMethod.Frames.Add(call);
+                // Per-method handler-type discovery: find the Wolverine handler class(es) for this
+                // RPC's request type and scan them for [WolverineBefore]/[WolverineAfter] hooks.
+                // This is the same idiom as HandlerChain — middleware lives on the handler class.
+                var rpcRequestType = rpc.Method.GetParameters()[0].ParameterType;
+                var handlerTypes = HandlerTypesFor(rpcRequestType).ToArray();
 
-                var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
-                if (statusVar != null)
-                    generatedMethod.Frames.Add(new GrpcValidateShortCircuitFrame(statusVar));
+                var befores = handlerTypes
+                    .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineBeforeAttribute>(
+                                          this, ht.GetMethods(), MiddlewarePolicy.BeforeMethodNames))
+                    .OrderBy(m => m.Name, StringComparer.Ordinal)
+                    .ToArray();
+
+                afters = handlerTypes
+                    .SelectMany(ht => MiddlewarePolicy.FilterMethods<WolverineAfterAttribute>(
+                                          this, ht.GetMethods(), MiddlewarePolicy.AfterMethodNames))
+                    .OrderBy(m => m.Name, StringComparer.Ordinal)
+                    .ToArray();
+
+                foreach (var before in befores)
+                {
+                    if (!IsBeforeApplicable(before, rpcRequestType)) continue;
+
+                    var call = new MethodCall(before.DeclaringType!, before);
+                    generatedMethod.Frames.Add(call);
+
+                    var statusVar = call.Creates.FirstOrDefault(v => v.VariableType == typeof(Status?));
+                    if (statusVar != null)
+                        generatedMethod.Frames.Add(new GrpcValidateShortCircuitFrame(statusVar));
+                }
             }
 
             // AsyncMode must account for both discovered afters and global postprocessors.
@@ -267,6 +282,15 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
                 case CodeFirstMethodKind.ServerStreaming:
                     generatedMethod.Frames.Add(new ForwardCodeFirstServerStreamFrame(rpc.Method, busField));
                     break;
+
+                case CodeFirstMethodKind.ClientStreaming:
+                    generatedMethod.Frames.Add(new ForwardCodeFirstClientStreamFrame(rpc.Method, busField)
+                    {
+                        // Same forcing rule as unary: tenant detection makes the method async,
+                        // so 'return _bus.StreamAsync(...)' must become 'return await ...'.
+                        ForceAwait = detectTenantId
+                    });
+                    break;
             }
 
             // Discovered afters (unary only — streaming owns its own lifecycle).
@@ -277,8 +301,11 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
             }
 
             // Global middleware afters (from grpc.AddMiddleware<T>()) — cloned per method.
-            foreach (var frame in CloneFrames(Postprocessors))
-                generatedMethod.Frames.Add(frame);
+            if (weaveMiddleware)
+            {
+                foreach (var frame in CloneFrames(Postprocessors))
+                    generatedMethod.Frames.Add(frame);
+            }
         }
     }
 
@@ -396,7 +423,11 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
     ///         <list type="bullet">
     ///           <item>Unary: <c>Task&lt;TResponse&gt; Name(TRequest[, CallContext])</c></item>
     ///           <item>Server-streaming: <c>IAsyncEnumerable&lt;TResponse&gt; Name(TRequest[, CallContext])</c></item>
+    ///           <item>Client-streaming: <c>Task&lt;TResponse&gt; Name(IAsyncEnumerable&lt;TRequest&gt;[, CallContext])</c></item>
     ///         </list>
+    ///         The bidirectional shape
+    ///         (<c>IAsyncEnumerable&lt;TResponse&gt; Name(IAsyncEnumerable&lt;TRequest&gt;[, CallContext])</c>)
+    ///         is deliberately not generated and is skipped, not misclassified.
     ///     </para>
     /// </summary>
     private static CodeFirstMethodKind? ClassifyMethod(MethodInfo method)
@@ -404,16 +435,25 @@ public class CodeFirstGrpcServiceChain : Chain<CodeFirstGrpcServiceChain, Modify
         var parameters = method.GetParameters();
         if (parameters.Length == 0 || parameters.Length > 2) return null;
 
-        // The first parameter must be a concrete message type (the request DTO).
-        var requestType = parameters[0].ParameterType;
-        if (!requestType.IsClass || requestType.IsAbstract) return null;
-
         // An optional second parameter must be CallContext.
         if (parameters.Length == 2 && parameters[1].ParameterType != typeof(CallContext)) return null;
 
         if (!method.ReturnType.IsGenericType) return null;
 
         var returnOpen = method.ReturnType.GetGenericTypeDefinition();
+
+        var requestType = parameters[0].ParameterType;
+
+        // A streamed request (IAsyncEnumerable<TRequest>) is client-streaming only when the
+        // return is Task<TResponse>. An IAsyncEnumerable<TResponse> return alongside a streamed
+        // request is the bidirectional shape, which is not generated — skip it cleanly.
+        if (requestType.IsGenericType && requestType.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>))
+        {
+            return returnOpen == typeof(Task<>) ? CodeFirstMethodKind.ClientStreaming : null;
+        }
+
+        // Otherwise the first parameter must be a concrete message type (the request DTO).
+        if (!requestType.IsClass || requestType.IsAbstract) return null;
 
         // Unary: Task<TResponse>
         if (returnOpen == typeof(Task<>)) return CodeFirstMethodKind.Unary;
@@ -469,7 +509,16 @@ public enum CodeFirstMethodKind
     ///     Server-streaming: <c>IAsyncEnumerable&lt;TResponse&gt; Name(TRequest[, CallContext])</c>.
     ///     Forwarded via <see cref="IMessageBus.StreamAsync{TResponse}"/>.
     /// </summary>
-    ServerStreaming
+    ServerStreaming,
+
+    /// <summary>
+    ///     Client-streaming: <c>Task&lt;TResponse&gt; Name(IAsyncEnumerable&lt;TRequest&gt;[, CallContext])</c>.
+    ///     The inbound stream is forwarded as-is to
+    ///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}"/> for a single response —
+    ///     protobuf-net.Grpc already hands the method an <see cref="IAsyncEnumerable{T}"/>, so no
+    ///     stream-reader adapter is needed on this path.
+    /// </summary>
+    ClientStreaming
 }
 
 /// <summary>
@@ -598,5 +647,68 @@ internal sealed class ForwardCodeFirstServerStreamFrame : SyncFrame
         writer.Write(
             $"return {_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{responseType.FullNameInCode()}>({requestName}, {_cancellationToken!.Usage});");
         Next?.GenerateCode(method, writer);
+    }
+}
+
+/// <summary>
+///     Emits <c>return _bus.StreamAsync&lt;TRequest, TResponse&gt;(requests, context.CancellationToken);</c>
+///     for a code-first client-streaming interface method. Unlike the proto-first equivalent
+///     (<c>ForwardClientStreamToMessageBusFrame</c>), no stream-reader adapter is involved:
+///     protobuf-net.Grpc hands the method the inbound stream as <see cref="IAsyncEnumerable{T}"/>
+///     directly, which is exactly what
+///     <see cref="IMessageBus.StreamAsync{TRequest, TResponse}(IAsyncEnumerable{TRequest}, CancellationToken, TimeSpan?)"/>
+///     consumes. The <see cref="CancellationToken"/> is resolved via
+///     <see cref="CallContextCancellationTokenSource"/> — same composable pattern as the other
+///     code-first frames.
+/// </summary>
+internal sealed class ForwardCodeFirstClientStreamFrame : SyncFrame
+{
+    private readonly MethodInfo _rpc;
+    private readonly InjectedField _busField;
+    private Variable? _cancellationToken;
+
+    public ForwardCodeFirstClientStreamFrame(MethodInfo rpc, InjectedField busField)
+    {
+        _rpc = rpc;
+        _busField = busField;
+    }
+
+    /// <summary>
+    ///     Set when an earlier frame (tenant detection) forced the generated method into
+    ///     <see cref="AsyncMode.AsyncTask"/> — the frame must then await the bus call rather than
+    ///     returning the task directly, even when it is the last frame in the method.
+    /// </summary>
+    public bool ForceAwait { get; init; }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _cancellationToken = chain.FindVariable(typeof(CancellationToken));
+        yield return _cancellationToken;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        var parameters = _rpc.GetParameters();
+        var requestName = parameters[0].Name ?? "arg0";
+
+        // IAsyncEnumerable<TRequest> → TRequest; Task<TResponse> → TResponse
+        var requestType = parameters[0].ParameterType.GetGenericArguments()[0];
+        var responseType = _rpc.ReturnType.GetGenericArguments()[0];
+
+        var busInvoke =
+            $"{_busField.Usage}.{nameof(IMessageBus.StreamAsync)}<{requestType.FullNameInCode()}, {responseType.FullNameInCode()}>({requestName}, {_cancellationToken!.Usage})";
+
+        if (Next == null && !ForceAwait)
+        {
+            writer.Write($"return {busInvoke};");
+        }
+        else
+        {
+            // An earlier async frame (tenant detection) forced AsyncMode — await so the
+            // method body stays valid.
+            writer.Write($"var result = await {busInvoke};");
+            Next?.GenerateCode(method, writer);
+            writer.Write("return result;");
+        }
     }
 }

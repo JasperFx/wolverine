@@ -125,10 +125,12 @@ and comparisons to the official `grpc-dotnet` examples.
 
 ## Current Limitations
 
-- **Client streaming is proto-first only.** The code-first (protobuf-net.Grpc)
-  generated-implementation path does not recognize the `IAsyncEnumerable<TRequest> → Task<TResponse>`
-  shape — implement those methods by hand against `IMessageBus.StreamAsync`. All four RPC
-  shapes are code-generated for proto-first stubs — see [Streaming](./streaming).
+- **Code-first bidirectional streaming is not generated.** All four RPC shapes are
+  code-generated for proto-first stubs, and unary, server-streaming, and client-streaming are
+  code-generated for code-first (protobuf-net.Grpc) contracts — but a code-first method with
+  both an `IAsyncEnumerable<TRequest>` parameter and an `IAsyncEnumerable<TResponse>` return is
+  skipped. Implement bidi methods on a hand-written service class against
+  `IMessageBus.StreamAsync` — see [Streaming](./streaming).
 
 ## Roadmap
 
