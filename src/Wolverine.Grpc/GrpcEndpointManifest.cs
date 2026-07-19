@@ -7,8 +7,8 @@ namespace Wolverine.Grpc;
 /// <summary>
 ///     Projects <see cref="GrpcGraph"/>'s discovered proto-first and code-first service chains into the core
 ///     <see cref="IGrpcEndpointManifest"/> abstraction. Every RPC whose generated wrapper forwards the request to the
-///     message bus is included — unary (via <c>IMessageBus.InvokeAsync</c>) plus server- and bidirectional-streaming
-///     (via <c>IMessageBus.StreamAsync</c>) — so the request type is genuinely the published Wolverine message
+///     message bus is included — unary (via <c>IMessageBus.InvokeAsync</c>) plus server-, client-, and
+///     bidirectional-streaming (via the <c>IMessageBus.StreamAsync</c> overloads) — so the request type is genuinely the published Wolverine message
 ///     (GH-3265). Hand-written and direct-mapped services are excluded: Wolverine delegates those to the user's own
 ///     implementation rather than forwarding to the bus, so there is no reliable message-publishing origin to surface.
 /// </summary>
@@ -130,13 +130,34 @@ internal sealed class GrpcEndpointManifest : IGrpcEndpointManifest
             }
         }
 
-        // Code-first: unary and server-streaming are bus-forwarded (no bidi shape in the code-first model).
+        // Code-first: unary, server-streaming, and client-streaming are bus-forwarded (the bidi shape is not
+        // generated in the code-first model).
         foreach (var chain in graph.CodeFirstChains)
         {
             var serviceName = serviceNameFor(chain.ServiceContractType);
 
             foreach (var rpc in chain.SupportedMethods)
             {
+                // Client-streaming: Task<TResponse> Name(IAsyncEnumerable<TRequest>[, CallContext]).
+                // The whole inbound stream is forwarded via StreamAsync, so the surfaced request type is the
+                // per-item element type of the request stream (the actual bus message is IAsyncEnumerable<TRequest>) —
+                // parity with the proto-first client-streaming descriptors above.
+                if (rpc.Kind == CodeFirstMethodKind.ClientStreaming)
+                {
+                    var requestType = genericArgument(rpc.Method.GetParameters()[0].ParameterType);
+                    if (requestType == null) continue; // defensive: a streamed request always has an element type
+
+                    descriptors.Add(new GrpcEndpointDescriptor(
+                        serviceName,
+                        rpc.Method.Name,
+                        requestType,
+                        genericArgument(rpc.Method.ReturnType),
+                        chain.ServiceContractType,
+                        GrpcServiceDiscoveryMode.CodeFirst,
+                        GrpcRpcStreamKind.ClientStreaming));
+                    continue;
+                }
+
                 // Unary returns Task<TResponse>; server-streaming returns IAsyncEnumerable<TResponse>. Either way the
                 // response type is the single generic argument of the return type, and the request is the first param.
                 var streamKind = rpc.Kind == CodeFirstMethodKind.ServerStreaming

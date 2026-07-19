@@ -11,9 +11,10 @@ namespace Wolverine.Grpc;
 /// </summary>
 /// <remarks>
 ///     Receives all three chain kinds as typed lists so implementations can target a specific
-///     chain type without casting. Code-first chains (<see cref="CodeFirstGrpcServiceChain"/>)
-///     are included for inspection even though they do not yet participate in the
-///     <c>Chain&lt;&gt;</c> middleware pipeline (P3).
+///     chain type without casting. All three participate in the <c>Chain&lt;&gt;</c> middleware
+///     pipeline — code-first chains (<see cref="CodeFirstGrpcServiceChain"/>) weave global
+///     middleware and handler-class Before/After hooks into their generated methods just like
+///     the proto-first and hand-written chains do.
 /// </remarks>
 public interface IGrpcChainPolicy
 {

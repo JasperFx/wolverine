@@ -26,4 +26,24 @@ public static class GreeterHandler
             await Task.Yield();
         }
     }
+
+    // Client streaming: the generated implementation receives the RPC's inbound stream as
+    // IAsyncEnumerable<GreetRequest> and forwards it via IMessageBus.StreamAsync, so the
+    // handler folds N requests into one reply.
+    public static async Task<GreetingSummary> Handle(
+        IAsyncEnumerable<GreetRequest> requests,
+        CancellationToken cancellationToken)
+    {
+        var names = new List<string>();
+        await foreach (var request in requests.WithCancellation(cancellationToken))
+        {
+            names.Add(request.Name);
+        }
+
+        return new GreetingSummary
+        {
+            Count = names.Count,
+            Message = names.Count == 0 ? "Hello, nobody" : $"Hello, {string.Join(" & ", names)}"
+        };
+    }
 }

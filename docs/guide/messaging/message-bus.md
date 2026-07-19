@@ -336,7 +336,7 @@ A few things worth knowing about `StreamAsync<TRequest, TResponse>`:
   `StreamAsync<TRequest, TResponse>(IAsyncEnumerable<TRequest> messages, DeliveryOptions options, ...)`.
 
 This is the primitive behind gRPC client streaming — see
-[gRPC Services / Streaming](/guide/grpc/streaming#client-streaming-proto-first) for exposing a
+[gRPC Services / Streaming](/guide/grpc/streaming#client-streaming) for exposing a
 stream-folding handler over the wire.
 
 ## Sending or Publishing Messages

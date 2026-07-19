@@ -22,3 +22,17 @@ await foreach (var item in greeter.StreamGreetings(new StreamGreetingsRequest { 
 {
     Console.WriteLine($"  {item.Message}");
 }
+
+// Client streaming: stream several GreetRequests, get back one folded GreetingSummary.
+// The client side is just an IAsyncEnumerable — no stream-writer plumbing needed.
+static async IAsyncEnumerable<GreetRequest> Names()
+{
+    foreach (var name in new[] { "Erik", "Ripley", "Newt" })
+    {
+        yield return new GreetRequest { Name = name };
+        await Task.Yield();
+    }
+}
+
+var summary = await greeter.CollectGreetings(Names());
+Console.WriteLine($"CollectGreetings -> {summary.Message} ({summary.Count} greetings)");

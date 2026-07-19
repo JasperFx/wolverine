@@ -19,6 +19,10 @@ namespace Wolverine.Grpc.Tests.MultiTenancy;
 public interface ITenantEchoService
 {
     Task<TenantEchoReply> Echo(TenantEchoRequest request, CallContext context = default);
+
+    // Client-streaming shape: returns Task<TResponse>, so the generated body can await tenant
+    // detection before draining the stream — parity with the unary shape (and with proto-first).
+    Task<TenantEchoReply> EchoStreamed(IAsyncEnumerable<TenantEchoRequest> requests, CallContext context = default);
 }
 
 [ProtoContract]
@@ -41,6 +45,16 @@ public static class TenantEchoHandler
 {
     public static TenantEchoReply Handle(TenantEchoRequest request, IMessageContext context)
     {
+        return new TenantEchoReply { TenantId = context.TenantId };
+    }
+
+    public static async Task<TenantEchoReply> Handle(
+        IAsyncEnumerable<TenantEchoRequest> requests, IMessageContext context)
+    {
+        await foreach (var _ in requests)
+        {
+        }
+
         return new TenantEchoReply { TenantId = context.TenantId };
     }
 }

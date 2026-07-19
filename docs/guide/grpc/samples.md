@@ -23,7 +23,7 @@ changes is whether your business code knows about gRPC.
 |---|---|---|---|
 | [PingPongWithGrpc](#pingpongwithgrpc)                     | Unary                | Code-first (hand-written)  | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [PingPongWithGrpcStreaming](#pingpongwithgrpcstreaming)   | Server streaming     | Code-first (hand-written)  | [Counter](https://github.com/grpc/grpc-dotnet/tree/master/examples#counter) |
-| [GreeterCodeFirstGrpc](#greetercodefirstgrpc)             | Unary + server streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
+| [GreeterCodeFirstGrpc](#greetercodefirstgrpc)             | Unary + server streaming + client streaming | Code-first (generated) | [Coder](https://github.com/grpc/grpc-dotnet/tree/master/examples#coder) |
 | [GreeterProtoFirstGrpc](#greeterprotofirstgrpc)           | Unary + server streaming + client streaming + exception mapping | Proto-first | [Greeter](https://github.com/grpc/grpc-dotnet/tree/master/examples#greeter) |
 | [RacerWithGrpc](#racerwithgrpc)                           | Bidirectional streaming | Code-first (hand-written) | [Racer](https://github.com/grpc/grpc-dotnet/tree/master/examples#racer) |
 | [GreeterWithGrpcErrors](#greeterwithgrpcerrors)           | Unary + rich error details | Code-first (hand-written) | (no direct equivalent — closest is Greeter + a custom interceptor) |
@@ -103,8 +103,14 @@ public interface IGreeterCodeFirstService
 {
     Task<GreetReply> Greet(GreetRequest request, CallContext context = default);
     IAsyncEnumerable<GreetReply> StreamGreetings(StreamGreetingsRequest request, CallContext context = default);
+    Task<GreetingSummary> CollectGreetings(IAsyncEnumerable<GreetRequest> requests, CallContext context = default);
 }
 ```
+
+All three generated shapes are exercised: unary, server streaming, and client streaming — the
+`CollectGreetings` method mirrors the proto-first sample's RPC of the same name, but the client
+side is just an `IAsyncEnumerable<GreetRequest>` handed to the interface proxy (no
+request-stream writer plumbing).
 
 At startup, `MapWolverineGrpcServices()` discovers the interface, generates
 `GreeterCodeFirstServiceGrpcHandler`, and maps it. The server project's `Program.cs` is three
@@ -209,7 +215,7 @@ That's the whole service. Wolverine generates the concrete `GreeterGrpcHandler` 
 startup, and the `Handle` methods on `GreeterHandler` supply the behaviour — including the
 client-streaming handler, which receives the whole inbound stream as
 `IAsyncEnumerable<HelloRequest>` and folds it into one `GreetingSummary` (see
-[Streaming — Client streaming](./streaming#client-streaming-proto-first)).
+[Streaming — Client streaming](./streaming#client-streaming)).
 
 **What to copy**: the abstract-stub pattern for proto-first, the
 `IAsyncEnumerable<TRequest> → Task<TResponse>` handler shape for client streaming, plus how

@@ -17,6 +17,11 @@ public interface IGreeterCodeFirstService
 {
     Task<GreetReply> Greet(GreetRequest request, CallContext context = default);
     IAsyncEnumerable<GreetReply> StreamGreetings(StreamGreetingsRequest request, CallContext context = default);
+
+    // Client streaming: protobuf-net.Grpc hands the generated implementation the inbound
+    // stream as IAsyncEnumerable<GreetRequest>, which Wolverine forwards straight to
+    // IMessageBus.StreamAsync<GreetRequest, GreetingSummary> for a single folded reply.
+    Task<GreetingSummary> CollectGreetings(IAsyncEnumerable<GreetRequest> requests, CallContext context = default);
 }
 
 [ProtoContract]
@@ -36,4 +41,11 @@ public class StreamGreetingsRequest
 public class GreetReply
 {
     [ProtoMember(1)] public string Message { get; set; } = string.Empty;
+}
+
+[ProtoContract]
+public class GreetingSummary
+{
+    [ProtoMember(1)] public string Message { get; set; } = string.Empty;
+    [ProtoMember(2)] public int Count { get; set; }
 }

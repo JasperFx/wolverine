@@ -26,8 +26,20 @@
   and the `Validate` convention are not woven (same constraint as bidirectional streaming). The
   server-side exception interceptor now also translates exceptions from client-streaming handlers
   per AIP-193, and `IGrpcEndpointManifest` surfaces the new `GrpcRpcStreamKind.ClientStreaming`
-  descriptors. The code-first (protobuf-net.Grpc) path is unchanged and still skips this shape. See
-  the [gRPC streaming guide](https://wolverinefx.net/guide/grpc/streaming.html).
+  descriptors. See the [gRPC streaming guide](https://wolverinefx.net/guide/grpc/streaming.html).
+
+- **Code-first client-streaming RPCs are now code-generated too.** A `[WolverineGrpcService]`
+  interface method shaped `Task<TResponse> Name(IAsyncEnumerable<TRequest>[, CallContext])` is no
+  longer skipped — Wolverine generates an implementation forwarding the inbound stream (which
+  protobuf-net.Grpc already exposes as `IAsyncEnumerable<TRequest>`, so no stream-reader adapter
+  is involved) to `IMessageBus.StreamAsync<TRequest, TResponse>`. Tenant-id detection is woven
+  when the method declares a `CallContext` parameter, giving parity with proto-first;
+  before/after middleware and the `Validate` convention are not woven (same constraint as the
+  other streaming shapes). `IGrpcEndpointManifest` surfaces code-first client-streaming
+  descriptors with the per-item element type as the request. New public surface:
+  `CodeFirstMethodKind.ClientStreaming` (appended enum member). The bidirectional code-first
+  shape (`IAsyncEnumerable<TResponse>` return with a streamed request) remains hand-written only.
+  See the [gRPC streaming guide](https://wolverinefx.net/guide/grpc/streaming.html).
 
 ### WolverineFx.Http
 

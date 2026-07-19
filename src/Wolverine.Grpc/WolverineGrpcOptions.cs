@@ -129,8 +129,9 @@ public sealed class WolverineGrpcOptions
     /// </summary>
     /// <param name="middlewareType">The middleware class.</param>
     /// <param name="filter">
-    ///     Optional predicate. When null, defaults to matching every proto-first and hand-written
-    ///     gRPC chain. See <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/> for details.
+    ///     Optional predicate. When null, defaults to matching every Wolverine gRPC chain —
+    ///     proto-first, code-first, and hand-written. See
+    ///     <see cref="AddMiddleware{T}(Func{IChain,bool}?)"/> for details.
     /// </param>
     public void AddMiddleware(Type middlewareType, Func<IChain, bool>? filter = null)
     {
