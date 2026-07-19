@@ -8,9 +8,13 @@ namespace Wolverine.Grpc;
 ///     Projects <see cref="GrpcGraph"/>'s discovered proto-first and code-first service chains into the core
 ///     <see cref="IGrpcEndpointManifest"/> abstraction. Every RPC whose generated wrapper forwards the request to the
 ///     message bus is included — unary (via <c>IMessageBus.InvokeAsync</c>) plus server-, client-, and
-///     bidirectional-streaming (via the <c>IMessageBus.StreamAsync</c> overloads) — so the request type is genuinely the published Wolverine message
-///     (GH-3265). Hand-written and direct-mapped services are excluded: Wolverine delegates those to the user's own
-///     implementation rather than forwarding to the bus, so there is no reliable message-publishing origin to surface.
+///     bidirectional-streaming (via the <c>IMessageBus.StreamAsync</c> overloads) — so each descriptor names a real
+///     message-publishing origin (GH-3265). The surfaced request type is the published Wolverine message for every
+///     shape except client-streaming, where the bus message is <c>IAsyncEnumerable&lt;TRequest&gt;</c> and the manifest
+///     deliberately surfaces the per-item element type <c>TRequest</c> instead (the stream interface itself is not a
+///     useful identity for tooling). Hand-written and direct-mapped services are excluded: Wolverine delegates those
+///     to the user's own implementation rather than forwarding to the bus, so there is no reliable message-publishing
+///     origin to surface.
 /// </summary>
 internal sealed class GrpcEndpointManifest : IGrpcEndpointManifest
 {
