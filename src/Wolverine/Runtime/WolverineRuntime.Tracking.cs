@@ -28,7 +28,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     private static readonly Action<ILogger, Envelope, Exception?> _undeliverable;
     private readonly Counter<int> _deadLetterQueueCounter;
     private readonly Histogram<double> _effectiveTime;
-    private readonly Histogram<long> _executionCounter;
+    private readonly Histogram<double> _executionCounter;
     private readonly Counter<int> _failureCounter;
     private readonly Counter<int> _receivedCounter;
     private readonly Counter<int> _sentCounter;
@@ -127,7 +127,7 @@ public sealed partial class WolverineRuntime : IMessageTracker
     public void ExecutionFinished(Envelope envelope)
     {
         var time = envelope.StopTiming();
-        if (time > 0)
+        if (time >= 0)
         {
             _executionCounter.Record(time, metricTags(envelope));
         }

@@ -126,9 +126,9 @@ For any dictionary lookup where performance matters — per-message work, per-En
 If a hot path is paying for **mutation** (not lookup), the right fix is **pre-population at bootstrap** — typically inside the relevant `chain.Compile()` or `WolverineRuntime.HostService.StartAsync()` path — so steady-state runtime sees pure reads. Keep the `ImHashMap` field type.
 
 Examples in the codebase:
-- `WolverineMessageNaming._typeNames` (`src/Wolverine/Util/WolverineMessageNaming.cs:128`) — pre-populated via `PrepopulateCache(IEnumerable<Type>)` at startup.
-- `HandlerGraph._chains` / `_handlers` (`src/Wolverine/Runtime/Handlers/HandlerGraph.cs:40,42`) — built once in `Compile()`.
-- `Endpoint._serializers` (`src/Wolverine/Configuration/Endpoint.cs:565-581`) — currently does a hot-path `AddOrUpdate` on first miss; the right fix is to pre-populate during `Endpoint.Compile()`, not to swap the data structure.
+- `WolverineMessageNaming._typeNames` (`src/Wolverine/Util/WolverineMessageNaming.cs:140`) — pre-populated via `PrepopulateCache(IEnumerable<Type>)` at startup.
+- `HandlerGraph._chains` / `_handlers` (`src/Wolverine/Runtime/Handlers/HandlerGraph.cs:41,43`) — built once in `Compile()`.
+- `Endpoint._serializers` (`src/Wolverine/Configuration/Endpoint.cs:185`) — `Endpoint.Compile()` pre-seeds the map with every globally-registered content type (`Endpoint.cs:524-537`), so `TryFindSerializer` (`Endpoint.cs:593-613`) is a pure lock-free read on the hot path; an unregistered content type falls back to `Runtime.Options.TryFindSerializer` without mutating the endpoint cache.
 
 `FrozenDictionary` may still be appropriate for **non-hot-path** snapshots, e.g. metadata exposed to user code that doesn't participate in dispatch. Default to `ImHashMap` unless you have a specific reason otherwise.
 

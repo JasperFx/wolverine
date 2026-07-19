@@ -12,6 +12,12 @@ public class KafkaEnvelopeMapper : EnvelopeMapper<Message<string, byte[]>, Messa
 
     }
 
+    // writeIncomingHeaders below copies every incoming header verbatim (same keys, same UTF8
+    // decode as tryReadIncomingHeader), so the typed reserved-header readers can reuse those
+    // already-decoded values instead of re-scanning and re-decoding the Kafka header list per
+    // property (GH-3490).
+    protected override bool preferCopiedIncomingHeaders => true;
+
     protected override void writeOutgoingHeader(Message<string, byte[]> outgoing, string key, string value)
     {
         outgoing.Headers.Add(key, Encoding.UTF8.GetBytes(value));

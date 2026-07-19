@@ -50,12 +50,26 @@ public class InlineKafkaSender : ISender, IDisposable
         var message = await _topic.EnvelopeMapper!.CreateMessage(envelope);
 
         var topicName = _fixedDestination ? _topic.TopicName : envelope.TopicName ?? _topic.TopicName;
+        // ProduceAsync only completes once the broker has acked this record, so a Flush() here
+        // is redundant for this message — and worse, it's an unbounded synchronous block that
+        // waits on every OTHER in-flight record from concurrent sends on this shared producer,
+        // defeating librdkafka's linger/batching entirely (GH-3490).
         await _producer.ProduceAsync(topicName, message);
-        _producer.Flush();
     }
 
     public void Dispose()
     {
+        // Bounded drain for anything still queued in librdkafka (e.g. a send abandoned by a
+        // cancelled caller) before tearing the producer down.
+        try
+        {
+            _producer.Flush(TimeSpan.FromSeconds(10));
+        }
+        catch (ObjectDisposedException)
+        {
+            // already gone — nothing to drain
+        }
+
         _producer.Dispose();
     }
 }

@@ -12,10 +12,12 @@ public class HandlerChainTests
 {
 
     [Fact]
-    public void the_default_log_level_is_information()
+    public void the_default_success_log_level_is_debug()
     {
+        // Changed from Information in GH-3490 — a per-message Information log is a real
+        // throughput tax on hot listeners
         var chain = HandlerChain.For<Target>(x => x.Go(null!), null!);
-        chain.SuccessLogLevel.ShouldBe(LogLevel.Information);
+        chain.SuccessLogLevel.ShouldBe(LogLevel.Debug);
     }
 
     [Fact]
