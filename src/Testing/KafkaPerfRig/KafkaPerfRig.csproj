@@ -13,6 +13,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Transports\Kafka\Wolverine.Kafka\Wolverine.Kafka.csproj" />
+        <ProjectReference Include="..\..\Transports\RabbitMQ\Wolverine.RabbitMQ\Wolverine.RabbitMQ.csproj" />
         <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
         <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
     </ItemGroup>

@@ -44,33 +44,65 @@ public static class StageRecorder
         Directory.CreateDirectory(outDir);
         var samples = _samples.ToArray();
 
-        var csv = new StringBuilder("kind,warmup,transit_ms,dwell_ms,handler_ms,total_ms\n");
-        foreach (var s in samples)
-        {
-            csv.Append(
-                $"{s.Kind},{s.Warmup},{toMs(s.T0, s.T2):F3},{toMs(s.T2, s.T3):F3},{toMs(s.T3, s.T4):F3},{toMs(s.T0, s.T4):F3}\n");
-        }
-
         var csvPath = Path.Combine(outDir, $"{label}-stages.csv");
-        File.WriteAllText(csvPath, csv.ToString());
+        if (samples.Length <= 1_000_000)
+        {
+            var csv = new StringBuilder("kind,warmup,transit_ms,dwell_ms,handler_ms,total_ms\n");
+            foreach (var s in samples)
+            {
+                csv.Append(
+                    $"{s.Kind},{s.Warmup},{toMs(s.T0, s.T2):F3},{toMs(s.T2, s.T3):F3},{toMs(s.T3, s.T4):F3},{toMs(s.T0, s.T4):F3}\n");
+            }
+
+            File.WriteAllText(csvPath, csv.ToString());
+        }
+        else
+        {
+            // max-throughput runs collect millions of samples; the summary percentiles are
+            // what matters there and a multi-GB CSV helps no one
+            File.WriteAllText(csvPath, $"suppressed: {samples.Length} samples, see summary json\n");
+        }
 
         var summary = new Dictionary<string, object> { ["scenario"] = scenario, ["samples"] = samples.Length };
         foreach (var kind in new[] { "small", "large" })
         {
-            var measured = samples.Where(s => s.Kind == kind && !s.Warmup).ToArray();
-            if (measured.Length == 0)
+            var ofKind = samples.Where(s => s.Kind == kind).ToArray();
+            if (ofKind.Length == 0)
             {
                 continue;
             }
 
-            summary[kind] = new Dictionary<string, object>
+            var entry = new Dictionary<string, object> { ["count"] = ofKind.Length };
+            summary[kind] = entry;
+
+            // Sustained consumption rate over the trimmed middle of the RECEIVE window (drop the
+            // first/last 10% of samples by handler-exit time). Deliberately independent of the
+            // publish-time warmup flag: in max-throughput mode the publisher outruns the
+            // consumer, so the consumer can spend the whole run inside the "warmup" segment of
+            // the backlog — the receive-side steady-state rate is the honest metric.
+            if (ofKind.Length >= 100)
             {
-                ["count"] = measured.Length,
-                ["transit_ms"] = percentiles(measured.Select(s => toMs(s.T0, s.T2))),
-                ["dwell_ms"] = percentiles(measured.Select(s => toMs(s.T2, s.T3))),
-                ["handler_ms"] = percentiles(measured.Select(s => toMs(s.T3, s.T4))),
-                ["total_ms"] = percentiles(measured.Select(s => toMs(s.T0, s.T4)))
-            };
+                var byExit = ofKind.OrderBy(s => s.T4).ToArray();
+                var trim = byExit.Length / 10;
+                var mid = byExit[trim..^trim];
+                var windowSeconds = (mid[^1].T4 - mid[0].T4) / (double)Stopwatch.Frequency;
+                if (windowSeconds > 0)
+                {
+                    entry["consumed_per_sec"] = Math.Round(mid.Length / windowSeconds, 1);
+                }
+            }
+
+            // Latency percentiles only make sense for rate-controlled runs, and only over
+            // post-warmup samples.
+            var measured = ofKind.Where(s => !s.Warmup).ToArray();
+            if (measured.Length > 0)
+            {
+                entry["measured_count"] = measured.Length;
+                entry["transit_ms"] = percentiles(measured.Select(s => toMs(s.T0, s.T2)));
+                entry["dwell_ms"] = percentiles(measured.Select(s => toMs(s.T2, s.T3)));
+                entry["handler_ms"] = percentiles(measured.Select(s => toMs(s.T3, s.T4)));
+                entry["total_ms"] = percentiles(measured.Select(s => toMs(s.T0, s.T4)));
+            }
         }
 
         var json = JsonSerializer.Serialize(summary, new JsonSerializerOptions { WriteIndented = true });

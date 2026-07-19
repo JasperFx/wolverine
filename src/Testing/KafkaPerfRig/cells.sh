@@ -65,6 +65,14 @@ run_cell thru-native        native    $THRU
 run_cell thru-durable       wolverine $THRU RIG_MODE=durable
 run_cell thru-inline        wolverine $THRU RIG_MODE=inline
 
+# --- max-throughput cells (uncapped publisher; consumed_per_sec is the metric) ---
+
+MAX="RIG_SMALL_RATE=-1 RIG_LARGE_RATE=0 RIG_HANDLER_MS=0 RIG_SEQ=none RIG_BATCH_SIZE=100 RIG_BATCH_TIMEOUT_MS=250 RIG_WARMUP_S=15 RIG_DURATION_S=45"
+
+run_cell max-buffered       wolverine $MAX
+run_cell max-native         native    $MAX
+run_cell max-durable        wolverine $MAX RIG_MODE=durable
+
 echo ""
 echo "[cells] sweep complete. Summaries:"
 for f in rig-results/*/*-summary.json; do

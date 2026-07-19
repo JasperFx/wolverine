@@ -32,8 +32,21 @@ public static class NativeTwin
         Task publish<T>(string topic, T message, string gameId)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(message);
-            producer.Produce(topic, new Message<string, byte[]> { Key = gameId, Value = bytes }, handleReport);
-            return Task.CompletedTask;
+            var record = new Message<string, byte[]> { Key = gameId, Value = bytes };
+            while (true)
+            {
+                try
+                {
+                    producer.Produce(topic, record, handleReport);
+                    return Task.CompletedTask;
+                }
+                catch (ProduceException<string, byte[]> e) when (e.Error.Code == ErrorCode.Local_QueueFull)
+                {
+                    // max-throughput mode outruns librdkafka's local queue; give the
+                    // background poller a beat to drain and retry
+                    producer.Poll(TimeSpan.FromMilliseconds(10));
+                }
+            }
         }
 
         Console.WriteLine($"[rig] native publisher up: {cfg.Describe()}");

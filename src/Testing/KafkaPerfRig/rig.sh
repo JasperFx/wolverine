@@ -55,6 +55,19 @@ kill -TERM "$CONSUMER_PID"
 wait "$CONSUMER_PID" || true
 trap - EXIT
 
+# Best-effort per-run broker cleanup: max-throughput cells write millions of messages per run,
+# and letting them accumulate across runs eventually fills the Docker VM disk and takes every
+# container down (learned the hard way on 2026-07-19).
+if [[ "$HARNESS" == *rabbit* ]]; then
+  docker exec wolverine-rabbitmq-1 rabbitmqctl delete_queue "rig-small-${RIG_RUN_ID}" >/dev/null 2>&1 || true
+  docker exec wolverine-rabbitmq-1 rabbitmqctl delete_queue "rig-large-${RIG_RUN_ID}" >/dev/null 2>&1 || true
+else
+  docker exec wolverine-kafka-1 kafka-topics --bootstrap-server localhost:9092 --delete \
+    --topic "rig.small.${RIG_RUN_ID}" >/dev/null 2>&1 || true
+  docker exec wolverine-kafka-1 kafka-topics --bootstrap-server localhost:9092 --delete \
+    --topic "rig.large.${RIG_RUN_ID}" >/dev/null 2>&1 || true
+fi
+
 echo "[rig.sh] done. results:"
 ls -l "$RIG_OUT"
 grep -A 100 '"scenario"' "$RIG_OUT/consumer.log" | tail -60 || true
