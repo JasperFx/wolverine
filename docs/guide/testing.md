@@ -8,6 +8,14 @@ See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremyd
 
 Also see [Wolverine Best Practices](/introduction/best-practices) for other helpful tips.
 
+::: warning Standing up multiple Wolverine hosts in one test process
+Wolverine resolves the *application assembly* it scans for handlers once per process and caches it in a static, so
+whichever host runs first can pin handler discovery for every later host that doesn't set one explicitly. If handlers
+seem to vanish only in full-suite runs (order-dependent `No routes can be determined` errors), see
+[the application-assembly warning under Assembly Discovery](/guide/handlers/discovery.html#assembly-discovery) — set
+`opts.ApplicationAssembly` or `opts.Discovery.IncludeAssembly(...)` explicitly on the affected hosts.
+:::
+
 And this:
 
 @[youtube](ODSAGAllsxw)

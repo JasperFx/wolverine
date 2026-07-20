@@ -16,6 +16,10 @@ public sealed partial class WolverineOptions
     /// </summary>
     public static Assembly? RememberedApplicationAssembly;
 
+    // GH-3521: a warning buffered during options configuration (before any logger exists) and emitted at
+    // WolverineRuntime startup when an implicit host silently inherited a different host's scanned assembly.
+    internal string? ApplicationAssemblyReuseWarning { get; private set; }
+
     private Assembly? _applicationAssembly;
 
     /// <summary>
@@ -126,6 +130,43 @@ public sealed partial class WolverineOptions
         }
 
         HandlerGraph.Discovery.Assemblies.Fill(ApplicationAssembly);
+    }
+
+    // GH-3521: the assembly this host's *own* registration call stack resolves to, captured in the
+    // constructor while the caller's frame is still present (determineCallingAssembly is meaningless from
+    // the lazy ReadJasperFxOptions path). Compared later against the assembly actually adopted for handler
+    // discovery — which, for an implicit host, is the process-pinned jasperfx.ApplicationAssembly — so a
+    // first-host-wins mismatch in a multi-host test process becomes a loud warning instead of a silent
+    // "No routes can be determined". Null when a caller assembly could not be resolved.
+    internal Assembly? RegistrationCallingAssembly { get; private set; }
+
+    internal void CaptureRegistrationCallingAssembly()
+    {
+        RegistrationCallingAssembly = determineCallingAssembly();
+    }
+
+    // GH-3521: record a warning (buffered until a logger exists at runtime startup) when the application
+    // assembly adopted for handler discovery differs from where this host was registered. Only meaningful
+    // for an implicit host (the user set neither ApplicationAssembly nor an assemblyName) — an explicit
+    // choice is always honored silently.
+    internal void CheckForDivergentApplicationAssembly(Assembly adopted)
+    {
+        var registered = RegistrationCallingAssembly;
+        if (registered == null)
+        {
+            return;
+        }
+
+        if (string.Equals(registered.GetName().Name, adopted.GetName().Name, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        ApplicationAssemblyReuseWarning =
+            $"Wolverine adopted application assembly '{adopted.GetName().Name}' for handler discovery, but this host was registered from '{registered.GetName().Name}'. " +
+            $"The application assembly is a process-wide value pinned by whichever host started FIRST in this process (GH-3521), so handler discovery will NOT scan '{registered.GetName().Name}'. " +
+            $"This typically only bites a test harness that stands up multiple Wolverine hosts across different assemblies. If handlers defined in '{registered.GetName().Name}' appear to be missing " +
+            $"(e.g. \"No routes can be determined\"), set opts.ApplicationAssembly = typeof(SomeHandler).Assembly or opts.Discovery.IncludeAssembly(...) explicitly on this host.";
     }
 
     internal void IncludeExtensionAssemblies(Assembly[] assemblies)

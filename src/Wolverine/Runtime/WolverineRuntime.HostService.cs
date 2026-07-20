@@ -60,6 +60,14 @@ public partial class WolverineRuntime
             Logger.LogInformation("Starting Wolverine messaging for application assembly {Assembly}",
                 Options.ApplicationAssembly!.GetName());
 
+            // GH-3521: surface the RememberedApplicationAssembly first-host-wins pin loudly. Buffered during
+            // options configuration (no logger existed yet) and emitted here so a silently-inherited scanned
+            // assembly in a multi-host test process is observable instead of a downstream "No routes" mystery.
+            if (Options.ApplicationAssemblyReuseWarning is { } assemblyWarning)
+            {
+                Logger.LogWarning(assemblyWarning);
+            }
+
             logCodeGenerationConfiguration();
 
             await ApplyAsyncExtensions();
