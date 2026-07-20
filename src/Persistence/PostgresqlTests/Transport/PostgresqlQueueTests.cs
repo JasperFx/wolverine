@@ -57,6 +57,22 @@ public class PostgresqlQueueTests
     }
 
     [Fact]
+    public void describe_properties_includes_the_resolved_transport_schema()
+    {
+        // Two hosts sharing one Postgres database must set an identical TransportSchemaName;
+        // if they diverge, messages strand silently. Surfacing the resolved schema in endpoint
+        // diagnostics (wolverine describe) is what makes such a mismatch observable.
+        theTransport.TransportSchemaName = "custom_queue_schema";
+
+        var queue = new PostgresqlQueue("one", theTransport);
+
+        var properties = queue.DescribeProperties();
+
+        properties.ShouldContainKey(nameof(PostgresqlTransport.TransportSchemaName));
+        properties[nameof(PostgresqlTransport.TransportSchemaName)].ShouldBe("custom_queue_schema");
+    }
+
+    [Fact]
     public void short_queue_name_leaves_identifiers_untouched()
     {
         var queue = new PostgresqlQueue("orders", theTransport);
