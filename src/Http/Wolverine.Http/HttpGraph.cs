@@ -122,7 +122,7 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     public void DiscoverEndpoints(WolverineHttpOptions wolverineHttpOptions)
     {
-        var source = new HttpChainSource(_options.Assemblies);
+        var source = new HttpChainSource(_options.Assemblies, wolverineHttpOptions.EndpointDiscovery);
         var logger = Container.GetInstance<ILogger<HttpGraph>>();
 
         // Cold-start fast path (GH-2925): in TypeLoadMode.Static, consume the pre-generated
