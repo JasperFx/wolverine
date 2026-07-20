@@ -171,9 +171,36 @@ public partial class NodeAgentController
 
     public async Task StartAgentAsync(Uri agentUri)
     {
-        if (Agents.ContainsKey(agentUri))
+        if (Agents.TryGetValue(agentUri, out var existing))
         {
-            return;
+            // Idempotent for an agent that is genuinely still running -- or one deliberately Paused by an
+            // error backoff / blue-green side-effect gate, which owns its own resume schedule and must not
+            // be fought here.
+            if (existing.Status != AgentStatus.Stopped)
+            {
+                return;
+            }
+
+            // GH-3519: the agent is still registered on this node but its underlying shard has stopped
+            // (e.g. an event-subscription shard that lost a first-assignment startup race and wedged, or
+            // whose daemon execution loop faulted). The old blanket ContainsKey short-circuit treated any
+            // registered agent as healthy forever, so the recurring reevaluation never resurrected a
+            // wedged one -- it just sat in the 30s retry loop reporting a stale Running. Evict the dead
+            // registration -- stopping it first to release any lingering daemon-side shard state -- so the
+            // start below actually re-drives it.
+            _logger.LogInformation(
+                "Agent {AgentUri} is still registered on node {NodeNumber} but its shard is stopped; restarting it",
+                agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+
+            Agents.TryRemove(agentUri, out _);
+            try
+            {
+                await existing.StopAsync(_cancellation.Token);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Error stopping wedged agent {AgentUri} before restarting it", agentUri);
+            }
         }
 
         var agent = await findAgentAsync(agentUri);
