@@ -24,6 +24,7 @@ public enum InvoiceStatus
 // Note that this class has zero tenancy logic of its own, and neither does the
 // DbContext mapping below. TenantId is framework-managed -- application code
 // should never write to it.
+#region sample_conjoined_invoice_entity
 public class Invoice : ITenanted
 {
     public Guid Id { get; set; }
@@ -46,3 +47,4 @@ public class Product
     public string Name { get; set; } = null!;
     public decimal ListPrice { get; set; }
 }
+#endregion

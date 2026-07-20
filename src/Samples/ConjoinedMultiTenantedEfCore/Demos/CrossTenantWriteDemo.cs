@@ -25,6 +25,7 @@ public record CrossTenantWriteAttempted(
 //
 // Try it: create an invoice as tenant "acme", then call this endpoint with the
 // invoice id as tenant "initech"
+#region sample_conjoined_cross_tenant_write_rejection
 public static class CrossTenantWriteDemo
 {
     [WolverinePost("/demos/cross-tenant-write")]
@@ -61,3 +62,4 @@ public static class CrossTenantWriteDemo
         }
     }
 }
+#endregion

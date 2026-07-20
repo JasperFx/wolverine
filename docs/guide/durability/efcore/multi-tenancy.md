@@ -297,6 +297,240 @@ at the time it's created. If you need to query across tenants for administrative
 in your LINQ queries — but remember that the write-side guards will still stop you from modifying another tenant's data
 through a tenant-pinned `DbContext`.
 
+### A Worked Example <Badge type="tip" text="6.21" />
+
+::: tip
+The complete, runnable version of everything below — HTTP tenant detection, seeded tenants, a guided `curl` tour, and the
+optional partitioning switch — is the [`ConjoinedMultiTenantedEfCore` sample application](https://github.com/JasperFx/wolverine/tree/main/src/Samples/ConjoinedMultiTenantedEfCore).
+:::
+
+The whole point of conjoined tenancy is that your *application* code stops carrying tenancy plumbing. Start with an
+ordinary entity — the only tenancy-related thing about it is the `ITenanted` marker — alongside an entity that is
+deliberately left non-tenanted so it stays shared across every tenant:
+
+<!-- snippet: sample_conjoined_invoice_entity -->
+<a id='snippet-sample_conjoined_invoice_entity'></a>
+```cs
+public class Invoice : ITenanted
+{
+    public Guid Id { get; set; }
+    public string Description { get; set; } = null!;
+    public decimal Amount { get; set; }
+    public InvoiceStatus Status { get; set; } = InvoiceStatus.Pending;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Wolverine maps, stamps, and hydrates this for you. Treat the
+    // value as framework-managed
+    public string? TenantId { get; set; }
+}
+
+// Deliberately NOT ITenanted. Entities that don't implement the marker are left
+// completely alone -- no tenant_id column, no query filter, no guard. Perfect
+// for reference data shared by every tenant (think a common product catalog)
+public class Product
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = null!;
+    public decimal ListPrice { get; set; }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Invoicing/Invoice.cs#L27-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_invoice_entity' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `DbContext` is completely vanilla. There is no `tenant_id` mapping, no `HasQueryFilter()` to remember for each new
+entity, no `SaveChanges` override, and no interceptor — Wolverine's model customizer applies all of that for you:
+
+<!-- snippet: sample_conjoined_vanilla_dbcontext -->
+<a id='snippet-sample_conjoined_vanilla_dbcontext'></a>
+```cs
+public class InvoicingDbContext : DbContext
+{
+    public InvoicingDbContext(DbContextOptions<InvoicingDbContext> options) : base(options)
+    {
+    }
+
+    public DbSet<Invoice> Invoices { get; set; } = null!;
+    public DbSet<Product> Products { get; set; } = null!;
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Invoice>(map =>
+        {
+            map.ToTable("invoices", "invoicing");
+            map.HasKey(x => x.Id);
+        });
+
+        modelBuilder.Entity<Product>(map =>
+        {
+            map.ToTable("products", "invoicing");
+            map.HasKey(x => x.Id);
+        });
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Invoicing/InvoicingDbContext.cs#L15-L40' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_vanilla_dbcontext' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Detect the tenant once, where you configure Wolverine's HTTP endpoints. From here on nothing in your endpoints or
+handlers ever looks at a header, a query string, or `TenantId`:
+
+<!-- snippet: sample_conjoined_http_tenant_detection -->
+<a id='snippet-sample_conjoined_http_tenant_detection'></a>
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    // Try headers first...
+    opts.TenantId.IsRequestHeaderValue("tenant-id");
+
+    // ...then fall back to a query string value, e.g. GET /invoices?tenant=acme
+    opts.TenantId.IsQueryStringValue("tenant");
+
+    // Any tenanted endpoint called without a detectable tenant id gets a 400
+    // with ProblemDetails instead of quietly running against the default
+    // tenant. The /tenants administrative endpoints opt out with [NotTenanted]
+    opts.TenantId.AssertExists();
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Program.cs#L112-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_http_tenant_detection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+A write endpoint just adds the entity. It never reads a header, never sets `TenantId`, and never calls
+`SaveChangesAsync()` — the tenant stamping interceptor supplies the tenant id and the [EF Core transactional
+middleware](/guide/durability/efcore/transactional-middleware) commits both the row and the cascaded message through the durable outbox:
+
+<!-- snippet: sample_conjoined_stamp_on_insert_endpoint -->
+<a id='snippet-sample_conjoined_stamp_on_insert_endpoint'></a>
+```cs
+[WolverinePost("/invoices")]
+public static (CreationResponse<InvoiceCreated>, InvoiceCreated) Create(
+    CreateInvoice command,
+    InvoicingDbContext db)
+{
+    var invoice = new Invoice
+    {
+        Id = Guid.NewGuid(),
+        Description = command.Description,
+        Amount = command.Amount
+    };
+
+    db.Invoices.Add(invoice);
+
+    var created = new InvoiceCreated(invoice.Id, invoice.Amount);
+    return (CreationResponse.For(created, $"/invoices/{invoice.Id}"), created);
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Invoicing/InvoiceEndpoints.cs#L29-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_stamp_on_insert_endpoint' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Read endpoints are just as clean. There is no `Where(x => x.TenantId == ...)` anywhere — the global query filter binds
+every query (and `FindAsync()`) to the detected tenant, so calling as `acme` can only ever see `acme`'s rows:
+
+<!-- snippet: sample_conjoined_tenant_scoped_query -->
+<a id='snippet-sample_conjoined_tenant_scoped_query'></a>
+```cs
+[WolverineGet("/invoices")]
+public static Task<Invoice[]> GetAll(InvoicingDbContext db)
+{
+    return db.Invoices.OrderBy(x => x.CreatedAt).ToArrayAsync();
+}
+
+// FindAsync respects the tenant filter as well -- asking for another
+// tenant's invoice id returns null, which Wolverine.Http turns into a 404
+[WolverineGet("/invoices/{id}")]
+public static Task<Invoice?> GetById(Guid id, InvoicingDbContext db)
+{
+    return db.Invoices.FindAsync(id).AsTask();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Invoicing/InvoiceEndpoints.cs#L55-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenant_scoped_query' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The `InvoiceCreated` message cascaded from that write endpoint carries the tenant id on its envelope, so a message
+handler running later on a durable local queue — completely outside the original HTTP request — is tenant-scoped in
+exactly the same way, with the same zero plumbing:
+
+<!-- snippet: sample_conjoined_tenant_scoped_handler -->
+<a id='snippet-sample_conjoined_tenant_scoped_handler'></a>
+```cs
+public static class InvoiceCreatedHandler
+{
+    // Toy business rule: small invoices are approved automatically
+    public const decimal AutoApprovalLimit = 500;
+
+    public static async Task Handle(InvoiceCreated message, InvoicingDbContext db, ILogger logger)
+    {
+        // Tenant-scoped load -- a message for tenant "acme" can never touch
+        // an "initech" invoice, even though both live in the same table
+        var invoice = await db.Invoices.FindAsync(message.InvoiceId);
+        if (invoice == null)
+        {
+            return;
+        }
+
+        if (invoice.Amount <= AutoApprovalLimit)
+        {
+            invoice.Status = InvoiceStatus.Approved;
+            logger.LogInformation("Auto-approved invoice {InvoiceId} for tenant {TenantId}",
+                invoice.Id, invoice.TenantId);
+        }
+        else
+        {
+            logger.LogInformation("Invoice {InvoiceId} for tenant {TenantId} needs manual approval",
+                invoice.Id, invoice.TenantId);
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Invoicing/InvoiceCreatedHandler.cs#L16-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenant_scoped_handler' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Finally, the write-side guard. Even if application code deliberately smuggles another tenant's row out with
+`IgnoreQueryFilters()`, modifying it is rejected at `SaveChanges` time with `CrossTenantWriteException` before anything
+reaches the database:
+
+<!-- snippet: sample_conjoined_cross_tenant_write_rejection -->
+<a id='snippet-sample_conjoined_cross_tenant_write_rejection'></a>
+```cs
+public static class CrossTenantWriteDemo
+{
+    [WolverinePost("/demos/cross-tenant-write")]
+    public static async Task<CrossTenantWriteAttempted> Attempt(HijackInvoice command, InvoicingDbContext db)
+    {
+        // IgnoreQueryFilters() is the "one forgotten filter" from the motivating
+        // blog post, weaponized: it lets us see (and track) rows from every tenant
+        var smuggled = await db.Invoices.IgnoreQueryFilters()
+            .SingleOrDefaultAsync(x => x.Id == command.InvoiceId);
+        if (smuggled == null)
+        {
+            return new CrossTenantWriteAttempted(false,
+                $"No invoice with id {command.InvoiceId} exists for any tenant");
+        }
+
+        smuggled.Description = command.NewDescription;
+
+        try
+        {
+            await db.SaveChangesAsync();
+
+            // Only reachable when the invoice already belongs to the calling tenant
+            return new CrossTenantWriteAttempted(false,
+                "The write succeeded because the invoice belongs to the calling tenant. " +
+                "Call this endpoint again with a different tenant-id header to see the rejection.");
+        }
+        catch (CrossTenantWriteException e)
+        {
+            // Nothing was written. Clear the poisoned change tracker so the
+            // transactional middleware's own SaveChangesAsync stays a no-op
+            db.ChangeTracker.Clear();
+
+            return new CrossTenantWriteAttempted(true, e.Message, e.EntityTenantId, e.ContextTenantId);
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/ConjoinedMultiTenantedEfCore/Demos/CrossTenantWriteDemo.cs#L28-L65' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_cross_tenant_write_rejection' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ### Tenant Partitioning <Badge type="tip" text="6.21" />
 
 Opt into Weasel-managed **partition-per-tenant** physical partitioning with `PartitionPerTenant()`:
