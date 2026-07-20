@@ -769,6 +769,27 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         _otherTables.Add(table);
     }
 
+    /// <summary>
+    /// Also clear the PostgreSQL queue transport's own tables (the per-queue message table and its
+    /// scheduled-message table) as part of a store reset. A reset truncates the envelope tables; the
+    /// queue transport keeps its own tables, so without this override a reset leaves queue rows behind
+    /// and integration tests over the Postgres queue transport carry rows between runs. Scoped to the
+    /// transport's own table types on purpose — <c>AddTable</c> is a general registration path, so we
+    /// clear only what the transport itself registered rather than every entry in <c>_otherTables</c>.
+    /// Runs inside the reset transaction (see the base <c>truncateEnvelopeDataAsync</c>) so the reset
+    /// stays atomic.
+    /// </summary>
+    protected override async Task truncateAdditionalTablesAsync(DbTransaction tx, CancellationToken token)
+    {
+        foreach (var table in _otherTables)
+        {
+            if (table is Transport.QueueTable or Transport.ScheduledMessageTable)
+            {
+                await tx.CreateCommand($"delete from {table.Identifier}").ExecuteNonQueryAsync(token);
+            }
+        }
+    }
+
     public override DatabaseSagaSchema<T, TId> SagaSchemaFor<T, TId>()
     {
         if (_sagaStorage.TryFind(typeof(T), out var raw))
