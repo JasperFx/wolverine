@@ -1,0 +1,103 @@
+using System.Diagnostics;
+using JasperFx.Core;
+using Microsoft.Extensions.Hosting;
+using Shouldly;
+using Wolverine.ComplianceTests;
+using Wolverine.Tracking;
+using Wolverine.Util;
+using Xunit.Abstractions;
+
+namespace Wolverine.MQTT.Tests;
+
+[Collection("acceptance")]
+public class broadcast_to_topic_async : IAsyncLifetime
+{
+    private readonly ITestOutputHelper _output;
+    private IHost _sender = null!;
+    private IHost _receiver = null!;
+
+    public broadcast_to_topic_async(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
+    public async Task InitializeAsync()
+    {
+        var port = PortFinder.GetAvailablePort();
+
+        Broker = new LocalMqttBroker(port)
+        {
+            Logger = new XUnitLogger( _output, "MQTT")
+        };
+
+        await Broker.StartAsync();
+
+        _sender = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseMqttWithLocalBroker(port);
+                opts.Policies.DisableConventionalLocalRouting();
+            }).StartAsync();
+
+        _receiver = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseMqttWithLocalBroker(port);
+                opts.ListenToMqttTopic("incoming/one").RetainMessages();
+            }).StartAsync();
+
+    }
+
+    [Fact]
+    public async Task broadcast()
+    {
+        var session = await _sender.TrackActivity()
+            .AlsoTrack(_receiver)
+            .Timeout(30.Seconds())
+            .ExecuteAndWaitAsync(m => m.BroadcastToTopicAsync("incoming/one", new ColorMessage("blue")));
+
+        var received = session.Received.SingleMessage<ColorMessage>();
+        received.Color.ShouldBe("blue");
+    }
+
+    public LocalMqttBroker Broker { get; set; } = null!;
+
+    public async Task DisposeAsync()
+    {
+        await Broker.StopAsync();
+        await Broker.DisposeAsync();
+        await _sender.StopAsync();
+        _sender.Dispose();
+        await _receiver.StopAsync();
+        _receiver.Dispose();
+    }
+}
+
+public class ColorMessage
+{
+    public ColorMessage()
+    {
+    }
+
+    public ColorMessage(string color)
+    {
+        Color = color;
+    }
+
+    public string Color { get; set; } = null!;
+}
+
+public class SpecialColorMessage : ColorMessage;
+
+public static class ColorMessageHandler
+{
+    public static void Handle(ColorMessage message)
+    {
+        Debug.WriteLine("Got " + message.Color);
+    }
+
+    public static void Handle(SpecialColorMessage message)
+    {
+        Debug.WriteLine("Got " + message.Color);
+    }
+}

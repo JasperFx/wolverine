@@ -280,6 +280,8 @@
   <Folder Name="/Transports/MQTT/">
     <Project Path="src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj" />
     <Project Path="src/Transports/MQTT/Wolverine.MQTT/Wolverine.MQTT.csproj" />
+    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5.Tests/Wolverine.Mqtt5.Tests.csproj" />
+    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5/Wolverine.Mqtt5.csproj" />
   </Folder>
   <Folder Name="/Transports/NATS/">
     <Project Path="src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj" />

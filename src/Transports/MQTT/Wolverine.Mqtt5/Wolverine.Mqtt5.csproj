@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <Description>MQTT Transport (MQTTnet 5) for Wolverine Messaging Systems</Description>
+        <PackageId>WolverineFx.Mqtt5</PackageId>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\Wolverine\Wolverine.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MQTTnet" />
+        <PackageReference Include="MQTTnet.Server" />
+    </ItemGroup>
+
+</Project>
