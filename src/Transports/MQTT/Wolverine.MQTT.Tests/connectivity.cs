@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using JasperFx.Core;
 using MQTTnet;
@@ -30,11 +31,11 @@ public class Connectivity
         };
         await broker.StartAsync();
 
-        var managedClient = new MqttFactory().CreateManagedMqttClient();
+        var managedClient = new MqttClientFactory().CreateManagedMqttClient();
 
         managedClient.ApplicationMessageReceivedAsync += e =>
         {
-            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
+            _output.WriteLine(">> RECEIVED: " + e.ApplicationMessage.Topic + ", " + Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray()));
             return CompletedTask.Instance;
         };
 

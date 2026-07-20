@@ -15,7 +15,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="MQTTnet.Extensions.ManagedClient" />
+        <PackageReference Include="MQTTnet" />
+        <PackageReference Include="MQTTnet.Server" />
     </ItemGroup>
 
 </Project>

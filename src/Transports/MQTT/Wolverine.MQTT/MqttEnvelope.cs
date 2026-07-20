@@ -1,4 +1,5 @@
-using MQTTnet.Client;
+using System.Buffers;
+using MQTTnet;
 
 namespace Wolverine.MQTT;
 
@@ -12,7 +13,7 @@ public class MqttEnvelope : Envelope
     internal MqttEnvelope(MqttTopic topic, MqttApplicationMessageReceivedEventArgs args)
     {
         Args = args;
-        Data = args.ApplicationMessage.PayloadSegment.Array;
+        Data = args.ApplicationMessage.Payload.ToArray();
         MessageType = topic.MessageTypeName;
         Destination = topic.Uri;
     }

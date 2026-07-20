@@ -25,7 +25,7 @@ internal class MqttTenant
     /// overridden with the tenant-specific broker configuration.
     /// </summary>
     public ManagedMqttClientOptions Options { get; set; } = new()
-        { ClientOptions = new MQTTnet.Client.MqttClientOptions() };
+        { ClientOptions = new MQTTnet.MqttClientOptions() };
 
     /// <summary>
     /// Optional JWT authentication configuration for the tenant's own connection.

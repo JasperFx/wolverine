@@ -1,3 +1,4 @@
+using System.Buffers;
 using JasperFx.Core;
 using MQTTnet;
 using MQTTnet.Packets;
@@ -102,7 +103,7 @@ public class MqttEnvelopeMapper : IMqttEnvelopeMapper
     public void MapIncomingToEnvelope(Envelope envelope, MqttApplicationMessage incoming)
     {
         envelope.ContentType = incoming.ContentType;
-        envelope.Data = incoming.PayloadSegment.ToArray();
+        envelope.Data = incoming.Payload.ToArray();
 
         envelope.MessageType = _topic.MessageTypeName;
         envelope.TopicName = incoming.Topic;

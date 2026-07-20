@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Debug;
 using MQTTnet;
-using MQTTnet.Diagnostics;
+using MQTTnet.Diagnostics.Logger;
 using MQTTnet.Server;
 
 namespace Wolverine.MQTT;
@@ -30,7 +30,7 @@ public class LocalMqttBroker : IAsyncDisposable, IMqttNetLogger
 
     public async Task StartAsync()
     {
-        var mqttFactory = new MqttFactory(this);
+        var mqttFactory = new MqttServerFactory();
 
         _mqttServer = mqttFactory.CreateMqttServer(_mqttServerOptions);
 

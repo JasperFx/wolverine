@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Text;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
@@ -241,14 +242,14 @@ internal class RawMqttSubscriber : IAsyncDisposable
 
     public static async Task<RawMqttSubscriber> StartAsync(int port, string topic)
     {
-        var client = new MqttFactory().CreateManagedMqttClient();
+        var client = new MqttClientFactory().CreateManagedMqttClient();
         var subscriber = new RawMqttSubscriber(client);
 
         client.ApplicationMessageReceivedAsync += e =>
         {
             lock (subscriber._messages)
             {
-                subscriber._messages.Add(Encoding.UTF8.GetString(e.ApplicationMessage.PayloadSegment));
+                subscriber._messages.Add(Encoding.UTF8.GetString(e.ApplicationMessage.Payload.ToArray()));
             }
 
             return Task.CompletedTask;
