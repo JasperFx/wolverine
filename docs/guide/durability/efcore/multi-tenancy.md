@@ -225,6 +225,16 @@ shared across the whole Critter Stack from `JasperFx.MultiTenancy`, so the exact
 Marten, Polecat, and Wolverine's EF Core integration.
 :::
 
+::: warning
+Conjoined tenancy builds the per-tenant `DbContext` through Wolverine's runtime code generation, so your application
+**must** reference the `WolverineFx.RuntimeCompilation` package ([GH-2876](https://github.com/JasperFx/wolverine/issues/2876)).
+Without it the host fails fast at startup. Add it up front:
+
+```bash
+dotnet add package WolverineFx.RuntimeCompilation
+```
+:::
+
 The database-per-tenant model above isn't the right fit for every system. If you want all tenants in a **single, shared
 database** — one connection string, one set of tables, a `tenant_id` discriminator column — use Wolverine's *conjoined*
 multi-tenancy for EF Core. Marking an entity with `JasperFx.MultiTenancy.ITenanted` is all it takes:
@@ -296,6 +306,24 @@ Note that a `DbContext` type registered with conjoined tenancy is pinned to the 
 at the time it's created. If you need to query across tenants for administrative functions, use `IgnoreQueryFilters()`
 in your LINQ queries — but remember that the write-side guards will still stop you from modifying another tenant's data
 through a tenant-pinned `DbContext`.
+
+### Managing Tenants <Badge type="tip" text="6.22" />
+
+The list of known tenants lives in the `wolverine_tenants` registry table. You can batch-register or remove tenants for
+a conjoined `DbContext` with the `IHost` convenience API, which mirrors Marten's `AddMartenManagedTenantsAsync` family:
+
+```csharp
+// Register two tenants (creates their partitions when partitioning is enabled).
+// Returns the ids as stored, normalized to the configured TenantIdStyle.
+var added = await host.AddWolverineManagedTenantsAsync<InvoicingDbContext>("acme", "hooli");
+
+// Remove them again (drops the partition + its data when partitioning is enabled)
+await host.RemoveWolverineManagedTenantsAsync<InvoicingDbContext>("acme", "hooli");
+```
+
+For finer-grained control — enabling/disabling a tenant, or per-tenant work from inside a handler or endpoint — resolve
+`IDynamicTenantSource<string>` from the container and call `AddTenantAsync` / `DisableTenantAsync` / `EnableTenantAsync` /
+`RemoveTenantAsync` directly.
 
 ### A Worked Example <Badge type="tip" text="6.21" />
 
