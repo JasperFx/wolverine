@@ -96,14 +96,24 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
         {
             var builder = _services.GetRequiredService<IDbContextBuilder<T>>();
 
+            // Conjoined multi-tenancy is one physical database shared by a dynamic
+            // list of tenants, so it doesn't fan out into a per-tenant database list
+            // the way the connection-string / data-source builders do. Detect it
+            // explicitly (GH-3536) so it advertises a distinct "Conjoined" style and
+            // carries its tenant ids on the single shared DatabaseDescriptor rather
+            // than looking identical to a plain single-DB context.
+            var isConjoined = builder is ConjoinedDbContextBuilder<T>;
+
             // Tenancy-style discriminator from the registered IDbContextBuilder
             // implementation type — keeps the badge in operator vocabulary.
-            var tenancyStyle = builder.GetType().Name switch
-            {
-                var n when n.StartsWith("TenantedDbContextBuilderByDbDataSource") => "DbDataSource",
-                var n when n.StartsWith("TenantedDbContextBuilderByConnectionString") => "ConnectionString",
-                _ => "Single"
-            };
+            var tenancyStyle = isConjoined
+                ? "Conjoined"
+                : builder.GetType().Name switch
+                {
+                    var n when n.StartsWith("TenantedDbContextBuilderByDbDataSource") => "DbDataSource",
+                    var n when n.StartsWith("TenantedDbContextBuilderByConnectionString") => "ConnectionString",
+                    _ => "Single"
+                };
 
             // Read the model + change-tracker config from the main context
             // (representative of every tenant's context).
@@ -115,6 +125,15 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
             var tenantDatabases = tenantContexts
                 .Select(DatabaseDescriptorFactory.FromDbContext)
                 .ToList();
+
+            if (isConjoined && tenantDatabases.Count > 0)
+            {
+                // Surface the tenant ids from the wolverine_tenants registry onto the
+                // single shared-database descriptor. Best-effort: a registry read
+                // hiccup must degrade to an empty tenant list, not null the whole
+                // snapshot. GH-3536.
+                await ApplyConjoinedTenantIdsAsync(tenantDatabases[0]);
+            }
 
             try
             {
@@ -139,6 +158,36 @@ public sealed class TenantedDbContextUsageSource<T> : IDbContextUsageSource wher
         catch
         {
             return null;
+        }
+    }
+
+    // Loads the active tenant ids for a conjoined DbContext from the wolverine_tenants
+    // registry (via the concrete ConjoinedTenantSource<T> that is also registered as the
+    // IDynamicTenantSource<string>) and stamps them onto the shared-database descriptor.
+    // Isolated in its own try/catch so a registry read failure degrades to no tenant ids
+    // rather than nulling the entire DbContextUsage. GH-3536.
+    private async Task ApplyConjoinedTenantIdsAsync(DatabaseDescriptor sharedDatabase)
+    {
+        try
+        {
+            var tenantSource = _services.GetService<ConjoinedTenantSource<T>>();
+            if (tenantSource == null)
+            {
+                return;
+            }
+
+            await tenantSource.RefreshAsync();
+
+            var tenantIds = tenantSource.AllActiveByTenant()
+                .Select(x => x.TenantId)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            sharedDatabase.TenantIds.AddRange(tenantIds);
+        }
+        catch
+        {
+            // Best-effort — leave TenantIds empty if the registry can't be read.
         }
     }
 }
