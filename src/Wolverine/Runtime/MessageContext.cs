@@ -43,6 +43,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private bool _hasFlushed;
     private object? _sagaId;
 
+    /// <summary>
+    /// Has this context already flushed its outgoing messages? When true, any
+    /// envelope enqueued afterward will be dropped by the default
+    /// MultiFlushMode.OnlyOnce guard in FlushOutgoingMessagesAsync(). Cascading
+    /// wrappers that must deliver regardless (e.g. SignalR responses, GH-3499)
+    /// check this to reroute through a fresh context
+    /// </summary>
+    internal bool HasFlushed => _hasFlushed;
+
     public MessageContext(IWolverineRuntime runtime) : base(runtime)
     {
     }
@@ -142,6 +151,18 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
             switch (MultiFlushMode)
             {
                 case MultiFlushMode.OnlyOnce:
+                    lock (_outstandingLock)
+                    {
+                        if (_outstanding.Count > 0)
+                        {
+                            // GH-3499 -- a silent drop of enqueued envelopes is the worst outcome,
+                            // so at least make the loss visible
+                            Runtime.Logger.LogWarning(
+                                "MessageContext for {MessageType} has already flushed its outgoing messages, so {Count} envelope(s) enqueued after that flush will not be sent. This can happen when messages are enqueued after an explicit transaction commit (e.g. SaveChangesAsync()) has already drained the context. Consider MultiFlushMode.AllowMultiples if multiple flushes are expected",
+                                Envelope?.MessageType, _outstanding.Count);
+                        }
+                    }
+
                     return;
 
                 case MultiFlushMode.AllowMultiples:
