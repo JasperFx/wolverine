@@ -183,6 +183,19 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         });
     }
 
+    public override IDictionary<string, object> DescribeProperties()
+    {
+        var dict = base.DescribeProperties();
+
+        // Surface the resolved transport-queue schema so `wolverine describe` / endpoint
+        // diagnostics make it visible. Two hosts sharing one Postgres database must set an
+        // identical TransportSchemaName; if they diverge the queue tables live in different
+        // schemas and messages strand silently. This is visibility only - no assertion here.
+        dict[nameof(PostgresqlTransport.TransportSchemaName)] = Parent.TransportSchemaName;
+
+        return dict;
+    }
+
     public async ValueTask<Dictionary<string, string>> GetAttributesAsync()
     {
         var count = await CountAsync();
