@@ -44,4 +44,13 @@ public static class ConjoinedNotesEndpoint
     {
         return db.Notes.OrderBy(x => x.Text).ToArrayAsync();
     }
+
+    // GH-3538: a POST endpoint whose ONLY complex parameter is a DbContext. Before the fix the
+    // body-inference decided the DbContext was the JSON request body, so posting with no body
+    // 400'd with "Invalid JSON format". The DbContext must resolve as a service instead.
+    [WolverinePost("/conjoined/notes/quick-add")]
+    public static void QuickAdd(ConjoinedNotesDbContext db)
+    {
+        db.Notes.Add(new TenantedNote { Id = Guid.NewGuid(), Text = "quick-add" });
+    }
 }

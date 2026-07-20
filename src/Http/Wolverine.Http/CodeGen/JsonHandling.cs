@@ -90,6 +90,18 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             return false;
         }
 
+        // GH-3538: an injected EF Core DbContext (e.g. a Wolverine-managed / conjoined
+        // tenant DbContext) is a concrete type, so when it is the only complex parameter on
+        // a POST/PUT endpoint the body inference below would otherwise decide it *is* the
+        // JSON request body and 400 with "Invalid JSON format". A DbContext is always a
+        // service/builder-provided parameter, never the request body — leave it for the
+        // service-resolution path. Checked by base-type name so Wolverine.Http need not
+        // reference Microsoft.EntityFrameworkCore.
+        if (IsDbContext(parameter.ParameterType))
+        {
+            return false;
+        }
+
         if (chain.RequestType == null && parameter.ParameterType.IsConcrete())
         {
             // It *could* be used twice, so let's watch out for this!
@@ -102,6 +114,24 @@ internal class JsonBodyParameterStrategy : IParameterStrategy
             // Oh, this does NOT make me feel good!
             chain.RequestType = parameter.ParameterType;
             return true;
+        }
+
+        return false;
+    }
+
+    // Walks the base-type chain looking for Microsoft.EntityFrameworkCore.DbContext by full
+    // name, so the core Wolverine.Http assembly doesn't take a dependency on EF Core. GH-3538.
+    internal static bool IsDbContext(Type type)
+    {
+        var current = type;
+        while (current != null && current != typeof(object))
+        {
+            if (current.FullName == "Microsoft.EntityFrameworkCore.DbContext")
+            {
+                return true;
+            }
+
+            current = current.BaseType;
         }
 
         return false;

@@ -101,4 +101,23 @@ public class conjoined_tenancy_http_detection : IAsyncLifetime
         blueResult.ShouldNotBeNull();
         blueResult.Single().Id.ShouldBe(blueNote.Id);
     }
+
+    [Fact]
+    public async Task post_endpoint_with_only_a_dbcontext_parameter_does_not_infer_it_as_the_body()
+    {
+        // GH-3538: posting with no request body must NOT 400 — the DbContext is a service
+        // parameter, not the inferred JSON request body. Before the fix this returned 400
+        // "Invalid JSON format"; the empty POST would fail body deserialization.
+        await theHost.Scenario(x =>
+        {
+            x.Post.Url("/conjoined/notes/quick-add");
+            x.WithRequestHeader("tenant", "green");
+            x.StatusCodeShouldBe(204);
+        });
+
+        // The write actually landed for the tenant, proving the DbContext resolved as a service
+        var notes = await theHost.GetAsJson<TenantedNote[]>("/conjoined/notes?tenant=green");
+        notes.ShouldNotBeNull();
+        notes!.ShouldContain(n => n.Text == "quick-add");
+    }
 }
