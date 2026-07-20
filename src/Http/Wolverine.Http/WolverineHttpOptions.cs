@@ -2,6 +2,7 @@ using System.Text.Json;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using JasperFx.Core.TypeScanning;
 using Microsoft.AspNetCore.Builder;
 using Wolverine.Http.Antiforgery;
 using Microsoft.AspNetCore.Http;
@@ -273,6 +274,34 @@ public class WolverineHttpOptions
         ArgumentNullException.ThrowIfNull(prefix);
         ArgumentNullException.ThrowIfNull(forEndpointsInNamespace);
         NamespacePrefixes.Add((prefix.Trim('/'), forEndpointsInNamespace));
+    }
+
+    // Null unless CustomizeHttpEndpointDiscovery() was called. HttpChainSource layers its Excludes
+    // (subtractive) and Includes (additive) on top of the built-in endpoint convention; while it stays
+    // null the discovery predicate applies only that built-in convention.
+    internal TypeQuery? EndpointDiscovery { get; private set; }
+
+    /// <summary>
+    /// Additive, opt-in customization of the type filtering used to discover Wolverine HTTP endpoints
+    /// from the scanned assemblies. This is the HTTP counterpart to
+    /// <see cref="Wolverine.Configuration.HandlerDiscovery.CustomizeHandlerDiscovery" />: use
+    /// <c>q.Excludes</c> to drop endpoint types — e.g.
+    /// <c>opts.CustomizeHttpEndpointDiscovery(q =&gt; q.Excludes.InNamespace("MyApp.Excluded"))</c> — so that
+    /// HTTP endpoints can be split across hosts the same way message handlers already can. Without this,
+    /// an HTTP endpoint in an excluded namespace of a scanned assembly still registers, and
+    /// <c>[WolverineIgnore]</c> on the type is the only lever. Rules added through <c>q.Includes</c> are
+    /// additive: they broaden discovery beyond the built-in <c>*Endpoint(s)</c> /
+    /// <c>[WolverineHttpMethod]</c> convention (an included type still only contributes methods carrying a
+    /// Wolverine HTTP verb attribute). When this method is never called, discovery applies only the
+    /// built-in endpoint convention.
+    /// </summary>
+    /// <param name="configure">Configures the excludes/includes applied during endpoint discovery.</param>
+    /// <exception cref="ArgumentNullException"></exception>
+    public void CustomizeHttpEndpointDiscovery(Action<TypeQuery> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        EndpointDiscovery ??= new TypeQuery(TypeClassification.All);
+        configure(EndpointDiscovery);
     }
 
     /// <summary>

@@ -14,9 +14,17 @@ internal class HttpChainSource
     private readonly ActionMethodFilter _methodFilters = new();
     private readonly CompositeFilter<Type> _typeFilters = new();
 
-    public HttpChainSource(IEnumerable<Assembly> assemblies)
+    // Opt-in, additive customization supplied by WolverineHttpOptions.CustomizeHttpEndpointDiscovery.
+    // Null unless configured; when set, its Excludes drop endpoint types (so HTTP endpoints honour the
+    // same namespace splits as HandlerDiscovery filters) and its Includes broaden discovery. GH-3371.
+    private readonly TypeQuery? _userDiscovery;
+    private readonly bool _hasUserIncludes;
+
+    public HttpChainSource(IEnumerable<Assembly> assemblies, TypeQuery? userDiscovery = null)
     {
         _assemblies = assemblies.ToList();
+        _userDiscovery = userDiscovery;
+        _hasUserIncludes = userDiscovery is not null && userDiscovery.Includes.Any();
 
         _typeFilters.Includes += type =>
             type.Name.EndsWith("Endpoint", StringComparison.OrdinalIgnoreCase) ||
@@ -36,12 +44,41 @@ internal class HttpChainSource
         // _typeFilters, so discovery semantics are unchanged. TypeClassification.All keeps every
         // non-trimmed type (e.g. static endpoint classes) that the previous scan considered.
         var query = new TypeQuery(TypeClassification.All);
-        query.Includes.WithCondition("Wolverine HTTP endpoint type",
-            x => _typeFilters.Matches(x) && x.IsPublic && x.GetGenericArguments().Length == 0);
+        query.Includes.WithCondition("Wolverine HTTP endpoint type", isEndpointType);
 
         return query.Find(_assemblies)
             .Distinct()
             .SelectMany(actionsFromType).ToArray();
+    }
+
+    // The built-in endpoint predicate, plus the opt-in CustomizeHttpEndpointDiscovery filtering. With no
+    // user discovery configured (_userDiscovery == null, _hasUserIncludes == false) a type qualifies on
+    // the built-in convention alone: public, non-generic, and matched by _typeFilters (name ends in
+    // "Endpoint(s)" or carries a [WolverineHttpMethod]).
+    private bool isEndpointType(Type x)
+    {
+        if (!x.IsPublic || x.GetGenericArguments().Length != 0)
+        {
+            return false;
+        }
+
+        // Opt-in exclusions are subtractive: an otherwise-qualifying endpoint type that a user rule matches
+        // (e.g. q.Excludes.InNamespace(...)) is dropped, so HTTP endpoints can be split across hosts the
+        // same way HandlerDiscovery filters split message handlers.
+        if (_userDiscovery is not null && _userDiscovery.Excludes.Matches(x))
+        {
+            return false;
+        }
+
+        if (_typeFilters.Matches(x))
+        {
+            return true;
+        }
+
+        // Opt-in inclusions are additive: they broaden discovery beyond the built-in "*Endpoint(s)" /
+        // [WolverineHttpMethod] convention. An included type still only contributes methods that carry a
+        // Wolverine HTTP verb attribute (see actionsFromType / _methodFilters).
+        return _hasUserIncludes && _userDiscovery!.Includes.Matches(x);
     }
 
     // Static-mode counterpart to FindActions(): the endpoint types were already discovered and
