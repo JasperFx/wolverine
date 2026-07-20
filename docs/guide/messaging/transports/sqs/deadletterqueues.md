@@ -2,6 +2,12 @@
 
 By default, Wolverine will try to move dead letter messages in SQS to a single, global queue named "wolverine-dead-letter-queue."
 
+When Wolverine moves a failed message to the dead letter queue, it stamps the standard diagnostic headers
+(`exception-type`, `exception-message`, `exception-stack`, `failed-at`, `original-destination`) as SQS message
+attributes, with the delivery attempt count on the standard `attempts` header. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
 ## Customizing the Default Dead Letter Queue Name <Badge type="tip" text="5.39" />
 
 The built-in default name `wolverine-dead-letter-queue` is fine for a single deployment, but multi-environment AWS accounts that share a region collide on it across environments. Override the default for the entire SQS transport in one call:

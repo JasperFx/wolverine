@@ -1,4 +1,3 @@
-using System.Text;
 using Confluent.Kafka;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -177,13 +176,10 @@ public class KafkaTopicGroupListener : IListener, IDisposable, ISupportDeadLette
 
         try
         {
+            // Stamp the standard failure metadata (exception info + original
+            // destination/partition/offset) so the mapper carries it as Kafka headers. GH-3474
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
             var message = await _endpoint.EnvelopeMapper!.CreateMessage(envelope);
-
-            message.Headers ??= new Headers();
-            message.Headers.Add(DeadLetterQueueConstants.ExceptionTypeHeader, Encoding.UTF8.GetBytes(exception.GetType().FullName ?? "Unknown"));
-            message.Headers.Add(DeadLetterQueueConstants.ExceptionMessageHeader, Encoding.UTF8.GetBytes(exception.Message));
-            message.Headers.Add(DeadLetterQueueConstants.ExceptionStackHeader, Encoding.UTF8.GetBytes(exception.StackTrace ?? ""));
-            message.Headers.Add(DeadLetterQueueConstants.FailedAtHeader, Encoding.UTF8.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()));
 
             using var producer = transport.CreateProducer(transport.ProducerConfig);
             await producer.ProduceAsync(dlqTopicName, message);

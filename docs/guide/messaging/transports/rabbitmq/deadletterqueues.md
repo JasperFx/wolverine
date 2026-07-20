@@ -79,8 +79,13 @@ With `EnableEnhancedDeadLettering()`, Wolverine will instead publish failed mess
 |--------|-------------|
 | `exception-type` | Full type name of the exception |
 | `exception-message` | The exception message |
-| `exception-stack` | The exception stack trace |
+| `exception-stack` | The exception stack trace, truncated to 8,192 characters |
 | `failed-at` | Unix timestamp (milliseconds) when the failure occurred |
+| `original-destination` | The Wolverine endpoint Uri the message was originally received from |
+
+The delivery attempt count is carried by the standard `attempts` envelope header. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
 
 ```cs
 using var host = await Host.CreateDefaultBuilder()

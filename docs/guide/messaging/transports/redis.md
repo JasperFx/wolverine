@@ -368,7 +368,14 @@ necessary to utilize that.
 ## Dead Letter Queue Messages <Badge type="tip" text="5.10" />
 
 For `Buffered` or `Inline` endpoints, you can use native Redis streams for "dead letter queue" messages using
-the name "{StreamKey}:dead-letter":
+the name "{StreamKey}:dead-letter". Each dead letter stream entry contains the serialized envelope plus the
+standard Wolverine diagnostic headers as top-level entry fields — `exception-type`, `exception-message`,
+`exception-stack`, `failed-at`, `original-destination` — alongside `message-type`, `envelope-id`, and
+`attempts` fields so tooling can inspect failures without deserializing the envelope. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
+Enable the native dead letter queue like this:
 
 <!-- snippet: sample_using_dead_letter_queue_for_redis -->
 <a id='snippet-sample_using_dead_letter_queue_for_redis'></a>

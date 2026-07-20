@@ -2,6 +2,12 @@
 
 By default, Wolverine dead lettering is disabled for GCP Pub/Sub transport and Wolverine uses any persistent envelope storage for dead lettering. You can opt in to Wolverine dead lettering through GCP Pub/Sub globally as shown below.
 
+When a message is moved to the dead letter topic, Wolverine stamps the standard diagnostic headers
+(`exception-type`, `exception-message`, `exception-stack`, `failed-at`, `original-destination`) as Pub/Sub
+message attributes, with the delivery attempt count on the standard `attempts` header. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
 <!-- snippet: sample_enable_wolverine_dead_lettering_for_pubsub -->
 <a id='snippet-sample_enable_wolverine_dead_lettering_for_pubsub'></a>
 ```cs

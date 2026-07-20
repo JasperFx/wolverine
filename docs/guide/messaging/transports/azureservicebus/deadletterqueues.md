@@ -1,5 +1,12 @@
 # Dead Letter Queues
 
+When Wolverine dead letters a message natively, it sets the broker's `DeadLetterReason` property to the
+exception type and `DeadLetterErrorDescription` to the exception message, and additionally copies the standard
+Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`, `failed-at`,
+`original-destination`) onto the dead lettered message's application properties. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
 The behavior of Wolverine.AzureServiceBus dead letter queuing depends on the endpoint mode:
 
 ### Inline Endpoints

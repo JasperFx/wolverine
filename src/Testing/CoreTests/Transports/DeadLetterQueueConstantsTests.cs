@@ -72,4 +72,64 @@ public class DeadLetterQueueConstantsTests
         envelope.Headers[DeadLetterQueueConstants.ExceptionMessageHeader]
             .ShouldBe("second");
     }
+
+    [Fact]
+    public void stamp_failure_metadata_records_the_original_destination()
+    {
+        var envelope = new Envelope
+        {
+            Destination = new Uri("kafka://topic/incoming")
+        };
+
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, new Exception("boom"));
+
+        envelope.Headers[DeadLetterQueueConstants.OriginalDestinationHeader]
+            .ShouldBe("kafka://topic/incoming");
+    }
+
+    [Fact]
+    public void stamp_failure_metadata_omits_destination_and_partition_headers_when_unknown()
+    {
+        var envelope = new Envelope();
+
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, new Exception("boom"));
+
+        envelope.Headers.ContainsKey(DeadLetterQueueConstants.OriginalDestinationHeader).ShouldBeFalse();
+        envelope.Headers.ContainsKey(DeadLetterQueueConstants.OriginalPartitionHeader).ShouldBeFalse();
+        envelope.Headers.ContainsKey(DeadLetterQueueConstants.OriginalOffsetHeader).ShouldBeFalse();
+    }
+
+    [Fact]
+    public void stamp_failure_metadata_records_partition_and_offset_when_present()
+    {
+        var envelope = new Envelope
+        {
+            PartitionId = 3,
+            Offset = 1234L
+        };
+
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, new Exception("boom"));
+
+        envelope.Headers[DeadLetterQueueConstants.OriginalPartitionHeader].ShouldBe("3");
+        envelope.Headers[DeadLetterQueueConstants.OriginalOffsetHeader].ShouldBe("1234");
+    }
+
+    [Fact]
+    public void stamp_failure_metadata_truncates_very_long_stack_traces()
+    {
+        var longStack = new string('x', DeadLetterQueueConstants.MaxStackTraceLength + 500);
+
+        var truncated = DeadLetterQueueConstants.TruncateStackTrace(longStack);
+
+        truncated.Length.ShouldBe(DeadLetterQueueConstants.MaxStackTraceLength
+                                  + DeadLetterQueueConstants.TruncationMarker.Length);
+        truncated.ShouldEndWith(DeadLetterQueueConstants.TruncationMarker);
+    }
+
+    [Fact]
+    public void truncate_stack_trace_leaves_short_stacks_alone()
+    {
+        DeadLetterQueueConstants.TruncateStackTrace("short stack").ShouldBe("short stack");
+        DeadLetterQueueConstants.TruncateStackTrace(null).ShouldBe("");
+    }
 }

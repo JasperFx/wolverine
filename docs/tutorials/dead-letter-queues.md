@@ -296,6 +296,37 @@ Wolverine uses the message's `DeliverBy` value as the expiration if it has one; 
 `DeadLetterQueueExpiration` to the current time. Expired rows are deleted by background processes, so cleanup is
 not quite real time.
 
+## Diagnostic headers on dead letter messages <Badge type="tip" text="6.21" />
+
+Whenever Wolverine moves a failed message to a *native* dead letter destination — a RabbitMQ dead letter
+queue, a Kafka DLQ topic (or tiered retry topic), the Azure Service Bus `$DeadLetterQueue`, an SQS dead letter
+queue, a Pulsar DLQ or retry-letter topic, a Redis dead letter stream, a GCP Pub/Sub dead letter topic, or a
+NATS dead-letter subject — it stamps one standard set of diagnostic headers on the moved message:
+
+| Header | Description |
+|--------|-------------|
+| `exception-type` | Full type name of the exception that caused the failure |
+| `exception-message` | The exception message |
+| `exception-stack` | The exception stack trace, truncated to 8,192 characters |
+| `failed-at` | Unix timestamp (milliseconds) when the failure occurred |
+| `original-destination` | The Wolverine endpoint Uri the message was originally received from |
+| `original-partition` | The broker partition the message was received from (partitioned brokers such as Kafka only) |
+| `original-offset` | The broker offset of the original message (offset-tracking brokers such as Kafka only) |
+
+The delivery attempt count travels on the standard `attempts` envelope header that Wolverine already maps on
+every transport, so tooling can read attempts, exception type, and origin without deserializing the message
+body. The header names intentionally align with the `exception_type` and `exception_message` columns of the
+[database dead letter storage](/guide/durability/dead-letter-storage), so failed messages can be grouped the
+same way whether they landed in a broker DLQ or the database table.
+
+Two transport-specific notes:
+
+- **Azure Service Bus** also sets the broker-native `DeadLetterReason` (exception type) and
+  `DeadLetterErrorDescription` (exception message) properties, and copies the headers above onto the dead
+  lettered message's application properties.
+- **Redis** writes the headers as top-level fields on the dead letter stream entry alongside the serialized
+  envelope, plus `message-type`, `envelope-id`, and `attempts` fields.
+
 ## Where to go next
 
 - [Error Handling](/guide/handlers/error-handling) -- the full set of retry, requeue, discard, and pause policies that decide *when* a message is dead lettered, plus exception filtering and the circuit breaker.
