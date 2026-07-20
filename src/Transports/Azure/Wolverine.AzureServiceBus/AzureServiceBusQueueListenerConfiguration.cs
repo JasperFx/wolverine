@@ -1,3 +1,4 @@
+using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using Wolverine.AzureServiceBus.Internal;
 using Wolverine.Configuration;
@@ -140,6 +141,51 @@ public class
         });
 
         return this;
+    }
+
+    /// <summary>
+    ///     Customize the Azure Service Bus <see cref="ServiceBusSessionProcessorOptions" /> used by this
+    ///     session-enabled listener -- e.g. <c>MaxConcurrentSessions</c>, <c>MaxAutoLockRenewalDuration</c>,
+    ///     <c>SessionIdleTimeout</c>, or <c>SessionIds</c>. Calling this implies <see cref="RequireSessions" />
+    ///     and switches the session listener from the default AcceptNextSession loop to a
+    ///     <see cref="ServiceBusSessionProcessor" />. Multiple calls compose. Wolverine reserves control of the
+    ///     properties it depends on for message acknowledgement (<c>ReceiveMode</c>, <c>AutoCompleteMessages</c>),
+    ///     which are re-asserted after this action runs.
+    /// </summary>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration ConfigureSessionProcessor(
+        Action<ServiceBusSessionProcessorOptions> configure)
+    {
+        add(e =>
+        {
+            e.Options.RequiresSession = true;
+            // Compose rather than overwrite so the SessionIds sugar can coexist with an explicit hook
+            e.ConfigureSessionProcessor += configure;
+        });
+        return this;
+    }
+
+    /// <summary>
+    ///     Pin this listener to only the given session identifiers. On a shared queue this turns the session
+    ///     id into a broker-enforced routing key: competing consumers each pinned to their own id(s) never see
+    ///     each other's messages. Producers select the target by setting <c>DeliveryOptions.GroupId</c> to the
+    ///     session id. Delegates to <see cref="ConfigureSessionProcessor" /> by populating
+    ///     <c>ServiceBusSessionProcessorOptions.SessionIds</c>. (GH-3533)
+    /// </summary>
+    /// <param name="identifiers">The session identifiers this listener should exclusively lock</param>
+    /// <returns></returns>
+    public AzureServiceBusQueueListenerConfiguration RequireSessionsWithOnlyTheseIdentifiers(
+        params string[] identifiers)
+    {
+        RequireSessions();
+        return ConfigureSessionProcessor(options =>
+        {
+            foreach (var id in identifiers)
+            {
+                options.SessionIds.Add(id);
+            }
+        });
     }
 
     /// <summary>

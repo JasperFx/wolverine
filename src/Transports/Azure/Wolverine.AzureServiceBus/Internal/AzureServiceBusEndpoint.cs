@@ -36,6 +36,19 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     public AzureServiceBusTransport Parent { get; }
 
     /// <summary>
+    ///     Optional customization of the Azure Service Bus <see cref="ServiceBusSessionProcessorOptions" /> used
+    ///     by session-enabled listeners for this endpoint. Setting this (directly, or the <c>SessionIds</c>
+    ///     collection via <c>RequireSessionsWithOnlyTheseIdentifiers(...)</c>) switches the session listener away
+    ///     from the default <c>AcceptNextSession</c> loop to a <see cref="ServiceBusSessionProcessor" />. Wolverine
+    ///     reserves control of the properties it depends on for message acknowledgement (currently
+    ///     <c>ReceiveMode</c> and <c>AutoCompleteMessages</c>), which are re-asserted after this action runs. This
+    ///     is a multicast delegate so the <c>SessionIds</c> sugar and any explicit customization compose rather
+    ///     than overwrite each other.
+    /// </summary>
+    [IgnoreDescription]
+    public Action<ServiceBusSessionProcessorOptions>? ConfigureSessionProcessor { get; set; }
+
+    /// <summary>
     ///     The maximum number of messages to receive in a single batch when listening
     ///     in either buffered or durable modes. The default is 20.
     /// </summary>
