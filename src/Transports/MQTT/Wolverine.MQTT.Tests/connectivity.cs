@@ -5,6 +5,7 @@ using MQTTnet;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Internal;
 using MQTTnet.Protocol;
+using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Util;
 using Xunit.Abstractions;
@@ -19,6 +20,49 @@ public class Connectivity
     public Connectivity(ITestOutputHelper output)
     {
         _output = output;
+    }
+
+    [Fact]
+    public async Task managed_client_reconnects_and_restores_subscriptions()
+    {
+        var port = PortFinder.GetAvailablePort();
+        var topic = $"reconnect/{Guid.NewGuid():N}";
+        await using var broker = new LocalMqttBroker(port)
+        {
+            Logger = new XUnitLogger(_output, "MQTT")
+        };
+        await broker.StartAsync();
+
+        using var managedClient = new MqttClientFactory().CreateManagedMqttClient();
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        managedClient.ApplicationMessageReceivedAsync += e =>
+        {
+            if (e.ApplicationMessage.Topic == topic)
+            {
+                received.TrySetResult();
+            }
+
+            return CompletedTask.Instance;
+        };
+
+        await managedClient.StartAsync(new ManagedMqttClientOptionsBuilder()
+            .WithAutoReconnectDelay(100.Milliseconds())
+            .WithClientOptions(o => o.WithTcpServer("127.0.0.1", port))
+            .Build());
+
+        await managedClient.SubscribeAsync(topic);
+
+        await broker.StopAsync();
+        await waitUntilAsync(() => !managedClient.IsConnected, 10.Seconds());
+
+        await managedClient.EnqueueAsync(topic, "queued-while-offline");
+
+        await broker.StartAsync();
+        await waitUntilAsync(() => managedClient.IsConnected, 10.Seconds());
+
+        var completed = await Task.WhenAny(received.Task, Task.Delay(10.Seconds()));
+        completed.ShouldBe(received.Task);
     }
 
     [Fact]
@@ -73,5 +117,21 @@ public class Connectivity
         // await transport.DisposeAsync();
 
 
+    }
+
+    private static async Task waitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(timeout);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (condition())
+            {
+                return;
+            }
+
+            await Task.Delay(50.Milliseconds());
+        }
+
+        condition().ShouldBeTrue();
     }
 }
