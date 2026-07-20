@@ -61,6 +61,23 @@ public partial class AzureServiceBusTransport
 
         if (queue.Options.RequiresSession)
         {
+            // GH-3533: when the endpoint carries any ServiceBusSessionProcessorOptions customization
+            // (most importantly SessionIds pinning), use the SDK's ServiceBusSessionProcessor instead
+            // of the default AcceptNextSession loop. Gated so current session listeners are unchanged.
+            if (queue.ConfigureSessionProcessor != null)
+            {
+                var sessionProcessor =
+                    BusClient.CreateSessionProcessor(queue.QueueName, BuildSessionProcessorOptions(queue));
+
+                var sessionListener = new InlineAzureServiceBusSessionListener(queue,
+                    runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSessionListener>(), sessionProcessor,
+                    receiver, mapper, requeue);
+
+                await sessionListener.StartAsync();
+
+                return sessionListener;
+            }
+
             return new AzureServiceBusSessionListener(this, queue, receiver, mapper,
                 runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
         }
@@ -117,6 +134,22 @@ public partial class AzureServiceBusTransport
 
         if (subscription.Options.RequiresSession)
         {
+            // GH-3533: see buildListenerForQueue — the session processor path is opt-in via
+            // ConfigureSessionProcessor (e.g. RequireSessionsWithOnlyTheseIdentifiers).
+            if (subscription.ConfigureSessionProcessor != null)
+            {
+                var sessionProcessor = BusClient.CreateSessionProcessor(subscription.Topic.TopicName,
+                    subscription.SubscriptionName, BuildSessionProcessorOptions(subscription));
+
+                var sessionListener = new InlineAzureServiceBusSessionListener(subscription,
+                    runtime.LoggerFactory.CreateLogger<InlineAzureServiceBusSessionListener>(), sessionProcessor,
+                    receiver, mapper, requeue);
+
+                await sessionListener.StartAsync();
+
+                return sessionListener;
+            }
+
             return new AzureServiceBusSessionListener(this, subscription, receiver, mapper,
                 runtime.LoggerFactory.CreateLogger<AzureServiceBusSessionListener>(), requeue);
         }
@@ -184,5 +217,33 @@ public partial class AzureServiceBusTransport
         {
             PrefetchCount = endpoint.PrefetchCount
         };
+    }
+
+    // Builds the ServiceBusSessionProcessorOptions for the opt-in ServiceBusSessionProcessor session
+    // listener (GH-3533). Mirrors BuildProcessorOptions: seed the endpoint defaults, apply the user's
+    // (multicast) customization — including any SessionIds pinning — then re-assert the acknowledgement
+    // properties Wolverine's InlineAzureServiceBusSessionListener depends on.
+    internal static ServiceBusSessionProcessorOptions BuildSessionProcessorOptions(AzureServiceBusEndpoint endpoint)
+    {
+        var options = new ServiceBusSessionProcessorOptions
+        {
+            PrefetchCount = endpoint.PrefetchCount,
+
+            // Map the existing "parallel sessions" knob (ListenerCount, set via RequireSessions(count))
+            // onto the processor's concurrency. A user may override this in ConfigureSessionProcessor.
+            MaxConcurrentSessions = endpoint.ListenerCount > 0 ? endpoint.ListenerCount : 1,
+
+            // Preserve the in-session FIFO ordering the hand-rolled loop provided
+            MaxConcurrentCallsPerSession = 1
+        };
+
+        endpoint.ConfigureSessionProcessor?.Invoke(options);
+
+        // Reserved by Wolverine: the listener relies on the peek-lock model to explicitly complete,
+        // defer, and dead letter messages, so these cannot be honored from user configuration.
+        options.ReceiveMode = ServiceBusReceiveMode.PeekLock;
+        options.AutoCompleteMessages = false;
+
+        return options;
     }
 }

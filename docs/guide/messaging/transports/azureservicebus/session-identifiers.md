@@ -68,6 +68,38 @@ Wolverine is using the "group-id" nomenclature from the AMPQ standard, but for A
 mapped to the `SessionId` property on the Azure Service Bus client internally.
 :::
 
+## Pinning a Listener to Specific Session Identifiers
+
+::: info
+This functionality was introduced in Wolverine 6.22.0.
+:::
+
+Sometimes you want several competing consumers to share a *single* queue or subscription, but have each consumer only
+ever process messages for a fixed set of session identifiers. Because Azure Service Bus enforces that only one receiver
+can hold a session lock at a time, the session id effectively becomes a *broker-enforced routing key*: a consumer pinned
+to `"A"` will never see the messages meant for `"B"`, even though both consumers are listening to the exact same entity.
+
+Use `RequireSessionsWithOnlyTheseIdentifiers(...)` to pin a listener:
+
+<!-- snippet: sample_pinning_azure_service_bus_session_identifiers -->
+<!-- endSnippet -->
+
+The producer simply selects the target consumer by setting the session id (the `GroupId`) on the outgoing message, exactly
+as with any other session-enabled endpoint.
+
+For any of the other `ServiceBusSessionProcessorOptions` knobs — `MaxConcurrentSessions`, `MaxAutoLockRenewalDuration`,
+`SessionIdleTimeout`, and so on — use the general `ConfigureSessionProcessor(...)` hook:
+
+<!-- snippet: sample_configuring_azure_service_bus_session_processor -->
+<!-- endSnippet -->
+
+::: tip
+Calling `ConfigureSessionProcessor(...)` or `RequireSessionsWithOnlyTheseIdentifiers(...)` switches the session listener
+from Wolverine's default `AcceptNextSession` loop to the Azure SDK's `ServiceBusSessionProcessor`. Session listeners that
+don't use either of these methods are completely unaffected. Wolverine reserves control of the `ReceiveMode` and
+`AutoCompleteMessages` options that its acknowledgement, deferral, and dead lettering depend on.
+:::
+
 You can also send messages with session identifiers through cascading messages as shown in a fake message handler
 below:
 

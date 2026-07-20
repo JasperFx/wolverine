@@ -153,6 +153,58 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task pin_session_identifiers()
+    {
+        #region sample_pinning_azure_service_bus_session_identifiers
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBus("some connection string").AutoProvision();
+
+                // Two competing consumers share ONE queue, but each only ever locks its own
+                // session id -- on a shared entity the session id becomes a broker-enforced
+                // routing key, so neither consumer ever sees the other's messages.
+                opts.ListenToAzureServiceBusQueue("shared-orders")
+                    .RequireSessionsWithOnlyTheseIdentifiers("A");
+
+                // (running on a different node)
+                // opts.ListenToAzureServiceBusQueue("shared-orders")
+                //     .RequireSessionsWithOnlyTheseIdentifiers("B");
+
+                opts.PublishMessage<OrderPlaced>().ToAzureServiceBusQueue("shared-orders");
+            }).StartAsync();
+
+        // The producer selects the target consumer with the session id (GroupId)
+        var bus = host.MessageBus();
+        await bus.PublishAsync(new OrderPlaced("1"), new DeliveryOptions { GroupId = "A" }); // only "A" receives
+        await bus.PublishAsync(new OrderPlaced("2"), new DeliveryOptions { GroupId = "B" }); // only "B" receives
+
+        #endregion
+    }
+
+    public async Task configure_session_processor_options()
+    {
+        #region sample_configuring_azure_service_bus_session_processor
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseAzureServiceBus("some connection string").AutoProvision();
+
+                // The general hook for any ServiceBusSessionProcessorOptions knob
+                opts.ListenToAzureServiceBusQueue("orders")
+                    .ConfigureSessionProcessor(o =>
+                    {
+                        o.MaxConcurrentSessions = 8;
+                        o.MaxAutoLockRenewalDuration = TimeSpan.FromMinutes(10);
+                        o.SessionIdleTimeout = TimeSpan.FromSeconds(30);
+                    });
+            }).StartAsync();
+
+        #endregion
+    }
+
     public async Task disable_system_queues()
     {
         #region sample_disable_system_queues_in_azure_service_bus
@@ -855,5 +907,7 @@ opts.ListenToAzureServiceBusQueue("incoming")
         #endregion
     }
 }
+
+public record OrderPlaced(string OrderId);
 
 public interface IInterfaceMessage;
