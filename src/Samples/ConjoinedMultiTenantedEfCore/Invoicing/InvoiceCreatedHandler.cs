@@ -13,6 +13,7 @@ namespace ConjoinedMultiTenantedEfCore.Invoicing;
 //   * any write is stamped/guarded exactly like in the endpoint
 //
 // The transactional middleware saves and commits when the handler succeeds
+#region sample_conjoined_tenant_scoped_handler
 public static class InvoiceCreatedHandler
 {
     // Toy business rule: small invoices are approved automatically
@@ -41,3 +42,4 @@ public static class InvoiceCreatedHandler
         }
     }
 }
+#endregion

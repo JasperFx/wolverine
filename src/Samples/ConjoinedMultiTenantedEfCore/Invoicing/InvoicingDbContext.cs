@@ -12,6 +12,7 @@ namespace ConjoinedMultiTenantedEfCore.Invoicing;
 // Wolverine's conjoined tenancy model customizer applies all of that
 // automatically to every entity implementing ITenanted when this context is
 // registered with AddDbContextWithWolverineManagedConjoinedTenancy<T>()
+#region sample_conjoined_vanilla_dbcontext
 public class InvoicingDbContext : DbContext
 {
     public InvoicingDbContext(DbContextOptions<InvoicingDbContext> options) : base(options)
@@ -36,3 +37,4 @@ public class InvoicingDbContext : DbContext
         });
     }
 }
+#endregion

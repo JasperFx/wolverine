@@ -109,6 +109,7 @@ if (app.Environment.IsDevelopment())
 // Wolverine.Http detects the tenant id from each request and flows it through
 // the endpoint, the DbContext, and any cascaded messages. The endpoints
 // themselves never look at headers or query strings
+#region sample_conjoined_http_tenant_detection
 app.MapWolverineEndpoints(opts =>
 {
     // Try headers first...
@@ -122,5 +123,6 @@ app.MapWolverineEndpoints(opts =>
     // tenant. The /tenants administrative endpoints opt out with [NotTenanted]
     opts.TenantId.AssertExists();
 });
+#endregion
 
 return await app.RunJasperFxCommands(args);

@@ -26,6 +26,7 @@ public static class InvoiceEndpoints
     // The second tuple value is a cascaded message. It's published only after
     // the transaction commits, and it *carries the tenant id with it*, so the
     // message handler below is tenant-scoped too
+    #region sample_conjoined_stamp_on_insert_endpoint
     [WolverinePost("/invoices")]
     public static (CreationResponse<InvoiceCreated>, InvoiceCreated) Create(
         CreateInvoice command,
@@ -43,6 +44,7 @@ public static class InvoiceEndpoints
         var created = new InvoiceCreated(invoice.Id, invoice.Amount);
         return (CreationResponse.For(created, $"/invoices/{invoice.Id}"), created);
     }
+    #endregion
 
     // **5. Tenant-scoped queries through HTTP endpoints**
     //
@@ -50,6 +52,7 @@ public static class InvoiceEndpoints
     // Wolverine added to every ITenanted entity binds this query to the tenant
     // detected from the request. Call it as tenant "acme" and you only ever see
     // acme's invoices
+    #region sample_conjoined_tenant_scoped_query
     [WolverineGet("/invoices")]
     public static Task<Invoice[]> GetAll(InvoicingDbContext db)
     {
@@ -63,4 +66,5 @@ public static class InvoiceEndpoints
     {
         return db.Invoices.FindAsync(id).AsTask();
     }
+    #endregion
 }
