@@ -250,7 +250,15 @@ public sealed partial class WolverineOptions
         {
             establishApplicationAssembly(assemblyName);
         }
-        
+        else
+        {
+            // GH-3521: capture the caller's assembly now, while its frame is still on the stack. The
+            // application assembly is finalized later in ReadJasperFxOptions from a lazy DI factory where
+            // the caller's frame is long gone, so this is the only reliable point to learn where THIS host
+            // was actually registered — needed to detect the first-host-wins pin.
+            CaptureRegistrationCallingAssembly();
+        }
+
         if (ApplicationAssembly != null)
         {
             CodeGeneration.Assemblies.Add(ApplicationAssembly);
@@ -697,6 +705,13 @@ public sealed partial class WolverineOptions
             if (ApplicationAssembly == null)
             {
                 establishApplicationAssembly(null);
+            }
+            else
+            {
+                // GH-3521: jasperfx.ApplicationAssembly is a process-wide value pinned by whichever host
+                // started first. If it differs from where this host was actually registered, handler
+                // discovery will silently scan the wrong assembly — warn loudly.
+                CheckForDivergentApplicationAssembly(ApplicationAssembly);
             }
         }
         
