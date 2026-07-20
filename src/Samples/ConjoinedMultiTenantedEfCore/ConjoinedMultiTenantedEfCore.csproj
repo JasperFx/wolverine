@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <!-- net9.0 only for now: every project using the Npgsql EF provider in this
+             repo is net9.0-only until Npgsql.EntityFrameworkCore.PostgreSQL 10 GA
+             (the rc pin conflicts with Microsoft.EntityFrameworkCore 10.0.2) -->
+        <TargetFrameworks>net9.0</TargetFrameworks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Http\Wolverine.Http\Wolverine.Http.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.EntityFrameworkCore\Wolverine.EntityFrameworkCore.csproj" />
+        <ProjectReference Include="..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
+        <!-- Wolverine 6.0 no longer ships the Roslyn runtime compiler in the core
+             package. Referencing WolverineFx.RuntimeCompilation auto-registers it
+             for TypeLoadMode.Dynamic (the default for development) -->
+        <ProjectReference Include="..\..\Wolverine.RuntimeCompilation\Wolverine.RuntimeCompilation.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -13,7 +13,7 @@ public class CrossTenantWriteException : InvalidOperationException
 {
     public CrossTenantWriteException(Type entityType, string? entityTenantId, string contextTenantId,
         EntityState state) : base(
-        $"Cannot {state.ToString().ToLowerInvariant()} entity of type {entityType.FullName} belonging to tenant '{entityTenantId}' through a DbContext scoped to tenant '{contextTenantId}'. A conjoined multi-tenanted DbContext can only write data for its own tenant.")
+        $"Cannot apply a '{state}' change to an entity of type {entityType.FullName} belonging to tenant '{entityTenantId}' through a DbContext scoped to tenant '{contextTenantId}'. A conjoined multi-tenanted DbContext can only write data for its own tenant.")
     {
         EntityType = entityType;
         EntityTenantId = entityTenantId;
