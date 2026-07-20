@@ -243,6 +243,14 @@ public abstract partial class MessageDatabase<T>
                 }
             }
 
+            // Let a provider clear its own extra tables inside the SAME reset transaction so
+            // nothing is left behind. This is deliberately a per-provider hook rather than a
+            // blanket loop over every table registered via AddTable: some providers register
+            // tables through that same path that a reset must preserve (e.g. SQL Server's
+            // rate-limit table). The PostgreSQL store overrides this to also empty the queue
+            // transport's queue + scheduled tables.
+            await truncateAdditionalTablesAsync(tx, _cancellation);
+
             await tx.CommitAsync(_cancellation);
 
             await afterTruncateEnvelopeDataAsync(conn);
@@ -259,6 +267,21 @@ public abstract partial class MessageDatabase<T>
     /// Override to perform provider-specific cleanup such as updating table statistics.
     /// </summary>
     protected virtual Task afterTruncateEnvelopeDataAsync(DbConnection conn)
+    {
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Hook to clear additional provider-specific tables within the reset transaction started by
+    /// <see cref="ClearAllAsync"/> / <see cref="RebuildAsync"/>. The default is a no-op. Providers
+    /// whose transport registers extra tables that a reset should also empty override this — e.g.
+    /// the PostgreSQL queue transport registers its queue and scheduled-message tables on the store
+    /// and clears them here. This is deliberately a per-provider decision rather than a blanket loop
+    /// over every table registered via <c>AddTable</c>: some providers register tables through that
+    /// same path that a reset must keep intact (for example SQL Server's rate-limit table). Runs
+    /// inside the reset transaction so the whole reset stays atomic.
+    /// </summary>
+    protected virtual Task truncateAdditionalTablesAsync(DbTransaction tx, CancellationToken token)
     {
         return Task.CompletedTask;
     }
