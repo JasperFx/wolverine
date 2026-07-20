@@ -444,6 +444,14 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     {
         var messageMetadata = new MessageMetadata();
 
+        // Stamp the standard failure metadata (exception info + original destination) BEFORE
+        // copying the headers into the outgoing metadata so it actually reaches the DLQ or
+        // retry-letter message on the wire. GH-3474
+        if (exception != null)
+        {
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
+        }
+
         foreach (var property in e.Headers)
         {
             messageMetadata[property.Key] = property.Value;
@@ -480,8 +488,6 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow;
             if (exception != null)
             {
-                DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
-
                 var exceptionText = exception.ToString();
                 messageMetadata[PulsarEnvelopeConstants.Exception] = exceptionText;
                 e.Headers[PulsarEnvelopeConstants.Exception] = exceptionText;

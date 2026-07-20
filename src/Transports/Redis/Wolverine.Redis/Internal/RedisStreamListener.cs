@@ -81,21 +81,28 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         {
             var database = getDatabase();
             
-            // Serialize the envelope
+            // Stamp the standard failure metadata (GH-3474) so the serialized envelope
+            // round-trips it, then serialize
+            DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
             var serializedEnvelope = EnvelopeSerializer.Serialize(envelope);
-            
+
             // Build the dead letter entry with error information
             var fields = new List<NameValueEntry>
             {
                 new("envelope", serializedEnvelope),
                 new(DeadLetterQueueConstants.ExceptionTypeHeader, exception.GetType().FullName ?? "Unknown"),
                 new(DeadLetterQueueConstants.ExceptionMessageHeader, exception.Message ?? ""),
-                new(DeadLetterQueueConstants.ExceptionStackHeader, exception.StackTrace ?? ""),
+                new(DeadLetterQueueConstants.ExceptionStackHeader, DeadLetterQueueConstants.TruncateStackTrace(exception.StackTrace)),
                 new(DeadLetterQueueConstants.FailedAtHeader, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
                 new("message-type", envelope.MessageType ?? "Unknown"),
                 new("envelope-id", envelope.Id.ToString()),
                 new("attempts", envelope.Attempts.ToString())
             };
+
+            if (envelope.Destination != null)
+            {
+                fields.Add(new(DeadLetterQueueConstants.OriginalDestinationHeader, envelope.Destination.ToString()));
+            }
             
             // Add the dead letter entry to the dead letter stream
             var deadLetterMessageId = await database.StreamAddAsync(_endpoint.DeadLetterQueueKey, fields.ToArray());

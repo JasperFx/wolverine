@@ -1,5 +1,6 @@
 using Azure.Messaging.ServiceBus;
 using JasperFx.Core;
+using Wolverine.Transports;
 
 namespace Wolverine.AzureServiceBus.Internal;
 
@@ -67,16 +68,36 @@ public class AzureServiceBusEnvelope : Envelope
 
     public Task DeadLetterAsync(CancellationToken token, string? deadLetterReason = null, string? deadLetterErrorDescription = null)
     {
+        // Copy the standard failure metadata headers stamped on this envelope onto the
+        // dead lettered message's application properties so the diagnostics survive the
+        // native move to the $DeadLetterQueue. GH-3474
+        var propertiesToModify = buildDiagnosticProperties();
+
         if (Args != null)
-            return Args.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+            return Args.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
 
         if (ServiceBusReceiver != null)
-            return ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+            return ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
 
         if (SessionReceiver != null)
-            return SessionReceiver.DeadLetterMessageAsync(AzureMessage, cancellationToken: token, deadLetterReason: deadLetterReason, deadLetterErrorDescription: deadLetterErrorDescription);
+            return SessionReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
 
         return Task.CompletedTask;
+    }
+
+    private Dictionary<string, object>? buildDiagnosticProperties()
+    {
+        Dictionary<string, object>? properties = null;
+        foreach (var key in DeadLetterQueueConstants.DiagnosticHeaders)
+        {
+            if (Headers.TryGetValue(key, out var value) && value != null)
+            {
+                properties ??= new Dictionary<string, object>();
+                properties[key] = value;
+            }
+        }
+
+        return properties;
     }
 
     private ProcessMessageEventArgs? Args { get; set; }

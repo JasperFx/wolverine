@@ -5,6 +5,7 @@ using Confluent.Kafka;
 using Microsoft.Extensions.Logging;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
+using Wolverine.Transports;
 
 namespace Wolverine.Kafka.Internals;
 
@@ -77,6 +78,11 @@ internal sealed class MoveToKafkaRetryTopicContinuation : UserDefinedContinuatio
         var retryTopicName = KafkaRetryNaming.RetryTopicName(sourceTopic, _delays[nextTier]);
         var retryTopic = transport.Topics[retryTopicName];
         retryTopic.EnsureEnvelopeMapper(runtime);
+
+        // Stamp the standard failure metadata (exception info + original
+        // destination/partition/offset, GH-3474) so retry-topic moves carry the same
+        // diagnostic headers as dead letter moves; the mapper writes them as Kafka headers
+        DeadLetterQueueConstants.StampFailureMetadata(envelope, exception);
 
         var message = await retryTopic.EnvelopeMapper!.CreateMessage(envelope);
         message.Headers ??= new Headers();

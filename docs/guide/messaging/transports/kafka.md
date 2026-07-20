@@ -997,6 +997,14 @@ extra topics. Retry topics are for pure-Kafka shops, or orgs whose tooling/obser
 
 Wolverine supports routing failed Kafka messages to a designated dead letter queue (DLQ) Kafka topic instead of relying on database-backed dead letter storage. This is opt-in on a per-listener basis.
 
+Messages produced to the DLQ topic — and to the [non-blocking retry topics](#non-blocking-retry-topics) —
+carry the standard Wolverine diagnostic headers as Kafka headers: `exception-type`, `exception-message`,
+`exception-stack` (truncated to 8,192 characters), `failed-at`, `original-destination`, plus
+`original-partition` and `original-offset` recording exactly where the failed message came from. The delivery
+attempt count is on the standard `attempts` header. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
 ### Enabling the Dead Letter Queue
 
 To enable the native DLQ for a Kafka listener, use the `EnableNativeDeadLetterQueue()` method:

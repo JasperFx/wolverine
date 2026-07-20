@@ -617,7 +617,10 @@ The response endpoint always uses Core NATS for low-latency replies, even when t
   configured dead-letter subject (so a terminate failure can't lose it), then terminated on the consumer via
   `AckTerminateAsync(reason)` so the server stops redelivering and records why. If **no** dead-letter subject
   is configured, Wolverine logs a warning and the message is terminated without being retained — configure a
-  dead-letter subject to keep poison messages.
+  dead-letter subject to keep poison messages. Messages forwarded to the dead-letter subject carry the
+  standard Wolverine diagnostic headers (`exception-type`, `exception-message`, `exception-stack`,
+  `failed-at`, `original-destination`), with the delivery attempt count on the standard `attempts` header —
+  see [diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages).
 
 ### Core NATS
 

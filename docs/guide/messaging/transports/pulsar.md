@@ -264,6 +264,12 @@ After the last tier is exhausted the message lands in the dead-letter topic. The
 onto every Pulsar listener at startup (provisioning the retry-letter producer/consumer and the DLQ),
 so you don't also need an explicit `RetryLetterQueueing(...)` call.
 
+Messages moved to the retry-letter or dead-letter topic carry the standard Wolverine diagnostic headers
+(`exception-type`, `exception-message`, `exception-stack`, `failed-at`, `original-destination`) as message
+properties, with the delivery attempt count on the standard `attempts` header. See
+[diagnostic headers on dead letter messages](/tutorials/dead-letter-queues#diagnostic-headers-on-dead-letter-messages)
+for the full cross-transport header structure.
+
 ::: warning Requires a Shared or Key_Shared subscription
 Pulsar message delaying only works on `Shared` / `KeyShared` subscriptions. Applying
 `MoveToPulsarRetryTopic` to an `Exclusive` / `Failover` listener emits a startup warning and the
