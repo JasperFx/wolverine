@@ -59,6 +59,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     internal bool HasDeclared { get; private set; }
 
     /// <summary>
+    /// For durable (inbox-backed) listeners, the maximum number of prefetched deliveries the
+    /// consumer will coalesce into one batched inbox insert (with a 5ms max accumulation age).
+    /// 1 reverts to strict message-at-a-time persistence. Ignored for Buffered/Inline
+    /// endpoints. Default 100. See GH-3492.
+    /// </summary>
+    public int MaximumMessagesToReceive { get; set; } = 100;
+
+    /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>
     public ushort PreFetchCount

@@ -35,9 +35,12 @@ run_cell r-default        rabbit        RIG_MODE=default RIG_SEND_MODE=default R
 # native anchor
 run_cell r-native         native-rabbit RIG_SEQ=none
 
-# batching latency: Wolverine defaults (100,250ms debounce pre-fix) vs effectively-off
+# batching latency: Wolverine defaults (100,250ms debounce pre-fix) vs effectively-off.
+# NOTE: Rabbit subscribers default to Inline sending, so batch knobs without BufferedInMemory
+# are inert — r-batch-buffered is the cell that actually exercises the BatchedSender.
 run_cell r-batch-default  rabbit        RIG_MODE=default RIG_SEND_MODE=batched RIG_BATCH_SIZE=100 RIG_BATCH_TIMEOUT_MS=250 RIG_SEQ=none
 run_cell r-batch-1-1      rabbit        RIG_MODE=default RIG_SEND_MODE=batched RIG_BATCH_SIZE=1 RIG_BATCH_TIMEOUT_MS=1 RIG_SEQ=none
+run_cell r-batch-buffered rabbit        RIG_MODE=default RIG_SEND_MODE=buffered RIG_BATCH_SIZE=100 RIG_BATCH_TIMEOUT_MS=250 RIG_SEQ=none
 
 # --- R1 throughput: inline single-file vs parallelism levers (2000/s, 5ms handler) ---
 

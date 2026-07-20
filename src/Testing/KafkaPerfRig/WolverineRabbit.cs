@@ -134,6 +134,15 @@ public static class WolverineRabbit
                 .MessageBatchSize(cfg.BatchSize)
                 .MessageBatchTimeout(TimeSpan.FromMilliseconds(cfg.BatchTimeoutMs));
         }
+        else if (cfg.SendMode == "buffered")
+        {
+            // RabbitMQ subscribers default to Inline sending, so the BatchedSender (and the
+            // GH-3490 batching-timeout semantics) only apply when a route opts into buffering
+            subscriber
+                .BufferedInMemory()
+                .MessageBatchSize(cfg.BatchSize)
+                .MessageBatchTimeout(TimeSpan.FromMilliseconds(cfg.BatchTimeoutMs));
+        }
         // "default": leave Wolverine's out-of-the-box sending mode + batching untouched
     }
 }

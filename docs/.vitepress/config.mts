@@ -194,7 +194,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Topics', link:'/guide/messaging/transports/rabbitmq/topics'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/rabbitmq/interoperability'},
                                         {text: 'Connecting to Multiple Brokers', link: '/guide/messaging/transports/rabbitmq/multiple-brokers'},
-                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/rabbitmq/multi-tenancy'}
+                                        {text: 'Multi-Tenancy', link: '/guide/messaging/transports/rabbitmq/multi-tenancy'},
+                                        {text: 'Performance Tuning', link: '/guide/messaging/transports/rabbitmq/performance'}
                                     ]},
                                 {text: 'Azure Service Bus', link: '/guide/messaging/transports/azureservicebus/', items:[
                                         {text: 'Publishing', link:'/guide/messaging/transports/azureservicebus/publishing'},
