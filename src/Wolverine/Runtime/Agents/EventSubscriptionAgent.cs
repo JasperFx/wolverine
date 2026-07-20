@@ -59,14 +59,24 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _innerAgent = await _daemon.StartAgentAsync(_shardName, cancellationToken);
-        Status = AgentStatus.Running;
+        await resumeContinuousAsync(cancellationToken);
 
         // Only count an agent that actually started - a throw above leaves the count untouched
         if (OnStarted != null)
         {
             await OnStarted();
         }
+    }
+
+    // Start (or re-adopt) the continuous inner agent through the registered daemon path and refresh the
+    // wrapper's view of it. Deliberately does NOT invoke OnStarted: the running-agent bookkeeping in
+    // EventStoreAgents counts one logical agent per node for the observer-subscription lifecycle, and a
+    // rebuild/rewind is transparent to that count (the wrapper never observed a matching stop), so
+    // re-counting here would leak the database's tracker subscriptions. See GH-3520.
+    private async Task resumeContinuousAsync(CancellationToken cancellationToken)
+    {
+        _innerAgent = await _daemon.StartAgentAsync(_shardName, cancellationToken);
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -86,6 +96,13 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         // single-database per-tenant partitioning. _shardName.TenantId is null for store-global /
         // database-per-tenant shards, where the tenant-less behavior is correct.
         await _daemon.RebuildProjectionAsync(_shardName.Name, _shardName.TenantId, cancellationToken);
+
+        // GH-3520: the daemon-level rebuild stops the continuous agent and never restarts it. Under
+        // Wolverine-managed distribution there is no store coordinator to resurrect it, and this wrapper
+        // would otherwise keep reporting Running against the now-stopped agent, so NodeAgentController
+        // sees nothing to fix and the shard freezes at RegisteredIdle while its high-water climbs.
+        // Restore continuous execution ourselves through the registered daemon start path.
+        await resumeContinuousAsync(cancellationToken);
     }
 
     public async Task RewindAsync(long? sequenceFloor, DateTimeOffset? timestamp, CancellationToken cancellationToken)
@@ -95,6 +112,14 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         // CritterWatch needs because DaemonForDatabase() throws under Wolverine-managed distribution.
         await _daemon.RewindSubscriptionAsync(_shardName.Name, _shardName.TenantId, cancellationToken,
             sequenceFloor, timestamp);
+
+        // GH-3520: same freeze as RebuildAsync. RewindSubscriptionAsync restarts continuous agents
+        // daemon-side, but the wrapper's _innerAgent still points at the stopped pre-rewind agent and
+        // Status still reads Running. Re-adopt the live agent through the registered start path so the
+        // wrapper reflects reality. This requires JasperFx#536 (rewind registers its restarted agent) so
+        // the registered start resolves to that same running agent idempotently rather than spinning up a
+        // duplicate on the same progression row - this ships in lockstep with that JasperFx bump.
+        await resumeContinuousAsync(cancellationToken);
     }
 
     public Uri Uri { get; }
