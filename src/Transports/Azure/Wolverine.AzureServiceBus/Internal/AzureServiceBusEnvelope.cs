@@ -18,6 +18,12 @@ public class AzureServiceBusEnvelope : Envelope
         AzureMessage = args.Message;
     }
 
+    public AzureServiceBusEnvelope(ProcessSessionMessageEventArgs sessionArgs)
+    {
+        SessionArgs = sessionArgs;
+        AzureMessage = sessionArgs.Message;
+    }
+
     public AzureServiceBusEnvelope(ServiceBusReceivedMessage message, ServiceBusReceiver sessionReceiver)
     {
         AzureMessage = message;
@@ -31,6 +37,10 @@ public class AzureServiceBusEnvelope : Envelope
             if (Args != null)
             {
                 await Args.CompleteMessageAsync(AzureMessage, token);
+            }
+            else if (SessionArgs != null)
+            {
+                await SessionArgs.CompleteMessageAsync(AzureMessage, token);
             }
             else if (ServiceBusReceiver != null)
             {
@@ -57,6 +67,9 @@ public class AzureServiceBusEnvelope : Envelope
         if (Args != null)
             return Args.DeferMessageAsync(AzureMessage, cancellationToken: token);
 
+        if (SessionArgs != null)
+            return SessionArgs.DeferMessageAsync(AzureMessage, cancellationToken: token);
+
         if (ServiceBusReceiver != null)
             return ServiceBusReceiver.DeferMessageAsync(AzureMessage, cancellationToken: token);
 
@@ -75,6 +88,9 @@ public class AzureServiceBusEnvelope : Envelope
 
         if (Args != null)
             return Args.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
+
+        if (SessionArgs != null)
+            return SessionArgs.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
 
         if (ServiceBusReceiver != null)
             return ServiceBusReceiver.DeadLetterMessageAsync(AzureMessage, propertiesToModify, deadLetterReason, deadLetterErrorDescription, token);
@@ -101,6 +117,7 @@ public class AzureServiceBusEnvelope : Envelope
     }
 
     private ProcessMessageEventArgs? Args { get; set; }
+    private ProcessSessionMessageEventArgs? SessionArgs { get; set; }
 
     private ServiceBusReceivedMessage AzureMessage { get; }
     private ServiceBusSessionReceiver? SessionReceiver { get; }

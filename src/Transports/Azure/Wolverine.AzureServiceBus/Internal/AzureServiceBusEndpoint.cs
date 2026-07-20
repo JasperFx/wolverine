@@ -93,6 +93,19 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
     [IgnoreDescription]
     public Action<ServiceBusProcessorOptions>? ConfigureProcessor { get; set; }
 
+    /// <summary>
+    ///     Optional customization of the Azure Service Bus <see cref="ServiceBusSessionProcessorOptions" /> used
+    ///     by session-enabled listeners for this endpoint. Setting this (directly, or the <c>SessionIds</c>
+    ///     collection via <c>RequireSessionsWithOnlyTheseIdentifiers(...)</c>) switches the session listener away
+    ///     from the default <c>AcceptNextSession</c> loop to a <see cref="ServiceBusSessionProcessor" />. Wolverine
+    ///     reserves control of the properties it depends on for message acknowledgement (currently
+    ///     <c>ReceiveMode</c> and <c>AutoCompleteMessages</c>), which are re-asserted after this action runs. Unlike
+    ///     <see cref="ConfigureProcessor" />, this is a multicast delegate so the <c>SessionIds</c> sugar and any
+    ///     explicit customization compose rather than overwrite each other.
+    /// </summary>
+    [IgnoreDescription]
+    public Action<ServiceBusSessionProcessorOptions>? ConfigureSessionProcessor { get; set; }
+
     public abstract ValueTask<bool> CheckAsync();
     public abstract ValueTask TeardownAsync(ILogger logger);
     public abstract ValueTask SetupAsync(ILogger logger);
