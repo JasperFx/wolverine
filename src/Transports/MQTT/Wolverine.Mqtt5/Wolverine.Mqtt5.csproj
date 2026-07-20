@@ -19,4 +19,31 @@
         <PackageReference Include="MQTTnet.Server" />
     </ItemGroup>
 
+    <!--
+        Source shared verbatim with the MQTTnet 4 package (WolverineFx.MQTT).
+        These files contain no MQTTnet-version-specific code, so they are linked
+        from the sibling Wolverine.MQTT project (the canonical home) rather than
+        duplicated - a fix to any of them lands in both packages automatically.
+
+        Files that genuinely differ between MQTTnet 4 and 5 (payload types, the
+        client/factory/auth/diagnostics APIs), the AssemblyAttributes (distinct
+        InternalsVisibleTo target), and the ManagedMqttClientCompatibility shim
+        (v5-only) live physically in this project.
+    -->
+    <ItemGroup>
+        <Compile Include="..\Wolverine.MQTT\AckMqttTopic.cs" Link="AckMqttTopic.cs" />
+        <Compile Include="..\Wolverine.MQTT\IMqttEnvelopeMapper.cs" Link="IMqttEnvelopeMapper.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttConnectionException.cs" Link="MqttConnectionException.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttEndpointUri.cs" Link="MqttEndpointUri.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttJwtAuthenticationOptions.cs" Link="MqttJwtAuthenticationOptions.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttListenerConfiguration.cs" Link="MqttListenerConfiguration.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttSubscriberConfiguration.cs" Link="MqttSubscriberConfiguration.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttTopic.cs" Link="MqttTopic.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttTransportExpression.cs" Link="MqttTransportExpression.cs" />
+        <Compile Include="..\Wolverine.MQTT\MqttTransportExtensions.cs" Link="MqttTransportExtensions.cs" />
+        <Compile Include="..\Wolverine.MQTT\Usings.cs" Link="Usings.cs" />
+        <Compile Include="..\Wolverine.MQTT\Internals\MqttHealthCheck.cs" Link="Internals\MqttHealthCheck.cs" />
+        <Compile Include="..\Wolverine.MQTT\Internals\MqttTopicSender.cs" Link="Internals\MqttTopicSender.cs" />
+    </ItemGroup>
+
 </Project>
