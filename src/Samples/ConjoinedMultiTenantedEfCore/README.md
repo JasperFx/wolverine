@@ -29,6 +29,17 @@ same conjoined-tenancy semantics Marten has always had.
 | Opt-in per-tenant physical partitioning | commented option in `Program.cs` |
 | `wolverine_tenants` registry | `Tenants/TenantEndpoints.cs` |
 
+## Requirements
+
+Conjoined tenancy builds each per-tenant `DbContext` through Wolverine's runtime code
+generation, so the app references the **`WolverineFx.RuntimeCompilation`** package
+([GH-2876](https://github.com/JasperFx/wolverine/issues/2876)). Without it the host fails
+fast at startup:
+
+```bash
+dotnet add package WolverineFx.RuntimeCompilation
+```
+
 ## Running it
 
 ```bash
