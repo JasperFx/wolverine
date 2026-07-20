@@ -139,6 +139,7 @@
   <Folder Name="/Samples/">
     <Project Path="src/Samples/ChaosSender/ChaosSender.csproj" />
     <Project Path="src/Samples/CommandBus/CommandBus.csproj" />
+    <Project Path="src/Samples/ConjoinedMultiTenantedEfCore/ConjoinedMultiTenantedEfCore.csproj" />
     <Project Path="src/Samples/DocumentationSamples/DocumentationSamples.csproj" />
     <Project Path="src/Samples/EncryptionDemo/EncryptionDemo.csproj" />
     <Project Path="src/Samples/InMemoryMediator/InMemoryMediator.csproj" />
