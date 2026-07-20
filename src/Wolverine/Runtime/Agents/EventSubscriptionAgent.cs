@@ -124,8 +124,23 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
     public Uri Uri { get; }
 
-    // Be nice for this to get the Paused too
-    public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
+    private AgentStatus _status = AgentStatus.Stopped;
+
+    // GH-3519: reflect the LIVE daemon shard status once we have started rather than latching a value.
+    // The wedge in the field: a shard that stops or idles underneath this wrapper -- a lost
+    // first-assignment start race, a daemon-side stop, or an execution-loop fault -- used to keep
+    // reading Running because nothing flipped the latched field back. NodeAgentController only restarts
+    // agents it can see are non-Running, so a wrapper that lies "Running" over a dead shard froze at
+    // RegisteredIdle forever while its high-water climbed. Delegating to the inner agent (whose Status
+    // the daemon keeps current) lets the controller's reevaluation notice the dead shard and restart it.
+    // Before an inner agent exists, or after an explicit StopAsync (which sets _status = Stopped), fall
+    // back to the wrapper's own tracked value so a not-yet-started / deliberately-stopped agent still
+    // reads Stopped.
+    public AgentStatus Status
+    {
+        get => _status == AgentStatus.Stopped ? AgentStatus.Stopped : _innerAgent?.Status ?? _status;
+        private set => _status = value;
+    }
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
