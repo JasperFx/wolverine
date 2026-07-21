@@ -376,19 +376,26 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
 
     public bool NativeRetryLetterQueueEnabled { get; }
 
+    // Only claim the native-scheduling capability when the retry-letter queue is actually configured;
+    // otherwise MoveToScheduledUntilAsync has no producer to move the message to and the runtime should
+    // fall back to the durable/buffered rescheduler rather than believe a native reschedule succeeded.
+    public bool NativeSchedulingEnabled => NativeRetryLetterQueueEnabled;
+
     public async Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time)
     {
         if (NativeRetryLetterQueueEnabled && envelope is PulsarEnvelope)
         {
-            await moveToQueueAsync(envelope, envelope.Failure, false);
+            // Honor the caller's requested delivery time rather than the retry-letter tier schedule.
+            await moveToQueueAsync(envelope, envelope.Failure, false, time);
         }
     }
 
-    private async Task moveToQueueAsync(Envelope envelope, Exception? exception, bool isDeadLettered = false)
+    private async Task moveToQueueAsync(Envelope envelope, Exception? exception, bool isDeadLettered = false,
+        DateTimeOffset? scheduledTime = null)
     {
         if (envelope is PulsarEnvelope e)
         {
-            var messageMetadata = BuildMessageMetadata(envelope, e, exception, isDeadLettered);
+            var messageMetadata = BuildMessageMetadata(envelope, e, exception, isDeadLettered, scheduledTime);
 
             IConsumer<ReadOnlySequence<byte>>? sourceConsumer;
             IProducer<ReadOnlySequence<byte>> targetProducer;
@@ -440,7 +447,7 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
     }
 
     private MessageMetadata BuildMessageMetadata(Envelope envelope, PulsarEnvelope e, Exception? exception,
-        bool isDeadLettered)
+        bool isDeadLettered, DateTimeOffset? scheduledTime = null)
     {
         var messageMetadata = new MessageMetadata();
 
@@ -481,7 +488,9 @@ internal class PulsarListener : IListener, ISupportDeadLetterQueue, ISupportNati
             var delayTime = _endpoint.RetryLetterTopic!.Retry[envelope.Attempts - 1];
             messageMetadata[PulsarEnvelopeConstants.DelayTimeMetadataKey] =
                 delayTime.TotalMilliseconds.ToString(CultureInfo.InvariantCulture);
-            messageMetadata.DeliverAtTimeAsDateTimeOffset = DateTimeOffset.UtcNow.Add(delayTime);
+            // A caller-supplied reschedule time (ReScheduleAsync / scheduled-retry policy) wins over the
+            // retry-letter tier delay so "retry at T" is actually honored; fall back to the tier schedule.
+            messageMetadata.DeliverAtTimeAsDateTimeOffset = scheduledTime ?? DateTimeOffset.UtcNow.Add(delayTime);
         }
         else
         {

@@ -35,6 +35,7 @@ jobs:
           - CIKafka
           - CIMarten
           - CIMQTT
+          - CIMQTT5
           - CIMySql
           - CINATS
           - CIOracle
