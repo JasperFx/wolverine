@@ -22,6 +22,15 @@ public class DeadLetterEnvelopeGetRequest
     public string? MessageType { get; set; }
     public string? ExceptionType { get; set; }
     public string? ExceptionMessage { get; set; }
+
+    /// <summary>
+    /// When set, restricts results to envelopes whose replayable flag matches. <c>null</c>
+    /// (the default) keeps the current behavior of not filtering on the replayable state.
+    /// <c>false</c> returns only envelopes not yet marked replayable; <c>true</c> returns only
+    /// those already marked for replay.
+    /// </summary>
+    public bool? Replayable { get; set; }
+
     public DateTimeOffset? From { get; set; }
     public DateTimeOffset? Until { get; set; }
     public string? TenantId { get; set; }

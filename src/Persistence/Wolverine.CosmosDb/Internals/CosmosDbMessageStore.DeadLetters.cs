@@ -136,6 +136,11 @@ public partial class CosmosDbMessageStore : IDeadLetters
             conditions.Add("c.receivedAt = @receivedAt");
         }
 
+        if (query.Replayable.HasValue)
+        {
+            conditions.Add("c.replayable = @replayable");
+        }
+
         var whereClause = string.Join(" AND ", conditions);
 
         // Count query
@@ -282,6 +287,7 @@ public partial class CosmosDbMessageStore : IDeadLetters
         if (query.ExceptionType.IsNotEmpty()) conditions.Add("c.exceptionType = @exceptionType");
         if (query.MessageType.IsNotEmpty()) conditions.Add("c.messageType = @messageType");
         if (query.ReceivedAt.IsNotEmpty()) conditions.Add("c.receivedAt = @receivedAt");
+        if (query.Replayable.HasValue) conditions.Add("c.replayable = @replayable");
 
         var queryText = $"SELECT * FROM c WHERE {string.Join(" AND ", conditions)}";
         var queryDef = RebuildQueryDef(queryText, query);
@@ -337,6 +343,7 @@ public partial class CosmosDbMessageStore : IDeadLetters
             queryDef = queryDef.WithParameter("@exceptionMessage", query.ExceptionMessage);
         if (query.MessageType.IsNotEmpty()) queryDef = queryDef.WithParameter("@messageType", query.MessageType);
         if (query.ReceivedAt.IsNotEmpty()) queryDef = queryDef.WithParameter("@receivedAt", query.ReceivedAt);
+        if (query.Replayable.HasValue) queryDef = queryDef.WithParameter("@replayable", query.Replayable.Value);
 
         return queryDef;
     }

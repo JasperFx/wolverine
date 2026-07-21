@@ -163,6 +163,12 @@ public abstract partial class MessageDatabase<T>
             builder.AppendParameter(query.ReceivedAt);
         }
 
+        if (query.Replayable.HasValue)
+        {
+            builder.Append($" and {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(query.Replayable.Value);
+        }
+
         if (query.MessageIds != null && query.MessageIds.Any())
         {
             writeMessageIdArrayQueryList(builder, query.MessageIds);

@@ -114,6 +114,12 @@ public partial class RavenDbMessageStore : IDeadLetters
             queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.ReceivedAt == receivedAtUri);
         }
 
+        if (query.Replayable.HasValue)
+        {
+            var replayable = query.Replayable.Value;
+            queryable = (IRavenQueryable<DeadLetterMessage>)queryable.Where(x => x.Replayable == replayable);
+        }
+
         // Get total count
         var totalCount = await queryable.CountAsync(token);
 
@@ -230,6 +236,11 @@ update
         if (query.ReceivedAt.IsNotEmpty())
         {
             conditions.Add($"m.ReceivedAt = '{query.ReceivedAt}'");
+        }
+
+        if (query.Replayable.HasValue)
+        {
+            conditions.Add($"m.Replayable = {(query.Replayable.Value ? "true" : "false")}");
         }
 
         return conditions.Count > 0 ? "where " + string.Join(" and ", conditions) : "";
