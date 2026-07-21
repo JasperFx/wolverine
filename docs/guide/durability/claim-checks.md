@@ -75,7 +75,7 @@ When `UseClaimCheck(...)` runs without an explicit `Store`, the pipeline falls b
 
 ## Backends
 
-Wolverine ships two production-grade storage backends as separate NuGet packages.
+Wolverine ships several production-grade storage backends as separate NuGet packages.
 
 ### Azure Blob Storage
 
@@ -126,6 +126,32 @@ opts.UseClaimCheck(cc => cc.UseAmazonS3(myS3Client, bucketName: "wolverine-claim
 ```
 
 Token id maps to the object key. The supplied content type is set as `PutObjectRequest.ContentType`, which preserves the MIME type for downloads and S3 lifecycle policies. `DeleteAsync` is naturally idempotent — S3 returns success even when the key is absent.
+
+### Google Cloud Storage
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.GoogleCloudStorage
+```
+
+```csharp
+using Google.Cloud.Storage.V1;
+using Wolverine.ClaimCheck.GoogleCloudStorage;
+
+builder.Services.AddSingleton(StorageClient.Create());
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UseGoogleCloudStorageFromServices(bucketName: "wolverine-claim-checks"));
+});
+```
+
+The `UseGoogleCloudStorageFromServices` overload defers `StorageClient` resolution until the container is built, mirroring the S3 pattern. An explicit-client overload is also available for tests and one-off setups:
+
+```csharp
+opts.UseClaimCheck(cc => cc.UseGoogleCloudStorage(myStorageClient, bucketName: "wolverine-claim-checks"));
+```
+
+Token id maps to the object name, and the supplied content type is set on the object so it downloads with the right MIME type and participates in GCS lifecycle rules. `DeleteAsync` is idempotent — a `404 Not Found` on a missing object is swallowed.
 
 ### File system (built in)
 
