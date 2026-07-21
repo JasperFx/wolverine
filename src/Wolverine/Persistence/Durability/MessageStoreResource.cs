@@ -1,3 +1,4 @@
+using JasperFx;
 using JasperFx.Resources;
 using Spectre.Console;
 using Spectre.Console.Rendering;
@@ -39,7 +40,11 @@ internal class MessageStoreResource : IStatefulResource
 
     public Task Setup(CancellationToken token)
     {
-        return _persistence.Admin.MigrateAsync();
+        // An explicit setup call ("resources setup" / IHost.SetupResources()) is itself the
+        // intent to provision the storage, so Setup always migrates with CreateOrUpdate
+        // regardless of the configured AutoCreate. Mirrors Weasel's DatabaseResource.Setup,
+        // where ApplyAllConfiguredChangesToDatabaseAsync promotes None to CreateOrUpdate
+        return _persistence.Admin.MigrateAsync(AutoCreate.CreateOrUpdate);
     }
 
     public async Task<IRenderable> DetermineStatus(CancellationToken token)

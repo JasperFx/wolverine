@@ -1,6 +1,8 @@
 using System.Data.Common;
+using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Microsoft.Extensions.Logging;
 using Weasel.Core;
 using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
@@ -49,8 +51,15 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
-    public async Task MigrateAsync()
+    public Task MigrateAsync()
     {
+        return MigrateAsync(null);
+    }
+
+    public async Task MigrateAsync(AutoCreate? overrideAutoCreate)
+    {
+        var autoCreate = overrideAutoCreate ?? _settings.AutoCreate;
+
         Func<Task> tryMigrate = async () =>
         {
             await using var conn = await DataSource.OpenConnectionAsync(_cancellation);
@@ -66,7 +75,7 @@ public abstract partial class MessageDatabase<T>
                 // (or equivalents on other engines). See GH-2518.
                 lockAcquired = await acquireMigrationLockAsync(lockId, typedConn, _cancellation);
 
-                await migrateAsync(conn);
+                await migrateAsync(conn, autoCreate);
             }
             finally
             {
@@ -202,13 +211,26 @@ public abstract partial class MessageDatabase<T>
         }
     }
 
-    private async Task migrateAsync(DbConnection conn)
+    private Task migrateAsync(DbConnection conn)
+    {
+        return migrateAsync(conn, _settings.AutoCreate);
+    }
+
+    private async Task migrateAsync(DbConnection conn, AutoCreate autoCreate)
     {
         var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, Objects);
 
         if (migration.Difference != SchemaPatchDifference.None)
         {
-            await Migrator.ApplyAllAsync(conn, migration, _settings.AutoCreate, new MigrationLogger(Logger), ct: _cancellation);
+            if (autoCreate == AutoCreate.None)
+            {
+                Logger.LogWarning(
+                    "Message storage in database {Database} is out of date ({Difference}) but AutoCreate is None — no migration applied. Run 'resources setup' to provision it",
+                    Name, migration.Difference);
+                return;
+            }
+
+            await Migrator.ApplyAllAsync(conn, migration, autoCreate, new MigrationLogger(Logger), ct: _cancellation);
         }
     }
 

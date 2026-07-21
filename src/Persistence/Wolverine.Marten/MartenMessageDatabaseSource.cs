@@ -106,6 +106,12 @@ internal class MartenMessageDatabaseSource : ITenantedMessageSource
         {
             await store.Admin.MigrateAsync();
         }
+        else
+        {
+            _runtime.LoggerFactory.CreateLogger<MartenMessageDatabaseSource>().LogInformation(
+                "Skipping message storage migration for tenant message database {Database} because AutoCreate is None",
+                database.Identifier);
+        }
 
         return store;
     }
