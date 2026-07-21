@@ -51,6 +51,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Kafka")]
 [assembly: InternalsVisibleTo("Wolverine.Nats")]
 [assembly: InternalsVisibleTo("Wolverine.MQTT")]
+[assembly: InternalsVisibleTo("Wolverine.Mqtt5")]
 [assembly: InternalsVisibleTo("Wolverine.Redis")]
 [assembly: InternalsVisibleTo("Wolverine.SignalR")]
 [assembly: InternalsVisibleTo("Wolverine.Pubsub")]

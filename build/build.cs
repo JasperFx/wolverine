@@ -363,6 +363,7 @@ partial class Build : NukeBuild
                 Solution.Transports.AWS.Wolverine_AmazonSqs,
                 Solution.Transports.AWS.Wolverine_AmazonSns,
                 Solution.Transports.MQTT.Wolverine_MQTT,
+                Solution.Transports.MQTT.Wolverine_Mqtt5,
                 Solution.Transports.Kafka.Wolverine_Kafka,
                 Solution.Transports.Pulsar.Wolverine_Pulsar,
                 Solution.Transports.GCP.Wolverine_Pubsub,
