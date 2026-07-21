@@ -15,4 +15,12 @@ internal static class ClaimCheckHeaders
     /// never begin with <c>$</c>.
     /// </summary>
     public const string BodyHeaderName = Prefix + "$body";
+
+    /// <summary>
+    /// Header name carrying the routing key of the <see cref="IClaimCheckStore"/> that an envelope's
+    /// claim-check payloads were off-loaded to (GH-3508). Absent when the global default store was used,
+    /// so single-store envelopes are unchanged. The receiver resolves the store by this key rather than
+    /// re-evaluating routes, which is what lets per-endpoint routing survive the send/receive URI change.
+    /// </summary>
+    public const string StoreHeaderName = Prefix + "$store";
 }

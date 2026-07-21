@@ -62,18 +62,16 @@ public static class WolverineOptionsClaimCheckExtensions
             options.DeferredClaimCheckStore = null;
         }
 
+        // Build the router: the resolved default store + global threshold, plus any per-message /
+        // per-endpoint routes registered during configuration (GH-3508).
+        var router = new ClaimCheckStoreRouter(store, configuration.AutoOffloadThreshold,
+            configuration.Routes, configuration.NamedStores);
+
         // If UseClaimCheck has already been applied to this options instance,
         // unwrap and re-wrap so the operation is idempotent (new store wins).
-        var threshold = configuration.AutoOffloadThreshold;
         var current = options.DefaultSerializer;
-        if (current is ClaimCheckMessageSerializer existing)
-        {
-            options.DefaultSerializer = new ClaimCheckMessageSerializer(existing.Inner, store, threshold);
-        }
-        else
-        {
-            options.DefaultSerializer = new ClaimCheckMessageSerializer(current, store, threshold);
-        }
+        var inner = current is ClaimCheckMessageSerializer existing ? existing.Inner : current;
+        options.DefaultSerializer = new ClaimCheckMessageSerializer(inner, router);
 
         return options;
     }

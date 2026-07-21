@@ -92,6 +92,33 @@ opts.UseClaimCheck(claimCheck =>
 
 The threshold is measured **after** any `[Blob]` properties have already been off-loaded, so it reflects the body that would actually go on the wire. The two mechanisms compose: `[Blob]` is the explicit per-property path, and the threshold is the whole-body backstop. Leaving `AutoOffloadThreshold` unset (the default) disables auto-offload entirely.
 
+### Per-message / per-endpoint store selection <Badge type="tip" text="6.22" />
+
+`UseClaimCheck(...)` configures one global store, but you can route individual messages (or whole endpoints) to different backends — S3 for one, Azure Blob for another, database-LOB for a third — and override the threshold per route. `Store` remains the default when no route matches:
+
+```csharp
+opts.UseClaimCheck(claimCheck =>
+{
+    claimCheck.Store = defaultStore;                       // fallback for everything else
+    claimCheck.AutoOffloadPayloadsLargerThan(256 * 1024);  // global default threshold
+
+    // A specific message type → a specific store (+ its own threshold)
+    claimCheck.StoreForMessage<ExportGenerated>(s3Store, autoOffloadThreshold: 1024 * 1024);
+
+    // Any message type matching a predicate
+    claimCheck.StoreForMessages(t => t.Namespace!.StartsWith("Acme.Media"), azureStore);
+
+    // Route by the outgoing envelope — e.g. everything headed to a particular endpoint
+    claimCheck.StoreWhen(env => env.Destination?.Scheme == "rabbitmq", dbLobStore);
+});
+```
+
+Routes are evaluated in registration order; the first match wins. The store a payload was off-loaded to is recorded in a `claim-check.$store` header, so the **receiver loads from the same backend even though its listening endpoint URI differs from the sender's** — this is what makes `StoreWhen` (endpoint-based) routing round-trip. Envelopes that used the default store carry no such header, so single-store apps are byte-for-byte unchanged.
+
+::: warning Both nodes must share the configuration
+The receiver resolves the store by the key the sender stamped, so it must register the same routes. `StoreForMessage<T>` keys off the message type name (order-independent); `StoreForMessages` / `StoreWhen` use positional keys, so register them in the same order on every host. An envelope that references an unknown store key fails fast with a clear error rather than silently loading from the wrong place.
+:::
+
 ## Backends
 
 Wolverine ships several production-grade storage backends as separate NuGet packages.
