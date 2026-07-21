@@ -44,6 +44,28 @@ internal partial class OracleMessageStore
             }
         }
 
+        // Also clear the Oracle queue transport's own tables (the per-queue message table and its
+        // scheduled-message table) so a reset leaves nothing behind and integration tests over the
+        // Oracle queue transport don't carry rows between runs. Scoped to the transport's own table
+        // types on purpose — AddTable is a general registration path, so we clear only what the
+        // transport itself registered rather than every entry in _otherTables. (RebuildAsync already
+        // drops and recreates these tables, so it needs no equivalent addition.)
+        foreach (var table in _otherTables)
+        {
+            if (table is Transport.QueueTable or Transport.ScheduledMessageTable)
+            {
+                try
+                {
+                    await using var cmd = conn.CreateCommand($"DELETE FROM {table.Identifier.QualifiedName}");
+                    await cmd.ExecuteNonQueryAsync(_cancellation);
+                }
+                catch (OracleException e) when (e.Number == 942)
+                {
+                    // Table doesn't exist yet, ignore
+                }
+            }
+        }
+
         await conn.CloseAsync();
     }
 

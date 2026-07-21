@@ -153,6 +153,56 @@ opts.UseClaimCheck(cc => cc.UseGoogleCloudStorage(myStorageClient, bucketName: "
 
 Token id maps to the object name, and the supplied content type is set on the object so it downloads with the right MIME type and participates in GCS lifecycle rules. `DeleteAsync` is idempotent — a `404 Not Found` on a missing object is swallowed.
 
+### NATS JetStream Object Store
+
+For applications already using NATS — especially the [Wolverine NATS transport](/guide/messaging/transports/nats) — the NATS [JetStream Object Store](https://docs.nats.io/nats-concepts/jetstream/obj_store) backend lets you off-load large payloads without standing up a separate blob or object store. This backend is unique to Wolverine in the .NET messaging space.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.Nats
+```
+
+```csharp
+using Wolverine.ClaimCheck.Nats;
+
+// Reuse the application's existing, already-connected NATS connection
+INatsConnection connection = /* your connected NatsConnection */;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UseNatsObjectStore(connection, bucketName: "wolverine-claim-checks"));
+});
+```
+
+The server must have JetStream enabled. The object-store bucket is created on first use if it does not already exist. Token id maps to the object name; the content type travels with the token. `DeleteAsync` is idempotent — a missing object is treated as already deleted. An overload accepting an existing `INatsObjContext` is also available if you manage the object-store context yourself.
+
+### PostgreSQL (database LOB)
+
+The zero-new-infrastructure option for critter-stack users: off-loaded payloads are stored as `bytea` rows in your existing PostgreSQL database — no S3 / Azure / GCS account required.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.Postgresql
+```
+
+```csharp
+using Wolverine.ClaimCheck.Postgresql;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(
+        connectionString: builder.Configuration.GetConnectionString("Postgres")!,
+        schemaName: "public",
+        tableName: "wolverine_claim_check"));
+});
+```
+
+An overload accepting an existing `NpgsqlDataSource` is also available if you want to reuse the data source your application already configures:
+
+```csharp
+opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(myDataSource));
+```
+
+The claim check table is created on first use (`create schema/table if not exists`). Token id maps to the row's primary key; the content type and length are stored alongside the `bytea` body. `DeleteAsync` is naturally idempotent — deleting a missing row is a no-op. Because the payloads live in a table you own, database-native cleanup (a scheduled `delete ... where created < ...`) is straightforward.
+
 ### File system (built in)
 
 For local development, integration tests, or single-node deployments you can use the bundled `FileSystemClaimCheckStore` directly:

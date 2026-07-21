@@ -77,6 +77,10 @@
     <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage.Tests/Wolverine.ClaimCheck.AzureBlobStorage.Tests.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.GoogleCloudStorage/Wolverine.ClaimCheck.GoogleCloudStorage.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.GoogleCloudStorage.Tests/Wolverine.ClaimCheck.GoogleCloudStorage.Tests.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Nats/Wolverine.ClaimCheck.Nats.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Nats.Tests/Wolverine.ClaimCheck.Nats.Tests.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Postgresql/Wolverine.ClaimCheck.Postgresql.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Postgresql.Tests/Wolverine.ClaimCheck.Postgresql.Tests.csproj" />
   </Folder>
   <Folder Name="/Persistence/CosmosDb/">
     <Project Path="src/Persistence/CosmosDbTests/CosmosDbTests.csproj" />
@@ -282,6 +286,8 @@
   <Folder Name="/Transports/MQTT/">
     <Project Path="src/Transports/MQTT/Wolverine.MQTT.Tests/Wolverine.MQTT.Tests.csproj" />
     <Project Path="src/Transports/MQTT/Wolverine.MQTT/Wolverine.MQTT.csproj" />
+    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5.Tests/Wolverine.Mqtt5.Tests.csproj" />
+    <Project Path="src/Transports/MQTT/Wolverine.Mqtt5/Wolverine.Mqtt5.csproj" />
   </Folder>
   <Folder Name="/Transports/NATS/">
     <Project Path="src/Transports/NATS/Wolverine.Nats.Tests/Wolverine.Nats.Tests.csproj" />
