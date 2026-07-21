@@ -104,6 +104,40 @@ public static class UnboundRouteValueEndpoint
 
 #endregion
 
+#region [FromQuery] complex type shapes
+
+// A [FromQuery] complex type is flattened into one query parameter per member. The container itself has
+// no wire representation, so it must not also be declared as a parameter of its own.
+public class OrderSearchQuery
+{
+    [FromQuery(Name = "filter")]
+    public string? Filter { get; set; }
+
+    [FromQuery(Name = "pageNumber")]
+    public int PageNumber { get; set; } = 1;
+
+    public int PageSize { get; set; } = 50;
+}
+
+public static class ComplexQueryStringEndpoint
+{
+    [WolverineGet("/shapes/complex-query")]
+    public static string Get([FromQuery] OrderSearchQuery search)
+        => $"{search.Filter}:{search.PageNumber}:{search.PageSize}";
+}
+
+// The flattened members and a GH-3380 query value bound only by a compound handler have to coexist.
+public static class ComplexQueryStringWithCompoundHandlerEndpoint
+{
+    public static string Load([FromQuery] string? audit) => audit ?? "none";
+
+    [WolverineGet("/shapes/complex-query-compound")]
+    public static string Get([FromQuery] OrderSearchQuery search, string audit)
+        => $"{search.Filter}:{audit}";
+}
+
+#endregion
+
 #region [AsParameters] shapes
 
 public record OrderLineQuery([FromRoute] long OrderId, [FromQuery] string? Filter);

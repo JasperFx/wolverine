@@ -627,6 +627,15 @@ public partial class HttpChain
             {
                 if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
                 {
+                    // A complex [FromQuery] type is bound by flattening it into one query string value per
+                    // member, all of them already declared by fillQuerystringParameters. The container
+                    // itself never appears on the wire, so describing it would add a phantom query
+                    // parameter — and drag the type into components/schemas. See GH-3575.
+                    if (CodeGen.FromQueryAttributeUsage.IsComplexQueryStringType(parameter.ParameterType))
+                    {
+                        continue;
+                    }
+
                     var name = fromQuery.Name.IsNotEmpty() ? fromQuery.Name! : parameter.Name!;
                     addChainBoundParameter(apiDescription, name, parameter.ParameterType, BindingSource.Query);
                 }

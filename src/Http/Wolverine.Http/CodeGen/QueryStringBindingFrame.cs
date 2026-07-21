@@ -20,18 +20,30 @@ internal class FromQueryAttributeUsage : IParameterStrategy
             return false;
         }
 
-        if (parameter.ParameterType.IsSimple()) return false;
-        if (parameter.ParameterType.IsNullable() && parameter.ParameterType.GetInnerTypeFromNullable().IsSimple()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<DateTime>()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<DateTimeOffset>()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<DateOnly>()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<TimeOnly>()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
-        if (parameter.ParameterType.IsTypeOrNullableOf<Guid>()) return false;
+        if (!IsComplexQueryStringType(parameter.ParameterType)) return false;
 
         chain.ComplexQueryStringType = parameter.ParameterType;
 
         variable = new QueryStringBindingFrame(parameter.ParameterType, chain).Variable;
+        return true;
+    }
+
+    /// <summary>
+    /// Is a [FromQuery] parameter of this type bound by flattening it into one query string value per
+    /// member, rather than being read from a single query string key? Simple values (including the date,
+    /// time and Guid types that read as a single value) bind directly.
+    /// </summary>
+    internal static bool IsComplexQueryStringType(Type parameterType)
+    {
+        if (parameterType.IsSimple()) return false;
+        if (parameterType.IsNullable() && parameterType.GetInnerTypeFromNullable().IsSimple()) return false;
+        if (parameterType.IsTypeOrNullableOf<DateTime>()) return false;
+        if (parameterType.IsTypeOrNullableOf<DateTimeOffset>()) return false;
+        if (parameterType.IsTypeOrNullableOf<DateOnly>()) return false;
+        if (parameterType.IsTypeOrNullableOf<TimeOnly>()) return false;
+        if (parameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
+        if (parameterType.IsTypeOrNullableOf<Guid>()) return false;
+
         return true;
     }
 }
