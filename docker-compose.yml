@@ -53,6 +53,14 @@ services:
         "--user-output-enabled",
       ]
 
+  # GCS emulator used by the WolverineFx.ClaimCheck.GoogleCloudStorage backend tests.
+  # Serves plain HTTP on 4443; tests point the client at it via STORAGE_EMULATOR_HOST.
+  fake-gcs-server:
+    image: "fsouza/fake-gcs-server:latest"
+    ports:
+      - "4443:4443"
+    command: ["-scheme", "http", "-host", "0.0.0.0", "-port", "4443", "-public-host", "localhost:4443"]
+
   rabbitmq:
     image: "rabbitmq:4-management"
     ports:
