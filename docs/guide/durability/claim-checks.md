@@ -75,7 +75,7 @@ When `UseClaimCheck(...)` runs without an explicit `Store`, the pipeline falls b
 
 ## Backends
 
-Wolverine ships two production-grade storage backends as separate NuGet packages.
+Wolverine ships several production-grade storage backends as separate NuGet packages.
 
 ### Azure Blob Storage
 
@@ -126,6 +126,34 @@ opts.UseClaimCheck(cc => cc.UseAmazonS3(myS3Client, bucketName: "wolverine-claim
 ```
 
 Token id maps to the object key. The supplied content type is set as `PutObjectRequest.ContentType`, which preserves the MIME type for downloads and S3 lifecycle policies. `DeleteAsync` is naturally idempotent — S3 returns success even when the key is absent.
+
+### PostgreSQL (database LOB)
+
+The zero-new-infrastructure option for critter-stack users: off-loaded payloads are stored as `bytea` rows in your existing PostgreSQL database — no S3 / Azure / GCS account required.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.Postgresql
+```
+
+```csharp
+using Wolverine.ClaimCheck.Postgresql;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(
+        connectionString: builder.Configuration.GetConnectionString("Postgres")!,
+        schemaName: "public",
+        tableName: "wolverine_claim_check"));
+});
+```
+
+An overload accepting an existing `NpgsqlDataSource` is also available if you want to reuse the data source your application already configures:
+
+```csharp
+opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(myDataSource));
+```
+
+The claim check table is created on first use (`create schema/table if not exists`). Token id maps to the row's primary key; the content type and length are stored alongside the `bytea` body. `DeleteAsync` is naturally idempotent — deleting a missing row is a no-op. Because the payloads live in a table you own, database-native cleanup (a scheduled `delete ... where created < ...`) is straightforward.
 
 ### File system (built in)
 
