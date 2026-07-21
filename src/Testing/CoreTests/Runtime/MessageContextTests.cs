@@ -289,6 +289,7 @@ public class MessageContextTests
     public async Task reschedule_with_native_scheduling()
     {
         var callback = Substitute.For<IChannelCallback, ISupportNativeScheduling>();
+        callback.As<ISupportNativeScheduling>().NativeSchedulingEnabled.Returns(true);
         var scheduledTime = DateTime.Today.AddHours(8);
 
         theContext.ReadEnvelope(theEnvelope, callback);
@@ -300,6 +301,27 @@ public class MessageContextTests
         await theContext.Storage.Inbox.DidNotReceive().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
         await callback.As<ISupportNativeScheduling>().Received()
             .MoveToScheduledUntilAsync(theEnvelope, scheduledTime);
+    }
+
+    [Fact]
+    public async Task reschedule_falls_back_to_durable_inbox_when_native_scheduling_disabled()
+    {
+        // A listener that implements ISupportNativeScheduling but reports NativeSchedulingEnabled == false
+        // (e.g. Pulsar without a retry-letter topic) must NOT be treated as able to reschedule natively;
+        // the runtime should fall back to the durable inbox rather than silently no-op. GH-3491.
+        var callback = Substitute.For<IChannelCallback, ISupportNativeScheduling>();
+        callback.As<ISupportNativeScheduling>().NativeSchedulingEnabled.Returns(false);
+        var scheduledTime = DateTime.Today.AddHours(8);
+
+        theContext.ReadEnvelope(theEnvelope, callback);
+
+        await theContext.ReScheduleAsync(scheduledTime);
+
+        theEnvelope.ScheduledTime.ShouldBe(scheduledTime);
+
+        await callback.As<ISupportNativeScheduling>().DidNotReceive()
+            .MoveToScheduledUntilAsync(Arg.Any<Envelope>(), Arg.Any<DateTimeOffset>());
+        await theContext.Storage.Inbox.Received().RescheduleExistingEnvelopeForRetryAsync(theEnvelope);
     }
 
     [Fact]

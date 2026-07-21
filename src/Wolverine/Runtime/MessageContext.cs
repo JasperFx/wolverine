@@ -357,12 +357,15 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     private ISupportNativeScheduling? tryGetRescheduler(IChannelCallback? channel, Envelope e)
     {
         // TODO: is that ok, or should we modify Task ISupportNativeScheduling.MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time) in DurableReceiver and BufferedReceiver?
-        if (e.Listener is ISupportNativeScheduling c2)
+        // Gate on NativeSchedulingEnabled so a listener whose native scheduling is conditional (e.g.
+        // Pulsar without a retry-letter topic) is skipped and the durable/buffered channel below is
+        // used instead of silently no-op'ing. Mirrors the NativeDeadLetterQueueEnabled gating below.
+        if (e.Listener is ISupportNativeScheduling { NativeSchedulingEnabled: true } c2)
         {
             return c2;
         }
 
-        if (channel is ISupportNativeScheduling c)
+        if (channel is ISupportNativeScheduling { NativeSchedulingEnabled: true } c)
         {
             return c;
         }
