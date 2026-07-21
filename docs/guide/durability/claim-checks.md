@@ -73,6 +73,25 @@ When `UseClaimCheck(...)` runs without an explicit `Store`, the pipeline falls b
 
 `IClaimCheckStore` is registered as a singleton in DI, so any handler that needs to upload or fetch payloads explicitly can take it as a constructor dependency.
 
+### Size-threshold auto-offload <Badge type="tip" text="6.22" />
+
+`[Blob]` is opt-in per property. The common failure mode it doesn't cover is *forgetting* the attribute on a property that occasionally gets large, and only discovering it when a message slams into the broker's hard size limit (SQS 1 MiB, Azure Service Bus standard 256 KB, Kafka default `message.max.bytes` ~1 MB).
+
+Set a size threshold as a safety net. When the **serialized body** of any outgoing message exceeds it, Wolverine off-loads the **entire body** to the configured store and replaces it on the wire with a single reference header — no `[Blob]` required. The receiving side pulls the body back from the store before deserializing, transparently:
+
+```csharp
+opts.UseClaimCheck(claimCheck =>
+{
+    claimCheck.UseAmazonS3FromServices(bucketName: "wolverine-claim-checks");
+
+    // Anything whose serialized body is larger than 200 KB is off-loaded whole,
+    // even if no property is marked [Blob].
+    claimCheck.AutoOffloadPayloadsLargerThan(200 * 1024);
+});
+```
+
+The threshold is measured **after** any `[Blob]` properties have already been off-loaded, so it reflects the body that would actually go on the wire. The two mechanisms compose: `[Blob]` is the explicit per-property path, and the threshold is the whole-body backstop. Leaving `AutoOffloadThreshold` unset (the default) disables auto-offload entirely.
+
 ## Backends
 
 Wolverine ships several production-grade storage backends as separate NuGet packages.
