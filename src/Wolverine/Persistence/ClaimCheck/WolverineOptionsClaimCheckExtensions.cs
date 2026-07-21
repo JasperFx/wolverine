@@ -64,14 +64,15 @@ public static class WolverineOptionsClaimCheckExtensions
 
         // If UseClaimCheck has already been applied to this options instance,
         // unwrap and re-wrap so the operation is idempotent (new store wins).
+        var threshold = configuration.AutoOffloadThreshold;
         var current = options.DefaultSerializer;
         if (current is ClaimCheckMessageSerializer existing)
         {
-            options.DefaultSerializer = new ClaimCheckMessageSerializer(existing.Inner, store);
+            options.DefaultSerializer = new ClaimCheckMessageSerializer(existing.Inner, store, threshold);
         }
         else
         {
-            options.DefaultSerializer = new ClaimCheckMessageSerializer(current, store);
+            options.DefaultSerializer = new ClaimCheckMessageSerializer(current, store, threshold);
         }
 
         return options;

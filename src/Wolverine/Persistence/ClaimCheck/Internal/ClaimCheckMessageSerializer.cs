@@ -19,16 +19,25 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     private readonly IMessageSerializer _inner;
     private readonly IAsyncMessageSerializer? _innerAsync;
     private readonly IClaimCheckStore _store;
+    private readonly long? _autoOffloadThreshold;
 
-    public ClaimCheckMessageSerializer(IMessageSerializer inner, IClaimCheckStore store)
+    public ClaimCheckMessageSerializer(IMessageSerializer inner, IClaimCheckStore store,
+        long? autoOffloadThreshold = null)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _innerAsync = inner as IAsyncMessageSerializer;
+        _autoOffloadThreshold = autoOffloadThreshold;
     }
 
     public IMessageSerializer Inner => _inner;
     public IClaimCheckStore Store => _store;
+
+    /// <summary>
+    /// Size (in bytes) at which the whole serialized body is auto-offloaded to the store even
+    /// when no <see cref="BlobAttribute"/> is present. Null disables the safety net. See GH-3504.
+    /// </summary>
+    public long? AutoOffloadThreshold => _autoOffloadThreshold;
 
     public string ContentType => _inner.ContentType;
 
@@ -53,7 +62,9 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 }
             }
 
-            return _inner.Write(envelope);
+#pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
+            return maybeOffloadBodyAsync(envelope, _inner.Write(envelope)).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
         }
         finally
         {
@@ -104,12 +115,11 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 }
             }
 
-            if (_innerAsync is not null)
-            {
-                return await _innerAsync.WriteAsync(envelope).ConfigureAwait(false);
-            }
+            var body = _innerAsync is not null
+                ? await _innerAsync.WriteAsync(envelope).ConfigureAwait(false)
+                : _inner.Write(envelope);
 
-            return _inner.Write(envelope);
+            return await maybeOffloadBodyAsync(envelope, body).ConfigureAwait(false);
         }
         finally
         {
@@ -117,8 +127,54 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
         }
     }
 
+    /// <summary>
+    /// GH-3504 whole-body safety net: when the serialized body exceeds the configured threshold,
+    /// off-load the entire body to the store and carry a single reference header, returning an empty
+    /// wire body. Runs after per-property <see cref="BlobAttribute"/> off-loading, so it measures the
+    /// actual body that would otherwise go on the wire. A null threshold or a body already under it is
+    /// returned untouched. Without an envelope there is nowhere to smuggle the reference header, so the
+    /// body is left as-is (e.g. the WriteMessage(object) path).
+    /// </summary>
+    private async Task<byte[]> maybeOffloadBodyAsync(Envelope? envelope, byte[] body)
+    {
+        if (envelope is null || !_autoOffloadThreshold.HasValue || body.LongLength <= _autoOffloadThreshold.Value)
+        {
+            return body;
+        }
+
+        var token = await _store.StoreAsync(body, _inner.ContentType).ConfigureAwait(false);
+        envelope.Headers[ClaimCheckHeaders.BodyHeaderName] = token.Serialize();
+        return [];
+    }
+
+    /// <summary>
+    /// GH-3504 receive side: if the whole body was auto-offloaded (a body reference header is present),
+    /// pull the real bytes back from the store into <see cref="Envelope.Data"/> before the inner
+    /// serializer deserializes it. A no-op when the header is absent. Runs before per-property
+    /// re-hydration, which reads its own tokens from the restored body's headers.
+    /// </summary>
+    private async Task restoreOffloadedBodyAsync(Envelope envelope)
+    {
+        if (!envelope.TryGetHeader(ClaimCheckHeaders.BodyHeaderName, out var headerValue))
+        {
+            return;
+        }
+
+        if (!ClaimCheckToken.TryParse(headerValue, out var token))
+        {
+            throw new FormatException(
+                $"Header '{ClaimCheckHeaders.BodyHeaderName}' on envelope {envelope.Id} is not a valid claim-check token: '{headerValue}'.");
+        }
+
+        var bytes = await _store.LoadAsync(token).ConfigureAwait(false);
+        envelope.Data = bytes.ToArray();
+    }
+
     public object ReadFromData(Type messageType, Envelope envelope)
     {
+#pragma warning disable VSTHRD002
+        restoreOffloadedBodyAsync(envelope).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
         var message = _inner.ReadFromData(messageType, envelope);
         if (message is not null)
         {
@@ -142,6 +198,8 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
 
     public async ValueTask<object?> ReadFromDataAsync(Type messageType, Envelope envelope)
     {
+        await restoreOffloadedBodyAsync(envelope).ConfigureAwait(false);
+
         object? message;
         if (_innerAsync is not null)
         {
