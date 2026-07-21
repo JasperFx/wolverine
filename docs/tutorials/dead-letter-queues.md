@@ -268,6 +268,20 @@ await store.DeadLetters.MarkDeadLetterEnvelopesAsReplayableAsync("InvalidPayment
 `IDeadLetters` also exposes `QueryAsync`, `SummarizeAllAsync`, `ReplayAsync`, `DiscardAsync`, and
 `EditAndReplayAsync` (which lets you fix up a message body before replaying it) for more fine-grained control.
 
+`DeadLetterEnvelopeQuery` filters by message type, exception type, exception message, time range, and — as of
+6.22 — the `Replayable` flag. The filter is applied in the database, so `TotalCount` and paging stay coherent
+for the subset (unlike filtering a page in memory after it comes back):
+
+```cs
+// Everything still stuck (not yet queued for replay) after a fix went out
+var stillStuck = await store.DeadLetters.QueryAsync(
+    new DeadLetterEnvelopeQuery(TimeRange.AllTime()) { Replayable = false },
+    CancellationToken.None);
+
+// null (the default) leaves the replayable column unfiltered; true returns only
+// envelopes already marked for replay.
+```
+
 ## Keeping the dead letter table from growing forever
 
 A busy system can accumulate a lot of dead letters, and an oversized table will eventually drag on performance.

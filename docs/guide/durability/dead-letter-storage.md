@@ -139,6 +139,7 @@ app.MapDeadLettersEndpoints()
   - `MessageType` (string?): Filter by message type.
   - `ExceptionType` (string?): Filter by exception type.
   - `ExceptionMessage` (string?): Filter by exception message.
+  - `Replayable` (bool?): Filter by the replayable flag. Omit (or `null`) for no filtering; `false` returns only envelopes not yet marked replayable; `true` returns only those already queued for replay. Filtering happens in the database so `TotalCount` and paging stay coherent for the subset.
   - `From` (DateTimeOffset?): Start date for fetching records.
   - `Until` (DateTimeOffset?): End date for fetching records.
   - `TenantId` (string?): Tenant identifier for multi-tenancy support.
@@ -151,6 +152,18 @@ app.MapDeadLettersEndpoints()
 
 ::: tip Pagination
 The pagination model changed from cursor-based (`StartId` / `NextId`) to offset-based (`PageNumber`) in Wolverine 5. Pass `PageNumber` incrementing from `0` to walk through pages; `TotalCount` lets you compute how many pages exist as `ceil(TotalCount / Limit)`.
+:::
+
+::: tip Filtering by replayable state <Badge type="tip" text="6.22" />
+After deploying a fix, operators commonly want to separate the messages that are still stuck (`"Replayable": false`) from the ones already queued for replay (`"Replayable": true`). Because the predicate is applied in the database rather than in memory after paging, `TotalCount` reflects the filtered subset — so a `false`-only view drives a paginated UI or batch redrive correctly.
+
+```json
+{
+  "Limit": 50,
+  "PageNumber": 0,
+  "Replayable": false
+}
+```
 :::
 
 **Request Example**:

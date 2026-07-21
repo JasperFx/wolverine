@@ -467,6 +467,7 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
             MessageType = request.MessageType,
             ExceptionType = request.ExceptionType,
             ExceptionMessage = request.ExceptionMessage,
+            Replayable = request.Replayable,
             Range = new TimeRange(request.From, request.Until)
         };
 

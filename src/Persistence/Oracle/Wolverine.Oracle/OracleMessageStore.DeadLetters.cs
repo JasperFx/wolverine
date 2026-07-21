@@ -250,6 +250,12 @@ internal partial class OracleMessageStore
             builder.AppendParameter(query.ReceivedAt);
         }
 
+        if (query.Replayable.HasValue)
+        {
+            builder.Append($" AND {DatabaseConstants.Replayable} = ");
+            builder.AppendParameter(query.Replayable.Value ? 1 : 0); // Oracle uses NUMBER(1) for bool
+        }
+
         if (query.MessageIds is { Length: > 0 })
         {
             builder.Append(" AND id IN (");
