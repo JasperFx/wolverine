@@ -94,6 +94,11 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
 
         _container = container;
 
+        // GH-3564: when UseClaimCheck deferred to a DI-registered IClaimCheckStore (the
+        // ...FromServices overloads), hand it the built service provider now so the claim-check
+        // serializer resolves the real backend instead of silently falling back to the file system.
+        options.DeferredClaimCheckStore?.AttachProvider(container.Services);
+
         Cancellation = DurabilitySettings.Cancellation;
         _agentCancellation = CancellationTokenSource.CreateLinkedTokenSource(Cancellation);
 
