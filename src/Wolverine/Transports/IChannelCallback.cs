@@ -25,6 +25,15 @@ public interface ISupportNativeScheduling
     /// <param name="time"></param>
     /// <returns></returns>
     Task MoveToScheduledUntilAsync(Envelope envelope, DateTimeOffset time);
+
+    /// <summary>
+    ///     Whether this implementation can actually honor a native reschedule for the current
+    ///     configuration. Defaults to true. Implementations whose native scheduling is conditional
+    ///     (e.g. the Pulsar listener, which only reschedules when a retry-letter topic is configured)
+    ///     override this so the runtime falls back to the durable/buffered rescheduler instead of
+    ///     silently no-op'ing. Mirrors <see cref="ISupportDeadLetterQueue.NativeDeadLetterQueueEnabled" />.
+    /// </summary>
+    bool NativeSchedulingEnabled => true;
 }
 
 /// <summary>

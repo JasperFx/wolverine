@@ -127,6 +127,28 @@ opts.UseClaimCheck(cc => cc.UseAmazonS3(myS3Client, bucketName: "wolverine-claim
 
 Token id maps to the object key. The supplied content type is set as `PutObjectRequest.ContentType`, which preserves the MIME type for downloads and S3 lifecycle policies. `DeleteAsync` is naturally idempotent — S3 returns success even when the key is absent.
 
+### NATS JetStream Object Store
+
+For applications already using NATS — especially the [Wolverine NATS transport](/guide/messaging/transports/nats) — the NATS [JetStream Object Store](https://docs.nats.io/nats-concepts/jetstream/obj_store) backend lets you off-load large payloads without standing up a separate blob or object store. This backend is unique to Wolverine in the .NET messaging space.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.Nats
+```
+
+```csharp
+using Wolverine.ClaimCheck.Nats;
+
+// Reuse the application's existing, already-connected NATS connection
+INatsConnection connection = /* your connected NatsConnection */;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UseNatsObjectStore(connection, bucketName: "wolverine-claim-checks"));
+});
+```
+
+The server must have JetStream enabled. The object-store bucket is created on first use if it does not already exist. Token id maps to the object name; the content type travels with the token. `DeleteAsync` is idempotent — a missing object is treated as already deleted. An overload accepting an existing `INatsObjContext` is also available if you manage the object-store context yourself.
+
 ### PostgreSQL (database LOB)
 
 The zero-new-infrastructure option for critter-stack users: off-loaded payloads are stored as `bytea` rows in your existing PostgreSQL database — no S3 / Azure / GCS account required.
