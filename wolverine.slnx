@@ -77,6 +77,8 @@
     <Project Path="src/Persistence/Wolverine.ClaimCheck.AzureBlobStorage.Tests/Wolverine.ClaimCheck.AzureBlobStorage.Tests.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.Nats/Wolverine.ClaimCheck.Nats.csproj" />
     <Project Path="src/Persistence/Wolverine.ClaimCheck.Nats.Tests/Wolverine.ClaimCheck.Nats.Tests.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Postgresql/Wolverine.ClaimCheck.Postgresql.csproj" />
+    <Project Path="src/Persistence/Wolverine.ClaimCheck.Postgresql.Tests/Wolverine.ClaimCheck.Postgresql.Tests.csproj" />
   </Folder>
   <Folder Name="/Persistence/CosmosDb/">
     <Project Path="src/Persistence/CosmosDbTests/CosmosDbTests.csproj" />
