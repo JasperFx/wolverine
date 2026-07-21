@@ -65,12 +65,11 @@ public static async Task testing_setup_or_teardown(IHost host)
 <!-- endSnippet -->
 
 ::: tip
-When you use the PostgreSQL, SQLite, or MySQL database-backed queue transport, both `RebuildAsync()` and
+When you use the PostgreSQL, SQLite, MySQL, or Oracle database-backed queue transport, both `RebuildAsync()` and
 `ClearAllAsync()` also truncate the queue transport's own tables (the per-queue message table and its scheduled-message
 table) inside the same reset transaction. This keeps integration tests over the database queue transport from carrying
 rows between runs. The remaining database-backed queue transports do not clear their queue tables on reset yet — follow-up
-work is tracked in [#3552 (Oracle)](https://github.com/JasperFx/wolverine/issues/3552) and
-[#3554 (SQL Server)](https://github.com/JasperFx/wolverine/issues/3554).
+work is tracked in [#3554 (SQL Server)](https://github.com/JasperFx/wolverine/issues/3554).
 :::
 
 ## Building Storage on Startup
