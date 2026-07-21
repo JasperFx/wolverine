@@ -8,11 +8,36 @@ The Wolverine 1.9 release added a new transport option for the [MQTT standard](h
 
 ## Installing
 
-To use [MQTT](https://mqtt.org/) as a transport with Wolverine, first install the `WolverineFx.Mqtt` library via nuget to your project. Behind the scenes, this package uses the [MQTTnet](https://github.com/dotnet/MQTTnet) managed library for accessing MQTT brokers and also for its own testing.
+Wolverine's MQTT transport ships as **two mutually exclusive NuGet packages**. They are functionally identical — the same
+`UseMqtt()` configuration and the same `Wolverine.MQTT` namespace and types — and differ *only* in which major version of the
+underlying [MQTTnet](https://github.com/dotnet/MQTTnet) client library they depend on:
+
+| Package | MQTTnet library version | Use when |
+| --- | --- | --- |
+| `WolverineFx.MQTT` | MQTTnet 4.x | The original package. Use it if you already depend on MQTTnet 4 elsewhere, or need to stay on it. |
+| `WolverineFx.Mqtt5` | MQTTnet 5.x | Use it for new projects, or if you need MQTTnet 5. |
+
+Install **exactly one** of them:
 
 ```bash
-dotnet add package WolverineFx.Mqtt
+# Either the MQTTnet 4 package...
+dotnet add package WolverineFx.MQTT
 ```
+
+```bash
+# ...or the MQTTnet 5 package (do not reference both)
+dotnet add package WolverineFx.Mqtt5
+```
+
+::: warning
+Reference **only one** of these packages. Because both expose the same types in the same `Wolverine.MQTT` namespace, every
+sample on this page works unchanged with either one — but referencing both at once produces duplicate-type compiler errors.
+The reason there are two packages at all is that a single assembly cannot depend on both MQTTnet 4 and MQTTnet 5: both ship an
+assembly named `MQTTnet.dll`, so the two client majors cannot coexist in one build.
+
+Note that "MQTTnet 5" (the client library version) is unrelated to the [MQTT v5 protocol](https://docs.oasis-open.org/mqtt/mqtt/v5.0/mqtt-v5.0.html)
+required above — *both* Wolverine packages speak the MQTT v5 protocol.
+:::
 
 In its most simplistic usage you enable the MQTT transport through calling the `WolverineOptions.UseMqtt()` extension method
 and defining which MQTT topics you want to publish or subscribe to with the normal [subscriber rules](/guide/messaging/subscriptions) as 
