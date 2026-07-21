@@ -1,3 +1,5 @@
+using Wolverine.Persistence.ClaimCheck.Internal;
+
 namespace Wolverine.Persistence;
 
 /// <summary>
@@ -7,9 +9,62 @@ namespace Wolverine.Persistence;
 /// </summary>
 public class ClaimCheckConfiguration
 {
+    private readonly List<ClaimCheckRoute> _routes = new();
+    private readonly Dictionary<string, IClaimCheckStore> _namedStores = new();
+    private int _routeCounter;
+
     public ClaimCheckConfiguration(WolverineOptions options)
     {
         Options = options;
+    }
+
+    internal IReadOnlyList<ClaimCheckRoute> Routes => _routes;
+    internal IReadOnlyDictionary<string, IClaimCheckStore> NamedStores => _namedStores;
+
+    private ClaimCheckConfiguration addRoute(string key, IClaimCheckStore store,
+        Func<Type, bool>? typeMatch, Func<Envelope, bool>? envelopeMatch, long? threshold)
+    {
+        if (store is null) throw new ArgumentNullException(nameof(store));
+        _namedStores[key] = store;
+        _routes.Add(new ClaimCheckRoute(key, typeMatch, envelopeMatch, threshold));
+        return this;
+    }
+
+    /// <summary>
+    /// Route messages of exactly type <typeparamref name="T"/> to <paramref name="store"/>, overriding
+    /// the global <see cref="Store"/>. Optionally override the whole-body auto-offload threshold for that
+    /// message. Routes are evaluated in registration order; the first match wins. The store choice is
+    /// stamped onto the outgoing envelope so the receiver loads from the same backend. See GH-3508.
+    /// </summary>
+    public ClaimCheckConfiguration StoreForMessage<T>(IClaimCheckStore store, long? autoOffloadThreshold = null)
+        => addRoute("msg:" + typeof(T).FullName, store, t => t == typeof(T), null, autoOffloadThreshold);
+
+    /// <summary>
+    /// Route every outgoing message whose type matches <paramref name="predicate"/> to
+    /// <paramref name="store"/>. Because the store key for a predicate route is positional, the receiving
+    /// host must register the same predicate routes in the same order (normal for a shared configuration).
+    /// Prefer <see cref="StoreForMessage{T}"/> when you can — its key is derived from the message type and
+    /// is order-independent. See GH-3508.
+    /// </summary>
+    public ClaimCheckConfiguration StoreForMessages(Func<Type, bool> predicate, IClaimCheckStore store,
+        long? autoOffloadThreshold = null)
+    {
+        if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+        return addRoute("route:" + _routeCounter++, store, predicate, null, autoOffloadThreshold);
+    }
+
+    /// <summary>
+    /// Route every outgoing message whose envelope matches <paramref name="predicate"/> (e.g. by
+    /// destination endpoint) to <paramref name="store"/>. Evaluated only on the send side; the selected
+    /// store key travels with the message, so the receiver resolves the same store even though the
+    /// receiving endpoint URI differs. Positional key — see <see cref="StoreForMessages"/> on ordering.
+    /// See GH-3508.
+    /// </summary>
+    public ClaimCheckConfiguration StoreWhen(Func<Envelope, bool> predicate, IClaimCheckStore store,
+        long? autoOffloadThreshold = null)
+    {
+        if (predicate is null) throw new ArgumentNullException(nameof(predicate));
+        return addRoute("route:" + _routeCounter++, store, null, predicate, autoOffloadThreshold);
     }
 
     /// <summary>

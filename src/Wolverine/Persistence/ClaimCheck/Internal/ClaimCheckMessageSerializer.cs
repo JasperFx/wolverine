@@ -18,32 +18,44 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
 {
     private readonly IMessageSerializer _inner;
     private readonly IAsyncMessageSerializer? _innerAsync;
-    private readonly IClaimCheckStore _store;
-    private readonly long? _autoOffloadThreshold;
+    private readonly ClaimCheckStoreRouter _router;
 
+    /// <summary>
+    /// Single-store convenience constructor. Wraps <paramref name="store"/> in a router with no routes,
+    /// so every message uses the one store (and optional whole-body threshold).
+    /// </summary>
     public ClaimCheckMessageSerializer(IMessageSerializer inner, IClaimCheckStore store,
         long? autoOffloadThreshold = null)
+        : this(inner, new ClaimCheckStoreRouter(store, autoOffloadThreshold, [],
+            new Dictionary<string, IClaimCheckStore>()))
+    {
+    }
+
+    public ClaimCheckMessageSerializer(IMessageSerializer inner, ClaimCheckStoreRouter router)
     {
         _inner = inner ?? throw new ArgumentNullException(nameof(inner));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _router = router ?? throw new ArgumentNullException(nameof(router));
         _innerAsync = inner as IAsyncMessageSerializer;
-        _autoOffloadThreshold = autoOffloadThreshold;
     }
 
     public IMessageSerializer Inner => _inner;
-    public IClaimCheckStore Store => _store;
+
+    /// <summary>The global default store — the one used when no route matches. See GH-3508.</summary>
+    public IClaimCheckStore Store => _router.DefaultStore;
 
     /// <summary>
-    /// Size (in bytes) at which the whole serialized body is auto-offloaded to the store even
-    /// when no <see cref="BlobAttribute"/> is present. Null disables the safety net. See GH-3504.
+    /// Global default size (in bytes) at which the whole serialized body is auto-offloaded even when no
+    /// <see cref="BlobAttribute"/> is present. Null disables the safety net. Per-route overrides are
+    /// applied by the router. See GH-3504.
     /// </summary>
-    public long? AutoOffloadThreshold => _autoOffloadThreshold;
+    public long? AutoOffloadThreshold => _router.DefaultThreshold;
 
     public string ContentType => _inner.ContentType;
 
     public byte[] Write(Envelope envelope)
     {
         var message = envelope.Message;
+        var selection = _router.ResolveForSend(message?.GetType(), envelope);
         // The list is owned by the caller and lives outside the try so that a partial off-load —
         // StoreBlobsAsync throwing after it has already cleared one or more properties — is still
         // visible to the finally and gets restored. Otherwise a failed off-load would leak cleared
@@ -57,13 +69,13 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 if (info.HasBlobs)
                 {
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
-                    StoreBlobsAsync(envelope, message, info, offloaded).GetAwaiter().GetResult();
+                    StoreBlobsAsync(envelope, message, info, offloaded, selection).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
                 }
             }
 
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
-            return maybeOffloadBodyAsync(envelope, _inner.Write(envelope)).GetAwaiter().GetResult();
+            return maybeOffloadBodyAsync(envelope, _inner.Write(envelope), selection).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
         }
         finally
@@ -86,8 +98,9 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                     // back to the consumer. We still upload the payloads for symmetry,
                     // but nullify the properties so the inner serializer doesn't pull
                     // bytes through the wire under both paths.
+                    var selection = _router.ResolveForSend(message.GetType(), envelope: null);
 #pragma warning disable VSTHRD002
-                    StoreBlobsAsync(envelope: null, message, info, offloaded).GetAwaiter().GetResult();
+                    StoreBlobsAsync(envelope: null, message, info, offloaded, selection).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
                 }
             }
@@ -103,6 +116,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     public async ValueTask<byte[]> WriteAsync(Envelope envelope)
     {
         var message = envelope.Message;
+        var selection = _router.ResolveForSend(message?.GetType(), envelope);
         var offloaded = new List<OffloadedBlob>();
         try
         {
@@ -111,7 +125,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 var info = BlobTypeInfo.For(message.GetType());
                 if (info.HasBlobs)
                 {
-                    await StoreBlobsAsync(envelope, message, info, offloaded).ConfigureAwait(false);
+                    await StoreBlobsAsync(envelope, message, info, offloaded, selection).ConfigureAwait(false);
                 }
             }
 
@@ -119,7 +133,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 ? await _innerAsync.WriteAsync(envelope).ConfigureAwait(false)
                 : _inner.Write(envelope);
 
-            return await maybeOffloadBodyAsync(envelope, body).ConfigureAwait(false);
+            return await maybeOffloadBodyAsync(envelope, body, selection).ConfigureAwait(false);
         }
         finally
         {
@@ -135,25 +149,39 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     /// returned untouched. Without an envelope there is nowhere to smuggle the reference header, so the
     /// body is left as-is (e.g. the WriteMessage(object) path).
     /// </summary>
-    private async Task<byte[]> maybeOffloadBodyAsync(Envelope? envelope, byte[] body)
+    private async Task<byte[]> maybeOffloadBodyAsync(Envelope? envelope, byte[] body, ClaimCheckSelection selection)
     {
-        if (envelope is null || !_autoOffloadThreshold.HasValue || body.LongLength <= _autoOffloadThreshold.Value)
+        if (envelope is null || !selection.Threshold.HasValue || body.LongLength <= selection.Threshold.Value)
         {
             return body;
         }
 
-        var token = await _store.StoreAsync(body, _inner.ContentType).ConfigureAwait(false);
+        var token = await selection.Store.StoreAsync(body, _inner.ContentType).ConfigureAwait(false);
         envelope.Headers[ClaimCheckHeaders.BodyHeaderName] = token.Serialize();
+        stampStoreKey(envelope, selection);
         return [];
     }
 
     /// <summary>
+    /// Record which store this envelope's claim-check payloads were off-loaded to (GH-3508), but only
+    /// when a non-default route was selected — default-store envelopes carry no store-key header and stay
+    /// identical to pre-routing behavior.
+    /// </summary>
+    private static void stampStoreKey(Envelope envelope, ClaimCheckSelection selection)
+    {
+        if (selection.StoreKey is not null)
+        {
+            envelope.Headers[ClaimCheckHeaders.StoreHeaderName] = selection.StoreKey;
+        }
+    }
+
+    /// <summary>
     /// GH-3504 receive side: if the whole body was auto-offloaded (a body reference header is present),
-    /// pull the real bytes back from the store into <see cref="Envelope.Data"/> before the inner
-    /// serializer deserializes it. A no-op when the header is absent. Runs before per-property
+    /// pull the real bytes back from <paramref name="store"/> into <see cref="Envelope.Data"/> before the
+    /// inner serializer deserializes it. A no-op when the header is absent. Runs before per-property
     /// re-hydration, which reads its own tokens from the restored body's headers.
     /// </summary>
-    private async Task restoreOffloadedBodyAsync(Envelope envelope)
+    private static async Task restoreOffloadedBodyAsync(Envelope envelope, IClaimCheckStore store)
     {
         if (!envelope.TryGetHeader(ClaimCheckHeaders.BodyHeaderName, out var headerValue))
         {
@@ -166,14 +194,15 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 $"Header '{ClaimCheckHeaders.BodyHeaderName}' on envelope {envelope.Id} is not a valid claim-check token: '{headerValue}'.");
         }
 
-        var bytes = await _store.LoadAsync(token).ConfigureAwait(false);
+        var bytes = await store.LoadAsync(token).ConfigureAwait(false);
         envelope.Data = bytes.ToArray();
     }
 
     public object ReadFromData(Type messageType, Envelope envelope)
     {
+        var store = _router.ResolveForReceive(envelope);
 #pragma warning disable VSTHRD002
-        restoreOffloadedBodyAsync(envelope).GetAwaiter().GetResult();
+        restoreOffloadedBodyAsync(envelope, store).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
         var message = _inner.ReadFromData(messageType, envelope);
         if (message is not null)
@@ -182,7 +211,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
             if (info.HasBlobs)
             {
 #pragma warning disable VSTHRD002
-                LoadBlobsAsync(envelope, message, info).GetAwaiter().GetResult();
+                LoadBlobsAsync(envelope, message, info, store).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
             }
         }
@@ -198,7 +227,8 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
 
     public async ValueTask<object?> ReadFromDataAsync(Type messageType, Envelope envelope)
     {
-        await restoreOffloadedBodyAsync(envelope).ConfigureAwait(false);
+        var store = _router.ResolveForReceive(envelope);
+        await restoreOffloadedBodyAsync(envelope, store).ConfigureAwait(false);
 
         object? message;
         if (_innerAsync is not null)
@@ -215,7 +245,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
             var info = BlobTypeInfo.For(message.GetType());
             if (info.HasBlobs)
             {
-                await LoadBlobsAsync(envelope, message, info).ConfigureAwait(false);
+                await LoadBlobsAsync(envelope, message, info, store).ConfigureAwait(false);
             }
         }
 
@@ -236,7 +266,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     /// of two blobs) the caller's finally still restores every property cleared so far.
     /// </summary>
     private async Task StoreBlobsAsync(Envelope? envelope, object message, BlobTypeInfo info,
-        List<OffloadedBlob> offloaded)
+        List<OffloadedBlob> offloaded, ClaimCheckSelection selection)
     {
         foreach (var accessor in info.Properties)
         {
@@ -246,10 +276,11 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 continue;
             }
 
-            var token = await _store.StoreAsync(bytes, accessor.ContentType).ConfigureAwait(false);
+            var token = await selection.Store.StoreAsync(bytes, accessor.ContentType).ConfigureAwait(false);
             if (envelope is not null)
             {
                 envelope.Headers[accessor.HeaderName] = token.Serialize();
+                stampStoreKey(envelope, selection);
             }
             accessor.Clear(message);
             offloaded.Add(new OffloadedBlob(accessor, bytes));
@@ -277,7 +308,8 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
 
     private readonly record struct OffloadedBlob(BlobPropertyAccessor Accessor, ReadOnlyMemory<byte> Payload);
 
-    private async Task LoadBlobsAsync(Envelope envelope, object message, BlobTypeInfo info)
+    private static async Task LoadBlobsAsync(Envelope envelope, object message, BlobTypeInfo info,
+        IClaimCheckStore store)
     {
         foreach (var accessor in info.Properties)
         {
@@ -292,7 +324,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                     $"Header '{accessor.HeaderName}' on envelope {envelope.Id} is not a valid claim-check token: '{headerValue}'.");
             }
 
-            var bytes = await _store.LoadAsync(token).ConfigureAwait(false);
+            var bytes = await store.LoadAsync(token).ConfigureAwait(false);
             accessor.ApplyLoaded(message, bytes);
         }
     }
