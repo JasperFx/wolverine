@@ -104,6 +104,54 @@ public static class UnboundRouteValueEndpoint
 
 #endregion
 
+#region [FromQuery] complex type shapes
+
+// A [FromQuery] complex type is flattened into one query parameter per member. The container itself has
+// no wire representation, so it must not also be declared as a parameter of its own.
+public class OrderSearchQuery
+{
+    [FromQuery(Name = "filter")]
+    public string? Filter { get; set; }
+
+    [FromQuery(Name = "pageNumber")]
+    public int PageNumber { get; set; } = 1;
+
+    public int PageSize { get; set; } = 50;
+}
+
+public static class ComplexQueryStringEndpoint
+{
+    [WolverineGet("/shapes/complex-query")]
+    public static string Get([FromQuery] OrderSearchQuery search)
+        => $"{search.Filter}:{search.PageNumber}:{search.PageSize}";
+}
+
+// The flattened members and a second query value bound by a compound handler have to coexist.
+public static class ComplexQueryStringWithCompoundHandlerEndpoint
+{
+    public static string Load([FromQuery] string? audit) => audit ?? "none";
+
+    [WolverineGet("/shapes/complex-query-compound")]
+    public static string Get([FromQuery] OrderSearchQuery search, string audit)
+        => $"{search.Filter}:{audit}";
+}
+
+// The container is bound ONLY by the compound handler and never appears in the endpoint signature.
+// Compound handler methods are parameter-matched with the endpoint method, so this flattens the same
+// way — and the container must not be described here either.
+public record OrderSearchResult(string Description);
+
+public static class ComplexQueryStringOnCompoundHandlerEndpoint
+{
+    public static OrderSearchResult Load([FromQuery] OrderSearchQuery search)
+        => new(search.Filter ?? "none");
+
+    [WolverineGet("/shapes/complex-query-on-load")]
+    public static string Get(OrderSearchResult result) => result.Description;
+}
+
+#endregion
+
 #region [AsParameters] shapes
 
 public record OrderLineQuery([FromRoute] long OrderId, [FromQuery] string? Filter);

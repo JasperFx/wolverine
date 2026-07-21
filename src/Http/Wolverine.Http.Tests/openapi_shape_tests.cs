@@ -164,6 +164,45 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
     }
 
     [Fact]
+    public void complex_query_string_type_is_declared_only_through_its_flattened_members()
+    {
+        ParametersFor("/shapes/complex-query", "get")
+            .ShouldBe([
+                new ParameterShape("filter", "query", false, "string", null),
+                new ParameterShape("pageNumber", "query", false, "integer", "int32"),
+                new ParameterShape("PageSize", "query", false, "integer", "int32")
+            ]);
+
+        // The container has no wire representation, so it has no business in components/schemas either
+        SchemaNames().ShouldNotContain(nameof(OrderSearchQuery));
+    }
+
+    [Fact]
+    public void complex_query_string_type_alongside_a_compound_handler_query_value()
+    {
+        ParametersFor("/shapes/complex-query-compound", "get")
+            .ShouldBe([
+                new ParameterShape("filter", "query", false, "string", null),
+                new ParameterShape("pageNumber", "query", false, "integer", "int32"),
+                new ParameterShape("PageSize", "query", false, "integer", "int32"),
+                new ParameterShape("audit", "query", false, "string", null)
+            ]);
+    }
+
+    [Fact]
+    public void complex_query_string_type_bound_only_by_a_compound_handler()
+    {
+        ParametersFor("/shapes/complex-query-on-load", "get")
+            .ShouldBe([
+                new ParameterShape("filter", "query", false, "string", null),
+                new ParameterShape("pageNumber", "query", false, "integer", "int32"),
+                new ParameterShape("PageSize", "query", false, "integer", "int32")
+            ]);
+
+        SchemaNames().ShouldNotContain(nameof(OrderSearchQuery));
+    }
+
+    [Fact]
     public void as_parameters_route_and_query_members()
     {
         ParametersFor("/shapes/asparameters/orders/{orderId}", "get")
@@ -287,6 +326,22 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
         return schema.TryGetProperty("properties", out var properties)
             ? properties.EnumerateObject().Select(x => x.Name).ToList()
             : [];
+    }
+
+    /// <summary>
+    /// Every type name registered under <c>components/schemas</c> in the rendered document.
+    /// </summary>
+    public IReadOnlyList<string> SchemaNames()
+    {
+        var root = _fixture.Document.RootElement;
+
+        if (!root.TryGetProperty("components", out var components) ||
+            !components.TryGetProperty("schemas", out var schemas))
+        {
+            return [];
+        }
+
+        return schemas.EnumerateObject().Select(x => x.Name).ToList();
     }
 
     private JsonElement resolveSchema(JsonElement schema)
