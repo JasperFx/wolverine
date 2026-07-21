@@ -190,6 +190,19 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
     }
 
     [Fact]
+    public void complex_query_string_type_bound_only_by_a_compound_handler()
+    {
+        ParametersFor("/shapes/complex-query-on-load", "get")
+            .ShouldBe([
+                new ParameterShape("filter", "query", false, "string", null),
+                new ParameterShape("pageNumber", "query", false, "integer", "int32"),
+                new ParameterShape("PageSize", "query", false, "integer", "int32")
+            ]);
+
+        SchemaNames().ShouldNotContain(nameof(OrderSearchQuery));
+    }
+
+    [Fact]
     public void as_parameters_route_and_query_members()
     {
         ParametersFor("/shapes/asparameters/orders/{orderId}", "get")

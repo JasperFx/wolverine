@@ -126,7 +126,7 @@ public static class ComplexQueryStringEndpoint
         => $"{search.Filter}:{search.PageNumber}:{search.PageSize}";
 }
 
-// The flattened members and a GH-3380 query value bound only by a compound handler have to coexist.
+// The flattened members and a second query value bound by a compound handler have to coexist.
 public static class ComplexQueryStringWithCompoundHandlerEndpoint
 {
     public static string Load([FromQuery] string? audit) => audit ?? "none";
@@ -134,6 +134,20 @@ public static class ComplexQueryStringWithCompoundHandlerEndpoint
     [WolverineGet("/shapes/complex-query-compound")]
     public static string Get([FromQuery] OrderSearchQuery search, string audit)
         => $"{search.Filter}:{audit}";
+}
+
+// The container is bound ONLY by the compound handler and never appears in the endpoint signature.
+// Compound handler methods are parameter-matched with the endpoint method, so this flattens the same
+// way — and the container must not be described here either.
+public record OrderSearchResult(string Description);
+
+public static class ComplexQueryStringOnCompoundHandlerEndpoint
+{
+    public static OrderSearchResult Load([FromQuery] OrderSearchQuery search)
+        => new(search.Filter ?? "none");
+
+    [WolverineGet("/shapes/complex-query-on-load")]
+    public static string Get(OrderSearchResult result) => result.Description;
 }
 
 #endregion
