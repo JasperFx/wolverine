@@ -14,6 +14,7 @@ internal class MessageFrame : Frame
     {
         _message = message;
         _envelope = envelope;
+        uses.Add(envelope);
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
