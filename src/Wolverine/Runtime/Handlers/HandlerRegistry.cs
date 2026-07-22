@@ -133,8 +133,11 @@ internal class WriteTypeArrayFrame : SyncFrame
     }
 
     // F# counterpart so `codegen write --language fsharp` can emit the static HandlerRegistry.
-    // typeof<> in F# cannot resolve F# module types (only class/record/DU types), so we use
-    // Type.GetType with the assembly-qualified name which resolves both modules and classes.
+    //
+    // F# modules compile to sealed abstract classes but F# syntax forbids using them as typeof<>
+    // type arguments (SourceConstructFlags.Module = 7).  For those we fall back to the runtime
+    // Type.GetType path.  Plain F# classes / C# types use the compile-time typeof<T> form, which
+    // the CodegenWriteFSharpCli tests assert is present for class-based handlers.
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (_types.Length == 0)
@@ -143,10 +146,22 @@ internal class WriteTypeArrayFrame : SyncFrame
         }
         else
         {
-            var quotedNames = string.Join("; ", _types.Select(t => $"\"{t.AssemblyQualifiedName}\""));
-            writer.Write($"[| {quotedNames} |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)");
+            var parts = _types.Select(t => IsFSharpModule(t)
+                ? $"(System.Type.GetType(\"{t.AssemblyQualifiedName}\") |> Option.ofObj)"
+                : $"(Some typeof<{t.FullNameInCode()}>)");
+            writer.Write($"[| {string.Join("; ", parts)} |] |> Array.choose id");
         }
 
         Next?.GenerateFSharpCode(method, writer);
+    }
+
+    private static bool IsFSharpModule(Type t)
+    {
+        // F# modules compile to abstract sealed classes (the .NET "static class" pattern).
+        // F# classes/records are concrete (not abstract+sealed), so this check reliably
+        // separates modules (which cannot appear as typeof<> type arguments in F# syntax)
+        // from classes that can.  C# static classes are also abstract+sealed but handler
+        // types are concrete instances, so there is no false-positive concern in practice.
+        return t.IsAbstract && t.IsSealed;
     }
 }
