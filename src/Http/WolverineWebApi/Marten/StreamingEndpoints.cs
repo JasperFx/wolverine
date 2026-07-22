@@ -1,3 +1,4 @@
+using System.Linq;
 using Marten;
 using Marten.AspNetCore;
 using Wolverine.Http;
@@ -6,7 +7,8 @@ namespace WolverineWebApi.Marten;
 
 /// <summary>
 /// Endpoints exercising the <see cref="StreamOne{T}"/>, <see cref="StreamMany{T}"/>,
-/// and <see cref="StreamAggregate{T}"/> helpers from <c>Marten.AspNetCore</c>.
+/// <see cref="StreamAggregate{T}"/>, <see cref="StreamPaged{T}"/>, and
+/// <see cref="StreamPagedByCursor{T}"/> helpers from <c>Marten.AspNetCore</c>.
 /// Used by the streaming_endpoints tests for GH-1562. Wolverine.Http dispatches
 /// these as ordinary <c>IResult</c> return values via the existing
 /// <c>ResultWriterPolicy</c> — no Wolverine-specific code needed.
@@ -17,6 +19,11 @@ public static class StreamingEndpoints
     [WolverineGet("/streaming/invoice/{id}")]
     public static StreamOne<Invoice> GetOne(Guid id, IQuerySession session)
         => new(session.Query<Invoice>().Where(x => x.Id == id));
+
+    // StreamOne with ETag support disabled (opt-out of the default 304 behavior)
+    [WolverineGet("/streaming/invoice/{id}/no-etag")]
+    public static StreamOne<Invoice> GetOneNoETag(Guid id, IQuerySession session)
+        => new(session.Query<Invoice>().Where(x => x.Id == id)) { EmitETag = false };
 
     // StreamOne with custom OnFoundStatus
     [WolverineGet("/streaming/invoice/{id}/custom-status")]
@@ -48,4 +55,14 @@ public static class StreamingEndpoints
     [WolverineGet("/streaming/order/{id}")]
     public static StreamAggregate<Order> GetOrder(Guid id, IDocumentSession session)
         => new(session, id);
+
+    // StreamPaged - paged JSON envelope (pageNumber, pageSize, totalItemCount, items)
+    [WolverineGet("/streaming/invoices/paged")]
+    public static StreamPaged<Invoice> GetPaged(int pageNumber, int pageSize, IQuerySession session)
+        => new(session.Query<Invoice>().OrderBy(x => x.Id), pageNumber, pageSize);
+
+    // StreamPagedByCursor - keyset pagination with a continuation cursor
+    [WolverineGet("/streaming/invoices/cursor")]
+    public static StreamPagedByCursor<Invoice> GetByCursor(string? cursor, int pageSize, IQuerySession session)
+        => new(session.Query<Invoice>().OrderBy(x => x.Id), cursor, pageSize);
 }
