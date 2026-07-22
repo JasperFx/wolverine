@@ -161,8 +161,18 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
             LoadThresholds();
         }
 
-        var tracker = _daemon.Tracker;
-        var highWaterMark = tracker.HighWaterMark;
+        // GH-3580: a per-tenant agent's Position lives in its OWN tenant's event sequence (per-tenant
+        // event partitioning gives every tenant an independent sequence -- the reason the per-tenant
+        // fan-out exists, GH-3280), so it must be measured against that tenant's high-water mark, not
+        // the database-wide tracker mark. The inner JasperFx agent already carries the tenant-scoped
+        // mark: it is seeded from the per-tenant ceiling at start and only ever raised by the tenanted
+        // high-water coordinator's per-tenant routing (marten#4717). Comparing against the database-wide
+        // mark made every quiet tenant in a busy database read as thousands of "events behind" (a tenant
+        // with zero events reported the full database mark) and fed the stall detector the permanently
+        // true "currentSequence < highWaterMark", auto-restarting healthy idle agents.
+        var highWaterMark = _shardName.TenantId != null
+            ? _innerAgent?.HighWaterMark ?? 0
+            : _daemon.Tracker.HighWaterMark;
         var currentSequence = _innerAgent?.Position ?? 0;
 
         var warningThreshold = _warningThreshold ?? DefaultWarningThreshold;
