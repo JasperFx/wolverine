@@ -41,6 +41,16 @@ public class EventStoreAgents : IAsyncDisposable
     public EventStoreIdentity Identity { get; }
 
     /// <summary>
+    /// The node number this Wolverine node runs on (<see cref="DurabilitySettings.AssignedNodeNumber"/>),
+    /// set by <see cref="EventSubscriptionAgentFamily.BuildAgentAsync"/> when this node is assigned an
+    /// agent. Stamped onto each owned daemon's <see cref="ShardStateTracker.AssignedNodeNumber"/> so the
+    /// extended-progression writer can persist <c>running_on_node</c> — this node's daemon only runs the
+    /// agents assigned to this node, so the local node number is the assigned node for every state it
+    /// publishes. Zero (the default) means unset. See marten#5001 / jasperfx#550.
+    /// </summary>
+    public int AssignedNodeNumber { get; set; }
+
+    /// <summary>
     /// How many databases back this event store. The distribution in
     /// <see cref="EventSubscriptionAgentFamily.EvaluateAssignmentsAsync"/> keys off this: a store backed by
     /// multiple databases (static or dynamic) gets database-affine assignment — all of a database's agents
@@ -85,6 +95,7 @@ public class EventStoreAgents : IAsyncDisposable
         // re-subscribed before it's handed back out.
         if (_daemons.TryFind(databaseId, out var daemon) && _observerSubscriptions.TryFind(databaseId, out _))
         {
+            stampAssignedNode(daemon);
             return daemon;
         }
 
@@ -98,6 +109,7 @@ public class EventStoreAgents : IAsyncDisposable
                 _daemons = _daemons.AddOrUpdate(databaseId, daemon);
             }
 
+            stampAssignedNode(daemon);
             subscribeObservers(databaseId, daemon);
         }
         finally
@@ -106,6 +118,17 @@ public class EventStoreAgents : IAsyncDisposable
         }
 
         return daemon;
+    }
+
+    // marten#5001: stamp this node's number onto the daemon's tracker so it rides every published
+    // ShardState into the extended-progression running_on_node column. Idempotent; no-op until this node
+    // has been assigned an agent (AssignedNodeNumber left 0).
+    private void stampAssignedNode(IProjectionDaemon daemon)
+    {
+        if (AssignedNodeNumber != 0)
+        {
+            daemon.Tracker.AssignedNodeNumber = AssignedNodeNumber;
+        }
     }
 
     // Callers must hold _daemonLock.

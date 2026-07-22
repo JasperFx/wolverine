@@ -135,6 +135,10 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
             var databaseId = DatabaseId.Parse(uri.Segments[2].Trim('/'));
             var shardPath = uri.Segments.Skip(3).Join("");
 
+            // marten#5001: this node is being assigned an agent, so tell the store agents which node they
+            // run on; the daemon stamps it onto every published ShardState (running_on_node telemetry).
+            store.AssignedNodeNumber = wolverineRuntime.Options.Durability.AssignedNodeNumber;
+
             return await store.BuildAgentAsync(uri, databaseId, shardPath);
         }
 
