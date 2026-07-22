@@ -150,6 +150,27 @@ public class event_store_agents_observer_subscriptions
         (await theAgents.FindDaemonAsync(theDatabaseId)).ShouldBeSameAs(theDaemon);
     }
 
+    [Fact]
+    public async Task stamps_the_assigned_node_number_onto_the_owned_daemon_tracker()
+    {
+        // marten#5001: when this node owns a database's daemon, its assigned node number must ride onto the
+        // tracker so it stamps every published ShardState into the running_on_node telemetry column.
+        theAgents.AssignedNodeNumber = 7;
+
+        await theAgents.FindDaemonAsync(theDatabaseId);
+
+        theTracker.AssignedNodeNumber.ShouldBe(7);
+    }
+
+    [Fact]
+    public async Task leaves_the_tracker_node_unset_when_this_node_has_no_assignment()
+    {
+        // Default AssignedNodeNumber == 0 (e.g. before any agent assignment) leaves the tracker alone.
+        await theAgents.FindDaemonAsync(theDatabaseId);
+
+        theTracker.AssignedNodeNumber.ShouldBe(0);
+    }
+
     private class RecordingObserver : IObserver<ShardState>
     {
         private readonly ConcurrentBag<ShardState> _states = [];
