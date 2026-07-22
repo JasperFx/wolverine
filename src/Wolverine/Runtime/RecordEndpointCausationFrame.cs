@@ -37,4 +37,12 @@ public class RecordEndpointCausationFrame : Frame
             $"{_context!.Usage}, {_context!.Usage}.Runtime.Observer, \"{_endpointOrigin}\", \"{_handlerType}\");");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(EndpointCausation).FullName}.{nameof(EndpointCausation.RecordEndpointCauseAndEffect)}(" +
+            $"{_context!.Usage}, {_context!.Usage}.Runtime.Observer, \"{_endpointOrigin}\", \"{_handlerType}\") |> ignore");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
