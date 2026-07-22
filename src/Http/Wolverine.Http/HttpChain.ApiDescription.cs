@@ -625,6 +625,18 @@ public partial class HttpChain
         {
             foreach (var parameter in call.Method.GetParameters())
             {
+                // A simple [FromQuery]/[FromHeader] parameter whose name matches a route-template segment is
+                // actually bound from the route value, not the query string or a header: FromQueryAttributeUsage
+                // declines simple types and RouteParameterStrategy runs before the query/header strategies, so
+                // the route claims it and the attribute is a no-op. The route-template loop already describes it
+                // as a Path parameter; describing it again here would emit a second same-name parameter, which is
+                // invalid OpenAPI and crashes downstream transformers (e.g. the XML-doc operation transformer's
+                // Parameters.SingleOrDefault). Regressed when GH-3380 began deriving parameters from the chain.
+                if (isBoundFromRouteValue(parameter))
+                {
+                    continue;
+                }
+
                 if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
                 {
                     // A complex [FromQuery] type is bound by flattening it into one query string value per
@@ -646,6 +658,22 @@ public partial class HttpChain
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Would this endpoint/chain parameter be bound from a route value rather than the query string or a
+    /// header? RouteParameterStrategy matches by the parameter's own name (case-sensitively, mirroring
+    /// <see cref="FindRouteVariable(ParameterInfo, out Variable?)"/>) and runs before the query/header
+    /// strategies, so a name collision with a route-template segment on a route-bindable type makes any
+    /// [FromQuery]/[FromHeader] attribute a no-op. Such a parameter is already described by the
+    /// route-template loop and must not be described again as chain-bound. See GH-3380.
+    /// </summary>
+    private bool isBoundFromRouteValue(ParameterInfo parameter)
+    {
+        // An explicit [FromRoute] parameter is route-bound by definition and never treated as chain-bound
+        // query/header anyway; only the implicit name-collision case needs guarding here.
+        return RoutePattern!.Parameters.Any(x => x.Name == parameter.Name)
+               && isBindableRouteType(parameter.ParameterType);
     }
 
     private static void addChainBoundParameter(ApiDescription apiDescription, string name, Type parameterType,
