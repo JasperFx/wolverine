@@ -57,8 +57,10 @@ internal class ReadJsonBody : AsyncFrame
         // `this` self identifier, jasperfx#393) returning (body, continuation). F# has no early
         // `return`, so the abort guard renders the rest of the chain inside its `else` branch.
         var optionalArg = Optional ? ", true" : "";
+        // ReadJsonAsync returns ValueTask<(T?, HandlerContinuation)> — a struct (value) tuple.
+        // F# requires `let! struct (a, b) =` for struct tuple destructuring.
         writer.Write(
-            $"let! ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext{optionalArg})");
+            $"let! struct ({Variable.Usage}, jsonContinue) = this.{nameof(HttpHandler.ReadJsonAsync)}<{Variable.VariableType.FSharpName()}>(httpContext{optionalArg})");
 
         var condition = $"jsonContinue = {typeof(HandlerContinuation).FSharpName()}.{nameof(HandlerContinuation.Stop)}";
         FSharpEmitHelpers.WriteAbortGuard(writer, method, condition, Next);

@@ -115,9 +115,28 @@ internal class QueryStringBindingFrame : SyncFrame
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         writer.WriteComment("Binding QueryString values to the argument marked with [FromQuery]");
-        var arguments = _parameters.Select(x => x.FSharpUsage).Join(", ");
 
-        writer.Write($"{Variable.FSharpAssignmentUsage} = {Variable.VariableType.FSharpName()}({arguments})");
+        string constructionExpr;
+        if (Variable.VariableType.IsFSharpRecord())
+        {
+            // F# records cannot be constructed with positional constructor syntax from F# code.
+            // Build record expression: { Field1 = val1; Field2 = val2; ... }
+            // Constructor parameter names are camelCase; capitalize first letter for the field name.
+            var ctorParams = _constructor.GetParameters();
+            var fields = ctorParams
+                .Zip(_parameters, (p, v) => $"{char.ToUpperInvariant(p.Name![0])}{p.Name[1..]} = {v.FSharpUsage}")
+                .Join("; ");
+            constructionExpr = $"{{ {fields} }}";
+        }
+        else
+        {
+            var arguments = _parameters.Select(x => x.FSharpUsage).Join(", ");
+            constructionExpr = $"{Variable.VariableType.FSharpName()}({arguments})";
+        }
+
+        // F# record type inference can pick the wrong record when field names are ambiguous across
+        // opened namespaces. Emit an explicit type annotation to disambiguate.
+        writer.Write($"let {Variable.Usage} : {Variable.VariableType.FSharpName()} = {constructionExpr}");
 
         foreach (var frame in _props.OfType<Frame>())
         {
