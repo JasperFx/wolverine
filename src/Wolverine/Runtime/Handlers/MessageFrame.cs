@@ -30,8 +30,9 @@ internal class MessageFrame : Frame
         // F#: `envelope.Message` is `obj`, so the cast to the concrete message type is a dynamic
         // downcast (`:?>`): `let message = envelope.Message :?> SomeMessage`.
         writer.WriteComment("The actual message body");
+        var binding = _message.IsReferenced ? _message.FSharpAssignmentUsage : $"let _{_message.Usage}";
         writer.Write(
-            $"{_message.FSharpAssignmentUsage} = {_envelope.Usage}.{nameof(Envelope.Message)} :?> {_message.VariableType.FSharpName()}");
+            $"{binding} = {_envelope.Usage}.{nameof(Envelope.Message)} :?> {_message.VariableType.FSharpName()}");
         writer.BlankLine();
         Next?.GenerateFSharpCode(method, writer);
     }
