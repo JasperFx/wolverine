@@ -147,12 +147,14 @@ internal class WriteEndpointTypesFrame : SyncFrame
     {
         if (_types.Length == 0)
         {
-            writer.Write($"System.Array.Empty<{typeof(Type).FSharpName()}>()");
+            writer.Write($"System.Array.Empty<System.Type>()");
         }
         else
         {
-            var literals = string.Join("; ", _types.Select(t => $"typeof<{t.FSharpName()}>"));
-            writer.Write($"[| {literals} |]");
+            // typeof<> in F# cannot resolve F# module types (only class/record/DU types).
+            // Use Type.GetType with the assembly-qualified name — works for both.
+            var quotedNames = string.Join("; ", _types.Select(t => $"\"{t.AssemblyQualifiedName}\""));
+            writer.Write($"[| {quotedNames} |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)");
         }
 
         Next?.GenerateFSharpCode(method, writer);

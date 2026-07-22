@@ -132,9 +132,9 @@ internal class WriteTypeArrayFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 
-    // F# counterpart so `codegen write --language fsharp` can emit the static HandlerRegistry. F#
-    // method bodies are expressions (no `return`/`;`): an empty array, or an F# array literal of
-    // typeof<...> values.
+    // F# counterpart so `codegen write --language fsharp` can emit the static HandlerRegistry.
+    // typeof<> in F# cannot resolve F# module types (only class/record/DU types), so we use
+    // Type.GetType with the assembly-qualified name which resolves both modules and classes.
     public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
     {
         if (_types.Length == 0)
@@ -143,8 +143,8 @@ internal class WriteTypeArrayFrame : SyncFrame
         }
         else
         {
-            var literals = string.Join("; ", _types.Select(t => $"typeof<{t.FSharpName()}>"));
-            writer.Write($"[| {literals} |]");
+            var quotedNames = string.Join("; ", _types.Select(t => $"\"{t.AssemblyQualifiedName}\""));
+            writer.Write($"[| {quotedNames} |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)");
         }
 
         Next?.GenerateFSharpCode(method, writer);
