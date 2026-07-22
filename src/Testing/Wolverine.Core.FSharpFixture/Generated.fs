@@ -14,7 +14,7 @@ type CheckThingHandler649476295(loggerForMessage: Microsoft.Extensions.Logging.I
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
 
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let checkThing = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.CheckThing
 
@@ -39,7 +39,7 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _loggerForMessage = loggerForMessage
 
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         task {
             // The actual message body
             let createName = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.CreateName
@@ -70,7 +70,7 @@ type CreateNameHandler1923366998(loggerForMessage: Microsoft.Extensions.Logging.
 
 type GateHandler1696712162() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let gate = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.Gate
 
@@ -95,7 +95,7 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
 
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let incrementCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.IncrementCount
 
@@ -106,7 +106,7 @@ type IncrementCountHandler540640831(inMemorySagaPersistor: Wolverine.Persistence
         if System.String.IsNullOrEmpty(sagaId) then
             raise (Wolverine.Persistence.Sagas.IndeterminateSagaStateIdException(context.Envelope))
         let countingSaga = _inMemorySagaPersistor.Load<Wolverine.Core.FSharpContracts.CountingSaga>(sagaId)
-        if isNull countingSaga then
+        if isNull (box countingSaga) then
             raise (Wolverine.Persistence.Sagas.UnknownSagaException(typeof<Wolverine.Core.FSharpContracts.CountingSaga>, sagaId))
         else
             context.SetSagaId(sagaId)
@@ -129,7 +129,7 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
     inherit Wolverine.Runtime.Handlers.MessageHandler()
     let _inMemorySagaPersistor = inMemorySagaPersistor
 
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let startCount = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.StartCount
 
@@ -151,7 +151,7 @@ type StartCountHandler1561563330(inMemorySagaPersistor: Wolverine.Persistence.Sa
 
 type TickHandler1778389912() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
         let tick = context.Envelope.Message :?> Wolverine.Core.FSharpContracts.Tick
 

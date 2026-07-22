@@ -10,9 +10,9 @@ open Wolverine.Runtime.Handlers
 
 type BehaviouralPingHandler1244766258() =
     inherit Wolverine.Runtime.Handlers.MessageHandler()
-    override this.HandleAsync(context: Wolverine.Runtime.MessageContext, cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
+    override this.HandleAsync(_context: Wolverine.Runtime.MessageContext, _cancellation: System.Threading.CancellationToken) : System.Threading.Tasks.Task =
         // The actual message body
-        let behaviouralPing = context.Envelope.Message :?> WolverineBehaviouralFSharpApp.BehaviouralPing
+        let behaviouralPing = _context.Envelope.Message :?> WolverineBehaviouralFSharpApp.BehaviouralPing
 
         if not (isNull System.Diagnostics.Activity.Current) then
             System.Diagnostics.Activity.Current.SetTag("message.handler", "WolverineBehaviouralFSharpApp.BehaviouralPingHandler") |> ignore

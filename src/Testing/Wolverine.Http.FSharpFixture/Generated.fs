@@ -41,7 +41,7 @@ type POST_fsharp_things(wolverineHttpOptions: Wolverine.Http.WolverineHttpOption
             let! tenantId = this.TryDetectTenantId(httpContext)
             if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             // Reading the request body via JSON deserialization
-            let! (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
+            let! struct (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
             if jsonContinue = Wolverine.HandlerContinuation.Stop then
                 ()
             else
@@ -218,7 +218,7 @@ type POST_fsharp_publish(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptio
             messageContext.TenantId <- tenantId
             if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             // Reading the request body via JSON deserialization
-            let! (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
+            let! struct (command, jsonContinue) = this.ReadJsonAsync<Wolverine.Http.FSharpContracts.CreateThing>(httpContext)
             if jsonContinue = Wolverine.HandlerContinuation.Stop then
                 ()
             else
@@ -250,7 +250,7 @@ type GET_fsharp_filter(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
             let! tenantId = this.TryDetectTenantId(httpContext)
             if not (isNull System.Diagnostics.Activity.Current) then System.Diagnostics.Activity.Current.SetTag("handler.type", "Wolverine.Http.FSharpContracts.ThingEndpoints") |> ignore
             // Binding QueryString values to the argument marked with [FromQuery]
-            let thingFilter = Wolverine.Http.FSharpContracts.ThingFilter(Name, MaxResults)
+            let thingFilter : Wolverine.Http.FSharpContracts.ThingFilter = Wolverine.Http.FSharpContracts.ThingFilter(Name, MaxResults)
             let thingEndpoints = Wolverine.Http.FSharpContracts.ThingEndpoints()
             
             // The actual HTTP request handler execution
@@ -288,5 +288,5 @@ type GET_fsharp_authed(wolverineHttpOptions: Wolverine.Http.WolverineHttpOptions
 type GeneratedHttpEndpointRegistry() =
     inherit Wolverine.Http.HttpEndpointRegistry()
     override this.EndpointTypes() : System.Type[] =
-        [| typeof<Wolverine.Http.FSharpContracts.AuthedEndpoints>; typeof<Wolverine.Http.FSharpContracts.ThingEndpoints> |]
+        [| "Wolverine.Http.FSharpContracts.AuthedEndpoints, Wolverine.Http.FSharpContracts, Version=6.22.0.0, Culture=neutral, PublicKeyToken=null"; "Wolverine.Http.FSharpContracts.ThingEndpoints, Wolverine.Http.FSharpContracts, Version=6.22.0.0, Culture=neutral, PublicKeyToken=null" |] |> Array.choose (fun n -> System.Type.GetType(n) |> Option.ofObj)
 

@@ -44,4 +44,10 @@ internal class AncillaryOutboxFactoryFrame : SyncFrame
         writer.Write($"var {Factory!.Usage} = ({typeof(OutboxedSessionFactory).FullNameInCode()}){_outerFactory.Usage};");
         Next?.GenerateCode(method, writer);
     }
+
+    public override void GenerateFSharpCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write($"let {Factory!.Usage} = {_outerFactory.Usage} :?> {typeof(OutboxedSessionFactory).FullNameInCode()}");
+        Next?.GenerateFSharpCode(method, writer);
+    }
 }
