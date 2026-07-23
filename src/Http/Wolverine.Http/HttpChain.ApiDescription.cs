@@ -118,9 +118,10 @@ public partial class HttpChain
 
         fillKnownHeaderParameters(apiDescription);
 
-        // Query string and header values that are only ever bound by another method in the chain
-        // (a compound handler's Load/LoadAsync/Before, an After/Finally postprocessor, a middleware
-        // method applied by a policy) are still part of this endpoint's contract. See GH-3380.
+        // Query string and header values bound only by an After/Finally postprocessor are part of the
+        // endpoint's contract but never produce a bound variable (postprocessors are not parameter-matched),
+        // so they cannot be described from _querystringVariables / _headerVariables like every other binder.
+        // See GH-3380 / GH-3601.
         fillChainBoundParameters(apiDescription);
 
         fillResponseTypes(apiDescription);
@@ -614,50 +615,84 @@ public partial class HttpChain
     }
 
     /// <summary>
-    /// Adds query string and header parameters that are bound *only* by another method in the binding
-    /// chain — a compound handler's Load/LoadAsync/Before, an After/Finally postprocessor, or a middleware
-    /// method applied by a policy — and therefore never show up in the endpoint method's own variables.
-    /// See GH-3380.
+    /// Adds query string and header parameters bound *only* by an After/Finally postprocessor.
+    ///
+    /// Every other binder in the chain — the endpoint method itself and the middleware / compound-handler
+    /// methods (Load/LoadAsync/Before, plus policy-applied middleware) — is run through
+    /// <see cref="HttpGraph.ApplyParameterMatching(HttpChain, MethodCall)"/>, so its query and header inputs
+    /// already exist as produced variables in <c>_querystringVariables</c> / <c>_headerVariables</c> and are
+    /// described from those by <see cref="fillQuerystringParameters"/> / <see cref="fillKnownHeaderParameters"/>.
+    /// Describing them here as well was a *second, parallel* source of truth derived by re-reflecting attributes,
+    /// which drifted from what the binder actually produced and had to be corrected with a series of subtractive
+    /// guards (the complex-[FromQuery] flatten skip, the route-collision skip, the same-name dedupe). Sourcing
+    /// those descriptions solely from the produced variables removes the drift at the root.
+    ///
+    /// Postprocessors are the one binder that is deliberately NOT parameter-matched (see the middleware-only
+    /// loop in <c>HttpChain</c>'s constructor), so they never produce a bound variable — they are the sole
+    /// remaining shape that must be derived from the method signature. What used to be three scattered guards is
+    /// now the single positive decision in <see cref="tryDescribePostprocessorBinding"/>: describe a postprocessor
+    /// parameter only when the binder would expose it on the wire as a query or header value. See GH-3380 / GH-3601.
     /// </summary>
     private void fillChainBoundParameters(ApiDescription apiDescription)
     {
-        foreach (var call in allMethodCalls())
+        foreach (var call in Postprocessors.OfType<MethodCall>())
         {
             foreach (var parameter in call.Method.GetParameters())
             {
-                // A simple [FromQuery]/[FromHeader] parameter whose name matches a route-template segment is
-                // actually bound from the route value, not the query string or a header: FromQueryAttributeUsage
-                // declines simple types and RouteParameterStrategy runs before the query/header strategies, so
-                // the route claims it and the attribute is a no-op. The route-template loop already describes it
-                // as a Path parameter; describing it again here would emit a second same-name parameter, which is
-                // invalid OpenAPI and crashes downstream transformers (e.g. the XML-doc operation transformer's
-                // Parameters.SingleOrDefault). Regressed when GH-3380 began deriving parameters from the chain.
-                if (isBoundFromRouteValue(parameter))
+                if (tryDescribePostprocessorBinding(parameter, out var name, out var source))
                 {
-                    continue;
-                }
-
-                if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
-                {
-                    // A complex [FromQuery] type is bound by flattening it into one query string value per
-                    // member, all of them already declared by fillQuerystringParameters. The container
-                    // itself never appears on the wire, so describing it would add a phantom query
-                    // parameter — and drag the type into components/schemas. See GH-3575.
-                    if (CodeGen.FromQueryAttributeUsage.IsComplexQueryStringType(parameter.ParameterType))
-                    {
-                        continue;
-                    }
-
-                    var name = fromQuery.Name.IsNotEmpty() ? fromQuery.Name! : parameter.Name!;
-                    addChainBoundParameter(apiDescription, name, parameter.ParameterType, BindingSource.Query);
-                }
-                else if (parameter.TryGetAttribute<FromHeaderAttribute>(out var fromHeader))
-                {
-                    var name = fromHeader.Name.IsNotEmpty() ? fromHeader.Name! : parameter.Name!;
-                    addChainBoundParameter(apiDescription, name, parameter.ParameterType, BindingSource.Header);
+                    addChainBoundParameter(apiDescription, name, parameter.ParameterType, source);
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Does the binder expose this postprocessor parameter on the wire as a distinct query or header value, and
+    /// if so under what name and binding source? This is the single, positively-framed replacement for the three
+    /// subtractive guards <see cref="fillChainBoundParameters"/> used to carry:
+    /// <list type="bullet">
+    /// <item>a route-value binding — an explicit <c>[FromRoute]</c> or an implicit name collision with a
+    /// route-template segment on a route-bindable type — is claimed by the route and already described by the
+    /// route-template loop as a Path parameter, so it is not a query/header value here;</item>
+    /// <item>a complex <c>[FromQuery]</c> is bound by flattening into one query value per member, so the container
+    /// itself never appears on the wire (and a postprocessor's members are never produced as variables to flatten
+    /// into anyway) — describing it would add a phantom parameter and drag the type into components/schemas;</item>
+    /// <item>anything without <c>[FromQuery]</c>/<c>[FromHeader]</c> is not a query/header input.</item>
+    /// </list>
+    /// A value that is also read by an already-described binder (e.g. the same <c>[FromQuery]</c> on the endpoint
+    /// method) is de-duplicated by <see cref="addChainBoundParameter"/> on the way in.
+    /// </summary>
+    private bool tryDescribePostprocessorBinding(ParameterInfo parameter, out string name, out BindingSource source)
+    {
+        name = null!;
+        source = BindingSource.Query;
+
+        if (isBoundFromRouteValue(parameter))
+        {
+            return false;
+        }
+
+        if (parameter.TryGetAttribute<FromQueryAttribute>(out var fromQuery))
+        {
+            if (CodeGen.FromQueryAttributeUsage.IsComplexQueryStringType(parameter.ParameterType))
+            {
+                return false;
+            }
+
+            name = fromQuery.Name.IsNotEmpty() ? fromQuery.Name! : parameter.Name!;
+            source = BindingSource.Query;
+            return true;
+        }
+
+        if (parameter.TryGetAttribute<FromHeaderAttribute>(out var fromHeader))
+        {
+            name = fromHeader.Name.IsNotEmpty() ? fromHeader.Name! : parameter.Name!;
+            source = BindingSource.Header;
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

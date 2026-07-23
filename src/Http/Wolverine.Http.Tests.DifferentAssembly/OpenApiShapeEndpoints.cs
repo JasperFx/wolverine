@@ -72,6 +72,31 @@ public static class PostprocessorQueryEndpoint
     }
 }
 
+// GH-3601: the postprocessor description path is now the single place that derives from the method signature,
+// so exercise its non-query branches too. A [FromHeader] on a postprocessor must render as a header parameter.
+public static class PostprocessorHeaderEndpoint
+{
+    [WolverineGet("/shapes/postprocessor-header")]
+    public static string Get() => "ok";
+
+    public static void After([FromHeader(Name = "x-audit")] string? audit)
+    {
+    }
+}
+
+// GH-3601: a postprocessor [FromQuery] whose name collides with a route segment on a route-bindable type is
+// claimed by the route (bound from the route value), so it must render ONLY the single Path parameter and
+// never a duplicate query parameter — the route-collision decision lives in tryDescribePostprocessorBinding.
+public static class PostprocessorRouteCollisionEndpoint
+{
+    [WolverineGet("/shapes/postprocessor-collision/{orderId:long}")]
+    public static string Get() => "ok";
+
+    public static void After([FromQuery] long orderId)
+    {
+    }
+}
+
 #endregion
 
 #region baseline shapes: plain handler signature bindings
