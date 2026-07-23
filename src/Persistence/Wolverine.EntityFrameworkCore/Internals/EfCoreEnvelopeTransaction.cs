@@ -196,12 +196,12 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
             {
                 var keepUntil =
                     DateTimeOffset.UtcNow.Add(_messaging.Runtime.Options.Durability.KeepAfterMessageHandling);
-                await using var cmd = conn.CreateCommand(
-                        $"update {_database.SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
-                    .With("id", _messaging.Envelope.Id)
-                    .With("keep", keepUntil);
-                cmd.Transaction = tx;
-                await cmd.ExecuteNonQueryAsync(cancellation);
+
+                // Route through the store rather than binding the id here: the generic Weasel path binds
+                // a Guid as DbType.Guid, which ODP.NET rejects against Oracle's RAW(16) id columns
+                // (GH-3581). The store knows how to bind for its own provider.
+                await _database.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, _messaging.Envelope,
+                    keepUntil, cancellation);
             }
             
             // Or inserting a record just to tell the inbox about

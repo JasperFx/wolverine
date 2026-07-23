@@ -259,6 +259,32 @@ internal partial class OracleMessageStore
         await conn.CloseAsync();
     }
 
+    /// <summary>
+    /// GH-3581: the generic <see cref="IMessageDatabase"/> default binds the envelope id as
+    /// <c>DbType.Guid</c>, which ODP.NET rejects against a <c>RAW(16)</c> column with "Value does not
+    /// fall within the expected range". Oracle's id columns are <c>RAW(16)</c>, so this override casts to
+    /// the concrete <see cref="OracleConnection"/> and lets <c>Weasel.Oracle</c>'s <c>With</c> bind the
+    /// Guid as <c>byte[]</c> — exactly what <see cref="StoreIncomingAsync(DbTransaction, Envelope[])"/> and
+    /// <see cref="MarkIncomingEnvelopeAsHandledAsync(Envelope)"/> already do. Runs inside the caller's EF
+    /// Core transaction, so the durable-inbox mark-as-handled stays part of the application's commit.
+    /// </summary>
+    public async Task MarkIncomingEnvelopeAsHandledInTransactionAsync(DbConnection conn, DbTransaction? tx,
+        Envelope envelope, DateTimeOffset keepUntil, CancellationToken cancellation)
+    {
+        await using var cmd = ((OracleConnection)conn).CreateCommand(
+            $"UPDATE {SchemaName}.{DatabaseConstants.IncomingTable} SET " +
+            $"{DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = :keepUntil " +
+            $"WHERE id = :id");
+        if (tx != null)
+        {
+            cmd.Transaction = (OracleTransaction)tx;
+        }
+
+        cmd.Parameters.Add(new OracleParameter("keepUntil", OracleDbType.TimeStampTZ) { Value = keepUntil });
+        cmd.With("id", envelope.Id);
+        await cmd.ExecuteNonQueryAsync(cancellation);
+    }
+
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
         if (envelopes.Count == 0) return;
