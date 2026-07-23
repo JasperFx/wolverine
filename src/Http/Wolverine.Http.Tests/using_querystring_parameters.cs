@@ -558,6 +558,56 @@ public class using_querystring_parameters : IntegrationContext
         (await body.ReadAsTextAsync()).ShouldBe("Value is missing");
     }
 
+    [Fact]
+    public async Task use_enum_fromquery_hit_with_string_name()
+    {
+        // Enum values arrive as their string name on the wire, not as an integer.
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum2?value=North");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("North");
+    }
+
+    [Fact]
+    public async Task use_enum_fromquery_hit_with_lowercase_string_name()
+    {
+        // ...and the name parse is case-insensitive.
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum2?value=west");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("West");
+    }
+
+    [Fact]
+    public async Task use_nullable_enum_fromquery_hit_with_string_name()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum2/nullable?value=South");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("South");
+    }
+
+    [Fact]
+    public async Task use_nullable_enum_fromquery_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/enum2/nullable");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("Value is missing");
+    }
+
     #endregion
 
     [Fact]

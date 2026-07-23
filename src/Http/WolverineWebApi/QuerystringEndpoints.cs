@@ -70,6 +70,20 @@ public static class QuerystringEndpoints
         return value.HasValue ? value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "Value is missing";
     }
 
+    // GH-3586 follow-up: enum values arrive on the wire as their string name (?value=North). A scalar
+    // [FromQuery] enum must parse that name, case-insensitively, through the explicit-attribute path.
+    [WolverineGet("/querystring/enum2")]
+    public static string Enum2([FromQuery] Direction value)
+    {
+        return value.ToString();
+    }
+
+    [WolverineGet("/querystring/enum2/nullable")]
+    public static string Enum2Nullable([FromQuery] Direction? value)
+    {
+        return value.HasValue ? value.Value.ToString() : "Value is missing";
+    }
+
     [WolverineGet("/querystring/datetime/nullable")]
     public static string DateTimeNullable(DateTime? value)
     {
