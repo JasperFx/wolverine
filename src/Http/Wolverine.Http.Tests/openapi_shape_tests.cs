@@ -288,6 +288,19 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             ], ignoreOrder: true);
     }
 
+    // GH-3602: an explicit [FromQuery] array/collection binds from repeated query values, so it must render
+    // as exactly ONE array-typed query parameter apiece — not a flattened complex object, and never pulled
+    // into components/schemas the way a genuine complex [FromQuery] container is.
+    [Fact]
+    public void array_fromquery_renders_as_array_typed_query_parameters()
+    {
+        ParametersFor("/shapes/query-array", "get")
+            .ShouldBe([
+                new ParameterShape("tags", "query", false, "array", null),
+                new ParameterShape("ids", "query", false, "array", null)
+            ], ignoreOrder: true);
+    }
+
     #region harness helpers
 
     private JsonElement operationFor(string path, string httpMethod)

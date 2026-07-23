@@ -283,6 +283,84 @@ public class using_querystring_parameters : IntegrationContext
         text.ShouldBe("none");
     }
 
+    // GH-3602: [FromQuery] on an array/collection must bind from repeated query values just like the
+    // attribute-less form above, instead of being misrouted into complex member-flattening (which threw
+    // at discovery). Covers string[], int[] and List<int>.
+    [Fact]
+    public async Task using_fromquery_string_array_completely_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/stringarray2")
+                .QueryString("values", "foo")
+                .QueryString("values", "bar")
+                .QueryString("values", "baz");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("foo,bar,baz");
+    }
+
+    [Fact]
+    public async Task using_fromquery_string_array_completely_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/stringarray2");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("none");
+    }
+
+    [Fact]
+    public async Task using_fromquery_int_array_completely_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/intarray2")
+                .QueryString("values", "4")
+                .QueryString("values", "2")
+                .QueryString("values", "1");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("1,2,4");
+    }
+
+    [Fact]
+    public async Task using_fromquery_int_list_completely_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/intlist2")
+                .QueryString("values", "4")
+                .QueryString("values", "2")
+                .QueryString("values", "1");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("1,2,4");
+    }
+
+    [Fact]
+    public async Task using_fromquery_int_list_completely_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/intlist2");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("none");
+    }
+
     [Fact]
     public async Task using_datetime_with_default_value()
     {

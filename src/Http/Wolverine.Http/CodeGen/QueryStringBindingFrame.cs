@@ -49,7 +49,32 @@ internal class FromQueryAttributeUsage : IParameterStrategy
         if (parameterType.IsTypeOrNullableOf<TimeSpan>()) return false;
         if (parameterType.IsTypeOrNullableOf<Guid>()) return false;
 
+        // GH-3602: an array or supported collection of a bindable simple element (string[], int[],
+        // List<Guid>, IReadOnlyList<int>, ...) binds from *repeated* query values through the same path
+        // as the attribute-less form, not by member-flattening. Arrays in particular expose no public
+        // constructor, so routing one into QueryStringBindingFrame throws at discovery. Declining here
+        // lets these fall through to QueryStringParameterStrategy / TryFindOrCreateQuerystringValue, whose
+        // ParsedArrayQueryStringValue / ParsedCollectionQueryStringValue frames already handle them.
+        if (IsBindableQueryStringCollection(parameterType)) return false;
+
         return true;
+    }
+
+    /// <summary>
+    /// Is this an array or supported generic collection whose element type the query-string binder can read
+    /// directly (string or any <see cref="RouteParameterStrategy.CanParse"/> type)? Mirrors the collection
+    /// branches of <see cref="HttpChain.TryFindOrCreateQuerystringValue(Type, string, string?)"/> so the
+    /// attribute-decorated and attribute-less forms bind identically. See GH-3602.
+    /// </summary>
+    internal static bool IsBindableQueryStringCollection(Type parameterType)
+    {
+        if (parameterType.IsArray)
+        {
+            var elementType = parameterType.GetElementType()!;
+            return elementType == typeof(string) || RouteParameterStrategy.CanParse(elementType);
+        }
+
+        return ParsedCollectionQueryStringValue.CanParse(parameterType);
     }
 }
 
