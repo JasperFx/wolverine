@@ -177,6 +177,13 @@ This queue is hardcoded to poll every second and should not be changed to ensure
 :::
 
 
+### Resetting in Tests
+
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+this transport's queue and scheduled-message tables alone. To wipe both in an integration test
+harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
+which leaves the queue tables built but empty across every tenant database.
+
 ## Multi-Tenancy
 
 As of Wolverine 5.x, you can use multi-tenancy through separate databases per tenant with MySQL:

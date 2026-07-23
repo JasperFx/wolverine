@@ -262,6 +262,13 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+### Resetting in Tests
+
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+this transport's queue and scheduled-message tables alone. To wipe both in an integration test
+harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
+which leaves the queue tables built but empty across every tenant database.
+
 ## NServiceBus Interoperability <Badge type="tip" text="6.0" />
 
 Wolverine can exchange messages with an [NServiceBus](https://particular.net/nservicebus) endpoint that uses the

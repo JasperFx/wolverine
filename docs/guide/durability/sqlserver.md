@@ -229,6 +229,13 @@ _listener = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/with_multiple_hosts.cs#L21-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_as_queue_between_two_apps' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Resetting in Tests
+
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+this transport's queue and scheduled-message tables alone. To wipe both in an integration test
+harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
+which leaves the queue tables built but empty across every tenant database.
+
 ## NServiceBus Interoperability <Badge type="tip" text="6.0" />
 
 Wolverine can exchange messages with an [NServiceBus](https://particular.net/nservicebus) endpoint that uses the

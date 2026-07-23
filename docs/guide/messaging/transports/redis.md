@@ -410,6 +410,13 @@ using var host = await builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Redis/Wolverine.Redis.Tests/Samples/RedisTransportWithScheduling.cs#L8-L36' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dead_letter_queue_for_redis' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Resetting in Tests
+
+Redis stream endpoints implement the same `IBrokerQueue` surface as the relational database queue
+transports, so [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests)
+purges them alongside envelope storage. If you need the streams left alone, reset envelope storage
+directly with `IMessageStoreAdmin.RebuildAsync()` instead.
+
 ## Global Partitioning
 
 Redis streams can be used as the external transport for [global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This creates a set of sharded Redis streams with companion local queues for sequential processing across a multi-node cluster.

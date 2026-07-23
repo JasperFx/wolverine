@@ -223,13 +223,22 @@ public class SqliteQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public async ValueTask SetupAsync(ILogger logger)
     {
-        await forEveryDatabase(async (source, identifier) => { await EnsureSchemaExists(identifier, source); });
+        // Deliberately bypasses the _checkedDatabases memo. SetupAsync is the explicit
+        // "make sure these tables exist right now" call - resource setup, and
+        // IHost.ClearAllWolverineStorageAsync() - so it has to re-apply against a database
+        // whose queue tables were dropped after we last looked.
+        await forEveryDatabase(applySchemaChangesAsync);
     }
 
     internal async Task EnsureSchemaExists(string identifier, DbDataSource source)
     {
         if (_checkedDatabases.Contains(identifier)) return;
 
+        await applySchemaChangesAsync(source, identifier);
+    }
+
+    private async Task applySchemaChangesAsync(DbDataSource source, string identifier)
+    {
         await using (var conn = (SqliteConnection)await source.OpenConnectionAsync().ConfigureAwait(false))
         {
             var queueMigration = await SchemaMigration.DetermineAsync(conn, default(CancellationToken), QueueTable);
