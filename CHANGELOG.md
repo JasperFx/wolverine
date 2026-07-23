@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### WolverineFx.Oracle
+
+- **Durable inbox no longer fails on Oracle with "Value does not fall within the expected range".**
+  ([#3581](https://github.com/JasperFx/wolverine/issues/3581)) With `.UseDurableInbox()` on an Oracle
+  store, `EfCoreEnvelopeTransaction.CommitAsync` marked the already-persisted envelope handled by binding
+  its `Guid` id through Weasel's generic path, which sets `DbType.Guid` — something ODP.NET rejects against
+  the `RAW(16)` id columns, rolling back the whole commit even though the message handled successfully. The
+  mark-as-handled update now routes through a new provider-aware
+  `IMessageDatabase.MarkIncomingEnvelopeAsHandledInTransactionAsync` (a default interface method preserving
+  the existing generic binding for every `DbType.Guid`-friendly provider) that Oracle overrides to bind the
+  Guid as `byte[]`, exactly as its other inbox writes already do. Runs inside the application's own EF Core
+  transaction. Thanks to adityaBisht2304 for the detailed diagnosis.
+
 ### WolverineFx (core)
 
 - **New `IHost.ClearAllWolverineStorageAsync()`; message-store resets stay envelope-storage only.**
