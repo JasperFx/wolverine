@@ -55,6 +55,21 @@ public static class QuerystringEndpoints
         return value.ToString("O");
     }
 
+    // GH-3586 follow-up: a scalar [FromQuery] decimal is a single query value like [FromQuery] DateTime
+    // above. It used to throw at discovery ("System.Decimal has multiple constructors") because decimal was
+    // routed into the complex-type flattening path; guarded now in IsComplexQueryStringType.
+    [WolverineGet("/querystring/decimal2")]
+    public static string Decimal2([FromQuery] decimal value)
+    {
+        return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    [WolverineGet("/querystring/decimal2/nullable")]
+    public static string Decimal2Nullable([FromQuery] decimal? value)
+    {
+        return value.HasValue ? value.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "Value is missing";
+    }
+
     [WolverineGet("/querystring/datetime/nullable")]
     public static string DateTimeNullable(DateTime? value)
     {

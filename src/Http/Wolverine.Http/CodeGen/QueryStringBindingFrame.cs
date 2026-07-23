@@ -37,6 +37,11 @@ internal class FromQueryAttributeUsage : IParameterStrategy
     {
         if (parameterType.IsSimple()) return false;
         if (parameterType.IsNullable() && parameterType.GetInnerTypeFromNullable().IsSimple()) return false;
+        // decimal is a single query-string value like the other numerics, but JasperFx's IsSimple() does not
+        // treat it as simple, so without this it falls into the flattening path: non-nullable `decimal` then
+        // throws ("System.Decimal has multiple constructors") and `decimal?` silently binds/describes from a
+        // key named "value" (Nullable<decimal>'s constructor parameter) instead of the parameter's own name.
+        if (parameterType.IsTypeOrNullableOf<decimal>()) return false;
         if (parameterType.IsTypeOrNullableOf<DateTime>()) return false;
         if (parameterType.IsTypeOrNullableOf<DateTimeOffset>()) return false;
         if (parameterType.IsTypeOrNullableOf<DateOnly>()) return false;

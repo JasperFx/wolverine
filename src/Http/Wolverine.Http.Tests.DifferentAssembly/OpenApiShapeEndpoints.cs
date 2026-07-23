@@ -182,3 +182,106 @@ public class RenamedOrderQuery
 }
 
 #endregion
+
+public enum ShapeColor
+{
+    Red,
+    Green,
+    Blue
+}
+
+#region GH-3586: a [FromQuery]/[FromHeader] colliding with a route segment is route-bound, described ONCE
+
+// The GH-3586 regression battery. A simple-typed [FromQuery]/[FromHeader] parameter whose name matches a
+// route-template segment is actually bound from the route value: RouteParameterStrategy runs ahead of the
+// query/header strategies, so the route claims it and the attribute is a no-op. Describing it a second time
+// as a query/header parameter emits two same-name parameters, which is invalid OpenAPI and hard-crashes
+// downstream transformers (the XML-doc operation transformer's Parameters.SingleOrDefault matches by name
+// across every `in`, so even a path+header collision throws). Each endpoint below must render as a SINGLE
+// path parameter. One case per route-bindable CLR family so the suppression can't silently regress for one
+// type while passing for another.
+
+public static class RouteCollisionStringEndpoint
+{
+    // The exact #3586 repro, now as a CI-enforced shape assertion rather than a manual repro script.
+    [WolverineGet("/shapes/collision/string/{id}")]
+    public static string Get([FromQuery] string id) => id;
+}
+
+public static class RouteCollisionGuidEndpoint
+{
+    [WolverineGet("/shapes/collision/guid/{id:guid}")]
+    public static string Get([FromQuery] Guid id) => id.ToString();
+}
+
+public static class RouteCollisionIntEndpoint
+{
+    [WolverineGet("/shapes/collision/int/{id:int}")]
+    public static string Get([FromQuery] int id) => id.ToString();
+}
+
+public static class RouteCollisionLongEndpoint
+{
+    [WolverineGet("/shapes/collision/long/{id:long}")]
+    public static string Get([FromQuery] long id) => id.ToString();
+}
+
+public static class RouteCollisionBoolEndpoint
+{
+    [WolverineGet("/shapes/collision/bool/{flag:bool}")]
+    public static string Get([FromQuery] bool flag) => flag.ToString();
+}
+
+public static class RouteCollisionDateTimeEndpoint
+{
+    [WolverineGet("/shapes/collision/datetime/{when:datetime}")]
+    public static string Get([FromQuery] DateTime when) => when.ToString("O");
+}
+
+public static class RouteCollisionEnumEndpoint
+{
+    // Enums are route-bindable (RouteParameterStrategy.CanParse returns true for IsEnum), so the collision
+    // is suppressed the same as the primitive families.
+    [WolverineGet("/shapes/collision/enum/{color}")]
+    public static string Get([FromQuery] ShapeColor color) => color.ToString();
+}
+
+public static class RouteCollisionNullableEndpoint
+{
+    // A Nullable<T> of a route-bindable type unwraps to T (isBindableRouteType/unwrapNullable), so the
+    // collision is still suppressed. Guards the nullable path explicitly.
+    [WolverineGet("/shapes/collision/nullable/{id:int}")]
+    public static string Get([FromQuery] int? id) => id?.ToString() ?? "none";
+}
+
+public static class RouteCollisionHeaderEndpoint
+{
+    // A [FromHeader] colliding with a route segment trips the SAME SingleOrDefault crash (name match is
+    // `in`-agnostic), so the guard must suppress header collisions too, not just query.
+    [WolverineGet("/shapes/collision/header/{id}")]
+    public static string Get([FromHeader] string id) => id;
+}
+
+#endregion
+
+#region query-string schema rendering across CLR type families (type + format regression guard)
+
+// These do NOT collide with a route segment: they pin the rendered schema `type`/`format` for each query
+// parameter family so a change in how Wolverine hands types to Microsoft.AspNetCore.OpenApi can't silently
+// alter the emitted schema. Nullable throughout because that's the idiomatic optional-query shape.
+public static class QueryTypeRenderingEndpoint
+{
+    [WolverineGet("/shapes/query-types")]
+    public static string Get(
+        [FromQuery] Guid? gid,
+        [FromQuery] DateTime? when,
+        [FromQuery] bool? flag,
+        [FromQuery] int? number,
+        [FromQuery] long? big,
+        [FromQuery] double? ratio,
+        [FromQuery] decimal? amount,
+        [FromQuery] ShapeColor? color)
+        => "ok";
+}
+
+#endregion

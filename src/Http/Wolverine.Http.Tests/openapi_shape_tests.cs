@@ -251,6 +251,43 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             .ShouldBe([new ParameterShape("id", "path", true, "string", "uuid")]);
     }
 
+    // GH-3586: a [FromQuery]/[FromHeader] whose name collides with a route segment is route-bound, so the
+    // operation must carry exactly ONE parameter (the path one) and never a duplicate. Theory data covers
+    // every route-bindable CLR family plus the header and nullable variants; a regression in the suppression
+    // for any single family fails only its own row.
+    [Theory]
+    [InlineData("/shapes/collision/string/{id}", "id", "string", null)]
+    [InlineData("/shapes/collision/guid/{id}", "id", "string", "uuid")]
+    [InlineData("/shapes/collision/int/{id}", "id", "integer", "int32")]
+    [InlineData("/shapes/collision/long/{id}", "id", "integer", "int64")]
+    [InlineData("/shapes/collision/bool/{flag}", "flag", "boolean", null)]
+    [InlineData("/shapes/collision/datetime/{when}", "when", "string", "date-time")]
+    [InlineData("/shapes/collision/enum/{color}", "color", "integer", null)]
+    [InlineData("/shapes/collision/nullable/{id}", "id", "integer", "int32")]
+    [InlineData("/shapes/collision/header/{id}", "id", "string", null)]
+    public void route_bound_fromquery_or_fromheader_is_described_once_as_a_path_parameter(
+        string path, string name, string? type, string? format)
+    {
+        ParametersFor(path, "get")
+            .ShouldBe([new ParameterShape(name, "path", true, type, format)]);
+    }
+
+    [Fact]
+    public void query_parameters_render_the_expected_schema_type_and_format_per_clr_family()
+    {
+        ParametersFor("/shapes/query-types", "get")
+            .ShouldBe([
+                new ParameterShape("gid", "query", false, "string", "uuid"),
+                new ParameterShape("when", "query", false, "string", "date-time"),
+                new ParameterShape("flag", "query", false, "boolean", null),
+                new ParameterShape("number", "query", false, "integer", "int32"),
+                new ParameterShape("big", "query", false, "integer", "int64"),
+                new ParameterShape("ratio", "query", false, "number", "double"),
+                new ParameterShape("amount", "query", false, "number", "double"),
+                new ParameterShape("color", "query", false, "integer", null)
+            ], ignoreOrder: true);
+    }
+
     #region harness helpers
 
     private JsonElement operationFor(string path, string httpMethod)

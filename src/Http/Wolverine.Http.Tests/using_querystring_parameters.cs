@@ -520,6 +520,44 @@ public class using_querystring_parameters : IntegrationContext
         text.ShouldBe("Amount is 42.1");
     }
 
+    [Fact]
+    public async Task use_decimal_fromquery_hit()
+    {
+        // GH-3586 follow-up: an explicit [FromQuery] on a scalar decimal used to throw at endpoint
+        // discovery ("System.Decimal has multiple constructors"). It now binds from its own key.
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/decimal2?value=42.1");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("42.1");
+    }
+
+    [Fact]
+    public async Task use_nullable_decimal_fromquery_hit()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/decimal2/nullable?value=42.1");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("42.1");
+    }
+
+    [Fact]
+    public async Task use_nullable_decimal_fromquery_miss()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get.Url("/querystring/decimal2/nullable");
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        (await body.ReadAsTextAsync()).ShouldBe("Value is missing");
+    }
+
     #endregion
 
     [Fact]
