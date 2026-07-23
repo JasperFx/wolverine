@@ -48,6 +48,17 @@ public interface IEndpointCollection : IAsyncDisposable
     Task StopListenerAsync(Endpoint endpoint, CancellationToken cancellationToken);
 
     IListenerCircuit? FindListenerCircuit(Uri address);
+
+    /// <summary>
+    /// Is the listening endpoint at this address scoped to a single node in the cluster -- i.e.
+    /// <see cref="ListenerScope.Exclusive"/> or <see cref="ListenerScope.PinnedToLeader"/> rather than
+    /// <see cref="ListenerScope.CompetingConsumers"/>? Inbox recovery for these endpoints is owned by the
+    /// node hosting the listener itself, *not* by the database's durability agent. See GH-3590.
+    /// </summary>
+    bool IsSingleNodeListener(Uri address)
+    {
+        return EndpointFor(address) is { ListenerScope: not ListenerScope.CompetingConsumers };
+    }
 }
 
 public class EndpointCollection : IEndpointCollection
@@ -357,6 +368,23 @@ public class EndpointCollection : IEndpointCollection
         {
             await agent.StopAndDrainAsync();
         }
+    }
+
+    private ImHashMap<Uri, bool> _singleNodeListeners = ImHashMap<Uri, bool>.Empty;
+
+    public bool IsSingleNodeListener(Uri address)
+    {
+        // Cached because this is asked on every durability agent recovery pass, once per distinct
+        // received_at destination, and EndpointFor() is a linear scan across every transport.
+        if (_singleNodeListeners.TryFind(address, out var isSingleNode))
+        {
+            return isSingleNode;
+        }
+
+        isSingleNode = EndpointFor(address) is { ListenerScope: not ListenerScope.CompetingConsumers };
+        _singleNodeListeners = _singleNodeListeners.AddOrUpdate(address, isSingleNode);
+
+        return isSingleNode;
     }
 
     public IListenerCircuit? FindListenerCircuit(Uri address)

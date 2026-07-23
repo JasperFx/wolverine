@@ -223,6 +223,50 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L82-L97' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_durable_inbox' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Who Recovers the Inbox <Badge type="tip" text="6.22" />
+
+An incoming envelope in durable storage is either owned by a specific node (its `owner_id` is that node's
+assigned number) or it is *unowned* — `owner_id = 0`, meaning "any node may claim this". Messages become
+unowned when the node that owned them dies ungracefully and another node releases its ownership, and when
+replayed dead letter messages are moved back into the inbox. Getting those unowned messages back into a
+running listener is what "inbox recovery" means.
+
+Which node does that recovery depends on the endpoint's `ListenerScope`:
+
+| Listener | Recovered by | Why |
+| --- | --- | --- |
+| `CompetingConsumers` (the default) | The **durability agent** for that message database | Every node is listening, so whichever node holds the database's durability agent can safely claim the messages and process them locally |
+| `Exclusive` (`ExclusiveNodeWithParallelism()`, `ListenWithStrictOrdering()`) | The **node currently hosting the listener** | Only one node is listening. A different node claiming the messages would strand them again |
+| `PinnedToLeader` (`ListenOnlyAtLeader()`) | The **node currently hosting the listener** | Same reason |
+
+The distinction matters because the durability agent is **assigned per message database**, and those
+assignments are distributed across the cluster completely independently of the listener agents. So the node
+running the durability agent for a database is frequently *not* the node running that database's exclusive
+listener. If the durability agent were in charge of recovery for an exclusive endpoint, the two agents would
+deadlock: the agent would refuse to recover because its local listener isn't accepting, and the listening node
+would never look. (That was [GH-3590](https://github.com/JasperFx/wolverine/issues/3590), fixed in 6.22.)
+
+So for single node listeners, Wolverine inverts the ownership:
+
+* The per-database durability agents **never claim** inbox messages for endpoints whose `ListenerScope` is not
+  `CompetingConsumers`. They keep doing everything else for those endpoints — releasing a dead node's
+  ownership, [bumping stale inbox rows](#bumping-out-stale-inbox-outbox-messages), expiring messages.
+* The node that currently holds the listener recovers them itself, starting the moment the listener reaches
+  `Accepting` and then re-checking on the `Durability.ScheduledJobPollingTime` cadence for as long as it stays
+  `Accepting`. The repeat matters: a dead node's messages are released back to `owner_id = 0` later, by
+  whichever node holds that database's durability agent, and that is usually *after* the exclusive listener has
+  already restarted somewhere else.
+* That sweep covers **every** database that can hold inbox rows for the listener: the main store, every tenant
+  database when you use a separate database per tenant (including tenant databases provisioned at runtime), and
+  any [ancillary stores](/guide/durability/marten/ancillary-stores).
+* A listener that is latched, paused, or already at its `BufferingLimits` recovers nothing, exactly as with the
+  durability agent — circuit breaking behaves the way it always has.
+
+None of this is configurable, and it works the same in `Solo` mode as in `Balanced`. The practical consequence
+worth remembering: **if no node in the cluster is running an exclusive endpoint's listener, that endpoint's
+unowned inbox messages stay put by design.** They are recovered promptly once a listener activates. See
+[Exclusive Node Processing](/guide/messaging/exclusive-node-processing#inbox-recovery-ownership).
+
 ## Local Queues
 
 When you mark a [local queue](/guide/messaging/transports/local) as durable, you're telling Wolverine to ensure that every message published

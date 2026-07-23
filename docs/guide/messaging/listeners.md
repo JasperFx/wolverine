@@ -208,6 +208,11 @@ This option does a couple things:
 * Sets any local execution of the listener's internal, local queue to be strictly sequential and only process messages with
   a single thread
 
+If the endpoint is also using the durable inbox, the node that currently holds the listener is the *only* node
+that recovers that endpoint's dormant inbox messages — the per-database durability agents deliberately leave
+them alone. See [Inbox Recovery Ownership](/guide/messaging/exclusive-node-processing#inbox-recovery-ownership)
+for the details. The same applies to `ListenOnlyAtLeader()`.
+
 ## Disabling All External Listeners
 
 In some cases, you may want to disable all message processing for messages received from external

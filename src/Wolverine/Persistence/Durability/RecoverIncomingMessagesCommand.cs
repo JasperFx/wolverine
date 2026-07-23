@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wolverine.Configuration;
 using Wolverine.Logging;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -70,6 +71,13 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         DurabilitySettings durabilitySettings)
     {
         if (listener.Status != ListeningStatus.Accepting)
+        {
+            return 0;
+        }
+
+        // GH-3590 defense in depth. Inbox recovery for single node listeners (Exclusive / PinnedToLeader) is
+        // owned by the node that is actually hosting the listener, never by the per-database durability agent.
+        if (listener.Endpoint.ListenerScope != ListenerScope.CompetingConsumers)
         {
             return 0;
         }
