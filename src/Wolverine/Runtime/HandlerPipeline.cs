@@ -242,6 +242,15 @@ public class HandlerPipeline : IHandlerPipeline
         catch (Exception? e)
         {
             activity?.SetStatus(ActivityStatusCode.Error, e.GetType().Name);
+
+            // Record the caught exception as an OpenTelemetry "exception" event so
+            // OTLP exporters see exception.type / exception.message / exception.stacktrace
+            // for the malformed or incompatible payload, instead of only the generic
+            // "Serialization Failure" status the parent activity is later stamped with.
+            // AddException is a no-op when activity is null (span not started because
+            // DeserializationSpanEnabled is off), so the opt-in cost stays trivial.
+            activity?.AddException(e);
+
             return new MoveToErrorQueue(e);
         }
         finally

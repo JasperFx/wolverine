@@ -2,9 +2,12 @@ using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine;
+using Wolverine.ErrorHandling;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
+using Wolverine.Util;
 using Xunit;
 using Xunit.Abstractions;
 
@@ -338,6 +341,61 @@ public class tracking_diagnostics_opt_in
             await Task.Delay(100.Milliseconds());
 
             captured.Any(a => a.OperationName == WolverineTracing.Deserialize).ShouldBeFalse();
+        }
+        finally
+        {
+            listener.Dispose();
+            await host.StopAsync();
+            host.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task deserialize_span_records_exception_detail_on_failure_when_enabled()
+    {
+        var (host, captured, listener) = await startWithTrackingAsync(t =>
+            t.DeserializationSpanEnabled = true);
+
+        try
+        {
+            // TrackingDiagnosticsHandler makes TrackingDiagnosticsMessage a known
+            // message type, so TryDeserializeEnvelope gets past the type lookup and
+            // hands the malformed body to the serializer, which throws. Building the
+            // pipeline directly is the same seam FaultCryptoExceptionGuardTests uses;
+            // the serialized-inbound path can't be synthesized through InvokeMessageAndWait.
+            var runtime = host.GetRuntime();
+            var pipeline = new HandlerPipeline(runtime, runtime);
+
+            var envelope = new Envelope
+            {
+                ContentType = "application/json",
+                MessageType = typeof(TrackingDiagnosticsMessage).ToMessageTypeName(),
+                // Truncated JSON — the System.Text.Json reader throws a JsonException.
+                Data = "{ \"Text\": "u8.ToArray()
+            };
+
+            var continuation = await pipeline.TryDeserializeEnvelope(envelope);
+
+            // Existing error-queue path is preserved.
+            var moveToErrorQueue = continuation.ShouldBeOfType<MoveToErrorQueue>();
+            moveToErrorQueue.Exception.ShouldNotBeNull();
+            envelope.Message.ShouldBeNull();
+
+            var deserializeActivity = captured.Single(a => a.OperationName == WolverineTracing.Deserialize);
+            deserializeActivity.Status.ShouldBe(ActivityStatusCode.Error);
+
+            // AddException emits exactly one "exception" event carrying the standard
+            // OpenTelemetry exception.* attributes, so OTLP exporters can diagnose the
+            // malformed payload instead of only seeing the generic "Serialization Failure".
+            var exceptionEvents = deserializeActivity.Events
+                .Where(e => e.Name == "exception")
+                .ToArray();
+            exceptionEvents.Length.ShouldBe(1);
+
+            var tags = exceptionEvents[0].Tags.ToDictionary(t => t.Key, t => t.Value);
+            tags["exception.type"].ShouldBe(moveToErrorQueue.Exception.GetType().FullName);
+            tags["exception.message"].ShouldBe(moveToErrorQueue.Exception.Message);
+            tags.Keys.ShouldContain("exception.stacktrace");
         }
         finally
         {
