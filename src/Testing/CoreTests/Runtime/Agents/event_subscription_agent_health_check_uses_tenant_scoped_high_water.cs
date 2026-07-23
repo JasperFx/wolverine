@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.Events.Daemon;
 using JasperFx.Events.Projections;
@@ -94,13 +95,65 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
             new ShardName("invoicejournalentries", "all", 4, "98123456"),
             new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4/98123456"));
 
-        // Before the fix, "Position < database mark" read as pending work forever, so an idle tenant
-        // racked up consecutive stalls and got auto-restarted. Repeated checks must stay healthy.
+        // Before the fix this idle tenant measured its position (120) against the database-wide mark
+        // (8900) and returned Unhealthy on the very FIRST check via the "events behind" branch
+        // ("8780 events behind", past the 5000 critical threshold) -- it never even reached the stall
+        // detector. Against its own caught-up mark the position is level, so behindCount is 0 and the
+        // "currentSequence < highWaterMark" stall condition is never true. Repeated checks stay healthy
+        // with no stall churn. (The genuinely-stalled path is exercised in the next test.)
         for (var i = 0; i < 5; i++)
         {
             var result = await agent.CheckHealthAsync(new HealthCheckContext());
             result.Status.ShouldBe(HealthStatus.Healthy);
         }
+    }
+
+    [Fact]
+    public async Task a_genuinely_stalled_tenant_degrades_then_restarts_against_its_own_mark()
+    {
+        // The database-wide mark is far ahead, driven entirely by other busy tenants.
+        await _tracker.MarkHighWaterAsync(8900);
+
+        // This tenant is behind its OWN mark by only 80 events (under the 1000 warning threshold), so
+        // neither "events behind" branch can fire -- the only branch that can trip is the stall
+        // detector, which consumes the same high-water mark the GH-3580 fix made tenant-scoped.
+        _inner.HighWaterMark.Returns(200);
+        _inner.Position.Returns(120);
+
+        var agent = await startedAgentFor(
+            new ShardName("invoicejournalentries", "all", 4, "98123456"),
+            new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4/98123456"));
+
+        // First check seeds stall tracking (_lastAdvancedAt = now) and is healthy.
+        (await agent.CheckHealthAsync(new HealthCheckContext())).Status.ShouldBe(HealthStatus.Healthy);
+
+        // The tenant's sequence never advances. Push _lastAdvancedAt past the 60s StallTimeout so the
+        // following checks exercise the stall branch without a real-time wait.
+        forcePastStallTimeout(agent);
+
+        // The stall report cites the TENANT mark (200), not the database mark (8900). Pre-fix this idle
+        // tenant read as 8780 events behind the database mark and was flagged Unhealthy before the stall
+        // detector was ever consulted, so it could not have reached this Degraded stall message.
+        var degraded = await agent.CheckHealthAsync(new HealthCheckContext());
+        degraded.Status.ShouldBe(HealthStatus.Degraded);
+        degraded.Description!.ShouldContain("high water mark: 200");
+
+        // Consecutive stalls accrue until the agent trips the auto-restart threshold.
+        var result = degraded;
+        for (var i = 0; i < 5 && result.Status != HealthStatus.Unhealthy; i++)
+        {
+            result = await agent.CheckHealthAsync(new HealthCheckContext());
+        }
+
+        result.Status.ShouldBe(HealthStatus.Unhealthy);
+        result.Description!.ShouldContain("Attempting auto-restart");
+    }
+
+    private static void forcePastStallTimeout(EventSubscriptionAgent agent)
+    {
+        var field = typeof(EventSubscriptionAgent)
+            .GetField("_lastAdvancedAt", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(agent, DateTimeOffset.UtcNow.Subtract(TimeSpan.FromMinutes(2)));
     }
 
     [Fact]
