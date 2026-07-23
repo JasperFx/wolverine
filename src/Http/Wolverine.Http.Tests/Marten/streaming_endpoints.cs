@@ -103,6 +103,44 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         });
     }
 
+    [Fact]
+    public async Task stream_one_emits_etag_header_by_default()
+    {
+        var invoice = new Invoice { Id = Guid.NewGuid() };
+        await using (var session = Store.LightweightSession())
+        {
+            session.Store(invoice);
+            await session.SaveChangesAsync();
+        }
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Get.Url($"/streaming/invoice/{invoice.Id}");
+            x.StatusCodeShouldBe(200);
+        });
+
+        result.Context.Response.Headers["ETag"].FirstOrDefault().ShouldNotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task stream_one_omits_etag_header_when_disabled()
+    {
+        var invoice = new Invoice { Id = Guid.NewGuid() };
+        await using (var session = Store.LightweightSession())
+        {
+            session.Store(invoice);
+            await session.SaveChangesAsync();
+        }
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Get.Url($"/streaming/invoice/{invoice.Id}/no-etag");
+            x.StatusCodeShouldBe(200);
+        });
+
+        result.Context.Response.Headers["ETag"].Any().ShouldBeFalse();
+    }
+
     // ───────────────────────── StreamMany<T> ─────────────────────────
 
     [Fact]
@@ -167,6 +205,63 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
             x.StatusCodeShouldBe(404);
         });
     }
+
+    // ───────────────────────── StreamPaged<T> ─────────────────────────
+
+    [Fact]
+    public async Task stream_paged_returns_paged_envelope()
+    {
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).OrderBy(x => x).ToArray();
+        await using (var session = Store.LightweightSession())
+        {
+            foreach (var id in ids) session.Store(new Invoice { Id = id });
+            await session.SaveChangesAsync();
+        }
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Get.Url("/streaming/invoices/paged?pageNumber=1&pageSize=2");
+            x.StatusCodeShouldBe(200);
+            x.ContentTypeShouldBe("application/json");
+        });
+
+        var body = await result.ReadAsJsonAsync<PagedEnvelope>();
+
+        body.ShouldNotBeNull();
+        body!.PageNumber.ShouldBe(1);
+        body.PageSize.ShouldBe(2);
+        body.Items.Count.ShouldBe(2);
+    }
+
+    // ───────────────────── StreamPagedByCursor<T> ─────────────────────
+
+    [Fact]
+    public async Task stream_paged_by_cursor_returns_items_and_next_cursor()
+    {
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).OrderBy(x => x).ToArray();
+        await using (var session = Store.LightweightSession())
+        {
+            foreach (var id in ids) session.Store(new Invoice { Id = id });
+            await session.SaveChangesAsync();
+        }
+
+        var result = await Host.Scenario(x =>
+        {
+            x.Get.Url("/streaming/invoices/cursor?pageSize=2");
+            x.StatusCodeShouldBe(200);
+            x.ContentTypeShouldBe("application/json");
+        });
+
+        var body = await result.ReadAsJsonAsync<CursorEnvelope>();
+
+        body.ShouldNotBeNull();
+        body!.Items.Count.ShouldBe(2);
+        body.NextCursor.ShouldNotBeNullOrEmpty();
+    }
+
+    private record PagedEnvelope(int PageNumber, int PageSize, long TotalItemCount, List<Invoice> Items);
+
+    private record CursorEnvelope(List<Invoice> Items, string? NextCursor);
 
     // ───────────────────────── OpenAPI metadata ─────────────────────────
 
