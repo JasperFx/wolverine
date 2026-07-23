@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
+using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Runtime.WorkerQueues;
@@ -65,6 +66,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private readonly WolverineRuntime _runtime;
     private IReceiver? _receiver;
     private IDisposable? _restarter;
+    private ListenerInboxRecoveryLoop? _inboxRecovery;
     private int _lastObservedQueueCount;
     private DateTimeOffset _lastQueueCountChangeAt = DateTimeOffset.UtcNow;
     private bool _disposed;
@@ -111,6 +113,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _restarter?.SafeDispose();
         _backPressureAgent?.SafeDispose();
+        stopInboxRecovery();
 
         if (Listener != null)
         {
@@ -137,6 +140,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _receiver?.Dispose();
         _circuitBreaker?.SafeDisposeSynchronously();
         _backPressureAgent?.SafeDispose();
+        stopInboxRecovery();
         _semaphore.Dispose();
     }
 
@@ -242,6 +246,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     /// </summary>
     private async ValueTask StopAndDrainCoreAsync(bool latchBeforeDrain)
     {
+        // GH-3590. Always tear the loop down first -- StartAsync() rebuilds it when this listener becomes
+        // the active one again.
+        stopInboxRecovery();
+
         if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)
         {
             return;
@@ -383,6 +391,30 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _logger.LogInformation("Started message listening at {Uri}", Uri);
 
+        startInboxRecoveryIfNecessary();
+    }
+
+    /// <summary>
+    /// GH-3590: a durable listener that is only ever active on a single node (Exclusive or PinnedToLeader) can
+    /// not rely on the per-database durability agent to recover its dormant inbox messages, because that agent
+    /// is assigned per database and routinely lands on a different node. Such a listener owns its own inbox
+    /// recovery for as long as it is the active listener.
+    /// </summary>
+    private void startInboxRecoveryIfNecessary()
+    {
+        if (Endpoint.Mode != EndpointMode.Durable) return;
+        if (Endpoint.ListenerScope == ListenerScope.CompetingConsumers) return;
+        if (!_runtime.Options.Durability.DurabilityAgentEnabled) return;
+        if (_runtime.Storage is NullMessageStore) return;
+
+        _inboxRecovery?.SafeDispose();
+        _inboxRecovery = new ListenerInboxRecoveryLoop(_runtime, this, _logger);
+    }
+
+    private void stopInboxRecovery()
+    {
+        _inboxRecovery?.SafeDispose();
+        _inboxRecovery = null;
     }
 
     public async ValueTask PauseAsync(TimeSpan pauseTime)
