@@ -43,6 +43,33 @@ public static class QuerystringEndpoints
         return values.OrderBy(x => x).Select(x => x.ToString()).Join(",");
     }
 
+    // GH-3602: an explicit [FromQuery] on an array/collection of a simple element must bind from repeated
+    // query values exactly like the attribute-less StringArray/IntArray above, not get misrouted into the
+    // complex-type member-flattening path (which threw at discovery because arrays have no ctor).
+    [WolverineGet("/querystring/stringarray2")]
+    public static string StringArray2([FromQuery] string[]? values)
+    {
+        if (values == null || values.IsEmpty()) return "none";
+
+        return values.Join(",");
+    }
+
+    [WolverineGet("/querystring/intarray2")]
+    public static string IntArray2([FromQuery] int[]? values)
+    {
+        if (values == null || values.IsEmpty()) return "none";
+
+        return values.OrderBy(x => x).Select(x => x.ToString()).Join(",");
+    }
+
+    [WolverineGet("/querystring/intlist2")]
+    public static string IntList2([FromQuery] List<int>? values)
+    {
+        if (values == null || values.IsEmpty()) return "none";
+
+        return values.OrderBy(x => x).Select(x => x.ToString()).Join(",");
+    }
+
     [WolverineGet("/querystring/datetime")]
     public static string DateTime(DateTime value)
     {

@@ -284,4 +284,13 @@ public static class QueryTypeRenderingEndpoint
         => "ok";
 }
 
+// GH-3602: an explicit [FromQuery] on an array/collection is a single repeated-value query parameter
+// (schema type `array`), NOT a flattened complex object. It must render as one array-typed query
+// parameter apiece and never drag the element/container type into components/schemas.
+public static class QueryArrayRenderingEndpoint
+{
+    [WolverineGet("/shapes/query-array")]
+    public static string Get([FromQuery] string[]? tags, [FromQuery] int[]? ids) => "ok";
+}
+
 #endregion
