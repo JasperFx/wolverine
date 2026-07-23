@@ -588,6 +588,8 @@ needed**. Just `using Marten.AspNetCore;` in your endpoint file and return one.
 | `StreamOne<T>`         | `IQueryable<T>` — regular Marten document query  | Single `T`     | yes  |
 | `StreamMany<T>`        | `IQueryable<T>` — regular Marten document query  | JSON array `T[]` | no (empty array = 200) |
 | `StreamAggregate<T>`   | `IDocumentSession` + stream id — event-sourced   | Single `T`     | yes  |
+| `StreamPaged<T>`       | `IQueryable<T>` + page number/size                | Paged envelope | no   |
+| `StreamPagedByCursor<T>` | `IQueryable<T>` + cursor/page size              | Cursor envelope | no   |
 
 **Key difference — `StreamOne<T>` vs `StreamAggregate<T>`**:
 
@@ -662,3 +664,74 @@ Reach for these types when:
 
 For small responses where the query result is already going to be materialized
 (to make a decision, for example), a plain `T` return is fine.
+
+## Paged Streaming Responses <Badge type="tip" text="9.18" />
+
+`Marten.AspNetCore` 9.18 adds two more `IResult` types built on the same
+streaming infrastructure, for paginated queries: `StreamPaged<T>` and
+`StreamPagedByCursor<T>`. Like `StreamOne<T>`, `StreamMany<T>`, and
+`StreamAggregate<T>`, both types just work with Wolverine.HTTP — they
+implement `IResult` and `IEndpointMetadataProvider`, so no Wolverine-specific
+code is required.
+
+### `StreamPaged<T>` — offset paging
+
+```csharp
+[WolverineGet("/invoices/paged")]
+public static StreamPaged<Invoice> GetPaged(int pageNumber, int pageSize, IQuerySession session)
+    => new(session.Query<Invoice>().OrderBy(x => x.Id), pageNumber, pageSize);
+```
+
+Returns `200 application/json` with a paged envelope shaped like:
+
+```json
+{
+    "pageNumber": 1,
+    "pageSize": 20,
+    "totalItemCount": 42,
+    "items": [ /* Invoice[] */ ]
+}
+```
+
+Use this for classic "page 1 of N" UIs where you need a total count and
+random access to any page number.
+
+### `StreamPagedByCursor<T>` — keyset (cursor) paging
+
+```csharp
+[WolverineGet("/invoices/by-cursor")]
+public static StreamPagedByCursor<Invoice> GetByCursor(string? cursor, int pageSize, IQuerySession session)
+    => new(session.Query<Invoice>().OrderBy(x => x.Id), cursor, pageSize);
+```
+
+Returns `200 application/json` with the requested page of items plus a
+`nextCursor` value the client passes back on the next request to continue
+from where it left off:
+
+```json
+{
+    "items": [ /* Invoice[] */ ],
+    "nextCursor": "..."
+}
+```
+
+Keyset pagination scales better than offset paging for large or
+frequently-changing result sets, because it doesn't need to compute a total
+count or skip over previously-seen rows on every request.
+
+## ETag Support for `StreamOne<T>` and `StreamAggregate<T>` <Badge type="tip" text="9.18" />
+
+`StreamOne<T>` and `StreamAggregate<T>` compute and emit an `ETag` response
+header by default. If the client sends a matching `If-None-Match` request
+header, Marten short-circuits the response with `304 Not Modified` instead of
+re-serializing and sending the body — useful for caching individual
+documents or aggregates behind a CDN or browser cache.
+
+Set `EmitETag = false` to opt out if you don't want this behavior for a
+particular endpoint:
+
+```csharp
+[WolverineGet("/invoices/{id}")]
+public static StreamOne<Invoice> Get(Guid id, IQuerySession session)
+    => new(session.Query<Invoice>().Where(x => x.Id == id)) { EmitETag = false };
+```
