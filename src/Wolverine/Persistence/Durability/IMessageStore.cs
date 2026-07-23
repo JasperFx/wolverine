@@ -81,7 +81,10 @@ public interface IMessageStore : IAsyncDisposable
 
     /// <summary>
     ///     Unique identifier for a message store in case of systems that use multiple message
-    ///     store databases. Must use the "messagedb" scheme, and reflect the database connection
+    ///     store databases. This value doubles as the store's durability agent Uri, so it MUST
+    ///     use the registered agent scheme (<see cref="Wolverine.Persistence.PersistenceConstants.AgentScheme"/>,
+    ///     "wolverinedb") and reflect the database connection — otherwise the NodeAgentController
+    ///     cannot resolve an agent family and the durability agent fails to start (see GH-3589).
     /// </summary>
     Uri Uri { get; }
 

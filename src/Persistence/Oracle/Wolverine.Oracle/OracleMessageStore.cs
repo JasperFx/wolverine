@@ -111,12 +111,18 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
         if (Role == MessageStoreRole.Main)
         {
-            Uri = new Uri("wolverine://messages/main");
+            // Diagnostic identity only — the agent Uri below always carries the registered
+            // wolverinedb scheme so the NodeAgentController can dispatch the durability agent.
+            SubjectUri = new Uri("wolverine://messages/main");
         }
-        else
-        {
-            Uri = new Uri($"messagedb://{parts.Join("/")}");
-        }
+
+        // GH-3589: the durability agent family (MessageStoreCollection) registers under the
+        // "wolverinedb" scheme (PersistenceConstants.AgentScheme), and a message store's Uri IS
+        // its agent Uri. A "wolverine://messages/main" or "messagedb://..." scheme leaves the
+        // NodeAgentController unable to resolve a family ("Unrecognized agent scheme 'wolverine'"),
+        // so the Oracle durability agent never starts. Mirror MessageDatabase / RavenDb / CosmosDb
+        // and always build the Uri from the registered scheme regardless of role.
+        Uri = new Uri($"{PersistenceConstants.AgentScheme}://{parts.Where(x => x.IsNotEmpty()).Join("/")}");
 
         Name = Uri.ToString();
     }
@@ -128,6 +134,12 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     public MessageStoreRole Role { get; set; }
     public List<string> TenantIds { get; } = new();
     public Uri Uri { get; internal set; }
+
+    /// <summary>
+    /// Stable diagnostic identity for this store (e.g. "wolverine://messages/main"), kept
+    /// separate from <see cref="Uri"/>, which must carry the registered agent scheme. See GH-3589.
+    /// </summary>
+    public Uri SubjectUri { get; set; } = new Uri("wolverine://messages");
     public bool HasDisposed => _hasDisposed;
     public IMessageInbox Inbox => this;
     public IMessageOutbox Outbox => this;
@@ -211,7 +223,7 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
             ServerName = builder.DataSource ?? string.Empty,
             DatabaseName = _schemaName,
             Subject = GetType().FullNameInCode(),
-            SubjectUri = Uri
+            SubjectUri = SubjectUri
         };
 
         descriptor.TenantIds.AddRange(TenantIds);
@@ -227,7 +239,9 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     public void PromoteToMain(IWolverineRuntime runtime)
     {
         Role = MessageStoreRole.Main;
-        Uri = new Uri("wolverine://messages/main");
+        // Only the diagnostic identity changes on promotion — Uri keeps its registered
+        // wolverinedb agent scheme so the durability agent stays dispatchable. See GH-3589.
+        SubjectUri = new Uri("wolverine://messages/main");
         _nodes ??= new OracleNodePersistence(_settings, this, _dataSource);
     }
 
