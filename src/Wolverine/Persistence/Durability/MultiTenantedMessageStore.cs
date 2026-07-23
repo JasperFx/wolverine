@@ -479,14 +479,24 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return executeOnAllAsync(d => d.Admin.AssertStorageExistsAsync(token));
     }
 
-    async Task IMessageStoreAdmin.MigrateAsync()
+    Task IMessageStoreAdmin.MigrateAsync()
+    {
+        return migrateAsync(null);
+    }
+
+    Task IMessageStoreAdmin.MigrateAsync(AutoCreate? overrideAutoCreate)
+    {
+        return migrateAsync(overrideAutoCreate);
+    }
+
+    private async Task migrateAsync(AutoCreate? overrideAutoCreate)
     {
         if (!_initialized)
         {
             await InitializeAsync(_runtime);
         }
 
-        await Main.Admin.MigrateAsync();
+        await Main.Admin.MigrateAsync(overrideAutoCreate);
 
         var exceptions = new List<Exception>();
 
@@ -494,7 +504,7 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         {
             try
             {
-                await assignment.Value.Admin.MigrateAsync();
+                await assignment.Value.Admin.MigrateAsync(overrideAutoCreate);
                 _byTenant = _byTenant.AddOrUpdate(assignment.TenantId, assignment.Value);
             }
             catch (Exception e)

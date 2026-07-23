@@ -108,6 +108,12 @@ internal class PolecatMessageDatabaseSource : ITenantedMessageSource
         {
             await store.Admin.MigrateAsync();
         }
+        else
+        {
+            _runtime.LoggerFactory.CreateLogger<PolecatMessageDatabaseSource>().LogInformation(
+                "Skipping message storage migration for tenant message database {Database} because AutoCreate is None",
+                identifier);
+        }
 
         return store;
     }

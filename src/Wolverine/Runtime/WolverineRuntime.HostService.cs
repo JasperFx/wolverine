@@ -274,6 +274,11 @@ public partial class WolverineRuntime
                     "Failed to migrate Wolverine message storage on startup. Continuing startup anyway because ResourceMigrationFailureMode is ContinueOnFailures.");
             }
         }
+        else if (Storage is not NullMessageStore)
+        {
+            Logger.LogInformation(
+                "Skipping automatic message storage migration on startup because AutoBuildMessageStorageOnStartup is None. The message storage must have been provisioned ahead of time, e.g. with 'resources setup' / IHost.SetupResources()");
+        }
 
         _hasMigratedStorage = true;
     }

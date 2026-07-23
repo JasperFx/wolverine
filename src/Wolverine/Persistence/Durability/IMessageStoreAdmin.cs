@@ -1,4 +1,5 @@
-﻿using Wolverine.Logging;
+﻿using JasperFx;
+using Wolverine.Logging;
 
 namespace Wolverine.Persistence.Durability;
 
@@ -73,4 +74,16 @@ public interface IMessageStoreAdmin
     /// </summary>
     /// <returns></returns>
     Task MigrateAsync();
+
+    /// <summary>
+    ///     Apply any necessary database migrations to bring the underlying envelope storage to the
+    ///     configured requirements of the Wolverine system, overriding the store's configured
+    ///     AutoCreate rules. This is the path used by explicit setup operations like
+    ///     "resources setup" or IHost.SetupResources() where a configured AutoCreate of None
+    ///     should not suppress the storage provisioning. The default implementation ignores the
+    ///     override and delegates to <see cref="MigrateAsync()"/> for stores whose migrations
+    ///     are not gated by AutoCreate rules.
+    /// </summary>
+    /// <param name="overrideAutoCreate">When not null, use this AutoCreate rule in place of the store's configured value</param>
+    Task MigrateAsync(AutoCreate? overrideAutoCreate) => MigrateAsync();
 }
