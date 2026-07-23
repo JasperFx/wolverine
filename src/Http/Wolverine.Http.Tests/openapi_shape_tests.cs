@@ -134,6 +134,23 @@ public class openapi_shape_tests : IClassFixture<OpenApiShapeFixture>
             ]);
     }
 
+    // GH-3601: header values bound only by a postprocessor are declared as header parameters.
+    [Fact]
+    public void header_values_bound_only_by_a_postprocessor_are_declared()
+    {
+        ParametersFor("/shapes/postprocessor-header", "get")
+            .ShouldBe([new ParameterShape("x-audit", "header", false, "string", null)]);
+    }
+
+    // GH-3601: a postprocessor [FromQuery] colliding with a route segment is route-bound, so the operation
+    // carries exactly ONE parameter (the path one) and never a duplicate query parameter.
+    [Fact]
+    public void route_colliding_postprocessor_query_is_not_duplicated()
+    {
+        ParametersFor("/shapes/postprocessor-collision/{orderId}", "get")
+            .ShouldBe([new ParameterShape("orderId", "path", true, "integer", "int64")]);
+    }
+
     [Fact]
     public void plain_handler_signature_route_and_query_bindings()
     {
