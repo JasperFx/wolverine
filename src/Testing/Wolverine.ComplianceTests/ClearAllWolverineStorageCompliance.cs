@@ -78,6 +78,12 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
             .Single(x => x is IDatabaseBackedEndpoint && ((Endpoint)x).EndpointName == QueueName);
 
         theMessageStore = runtime.Storage;
+
+        // Start from empty envelope storage. Several providers share one schema across their whole
+        // test suite, so without this the seed assertions below ("exactly one incoming envelope")
+        // are at the mercy of whatever ran first. ClearAllAsync() is the long-standing
+        // envelope-storage-only reset -- deliberately not the method under test.
+        await theMessageStore.Admin.ClearAllAsync();
     }
 
     public virtual async Task DisposeAsync()
