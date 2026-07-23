@@ -672,6 +672,16 @@ public partial class HttpChain
     {
         // An explicit [FromRoute] parameter is route-bound by definition and never treated as chain-bound
         // query/header anyway; only the implicit name-collision case needs guarding here.
+        //
+        // The name comparison is deliberately CASE-SENSITIVE and must stay that way: it mirrors
+        // FindRouteVariable(ParameterInfo) (HttpChain.cs, `x.Name == parameter.Name`), which is the binder
+        // path that actually claims the parameter. This is intentionally stricter than matchesRouteName /
+        // tryDetermineRouteBinding above (which use EqualsIgnoreCase). Do NOT unify this with those helpers:
+        // going case-insensitive here would suppress a query/header parameter the generated code really does
+        // read (e.g. `[WolverineGet("/things/{Id}")] Get([FromQuery] string id)` binds `id` from the query
+        // string, not the route, because the route segment `Id` never matches the parameter `id`). If the
+        // binder's route-name matching is ever aligned to ASP.NET's OrdinalIgnoreCase, this must move with
+        // it. See GH-3586.
         return RoutePattern!.Parameters.Any(x => x.Name == parameter.Name)
                && isBindableRouteType(parameter.ParameterType);
     }
