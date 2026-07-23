@@ -29,6 +29,23 @@
   Also: `SetupAsync()` on the five relational queue transports no longer short-circuits on its
   "already checked this database" memo. It is the explicit "make sure these tables exist right now"
   call, so it has to re-apply against a database whose queue tables were dropped after the first check.
+- **Fixed: durable exclusive / leader-pinned listeners never recovered their dormant inbox messages when the
+  durability agent ran on another node ([#3590](https://github.com/JasperFx/wolverine/issues/3590)).**
+  Inbox recovery was gated on the *local* listener circuit being `Accepting`, but the `DurabilityAgent` is
+  assigned per message database and distributed independently of the listener agents. Whenever the agent for a
+  database landed on a node that was not hosting that endpoint's exclusive listener, messages sitting at
+  `owner_id = 0` (the state an ungraceful shutdown leaves behind) were never recovered — a permanent deadlock
+  between two independently-assigned agents. Now the per-database durability agents skip every destination whose
+  `ListenerScope` is not `CompetingConsumers` (RDBMS, RavenDb and CosmosDb agents alike), and the node actually
+  hosting the listener recovers them itself through the new `ListenerInboxRecovery`: an initial sweep when the
+  listener reaches `Accepting`, then polling on the `Durability.ScheduledJobPollingTime` cadence for as long as
+  it stays `Accepting`. The sweep covers the main store, every tenant database in a separate-database-per-tenant
+  system, and every ancillary store, and it respects latching and `BufferingLimits` exactly as before. Applies
+  to `ExclusiveNodeWithParallelism()`, `ListenWithStrictOrdering()`, and `ListenOnlyAtLeader()`, in `Solo` mode
+  as well as `Balanced`. Also adds `IEndpointCollection.IsSingleNodeListener(Uri)` (a default interface method,
+  so existing implementors are unaffected) and a reusable `ExclusiveListenerRecoveryCompliance` fixture in
+  `WolverineFx.ComplianceTests`. See the
+  [exclusive node processing guide](https://wolverinefx.net/guide/messaging/exclusive-node-processing.html#inbox-recovery-ownership).
 
 - **New `IMessageBus.StreamAsync<TRequest, TResponse>` primitive for streaming requests.**
   The mirror image of `StreamAsync<T>`: a caller hands one handler invocation an

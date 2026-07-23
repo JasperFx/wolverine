@@ -124,6 +124,38 @@ If the node running an exclusive listener fails:
 3. Processing resumes on the new node
 4. Any in-flight messages are handled according to your durability settings
 
+### Inbox Recovery Ownership <Badge type="tip" text="6.22" />
+
+For an endpoint using the durable inbox, ordinary "competing consumers" listeners have their dormant inbox
+messages recovered by the [durability agent](/guide/durability/). That agent is assigned **per message
+database** and distributed across the cluster independently of your listeners, so on any given node it might
+be running for a database whose exclusive listener lives somewhere else entirely.
+
+That does not work for a single node listener. Recovery has to happen on the one node that actually holds the
+listener, otherwise recovered messages would be handed to a node that is not listening. So for endpoints using
+`ExclusiveNodeWithParallelism()`, `ListenWithStrictOrdering()`, or `ListenOnlyAtLeader()`:
+
+* The per-database **durability agents never claim** those endpoints' inbox messages. They keep doing
+  everything else for them — releasing a dead node's ownership back to the cluster, bumping stale inbox rows,
+  expiring messages — they just stop claiming.
+* The **node currently hosting the listener** recovers them itself, starting as soon as the listener reaches
+  `Accepting` and then polling on the `Durability.ScheduledJobPollingTime` cadence for as long as it stays
+  `Accepting`. The poll matters: a dead node's messages are released back to `owner_id = 0` later, on whichever
+  node holds that database's durability agent, which is usually *after* the exclusive listener has restarted
+  somewhere else.
+* The sweep covers **every database that can hold inbox rows for the listener** — the main store, every tenant
+  database when you use a separate database per tenant (including tenant databases added at runtime), and any
+  ancillary stores.
+* A listener that is latched, paused, or already at its `BufferingLimits` recovers nothing, exactly like the
+  durability agent's own recovery. Circuit breaking still behaves the way it always has.
+
+This all happens automatically; there is nothing to configure. It applies in `Solo` mode as well as `Balanced`.
+
+::: tip
+If you see inbox messages sitting at `owner_id = 0` for an exclusive endpoint, check that the listener is
+actually running (and `Accepting`) somewhere in the cluster. Nothing else will pick them up by design.
+:::
+
 ### Local Queues
 
 Exclusive node processing is not supported for local queues since they are inherently single-node:

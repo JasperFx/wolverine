@@ -54,6 +54,16 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
         
         foreach (var incoming in _incoming)
         {
+            // GH-3590: exclusive and leader-pinned listeners are only active on ONE node, while this durability
+            // agent is assigned per database and may well be running somewhere else. Recovery for those endpoints
+            // is owned by the listening node itself (ListenerInboxRecovery). This check has to happen BEFORE any
+            // circuit lookup, because FindListenerCircuit() falls back to the durable local queue and would
+            // otherwise mis-route another node's messages into this node's local queue.
+            if (_endpoints.IsSingleNodeListener(incoming.Destination))
+            {
+                continue;
+            }
+
             var listener = _endpoints.FindListenerCircuit(incoming.Destination);
             if (listener == null) continue; // This *might* happen during shutdown
 
