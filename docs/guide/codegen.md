@@ -594,6 +594,13 @@ Which will use:
 1. `TypeLoadMode.Dynamic` when the .NET environment is "Development" and dynamically generate types on the first usage
 2. `TypeLoadMode.Static` for other .NET environments for optimized cold start times
 
+::: tip
+`ResourceAutoCreate = AutoCreate.None` only disables the *automatic* migrations that run at startup. An explicit
+`dotnet run -- resources setup` or `IHost.SetupResources()` call still provisions Wolverine's message storage
+(applied as `CreateOrUpdate`), so the production recipe of `AutoCreate.None` plus an explicit setup step at
+deployment time works end to end. See [Managing Message Storage](/guide/durability/managing) for details.
+:::
+
 ## Customizing the Generated Code Output Path
 
 By default, Wolverine writes generated code to `Internal/Generated` under your project's content root.

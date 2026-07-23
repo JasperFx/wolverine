@@ -16,6 +16,19 @@
   Note: this adds two members to `ICommandBus`, which is source-breaking for custom
   `IMessageBus`/`ICommandBus` implementors (same precedent as the original `StreamAsync` addition).
 
+- **`resources setup` now provisions message storage even when `AutoCreate` is `None`.**
+  ([#3573](https://github.com/JasperFx/wolverine/issues/3573)) The documented production recipe of
+  `ResourceAutoCreate = AutoCreate.None` plus an explicit `resources setup` / `IHost.SetupResources()`
+  deployment step silently skipped the `wolverine.*` schema migration. An explicit setup call is now
+  treated as intent to provision: `MessageStoreResource.Setup` migrates with `CreateOrUpdate`
+  regardless of the configured `AutoCreate` (`CreateOrUpdate` never drops data). Passive paths —
+  host startup and tenant store discovery — still honor `AutoCreate.None`, but the previously silent
+  skips now log: a warning when a schema difference is detected at runtime under `AutoCreate.None`,
+  and informational messages when startup or tenant-discovery migration is skipped. New public
+  surface: `IMessageStoreAdmin.MigrateAsync(AutoCreate? overrideAutoCreate)` default-interface
+  overload (defaults to the parameterless `MigrateAsync()`, so external store implementations are
+  unaffected). Thanks to Laurence Gillian!
+
 ### WolverineFx.Grpc
 
 - **Proto-first client-streaming RPCs (`stream TRequest → TResponse`) are now code-generated.**

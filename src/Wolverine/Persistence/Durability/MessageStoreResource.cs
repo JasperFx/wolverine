@@ -42,8 +42,9 @@ internal class MessageStoreResource : IStatefulResource
     {
         // An explicit setup call ("resources setup" / IHost.SetupResources()) is itself the
         // intent to provision the storage, so Setup always migrates with CreateOrUpdate
-        // regardless of the configured AutoCreate. Mirrors Weasel's DatabaseResource.Setup,
-        // where ApplyAllConfiguredChangesToDatabaseAsync promotes None to CreateOrUpdate
+        // regardless of the configured AutoCreate — including CreateOnly. This is deliberately
+        // broader than Weasel's DatabaseResource.Setup, which only promotes None to CreateOrUpdate;
+        // CreateOrUpdate never drops existing data, so it's safe for the explicit setup path
         return _persistence.Admin.MigrateAsync(AutoCreate.CreateOrUpdate);
     }
 

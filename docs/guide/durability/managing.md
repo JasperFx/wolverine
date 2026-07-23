@@ -27,6 +27,16 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/DisablingStorageConstruction.cs#L11-L20' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_auto_build_envelope_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+Disabling the automatic migration only affects the *passive* paths — host startup and tenant store discovery. An
+explicit setup operation (`dotnet run -- resources setup` or `IHost.SetupResources()`) is treated as intent to
+provision the storage, so it always applies the message storage migration as `CreateOrUpdate` — even when
+`AutoBuildMessageStorageOnStartup` or the store's `AutoCreate` is `None`. `CreateOrUpdate` never drops existing
+data. This is the recommended production recipe: disable automatic migrations, then run `resources setup` as an
+explicit deployment step. When a schema difference is detected at runtime but `AutoCreate` is `None`, Wolverine
+now logs a warning telling you the storage is out of date instead of silently skipping the migration.
+:::
+
 ## Programmatic Management
 
 Especially in automated tests, you may want to programmatically rebuild or clear out all persisted
