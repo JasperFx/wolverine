@@ -248,16 +248,22 @@ public class PostgresqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public async ValueTask SetupAsync(ILogger logger)
     {
-        await forEveryDatabase(async (source, identifier) => {
-        {
-            await EnsureSchemaExists(identifier, source);
-        }});
+        // Deliberately bypasses the _checkedDatabases memo. SetupAsync is the explicit
+        // "make sure these tables exist right now" call - resource setup, and
+        // IHost.ClearAllWolverineStorageAsync() - so it has to re-apply against a database
+        // whose queue tables were dropped after we last looked.
+        await forEveryDatabase(applySchemaChangesAsync);
     }
 
     internal async Task EnsureSchemaExists(string identifier, NpgsqlDataSource source)
     {
         if (_checkedDatabases.Contains(identifier)) return;
 
+        await applySchemaChangesAsync(source, identifier);
+    }
+
+    private async Task applySchemaChangesAsync(NpgsqlDataSource source, string identifier)
+    {
         await using (var conn = await source.OpenConnectionAsync())
         {
             await QueueTable.ApplyChangesAsync(conn);

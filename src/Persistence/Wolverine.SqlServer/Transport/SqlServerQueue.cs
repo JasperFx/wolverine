@@ -235,16 +235,22 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
     public async ValueTask SetupAsync(ILogger logger)
     {
-        await forEveryDatabase(async (connectionString, identifier) =>
-        {
-            await EnsureSchemaExists(identifier, connectionString);
-        });
+        // Deliberately bypasses the _checkedDatabases memo. SetupAsync is the explicit
+        // "make sure these tables exist right now" call - resource setup, and
+        // IHost.ClearAllWolverineStorageAsync() - so it has to re-apply against a database
+        // whose queue tables were dropped after we last looked.
+        await forEveryDatabase(applySchemaChangesAsync);
     }
 
     internal async Task EnsureSchemaExists(string identifier, string connectionString)
     {
         if (_checkedDatabases.Contains(identifier)) return;
 
+        await applySchemaChangesAsync(connectionString, identifier);
+    }
+
+    private async Task applySchemaChangesAsync(string connectionString, string identifier)
+    {
         await using var conn = new SqlConnection(connectionString);
         await conn.OpenAsync();
 

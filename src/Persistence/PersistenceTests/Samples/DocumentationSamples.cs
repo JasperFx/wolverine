@@ -10,6 +10,7 @@ using JasperFx.Resources;
 using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Postgresql;
 using Wolverine.SqlServer;
 using Wolverine.Transports.Tcp;
@@ -43,6 +44,21 @@ public class DocumentationSamples
 
         // Remove all persisted messages
         await store.Admin.ClearAllAsync();
+    }
+
+    #endregion
+
+    #region sample_clear_all_wolverine_storage
+    // IHost would be your application in a testing harness
+    public static async Task reset_everything(IHost host)
+    {
+        // Rebuilds the envelope storage schema for every known message store -- the main
+        // store, every tenant database, and every ancillary store -- AND leaves the tables
+        // of every database-backed queue transport built, but empty.
+        //
+        // RebuildAsync() / ClearAllAsync() only ever touch envelope storage. This is the
+        // one call that also reaches the queue transport tables.
+        await host.ClearAllWolverineStorageAsync();
     }
 
     #endregion

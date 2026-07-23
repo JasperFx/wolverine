@@ -796,6 +796,50 @@ In the sample above, I'm bootstrapping the `IHost` for my production application
 all the external transports turned off in a way that's appropriate for integration testing
 message handlers within the main application.
 
+## Resetting All Wolverine Storage in Tests <Badge type="tip" text="6.22" />
+
+If your application uses durable messaging and/or one of the
+[database-backed queue transports](/guide/messaging/transports/postgresql), stale rows carried between
+test runs are a classic source of order-dependent failures. `IHost.ClearAllWolverineStorageAsync()` is
+the recommended reset for that situation:
+
+<!-- snippet: sample_clear_all_wolverine_storage -->
+<a id='snippet-sample_clear_all_wolverine_storage'></a>
+```cs
+// IHost would be your application in a testing harness
+public static async Task reset_everything(IHost host)
+{
+    // Rebuilds the envelope storage schema for every known message store -- the main
+    // store, every tenant database, and every ancillary store -- AND leaves the tables
+    // of every database-backed queue transport built, but empty.
+    //
+    // RebuildAsync() / ClearAllAsync() only ever touch envelope storage. This is the
+    // one call that also reaches the queue transport tables.
+    await host.ClearAllWolverineStorageAsync();
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L52-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_clear_all_wolverine_storage' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The method is the union of two things:
+
+1. A `RebuildAsync()` against **every** known message store — the main store, every tenant database in a
+   separate-database-per-tenant system, and every ancillary store.
+2. Every database-backed queue transport's tables left **built but empty**, fanning out across every tenant
+   database. That covers PostgreSQL, SQL Server, MySQL, Oracle, SQLite, and Redis streams.
+
+"Built but empty" means the tables are created if they are missing, then emptied — so the reset works
+whether the previous run left rows behind or tore the schema down completely.
+
+::: tip
+This is deliberately opt-in rather than folded into `RebuildAsync()` / `ClearAllAsync()`, which stay scoped
+to [envelope storage only](/guide/durability/managing). Queue transport tables are transport data, and other
+tables registered on the message store — SQL Server's rate-limit table, for example — must survive a reset.
+:::
+
+It is safe to call on a host with no message store and no database-backed queues, so you can put it in a
+shared test fixture base class without breaking your storeless tests.
+
 ## Running Wolverine in "Solo" Mode <Badge type="tip" text="3.0" />
 
 Wolverine's [leadership election](/guide/durability/leadership-and-troubleshooting.html#troubleshooting-and-leadership-election) process is necessary for distributing several background tasks in real life production,

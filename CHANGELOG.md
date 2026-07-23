@@ -4,6 +4,32 @@
 
 ### WolverineFx (core)
 
+- **New `IHost.ClearAllWolverineStorageAsync()`; message-store resets stay envelope-storage only.**
+  ([#3592](https://github.com/JasperFx/wolverine/issues/3592)) Reverses the unreleased wave that made
+  `IMessageStoreAdmin.ClearAllAsync()` / `RebuildAsync()` also truncate the tables owned by a
+  database-backed queue transport (PRs [#3529](https://github.com/JasperFx/wolverine/pull/3529),
+  [#3555](https://github.com/JasperFx/wolverine/pull/3555), [#3557](https://github.com/JasperFx/wolverine/pull/3557),
+  [#3558](https://github.com/JasperFx/wolverine/pull/3558), [#3559](https://github.com/JasperFx/wolverine/pull/3559),
+  all merged after 6.21.0 — so nothing shipped with the widened semantics). Silently widening a
+  long-standing "envelope storage" API to also destroy transport data was surprising, and the right
+  scope is genuinely ambiguous per provider: SQL Server's rate-limit table is registered through the
+  same `AddTable` path but must survive a reset. The per-provider `truncateAdditionalTablesAsync` hook
+  is gone; the neighboring `afterTruncateEnvelopeDataAsync` hook is unrelated and unchanged.
+
+  Replacing it is an explicit, opt-in test-support extension: `IHost.ClearAllWolverineStorageAsync()`
+  rebuilds envelope storage for every known message store (main, every tenant database, every ancillary
+  store) *and* leaves every database-backed queue transport's tables built but empty, fanning out across
+  tenant databases. It is built on the uniform `IBrokerQueue.SetupAsync()` / `PurgeAsync()` endpoint API,
+  so it covers PostgreSQL, SQL Server, MySQL, Oracle, SQLite and Redis streams with no provider-specific
+  code — including SQL Server, whose queue tables are not registered on the message store and which the
+  reverted approach could never reach (closes [#3554](https://github.com/JasperFx/wolverine/issues/3554)).
+  Safe to call on hosts with no message store and no database queues. See the
+  [testing guide](https://wolverinefx.net/guide/testing.html#resetting-all-wolverine-storage-in-tests).
+
+  Also: `SetupAsync()` on the five relational queue transports no longer short-circuits on its
+  "already checked this database" memo. It is the explicit "make sure these tables exist right now"
+  call, so it has to re-apply against a database whose queue tables were dropped after the first check.
+
 - **New `IMessageBus.StreamAsync<TRequest, TResponse>` primitive for streaming requests.**
   The mirror image of `StreamAsync<T>`: a caller hands one handler invocation an
   `IAsyncEnumerable<TRequest>` stream of messages and awaits a single `TResponse`. The handler

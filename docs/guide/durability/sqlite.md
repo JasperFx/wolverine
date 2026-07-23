@@ -162,6 +162,13 @@ This queue is hardcoded to poll every second and should not be changed to ensure
 :::
 
 
+### Resetting in Tests
+
+`RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave
+this transport's queue and scheduled-message tables alone. To wipe both in an integration test
+harness, call [`IHost.ClearAllWolverineStorageAsync()`](/guide/testing.html#resetting-all-wolverine-storage-in-tests),
+which leaves the queue tables built but empty across every tenant database.
+
 ## Lightweight Saga Usage
 
 See the details on [Lightweight Saga Storage](/guide/durability/sagas.html#lightweight-saga-storage) for more information.

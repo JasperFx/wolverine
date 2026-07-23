@@ -71,9 +71,20 @@ public static async Task testing_setup_or_teardown(IHost host)
     await store.Admin.ClearAllAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L21-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/PersistenceTests/Samples/DocumentationSamples.cs#L22-L49' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_programmatic_management_of_message_storage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+`RebuildAsync()` and `ClearAllAsync()` operate on **envelope storage only** — the incoming, outgoing,
+and dead letter tables. They deliberately do not touch the tables owned by a
+[database-backed queue transport](/guide/messaging/transports/postgresql), because those are transport
+data rather than envelope storage, and the right scope is genuinely ambiguous per provider (SQL Server's
+rate-limit table, for instance, is registered the same way but has to survive a reset).
+
+If you want the whole Wolverine storage footprint wiped between integration test runs, use
+`IHost.ClearAllWolverineStorageAsync()` instead — see
+[Resetting All Wolverine Storage in Tests](/guide/testing.html#resetting-all-wolverine-storage-in-tests).
+:::
 
 ## Building Storage on Startup
 
