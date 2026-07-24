@@ -84,12 +84,7 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
     {
         runtime.Logger.LogInformation("Initializing the Wolverine {TransportName}", GetType().Name);
 
-        foreach (var endpoint in explicitEndpoints())
-        {
-            endpoint.Compile(runtime);
-        }
-
-        tryBuildSystemEndpoints(runtime);
+        await InitializeEndpointsAsync(runtime);
 
         #pragma warning disable CS0219
         var attempts = 1;
@@ -115,6 +110,21 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         throw new BrokerInitializationException(this);
 
+    }
+
+    // Nothing here may touch the broker or database: resource discovery runs this against targets
+    // that may not exist yet. BrokerResource re-runs ConnectAsync at the start of every operation,
+    // so deferring the connection loses nothing.
+    public ValueTask InitializeEndpointsAsync(IWolverineRuntime runtime)
+    {
+        foreach (var endpoint in explicitEndpoints())
+        {
+            endpoint.Compile(runtime);
+        }
+
+        tryBuildSystemEndpoints(runtime);
+
+        return ValueTask.CompletedTask;
     }
 
     private async ValueTask startupAsync(IWolverineRuntime runtime)

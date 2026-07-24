@@ -59,6 +59,16 @@ public interface ITransport
 
     ValueTask InitializeAsync(IWolverineRuntime runtime);
 
+    /// <summary>
+    /// Build out this transport's endpoint topology (compile configured endpoints, derive system
+    /// endpoints such as dead letter, response, and retry queues) without connecting to the
+    /// underlying broker or database. Resource discovery uses this instead of InitializeAsync so
+    /// that "resources setup" can enumerate a transport's stateful resource for a target that an
+    /// IResourceCreator in the same pass is about to create. Defaults to the full InitializeAsync
+    /// for transports that make no distinction.
+    /// </summary>
+    ValueTask InitializeEndpointsAsync(IWolverineRuntime runtime) => InitializeAsync(runtime);
+
     bool TryBuildStatefulResource(IWolverineRuntime runtime, out IStatefulResource? resource);
 
     bool TryBuildBrokerUsage(out BrokerDescription description);

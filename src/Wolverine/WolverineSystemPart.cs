@@ -238,7 +238,11 @@ internal class WolverineSystemPart : SystemPartBase
                 {
                     if (transport.TryBuildStatefulResource(_runtime, out var resource))
                     {
-                        await transport.InitializeAsync(_runtime);
+                        // Not the full InitializeAsync: that connects to the broker/database during
+                        // discovery, before any resource's Setup() — defeating the database-building
+                        // IResourceCreators deliberately added first. Each resource reconnects per
+                        // operation, by which time the creators have run.
+                        await transport.InitializeEndpointsAsync(_runtime);
                         list.Add(resource!);
                     }
                 }
