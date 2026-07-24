@@ -26,8 +26,27 @@ public interface INodeAgentPersistence
 
     Task<WolverineNode?> LoadNodeAsync(Guid nodeId, CancellationToken cancellationToken);
 
-    Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken);
-    
+    /// <summary>
+    /// Refresh this node's heartbeat timestamp. Returns <c>true</c> when an existing row for the node was
+    /// found and updated; returns <c>false</c> when there is no row for this node — in which case the store
+    /// MUST NOT insert one. A miss means a peer deleted this still-live node's row out from under it (an
+    /// ejection under churn, GH-3604 / D2). The caller re-registers via <see cref="ReregisterNodeAsync"/>
+    /// with the node's real identity, rather than each store blindly inserting a skeleton row with a fresh
+    /// node number and no capabilities — which used to drop the live node out of capability-matched
+    /// distribution and make the assignment grid re-issue its whole agent universe every cycle forever.
+    /// </summary>
+    Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Re-persist a node row that was deleted out from under a still-live node. Unlike
+    /// <see cref="PersistAsync" />, which allocates a fresh node number, this MUST preserve the node's
+    /// existing <see cref="WolverineNode.AssignedNodeNumber" /> and <see cref="WolverineNode.Capabilities" />
+    /// so the resurrected row matches the identity the process is still using in memory (envelope ownership,
+    /// capability-matched distribution). It is an upsert on the node id. The caller separately restores the
+    /// node's agent assignments.
+    /// </summary>
+    Task ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken);
+
     Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime);
 
     Task LogRecordsAsync(params NodeRecord[] records);

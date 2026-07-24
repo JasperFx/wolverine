@@ -259,10 +259,33 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
         return node;
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         using var session = _store.OpenAsyncSession();
-        session.Advanced.AddOrPatch(node.NodeId.ToString(), node, x => x.LastHealthCheck, DateTimeOffset.UtcNow);
+
+        // GH-3604 / D2: only patch an EXISTING node document. A miss means a peer deleted this still-live
+        // node's row; report it to the caller (which re-registers with real identity) instead of the old
+        // AddOrPatch, which blindly stored a skeleton node with no capabilities on a miss.
+        var existing = await session.LoadAsync<WolverineNode>(node.NodeId.ToString(), cancellationToken);
+        if (existing == null)
+        {
+            return false;
+        }
+
+        session.Advanced.Patch<WolverineNode, DateTimeOffset>(
+            node.NodeId.ToString(), x => x.LastHealthCheck, DateTimeOffset.UtcNow);
+        await session.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        // Store the node document with its preserved AssignedNodeNumber WITHOUT touching the NodeSequence
+        // (unlike PersistAsync, which allocates a fresh number). The caller restores the AgentAssignment
+        // documents separately.
+        using var session = _store.OpenAsyncSession();
+        session.Advanced.UseOptimisticConcurrency = false;
+        await session.StoreAsync(node, node.NodeId.ToString(), cancellationToken);
         await session.SaveChangesAsync(cancellationToken);
     }
 

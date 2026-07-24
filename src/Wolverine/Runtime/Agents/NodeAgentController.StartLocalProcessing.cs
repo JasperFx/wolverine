@@ -12,6 +12,10 @@ public partial class NodeAgentController
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
         }
 
+        // GH-3604 / D2: remember the capabilities so we can re-register with them if a peer ever deletes our
+        // row out from under us. WolverineNode.For() alone carries none.
+        _capabilities = current.Capabilities.ToArray();
+
         current.AssignedNodeNumber = await _persistence.PersistAsync(current, _cancellation.Token);
         
         await _observer.NodeStarted();

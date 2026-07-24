@@ -253,7 +253,7 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         return returnValue;
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         await using var conn = new SqlConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
@@ -261,10 +261,32 @@ internal class SqlServerNodePersistence : DatabaseConstants, INodeAgentPersisten
         var count = await conn.CreateCommand($"update {_nodeTable} set health_check = GETUTCDATE() where id = @id")
             .With("id", node.NodeId).ExecuteNonQueryAsync(cancellationToken);
 
-        if (count == 0)
-        {
-            await persistNode(conn, node, cancellationToken);
-        }
+        await conn.CloseAsync();
+
+        // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
+        // instead of blindly re-inserting a skeleton (fresh node_number, empty capabilities) here.
+        return count != 0;
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_settings.ConnectionString);
+        await conn.OpenAsync(cancellationToken);
+
+        // node_number is an IDENTITY column, so an explicit value requires IDENTITY_INSERT. Preserve the
+        // existing number + capabilities so the resurrected row matches the identity the process still uses
+        // in memory. The delete cascades any surviving assignment rows; the caller restores them.
+        var strings = node.Capabilities.Select(x => x.ToString()).Join("\n");
+
+        await conn.CreateCommand(
+                $"SET IDENTITY_INSERT {_nodeTable} ON; delete from {_nodeTable} where id = @id; insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) values (@id, @number, @uri, @capabilities, @description, @version, GETUTCDATE()); SET IDENTITY_INSERT {_nodeTable} OFF;")
+            .With("id", node.NodeId)
+            .With("number", node.AssignedNodeNumber)
+            .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
+            .With("capabilities", strings)
+            .With("description", node.Description)
+            .With("version", node.Version.ToString())
+            .ExecuteNonQueryAsync(cancellationToken);
 
         await conn.CloseAsync();
     }

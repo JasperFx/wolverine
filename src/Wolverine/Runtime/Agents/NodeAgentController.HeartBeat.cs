@@ -35,7 +35,10 @@ public partial class NodeAgentController
     /// was doing the most work, was ejected, resurrected under a fresh node number, and the grid never
     /// recovered. Deliberately does NOT take <c>_healthCheckGuard</c>: the guard exists to serialise
     /// leadership-lease mutation inside <see cref="DoHealthChecksAsync"/>, and sharing it here would let the
-    /// heartbeat inherit exactly the starvation this decoupling removes.
+    /// heartbeat inherit exactly the starvation this decoupling removes. Goes through
+    /// <see cref="ensureLocalNodeRegisteredAsync"/> so that, when the assignment loop is starved, this
+    /// independent loop still both writes the heartbeat AND re-registers the node's real identity if a peer
+    /// deleted its row (GH-3604 / D2) — otherwise a starved-and-ejected node could never resurrect itself.
     /// </summary>
     public async Task WriteHeartbeatAsync()
     {
@@ -44,7 +47,7 @@ public partial class NodeAgentController
 
         try
         {
-            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+            await ensureLocalNodeRegisteredAsync(_cancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -81,18 +84,63 @@ public partial class NodeAgentController
         }
     }
 
+    // Build a full picture of THIS node's identity as the process currently knows it: the assigned node
+    // number, the capabilities captured at startup, and the agents registered on it right now. Used both to
+    // refresh the heartbeat and, on a miss, to re-register the node with its real identity.
+    private WolverineNode buildLocalNode()
+    {
+        var node = WolverineNode.For(_runtime.Options);
+        node.AssignedNodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
+        node.Capabilities.AddRange(_capabilities);
+        node.AssignAgents(Agents.Keys.ToArray());
+        return node;
+    }
+
+    // GH-3604 / D2: refresh this node's heartbeat, and if its row is gone -- a peer deleted it out from
+    // under a still-live node under churn -- re-register with the REAL identity (same node number, captured
+    // capabilities) and restore its agent assignment rows, instead of letting each store blindly insert a
+    // skeleton row (fresh number, no capabilities) that drops the node out of capability-matched
+    // distribution and makes the grid re-issue its whole agent universe forever.
+    private async Task ensureLocalNodeRegisteredAsync(CancellationToken token)
+    {
+        // Hot path: MarkHealthCheckAsync only needs the node id (it is an UPDATE by id), so pass the cheap
+        // skeleton and only build the full identity picture (node number, capabilities, every running agent)
+        // on the rare miss. buildLocalNode enumerates every agent on the node, so calling it every heartbeat
+        // would be a real cost on the thousands-of-agents nodes this whole fix is about.
+        var existed = await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), token);
+        if (existed)
+        {
+            return;
+        }
+
+        var node = buildLocalNode();
+        await _persistence.ReregisterNodeAsync(node, token);
+
+        var agentUris = node.ActiveAgents.ToArray();
+        if (agentUris.Length > 0)
+        {
+            await _persistence.AssignAgentsAsync(_runtime.Options.UniqueNodeId, agentUris, token);
+        }
+
+        _logger.LogWarning(
+            "Node {NodeNumber} re-registered its row after it was deleted out from under a still-live node (peer ejection); restored {Count} agent assignment(s)",
+            node.AssignedNodeNumber, agentUris.Length);
+    }
+
     private async Task<AgentCommands> DoHealthChecksInternalAsync()
     {
         using var activity = ShouldTraceHealthCheck()
             ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments")
             : null;
 
-        // Write the health check regardless, and due to GH-1232, pass in the whole node so you can do an
-        // upsert. This write is now also performed independently by WriteHeartbeatAsync on its own timer
-        // (GH-3604 / D1); keeping it here preserves the GH-2682 "we just wrote our own heartbeat, so never
-        // consider self stale on this tick" invariant for the assignment evaluation below. It is an
-        // idempotent UPDATE, so the two writers never conflict.
-        await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+        // Write the health check regardless, and due to GH-1232 do an upsert. GH-3604 / D2: if our row was
+        // deleted out from under us by a peer, re-register with our real identity here rather than letting
+        // the store insert a capability-less skeleton with a new node number. This is also performed
+        // independently by WriteHeartbeatAsync on its own timer (GH-3604 / D1); keeping it here preserves the
+        // GH-2682 "we just wrote our own heartbeat, so never consider self stale on this tick" invariant for
+        // the assignment evaluation below. Both writers go through the same idempotent path, so they never
+        // conflict.
+        await ensureLocalNodeRegisteredAsync(_cancellation.Token);
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
@@ -227,7 +275,7 @@ public partial class NodeAgentController
     {
         try
         {
-            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+            await ensureLocalNodeRegisteredAsync(_cancellation.Token);
             // If this fails, release the leadership lock!
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, LeaderUri,
                 _cancellation.Token);

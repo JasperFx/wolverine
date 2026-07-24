@@ -25,6 +25,12 @@ public partial class NodeAgentController
     private readonly IWolverineObserver _observer;
     private DateTimeOffset? _lastNodeAssignmentHealthCheckTrace;
 
+    // GH-3604 / D2: the capabilities this node advertised at StartLocalAgentProcessingAsync. Kept so a node
+    // whose row was deleted out from under it (peer ejection under churn) can re-register with its REAL
+    // capabilities instead of an empty skeleton -- an empty-capability row is a candidate for nothing in
+    // capability-matched distribution, which silently shrinks the cluster.
+    private IReadOnlyList<Uri> _capabilities = Array.Empty<Uri>();
+
     // 0=free, 1=busy; guards against concurrent DoHealthChecksAsync calls
     // from the heartbeat loop and a CheckAgentHealth message arriving
     // simultaneously. Prevents a race on _lastLockIndex / _lastLockETag in
@@ -230,15 +236,15 @@ public partial class NodeAgentController
     }
 
     // Persist that this node owns agentUri. AddAssignmentAsync is an upsert, so this is safe to call for a
-    // freshly started agent or an already-running one whose assignment row may have been lost. The
-    // MarkHealthCheckAsync first side-steps FK problems and timing issues (the assignment row references the
-    // node row) and, via GH-3604 (D2), re-inserts this node's row with its real identity if a peer ejected
-    // it while it was still alive.
+    // freshly started agent or an already-running one whose assignment row may have been lost.
+    // ensureLocalNodeRegisteredAsync first side-steps FK problems and timing issues (the assignment row
+    // references the node row) and, via GH-3604 (D2), re-inserts this node's row with its real identity if a
+    // peer deleted it out from under a still-live node.
     private async Task upsertAssignmentAsync(Uri agentUri)
     {
         try
         {
-            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+            await ensureLocalNodeRegisteredAsync(_cancellation.Token);
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)
