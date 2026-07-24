@@ -308,16 +308,38 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             .ExecuteNonQueryAsync();
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
         var count = await _dataSource
             .CreateCommand($"UPDATE {_nodeTable} SET health_check = UTC_TIMESTAMP(6) WHERE id = @id")
             .With("id", node.NodeId).ExecuteNonQueryAsync(token);
 
-        if (count == 0)
-        {
-            await PersistAsync(node, token);
-        }
+        // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
+        // instead of blindly re-inserting a skeleton (fresh node_number, empty capabilities) here.
+        return count != 0;
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken token)
+    {
+        await using var conn = await _dataSource.OpenConnectionAsync(token);
+
+        // node_number is AUTO_INCREMENT, but MySQL accepts an explicit value; preserve the existing number
+        // + capabilities so the resurrected row matches the identity the process still uses in memory.
+        var capabilities = string.Join(",", node.Capabilities.Select(x => x.ToString()));
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            $"INSERT INTO {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) VALUES (@id, @number, @uri, @capabilities, @description, @version, UTC_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE node_number = @number, uri = @uri, capabilities = @capabilities, description = @description, version = @version, health_check = UTC_TIMESTAMP(6)";
+        cmd.Parameters.AddWithValue("@id", node.NodeId);
+        cmd.Parameters.AddWithValue("@number", node.AssignedNodeNumber);
+        cmd.Parameters.AddWithValue("@uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString());
+        cmd.Parameters.AddWithValue("@capabilities", capabilities);
+        cmd.Parameters.AddWithValue("@description", node.Description);
+        cmd.Parameters.AddWithValue("@version", node.Version.ToString());
+
+        await cmd.ExecuteNonQueryAsync(token);
+
+        await conn.CloseAsync();
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

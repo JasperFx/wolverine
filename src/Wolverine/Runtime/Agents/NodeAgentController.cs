@@ -25,6 +25,12 @@ public partial class NodeAgentController
     private readonly IWolverineObserver _observer;
     private DateTimeOffset? _lastNodeAssignmentHealthCheckTrace;
 
+    // GH-3604 / D2: the capabilities this node advertised at StartLocalAgentProcessingAsync. Kept so a node
+    // whose row was deleted out from under it (peer ejection under churn) can re-register with its REAL
+    // capabilities instead of an empty skeleton -- an empty-capability row is a candidate for nothing in
+    // capability-matched distribution, which silently shrinks the cluster.
+    private IReadOnlyList<Uri> _capabilities = Array.Empty<Uri>();
+
     // 0=free, 1=busy; guards against concurrent DoHealthChecksAsync calls
     // from the heartbeat loop and a CheckAgentHealth message arriving
     // simultaneously. Prevents a race on _lastLockIndex / _lastLockETag in
@@ -221,8 +227,9 @@ public partial class NodeAgentController
 
         try
         {
-            // Side step FK problems and timing issues
-            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+            // Side step FK problems and timing issues; also re-registers this node's row with its real
+            // identity if a peer deleted it out from under us (GH-3604 / D2).
+            await ensureLocalNodeRegisteredAsync(_cancellation.Token);
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }
         catch (Exception e)

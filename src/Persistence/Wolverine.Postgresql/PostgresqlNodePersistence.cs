@@ -268,15 +268,31 @@ internal class PostgresqlNodePersistence : DatabaseConstants, INodeAgentPersiste
             .ExecuteNonQueryAsync();
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
         var count = await _dataSource.CreateCommand($"update {_nodeTable} set health_check = now() where id = :id")
             .With("id", node.NodeId).ExecuteNonQueryAsync(token);
 
-        if (count == 0)
-        {
-            await PersistAsync(node, token);
-        }
+        // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
+        // instead of blindly re-inserting a skeleton (fresh node_number, empty capabilities) here.
+        return count != 0;
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken token)
+    {
+        // Preserve the existing node_number (SERIAL default is overridden by the explicit value) and
+        // capabilities so the resurrected row matches the identity the process still uses in memory.
+        var strings = node.Capabilities.Select(x => x.ToString()).ToArray();
+
+        await _dataSource.CreateCommand(
+                $"insert into {_nodeTable} (id, node_number, uri, capabilities, description, version, health_check) values (:id, :number, :uri, :capabilities, :description, :version, now()) on conflict (id) do update set node_number = :number, uri = :uri, capabilities = :capabilities, description = :description, version = :version, health_check = now()")
+            .With("id", node.NodeId)
+            .With("number", node.AssignedNodeNumber)
+            .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
+            .With("capabilities", strings)
+            .With("description", node.Description)
+            .With("version", node.Version.ToString())
+            .ExecuteNonQueryAsync(token);
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

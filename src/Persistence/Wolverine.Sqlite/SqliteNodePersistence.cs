@@ -305,16 +305,36 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
             .ExecuteNonQueryAsync();
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken token)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(token).ConfigureAwait(false);
         var count = await conn.CreateCommand($"update {_nodeTable} set health_check = datetime('now') where id = @id")
             .With("id", node.NodeId.ToString()).ExecuteNonQueryAsync(token);
 
-        if (count == 0)
-        {
-            await PersistAsync(node, token);
-        }
+        // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
+        // instead of blindly re-inserting a skeleton (empty capabilities) here.
+        return count != 0;
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken token)
+    {
+        // SQLite's node_number is a plain INTEGER that PersistAsync already fills explicitly, so preserving
+        // the existing number + capabilities is a straight upsert on the node id.
+        var capabilitiesJson = System.Text.Json.JsonSerializer.Serialize(
+            node.Capabilities.Select(x => x.ToString()).ToArray(),
+            SqliteNodeCapabilitiesJsonContext.Default.StringArray);
+
+        await using var conn = await _dataSource.OpenConnectionAsync(token).ConfigureAwait(false);
+
+        await conn.CreateCommand(
+                $"insert into {_nodeTable} (id, uri, capabilities, description, version, node_number, health_check) values (@id, @uri, @capabilities, @description, @version, @node_number, datetime('now')) on conflict(id) do update set uri = @uri, capabilities = @capabilities, description = @description, version = @version, node_number = @node_number, health_check = datetime('now')")
+            .With("id", node.NodeId.ToString())
+            .With("uri", (node.ControlUri ?? TransportConstants.LocalUri).ToString())
+            .With("description", node.Description)
+            .With("version", node.Version.ToString())
+            .With("capabilities", capabilitiesJson)
+            .With("node_number", node.AssignedNodeNumber)
+            .ExecuteNonQueryAsync(token);
     }
 
     public Task LogRecordsAsync(params NodeRecord[] records)

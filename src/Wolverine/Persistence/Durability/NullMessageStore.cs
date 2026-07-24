@@ -354,7 +354,14 @@ internal class NullNodeAgentPersistence : INodeAgentPersistence
         return Task.FromResult(default(WolverineNode?));
     }
 
-    public Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    public Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        // No durable store to coordinate through, so there is never a peer to eject this node; always
+        // report the row as present so the caller never tries to re-register.
+        return Task.FromResult(true);
+    }
+
+    public Task ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }

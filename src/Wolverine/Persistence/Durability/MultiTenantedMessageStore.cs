@@ -571,9 +571,14 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return Main.Nodes.LoadNodeAsync(nodeId, cancellationToken);
     }
 
-    Task INodeAgentPersistence.MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    Task<bool> INodeAgentPersistence.MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         return Main.Nodes.MarkHealthCheckAsync(node, cancellationToken);
+    }
+
+    Task INodeAgentPersistence.ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        return Main.Nodes.ReregisterNodeAsync(node, cancellationToken);
     }
 
     Task INodeAgentPersistence.OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)

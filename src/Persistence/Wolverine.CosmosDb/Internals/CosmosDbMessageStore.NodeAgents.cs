@@ -289,7 +289,7 @@ public partial class CosmosDbMessageStore : INodeAgentPersistence
         }
     }
 
-    public async Task MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
+    public async Task<bool> MarkHealthCheckAsync(WolverineNode node, CancellationToken cancellationToken)
     {
         try
         {
@@ -300,14 +300,24 @@ public partial class CosmosDbMessageStore : INodeAgentPersistence
             doc.LastHealthCheck = DateTimeOffset.UtcNow;
             await _container.ReplaceItemAsync(doc, doc.Id, new PartitionKey(DocumentTypes.SystemPartition),
                 cancellationToken: cancellationToken);
+            return true;
         }
         catch (CosmosException e) when (e.StatusCode == HttpStatusCode.NotFound)
         {
-            // Node doesn't exist, create it
-            var doc = new CosmosWolverineNode(node) { LastHealthCheck = DateTimeOffset.UtcNow };
-            await _container.UpsertItemAsync(doc, new PartitionKey(DocumentTypes.SystemPartition),
-                cancellationToken: cancellationToken);
+            // GH-3604 / D2: a miss means a peer deleted this still-live node's row; report it to the caller
+            // (which re-registers with real identity) instead of creating a skeleton with a fresh number.
+            return false;
         }
+    }
+
+    public async Task ReregisterNodeAsync(WolverineNode node, CancellationToken cancellationToken)
+    {
+        // Upsert the node document with its preserved AssignedNodeNumber WITHOUT incrementing the
+        // CosmosNodeSequence (unlike PersistAsync, which allocates a fresh number). The caller restores the
+        // agent-assignment documents separately.
+        var doc = new CosmosWolverineNode(node) { LastHealthCheck = DateTimeOffset.UtcNow };
+        await _container.UpsertItemAsync(doc, new PartitionKey(DocumentTypes.SystemPartition),
+            cancellationToken: cancellationToken);
     }
 
     public async Task OverwriteHealthCheckTimeAsync(Guid nodeId, DateTimeOffset lastHeartbeatTime)

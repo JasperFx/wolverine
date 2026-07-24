@@ -213,23 +213,70 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
     }
 
     [Fact]
-    public async Task update_health_check_smoke_test()
+    public async Task mark_health_check_reports_whether_the_node_row_exists()
     {
         var node1 = createNode();
         var node2 = createNode();
-        var node3 = createNode();
+        var missing = createNode();
 
         await _database.Nodes.PersistAsync(node1, CancellationToken.None);
         await _database.Nodes.PersistAsync(node2, CancellationToken.None);
-        //await _database.Nodes.PersistAsync(node3, CancellationToken.None);
+        // 'missing' is deliberately NOT persisted.
 
-        await _database.Nodes.MarkHealthCheckAsync(node1, CancellationToken.None);
-        await _database.Nodes.MarkHealthCheckAsync(node2, CancellationToken.None);
-        await _database.Nodes.MarkHealthCheckAsync(node3, CancellationToken.None);
+        // GH-3604 / D2: MarkHealthCheckAsync returns true for a live row and must NOT blindly insert a
+        // skeleton for a missing one -- it returns false so the controller can re-register with real identity.
+        (await _database.Nodes.MarkHealthCheckAsync(node1, CancellationToken.None)).ShouldBeTrue();
+        (await _database.Nodes.MarkHealthCheckAsync(node2, CancellationToken.None)).ShouldBeTrue();
+        (await _database.Nodes.MarkHealthCheckAsync(missing, CancellationToken.None)).ShouldBeFalse();
 
-        // Proving the upsert behavior
         var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
-        nodes.Any(x => x.NodeId == node3.NodeId).ShouldBeTrue();
+        nodes.Count.ShouldBe(2);
+        nodes.Any(x => x.NodeId == missing.NodeId).ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task reregister_after_ejection_preserves_identity_and_restores_assignments()
+    {
+        // Regression coverage for GH-3604 / D2. A peer deletes a still-live node's row (and, via the
+        // assignment FK cascade, its assignment rows). The node's next heartbeat must be able to resurrect
+        // itself with the SAME node number, the SAME capabilities, and its agent assignments restored --
+        // instead of a fresh skeleton with a new number and no capabilities (which drops the node out of
+        // capability-matched distribution). This exercises the persistence primitives the controller uses.
+        var id = Guid.NewGuid();
+        var node = new WolverineNode
+        {
+            NodeId = id,
+            ControlUri = new Uri($"dbcontrol://{id}"),
+            Description = Environment.MachineName,
+            Version = new Version(4, 5, 6, 0)
+        };
+        node.Capabilities.Add(new Uri("red://"));
+        node.Capabilities.Add(new Uri("blue://"));
+        node.Capabilities.Add(new Uri("green://"));
+
+        var assignedNumber = await _database.Nodes.PersistAsync(node, CancellationToken.None);
+        node.AssignedNodeNumber = assignedNumber;
+
+        var agent1 = new Uri("red://leader");
+        var agent2 = new Uri("blue://five");
+        await _database.Nodes.AssignAgentsAsync(id, new[] { agent1, agent2 }, CancellationToken.None);
+
+        // A peer ejects the still-live node: delete the row + its assignments.
+        await _database.Nodes.DeleteAsync(id, assignedNumber);
+        (await _database.Nodes.LoadAllNodesAsync(CancellationToken.None)).ShouldBeEmpty();
+
+        // The node's next heartbeat sees the row is gone (false) and re-registers with its real identity.
+        (await _database.Nodes.MarkHealthCheckAsync(node, CancellationToken.None)).ShouldBeFalse();
+        await _database.Nodes.ReregisterNodeAsync(node, CancellationToken.None);
+        await _database.Nodes.AssignAgentsAsync(id, new[] { agent1, agent2 }, CancellationToken.None);
+
+        var nodes = await _database.Nodes.LoadAllNodesAsync(CancellationToken.None);
+        var resurrected = nodes.Single();
+        resurrected.NodeId.ShouldBe(id);
+        resurrected.AssignedNodeNumber.ShouldBe(assignedNumber);
+        resurrected.Capabilities.OrderBy(x => x.ToString())
+            .ShouldBe([new Uri("blue://"), new Uri("green://"), new Uri("red://")]);
+        resurrected.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent2, agent1]);
     }
 
 }
