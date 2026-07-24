@@ -184,6 +184,13 @@ public partial class NodeAgentController
             // be fought here.
             if (existing.Status != AgentStatus.Stopped)
             {
+                // GH-3604 (D4): even though the agent is already running here, still re-upsert the
+                // assignment row. If a peer wiped this live node's node_assignments rows out from under it
+                // (e.g. an ejection/resurrection under churn), the leader keeps re-emitting AssignAgent for
+                // the same (uri, node) pair forever because the grid never re-learns what is actually
+                // running -- this early return was the exact no-op that made the loss permanent. The upsert
+                // makes the grid self-healing after any assignment-row loss without a needless stop/start.
+                await upsertAssignmentAsync(agentUri);
                 return;
             }
 
@@ -225,10 +232,18 @@ public partial class NodeAgentController
 
         Agents[agentUri] = agent;
 
+        await upsertAssignmentAsync(agentUri);
+    }
+
+    // Persist that this node owns agentUri. AddAssignmentAsync is an upsert, so this is safe to call for a
+    // freshly started agent or an already-running one whose assignment row may have been lost.
+    // ensureLocalNodeRegisteredAsync first side-steps FK problems and timing issues (the assignment row
+    // references the node row) and, via GH-3604 (D2), re-inserts this node's row with its real identity if a
+    // peer deleted it out from under a still-live node.
+    private async Task upsertAssignmentAsync(Uri agentUri)
+    {
         try
         {
-            // Side step FK problems and timing issues; also re-registers this node's row with its real
-            // identity if a peer deleted it out from under us (GH-3604 / D2).
             await ensureLocalNodeRegisteredAsync(_cancellation.Token);
             await _persistence.AddAssignmentAsync(_runtime.Options.UniqueNodeId, agentUri, _cancellation.Token);
         }

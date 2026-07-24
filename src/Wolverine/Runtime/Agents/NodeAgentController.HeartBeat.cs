@@ -24,6 +24,42 @@ public partial class NodeAgentController
 {
     public bool IsLeader { get; private set; }
 
+    /// <summary>
+    /// Write this node's heartbeat, wholly independent of the assignment/health-check evaluation in
+    /// <see cref="DoHealthChecksAsync"/> and the agent-command drain that follows it. Runs on its own timer
+    /// (<c>WolverineRuntime.writeHeartbeats</c>) so that no amount of slow command work — e.g. a leader
+    /// burning remote <c>InvokeAsync&lt;AgentsStarted&gt;</c> reply timeouts while starting thousands of
+    /// subscription agents — can delay the next heartbeat past <c>StaleNodeTimeout</c> and get a
+    /// very-much-alive node ejected by its peers. That starvation was the D1 trigger of the
+    /// projection-agent-assignment churn livelock (GH-3604): a busy leader looked dead precisely when it
+    /// was doing the most work, was ejected, resurrected under a fresh node number, and the grid never
+    /// recovered. Deliberately does NOT take <c>_healthCheckGuard</c>: the guard exists to serialise
+    /// leadership-lease mutation inside <see cref="DoHealthChecksAsync"/>, and sharing it here would let the
+    /// heartbeat inherit exactly the starvation this decoupling removes. Goes through
+    /// <see cref="ensureLocalNodeRegisteredAsync"/> so that, when the assignment loop is starved, this
+    /// independent loop still both writes the heartbeat AND re-registers the node's real identity if a peer
+    /// deleted its row (GH-3604 / D2) — otherwise a starved-and-ejected node could never resurrect itself.
+    /// </summary>
+    public async Task WriteHeartbeatAsync()
+    {
+        if (_cancellation.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await ensureLocalNodeRegisteredAsync(_cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down; nothing to do.
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error writing the heartbeat for node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+    }
+
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
@@ -99,7 +135,11 @@ public partial class NodeAgentController
 
         // Write the health check regardless, and due to GH-1232 do an upsert. GH-3604 / D2: if our row was
         // deleted out from under us by a peer, re-register with our real identity here rather than letting
-        // the store insert a capability-less skeleton with a new node number.
+        // the store insert a capability-less skeleton with a new node number. This is also performed
+        // independently by WriteHeartbeatAsync on its own timer (GH-3604 / D1); keeping it here preserves the
+        // GH-2682 "we just wrote our own heartbeat, so never consider self stale on this tick" invariant for
+        // the assignment evaluation below. Both writers go through the same idempotent path, so they never
+        // conflict.
         await ensureLocalNodeRegisteredAsync(_cancellation.Token);
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
