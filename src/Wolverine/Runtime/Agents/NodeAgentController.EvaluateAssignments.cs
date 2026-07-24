@@ -6,6 +6,19 @@ public partial class NodeAgentController
 {
     public AssignmentGrid? LastAssignments { get; internal set; }
 
+    // GH-3604 / D3+D6: leader-side, in-memory record of AssignAgent commands emitted but not yet confirmed
+    // running on their destination. A first-time assignment (grid Agent.OriginalNode == null) is emitted as
+    // AssignAgent, but a heavily loaded node — e.g. one starting thousands of Marten subscription agents —
+    // can take many assignment cycles to actually start each agent and persist its assignment row. Until the
+    // next LoadNodeAgentState reflects it as running, the leader would re-emit the SAME (agent -> node)
+    // AssignAgent every ~CheckAssignmentPeriod, piling duplicate mega-batches onto the polled control queue
+    // and writing ~one AssignmentChanged telemetry row per agent per cycle into the same database the
+    // rebuild is already saturating. This ledger suppresses those re-emissions for a TTL. It is leader-only
+    // and in-memory: a new leader starts empty and safely re-emits.
+    private readonly Dictionary<Uri, PendingAssignment> _pendingAssignments = new();
+
+    private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt);
+
     // Tested w/ integration tests all the way
     public async Task<AgentCommands> EvaluateAssignmentsAsync(
         IReadOnlyList<WolverineNode> nodes,
@@ -92,6 +105,11 @@ public partial class NodeAgentController
             commands.Add(new StopRemoteAgent(report.AgentUri, report.ExistingNode.ToDestination()));
         }
 
+        // GH-3604 / D3+D6: drop AssignAgent commands still in flight from a recent wave BEFORE the observer
+        // logs them, so a slow start isn't punished with a duplicate control-queue flood and a matching
+        // burst of AssignmentChanged telemetry rows.
+        suppressPendingAssignments(grid, commands);
+
         await _observer.AssignmentsChanged(grid, commands);
 
         LastAssignments = grid;
@@ -103,6 +121,71 @@ public partial class NodeAgentController
         }
 
         return commands;
+    }
+
+    // Confirm-and-suppress the pending-assignment ledger for this evaluation. See _pendingAssignments.
+    private void suppressPendingAssignments(AssignmentGrid grid, AgentCommands commands)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        // TTL must exceed the worst-case time for a destination to actually start an assigned agent and have
+        // it show up in a later LoadNodeAgentState. 2x CheckAssignmentPeriod is the conservative default; a
+        // genuinely stuck start is retried once the entry expires.
+        var ttl = _runtime.Options.Durability.CheckAssignmentPeriod * 2;
+
+        // Confirmation: an agent now running on the very node we assigned it to is no longer pending. The
+        // grid sets Agent.OriginalNode from each node's persisted ActiveAgents, so OriginalNode == AssignedNode
+        // means the destination started it and persisted the assignment row since we last emitted.
+        foreach (var agent in grid.AllAgents)
+        {
+            if (agent.OriginalNode != null && ReferenceEquals(agent.AssignedNode, agent.OriginalNode))
+            {
+                _pendingAssignments.Remove(agent.Uri);
+            }
+        }
+
+        // Expire stale entries so a start that never took is eventually re-driven.
+        if (_pendingAssignments.Count > 0)
+        {
+            var expired = _pendingAssignments
+                .Where(kv => now - kv.Value.SentAt >= ttl)
+                .Select(kv => kv.Key)
+                .ToArray();
+            foreach (var uri in expired)
+            {
+                _pendingAssignments.Remove(uri);
+            }
+        }
+
+        var suppressed = 0;
+        for (var i = commands.Count - 1; i >= 0; i--)
+        {
+            if (commands[i] is not AssignAgent assign)
+            {
+                continue;
+            }
+
+            if (_pendingAssignments.TryGetValue(assign.AgentUri, out var pending)
+                && pending.NodeId == assign.Destination.NodeId)
+            {
+                // Same (agent -> node) assignment still in flight from a recent wave: don't re-emit it.
+                commands.RemoveAt(i);
+                suppressed++;
+            }
+            else
+            {
+                // New assignment, a re-target to a different node, or a TTL-expired retry: emit it and (re)arm
+                // the ledger entry.
+                _pendingAssignments[assign.AgentUri] = new PendingAssignment(assign.Destination.NodeId, now);
+            }
+        }
+
+        if (suppressed > 0)
+        {
+            _logger.LogDebug(
+                "Suppressed {Count} AssignAgent command(s) still in flight from a recent assignment wave",
+                suppressed);
+        }
     }
 
     private void batchCommands(List<IAgentCommand> commands)
