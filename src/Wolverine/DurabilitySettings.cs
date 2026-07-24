@@ -237,6 +237,16 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
 
     /// <summary>
+    ///     GH-3604 / D1: how many consecutive health-check ticks the observing node must see another node
+    ///     as stale before it destructively deletes that node's row (which also releases the node's
+    ///     in-flight envelope ownership and its agent assignments). Routing to a stale node stops
+    ///     immediately regardless — it is dropped from the assignment grid on the first observation — so
+    ///     this only adds hysteresis to the irreversible delete, preventing a single stale snapshot read or
+    ///     transient blip from ejecting a node that is really alive. Minimum (and default) 2.
+    /// </summary>
+    public int StaleNodeEjectionThreshold { get; set; } = 2;
+
+    /// <summary>
     ///     How often should Wolverine do a full check that all assigned agents are
     ///     really running and try to restart (or stop) any differences from the last
     ///     good set of assignments
