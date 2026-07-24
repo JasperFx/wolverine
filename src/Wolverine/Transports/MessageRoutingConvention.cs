@@ -204,6 +204,16 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
             yield break;
         }
 
+        // Description passes (FindResources / describe) run before any broker connection
+        // exists, and routes built there tolerate a null Sender and are never cached
+        // (GH-2897) — so don't force the agent here, where it would open a broker
+        // connection during resource discovery or throw (e.g. RabbitMQ's SendingConnection).
+        if (WolverineSystemPart.WithinDescription)
+        {
+            yield return endpoint;
+            yield break;
+        }
+
         // This will start up the sending agent. Only safe to call once the broker
         // transport has been initialized (i.e. the sending connection is open).
         var sendingAgent = runtime.Endpoints.GetOrBuildSendingAgent(endpoint.Uri);
