@@ -237,11 +237,38 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan StaleNodeTimeout { get; set; } = 1.Minutes();
 
     /// <summary>
+    ///     GH-3604 / D1: how many consecutive health-check ticks the observing node must see another node
+    ///     as stale before it destructively deletes that node's row (which also releases the node's
+    ///     in-flight envelope ownership and its agent assignments). Routing to a stale node stops
+    ///     immediately regardless — it is dropped from the assignment grid on the first observation — so
+    ///     this only adds hysteresis to the irreversible delete, preventing a single stale snapshot read or
+    ///     transient blip from ejecting a node that is really alive. Minimum (and default) 2.
+    /// </summary>
+    public int StaleNodeEjectionThreshold { get; set; } = 2;
+
+    /// <summary>
     ///     How often should Wolverine do a full check that all assigned agents are
     ///     really running and try to restart (or stop) any differences from the last
     ///     good set of assignments
     /// </summary>
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
+
+    /// <summary>
+    ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
+    ///     <c>StartAgents</c> control message to a node. A node running a very large agent universe
+    ///     (e.g. database-per-tenant Marten with thousands of subscription shards) cannot start
+    ///     thousands of daemon agents inside one request/reply window, so assignments to a destination
+    ///     are chunked into batches of this size and sent one chunk at a time. Default 50.
+    /// </summary>
+    public int AgentStartBatchSize { get; set; } = 50;
+
+    /// <summary>
+    ///     GH-3604 / D3: the maximum number of agents a receiving node starts concurrently when it
+    ///     handles a <c>StartAgents</c> batch. Daemon-agent starts are I/O bound (database round-trips),
+    ///     so starting them with bounded parallelism instead of serially lets a batch complete well
+    ///     inside the reply window. Default 10.
+    /// </summary>
+    public int MaxAgentStartParallelism { get; set; } = 10;
 
     /// <summary>
     /// Opt-in switch for the dynamic listener registry: persisted listener URIs that

@@ -299,12 +299,48 @@ public partial class NodeAgentController
         return await EvaluateAssignmentsAsync(nodes, restrictions);
     }
 
+    // GH-3604 / D1: consecutive stale-observation counts per node id, used to add hysteresis to the
+    // destructive DeleteAsync. Only the observing node mutates it, from the serialized health-check path.
+    private readonly Dictionary<Guid, int> _staleObservations = new();
+
     private async Task ejectStaleNodes(IReadOnlyList<WolverineNode> staleNodes)
     {
+        // A node that is no longer stale on this tick resets its streak, so only a *sustained* absence ejects.
+        var staleIds = staleNodes.Select(x => x.NodeId).ToHashSet();
+        foreach (var recovered in _staleObservations.Keys.Where(id => !staleIds.Contains(id)).ToArray())
+        {
+            _staleObservations.Remove(recovered);
+        }
+
+        var threshold = Math.Max(1, _runtime.Options.Durability.StaleNodeEjectionThreshold);
+
+        // Leader protection: only a node that currently holds the leadership lock may destroy another node's
+        // row when that node is the current leader. A follower that merely sees the leader as stale must not
+        // wipe it — the freed advisory lock lets a follower attain leadership through the normal election
+        // path, and that confirmed new leader ejects the old row on a later tick. This prevents a transient
+        // blip from destroying a live leader's row, ownership, and assignments.
+        var holdsLeadership = _persistence.HasLeadershipLock();
+
         // As per GH-1116, don't delete yourself!
         foreach (var staleNode in staleNodes.Where(x => x.AssignedNodeNumber != _runtime.DurabilitySettings.AssignedNodeNumber))
         {
+            var count = (_staleObservations.TryGetValue(staleNode.NodeId, out var previous) ? previous : 0) + 1;
+            _staleObservations[staleNode.NodeId] = count;
+
+            // Hysteresis: routing to the node already stopped this tick (it is filtered out of the assignment
+            // grid upstream); wait for N consecutive observations before the irreversible delete.
+            if (count < threshold)
+            {
+                continue;
+            }
+
+            if (staleNode.IsLeader() && !holdsLeadership)
+            {
+                continue;
+            }
+
             await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
+            _staleObservations.Remove(staleNode.NodeId);
         }
 
         if (staleNodes.Any())

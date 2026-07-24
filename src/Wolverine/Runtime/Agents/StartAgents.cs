@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging;
@@ -31,7 +30,12 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
         CancellationToken cancellationToken)
     {
         var startAgents = new StartAgents(AgentIds);
-        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents);
+
+        // GH-3604 / D3: scale the reply timeout with the chunk size as a backstop. The receiving node starts
+        // the batch with bounded parallelism, so the reply normally arrives quickly, but a large chunk of
+        // slow daemon-agent starts must not be cut off by the default fixed request/reply window.
+        var timeout = 30.Seconds() + AgentIds.Length.Seconds();
+        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents, timeout);
 
         if (response == null)
         {
@@ -60,26 +64,31 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
-        var successful = new List<Uri>(AgentUris.Length);
-        foreach (var agentUri in AgentUris)
+        // GH-3604 / D3: start the batch with bounded parallelism instead of serially. Daemon-agent starts are
+        // I/O bound (database round-trips per shard), so a 50-agent chunk started one-at-a-time was seconds of
+        // dead wall-clock that blew the reply window; a bounded fan-out lets the whole chunk converge quickly
+        // without swamping the node.
+        var successful = new System.Collections.Concurrent.ConcurrentBag<Uri>();
+
+        var dop = Math.Max(1, runtime.Options.Durability.MaxAgentStartParallelism);
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = dop,
+            CancellationToken = cancellationToken
+        };
+
+        await Parallel.ForEachAsync(AgentUris, options, async (agentUri, token) =>
         {
             try
             {
-                var stopwatch = new Stopwatch();
-                stopwatch.Start();
-
                 await runtime.Agents.StartLocallyAsync(agentUri);
-
-                Debug.WriteLine($"STARTED {agentUri} in {stopwatch.ElapsedMilliseconds} MILLISECONDS");
-                stopwatch.Stop();
-
                 successful.Add(agentUri);
             }
             catch (Exception e)
             {
                 runtime.Logger.LogError(e, "Failed to start requested agent {AgentUri}", agentUri);
             }
-        }
+        });
 
         return [new AgentsStarted(successful.ToArray())];
     }
