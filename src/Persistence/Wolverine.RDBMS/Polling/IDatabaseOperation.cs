@@ -15,3 +15,10 @@ public interface IDatabaseOperation
 
     IEnumerable<IAgentCommand> PostProcessingCommands();
 }
+
+internal interface IDatabaseOperationBatchExecutor
+{
+    Task ExecuteDatabaseOperationBatchAsync(
+        IDatabaseOperation[] operations,
+        CancellationToken cancellationToken);
+}
