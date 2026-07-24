@@ -24,6 +24,39 @@ public partial class NodeAgentController
 {
     public bool IsLeader { get; private set; }
 
+    /// <summary>
+    /// Write this node's heartbeat, wholly independent of the assignment/health-check evaluation in
+    /// <see cref="DoHealthChecksAsync"/> and the agent-command drain that follows it. Runs on its own timer
+    /// (<c>WolverineRuntime.writeHeartbeats</c>) so that no amount of slow command work — e.g. a leader
+    /// burning remote <c>InvokeAsync&lt;AgentsStarted&gt;</c> reply timeouts while starting thousands of
+    /// subscription agents — can delay the next heartbeat past <c>StaleNodeTimeout</c> and get a
+    /// very-much-alive node ejected by its peers. That starvation was the D1 trigger of the
+    /// projection-agent-assignment churn livelock (GH-3604): a busy leader looked dead precisely when it
+    /// was doing the most work, was ejected, resurrected under a fresh node number, and the grid never
+    /// recovered. Deliberately does NOT take <c>_healthCheckGuard</c>: the guard exists to serialise
+    /// leadership-lease mutation inside <see cref="DoHealthChecksAsync"/>, and sharing it here would let the
+    /// heartbeat inherit exactly the starvation this decoupling removes.
+    /// </summary>
+    public async Task WriteHeartbeatAsync()
+    {
+        if (_cancellation.IsCancellationRequested)
+            return;
+
+        try
+        {
+            await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down; nothing to do.
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error writing the heartbeat for node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+    }
+
     public async Task<AgentCommands> DoHealthChecksAsync()
     {
         if (_cancellation.IsCancellationRequested)
@@ -54,7 +87,11 @@ public partial class NodeAgentController
             ? WolverineTracing.ActivitySource.StartActivity("wolverine_node_assignments")
             : null;
 
-        // write health check regardless, and due to GH-1232, pass in the whole node so you can do an upsert
+        // Write the health check regardless, and due to GH-1232, pass in the whole node so you can do an
+        // upsert. This write is now also performed independently by WriteHeartbeatAsync on its own timer
+        // (GH-3604 / D1); keeping it here preserves the GH-2682 "we just wrote our own heartbeat, so never
+        // consider self stale on this tick" invariant for the assignment evaluation below. It is an
+        // idempotent UPDATE, so the two writers never conflict.
         await _persistence.MarkHealthCheckAsync(WolverineNode.For(_runtime.Options), _cancellation.Token);
 
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);

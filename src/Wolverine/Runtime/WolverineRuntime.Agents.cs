@@ -19,6 +19,7 @@ public partial class WolverineRuntime : IAgentRuntime
 {
     private bool _agentsAreDisabled;
     private Task? _healthCheckLoop;
+    private Task? _heartbeatLoop;
 
     private readonly CancellationTokenSource _agentCancellation;
 
@@ -257,7 +258,44 @@ public partial class WolverineRuntime : IAgentRuntime
             }
         }
 
+        // GH-3604 (D1): the heartbeat runs on its OWN loop, independent of executeHealthChecks. See
+        // writeHeartbeats. Start it first so a slow first assignment evaluation can't delay the very
+        // first heartbeat either.
+        _heartbeatLoop = Task.Run(writeHeartbeats, Cancellation);
         _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
+    }
+
+    // GH-3604 (D1): keep the node heartbeat wholly independent of DoHealthChecksAsync and the agent-command
+    // drain in executeHealthChecks. Those two run serially in the same loop, so a leader that spends 60s
+    // burning remote InvokeAsync<AgentsStarted> reply timeouts while starting thousands of subscription
+    // agents used to delay its own next heartbeat past StaleNodeTimeout — looking dead to its peers
+    // precisely when it was doing the most work, getting ejected, and resurrecting under a fresh node
+    // number. This loop only ever does the cheap heartbeat write, so no amount of command work can starve
+    // it.
+    private async Task writeHeartbeats()
+    {
+        await Task.Delay(Options.Durability.FirstHealthCheckExecution, Cancellation);
+
+        while (!Cancellation.IsCancellationRequested)
+        {
+            if (NodeController != null)
+            {
+                try
+                {
+                    await NodeController.WriteHeartbeatAsync();
+                }
+                catch (OperationCanceledException)
+                {
+                    // Nothing here
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, "Error trying to write the node heartbeat");
+                }
+            }
+
+            await Task.Delay(Options.Durability.HealthCheckPollingTime, Cancellation);
+        }
     }
 
     private async Task executeHealthChecks()
@@ -291,6 +329,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task teardownAgentsAsync()
     {
+        _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
 
         if (NodeController != null)
@@ -307,6 +346,7 @@ public partial class WolverineRuntime : IAgentRuntime
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
     {
         _agentsAreDisabled = true;
+        _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
 
         if (NodeController != null)
