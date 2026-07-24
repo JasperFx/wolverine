@@ -47,6 +47,21 @@ internal class DatabaseOperationBatch : IAgentCommand
     {
         if (_operations.Length == 0) return AgentCommands.Empty;
 
+        if (_database is IDatabaseOperationBatchExecutor executor)
+        {
+            try
+            {
+                await executor.ExecuteDatabaseOperationBatchAsync(_operations, cancellationToken);
+            }
+            catch (ObjectDisposedException)
+            {
+                // The system is shutting down, let this go.
+                return AgentCommands.Empty;
+            }
+
+            return postProcessingCommands();
+        }
+
         var builder = _database.ToCommandBuilder();
         foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
@@ -79,12 +94,7 @@ internal class DatabaseOperationBatch : IAgentCommand
 
         try
         {
-            var commands = new AgentCommands();
-            foreach (var operation in _operations)
-            {
-                commands.AddRange(operation.PostProcessingCommands());
-            }
-            return commands;
+            return postProcessingCommands();
         }
         finally
         {
@@ -97,6 +107,17 @@ internal class DatabaseOperationBatch : IAgentCommand
                 // Don't let an exception get out of there. 
             }
         }
+    }
+
+    private AgentCommands postProcessingCommands()
+    {
+        var commands = new AgentCommands();
+        foreach (var operation in _operations)
+        {
+            commands.AddRange(operation.PostProcessingCommands());
+        }
+
+        return commands;
     }
 
     public static async Task ApplyCallbacksAsync(IReadOnlyList<IDatabaseOperation> operations, DbDataReader reader,

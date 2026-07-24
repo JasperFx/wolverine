@@ -36,7 +36,7 @@ using Table = Weasel.Oracle.Tables.Table;
 
 namespace Wolverine.Oracle;
 
-internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport
+internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMessageOutbox, IMessageStoreAdmin, IDeadLetters, IScheduledMessages, ISagaSupport, IDatabaseOperationBatchExecutor
 {
     private readonly OracleDataSource _dataSource;
     private readonly DatabaseSettings _settings;
