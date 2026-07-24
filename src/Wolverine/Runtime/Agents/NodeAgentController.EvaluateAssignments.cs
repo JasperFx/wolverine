@@ -105,15 +105,21 @@ public partial class NodeAgentController
         return commands;
     }
 
-    private static void batchCommands(List<IAgentCommand> commands)
+    private void batchCommands(List<IAgentCommand> commands)
     {
+        // GH-3604 / D3: chunk a destination's assignments into batches of at most AgentStartBatchSize rather
+        // than one mega-batch. A node cannot start thousands of daemon agents inside one reply window; with
+        // WO-5's pending-assignment ledger, one chunk in flight per destination at a time is enough.
+        var batchSize = Math.Max(1, _runtime.Options.Durability.AgentStartBatchSize);
+
         foreach (var group in commands.OfType<AssignAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1).ToArray())
         {
-            var assignAgents = new AssignAgents(group.Key, group.Select(x => x.AgentUri).ToArray());
-
             foreach (var message in group) commands.Remove(message);
 
-            commands.Add(assignAgents);
+            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
+            {
+                commands.Add(new AssignAgents(group.Key, chunk));
+            }
         }
 
         foreach (var group in commands.OfType<StopRemoteAgent>().GroupBy(x => x.Destination).Where(x => x.Count() > 1)

@@ -10,7 +10,7 @@ public interface IAgentRuntime
 
     Task InvokeAsync(NodeDestination destination, IAgentCommand command);
 
-    Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class;
+    Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command, TimeSpan? timeout = null) where T : class;
     Uri[] AllRunningAgentUris();
 
     /// <summary>

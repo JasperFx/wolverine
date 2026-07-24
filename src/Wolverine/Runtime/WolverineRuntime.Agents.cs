@@ -65,13 +65,17 @@ public partial class WolverineRuntime : IAgentRuntime
         }
     }
 
-    public async Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command) where T : class
+    public async Task<T> InvokeAsync<T>(NodeDestination destination, IAgentCommand command, TimeSpan? timeout = null) where T : class
     {
         var messageBus = new MessageBus(this);
 
+        // GH-3604 / D3: callers that dispatch large agent batches (AssignAgents) pass a timeout scaled to the
+        // batch size so a big, slow chunk isn't cut off by the fixed default reply window.
+        var replyTimeout = timeout ?? 30.Seconds();
+
         if (Options.UniqueNodeId == destination.NodeId)
         {
-            return await messageBus.InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
+            return await messageBus.InvokeAsync<T>(command, _agentCancellation.Token, replyTimeout);
         }
 
         // GH-2949: remote-node InvokeAsync<T> used to wait only 10s for the typed reply while
@@ -84,7 +88,7 @@ public partial class WolverineRuntime : IAgentRuntime
         // Wolverine.Runtime.Agents.AgentsStarted ... configured timeout of 10000 milliseconds'.
         return await messageBus
             .EndpointFor(destination.ControlUri)
-            .InvokeAsync<T>(command, _agentCancellation.Token, 30.Seconds());
+            .InvokeAsync<T>(command, _agentCancellation.Token, replyTimeout);
     }
 
     public Uri[] AllRunningAgentUris()

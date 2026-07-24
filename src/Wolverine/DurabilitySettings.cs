@@ -244,6 +244,23 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan CheckAssignmentPeriod { get; set; } = 30.Seconds();
 
     /// <summary>
+    ///     GH-3604 / D3: the maximum number of agent assignments the leader packs into a single
+    ///     <c>StartAgents</c> control message to a node. A node running a very large agent universe
+    ///     (e.g. database-per-tenant Marten with thousands of subscription shards) cannot start
+    ///     thousands of daemon agents inside one request/reply window, so assignments to a destination
+    ///     are chunked into batches of this size and sent one chunk at a time. Default 50.
+    /// </summary>
+    public int AgentStartBatchSize { get; set; } = 50;
+
+    /// <summary>
+    ///     GH-3604 / D3: the maximum number of agents a receiving node starts concurrently when it
+    ///     handles a <c>StartAgents</c> batch. Daemon-agent starts are I/O bound (database round-trips),
+    ///     so starting them with bounded parallelism instead of serially lets a batch complete well
+    ///     inside the reply window. Default 10.
+    /// </summary>
+    public int MaxAgentStartParallelism { get; set; } = 10;
+
+    /// <summary>
     /// Opt-in switch for the dynamic listener registry: persisted listener URIs that
     /// are activated at runtime in addition to the listeners declared statically
     /// through <see cref="WolverineOptions"/>. When <c>true</c>, <c>IMessageStore.Listeners</c>
