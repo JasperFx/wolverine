@@ -146,7 +146,9 @@ internal class ParsedArrayFormValue : SyncFrame, IReadHttpFrame
 
             if (elementType!.IsEnum)
             {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+                // Case-insensitive for the same reason as ParsedArrayQueryStringValue -- the scalar
+                // and List<TEnum> form binders already pass ignoreCase.
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, true, out var {Variable.Usage}ValueParsed))");
             }
             else if (elementType.IsBoolean())
             {

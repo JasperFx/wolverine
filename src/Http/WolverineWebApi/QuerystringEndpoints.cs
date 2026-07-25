@@ -43,6 +43,14 @@ public static class QuerystringEndpoints
         return values.OrderBy(x => x).Select(x => x.ToString()).Join(",");
     }
 
+    [WolverineGet("/querystring/enumarray")]
+    public static string EnumArray(Direction[]? values)
+    {
+        if (values == null || values.IsEmpty()) return "none";
+
+        return values.Select(x => x.ToString()).Join(",");
+    }
+
     // GH-3602: an explicit [FromQuery] on an array/collection of a simple element must bind from repeated
     // query values exactly like the attribute-less StringArray/IntArray above, not get misrouted into the
     // complex-type member-flattening path (which threw at discovery because arrays have no ctor).

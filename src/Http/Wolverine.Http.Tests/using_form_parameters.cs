@@ -1,3 +1,4 @@
+using System.Net.Http;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.Core;
@@ -214,6 +215,41 @@ public class using_form_parameters : IntegrationContext
 
         var text = await body.ReadAsTextAsync();
         text.ShouldBe($"{guid1},{guid2},{guid3}");
+    }
+
+    // The Alba-based form collection tests below are skipped because Alba cannot post form collections,
+    // but a raw client can, so the [FromForm] TEnum[] binder is exercised end to end here. Its elements
+    // used to parse case-sensitively while the scalar and List<TEnum> form binders passed ignoreCase.
+    [Fact]
+    public async Task use_parsed_enum_array_from_form()
+    {
+        var text = await postEnumArrayForm("North", "East", "South");
+        text.ShouldBe("North,East,South");
+    }
+
+    [Fact]
+    public async Task use_parsed_enum_array_from_form_is_case_insensitive()
+    {
+        var text = await postEnumArrayForm("north", "eAsT", "SOUTH");
+        text.ShouldBe("North,East,South");
+    }
+
+    [Fact]
+    public async Task use_parsed_enum_array_from_form_still_ignores_unparseable_values()
+    {
+        var text = await postEnumArrayForm("north", "nonsense");
+        text.ShouldBe("North");
+    }
+
+    private async Task<string> postEnumArrayForm(params string[] values)
+    {
+        var content = new FormUrlEncodedContent(
+            values.Select(x => new KeyValuePair<string, string>("collection", x)));
+
+        var response = await Host.Server.CreateClient().PostAsync("/form/array/enum", content);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadAsStringAsync();
     }
 
     [Fact(Skip = "Seems alba doesn't support collections in form data in any way")]

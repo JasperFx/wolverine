@@ -218,6 +218,62 @@ public class using_querystring_parameters : IntegrationContext
     }
 
     [Fact]
+    public async Task use_parsed_enum_array()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/enumarray")
+                .QueryString("values", "North")
+                .QueryString("values", "East")
+                .QueryString("values", "South");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("North,East,South");
+    }
+
+    // An enum array element used to be parsed case-sensitively while the scalar and List<TEnum> binders
+    // parsed case-insensitively, so a camelCased value -- the default System.Text.Json spelling clients
+    // see in responses -- was silently dropped from the array.
+    [Fact]
+    public async Task use_parsed_enum_array_is_case_insensitive()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/enumarray")
+                .QueryString("values", "north")
+                .QueryString("values", "eAsT")
+                .QueryString("values", "SOUTH");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("North,East,South");
+    }
+
+    [Fact]
+    public async Task use_parsed_enum_array_still_ignores_unparseable_values()
+    {
+        var body = await Scenario(x =>
+        {
+            x.Get
+                .Url("/querystring/enumarray")
+                .QueryString("values", "north")
+                .QueryString("values", "nonsense");
+
+            x.Header("content-type").SingleValueShouldEqual("text/plain");
+        });
+
+        var text = await body.ReadAsTextAsync();
+        text.ShouldBe("North");
+    }
+
+    [Fact]
     public async Task using_string_array_completely_hit()
     {
         var body = await Scenario(x =>
