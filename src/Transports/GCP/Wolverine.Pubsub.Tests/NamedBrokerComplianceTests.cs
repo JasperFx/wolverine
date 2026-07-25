@@ -45,6 +45,22 @@ public class NamedBrokerComplianceTests
         endpoint.Uri.ShouldBe(new Uri("americas://wolverine2/colors"));
         named.ResourceUri.ShouldBe(new Uri("americas://wolverine2"));
     }
+
+    [Fact]
+    public void named_broker_can_listen_to_an_existing_subscription()
+    {
+        var options = new WolverineOptions();
+
+        options.AddNamedPubsubBroker(new BrokerName("americas"), "wolverine2");
+        options.ListenToPubsubSubscriptionOnNamedBroker(new BrokerName("americas"), "existing-sub");
+
+        var named = options.Transports.OfType<PubsubTransport>().Single(x => x.Protocol == "americas");
+        var endpoint = named.Topics["existing-sub"];
+
+        endpoint.IsListener.ShouldBeTrue();
+        endpoint.IsExistingSubscription.ShouldBeTrue();
+        endpoint.Uri.Scheme.ShouldBe("americas");
+    }
 }
 
 // Integration: round-trip a message over a second project on the same emulator, addressed exclusively through the

@@ -186,6 +186,35 @@ public static class PubsubTransportExtensions
     }
 
     /// <summary>
+    ///     Listen for incoming messages on an existing Google Cloud Platform Pub/Sub subscription on a named broker.
+    ///     Since an existing subscription is used, IdentifierPrefix is not applied to the subscription name.
+    /// </summary>
+    /// <param name="endpoints"></param>
+    /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
+    /// <param name="subscriptionName">The name of the Google Cloud Platform Pub/Sub subscription</param>
+    /// <param name="configure">
+    ///     Optional configuration for this Google Cloud Platform Pub/Sub endpoint.
+    /// </param>
+    /// <returns></returns>
+    public static PubsubTopicListenerConfiguration ListenToPubsubSubscriptionOnNamedBroker(
+        this WolverineOptions endpoints,
+        BrokerName name,
+        string subscriptionName,
+        Action<PubsubEndpoint>? configure = null
+    )
+    {
+        var transport = endpoints.PubsubTransport(name);
+        var topic = transport.Topics[subscriptionName];
+
+        topic.IsListener = true;
+        topic.IsExistingSubscription = true;
+
+        configure?.Invoke(topic);
+
+        return new PubsubTopicListenerConfiguration(topic);
+    }
+
+    /// <summary>
     ///     Publish the designated messages to a Google Cloud Platform Pub/Sub topic.
     /// </summary>
     /// <param name="publishing"></param>
