@@ -226,6 +226,12 @@ using var host = await Host.CreateDefaultBuilder()
 
 This creates Pub/Sub topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
+Both `PublishToShardedPubsubTopics()` and `UseShardedPubsubTopics()` have `...OnNamedBroker()` equivalents to shard across a [named broker](#multiple-named-brokers) instead of the default one:
+
+```csharp
+topology.UseShardedPubsubTopicsOnNamedBroker(new BrokerName("americas"), "orders", 4);
+```
+
 ## URI reference
 
 The `GcpPubsubEndpointUri` helper class builds canonical endpoint URIs:

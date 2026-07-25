@@ -259,4 +259,53 @@ public static class PubsubTransportExtensions
         }, baseName);
         return topology;
     }
+
+    /// <summary>
+    /// Create a sharded message topology with Google Cloud Pub/Sub topics named
+    /// baseName1, baseName2, etc. on a named broker registered via <see cref="AddNamedPubsubBroker" />.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedPubsubTopicsOnNamedBroker(this MessagePartitioningRules rules,
+        BrokerName name, string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithTopics> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints, name);
+            topology.ConfigureListening(x => {});
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded Google Cloud Pub/Sub topics on a named broker registered via <see cref="AddNamedPubsubBroker" />
+    /// for global partitioned message processing. Topics will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="name">The name of the additional broker registered via <see cref="AddNamedPubsubBroker" />.</param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedPubsubTopicsOnNamedBroker(
+        this GlobalPartitionedMessageTopology topology, BrokerName name, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithTopics>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithTopics(opts, PartitionSlots.Five, baseName, numberOfEndpoints, name);
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+        return topology;
+    }
 }
