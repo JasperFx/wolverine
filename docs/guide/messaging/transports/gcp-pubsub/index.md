@@ -94,6 +94,24 @@ var host = await Host.CreateDefaultBuilder()
 
 Note that the `Uri` scheme within Wolverine for any endpoint on a *named* GCP Pub/Sub broker is the broker name you supply, not `pubsub`. So in the example above you would see `Uri` values like `americas://americas-project-id/colors`.
 
+Attaching to an existing, already-provisioned subscription (`ListenToPubsubSubscription`) also has a named-broker counterpart, `ListenToPubsubSubscriptionOnNamedBroker`:
+
+<!-- snippet: sample_listen_to_pubsub_subscription_on_named_broker -->
+<a id='snippet-sample_listen_to_pubsub_subscription_on_named_broker'></a>
+```cs
+var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.AddNamedPubsubBroker(new BrokerName("americas"), "americas-project-id");
+
+        // Attach to an existing, already-provisioned subscription on the named broker.
+        // No AutoProvision() needed if this app has no provisioning rights on that project.
+        opts.ListenToPubsubSubscriptionOnNamedBroker(new BrokerName("americas"), "existing-subscription-name");
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/GCP/Wolverine.Pubsub.Tests/DocumentationSamples.cs#L91-L102' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_pubsub_subscription_on_named_broker' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
 ## Multi-Tenancy with a Broker Per Tenant
 
 Named brokers (above) are a *static* topology: you pin specific endpoints to a specific broker at configuration time. **Broker-per-tenant** is different — it is *runtime* routing. You declare one shared topic topology, and each tenant is served by its **own dedicated GCP project**. Which project a message goes to (and which project an inbound message came from) is decided at runtime by the message's [tenant id](/guide/handlers/multi-tenancy), typically set through `DeliveryOptions.TenantId`.

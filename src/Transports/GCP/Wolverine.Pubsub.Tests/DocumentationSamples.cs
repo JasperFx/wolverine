@@ -86,6 +86,22 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task listen_to_existing_subscription_on_named_broker()
+    {
+        #region sample_listen_to_pubsub_subscription_on_named_broker
+        var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.AddNamedPubsubBroker(new BrokerName("americas"), "americas-project-id");
+
+                // Attach to an existing, already-provisioned subscription on the named broker.
+                // No AutoProvision() needed if this app has no provisioning rights on that project.
+                opts.ListenToPubsubSubscriptionOnNamedBroker(new BrokerName("americas"), "existing-subscription-name");
+            }).StartAsync();
+
+        #endregion
+    }
+
     public async Task broker_per_tenant()
     {
         #region sample_pubsub_broker_per_tenant
