@@ -34,4 +34,29 @@ public interface IEventSubscriptionAgentFamily
     /// </summary>
     ValueTask<bool> TryRebuildRegisteredProjectionAsync(string shardIdentity, string? tenantId,
         CancellationToken token = default);
+
+    /// <summary>
+    /// Same as <see cref="TryRebuildRegisteredProjectionAsync(string,string?,CancellationToken)" />, but scoped to a
+    /// single event store rather than searching every store this family manages. <paramref name="storeIdentity" /> is
+    /// the store's <c>EventStoreIdentity.ToString()</c> value (matched case-insensitively);
+    /// <see cref="EventSubscriptionAgentFamily.StoreIdentityOf" /> derives it from an agent URI that
+    /// <see cref="FindAgentUriAsync" /> already resolved, so a caller never has to decompose the URI itself.
+    ///
+    /// <para>This exists because the store-blind overload cannot tell two stores apart when the SAME projection
+    /// name is registered in more than one of them (a primary plus an ancillary store, say) and NEITHER has a live
+    /// agent — the first store with a matching registered shard wins, which may not be the store the operator asked
+    /// about. The live-agent rebuild path is already store-scoped downstream; this closes the gap on the last-resort
+    /// transient-rebuild path. See GH-3618.</para>
+    ///
+    /// <para>Returns <c>true</c> when the named store matched a registered projection and the rebuild ran;
+    /// <c>false</c> when this family does not manage <paramref name="storeIdentity" /> or that store has no matching
+    /// registered shard, so the caller can try the next family.</para>
+    ///
+    /// <para>The default implementation ignores <paramref name="storeIdentity" /> and delegates to the store-blind
+    /// overload, preserving the behavior of any pre-existing implementation of this interface. Implementations that
+    /// manage more than one store should override it.</para>
+    /// </summary>
+    ValueTask<bool> TryRebuildRegisteredProjectionAsync(string storeIdentity, string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+        => TryRebuildRegisteredProjectionAsync(shardIdentity, tenantId, token);
 }

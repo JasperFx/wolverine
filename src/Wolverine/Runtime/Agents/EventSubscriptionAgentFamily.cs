@@ -104,7 +104,39 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
         return false;
     }
-    
+
+    /// <inheritdoc />
+    public async ValueTask<bool> TryRebuildRegisteredProjectionAsync(string storeIdentity, string shardIdentity,
+        string? tenantId, CancellationToken token = default)
+    {
+        if (string.IsNullOrEmpty(storeIdentity) || !_stores.TryFind(StoreKey(storeIdentity), out var agents))
+        {
+            return false;
+        }
+
+        return await agents.TryRebuildRegisteredProjectionAsync(shardIdentity, tenantId, token)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The identity of the event store that owns an <c>event-subscriptions://</c> agent
+    /// <paramref name="uri" />, in the form <see cref="TryRebuildRegisteredProjectionAsync(string,string,string?,CancellationToken)" />
+    /// expects. Lets a caller holding a URI from <see cref="FindAgentUriAsync" /> scope a rebuild to that
+    /// store without decomposing the URI grammar itself — the grammar (see <see cref="UriFor" />) stays in
+    /// here. Returns <c>null</c> for any URI that is not an agent URI of this scheme or that carries no
+    /// store-name segment. See GH-3618.
+    /// </summary>
+    public static string? StoreIdentityOf(Uri uri)
+    {
+        if (uri.Scheme != SchemeName || uri.Segments.Length < 2)
+        {
+            return null;
+        }
+
+        var name = uri.Segments[1].Trim('/');
+        return name.Length == 0 ? null : StoreKey($"{name}:{uri.Host}");
+    }
+
     public EventSubscriptionAgentFamily(IEnumerable<IEventStore> stores, IEnumerable<IObserver<ShardState>> observers)
     {
         _observers = observers.ToArray();
