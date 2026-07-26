@@ -55,6 +55,21 @@ public class RedisTransport : BrokerTransport<RedisStreamEndpoint>, IAsyncDispos
     public int ReplyDatabaseId { get; set; } = 0;
 
     /// <summary>
+    /// How many times the scheduled-message sweep will fail to deserialize an entry in
+    /// <c>{stream}:scheduled</c> before moving its raw bytes to the dead letter queue. Defaults to 3.
+    ///
+    /// <para>GH-3613 stopped the sweep from deleting entries it could not read, because that was silently
+    /// destroying scheduled retries. The cost was that a genuinely unreadable payload — a truncated write, a
+    /// serializer change, a hand-edited key — then stayed in the sorted set forever and re-warned on every
+    /// sweep. This bounds that: unreadable is not the same as expired, but it is not permanent either. Set to
+    /// 0 to disable and keep such entries indefinitely. See GH-3644.</para>
+    ///
+    /// <para>Entries are only ever dead-lettered, never dropped, and only when the listening endpoint has its
+    /// native dead letter queue enabled. With it disabled the entry is left in place regardless.</para>
+    /// </summary>
+    public int MaxScheduledReadAttempts { get; set; } = 3;
+
+    /// <summary>
     /// Customizable selector to build a stable consumer name for listeners when an endpoint-level ConsumerName is not set.
     /// Defaults to ServiceName-NodeNumber-MachineName (lowercased and sanitized).
     /// </summary>

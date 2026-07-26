@@ -594,6 +594,94 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
         }
     }
 
+
+    /// <summary>
+    ///     A scheduled entry that cannot be deserialized. Counts consecutive read failures per entry in a
+    ///     side hash and, once <see cref="RedisTransport.MaxScheduledReadAttempts" /> is reached, moves the
+    ///     raw bytes to the dead letter stream and clears them from the scheduled set.
+    ///
+    ///     <para>The entry is never simply dropped: with dead-lettering disabled (either
+    ///     <c>MaxScheduledReadAttempts = 0</c> or an endpoint whose native DLQ is off) it stays in the sorted
+    ///     set exactly as GH-3613 left it. See GH-3644.</para>
+    /// </summary>
+    private async Task handleUnreadableScheduledEntryAsync(IDatabase database, string scheduledKey,
+        RedisValue serializedEnvelope, Exception failure)
+    {
+        var limit = _transport.MaxScheduledReadAttempts;
+
+        if (limit <= 0 || !_endpoint.NativeDeadLetterQueueEnabled)
+        {
+            _logger.LogWarning(failure,
+                "Unable to read a scheduled message in {ScheduledKey} while checking expiration; leaving it in place",
+                scheduledKey);
+            return;
+        }
+
+        var failureKey = _endpoint.UnreadableScheduledMessagesKey;
+
+        long attempts;
+        try
+        {
+            // The payload IS the sorted-set member, so it doubles as a stable hash field. The hash is given
+            // the same lifetime bound as a long-lived scheduled entry so a transient blip cannot leak keys.
+            attempts = await database.HashIncrementAsync(failureKey, serializedEnvelope);
+            await database.KeyExpireAsync(failureKey, TimeSpan.FromDays(7));
+        }
+        catch (Exception counterFailure)
+        {
+            // Failing to count must not escalate into losing the message.
+            _logger.LogWarning(counterFailure,
+                "Unable to record a read failure for a scheduled message in {ScheduledKey}; leaving it in place",
+                scheduledKey);
+            return;
+        }
+
+        if (attempts < limit)
+        {
+            _logger.LogWarning(failure,
+                "Unable to read a scheduled message in {ScheduledKey} while checking expiration (attempt {Attempts} of {Limit}); leaving it in place",
+                scheduledKey, attempts, limit);
+            return;
+        }
+
+        // No Envelope was ever produced, so the usual DeadLetterQueueConstants.StampFailureMetadata path is
+        // unavailable. Write the raw payload plus what diagnostics we do have, so an operator can recover
+        // the bytes by hand.
+        var fields = new List<NameValueEntry>
+        {
+            new("envelope", serializedEnvelope),
+            new(DeadLetterQueueConstants.ExceptionTypeHeader, failure.GetType().FullName ?? "Unknown"),
+            new(DeadLetterQueueConstants.ExceptionMessageHeader, failure.Message ?? ""),
+            new(DeadLetterQueueConstants.ExceptionStackHeader,
+                DeadLetterQueueConstants.TruncateStackTrace(failure.StackTrace)),
+            new(DeadLetterQueueConstants.FailedAtHeader,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()),
+            new(DeadLetterQueueConstants.OriginalDestinationHeader, _endpoint.Uri.ToString()),
+            new("message-type", "Unknown"),
+            new("unreadable-scheduled-message", "true"),
+            new("read-attempts", attempts.ToString())
+        };
+
+        try
+        {
+            var messageId = await database.StreamAddAsync(_endpoint.DeadLetterQueueKey, fields.ToArray());
+
+            // Only stop tracking it once it is safely in the dead letter stream.
+            await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+            await database.HashDeleteAsync(failureKey, serializedEnvelope);
+
+            _logger.LogError(failure,
+                "A scheduled message in {ScheduledKey} could not be read after {Attempts} attempts and was moved to the dead letter queue {DeadLetterKey} with message ID {MessageId}",
+                scheduledKey, attempts, _endpoint.DeadLetterQueueKey, messageId);
+        }
+        catch (Exception deadLetterFailure)
+        {
+            _logger.LogError(deadLetterFailure,
+                "Unable to move an unreadable scheduled message from {ScheduledKey} to the dead letter queue {DeadLetterKey}; leaving it in place",
+                scheduledKey, _endpoint.DeadLetterQueueKey);
+        }
+    }
+
     public async Task DeleteExpiredAsync(CancellationToken cancellationToken)
     {
         try
@@ -630,13 +718,13 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 }
                 catch (Exception ex)
                 {
-                    // Do NOT remove the entry. This sweep only exists to evict messages that are
-                    // genuinely past their DeliverBy; a message we cannot read is not known to be
-                    // expired, and deleting it here silently destroyed scheduled retries that never
-                    // got a chance to redeliver or to reach the dead letter queue (GH-3613).
-                    _logger.LogWarning(ex,
-                        "Unable to read a scheduled message in {ScheduledKey} while checking expiration; leaving it in place",
-                        scheduledKey);
+                    // Never delete outright. This sweep only exists to evict messages that are genuinely
+                    // past their DeliverBy; a message we cannot read is not known to be expired, and
+                    // deleting it here silently destroyed scheduled retries that never got a chance to
+                    // redeliver or to reach the dead letter queue (GH-3613). But leaving it forever means it
+                    // re-warns on every sweep and can never be cleared, so an entry that fails to read
+                    // repeatedly is dead-lettered instead (GH-3644).
+                    await handleUnreadableScheduledEntryAsync(database, scheduledKey, serializedEnvelope, ex);
                 }
             }
 

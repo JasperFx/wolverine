@@ -46,6 +46,12 @@ public class RedisStreamEndpoint : Endpoint<IRedisEnvelopeMapper, RedisEnvelopeM
     /// The Redis Sorted Set key for scheduled messages
     /// </summary>
     public string ScheduledMessagesKey => $"{StreamKey}:scheduled";
+
+    /// <summary>
+    /// Hash of consecutive read failures per scheduled entry, keyed by the entry's own payload. Bounds how
+    /// long an unreadable scheduled message can sit in the sorted set before being dead-lettered. See GH-3644.
+    /// </summary>
+    public string UnreadableScheduledMessagesKey => $"{StreamKey}:scheduled:unreadable";
     
     /// <summary>
     /// The Redis Stream key for dead letter messages
