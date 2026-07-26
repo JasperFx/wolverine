@@ -15,16 +15,14 @@ public class Bug_3633_conventional_routing_respects_named_broker : IAsyncLifetim
 
     public async Task InitializeAsync()
     {
-        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync(Servers.AzureServiceBusTenantManagementConnectionString);
-
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                // A default, unnamed broker is also registered so that conventional
-                // routing has somewhere wrong to go if the named broker is ignored
+                // A default, unnamed broker is also registered (against the same emulator) so
+                // that conventional routing has somewhere wrong to go if the named broker is ignored
                 opts.UseAzureServiceBusTesting();
 
-                opts.AddNamedAzureServiceBusBroker(theBrokerName, Servers.AzureServiceBusTenantConnectionString)
+                opts.AddNamedAzureServiceBusBroker(theBrokerName, Servers.AzureServiceBusConnectionString)
                     .UseConventionalRouting(x => x.IncludeTypes(t => t == typeof(RoutedMessage)))
                     .AutoProvision()
                     .AutoPurgeOnStartup();
