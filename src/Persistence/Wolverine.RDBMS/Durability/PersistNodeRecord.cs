@@ -23,6 +23,10 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
 
         foreach (var @event in _events)
         {
+            // One insert per event, so each is its own statement for the providers that cannot
+            // execute several from one command
+            builder.StartNewCommand();
+
             builder.Append("insert into ");
 
             // GH-2940: emit the schema identifier unquoted, matching every other durability SQL

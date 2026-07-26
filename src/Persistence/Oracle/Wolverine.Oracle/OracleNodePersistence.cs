@@ -340,9 +340,8 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
     {
         if (records.Length == 0) return;
 
-        // OracleMessageStore.EnqueueAsync is a no-op (the shared DatabaseBatcher uses
-        // @-prefixed parameter syntax that Oracle rejects), so insert each record
-        // directly using the Oracle command extensions.
+        // OracleMessageStore.EnqueueAsync is a no-op -- it has no DatabaseBatcher to hand the
+        // operation to -- so insert each record directly using the Oracle command extensions.
         await using var conn = await _dataSource.OpenConnectionAsync();
         try
         {

@@ -24,10 +24,15 @@ internal class MoveReplayableErrorMessagesToIncomingOperation : IDatabaseOperati
         builder.Append(
             $"select {DatabaseConstants.Body}, {DatabaseConstants.Id}, '{EnvelopeStatus.Incoming}', 0, null, 0, {DatabaseConstants.MessageType}, {DatabaseConstants.ReceivedAt}, null ");
         builder.Append(
-            $"from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable;");
+            $"from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = {builder.ParameterPrefix}replayable;");
         builder.AddNamedParameter("replayable", true);
+
+        // This operation writes two statements, so the boundary has to be explicit -- the trailing
+        // semicolon is enough for the providers that concatenate, but Oracle needs a real split
+        builder.StartNewCommand();
+
         builder.Append(
-            $"delete from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = @replayable;");
+            $"delete from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Replayable} = {builder.ParameterPrefix}replayable;");
     }
 
     public Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

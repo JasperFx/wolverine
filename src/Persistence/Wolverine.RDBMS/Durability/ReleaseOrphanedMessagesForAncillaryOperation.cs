@@ -36,6 +36,11 @@ internal class ReleaseOrphanedMessagesForAncillaryOperation : IDatabaseOperation
 
         builder.Append(
             $"update {incomingTable} set {DatabaseConstants.OwnerId} = 0 where {DatabaseConstants.OwnerId} != 0 and {DatabaseConstants.OwnerId} not in ({nodeList});");
+
+        // Two statements in one operation, so the boundary has to be explicit for the providers
+        // that cannot execute several statements from one command
+        builder.StartNewCommand();
+
         builder.Append(
             $"update {outgoingTable} set {DatabaseConstants.OwnerId} = 0 where {DatabaseConstants.OwnerId} != 0 and {DatabaseConstants.OwnerId} not in ({nodeList});");
     }
