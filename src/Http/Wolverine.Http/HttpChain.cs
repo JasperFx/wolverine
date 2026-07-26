@@ -516,7 +516,7 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
             //.WithMetadata(Method.Method);
 
-        if (HasRequestType)
+        if (HasRequestType && ReadsRequestBody)
         {
             if (IsFormData)
             {
@@ -902,6 +902,17 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     public bool HasRequestType => RequestType != null && RequestType != typeof(void);
 
     public bool IsFormData { get; internal set; }
+
+    /// <summary>
+    ///     True when this chain actually reads a request body — a JSON body, a form, or uploaded files.
+    ///     An <c>[AsParameters]</c> type whose members all bind from the query string, route, or headers
+    ///     reads no body at all, so the chain must not advertise <c>Accepts</c> metadata for one: ASP.NET
+    ///     Core's <c>AcceptsMatcherPolicy</c> builds content-type edges into the route matcher from that
+    ///     metadata, and a request that carries no matching Content-Type is then dropped from candidate
+    ///     selection entirely — a 404, not a 415. See GH-3630.
+    /// </summary>
+    internal bool ReadsRequestBody { get; set; } = true;
+
     public Type? ComplexQueryStringType { get; set; }
 
     /// <summary>

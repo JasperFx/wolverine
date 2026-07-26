@@ -377,7 +377,10 @@ public partial class HttpChain
 
     private void fillRequestType(ApiDescription apiDescription)
     {
-        if (HasRequestType && !IsFormData && apiDescription.HttpMethod != "GET")
+        // ReadsRequestBody keeps a non-GET endpoint whose [AsParameters] type binds only query/route/header
+        // values from being described as taking a body. Before GH-3630 such a chain was excluded here by
+        // IsFormData being (wrongly) true; now that IsFormData reflects reality, this is the guard.
+        if (HasRequestType && ReadsRequestBody && !IsFormData && apiDescription.HttpMethod != "GET")
         {
             var parameterDescription = new ApiParameterDescription
             {
