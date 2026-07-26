@@ -132,33 +132,19 @@ public static class EnvelopeSerializer
                     // Don't read it twice
                     if (env.ScheduledTime.HasValue) return;
 
-                    try
+                    if (tryReadTimestamp(value, out var scheduledTime))
                     {
-                        env.ScheduledTime = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
-                    }
-                    catch (Exception )
-                    {
-                        if (DateTimeOffset.TryParse(value, out var dt))
-                        {
-                            env.ScheduledTime = dt;
-                        }
+                        env.ScheduledTime = scheduledTime;
                     }
                     break;
-                
+
                 case EnvelopeConstants.KeepUntilKey:
                     // Don't read it twice
                     if (env.KeepUntil.HasValue) return;
 
-                    try
+                    if (tryReadTimestamp(value, out var keepUntil))
                     {
-                        env.KeepUntil = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
-                    }
-                    catch (Exception )
-                    {
-                        if (DateTimeOffset.TryParse(value, out var dt))
-                        {
-                            env.KeepUntil = dt;
-                        }
+                        env.KeepUntil = keepUntil;
                     }
                     break;
 
@@ -167,7 +153,13 @@ public static class EnvelopeSerializer
                     break;
 
                 case EnvelopeConstants.DeliverByKey:
-                    env.DeliverBy = DateTime.Parse(value);
+                    // Don't read it twice
+                    if (env.DeliverBy.HasValue) return;
+
+                    if (tryReadTimestamp(value, out var deliverBy))
+                    {
+                        env.DeliverBy = deliverBy;
+                    }
                     break;
 
                 case EnvelopeConstants.TenantIdKey:
@@ -195,6 +187,38 @@ public static class EnvelopeSerializer
         {
             throw new InvalidOperationException($"Error trying to read data for {key} = '{value}'", e);
         }
+    }
+
+    /// <summary>
+    ///     Parse a timestamp header that may have been written by either of Wolverine's two writers:
+    ///     the binary envelope format (<c>"o"</c>, see <see cref="BinaryWriterExtensions" />) or a transport
+    ///     <see cref="Wolverine.Transports.EnvelopeMapper{TIncoming,TOutgoing}" /> header
+    ///     (<see cref="EnvelopeConstants.TransportHeaderDateTimeFormat" />). Returns false rather than throwing
+    ///     on an unrecognized value: a malformed timestamp must not be able to fail the whole envelope read,
+    ///     because callers up the stack treat a deserialization failure as "corrupt, discard" and the message
+    ///     is then lost outright instead of being retried or dead-lettered. See GH-1716 and GH-3613.
+    /// </summary>
+    private static bool tryReadTimestamp(string value, out DateTimeOffset parsed)
+    {
+        try
+        {
+            parsed = XmlConvert.ToDateTime(value, XmlDateTimeSerializationMode.Utc);
+            return true;
+        }
+        catch (Exception)
+        {
+            // Not an xsd/round-trip value; fall through to the looser attempts below.
+        }
+
+        if (DateTimeOffset.TryParse(value, out parsed))
+        {
+            return true;
+        }
+
+        // EnvelopeMapper's transport-header format, which neither of the parses above accepts.
+        return DateTimeOffset.TryParseExact(value, EnvelopeConstants.TransportHeaderDateTimeFormat,
+            CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out parsed);
     }
 
     public static Envelope[] ReadMany(byte[] buffer)

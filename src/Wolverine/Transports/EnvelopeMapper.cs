@@ -67,7 +67,9 @@ public interface IEnvelopeMapper
 /// </remarks>
 public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIncoming, TOutgoing>, IEnvelopeMapper
 {
-    private const string DateTimeOffsetFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
+    // Shared with EnvelopeSerializer.tryReadTimestamp so that the reader always understands what this
+    // writer emits — the two drifting apart is GH-3613.
+    private const string DateTimeOffsetFormat = EnvelopeConstants.TransportHeaderDateTimeFormat;
     private readonly Endpoint _endpoint;
 
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
