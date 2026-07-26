@@ -48,43 +48,87 @@ internal class DatabaseOperationBatch : IAgentCommand
         if (_operations.Length == 0) return AgentCommands.Empty;
 
         var builder = _database.ToCommandBuilder();
-        foreach (var operation in _operations) operation.ConfigureCommand(builder);
 
-        await using var cmd = builder.Compile();
+        // Mark a statement boundary before each operation and remember which command each one's
+        // results will come back on. On every provider whose driver can execute several statements
+        // from a single command -- which is all of them except Oracle -- StartNewCommand() is a
+        // no-op, CompileCommands() returns one command holding every statement, and all of this
+        // collapses to exactly what it has always done. Oracle's builder splits at each boundary.
+        //
+        // An operation may contribute more than one statement (ReleaseOrphanedMessagesOperation,
+        // MoveReplayableErrorMessagesToIncomingOperation, PersistNodeRecord) or none at all
+        // (ReleaseOrphanedMessagesForAncillaryOperation, when it has no active node numbers). Every
+        // such operation is IDoNotReturnData -- each of the four that *do* return data appends
+        // exactly one statement unconditionally -- so associating an operation with the first command
+        // it produced is enough. Any further commands execute with no callbacks, and a zero-statement
+        // operation clamps into the last group where ApplyCallbacksAsync skips it as IDoNotReturnData.
+        var starts = new int[_operations.Length];
+        for (var i = 0; i < _operations.Length; i++)
+        {
+            builder.StartNewCommand();
+
+            // Nothing is open at this point, so the builder's count is the index the next command
+            // it produces will occupy
+            starts[i] = builder.CommandCount;
+            _operations[i].ConfigureCommand(builder);
+        }
+
+        var commands = builder.CompileCommands();
+        if (commands.Count == 0) return AgentCommands.Empty;
+
+        var groups = new List<IDatabaseOperation>[commands.Count];
+        for (var i = 0; i < commands.Count; i++) groups[i] = [];
+        for (var i = 0; i < _operations.Length; i++)
+        {
+            groups[Math.Min(starts[i], commands.Count - 1)].Add(_operations[i]);
+        }
 
         await using var conn = await _database.DataSource.OpenConnectionAsync(cancellationToken);
 
-        cmd.Connection = conn;
         var tx = await conn.BeginTransactionAsync(cancellationToken);
-        cmd.Transaction = tx;
 
+        DbCommand? current = null;
         try
         {
-            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
             var exceptions = new List<Exception>();
-            await ApplyCallbacksAsync(_operations, reader, exceptions, cancellationToken);
-            await reader.CloseAsync();
+
+            for (var i = 0; i < commands.Count; i++)
+            {
+                current = commands[i];
+                current.Connection = conn;
+                current.Transaction = tx;
+
+                await using var reader = await current.ExecuteReaderAsync(cancellationToken);
+                if (groups[i].Count != 0)
+                {
+                    await ApplyCallbacksAsync(groups[i], reader, exceptions, cancellationToken);
+                }
+
+                await reader.CloseAsync();
+            }
 
             await tx.CommitAsync(cancellationToken);
         }
         catch (ObjectDisposedException)
         {
-            // The system is shutting down, let this go. 
+            // The system is shutting down, let this go.
         }
         catch (Exception e)
         {
             await conn.CloseAsync();
-            throw new DatabaseBatchCommandException(cmd, _operations, e);
+            throw new DatabaseBatchCommandException(current!, _operations, e);
+        }
+        finally
+        {
+            foreach (var command in commands)
+            {
+                await command.DisposeAsync();
+            }
         }
 
         try
         {
-            var commands = new AgentCommands();
-            foreach (var operation in _operations)
-            {
-                commands.AddRange(operation.PostProcessingCommands());
-            }
-            return commands;
+            return postProcessingCommands();
         }
         finally
         {
@@ -97,6 +141,17 @@ internal class DatabaseOperationBatch : IAgentCommand
                 // Don't let an exception get out of there. 
             }
         }
+    }
+
+    private AgentCommands postProcessingCommands()
+    {
+        var commands = new AgentCommands();
+        foreach (var operation in _operations)
+        {
+            commands.AddRange(operation.PostProcessingCommands());
+        }
+
+        return commands;
     }
 
     public static async Task ApplyCallbacksAsync(IReadOnlyList<IDatabaseOperation> operations, DbDataReader reader,

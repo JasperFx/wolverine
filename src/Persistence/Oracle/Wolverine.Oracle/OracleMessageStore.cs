@@ -387,10 +387,12 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     // IMessageDatabase - extra methods
     public Weasel.Core.DbCommandBuilder ToCommandBuilder()
     {
-        // The IMessageDatabase interface requires DbCommandBuilder, but we create an OracleCommandBuilder
-        // internally. Return a DbCommandBuilder that uses Oracle's OracleCommand as the underlying command.
+        // OracleDbCommandBuilder is a DbCommandBuilder, so it satisfies IMessageDatabase, but it emits
+        // Oracle's ':' bind markers instead of the generic '@', types parameters through OracleProvider
+        // (Guid as RAW(16), bool as NUMBER(1)), and -- because ODP.NET cannot execute several statements
+        // from one command -- splits at each StartNewCommand() boundary into one command per statement.
         // Our dead letter methods use ToOracleCommandBuilder() instead.
-        return new Weasel.Core.DbCommandBuilder(CreateConnection());
+        return new Weasel.Oracle.OracleDbCommandBuilder();
     }
 
     internal Weasel.Oracle.CommandBuilder ToOracleCommandBuilder()
@@ -403,7 +405,11 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
 
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
-        // For Oracle, we execute operations directly since we can't batch
+        // NOTE: this silently drops the operation. OracleMessageStore implements IMessageDatabase
+        // directly rather than deriving from MessageDatabase, so it has no DatabaseBatcher to hand
+        // the operation to. The durability agent does not use this path -- it builds its own
+        // DatabaseOperationBatch -- and the one caller that does, OracleNodePersistence.LogRecordsAsync,
+        // works around it by inserting directly. Tracked separately; see the comment there.
         return Task.CompletedTask;
     }
 
