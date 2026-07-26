@@ -94,6 +94,17 @@ public class InvoicesEndpoint
     }
 }
 
+// GH-3625 guard: here the compiled query is a Load-returned data dependency, NOT
+// the endpoint's resource, so QuerySpecificationPolicy must still inject the
+// FetchSpecificationFrame that materializes it for the endpoint method.
+public static class ApprovedInvoiceCountEndpoint
+{
+    public static ApprovedInvoicedCompiledQuery Load() => new();
+
+    [WolverineGet("/invoices/approved/count")]
+    public static string Get(IEnumerable<Invoice> invoices) => invoices.Count().ToString();
+}
+
 public class Invoice : ISoftDeleted
 {
     public Guid Id { get; set; }

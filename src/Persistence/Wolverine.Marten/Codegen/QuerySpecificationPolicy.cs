@@ -64,10 +64,32 @@ internal class QuerySpecificationPolicy : IMethodPreCompilationPolicy
             var baseIndex = method.Frames.IndexOf(frame);
             foreach (var specVar in specVars)
             {
+                // GH-3625: a spec that another frame already consumes directly — a
+                // pre-bound MethodCall argument — is not a Load-style data dependency,
+                // so injecting a fetch would only execute the query again and discard
+                // the result. The concrete case: Wolverine.Http.Marten's
+                // CompiledQueryWriterPolicy claims a compiled query that is the HTTP
+                // endpoint's resource and executes it itself (WriteArray/WriteOne
+                // streaming, or QueryAsync for primitive results).
+                if (IsConsumedDirectly(specVar, frames, frame)) continue;
+
                 var fetchFrame = new FetchSpecificationFrame(specVar);
                 method.Frames.Insert(baseIndex + 1, fetchFrame);
             }
         }
+    }
+
+    /// <summary>
+    /// Returns true if some other frame in the method consumes the specification
+    /// variable itself as an explicitly pre-bound MethodCall argument. Arguments are
+    /// only pre-bound at chain-building time (resource writer policies, cascading
+    /// message capture); ordinary dependencies resolve later during FindVariables,
+    /// so a Load-returned spec whose *result* feeds Handle never matches.
+    /// </summary>
+    private static bool IsConsumedDirectly(Variable specVar, List<Frame> frames, Frame creator)
+    {
+        return frames.OfType<MethodCall>()
+            .Any(call => !ReferenceEquals(call, creator) && call.Arguments.Contains(specVar));
     }
 
     /// <summary>
