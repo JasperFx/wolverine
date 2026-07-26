@@ -20,7 +20,17 @@ public enum NodeRecordType
     /// pg_terminate_backend, AlwaysOn failover, etc.) and stepped down so a
     /// new leadership election could happen. See GH-2602.
     /// </summary>
-    LeadershipLost
+    LeadershipLost,
+
+    /// <summary>
+    /// A locally-owned agent stopped running because of a failure it reported rather
+    /// than because anything asked it to stop — an event-subscription shard the daemon
+    /// paused on an <c>ApplyEventException</c> being the case this exists for. The
+    /// record's Description carries the classified reason (category, failing event,
+    /// root exception) so the failure is readable after the fact, and from another
+    /// process, instead of only in this node's logs. See GH-3637 / GH-3638.
+    /// </summary>
+    AgentPaused
 }
 
 // This is marked as ISerializable so that it can go to CritterWatch w/o

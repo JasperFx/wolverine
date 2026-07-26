@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using JasperFx;
+using JasperFx.Events.Daemon;
 using Microsoft.Extensions.Logging;
 using Wolverine.Transports;
 
@@ -30,6 +31,12 @@ public partial class NodeAgentController
     // capabilities instead of an empty skeleton -- an empty-capability row is a candidate for nothing in
     // capability-matched distribution, which silently shrinks the cluster.
     private IReadOnlyList<Uri> _capabilities = Array.Empty<Uri>();
+
+    // GH-3638: agents already reported as failed, so the sweep below and the restart suppression in
+    // StartAgentAsync fire once per transition into failure rather than on every 30s tick. An entry is
+    // dropped the moment the agent is seen running again, so a shard that recovers and later fails anew
+    // reports the new failure.
+    private readonly ConcurrentDictionary<Uri, byte> _reportedFailures = new();
 
     // 0=free, 1=busy; guards against concurrent DoHealthChecksAsync calls
     // from the heartbeat loop and a CheckAgentHealth message arriving
@@ -207,6 +214,18 @@ public partial class NodeAgentController
                 return;
             }
 
+            // GH-3638: a shard the daemon stopped on a failure that will recur on the exact same event --
+            // a poison event, a body it cannot deserialize, an event type this deployment doesn't know, or
+            // a progression row two processes are fighting over -- must NOT be swept back up by the
+            // GH-3519 wedge recovery below. Restarting it re-runs the identical failure every
+            // reevaluation, and each restart resets the operator's view of when and where it broke. Leave
+            // it stopped, and surface the reason instead so somebody can act on it.
+            if (existing is IEventSubscriptionAgent subscription && !canSelfHeal(subscription.Failure))
+            {
+                await reportAgentPausedAsync(agentUri, subscription.Failure);
+                return;
+            }
+
             // GH-3519: the agent is still registered on this node but its underlying shard has stopped
             // (e.g. an event-subscription shard that lost a first-assignment startup race and wedged, or
             // whose daemon execution loop faulted). The old blanket ContainsKey short-circuit treated any
@@ -229,23 +248,87 @@ public partial class NodeAgentController
             }
         }
 
-        var agent = await findAgentAsync(agentUri);
-        try
-        {
-            await agent.StartAsync(_cancellation.Token);
-            await _observer.AgentStarted(agentUri);
-
-            _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri,
-                _runtime.Options.Durability.AssignedNodeNumber);
-        }
-        catch (Exception e)
-        {
-            throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
-        }
+        var agent = await startWithRetriesAsync(agentUri);
 
         Agents[agentUri] = agent;
 
+        // GH-3638: a start that succeeded supersedes whatever failure was last reported for this agent, so
+        // a later failure alerts again instead of being swallowed as a duplicate of the old one.
+        _reportedFailures.TryRemove(agentUri, out _);
+
         await upsertAssignmentAsync(agentUri);
+    }
+
+    /// <summary>
+    /// Start an agent, retrying a failure a bounded number of times before giving up on this tick.
+    ///
+    /// <para>GH-3519: a first-assignment start races whatever the agent depends on coming up. The reported
+    /// shape is a multi-store Marten host where one event-subscription shard — a different one on every
+    /// boot — was evaluated before its store's high-water detection was running and failed; the daemon now
+    /// says so in as many words (<c>ShardStartException</c>, JasperFx/jasperfx#534) and releases the
+    /// half-started shard (jasperfx#540), so the very next attempt succeeds. Without a local retry that
+    /// attempt only came on the next assignment reevaluation, so the loser of the race sat idle for a full
+    /// CheckAssignmentPeriod while its high-water mark climbed — the "permanent 30-second retry loop" in
+    /// the report.</para>
+    ///
+    /// <para>Each attempt goes back through <see cref="findAgentAsync" />: a faulted start may have left
+    /// the family's agent object unusable, and the family owns whether a rebuild is a fresh object or the
+    /// same one. The exception thrown after the last attempt is the LAST failure with its cause intact —
+    /// the daemon's reason for the final attempt is what an operator needs, not the first one's.</para>
+    /// </summary>
+    private async Task<IAgent> startWithRetriesAsync(Uri agentUri)
+    {
+        var maxAttempts = Math.Max(1, _runtime.Options.Durability.AgentStartRetryAttempts + 1);
+
+        for (var attempt = 1; ; attempt++)
+        {
+            var agent = await findAgentAsync(agentUri);
+            try
+            {
+                await agent.StartAsync(_cancellation.Token);
+                await _observer.AgentStarted(agentUri);
+
+                if (attempt > 1)
+                {
+                    _logger.LogInformation(
+                        "Successfully started agent {AgentUri} on Node {NodeNumber} on attempt {Attempt}",
+                        agentUri, _runtime.Options.Durability.AssignedNodeNumber, attempt);
+                }
+                else
+                {
+                    _logger.LogInformation("Successfully started agent {AgentUri} on Node {NodeNumber}", agentUri,
+                        _runtime.Options.Durability.AssignedNodeNumber);
+                }
+
+                return agent;
+            }
+            catch (Exception e)
+            {
+                if (attempt >= maxAttempts || _cancellation.IsCancellationRequested)
+                {
+                    throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
+                }
+
+                var delay = _runtime.Options.Durability.AgentStartRetryDelay * attempt;
+                _logger.LogWarning(e,
+                    "Attempt {Attempt} of {MaxAttempts} to start agent {AgentUri} on node {NodeNumber} failed; retrying in {Delay}",
+                    attempt, maxAttempts, agentUri, _runtime.Options.Durability.AssignedNodeNumber, delay);
+
+                if (delay > TimeSpan.Zero)
+                {
+                    try
+                    {
+                        await Task.Delay(delay, _cancellation.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Shutting down mid-retry. Report the start failure the caller was actually
+                        // waiting on rather than a cancellation that says nothing about why it failed.
+                        throw new AgentStartingException(agentUri, _runtime.Options.UniqueNodeId, e);
+                    }
+                }
+            }
+        }
     }
 
     // Persist that this node owns agentUri. AddAssignmentAsync is an upsert, so this is safe to call for a
@@ -301,6 +384,80 @@ public partial class NodeAgentController
     public Uri[] AllRunningAgentUris()
     {
         return Agents.Where(x => x.Value.Status != AgentStatus.Stopped).Select(x => x.Key).ToArray();
+    }
+
+    /// <summary>
+    /// Whether an event-subscription agent's failure is one an automated restart could plausibly clear.
+    /// A transient infrastructure fault (<see cref="ShardFailureCategory.Other" />) is exactly what
+    /// restart-on-stall exists for; every other category is bound to a specific event or to two processes
+    /// racing one shard, and will reproduce identically on the next start. A null failure means the agent
+    /// isn't reporting one — the ordinary wedged-shard case GH-3519 recovers — so it stays restartable.
+    /// </summary>
+    private static bool canSelfHeal(ShardFailure? failure)
+        => failure == null || failure.Category == ShardFailureCategory.Other;
+
+    /// <summary>
+    /// Surface a locally-owned agent that stopped or paused on a failure: log it with the classified
+    /// reason and notify observers, once per transition into the failed state. See GH-3637 / GH-3638.
+    /// </summary>
+    private async Task reportAgentPausedAsync(Uri agentUri, ShardFailure? failure)
+    {
+        if (!_reportedFailures.TryAdd(agentUri, 0))
+        {
+            return;
+        }
+
+        _logger.LogError(
+            "Agent {AgentUri} on node {NodeNumber} is not running because of a failure it cannot recover from by restarting: {Failure}. It will be left alone until the underlying problem is resolved.{Detail}",
+            agentUri, _runtime.Options.Durability.AssignedNodeNumber,
+            failure?.ToString() ?? "no reason reported",
+            failure == null ? string.Empty : Environment.NewLine + failure.Detail);
+
+        try
+        {
+            await _observer.AgentPaused(agentUri, failure);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error notifying observers that agent {AgentUri} paused", agentUri);
+        }
+    }
+
+    /// <summary>
+    /// Sweep this node's own agents for any that have stopped or paused underneath us on a reported
+    /// failure. Runs on every node on every health-check tick, independently of leadership: the daemon
+    /// pauses a shard on the node that owns it, and before this nothing in the assignment plane ever
+    /// distinguished a paused shard from a running one — the anti-thrash guards kept it from being
+    /// restarted in a loop, so its progress just silently flatlined. See GH-3637 / GH-3638.
+    /// </summary>
+    internal async Task ReportFailedLocalAgentsAsync()
+    {
+        foreach (var entry in Agents.ToArray())
+        {
+            if (entry.Value is not IEventSubscriptionAgent subscription)
+            {
+                continue;
+            }
+
+            // Status is read once: it delegates to the live daemon shard (GH-3519), so two reads in one
+            // pass can legitimately disagree.
+            var status = subscription.Status;
+            if (status == AgentStatus.Running)
+            {
+                _reportedFailures.TryRemove(entry.Key, out _);
+                continue;
+            }
+
+            var failure = subscription.Failure;
+            if (failure == null)
+            {
+                // Stopped with nothing to report is the ordinary wedged-shard case; GH-3519's recovery in
+                // StartAgentAsync owns that one, and reporting it here would fire on every stop.
+                continue;
+            }
+
+            await reportAgentPausedAsync(entry.Key, failure);
+        }
     }
 
     /// <summary>

@@ -280,6 +280,26 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxAgentStopParallelism { get; set; } = 10;
 
     /// <summary>
+    ///     GH-3519: how many extra times this node immediately re-tries an agent that failed to start,
+    ///     before giving up and leaving it to the next assignment reevaluation. A first-assignment start
+    ///     races the subsystems the agent depends on — an event-subscription shard evaluated before its
+    ///     store's high-water detection is up is the reported case, and on a multi-store host a different
+    ///     shard lost that race on every boot. Without a local retry the loser waited a full
+    ///     <see cref="CheckAssignmentPeriod" /> (30s by default) doing nothing while its high-water mark
+    ///     climbed. Set to 0 to restore the old single-attempt behavior. Default 2.
+    /// </summary>
+    public int AgentStartRetryAttempts { get; set; } = 2;
+
+    /// <summary>
+    ///     GH-3519: how long this node waits before each of the <see cref="AgentStartRetryAttempts" />
+    ///     immediate re-tries of a failed agent start, multiplied by the attempt number so the second
+    ///     retry waits twice as long as the first. Sized for a startup race that resolves in well under a
+    ///     second, not for an outage — a failure that outlives these attempts is left to the next
+    ///     assignment reevaluation rather than retried harder here. Default 250ms.
+    /// </summary>
+    public TimeSpan AgentStartRetryDelay { get; set; } = 250.Milliseconds();
+
+    /// <summary>
     /// Opt-in switch for the dynamic listener registry: persisted listener URIs that
     /// are activated at runtime in addition to the listeners declared statically
     /// through <see cref="WolverineOptions"/>. When <c>true</c>, <c>IMessageStore.Listeners</c>

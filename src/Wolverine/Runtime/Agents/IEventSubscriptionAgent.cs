@@ -1,3 +1,5 @@
+using JasperFx.Events.Daemon;
+
 namespace Wolverine.Runtime.Agents;
 
 /// <summary>
@@ -26,4 +28,19 @@ public interface IEventSubscriptionAgent : IAgent
     /// <param name="timestamp">Optional point-in-time to rewind to; replays events on/after this time.</param>
     Task RewindAsync(long? sequenceFloor, DateTimeOffset? timestamp, CancellationToken cancellationToken)
         => throw new NotSupportedException("This event-subscription agent does not support rewind.");
+
+    /// <summary>
+    /// WHY this shard was paused or stopped, when it was. <see cref="IAgent.Status" /> alone says a shard
+    /// is <see cref="JasperFx.AgentStatus.Paused" /> but never what an operator should do about it, so
+    /// progress could flatline with nothing actionable to alert on. The category distinguishes a poison
+    /// event (needs a code fix or a skip) from a serialization fault, an unregistered event type, two
+    /// processes racing the same shard, or a transient infrastructure blip — and the failing event's
+    /// sequence names exactly where it stopped.
+    ///
+    /// <para>A plain serializable value rather than an <see cref="Exception" />, so it survives the hop to
+    /// the assignment plane, a persisted progression row, or a monitoring UI. Null whenever the shard is
+    /// not reporting a failure. Default null so existing implementations are unaffected.
+    /// See GH-3637 / GH-3638 and JasperFx/jasperfx#565.</para>
+    /// </summary>
+    ShardFailure? Failure => null;
 }

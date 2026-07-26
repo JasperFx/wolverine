@@ -142,6 +142,20 @@ public partial class NodeAgentController
         // conflict.
         await ensureLocalNodeRegisteredAsync(_cancellation.Token);
 
+        // GH-3637 / GH-3638: before any leadership work, surface this node's OWN agents that stopped or
+        // paused on a failure. Deliberately here rather than in the leader-only branch below -- the daemon
+        // pauses a shard on whichever node owns it, and a follower has to be able to report its own.
+        // Wrapped so a reporting fault can never cost this node its heartbeat or its leadership lease.
+        try
+        {
+            await ReportFailedLocalAgentsAsync();
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error trying to report failed agents on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+        }
+
         var (nodes, restrictions) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
 
 
