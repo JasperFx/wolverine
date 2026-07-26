@@ -172,6 +172,49 @@ await host.StartAsync();
 `AutoProvision()`, `AutoPurgeOnStartup()`, conventional routing, queue and topic configuration -- chains off of it exactly as it
 would against a real namespace.
 
+## Named Brokers and the Management Connection String
+
+There is no emulator-flavored overload of `AddNamedAzureServiceBusBroker()`. The named broker methods take only the *messaging*
+(AMQP) connection string, because a real Azure Service Bus namespace uses one connection string for both messaging and management.
+Against the emulator that assumption does not hold, and the management endpoint has to be supplied separately:
+
+<!-- snippet: sample_named_azure_service_bus_broker_management_connection_string -->
+<a id='snippet-sample_named_azure_service_bus_broker_management_connection_string'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    var name = new BrokerName("secondary");
+
+    // AddNamedAzureServiceBusBroker() only takes the messaging (AMQP)
+    // connection string, because a real Azure Service Bus namespace uses
+    // one connection string for both messaging and management
+    opts.AddNamedAzureServiceBusBroker(name,
+            builder.Configuration.GetConnectionString("azureservicebus-secondary")!)
+        .AutoProvision();
+
+    // Against an emulator -- or anywhere else the management (HTTP) endpoint
+    // is not derivable from the messaging endpoint -- reach the named transport
+    // and set the management connection string explicitly. Without this, anything
+    // that talks to the management API (AutoProvision, AutoPurgeOnStartup,
+    // resource setup) will try to guess the management endpoint and fail
+    opts.Transports.GetOrCreate<AzureServiceBusTransport>(name)
+        .ManagementConnectionString =
+        AzureServiceBusEmulatorExtensions.DefaultEmulatorManagementConnectionString;
+});
+
+using var host = builder.Build();
+await host.StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L120-L147' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_named_azure_service_bus_broker_management_connection_string' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Skipping this is easy to miss, because nothing fails until something actually calls the management API. `AutoProvision()`,
+`AutoPurgeOnStartup()`, and resource setup all do, and the failure surfaces as a connection error against a port you never
+configured -- the Azure SDK derives a management endpoint from the messaging endpoint when none was given, which for a
+non-standard AMQP port lands somewhere unrelated. If a named broker fails at startup with `Connection refused` against an
+unexpected port, this is almost always the cause.
+
 ## Deleting All Existing Objects at Startup
 
 The emulator is a long lived, shared resource, and leftover queues or topics from earlier runs can leak into later ones. Wolverine

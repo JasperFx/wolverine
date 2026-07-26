@@ -47,7 +47,10 @@ public class PubsubConfiguration : BrokerExpression<
         Action<PubsubMessageRoutingConvention>? configure = null
     )
     {
-        var routing = new PubsubMessageRoutingConvention();
+        var routing = new PubsubMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
 
         configure?.Invoke(routing);
 
@@ -68,7 +71,10 @@ public class PubsubConfiguration : BrokerExpression<
         Action<PubsubMessageRoutingConvention>? configure = null
     )
     {
-        var routing = new PubsubMessageRoutingConvention();
+        var routing = new PubsubMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         routing.UseNaming(namingSource);
 
         configure?.Invoke(routing);
