@@ -9,8 +9,8 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
     where TSubscriber : ISubscriberConfiguration<TSubscriber>
 {
     private PartitionSlots _listeningSlots;
-    
-    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+
+    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName = null) : base(options, listeningSlots, baseName, numberOfEndpoints, brokerName)
     {
         if (listeningSlots.HasValue)
         {
@@ -59,15 +59,22 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
 public abstract class PartitionedMessageTopology
 {
     protected readonly WolverineOptions _options;
-    
-    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints)
+
+    /// <summary>
+    /// The named broker this topology's endpoints should be built against, or null for the
+    /// default/unnamed transport. Set before <see cref="buildEndpoint" /> is first called.
+    /// </summary>
+    protected readonly BrokerName? BrokerName;
+
+    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName = null)
     {
         if (numberOfEndpoints <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(numberOfEndpoints), "Must be a positive number");
         }
-        
+
         _options = options;
+        BrokerName = brokerName;
         _names = new string[numberOfEndpoints];
 
         for (int i = 0; i < numberOfEndpoints; i++)
