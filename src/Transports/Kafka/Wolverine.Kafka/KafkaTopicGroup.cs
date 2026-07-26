@@ -181,7 +181,7 @@ public class KafkaTopicGroup : KafkaTopic, IBrokerEndpoint
             }
             catch (CreateTopicsException e)
             {
-                if (e.Message.Contains("already exists.")) continue;
+                if (e.Results.Count > 0 && e.Results.All(x => x.Error.Code == ErrorCode.TopicAlreadyExists)) continue;
                 throw;
             }
         }

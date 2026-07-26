@@ -415,7 +415,7 @@ public class KafkaTopic : Endpoint<IKafkaEnvelopeMapper, KafkaEnvelopeMapper>, I
         }
         catch (CreateTopicsException e)
         {
-            if (e.Message.Contains("already exists.")) return;
+            if (e.Results.Count > 0 && e.Results.All(x => x.Error.Code == ErrorCode.TopicAlreadyExists)) return;
             throw;
         }
     }
