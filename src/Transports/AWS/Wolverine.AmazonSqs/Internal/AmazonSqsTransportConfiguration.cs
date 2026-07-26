@@ -70,7 +70,10 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     public AmazonSqsTransportConfiguration UseConventionalRouting(
         Action<AmazonSqsMessageRoutingConvention>? configure = null)
     {
-        var routing = new AmazonSqsMessageRoutingConvention();
+        var routing = new AmazonSqsMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         configure?.Invoke(routing);
 
         Options.RouteWith(routing);
@@ -89,7 +92,10 @@ public class AmazonSqsTransportConfiguration : BrokerExpression<AmazonSqsTranspo
     public AmazonSqsTransportConfiguration UseConventionalRouting(NamingSource namingSource,
         Action<AmazonSqsMessageRoutingConvention>? configure = null)
     {
-        var routing = new AmazonSqsMessageRoutingConvention();
+        var routing = new AmazonSqsMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         routing.UseNaming(namingSource);
         configure?.Invoke(routing);
 

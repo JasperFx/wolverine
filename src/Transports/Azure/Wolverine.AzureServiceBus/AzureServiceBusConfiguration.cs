@@ -167,7 +167,10 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     public AzureServiceBusConfiguration UseConventionalRouting(
         Action<AzureServiceBusMessageRoutingConvention>? configure = null)
     {
-        var routing = new AzureServiceBusMessageRoutingConvention();
+        var routing = new AzureServiceBusMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         configure?.Invoke(routing);
 
         Options.RouteWith(routing);
@@ -187,7 +190,10 @@ public class AzureServiceBusConfiguration : BrokerExpression<AzureServiceBusTran
     public AzureServiceBusConfiguration UseConventionalRouting(NamingSource namingSource,
         Action<AzureServiceBusMessageRoutingConvention>? configure = null)
     {
-        var routing = new AzureServiceBusMessageRoutingConvention();
+        var routing = new AzureServiceBusMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         routing.UseNaming(namingSource);
         configure?.Invoke(routing);
 

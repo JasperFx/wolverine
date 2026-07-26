@@ -43,6 +43,20 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
     /// </summary>
     private readonly object _senderRegistrationLock = new();
 
+    /// <summary>
+    /// The specific transport instance this convention should route against, set by
+    /// transport-specific <c>UseConventionalRouting()</c> methods (e.g. on
+    /// <see cref="BrokerExpression{TTransport,TListenerEndpoint,TSubscriberEndpoint,TListenerExpression,TSubscriber,TSelf}"/>
+    /// subclasses) to the broker they were configured against. When null, falls back to the
+    /// default transport instance for <typeparamref name="TTransport"/>. Without this, conventional
+    /// routing configured against a named broker would silently discover listeners and senders
+    /// against the default broker instead. See GH-3633.
+    /// </summary>
+    public TTransport? BoundTransport { get; set; }
+
+    private TTransport resolveTransport(IWolverineRuntime runtime)
+        => BoundTransport ?? runtime.Options.Transports.GetOrCreate<TTransport>();
+
     void IMessageRoutingConvention.DiscoverListeners(IWolverineRuntime runtime, IReadOnlyList<Type> handledMessageTypes)
     {
         if(_onlyApplyToOutboundMessages)
@@ -50,7 +64,7 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
             return;
         }
 
-        var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
+        var transport = resolveTransport(runtime);
 
         foreach (var messageType in handledMessageTypes.Where(t => _typeFilters.Matches(t)))
         {
@@ -185,7 +199,7 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
 
     RoutingConventionDescriptor IMessageRoutingConvention.Describe(IWolverineRuntime runtime)
     {
-        var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
+        var transport = resolveTransport(runtime);
         return new RoutingConventionDescriptor
         {
             Name = GetType().Name,
@@ -280,7 +294,7 @@ public abstract class MessageRoutingConvention<[DynamicallyAccessedMembers(Dynam
         // otherwise corrupt the non-thread-safe HashSet. See GH-2874.
         lock (_senderRegistrationLock)
         {
-            var transport = runtime.Options.Transports.GetOrCreate<TTransport>();
+            var transport = resolveTransport(runtime);
 
             var corrected = transport.MaybeCorrectName(destinationName);
 

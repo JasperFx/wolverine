@@ -202,7 +202,10 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression UseConventionalRouting(
         Action<RabbitMqMessageRoutingConvention>? configure = null)
     {
-        var convention = new RabbitMqMessageRoutingConvention();
+        var convention = new RabbitMqMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         configure?.Invoke(convention);
         Options.RoutingConventions.Add(convention);
 
@@ -220,7 +223,10 @@ public class RabbitMqTransportExpression : BrokerExpression<RabbitMqTransport, R
     public RabbitMqTransportExpression UseConventionalRouting(NamingSource namingSource,
         Action<RabbitMqMessageRoutingConvention>? configure = null)
     {
-        var convention = new RabbitMqMessageRoutingConvention();
+        var convention = new RabbitMqMessageRoutingConvention
+        {
+            BoundTransport = Transport
+        };
         convention.UseNaming(namingSource);
         configure?.Invoke(convention);
         Options.RoutingConventions.Add(convention);
