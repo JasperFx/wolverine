@@ -345,6 +345,22 @@ public class strict_query_string_binding : IClassFixture<StrictQueryBindingFixtu
         response.Pages.ShouldBe([3]);
     }
 
+    // An enum array element used to parse case-sensitively while the scalar binder passed
+    // ignoreCase, so a camelCased value -- the default System.Text.Json spelling clients see in
+    // responses -- fell through to the rejection block and turned a valid request into a 400.
+    [Fact]
+    public async Task differently_cased_enum_array_elements_bind_in_strict_mode()
+    {
+        var result = await _fixture.StrictHost.Scenario(x =>
+        {
+            x.Get.Url("/strict/collections?Colours=red&Colours=GREEN&Colours=bLuE");
+            x.StatusCodeShouldBe(200);
+        });
+
+        var response = await result.ReadAsJsonAsync<StrictCollectionQueryModel>();
+        response.Colours.ShouldBe([StrictColour.Red, StrictColour.Green, StrictColour.Blue]);
+    }
+
     [Fact]
     public async Task omitted_collections_keep_initializers_in_strict_mode()
     {
