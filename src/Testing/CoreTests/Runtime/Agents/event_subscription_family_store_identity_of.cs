@@ -84,4 +84,23 @@ public class event_subscription_family_store_identity_of
         (await family.TryRebuildRegisteredProjectionAsync("", "Trip:All", null, CancellationToken.None))
             .ShouldBeFalse();
     }
+
+    [Fact]
+    public async Task find_agent_uri_for_a_store_this_family_does_not_manage_reports_nothing()
+    {
+        // GH-3647: the store-scoped FindAgentUriAsync overload must return null rather than falling back to a
+        // store-blind search, so a caller looping over every registered family moves on to the next one.
+        var family = new EventSubscriptionAgentFamily([], []);
+
+        (await family.FindAgentUriAsync("nobody:marten", "Trip:All", null, CancellationToken.None))
+            .ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task find_agent_uri_with_an_empty_store_identity_reports_nothing()
+    {
+        var family = new EventSubscriptionAgentFamily([], []);
+
+        (await family.FindAgentUriAsync("", "Trip:All", null, CancellationToken.None)).ShouldBeNull();
+    }
 }
