@@ -502,7 +502,9 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
             // Query only entries whose score <= now (ready to execute), without
             // removing entries that aren't ready yet. This avoids the race condition
             // where a pop-then-re-add temporarily empties the sorted set.
-            var readyEntries = await database.SortedSetRangeByScoreAsync(
+            // WithScores so that an entry we claim but then fail to hand off to the stream can be
+            // restored at its original due time instead of being dropped (GH-3613).
+            var readyEntries = await database.SortedSetRangeByScoreWithScoresAsync(
                 scheduledKey,
                 double.NegativeInfinity,
                 now,
@@ -521,19 +523,23 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
 
             long count = 0;
 
-            foreach (var serializedEnvelope in readyEntries)
+            foreach (var entry in readyEntries)
             {
                 if (cancellationToken.IsCancellationRequested) break;
 
+                var serializedEnvelope = entry.Element;
+                var claimed = false;
+
                 try
                 {
-                    // Remove from sorted set first; if another consumer already
-                    // removed it we skip.
-                    var removed = await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
-                    if (!removed) continue;
-
-                    // Deserialize the envelope
+                    // Deserialize BEFORE claiming the entry. Claiming first meant that a payload we
+                    // could not read was already gone from the sorted set by the time the catch below
+                    // ran, so the message was lost outright (GH-3613).
                     var envelope = EnvelopeSerializer.Deserialize(serializedEnvelope!);
+
+                    // Claim the entry; if another consumer already removed it we skip.
+                    claimed = await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+                    if (!claimed) continue;
 
                     // Add it to the stream
                     _endpoint.EnvelopeMapper ??= _endpoint.BuildMapper(_runtime);
@@ -557,10 +563,24 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 {
                     _logger.LogError(
                         ex,
-                        "Error processing scheduled message in {ScheduledKey}",
+                        "Error processing scheduled message in {ScheduledKey}, leaving it in place to be retried",
                         scheduledKey);
-                    // Remove the corrupted message from the scheduled set
-                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
+
+                    // If we already claimed the entry but failed to hand it to the stream, put it back
+                    // rather than dropping it. An entry we never claimed is left where it is.
+                    if (claimed)
+                    {
+                        try
+                        {
+                            await database.SortedSetAddAsync(scheduledKey, serializedEnvelope, entry.Score);
+                        }
+                        catch (Exception restoreFailure)
+                        {
+                            _logger.LogError(restoreFailure,
+                                "Unable to restore scheduled message to {ScheduledKey} after a failed hand-off to stream {StreamKey}; the message is lost",
+                                scheduledKey, _endpoint.StreamKey);
+                        }
+                    }
                 }
             }
 
@@ -610,10 +630,13 @@ public class RedisStreamListener : IListener, ISupportDeadLetterQueue, IReportCo
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Error checking expiration for scheduled message in {ScheduledKey}, removing it", scheduledKey);
-                    // Remove corrupted messages
-                    await database.SortedSetRemoveAsync(scheduledKey, serializedEnvelope);
-                    expiredCount++;
+                    // Do NOT remove the entry. This sweep only exists to evict messages that are
+                    // genuinely past their DeliverBy; a message we cannot read is not known to be
+                    // expired, and deleting it here silently destroyed scheduled retries that never
+                    // got a chance to redeliver or to reach the dead letter queue (GH-3613).
+                    _logger.LogWarning(ex,
+                        "Unable to read a scheduled message in {ScheduledKey} while checking expiration; leaving it in place",
+                        scheduledKey);
                 }
             }
 
