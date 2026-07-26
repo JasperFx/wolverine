@@ -151,18 +151,31 @@ public partial class NodeAgentController
 
     private async Task stopAllAgentsAsync()
     {
-        foreach (var entry in Agents)
+        // GH-3604 / D3 (WO-7): drain every locally-running agent with bounded parallelism instead of one at a
+        // time. On a node running a large agent universe (database-per-tenant Marten with thousands of
+        // subscription shards) the old sequential loop could not finish inside a typical 30s SIGTERM grace
+        // window, so k8s SIGKILLed the process mid-drain and abandoned unflushed daemon progression -->
+        // ProgressionOutOfOrderException on the next start. A bounded fan-out makes the shutdown window usable.
+        //
+        // Deliberately NOT threading a cancellation token into StopAsync here (each still gets
+        // CancellationToken.None as before): this is the shutdown path itself, and a cancelled drain would
+        // leave agents half-stopped. Each StopAsync keeps its own try/catch so one wedged agent cannot abort
+        // the drain of its peers.
+        var dop = Math.Max(1, _runtime.Options.Durability.MaxAgentStopParallelism);
+        var options = new ParallelOptions { MaxDegreeOfParallelism = dop };
+
+        await Parallel.ForEachAsync(Agents.ToArray(), options, async (entry, _token) =>
         {
             try
             {
                 await entry.Value.StopAsync(CancellationToken.None);
-                Agents.Remove(entry.Key, out var _);
+                Agents.TryRemove(entry.Key, out _);
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "Error trying to stop agent {AgentUri}", entry.Value.Uri);
             }
-        }
+        });
     }
 
     private ValueTask<IAgent> findAgentAsync(Uri uri)

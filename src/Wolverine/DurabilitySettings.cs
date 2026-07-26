@@ -271,6 +271,15 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxAgentStartParallelism { get; set; } = 10;
 
     /// <summary>
+    ///     GH-3604 / D3 (WO-7): the maximum number of agents this node stops concurrently when it is
+    ///     draining every locally-running agent on shutdown. The old sequential drain
+    ///     (<c>stopAllAgentsAsync</c>) could not finish thousands of daemon subscription agents inside a
+    ///     typical 30s SIGTERM grace window, so agents were SIGKILLed mid-stop with unflushed progression.
+    ///     A bounded fan-out makes the shutdown window usable at scale. Default 10.
+    /// </summary>
+    public int MaxAgentStopParallelism { get; set; } = 10;
+
+    /// <summary>
     /// Opt-in switch for the dynamic listener registry: persisted listener URIs that
     /// are activated at runtime in addition to the listeners declared statically
     /// through <see cref="WolverineOptions"/>. When <c>true</c>, <c>IMessageStore.Listeners</c>
