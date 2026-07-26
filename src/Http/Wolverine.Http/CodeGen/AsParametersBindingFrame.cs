@@ -50,9 +50,20 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
             // only built when the chain is compiled, and HttpChain.applyMetadata() — which turns IsFormData
             // into Accepts metadata — can run BEFORE that, depending on the route warm-up mode. Waiting for
             // the frame meant the metadata was stamped from the optimistic default. See GH-3630.
-            DescribeAsParametersBinding(parameter.ParameterType, out var hasForm, out var hasBody);
+            DescribeAsParametersBinding(parameter.ParameterType, out var hasForm, out var bodyType,
+                out var bodyIsOptional);
             chain.IsFormData = hasForm;
-            chain.ReadsRequestBody = hasForm || hasBody;
+            chain.ReadsRequestBody = hasForm || bodyType != null;
+
+            // Same reasoning, extended to the [FromBody] member (GH-3646). The frame's constructor assigns
+            // these too, but applyMetadata()/fillRequestType() can run before the chain is ever compiled, and
+            // then they would describe the [AsParameters] CONTAINER as the request body instead of the payload
+            // member, and lose the member's nullability (GH-3135's requestBody.required).
+            if (bodyType != null)
+            {
+                chain.RequestType = bodyType;
+                chain.RequestBodyIsOptional = bodyIsOptional;
+            }
 
             var bindingFrame = new AsParametersBindingFrame(parameter.ParameterType, chain, container);
             chain.AsParametersVariable = bindingFrame.Variable;
@@ -72,14 +83,21 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
     ///     <para>A type whose members are all <c>[FromQuery]</c> / <c>[FromRoute]</c> / <c>[FromHeader]</c>
     ///     answers "no" to both — it reads no body, and an endpoint that advertises one it never reads gets
     ///     dropped from route matching by ASP.NET Core's <c>AcceptsMatcherPolicy</c>. See GH-3630.</para>
+    ///
+    ///     <para><paramref name="bodyType" /> is the type of the single <c>[FromBody]</c> member, or null when
+    ///     there is none, and <paramref name="bodyIsOptional" /> its nullability — the two values the request
+    ///     description needs and which used to be assigned only once the chain was compiled. See GH-3646.
+    ///     A type with more than one <c>[FromBody]</c> member is rejected by the frame's constructor with a
+    ///     clear message; this reports the first and does not pre-empt that.</para>
     /// </summary>
     internal static void DescribeAsParametersBinding(
         [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors |
                                     DynamicallyAccessedMemberTypes.PublicProperties)]
-        Type type, out bool hasForm, out bool hasBody)
+        Type type, out bool hasForm, out Type? bodyType, out bool bodyIsOptional)
     {
         hasForm = false;
-        hasBody = false;
+        bodyType = null;
+        bodyIsOptional = false;
 
         // A type with more than one public constructor is rejected by the binding frame below with a clear
         // message; don't pre-empt that here, just describe what can be described.
@@ -92,9 +110,10 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
                 {
                     hasForm = true;
                 }
-                else if (parameter.HasAttribute<FromBodyAttribute>())
+                else if (parameter.HasAttribute<FromBodyAttribute>() && bodyType == null)
                 {
-                    hasBody = true;
+                    bodyType = parameter.ParameterType;
+                    bodyIsOptional = AsParametersBindingFrame.IsNullableMember(parameter);
                 }
             }
         }
@@ -105,9 +124,10 @@ internal class AsParamatersAttributeUsage : IParameterStrategy
             {
                 hasForm = true;
             }
-            else if (property.HasAttribute<FromBodyAttribute>())
+            else if (property.HasAttribute<FromBodyAttribute>() && bodyType == null)
             {
-                hasBody = true;
+                bodyType = property.PropertyType;
+                bodyIsOptional = AsParametersBindingFrame.IsNullableMember(property);
             }
         }
     }
@@ -404,7 +424,7 @@ internal class AsParametersBindingFrame : SyncFrame
     // A member is nullable when it's a Nullable<T> value type or a reference type whose nullable
     // annotation context marks it nullable. A fresh NullabilityInfoContext per call keeps this
     // thread-safe across concurrent chain compilation.
-    private static bool IsNullableMember(ParameterInfo parameter)
+    internal static bool IsNullableMember(ParameterInfo parameter)
     {
         if (parameter.ParameterType.IsValueType)
         {
@@ -414,7 +434,7 @@ internal class AsParametersBindingFrame : SyncFrame
         return new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
     }
 
-    private static bool IsNullableMember(PropertyInfo property)
+    internal static bool IsNullableMember(PropertyInfo property)
     {
         if (property.PropertyType.IsValueType)
         {
