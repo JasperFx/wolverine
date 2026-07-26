@@ -199,6 +199,12 @@ public static class FormCollectionEndpoints
     {
         return string.Join(",", collection);
     }
+
+    [WolverinePost("/form/array/enum")]
+    public static string UsingEnumArray([FromForm]Direction[] collection)
+    {
+        return string.Join(",", collection);
+    }
     
     
 }

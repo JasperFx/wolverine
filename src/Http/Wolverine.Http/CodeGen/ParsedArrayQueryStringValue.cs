@@ -59,7 +59,10 @@ internal class ParsedArrayQueryStringValue : SyncFrame, IReadHttpFrame
 
             if (elementType!.IsEnum)
             {
-                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, out var {Variable.Usage}ValueParsed))");
+                // Enum names arrive on the wire as strings and must parse case-insensitively, matching the
+                // scalar binder and the List<TEnum> binder. Without ignoreCase a camelCased element (the
+                // default System.Text.Json spelling clients see in responses) is dropped from the array.
+                writer.Write($"BLOCK:if ({elementAlias}.TryParse<{elementAlias}>({Variable.Usage}Value, true, out var {Variable.Usage}ValueParsed))");
             }
             else if (elementType.IsBoolean())
             {
