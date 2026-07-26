@@ -70,6 +70,30 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     // Shared with EnvelopeSerializer.tryReadTimestamp so that the reader always understands what this
     // writer emits — the two drifting apart is GH-3613.
     private const string DateTimeOffsetFormat = EnvelopeConstants.TransportHeaderDateTimeFormat;
+
+    /// <summary>
+    ///     Read a timestamp header written in EITHER of the two shapes Wolverine puts on the wire: this
+    ///     mapper's own <see cref="EnvelopeConstants.TransportHeaderDateTimeFormat" />, or the round-trippable
+    ///     <c>"o"</c> that <see cref="Wolverine.Runtime.Serialization.EnvelopeSerializer" /> writes and that any
+    ///     non-Wolverine producer would use.
+    ///
+    ///     <para>This is step ONE of GH-3645. The writers still emit the legacy format; teaching every reader to
+    ///     accept both has to ship first, or a mixed-version fleet would silently bind <c>null</c> for
+    ///     <c>ScheduledTime</c> / <c>DeliverBy</c> when a newer sender met an older receiver — which is exactly
+    ///     the failure GH-1716 and GH-3613 were. Flipping the writers is a separate, later change.</para>
+    /// </summary>
+    internal static bool TryParseTimestamp(string? raw, out DateTimeOffset value)
+    {
+        // Tried first: it is still what this mapper writes, so it is the common case on the wire today.
+        if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,
+                out value))
+        {
+            return true;
+        }
+
+        return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal,
+            out value);
+    }
     private readonly Endpoint _endpoint;
 
     private readonly Dictionary<PropertyInfo, string> _envelopeToHeader = new();
@@ -345,8 +369,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         {
             var typed = (Action<Envelope, DateTimeOffset>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset>));
             return (env, inc) => typed(env,
-                read(env, inc, headerKey, out var raw) && DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat,
-                    null, DateTimeStyles.AssumeUniversal, out var time)
+                read(env, inc, headerKey, out var raw) && TryParseTimestamp(raw, out var time)
                     ? time
                     : default);
         }
@@ -354,8 +377,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
         {
             var typed = (Action<Envelope, DateTimeOffset?>)setter.CreateDelegate(typeof(Action<Envelope, DateTimeOffset?>));
             return (env, inc) => typed(env,
-                read(env, inc, headerKey, out var raw) && DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat,
-                    null, DateTimeStyles.AssumeUniversal, out var time)
+                read(env, inc, headerKey, out var raw) && TryParseTimestamp(raw, out var time)
                     ? time
                     : null);
         }
@@ -594,7 +616,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,  out var flag))
+            if (TryParseTimestamp(raw, out var flag))
             {
                 return flag;
             }
@@ -607,8 +629,7 @@ public abstract class EnvelopeMapper<TIncoming, TOutgoing> : IEnvelopeMapper<TIn
     {
         if (tryReadIncomingHeader(incoming, key, out var raw))
         {
-            if (DateTimeOffset.TryParseExact(raw, DateTimeOffsetFormat, null, DateTimeStyles.AssumeUniversal,
-                    out var flag))
+            if (TryParseTimestamp(raw, out var flag))
             {
                 return flag;
             }
