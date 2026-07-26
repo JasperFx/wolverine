@@ -516,15 +516,28 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
             //.WithMetadata(Method.Method);
 
+        // Checked outside the HasRequestType branch below on purpose. On a GET a complex parameter binds
+        // from the query string rather than the body, so no Accepts metadata is produced -- but the
+        // attribute itself still reaches the endpoint metadata through the GetCustomAttributes() loop at
+        // the end of this method, and ContentTypeEndpointSelectorPolicy filters candidates on the
+        // attribute directly. The endpoint is just as unreachable, via the other policy. See GH-3648.
+        if (Method.Method.TryGetAttribute<AcceptsContentTypeAttribute>(out var declaredAccepts))
+        {
+            assertCanReceiveARequestBody(
+                $"it is decorated with [AcceptsContentType(\"{declaredAccepts.ContentTypes.Join("\", \"")}\")]");
+        }
+
         if (HasRequestType && ReadsRequestBody)
         {
             if (IsFormData)
             {
+                assertCanReceiveARequestBody("its [AsParameters] or [FromForm] members bind from a form");
                 Metadata.Accepts(RequestType, true, "application/x-www-form-urlencoded", "multipart/form-data");
             }
-            else if (Method.Method.TryGetAttribute<AcceptsContentTypeAttribute>(out var acceptsAtt))
+            else if (declaredAccepts != null)
             {
-                Metadata.Accepts(RequestType, false, acceptsAtt.ContentTypes[0], acceptsAtt.ContentTypes[1..]);
+                Metadata.Accepts(RequestType, false, declaredAccepts.ContentTypes[0],
+                    declaredAccepts.ContentTypes[1..]);
             }
             else
             {
@@ -533,6 +546,8 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
         }
         else if (FileParameters.Any())
         {
+            assertCanReceiveARequestBody(
+                $"it takes the file parameter '{FileParameters[0].Name}', which is read from a form");
             Metadata.Accepts(typeof(IFormFile), true, "application/x-www-form-urlencoded", "multipart/form-data");
         }
 
@@ -540,6 +555,34 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
 
         foreach (var attribute in Method.HandlerType.GetCustomAttributes()) Metadata.WithMetadata(attribute);
         foreach (var attribute in Method.Method.GetCustomAttributes()) Metadata.WithMetadata(attribute);
+    }
+
+    // GET and HEAD only. DELETE is deliberately NOT included: a request body on DELETE has no defined
+    // semantics but is not forbidden, and some APIs do rely on it -- failing those at startup would be a
+    // gratuitous break. See GH-3648.
+    private static readonly string[] BodylessHttpMethods = ["GET", "HEAD"];
+
+    /// <summary>
+    ///     Fail fast when a chain would advertise a request body on an HTTP method that cannot carry one.
+    ///     This is never a configuration anyone wants: ASP.NET Core's <c>AcceptsMatcherPolicy</c> compiles
+    ///     <c>IAcceptsMetadata</c> into content-type edges in the route matcher, so such an endpoint is
+    ///     silently dropped from candidate selection and every request to it returns a bare <b>404</b> --
+    ///     not a 415, not an error, and nothing is logged. That is what made GH-3591/GH-3630 so hard to
+    ///     diagnose, and the endpoint is unreachable either way. See GH-3648.
+    /// </summary>
+    private void assertCanReceiveARequestBody(string why)
+    {
+        if (_httpMethods.Count == 0 || !_httpMethods.All(x => BodylessHttpMethods.Contains(x)))
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"HTTP endpoint {Method.HandlerType.FullNameInCode()}.{Method.Method.Name} is mapped to " +
+            $"{_httpMethods.Join("/")} {RoutePattern?.RawText}, but declares a request body because {why}. " +
+            $"A {_httpMethods.Join("/")} request carries no body, so ASP.NET Core would drop this endpoint from " +
+            "route matching entirely and every request to it would return 404. Either map it to a method that " +
+            "takes a body (POST/PUT/PATCH), or bind from the query string, route, or headers instead.");
     }
 
     private void applyAntiforgeryMetadata()
