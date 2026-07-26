@@ -161,7 +161,7 @@ builder.UseWolverine(opts =>
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L415-L437' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L499-L521' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_enabling_azure_service_bus_control_queues' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Disabling System Queues
@@ -184,7 +184,7 @@ using var host = await Host.CreateDefaultBuilder()
         opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L158-L172' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/DocumentationSamples.cs#L242-L256' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_disable_system_queues_in_azure_service_bus' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Connecting To Multiple Namespaces <Badge type="tip" text="5.0" />
@@ -212,6 +212,14 @@ builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/Azure/Wolverine.AzureServiceBus.Tests/end_to_end_with_named_broker.cs#L26-L43' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_named_azure_service_bus_broker' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+`UseConventionalRouting()` and `UseTopicAndSubscriptionConventionalRouting()` can be chained off a named broker just like any
+other endpoint configuration, and the convention applies to that broker rather than the default one.
+
+The named broker methods take only the *messaging* (AMQP) connection string. That is all a real Azure Service Bus namespace
+needs, but if the management (HTTP) endpoint is separate -- as it is against the
+[emulator](/guide/messaging/transports/azureservicebus/emulator#named-brokers-and-the-management-connection-string) -- it has to
+be set on the named transport explicitly, or anything that talks to the management API will fail at startup.
 
 ## Global Partitioning
 

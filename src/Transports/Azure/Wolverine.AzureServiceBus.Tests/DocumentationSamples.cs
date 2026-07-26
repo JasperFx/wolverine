@@ -115,6 +115,38 @@ public class DocumentationSamples
         #endregion
     }
 
+    public async Task named_broker_with_a_separate_management_connection_string()
+    {
+        #region sample_named_azure_service_bus_broker_management_connection_string
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            var name = new BrokerName("secondary");
+
+            // AddNamedAzureServiceBusBroker() only takes the messaging (AMQP)
+            // connection string, because a real Azure Service Bus namespace uses
+            // one connection string for both messaging and management
+            opts.AddNamedAzureServiceBusBroker(name,
+                    builder.Configuration.GetConnectionString("azureservicebus-secondary")!)
+                .AutoProvision();
+
+            // Against an emulator -- or anywhere else the management (HTTP) endpoint
+            // is not derivable from the messaging endpoint -- reach the named transport
+            // and set the management connection string explicitly. Without this, anything
+            // that talks to the management API (AutoProvision, AutoPurgeOnStartup,
+            // resource setup) will try to guess the management endpoint and fail
+            opts.Transports.GetOrCreate<AzureServiceBusTransport>(name)
+                .ManagementConnectionString =
+                AzureServiceBusEmulatorExtensions.DefaultEmulatorManagementConnectionString;
+        });
+
+        using var host = builder.Build();
+        await host.StartAsync();
+
+        #endregion
+    }
+
     public async Task azure_service_bus_session_identifiers()
     {
         #region sample_using_azure_service_bus_session_identifiers
