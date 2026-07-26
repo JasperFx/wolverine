@@ -182,3 +182,9 @@ public static class RequestConnegEndpoints
 ```
 
 This allows the same route and HTTP method to handle different request body formats.
+
+A request whose `Content-Type` none of the endpoints on the route declares gets a `415 Unsupported Media Type`.
+That includes a request that sends **no** `Content-Type` header at all, which returned a `404` before Wolverine
+6.23 — the route exists, so a media-type status is the honest answer. Matching compares only the media type, so
+parameters such as `charset=utf-8` do not defeat it, but it is otherwise exact: `application/json` does **not**
+match a declared `application/vnd.item.v1+json`, and a wildcard in the attribute never matches anything.

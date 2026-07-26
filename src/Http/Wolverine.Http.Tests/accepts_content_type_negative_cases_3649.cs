@@ -21,12 +21,13 @@ namespace Wolverine.Http.Tests;
 ///       <item>every <em>mismatched</em> Content-Type is handled by the framework policy alone → 415. Wolverine's
 ///       policy is redundant for these.</item>
 ///       <item>a <em>missing</em> Content-Type is the one case where Wolverine's policy is load-bearing: without
-///       it both same-route endpoints stay valid candidates and routing throws an ambiguous match (500).
-///       With it, all candidates are invalidated → 404.</item>
+///       it both same-route endpoints stay valid candidates and routing throws an ambiguous match (500).</item>
 ///     </list>
 ///
-///     <para>That 404 is the one outcome here that looks wrong — see
-///     <c>a_missing_content_type_currently_404s</c> below. It is pinned rather than asserted-as-correct.</para>
+///     <para>The missing-Content-Type case originally answered a bare <b>404</b> — the policy invalidated every
+///     candidate and supplied nothing in their place. These tests pinned that 404 and left the decision open;
+///     it now answers <b>415</b>, matching what the same endpoints have always returned for a Content-Type
+///     that is present but undeclared. See <c>a_missing_content_type_is_unsupported_media_type</c>.</para>
 /// </summary>
 public class accepts_content_type_negative_cases_3649 : IntegrationContext
 {
@@ -36,9 +37,11 @@ public class accepts_content_type_negative_cases_3649 : IntegrationContext
 
     // Both /content-negotiation/items endpoints declare exactly one vnd media type each, so this exercises
     // content-type dispatch between two endpoints sharing a route.
-    private async Task<HttpStatusCode> statusFor(string? contentType)
+    private Task<HttpStatusCode> statusFor(string? contentType) => statusFor("/content-negotiation/items", contentType);
+
+    private async Task<HttpStatusCode> statusFor(string url, string? contentType)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/content-negotiation/items")
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = new StringContent("{\"name\":\"Test Item\"}", Encoding.UTF8)
         };
@@ -108,31 +111,58 @@ public class accepts_content_type_negative_cases_3649 : IntegrationContext
     }
 
     /// <summary>
-    ///     PINNING CURRENT BEHAVIOUR, NOT ENDORSING IT. A request with a body but no <c>Content-Type</c> header
-    ///     gets a bare <b>404</b>, while the very same endpoints answer <b>415</b> for a Content-Type that is
-    ///     present but undeclared. 415 is the defensible answer for both.
+    ///     A request with a body but no <c>Content-Type</c> header used to get a bare <b>404</b>, while the very
+    ///     same endpoints answered <b>415</b> for a Content-Type that was present but undeclared. 415 is the
+    ///     defensible answer for both, and is now what both give.
     ///
-    ///     <para>Cause: <see cref="ContentTypeEndpointSelectorPolicy" /> invalidates every candidate
-    ///     (<c>SetValidity(i, false)</c>) with no 415 fallback, so routing finds nothing and falls through.
-    ///     Removing just that <c>string.IsNullOrEmpty</c> branch does NOT fix it — verified — because the
-    ///     framework's node-builder policy then leaves both same-route candidates valid and the request becomes
-    ///     an ambiguous match (500). So fixing this properly means supplying a 415 result rather than deleting
-    ///     the invalidation.</para>
-    ///
-    ///     <para>Change this assertion to <c>UnsupportedMediaType</c> when that fix lands. It is a
-    ///     user-visible behaviour change, which is why it is not bundled here.</para>
+    ///     <para>The original cause was that <see cref="ContentTypeEndpointSelectorPolicy" /> invalidated every
+    ///     candidate (<c>SetValidity(i, false)</c>) and supplied nothing in their place, so routing found no
+    ///     endpoint and fell through. Note that deleting the <c>string.IsNullOrEmpty</c> branch does NOT fix it
+    ///     — verified — because the framework's node-builder policy then leaves both same-route candidates valid
+    ///     and the request becomes an ambiguous match (500). The fix therefore <em>supplies</em> a 415 endpoint
+    ///     when content-type filtering empties the candidate set, rather than skipping the invalidation.</para>
     /// </summary>
     [Fact]
-    public async Task a_missing_content_type_currently_404s()
+    public async Task a_missing_content_type_is_unsupported_media_type()
     {
-        (await statusFor(null)).ShouldBe(HttpStatusCode.NotFound);
+        (await statusFor(null)).ShouldBe(HttpStatusCode.UnsupportedMediaType);
+    }
+
+    [Fact]
+    public async Task a_sole_endpoint_owning_its_route_agrees_on_every_status()
+    {
+        // /content-negotiation/sole has no same-route sibling competing for candidacy, so the framework policy
+        // resolves mismatches on its own and Wolverine's only contributes the missing-header case. The point is
+        // that the answer does not depend on which shape you happen to have.
+        (await statusFor("/content-negotiation/sole", "application/vnd.sole.v1+json")).ShouldBe(HttpStatusCode.OK);
+        (await statusFor("/content-negotiation/sole", "application/json")).ShouldBe(HttpStatusCode.UnsupportedMediaType);
+        (await statusFor("/content-negotiation/sole", null)).ShouldBe(HttpStatusCode.UnsupportedMediaType);
+    }
+
+    [Fact]
+    public async Task a_method_mismatch_is_still_405_not_415()
+    {
+        // GET /content-negotiation/items carries no Content-Type, so the 415 substitution must not swallow the
+        // 405 that HttpMethodMatcherPolicy (Order 0) has already decided on. The policy only records candidates
+        // that were valid when it saw them, which is what keeps these two apart.
+        var response = await Host.Server.CreateClient().GetAsync("/content-negotiation/items");
+        response.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
+    }
+
+    [Fact]
+    public async Task an_unmatched_route_is_still_404()
+    {
+        // The 415 is scoped to routes that exist and declare content types. Nothing about supplying it should
+        // make a genuinely unknown path look like a media-type problem.
+        (await statusFor("/content-negotiation/no-such-route", "application/vnd.item.v1+json"))
+            .ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Fact]
     public async Task wolverine_s_selector_policy_is_still_registered()
     {
         // The measurements above only hold while both policies are in play. If someone concludes the Wolverine
-        // policy is redundant and removes it, the missing-Content-Type case regresses from 404 to a 500
+        // policy is redundant and removes it, the missing-Content-Type case regresses from its 415 to a 500
         // ambiguous match — so this asserts the policy is present and points at why.
         Host.Services.GetServices<Microsoft.AspNetCore.Routing.MatcherPolicy>()
             .OfType<ContentTypeEndpointSelectorPolicy>()
