@@ -142,17 +142,61 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         private set => _status = value;
     }
 
+    /// <inheritdoc />
+    // GH-3638: the reason rides alongside the status for exactly the same reason the status itself
+    // delegates (GH-3519) -- the daemon owns both, and it sets Failure at the same moment it flips Status
+    // to Paused/Stopped and clears it on start/replay. Reading a cached copy here would let the wrapper
+    // report a stale reason for a shard that has since recovered.
+    public ShardFailure? Failure => _innerAgent?.Failure;
+
+    /// <summary>
+    /// The failure categories that will fail again on the exact same event no matter how many times the
+    /// shard is restarted, so an automated restart is pure churn: it burns the daemon's start path, resets
+    /// the operator's view of the failure, and re-pauses on the same sequence.
+    /// <see cref="ShardFailureCategory.ProgressionOutOfOrder" /> is worse than useless — it means two
+    /// processes are on the same shard, and restarting adds a third contender. Only
+    /// <see cref="ShardFailureCategory.Other" /> (a database outage, a timeout) is what auto-restart is
+    /// actually for. See GH-3638.
+    /// </summary>
+    private static bool canSelfHeal(ShardFailure? failure)
+        => failure == null || failure.Category == ShardFailureCategory.Other;
+
+    // GH-3638: turn "paused due to errors" into something an operator can act on without going to dig
+    // through logs -- what kind of failure, which event it died on, and the exception type that actually
+    // names the fault (the root, not the ApplyEventException/ShardStopException wrapper around it).
+    private static string describeFailure(Uri uri, AgentStatus status, ShardFailure failure)
+    {
+        var where = failure.Event == null
+            ? string.Empty
+            : $" at event sequence {failure.Event.Sequence}" +
+              (failure.Event.EventTypeName == null ? string.Empty : $" ({failure.Event.EventTypeName})") +
+              (failure.Event.TenantId == null ? string.Empty : $" for tenant '{failure.Event.TenantId}'");
+
+        return $"Projection {uri} is {status} on a {failure.Category} failure{where}: " +
+               $"{failure.RootExceptionType}: {failure.Message}";
+    }
+
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        if (Status == AgentStatus.Paused)
+        var status = Status;
+        if (status is AgentStatus.Paused or AgentStatus.Stopped)
+        {
+            var failure = Failure;
+            if (failure != null)
+            {
+                return Task.FromResult(HealthCheckResult.Unhealthy(describeFailure(Uri, status, failure)));
+            }
+        }
+
+        if (status == AgentStatus.Paused)
         {
             return Task.FromResult(HealthCheckResult.Unhealthy($"Projection {Uri} paused due to errors"));
         }
 
-        if (Status != AgentStatus.Running)
+        if (status != AgentStatus.Running)
         {
-            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {Status}"));
+            return Task.FromResult(HealthCheckResult.Unhealthy($"Agent {Uri} is {status}"));
         }
 
         // Load thresholds on first health check
@@ -208,6 +252,18 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
             if (_consecutiveStallCount >= MaxConsecutiveStallsBeforeRestart)
             {
+                // GH-3638: a shard stalled behind a per-event failure will die on that same event on every
+                // restart, so restarting it is churn that also resets the operator's view every time the
+                // stall detector fires. Surface the failure and leave it alone; only a self-healing
+                // category (a database blip, a timeout -- what auto-restart actually exists for) is retried.
+                var failure = Failure;
+                if (!canSelfHeal(failure))
+                {
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        describeFailure(Uri, Status, failure!) +
+                        $" -- stalled for {_consecutiveStallCount} consecutive health checks. Auto-restart suppressed: this failure will recur on the same event until it is resolved."));
+                }
+
                 // Trigger auto-restart
                 _ = Task.Run(() => AttemptAutoRestartAsync(cancellationToken), cancellationToken);
 

@@ -80,3 +80,11 @@ Other requirements:
   runs — just all of them on the single node. `Serverless` and `MediatorOnly` start no agents at all.
 * In `Balanced` mode you cannot disable external transports with `StubAllExternalTransports()`, because the nodes
   need the control queue to communicate
+
+## When a Projection Fails <Badge type="tip" text="6.x" />
+
+The failure handling for a paused projection or subscription shard — the classified `ShardFailure` on
+`IEventSubscriptionAgent`, the `IWolverineObserver.AgentPaused` hook, the `NodeRecordType.AgentPaused`
+record, and the rule that only a self-healing failure is auto-restarted — is shared by both event store
+integrations. See [When a Projection Fails](/guide/durability/marten/distribution#when-a-projection-fails)
+on the Marten page for the details; everything there applies identically to Polecat.

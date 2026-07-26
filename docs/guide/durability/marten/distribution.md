@@ -185,3 +185,53 @@ var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/Distribution/with_ancillary_stores.cs#L59-L103' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_distributed_projections_with_ancillary_stores' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+
+## When a Projection Fails <Badge type="tip" text="6.x" />
+
+A projection or subscription shard that throws while applying an event is *paused* by the Marten/Polecat
+daemon rather than skipped, unless you have opted into skipping through `ErrorHandlingOptions`
+(`SkipApplyErrors` and friends). A paused shard makes no further progress, and Wolverine deliberately does
+not restart it — restarting would fail on the exact same event, so the shard would thrash instead of
+advance.
+
+Wolverine surfaces the paused shard so it does not simply go quiet:
+
+* The agent's health check reports the failure **category**, the sequence number and type of the event it
+  died on, and the root exception type — enough to act on without going to dig through logs.
+* `IWolverineObserver.AgentPaused(Uri agentUri, ShardFailure? failure)` fires once per transition into the
+  failed state (and again if the shard recovers and later fails anew). Implement it on a custom observer to
+  raise your own alert; [CritterWatch](https://critterwatch.io) uses this hook.
+* A `NodeRecordType.AgentPaused` record is written to the node-record log with the classified reason, so
+  the failure is readable after the fact and from another process.
+* `IEventSubscriptionAgent.Failure` exposes the same `ShardFailure` value directly. It is a plain,
+  serializable record — category, the failing event, the exception message and full detail — not an
+  `Exception`, so it survives being shipped to a monitoring UI.
+
+The category tells you what to do about it:
+
+| Category | What it means |
+|----------|---------------|
+| `ApplyEvent` | Your projection code threw on an event — the classic "poison pill". Needs a code fix, or `SkipApplyErrors`. |
+| `EventSerialization` | The store could not deserialize or upcast a stored event body. Needs a serializer or data fix. |
+| `UnknownEventType` | A stored event alias resolves to no known .NET type in *this* deployment — usually a missing registration or a rollback. |
+| `ProgressionOutOfOrder` | The shard's progression row moved underneath it, which almost always means two processes are running the same shard. |
+| `Other` | A database outage, a timeout, or a bug. No single event can be blamed. |
+
+Only `Other` is treated as potentially self-healing, so it is the only category Wolverine's stall detector
+will auto-restart. The rest are left alone until you resolve the underlying problem, at which point
+restarting or rewinding the agent picks it back up.
+
+## Agent Start Retries <Badge type="tip" text="6.x" />
+
+An agent's very first assignment can race the subsystems it depends on coming up — an event-subscription
+shard evaluated before its store's high-water detection is running, for instance, which on a multi-store
+host could leave a different shard idle on every boot. Wolverine retries a failed agent start locally a
+couple of times before leaving it to the next assignment reevaluation:
+
+```csharp
+opts.Durability.AgentStartRetryAttempts = 2;                       // default
+opts.Durability.AgentStartRetryDelay = TimeSpan.FromMilliseconds(250);  // default, multiplied by attempt number
+```
+
+Set `AgentStartRetryAttempts` to `0` to disable the local retry entirely. A failure that outlives the
+retries is logged and picked up again on the next `CheckAssignmentPeriod` tick, exactly as before.
