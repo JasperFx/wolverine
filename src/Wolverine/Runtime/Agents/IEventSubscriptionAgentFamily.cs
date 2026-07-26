@@ -21,6 +21,29 @@ public interface IEventSubscriptionAgentFamily
     ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId, CancellationToken token = default);
 
     /// <summary>
+    /// Same as <see cref="FindAgentUriAsync(string,string?,CancellationToken)" />, but scoped to a single event
+    /// store rather than searching every store this family manages. <paramref name="storeIdentity" /> is the
+    /// store's <c>EventStoreIdentity.ToString()</c> value (matched case-insensitively), which
+    /// <see cref="EventSubscriptionAgentFamily.StoreIdentityOf" /> derives from an agent URI.
+    ///
+    /// <para>The store-blind overload concatenates the agents of every store and matches on the trailing shard
+    /// path alone, so when the SAME projection name is registered in more than one store it returns whichever
+    /// store happens to be enumerated first. Since this URI is what tooling uses to route restart / pause /
+    /// resume / rebuild at a <em>live</em> agent, guessing wrong acts on another store's running agent. See
+    /// GH-3647, and GH-3618 for the same gap on the transient-rebuild path.</para>
+    ///
+    /// <para>Returns <c>null</c> when this family does not manage <paramref name="storeIdentity" />, or when that
+    /// store has no matching registered shard, so a caller looping over families can try the next one.</para>
+    ///
+    /// <para>The default implementation ignores <paramref name="storeIdentity" /> and delegates to the store-blind
+    /// overload, preserving the behavior of any pre-existing implementation of this interface. Implementations
+    /// that manage more than one store should override it.</para>
+    /// </summary>
+    ValueTask<Uri?> FindAgentUriAsync(string storeIdentity, string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+        => FindAgentUriAsync(shardIdentity, tenantId, token);
+
+    /// <summary>
     /// Rebuild a REGISTERED projection addressed by its <paramref name="shardIdentity" /> (the JasperFx
     /// <c>ShardName.Identity</c>, e.g. <c>"Trip:All"</c>) regardless of its lifecycle (Inline / Live /
     /// Async) or whether it is currently distributed as a continuous agent. This is the path for rebuilding
@@ -40,7 +63,7 @@ public interface IEventSubscriptionAgentFamily
     /// single event store rather than searching every store this family manages. <paramref name="storeIdentity" /> is
     /// the store's <c>EventStoreIdentity.ToString()</c> value (matched case-insensitively);
     /// <see cref="EventSubscriptionAgentFamily.StoreIdentityOf" /> derives it from an agent URI that
-    /// <see cref="FindAgentUriAsync" /> already resolved, so a caller never has to decompose the URI itself.
+    /// <see cref="FindAgentUriAsync(string,string?,CancellationToken)" /> already resolved, so a caller never has to decompose the URI itself.
     ///
     /// <para>This exists because the store-blind overload cannot tell two stores apart when the SAME projection
     /// name is registered in more than one of them (a primary plus an ancillary store, say) and NEITHER has a live

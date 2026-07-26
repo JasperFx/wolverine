@@ -42,15 +42,43 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     /// latter, a non-null <paramref name="tenantId" /> is resolved to its <c>DatabaseId</c> via the
     /// store's tenant→database mapping and matched by the database segment of the agent URI (GH-3128).</para>
     /// </summary>
-    public async ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId,
+    public ValueTask<Uri?> FindAgentUriAsync(string shardIdentity, string? tenantId,
         CancellationToken token = default)
+    {
+        return findAgentUriAsync(_stores.Enumerate().Select(x => x.Value).ToArray(), shardIdentity, tenantId, token);
+    }
+
+    /// <inheritdoc />
+    public ValueTask<Uri?> FindAgentUriAsync(string storeIdentity, string shardIdentity, string? tenantId,
+        CancellationToken token = default)
+    {
+        if (string.IsNullOrEmpty(storeIdentity) || !_stores.TryFind(StoreKey(storeIdentity), out var agents))
+        {
+            return new ValueTask<Uri?>((Uri?)null);
+        }
+
+        return findAgentUriAsync([agents], shardIdentity, tenantId, token);
+    }
+
+    /// <summary>
+    /// The shared resolution both <c>FindAgentUriAsync</c> overloads run, differing only in which stores are
+    /// in scope. <see cref="MatchesShard" /> compares the trailing shard path alone, so restricting
+    /// <paramref name="stores" /> to one store is what makes a projection name that appears in several stores
+    /// resolve unambiguously. See GH-3647.
+    /// </summary>
+    private async ValueTask<Uri?> findAgentUriAsync(EventStoreAgents[] stores, string shardIdentity,
+        string? tenantId, CancellationToken token)
     {
         if (!ShardName.TryParse(shardIdentity, out var baseName) || baseName is null)
         {
             return null;
         }
 
-        var known = await SupportedAgentsAsync().ConfigureAwait(false);
+        var known = new List<Uri>();
+        foreach (var store in stores)
+        {
+            known.AddRange(await store.SupportedAgentsAsync(_cancellation.Token).ConfigureAwait(false));
+        }
 
         if (string.IsNullOrEmpty(tenantId))
         {
@@ -67,9 +95,8 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
 
         // Database-per-tenant (sharded databases): the shard RelativeUrl is identical across tenant
         // databases, so resolve the tenant's database and match the base-shard agent URI in it. See GH-3128.
-        foreach (var entry in _stores.Enumerate())
+        foreach (var agents in stores)
         {
-            var agents = entry.Value;
             var databaseId = await agents.TryResolveTenantDatabaseIdAsync(tenantId, token).ConfigureAwait(false);
             if (databaseId == null)
             {
@@ -121,7 +148,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     /// <summary>
     /// The identity of the event store that owns an <c>event-subscriptions://</c> agent
     /// <paramref name="uri" />, in the form <see cref="TryRebuildRegisteredProjectionAsync(string,string,string?,CancellationToken)" />
-    /// expects. Lets a caller holding a URI from <see cref="FindAgentUriAsync" /> scope a rebuild to that
+    /// expects. Lets a caller holding a URI from <see cref="FindAgentUriAsync(string,string?,CancellationToken)" /> scope a rebuild to that
     /// store without decomposing the URI grammar itself — the grammar (see <see cref="UriFor" />) stays in
     /// here. Returns <c>null</c> for any URI that is not an agent URI of this scheme or that carries no
     /// store-name segment. See GH-3618.
