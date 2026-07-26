@@ -10,7 +10,19 @@ public abstract class PartitionedMessageTopology<TListener, TSubscriber> : Parti
 {
     private PartitionSlots _listeningSlots;
 
-    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName = null) : base(options, listeningSlots, baseName, numberOfEndpoints, brokerName)
+    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints) : base(options, listeningSlots, baseName, numberOfEndpoints)
+    {
+        if (listeningSlots.HasValue)
+        {
+            MaxDegreeOfParallelism = listeningSlots.Value;
+        }
+    }
+
+    /// <summary>
+    /// Build this topology's endpoints against a named broker rather than the default,
+    /// unnamed transport.
+    /// </summary>
+    public PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName) : base(options, listeningSlots, baseName, numberOfEndpoints, brokerName)
     {
         if (listeningSlots.HasValue)
         {
@@ -62,11 +74,22 @@ public abstract class PartitionedMessageTopology
 
     /// <summary>
     /// The named broker this topology's endpoints should be built against, or null for the
-    /// default/unnamed transport. Set before <see cref="buildEndpoint" /> is first called.
+    /// default/unnamed transport. Assigned before <see cref="buildEndpoint" /> is first called,
+    /// which matters because buildEndpoint runs from this constructor -- ahead of any derived
+    /// class's own constructor body.
     /// </summary>
-    protected readonly BrokerName? BrokerName;
+    protected readonly BrokerName? _brokerName;
 
-    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName = null)
+    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints)
+        : this(options, listeningSlots, baseName, numberOfEndpoints, null)
+    {
+    }
+
+    /// <summary>
+    /// Build this topology's endpoints against a named broker rather than the default,
+    /// unnamed transport.
+    /// </summary>
+    protected PartitionedMessageTopology(WolverineOptions options, PartitionSlots? listeningSlots, string baseName, int numberOfEndpoints, BrokerName? brokerName)
     {
         if (numberOfEndpoints <= 0)
         {
@@ -74,7 +97,7 @@ public abstract class PartitionedMessageTopology
         }
 
         _options = options;
-        BrokerName = brokerName;
+        _brokerName = brokerName;
         _names = new string[numberOfEndpoints];
 
         for (int i = 0; i < numberOfEndpoints; i++)
