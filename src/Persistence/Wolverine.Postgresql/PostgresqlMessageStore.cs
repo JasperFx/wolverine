@@ -476,6 +476,14 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace and n.nspname = '{Schem
         await using var conn = await NpgsqlDataSource.OpenConnectionAsync(cancellationToken);
         try
         {
+            // GH-3664: this is a transaction-scoped advisory lock, and Marten's async-daemon gap-liveness
+            // gate (marten#4953/#5057) treats ANY session with an open transaction older than an
+            // event-sequence gap as a possible reserver of that gap. This transaction must therefore stay
+            // short — do the poll's work and commit/rollback promptly, never await anything that isn't a
+            // command on this connection while it is open, and never add keepalive queries inside it
+            // (bumping state_change re-promotes the session to candidate reserver and freezes projections
+            // behind dead gaps). Long-held exclusivity belongs on a session-scoped lock on a
+            // transaction-free dedicated connection instead — see AdvisoryLock in PostgresqlNodePersistence.
             var tx = await conn.BeginTransactionAsync(cancellationToken);
             if (await tx.TryGetGlobalTxLock(Settings.ScheduledJobLockId, cancellationToken) == AttainLockResult.Success)
             {

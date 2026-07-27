@@ -425,6 +425,16 @@ internal class AdvisoryLock : IAdvisoryLock
         // we actually try to use it, so without this ping HasLock keeps
         // claiming the lock long after another session has acquired it,
         // and two nodes both believe they're the leader. See GH-2602.
+        //
+        // GH-3664: this ping is only safe because the connection never has
+        // an open transaction — the session reads state='idle' with
+        // xact_start NULL in pg_stat_activity, so Marten's event-gap
+        // liveness gate (marten#4953/#5057) never counts it as a possible
+        // sequence reserver. Do NOT copy this keepalive pattern into any
+        // code path that holds an open transaction: bumping state_change
+        // inside a transaction makes the session look active and
+        // legitimately re-promotes it to candidate reserver, freezing
+        // async-daemon progress behind dead gaps.
         try
         {
             using var cmd = _conn.CreateCommand();
@@ -453,6 +463,38 @@ internal class AdvisoryLock : IAdvisoryLock
         }
     }
 
+    /// <summary>
+    /// GH-3664: stamp the dedicated lock connection's <c>application_name</c> so an operator scanning
+    /// pg_stat_activity can tell at a glance what is holding the session — these connections live for the
+    /// process lifetime and otherwise look like anonymous idle sessions. Deliberately session-scoped SQL
+    /// (set_config) rather than a connection-string edit: the NpgsqlDataSource may carry auth plumbing
+    /// (e.g. Azure token callbacks) that a rebuilt connection string would lose. Best-effort — a tagging
+    /// failure must never cost us the lock connection.
+    /// </summary>
+    private async Task tagSessionAsync(NpgsqlConnection conn, CancellationToken token)
+    {
+        try
+        {
+            // application_name is capped at NAMEDATALEN-1 (63) chars; Postgres would truncate with a
+            // warning, so truncate quietly here instead.
+            var name = $"wolverine-advisory-lock:{_databaseName}";
+            if (name.Length > 63)
+            {
+                name = name[..63];
+            }
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "select set_config('application_name', @name, false)";
+            cmd.Parameters.AddWithValue("name", name);
+            await cmd.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Unable to tag the advisory-lock session for database {Database}",
+                _databaseName);
+        }
+    }
+
     public async Task<bool> TryAttainLockAsync(int lockId, CancellationToken token)
     {
         // Idempotent against repeated calls on the same session. Postgres
@@ -475,6 +517,7 @@ internal class AdvisoryLock : IAdvisoryLock
         {
             _conn = _source.CreateConnection();
             await _conn.OpenAsync(token).ConfigureAwait(false);
+            await tagSessionAsync(_conn, token).ConfigureAwait(false);
         }
 
         if (_conn.State == ConnectionState.Closed)
