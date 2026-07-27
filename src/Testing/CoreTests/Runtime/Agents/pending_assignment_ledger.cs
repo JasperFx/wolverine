@@ -106,4 +106,40 @@ public class pending_assignment_ledger
         _self.ActiveAgents.Clear();
         assignedAgentCount(await evaluateAsync()).ShouldBe(FakeAgentFamily.Names.Length);
     }
+
+    /// <summary>
+    /// GH-3663: an operator pause can be the FIRST evaluation to observe a delivered assignment — and that
+    /// same evaluation detaches the paused agent, so a confirmation that requires the agent to still be
+    /// assigned to its node never fires. The delivered-but-unconfirmed ledger entry then suppressed the
+    /// post-restart AssignAgent for a full TTL (2 x CheckAssignmentPeriod = 60s by default), which is why a
+    /// paused projection agent appeared to never resume after RestartAgent. Delivery alone must confirm.
+    /// </summary>
+    [Fact]
+    public async Task pause_then_restart_within_the_ttl_re_emits_the_assignment()
+    {
+        // Initial assignment arms a ledger entry for every agent.
+        assignedAgentCount(await evaluateAsync()).ShouldBe(FakeAgentFamily.Names.Length);
+
+        // The node starts them all and persists the assignment rows...
+        _self.ActiveAgents.AddRange(_family.AllAgentUris());
+
+        // ...but before any unrestricted evaluation sees that, an operator pauses one agent. This
+        // evaluation both observes the delivery (OriginalNode == this node) and detaches the agent, so it
+        // must emit the stop AND still clear the delivered ledger entry.
+        var paused = _family.AllAgentUris().First();
+        var pauseRestrictions = new AgentRestrictions();
+        pauseRestrictions.PauseAgent(paused);
+        var pauseCommands = await _controller.EvaluateAssignmentsAsync([_self], pauseRestrictions);
+        pauseCommands.OfType<StopRemoteAgent>().ShouldContain(x => x.AgentUri == paused);
+        assignedAgentCount(pauseCommands).ShouldBe(0);
+
+        // The stop lands on the node.
+        _self.ActiveAgents.Remove(paused);
+
+        // Restart (the restriction is lifted) well inside the TTL: the reassignment must be emitted
+        // immediately, not swallowed until the stale pre-pause ledger entry expires.
+        var restartCommands = await evaluateAsync();
+        assignedAgentCount(restartCommands).ShouldBe(1);
+        restartCommands.OfType<AssignAgent>().Single().AgentUri.ShouldBe(paused);
+    }
 }
