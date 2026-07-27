@@ -138,11 +138,22 @@ public partial class WolverineRuntime : IAgentRuntime
 
     public async Task ApplyRestrictionsAsync(AgentRestrictions restrictions, CancellationToken cancellationToken)
     {
-        await KickstartHealthDetectionAsync();
-
+        // GH-3666: merge and persist the operator's restriction change BEFORE kickstarting health
+        // detection. The kickstart runs a full leader assignment evaluation against the restrictions
+        // currently in the database, so with the old order (kickstart first) that evaluation acted
+        // against the operator's intent — for a pause it could briefly START the very agent being
+        // paused (observed in the GH-3663 repro, where it also armed a pending-assignment ledger entry
+        // for the doomed start), only for the merged evaluation below to stop it one beat later. With
+        // the persist first, every evaluation that runs — the kickstart's included — sees the change.
         var (nodes, assignments) = await Storage.Nodes.LoadNodeAgentStateAsync(cancellationToken);
         assignments.MergeChanges(restrictions);
         await Storage.Nodes.PersistAgentRestrictionsAsync(assignments.FindChanges(), cancellationToken);
+
+        // Still worth doing before the explicit evaluation below: refreshes this node's heartbeat and,
+        // on the leader, settles leadership/ejection state so the evaluation runs against a live grid.
+        // The `nodes` snapshot above predating this heartbeat is fine — EvaluateAssignmentsAsync already
+        // injects the current node if a stale snapshot omitted it (GH-2682).
+        await KickstartHealthDetectionAsync();
 
         // GH-3396 / CritterWatch GH-698: EvaluateAssignmentsAsync *returns* the commands that carry
         // the restriction out to the cluster — pausing an agent detaches it from the grid, which
