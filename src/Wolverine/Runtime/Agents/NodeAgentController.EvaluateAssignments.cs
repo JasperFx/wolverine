@@ -133,12 +133,18 @@ public partial class NodeAgentController
         // genuinely stuck start is retried once the entry expires.
         var ttl = _runtime.Options.Durability.CheckAssignmentPeriod * 2;
 
-        // Confirmation: an agent now running on the very node we assigned it to is no longer pending. The
-        // grid sets Agent.OriginalNode from each node's persisted ActiveAgents, so OriginalNode == AssignedNode
-        // means the destination started it and persisted the assignment row since we last emitted.
+        // Confirmation: an agent observed running on the very node we assigned it to is no longer pending.
+        // The grid sets Agent.OriginalNode from each node's persisted ActiveAgents, so a matching
+        // OriginalNode means the destination started it and persisted the assignment row since we last
+        // emitted — the only question this ledger asks. Deliberately independent of what THIS evaluation
+        // decides to do with the agent: GH-3663 hit the gap where the confirming evaluation was also the
+        // one detaching the agent for an operator pause (AssignedNode == null), so the delivered entry was
+        // never cleared and kept suppressing the post-restart AssignAgent for a full TTL.
         foreach (var agent in grid.AllAgents)
         {
-            if (agent.OriginalNode != null && ReferenceEquals(agent.AssignedNode, agent.OriginalNode))
+            if (agent.OriginalNode != null
+                && _pendingAssignments.TryGetValue(agent.Uri, out var delivered)
+                && delivered.NodeId == agent.OriginalNode.NodeId)
             {
                 _pendingAssignments.Remove(agent.Uri);
             }
