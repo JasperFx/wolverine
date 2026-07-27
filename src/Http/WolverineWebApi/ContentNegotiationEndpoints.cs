@@ -21,4 +21,13 @@ public static class ContentNegotiationEndpoints
     {
         return new ContentItemCreated(command.Name, command.Category, "v2");
     }
+
+    // GH-3649. The pair above is the content-negotiation shape — two endpoints sharing one route. This is the
+    // plainer and more common one: a single [AcceptsContentType] endpoint owning its route, where nothing else
+    // is competing for candidacy. Both shapes must agree on the status for an unusable Content-Type.
+    [WolverinePost("/content-negotiation/sole"), AcceptsContentType("application/vnd.sole.v1+json")]
+    public static ContentItemCreated CreateSole(CreateContentItemV1 command)
+    {
+        return new ContentItemCreated(command.Name, null, "sole");
+    }
 }
