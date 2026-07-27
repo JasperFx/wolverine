@@ -70,6 +70,10 @@ public class CosmosDbSagaHost : ISagaHost
     }
 }
 
+// CosmosDbSagaHost stands up real Wolverine hosts against the one shared emulator database, so this suite
+// has to be serialized with the rest of the CosmosDb tests. Left outside the collection it ran in parallel
+// and its node/durability churn intermittently released inbox ownership out from under other suites.
+[Collection("cosmosdb")]
 public class saga_storage_compliance : StringIdentifiedSagaComplianceSpecs<CosmosDbSagaHost>
 {
     public saga_storage_compliance()
