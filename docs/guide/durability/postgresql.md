@@ -546,3 +546,35 @@ builder.Host.UseWolverine(opts =>
 ```
 
 
+
+### Advisory locks and Marten's async-daemon gap detection
+
+Marten's async daemon (9.16.1+) will not skip a stale event-sequence gap while any Postgres session
+that *might* have reserved those sequence numbers is still alive — concretely, any session whose open
+transaction predates the gap ([marten#4953](https://github.com/JasperFx/marten/issues/4953)). A
+session that parks inside an open transaction for the life of the process therefore looks like a
+permanent "possible reserver" and can hold the high-water mark — and every async projection — behind a
+genuinely dead gap indefinitely.
+
+Wolverine's long-held locks are deliberately shaped to stay out of that candidate set:
+
+- **Leader election and node coordination** hold *session-scoped* advisory locks on a dedicated,
+  transaction-free connection. In `pg_stat_activity` those sessions read `state = 'idle'` with a NULL
+  `xact_start`, so Marten's liveness probe never counts them.
+- Those sessions are tagged `application_name = 'wolverine-advisory-lock:<database>'` so a
+  `pg_stat_activity` scan attributes them at a glance.
+- The *transaction-scoped* advisory lock used by the scheduled-message poll lives only for the few
+  statements of each poll cycle and commits promptly.
+
+Two rules for combined Marten + Wolverine deployments:
+
+1. **Don't rely on `idle_in_transaction_session_timeout` as a dead-gap backstop.** Older guidance
+   suggested it; if you have any component holding a transaction-scoped lock in a long-lived open
+   transaction, that setting kills the session (and the lock with it). Prefer upgrading Marten to
+   9.16.1+ and, where needed, its `SkipStaleGapsDespiteLiveTransactionsAfter` setting.
+2. **Never add keepalive queries inside a long-lived open transaction** in your own code. A periodic
+   `select 1` bumps `pg_stat_activity.state_change`, which makes the session look active to Marten's
+   liveness fence and re-promotes it to candidate reserver — permanently defeating the mitigation. If a
+   session must hold an open transaction, it should stay completely silent; better yet, hold long-lived
+   exclusivity as a session-scoped lock on a connection with no transaction at all, the way Wolverine's
+   `AdvisoryLock` does.

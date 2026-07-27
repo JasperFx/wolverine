@@ -415,6 +415,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
         await conn.OpenAsync(cancellationToken);
         try
         {
+            // GH-3664: transaction-scoped lock — keep this transaction short and never await anything
+            // that isn't a command on this connection while it is open. See the fuller discussion on the
+            // Postgres twin (PostgresqlMessageStore.PollForScheduledMessagesAsync); the same hygiene
+            // applies here even though Marten's gap-liveness gate is Postgres-only.
             var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
             if (await tx.TryGetGlobalTxLock(_scheduledLockId, cancellationToken))
             {
