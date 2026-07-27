@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
@@ -229,12 +228,12 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
         : DeadLetterStorageMode.Durable;
     
     // NServiceBus interop: NSB writes the .NET assembly-qualified type name
-    // to the message header; we resolve it via Type.GetType(string). Type
-    // resolution from a runtime string is fundamentally not AOT-clean — the
-    // trimmer can't know which types may appear. AOT-clean apps using NSB
-    // interop preserve their NSB-side message types via TrimmerRootDescriptor.
-    [UnconditionalSuppressMessage("Trimming", "IL2057",
-        Justification = "Type.GetType(typeName) on NServiceBus wire type names; AOT consumers preserve NSB message types via TrimmerRootDescriptor. See AOT guide.")]
+    // to the message header; NServiceBusInterop.ResolveMessageType turns that
+    // into a Wolverine message type name. Type resolution from a runtime string
+    // is fundamentally not AOT-clean — the trimmer can't know which types may
+    // appear — so the reflection and its IL2057 suppression live there, next to
+    // the call. AOT-clean apps using NSB interop preserve their NSB-side message
+    // types via TrimmerRootDescriptor.
     internal void UseNServiceBusInterop()
     {
         // NServiceBus.EnclosedMessageTypes
@@ -272,20 +271,19 @@ public class AzureServiceBusQueue : AzureServiceBusEndpoint, IBrokerQueue, IMass
             m.MapProperty(x => x.MessageType!, (e, m) =>
             {
                 // Incoming
-                if (m.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
+                if (m.ApplicationProperties.TryGetValue(NServiceBusInterop.EnclosedMessageTypesHeader, out var raw))
                 {
-                    var typeName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
-                    if (typeName.IsNotEmpty())
+                    var header = raw is byte[] b ? Encoding.UTF8.GetString(b) : raw?.ToString();
+                    if (NServiceBusInterop.ResolveMessageType(header) is string messageType)
                     {
-                        var messageType = Type.GetType(typeName);
-                        e.MessageType = messageType!.ToMessageTypeName();
+                        e.MessageType = messageType;
                     }
                 }
             },
                 (e, m) =>
             {
                 // Outgoing, use the interop strategy here
-                m.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message!.GetType().ToMessageTypeName();
+                m.ApplicationProperties[NServiceBusInterop.EnclosedMessageTypesHeader] = e.Message!.GetType().ToMessageTypeName();
             });
         });
     }

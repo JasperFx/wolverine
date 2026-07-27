@@ -13,6 +13,7 @@ using Wolverine.Runtime.Interop;
 using Wolverine.Runtime.Interop.MassTransit;
 using Wolverine.Newtonsoft;
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 using Wolverine.Util;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
@@ -260,17 +261,10 @@ internal class NServiceBusEnvelopeMapper : ISqsEnvelopeMapper
             }
         }
 
-        if (sqs.Headers.TryGetValue("NServiceBus.EnclosedMessageTypes", out var messageTypeName))
+        if (sqs.Headers.TryGetValue(NServiceBusInterop.EnclosedMessageTypesHeader, out var enclosed)
+            && NServiceBusInterop.ResolveMessageType(enclosed) is string messageType)
         {
-            Type? messageType = Type.GetType(messageTypeName);
-            if (messageType != null)
-            {
-                envelope.MessageType = messageType.ToMessageTypeName();
-            }
-            else
-            {
-                envelope.MessageType = messageTypeName;
-            }
+            envelope.MessageType = messageType;
         }
     }
     

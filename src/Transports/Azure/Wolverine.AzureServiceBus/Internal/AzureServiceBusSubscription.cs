@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
@@ -239,8 +238,8 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2057",
-        Justification = "Type.GetType(typeName) on NServiceBus wire type names; AOT consumers preserve NSB message types via TrimmerRootDescriptor. See AOT guide.")]
+    // Type resolution from the NServiceBus.EnclosedMessageTypes header is not AOT-clean; the reflection and
+    // its IL2057 suppression live in NServiceBusInterop.ResolveMessageType, next to the call.
     internal void UseNServiceBusInterop()
     {
         DefaultSerializer = new NewtonsoftSerializer(new JsonSerializerSettings());
@@ -275,19 +274,18 @@ public class AzureServiceBusSubscription : AzureServiceBusEndpoint, IBrokerQueue
 
             m.MapProperty(x => x.MessageType!, (e, msg) =>
             {
-                if (msg.ApplicationProperties.TryGetValue("NServiceBus.EnclosedMessageTypes", out var raw))
+                if (msg.ApplicationProperties.TryGetValue(NServiceBusInterop.EnclosedMessageTypesHeader, out var raw))
                 {
-                    var typeName = (raw is byte[] b ? Encoding.UTF8.GetString(b) : raw.ToString())!;
-                    if (typeName.IsNotEmpty())
+                    var header = raw is byte[] b ? Encoding.UTF8.GetString(b) : raw?.ToString();
+                    if (NServiceBusInterop.ResolveMessageType(header) is string messageType)
                     {
-                        var messageType = Type.GetType(typeName);
-                        e.MessageType = messageType!.ToMessageTypeName();
+                        e.MessageType = messageType;
                     }
                 }
             },
                 (e, msg) =>
             {
-                msg.ApplicationProperties["NServiceBus.EnclosedMessageTypes"] = e.Message!.GetType().ToMessageTypeName();
+                msg.ApplicationProperties[NServiceBusInterop.EnclosedMessageTypesHeader] = e.Message!.GetType().ToMessageTypeName();
             });
         });
     }

@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using JasperFx;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Transports;
 using Wolverine.Util;
 using Endpoint = Wolverine.Configuration.Endpoint;
 
@@ -36,7 +37,7 @@ internal class NServiceBusSqlServerEnvelopeMapper
     public const string MessageIntentHeader = "NServiceBus.MessageIntent";
     public const string ContentTypeHeader = "NServiceBus.ContentType";
     public const string TimeSentHeader = "NServiceBus.TimeSent";
-    public const string EnclosedMessageTypesHeader = "NServiceBus.EnclosedMessageTypes";
+    public const string EnclosedMessageTypesHeader = NServiceBusInterop.EnclosedMessageTypesHeader;
 
     // NServiceBus formats NServiceBus.TimeSent with this exact pattern.
     private const string TimeSentFormat = "yyyy-MM-dd HH:mm:ss:ffffff Z";
@@ -154,9 +155,10 @@ internal class NServiceBusSqlServerEnvelopeMapper
             envelope.SentAt = sentAt;
         }
 
-        if (headers.TryGetValue(EnclosedMessageTypesHeader, out var enclosed) && enclosed.IsNotEmpty())
+        if (headers.TryGetValue(EnclosedMessageTypesHeader, out var enclosed)
+            && NServiceBusInterop.ResolveMessageType(enclosed) is string messageType)
         {
-            envelope.MessageType = resolveMessageType(enclosed);
+            envelope.MessageType = messageType;
         }
 
         // NServiceBus multi-tenancy: surface the tenant id NServiceBus stamped on the message as
@@ -194,31 +196,6 @@ internal class NServiceBusSqlServerEnvelopeMapper
         return string.Join(";", names);
 
         static string format(Type t) => $"{t.FullName}, {t.Assembly.GetName().Name}";
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2057",
-        Justification =
-            "The enclosed message type name comes from a foreign NServiceBus endpoint at runtime; a failed resolution falls back to the bare type name which Wolverine binds via RegisterInteropMessageAssembly.")]
-    private static string resolveMessageType(string enclosed)
-    {
-        // NServiceBus lists several types separated by ';' (concrete + interfaces),
-        // most-derived first. Use the first entry that resolves to a type loadable in this
-        // process; that is the one Wolverine can map to a handler (directly or via the
-        // RegisterInteropMessageAssembly interface->concrete binding).
-        var entries = enclosed.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-        foreach (var entry in entries)
-        {
-            var type = Type.GetType(entry);
-            if (type != null)
-            {
-                return type.ToMessageTypeName();
-            }
-        }
-
-        // Fall back to the bare type name; Wolverine's interop assembly registration
-        // can still bind it to a concrete handler.
-        return entries.First().Split(',', StringSplitOptions.TrimEntries).First();
     }
 
     private static byte[] stripUtf8Bom(byte[] body)
