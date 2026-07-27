@@ -108,7 +108,21 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
     private string _description;
     private Type? _requestType;
 
-    public HttpChain(MethodCall method, HttpGraph parent)
+    public HttpChain(MethodCall method, HttpGraph parent) : this(method, parent, null, null)
+    {
+    }
+
+    /// <summary>
+    ///     GH-3646: routes supplied explicitly rather than by a <see cref="WolverineHttpMethodAttribute" /> —
+    ///     <see cref="HttpGraph.Add" />, and through it <c>PublishMessage&lt;T&gt;</c> / <c>SendMessage&lt;T&gt;</c> —
+    ///     have to be mapped from INSIDE the constructor, not bolted on after it. <see cref="MapToRoute" /> is what
+    ///     runs the parameter strategies that assign <see cref="RequestType" />, <see cref="IsFormData" /> and the
+    ///     HTTP methods, and <see cref="applyMetadata" /> is the constructor's last statement. Mapping the route
+    ///     afterwards left metadata built from an unassigned request type: the endpoint advertised no
+    ///     <c>IAcceptsMetadata</c> at all and carried an empty <c>HttpMethodMetadata</c>, even though the chain
+    ///     itself knew the request type perfectly well.
+    /// </summary>
+    internal HttpChain(MethodCall method, HttpGraph parent, string? httpMethod, string? url)
     {
         _description = method.ToString();
         _parent = parent ?? throw new ArgumentNullException(nameof(parent));
@@ -159,6 +173,13 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             {
                 EndpointDescription = att.Description;
             }
+        }
+
+        // Applied after the attribute so an explicit route still wins, exactly as it did when HttpGraph.Add
+        // called MapToRoute() on the constructed chain. See GH-3646.
+        if (httpMethod != null && url != null)
+        {
+            MapToRoute(httpMethod, url);
         }
 
         OperationId ??= $"{Method.HandlerType.FullNameInCode()}.{Method.Method.Name}";

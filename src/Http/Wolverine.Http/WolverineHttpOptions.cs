@@ -467,9 +467,10 @@ public class WolverineHttpOptions
 #pragma warning disable CS4014
         var method = MethodCall.For<PublishingEndpoint<T>>(x => x.PublishAsync(default!, null!, null!));
 #pragma warning restore CS4014
+        // GH-3646: Add() maps the route through the constructor now, so the second MapToRoute() that used to
+        // sit here is gone -- it only re-ran parameter matching after the metadata was already built.
         var chain = Endpoints!.Add(method, httpMethod, url);
 
-        chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
         chain.OperationId = $"Publish:{typeof(T).FullNameInCode()}";
         customize?.Invoke(chain);
@@ -494,9 +495,9 @@ public class WolverineHttpOptions
 #pragma warning disable CS4014
         var method = MethodCall.For<SendingEndpoint<T>>(x => x.SendAsync(default!, null!, null!));
 #pragma warning restore CS4014
+        // GH-3646: see PublishMessage above.
         var chain = Endpoints!.Add(method, httpMethod, url);
 
-        chain.MapToRoute(httpMethod.ToString(), url);
         chain.DisplayName = $"Forward {typeof(T).FullNameInCode()} to Wolverine";
         chain.OperationId = $"Send:{typeof(T).FullNameInCode()}";
         customize?.Invoke(chain);

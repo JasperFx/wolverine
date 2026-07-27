@@ -221,8 +221,9 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
 
     public HttpChain Add(MethodCall method, HttpMethod httpMethod, string url)
     {
-        var chain = new HttpChain(method, this);
-        chain.MapToRoute(httpMethod.ToString(), url);
+        // GH-3646: the route goes through the constructor rather than being mapped onto the finished chain,
+        // so the parameter strategies run before applyMetadata() reads what they assign.
+        var chain = new HttpChain(method, this, httpMethod.ToString(), url);
         _chains.Add(chain);
         return chain;
     }
