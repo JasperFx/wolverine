@@ -70,9 +70,29 @@ internal class JetStreamSubscriber : INatsSubscriber
             config.DeliverPolicy = deliverPolicy;
         }
 
-        if (string.IsNullOrEmpty(_endpoint.ConsumerName))
+        // Scope the consumer to this listener's subject. This used to be applied only to
+        // ephemeral consumers, so a durable consumer created through the fallback below
+        // was provisioned with no filter at all -- and every durable consumer sharing a
+        // stream then received every message published to that stream (GH-3676). The
+        // AutoProvision path in NatsEndpoint has always set it for named consumers; this
+        // is the runtime create-on-missing path catching up. Consumers that already exist
+        // are unaffected: GetConsumerAsync succeeding means this config is never sent
+        if (!string.IsNullOrEmpty(_subscriptionPattern))
         {
-            config.FilterSubject = _subscriptionPattern;
+            // Native scheduling publishes its control message to {subject}{suffix} and no single
+            // NATS filter covers both that and {subject} -- '{subject}.>' excludes {subject}
+            // itself. On a work queue stream a control message no consumer covers is discarded
+            // outright, so the schedule is never registered and the send silently never arrives;
+            // a multi-filter consumer keeps the schedule subject owned by this endpoint
+            var scheduleSubject = _subscriptionPattern + _endpoint.ScheduleSubjectSuffix;
+            if (_endpoint.UsesNativeScheduledSend && !string.IsNullOrEmpty(_endpoint.ScheduleSubjectSuffix))
+            {
+                config.FilterSubjects = [_subscriptionPattern, scheduleSubject];
+            }
+            else
+            {
+                config.FilterSubject = _subscriptionPattern;
+            }
         }
 
         if (!string.IsNullOrEmpty(_endpoint.ConsumerName))
