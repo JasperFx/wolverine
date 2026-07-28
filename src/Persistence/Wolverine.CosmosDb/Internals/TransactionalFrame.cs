@@ -12,7 +12,6 @@ namespace Wolverine.CosmosDb.Internals;
 internal class TransactionalFrame : Frame
 {
     private readonly IChain _chain;
-    private Variable? _cancellation;
     private Variable? _context;
 
     public TransactionalFrame(IChain chain) : base(true)
@@ -24,9 +23,6 @@ internal class TransactionalFrame : Frame
 
     public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
     {
-        _cancellation = chain.FindVariable(typeof(CancellationToken));
-        yield return _cancellation;
-
         // Container is resolved from DI (registered by UseCosmosDbPersistence)
         Container = chain.FindVariable(typeof(Container));
         yield return Container;
