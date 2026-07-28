@@ -36,14 +36,22 @@ means silent redelivery and a rising delivery count.
 ### Inline endpoints process one message at a time by default
 
 Inline ASB endpoints use a `ServiceBusProcessor`, whose `MaxConcurrentCalls` defaults to **1**.
-Wolverine does not change that default, so an inline listener is single-threaded unless you
-raise it:
+Wolverine leaves that default alone, so an inline listener is single-threaded unless you raise it:
 
 ```cs
 opts.ListenToAzureServiceBusQueue("orders")
     .ProcessInline()
-    .ConfigureProcessor(o => o.MaxConcurrentCalls = 10);
+    .MaximumConcurrentCalls(10);
 ```
+
+`MaximumParallelMessages` has no effect on an inline endpoint — that knob sizes Wolverine's own
+in-process worker queue, which inline listeners bypass. The raw
+`ConfigureProcessor(o => o.MaxConcurrentCalls = 10)` hook still works and takes precedence.
+
+On a **session** listener driven by a `ServiceBusSessionProcessor`, `MaximumConcurrentCalls` maps
+to `MaxConcurrentCallsPerSession` instead, which trades away the per-session FIFO ordering that is
+usually the reason for using sessions at all. Leave it alone there unless you mean it — to process
+more sessions at once, use `RequireSessions(n)`.
 
 ## Lock duration vs. processing window
 
@@ -86,6 +94,7 @@ outgoing batches are additionally grouped by session id so each batch shares a p
 Sessions give broker-enforced ordering per `SessionId` (mapped automatically from Wolverine's
 `Envelope.GroupId`) with cluster-wide exclusivity — but session processing is inherently more
 expensive than plain consumption: each session must be accepted, locked, drained, and released.
+`RequireSessions(n)` opens exactly `n` concurrent session accept loops — one per listener.
 Keep `RequireSessions(n)` counts modest, and note that strict per-session *processing* order on
 Buffered/Durable endpoints also needs `PartitionProcessingByGroupId(...)` (or inline
 execution), since the local worker queue otherwise executes a session's batch in parallel —

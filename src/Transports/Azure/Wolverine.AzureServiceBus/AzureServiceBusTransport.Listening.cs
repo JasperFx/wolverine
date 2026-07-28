@@ -190,6 +190,14 @@ public partial class AzureServiceBusTransport
             PrefetchCount = endpoint.PrefetchCount
         };
 
+        // GH-3494 (AO3): Wolverine never set MaxConcurrentCalls, so an inline listener ran on the
+        // SDK default of 1 -- single threaded per endpoint, reachable only through the raw
+        // ConfigureProcessor hook. Applied before ConfigureProcessor so that hook still wins.
+        if (endpoint.MaximumConcurrentCalls.HasValue)
+        {
+            options.MaxConcurrentCalls = endpoint.MaximumConcurrentCalls.Value;
+        }
+
         endpoint.ConfigureProcessor?.Invoke(options);
 
         // Reserved by Wolverine: the inline listener relies on the peek-lock model to complete,
@@ -229,13 +237,24 @@ public partial class AzureServiceBusTransport
         {
             PrefetchCount = endpoint.PrefetchCount,
 
-            // Map the existing "parallel sessions" knob (ListenerCount, set via RequireSessions(count))
-            // onto the processor's concurrency. A user may override this in ConfigureSessionProcessor.
-            MaxConcurrentSessions = endpoint.ListenerCount > 0 ? endpoint.ListenerCount : 1,
+            // GH-3494 (AO2): ONE session per processor. ListeningAgent already builds
+            // Endpoint.ListenerCount of these listeners, so mapping RequireSessions(n) onto each
+            // processor's MaxConcurrentSessions meant n listeners x n sessions = n-squared
+            // concurrent sessions -- 64 of them for RequireSessions(8). One per listener keeps the
+            // documented meaning of RequireSessions(n): n parallel sessions in total.
+            // A user may still override this in ConfigureSessionProcessor.
+            MaxConcurrentSessions = 1,
 
             // Preserve the in-session FIFO ordering the hand-rolled loop provided
             MaxConcurrentCallsPerSession = 1
         };
+
+        // GH-3494 (AO3): opt-in concurrency WITHIN a session. Left at 1 unless asked for, because
+        // raising it gives up the per-session FIFO ordering that is the whole point of sessions.
+        if (endpoint.MaximumConcurrentCalls.HasValue)
+        {
+            options.MaxConcurrentCallsPerSession = endpoint.MaximumConcurrentCalls.Value;
+        }
 
         endpoint.ConfigureSessionProcessor?.Invoke(options);
 

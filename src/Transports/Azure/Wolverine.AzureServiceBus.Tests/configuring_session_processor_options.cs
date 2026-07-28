@@ -77,7 +77,7 @@ public class configuring_session_processor_options
     }
 
     [Fact]
-    public void build_session_processor_options_maps_listener_count_to_max_concurrent_sessions()
+    public void build_session_processor_options_accepts_one_session_per_processor()
     {
         var transport = new AzureServiceBusTransport();
         var queue = transport.Queues["incoming"];
@@ -88,10 +88,28 @@ public class configuring_session_processor_options
         ((IDelayedEndpointConfiguration)configuration).Apply();
 
         var options = AzureServiceBusTransport.BuildSessionProcessorOptions(queue);
-        options.MaxConcurrentSessions.ShouldBe(8);
+
+        // GH-3494 (AO2): ListeningAgent builds ListenerCount of these listeners, so mapping
+        // RequireSessions(8) onto each processor's MaxConcurrentSessions gave 8 x 8 = 64
+        // concurrent sessions. One per processor keeps the total at the 8 that was asked for.
+        options.MaxConcurrentSessions.ShouldBe(1);
 
         // FIFO ordering per session is preserved
         options.MaxConcurrentCallsPerSession.ShouldBe(1);
+    }
+
+    [Fact]
+    public void a_user_can_still_override_max_concurrent_sessions()
+    {
+        var transport = new AzureServiceBusTransport();
+        var queue = transport.Queues["incoming"];
+
+        var configuration = new AzureServiceBusQueueListenerConfiguration(queue);
+        configuration.RequireSessions(8).ConfigureSessionProcessor(o => o.MaxConcurrentSessions = 3);
+
+        ((IDelayedEndpointConfiguration)configuration).Apply();
+
+        AzureServiceBusTransport.BuildSessionProcessorOptions(queue).MaxConcurrentSessions.ShouldBe(3);
     }
 
     [Fact]

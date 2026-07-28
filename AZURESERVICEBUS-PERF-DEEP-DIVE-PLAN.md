@@ -160,7 +160,19 @@ feed the #3488/GH-3471 release notes directly** — that's the first ledger entr
 
 | Optimization | PR | Scenario (AE-cell) | Metric | Before | After | Release-note one-liner |
 |---|---|---|---|---|---|---|
-| _(PrefetchCount validation (#3488), AO2 session de-quadratic, AO4 settlement concurrency, ... — rows added as measured)_ | | | | | | |
+| AO2 session de-quadratic (accept-loop listener) | this wave | AE5 | concurrent accept loops at `RequireSessions(5)` | 25 | 5 | `RequireSessions(n)` opens n session accept loops instead of n-squared |
+| AO2 session de-quadratic (`ServiceBusSessionProcessor` path, GH-3533) | this wave | AE5 | concurrent sessions at `RequireSessions(8)` | 64 | 8 | Same n-squared on the session-processor path: `MaxConcurrentSessions` was set per processor while ListeningAgent was already building n of them |
+| AO3 `MaximumConcurrentCalls` | this wave | AE1 | inline handler concurrency | 1 (SDK default, unreachable) | configurable | Inline Azure Service Bus listeners can now process messages concurrently without dropping to the raw `ConfigureProcessor` hook |
+| AO8 batched defer settles the original | this wave | AE8 | duplicates per deferral | 2 deliveries | 1 | Deferring on a buffered/durable Azure Service Bus listener no longer leaves the original message locked to be redelivered |
+
+**Not measured on a real namespace.** AO2's 25→5 is structural and unit-tested; AO3 and AO8 are
+correctness/ergonomics fixes verified by tests. The throughput numbers this plan asks for -- and
+the PrefetchCount validation in AE2 -- still need the real Standard/Premium namespace runs
+described in §2 and §8. The emulator is explicitly not publishable.
+
+**Deferred, needs a JasperFx change:** AO4 (settlement concurrency). `RetryBlock` hard-codes a
+parallel count of 1 (`Block<Item>(1, Unbounded, executeAsync)`), so widening ASB's per-message
+`CompleteMessageAsync` concurrency is not a Wolverine-side change. Track upstream before revisiting.
 
 ## 7. Sequencing & exit criteria
 

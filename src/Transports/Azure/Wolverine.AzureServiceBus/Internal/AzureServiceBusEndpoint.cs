@@ -84,6 +84,32 @@ public abstract class AzureServiceBusEndpoint : Endpoint<IAzureServiceBusEnvelop
         }
     }
 
+    private int? _maximumConcurrentCalls;
+
+    /// <summary>
+    ///     How many messages an <c>Inline</c> or session-processor listener for this endpoint hands
+    ///     to the handler pipeline at once. This maps to the Azure Service Bus SDK's
+    ///     <c>MaxConcurrentCalls</c>, which Wolverine never set -- so inline Azure Service Bus
+    ///     listeners ran strictly one message at a time on the SDK default, and the only way to
+    ///     change that was the raw <see cref="ConfigureProcessor" /> hook. Null keeps the SDK
+    ///     default of 1. Does not apply to the default Buffered/Durable batch receive loop, which
+    ///     scales through MaximumParallelMessages instead. See GH-3494.
+    /// </summary>
+    public int? MaximumConcurrentCalls
+    {
+        get => _maximumConcurrentCalls;
+        set
+        {
+            if (value is < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value,
+                    "MaximumConcurrentCalls must be at least 1");
+            }
+
+            _maximumConcurrentCalls = value;
+        }
+    }
+
     /// <summary>
     ///     Optional customization of the Azure Service Bus <see cref="ServiceBusProcessorOptions" /> used
     ///     by inline listeners for this endpoint. Wolverine reserves control of the properties it depends

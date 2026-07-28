@@ -33,18 +33,17 @@ internal class AzureServiceBusSessionListener : IListener
         _logger = logger;
         _requeue = requeue;
 
-        var listenerCount = _endpoint.ListenerCount;
-        if (listenerCount == 0)
-        {
-            listenerCount = 1;
-        }
-
-        for (var i = 0; i < listenerCount; i++)
-        {
-            var task = Task.Run(listenForMessages, _cancellation.Token);
-            _tasks.Add(task);
-        }
+        // GH-3494 (AO2): exactly ONE accept loop per listener instance. ListeningAgent already
+        // builds Endpoint.ListenerCount of these listeners, so spawning ListenerCount loops inside
+        // each one made RequireSessions(n) open n-squared concurrent AcceptNextSessionAsync loops --
+        // 25 for RequireSessions(5) -- all competing for the same sessions.
+        _tasks.Add(Task.Run(listenForMessages, _cancellation.Token));
     }
+
+    /// <summary>
+    /// The number of concurrent AcceptNextSessionAsync loops this listener runs. Exposed for testing.
+    /// </summary>
+    internal int AcceptLoopCount => _tasks.Count;
 
     public IHandlerPipeline? Pipeline => _receiver.Pipeline;
 
