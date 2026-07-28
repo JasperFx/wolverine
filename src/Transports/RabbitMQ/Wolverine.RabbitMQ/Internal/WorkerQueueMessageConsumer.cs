@@ -83,11 +83,22 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     {
         if (_latched || _cancellation.IsCancellationRequested || !_listener.IsConnected)
         {
-            await _listener.Channel!.BasicRejectAsync(deliveryTag, true, _cancellation);
+            // Reject on the DELIVERING channel, not on whatever the listener currently holds. One of the
+            // conditions above is !IsConnected, which is exactly when the listener's channel has been
+            // torn down and nulled -- dereferencing it here threw a NullReferenceException. The tag is
+            // channel-scoped anyway, so the listener's channel would have been the wrong one regardless.
+            if (Channel.IsOpen)
+            {
+                await Channel.BasicRejectAsync(deliveryTag, true, _cancellation);
+            }
+
             return;
         }
 
-        var envelope = new RabbitMqEnvelope(_listener, deliveryTag);
+        // Capture the delivering channel on the envelope. Delivery tags are channel-scoped, so every
+        // later settle path has to check the tag against THIS channel rather than whatever channel the
+        // listener happens to hold by then.
+        var envelope = new RabbitMqEnvelope(_listener, deliveryTag, Channel);
 
         try
         {
