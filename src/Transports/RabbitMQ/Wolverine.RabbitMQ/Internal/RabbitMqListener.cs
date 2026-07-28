@@ -316,6 +316,15 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public async Task CompleteAsync(ulong deliveryTag)
     {
-        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
+        // GH-3492: ack ONLY this delivery. multiple: true tells the broker "and every lower
+        // delivery tag on this channel too". Completions finish out of order under any concurrent
+        // listener -- Buffered or Durable with MaxDegreeOfParallelism above 1 -- so completing tag
+        // 10 silently acked tags 1-9 while they were still in the handler pipeline, and a crash
+        // then lost them.
+        //
+        // KNOWN INCOMPLETE: the cumulative sweep is currently load-bearing. It is the only thing
+        // settling deliveries that some paths never acknowledge at all, so this change on its own
+        // leaks them. See the PR for the reproduction; the leaking path has to be settled first.
+        await Channel!.BasicAckAsync(deliveryTag, false, _cancellation);
     }
 }
