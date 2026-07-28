@@ -20,6 +20,14 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     private readonly TimeSpan _drainTimeout;
     private readonly ILogger _logger;
 
+    // GH-3493 (SO1): completion used to be one DeleteMessage HTTP round trip per message, so a
+    // single 10-message receive was paid for with 10 sequential deletes. These coalesce into
+    // DeleteMessageBatch calls of up to 10 -- 10x fewer round trips and 10x fewer billable API
+    // calls. Null when the endpoint opts out with DeleteMessageBatchSize = 1.
+    private readonly BatchingChannel<Message>? _deleteBatching;
+    private readonly Block<Message[]>? _deleteBlock;
+    private readonly RetryBlock<Message> _singleDeleteBlock;
+
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
     {
@@ -57,6 +65,17 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         _deadLetterBlock =
             new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
                 runtime.Cancellation);
+
+        _singleDeleteBlock = new RetryBlock<Message>(
+            (message, token) => _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, message.ReceiptHandle, token),
+            logger, runtime.Cancellation);
+
+        if (_queue.DeleteMessageBatchSize > 1)
+        {
+            _deleteBlock = new Block<Message[]>((batch, _) => deleteBatchAsync(batch));
+            _deleteBatching = new BatchingChannel<Message>(_queue.DeleteMessageBatchTimeout, _deleteBlock,
+                _queue.DeleteMessageBatchSize);
+        }
 
         // GH-3236: the receive loop is now a shared BackgroundReceiveLoop — it owns the task, the
         // catch -> log -> exponential-backoff -> continue policy, the idle delay when a poll returns nothing, the
@@ -144,8 +163,43 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public async ValueTask DisposeAsync()
     {
         await _loop.DisposeAsync();
+        await flushPendingDeletesAsync();
         _requeueBlock.Dispose();
         _deadLetterBlock?.Dispose();
+        _singleDeleteBlock.Dispose();
+
+        if (_deleteBatching != null)
+        {
+            await _deleteBatching.DisposeAsync();
+        }
+
+        if (_deleteBlock != null)
+        {
+            await _deleteBlock.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Push any accumulated-but-unsent deletes at SQS. Anything still in flight simply reappears
+    /// after its visibility timeout.
+    /// </summary>
+    private async Task flushPendingDeletesAsync()
+    {
+        if (_deleteBatching == null)
+        {
+            return;
+        }
+
+        try
+        {
+            _deleteBatching.TriggerBatch();
+            _deleteBatching.Complete();
+            await _deleteBatching.WaitForCompletionAsync().WaitAsync(_drainTimeout);
+        }
+        catch (Exception e)
+        {
+            _logger.LogDebug(e, "Error flushing pending SQS deletes for {Uri}", _queue.Uri);
+        }
     }
 
     public Uri Address => _queue.Uri;
@@ -153,6 +207,10 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     public async ValueTask StopAsync()
     {
         await _loop.StopAsync(_drainTimeout);
+
+        // Don't leave completed messages sitting in the batch window while this listener is paused
+        // -- they'd reappear at the visibility timeout and be handled twice.
+        _deleteBatching?.TriggerBatch();
     }
 
     public async Task<bool> TryRequeueAsync(Envelope envelope)
@@ -190,6 +248,70 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     public Task CompleteAsync(Message sqsMessage)
     {
-        return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
+        if (_deleteBatching == null)
+        {
+            return _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, sqsMessage.ReceiptHandle);
+        }
+
+        return _deleteBatching.PostAsync(sqsMessage).AsTask();
+    }
+
+    /// <summary>
+    /// Delete up to <c>DeleteMessageBatchSize</c> messages in one request. DeleteMessageBatch is
+    /// not transactional -- SQS can reject individual entries inside an otherwise successful
+    /// response -- so each failed entry falls back to a retried single delete. A delete that never
+    /// lands only means the message reappears after its visibility timeout, which the durable inbox
+    /// deduplicates.
+    /// </summary>
+    private async Task deleteBatchAsync(Message[] batch)
+    {
+        var entries = new List<DeleteMessageBatchRequestEntry>(batch.Length);
+        for (var i = 0; i < batch.Length; i++)
+        {
+            entries.Add(new DeleteMessageBatchRequestEntry(i.ToString(), batch[i].ReceiptHandle));
+        }
+
+        DeleteMessageBatchResponse response;
+        try
+        {
+            response = await _transport.Client!.DeleteMessageBatchAsync(
+                new DeleteMessageBatchRequest(_queue.QueueUrl, entries));
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Error deleting a batch of {Count} messages from {Uri}; falling back to individual deletes",
+                batch.Length, _queue.Uri);
+
+            foreach (var message in batch)
+            {
+                await _singleDeleteBlock.PostAsync(message);
+            }
+
+            return;
+        }
+
+        if (response.Failed == null || response.Failed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in response.Failed)
+        {
+            if (int.TryParse(entry.Id, out var index) && index >= 0 && index < batch.Length)
+            {
+                _logger.LogWarning(
+                    "SQS batch delete from {Uri} failed for entry {Id}: {Code} - {Message} (SenderFault: {SenderFault}). Retrying as a single delete",
+                    _queue.Uri, entry.Id, entry.Code, entry.Message, entry.SenderFault);
+
+                await _singleDeleteBlock.PostAsync(batch[index]);
+            }
+            else
+            {
+                _logger.LogError(
+                    "SQS batch delete from {Uri} reported a failed entry with unrecognized Id {Id}: {Code} - {Message}",
+                    _queue.Uri, entry.Id, entry.Code, entry.Message);
+            }
+        }
     }
 }

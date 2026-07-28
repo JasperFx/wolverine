@@ -143,7 +143,14 @@ latency. Log negative results below the table.
 
 | Optimization | PR | Scenario (QE-cell) | Metric | Before | After | Release-note one-liner |
 |---|---|---|---|---|---|---|
-| _(SO1 delete batching, SO2 batch-failure handling, SO4 send parallelism, ... — rows added as measured)_ | | | | | | |
+| SO2 batch-send failure handling | #3503 | — | correctness | silent loss | routed to retry | Per-entry SendMessageBatch failures are no longer silently marked successful |
+| SO1 delete batching | this wave | QE2 | API calls / 10 msgs | 10 DeleteMessage | 1 DeleteMessageBatch | SQS listeners delete completed messages in batches: 10x fewer round trips and 10x lower SQS API spend on the receive side |
+| SO3 size-aware chunking | this wave | — | correctness | whole request bounces | chunked under 256KB | Outgoing SQS batches now respect the 256KB per-request limit, not just the 10-message limit |
+
+**Not measured on real SQS.** SO1's ratio is structural (10 deletes become 1 request) and is
+covered by unit tests plus the LocalStack suites, but the latency/throughput numbers this plan
+asks for still need a real-SQS run per §8 — LocalStack RTTs are not publishable. The ledger rows
+above quote API-call counts, which are exact, rather than timings, which are not.
 
 ## 7. Sequencing & exit criteria
 

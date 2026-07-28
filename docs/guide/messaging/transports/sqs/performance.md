@@ -11,9 +11,10 @@ Durable endpoints benefit doubly: the whole received batch is written to the dat
 a **single** batched insert, so durable SQS endpoints are considerably cheaper per message than
 push-based transports.
 
-Message *completion*, however, is currently one `DeleteMessage` API call per message — ten
-deletes per receive at full batches. At high throughput, delete round trips (not receives) are
-usually the ceiling for a single listener. The practical levers:
+Message *completion* is batched too. Completed messages accumulate for up to 50 milliseconds and
+are deleted with a single `DeleteMessageBatch` call of up to 10 — so a full 10-message receive is
+settled with one round trip instead of ten. Since SQS bills per API call, this is a cost lever as
+much as a latency one. The practical levers:
 
 ```cs
 opts.ListenToSqsQueue("orders")
@@ -26,8 +27,18 @@ opts.ListenToSqsQueue("orders")
     // faster listener shutdown.
     .ConfigureListener(l => l.WaitTimeSeconds = 20)
 
+    // Delete batching. Defaults to 10 (the SQS maximum) with a 50ms window.
+    // Pass 1 to go back to one DeleteMessage call per message.
+    .DeleteMessageBatchSize(10, 50.Milliseconds())
+
     .MaximumParallelMessages(10);
 ```
+
+::: tip
+The delete window is a *maximum batch age*, not a quiet period, so a single message never waits
+longer than the window. Batches are also flushed when a listener stops, so a paused listener
+does not leave settled messages to reappear at their visibility timeout.
+:::
 
 ## Visibility timeout: size it against your processing window
 
@@ -72,6 +83,11 @@ The default envelope mapper embeds the serialized Wolverine envelope in the mess
 Base64, which inflates the wire size by roughly a third — budget against the 256 KB SQS message
 limit accordingly. For large or high-volume payloads where you control both ends, the raw JSON
 mapper (or a custom `ISqsEnvelopeMapper`) avoids the Base64 wrapping.
+
+SQS also caps an entire `SendMessageBatch` *request* at 256 KB, not just each message in it, so
+ten individually legal 30 KB messages would bounce the whole request. Wolverine chunks outgoing
+batches on both limits — ten entries and the request payload budget — so large messages simply
+produce smaller batches.
 
 ## FIFO queues
 

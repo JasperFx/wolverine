@@ -79,6 +79,29 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     }
 
     /// <summary>
+    ///     How many completed messages this listener coalesces into a single SQS
+    ///     <c>DeleteMessageBatch</c> call, and how long a completion waits for that batch to fill.
+    ///     Deleting per message costs one HTTP round trip -- and one billable API call -- each,
+    ///     which is 10 deletes for every 10 message receive. Valid sizes are 1 through 10; pass 1
+    ///     to go back to a delete per message. Defaults are 10 and 50 milliseconds. See GH-3493.
+    /// </summary>
+    /// <param name="size">Messages per delete request, 1 to 10</param>
+    /// <param name="timeout">Maximum age of a pending delete batch. Defaults to 50 milliseconds</param>
+    public AmazonSqsListenerConfiguration DeleteMessageBatchSize(int size, TimeSpan? timeout = null)
+    {
+        add(e =>
+        {
+            e.DeleteMessageBatchSize = size;
+            if (timeout.HasValue)
+            {
+                e.DeleteMessageBatchTimeout = timeout.Value;
+            }
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configure how the queue should be created within SQS
     /// </summary>
     /// <param name="configure"></param>
