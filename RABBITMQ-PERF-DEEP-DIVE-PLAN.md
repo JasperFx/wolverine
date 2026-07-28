@@ -163,13 +163,35 @@ transfer); the GH-3490 debounce never applied to Rabbit's sender path (default i
 buffered both unaffected — checked both directions); R5 buffered-below-inline max anomaly
 recorded but unfixed (RO5 follow-up).
 
+### Measured 2026-07-27 (wave 2; local rig, same box, `perf/3492-rabbitmq-wave2` vs `origin/main` @073312262)
+
+| Cell | BEFORE | AFTER | Verdict |
+|---|---|---|---|
+| r-thru-inline @2000/s, 5ms handler, default | 163.7/s | — | R1 reconfirmed on this box |
+| ...same cell + `ConsumerDispatchConcurrency(5)` | 163.7/s | **828/s (5.1x)** | **RO6 headline** |
+| ...same cell + `ConsumerDispatchConcurrency(20)` | 163.7/s | **1,999/s (12.2x)** | RO6 — keeps up with the full offered load |
+| r-max-inline (uncapped, 0ms handler) | 41.0k/41.0-44.2k/s | 42.7k/41.3k/s | ack `multiple:false` fix is throughput-neutral |
+| r-max-native (anchor) | 51.0k/s | — | Wolverine inline ≈ 84% of the native twin at max throughput |
+
+**RO2 ack-watermark coalescing: REJECTED on measurement.** A prototype that batched settlements
+behind a 5ms/prefetch-sized `BatchingChannel` and issued one cumulative `basic.ack` per batch
+measured **37.7-39.5k/s vs a 41.0-44.2k/s baseline — a ~10% regression** across three runs each.
+The premise was wrong: `basic.ack` is a fire-and-forget AMQP frame, not an RPC, so coalescing
+saves no round trips while the extra channel hops cost real throughput. The native twin acks per
+message too, which is why acks were never the inline gap. What survives from RO2 is the
+correctness half — `BasicAckAsync(tag, multiple: true)` on every completion also acked every
+lower delivery tag on the channel, so out-of-order completion under a concurrent listener acked
+messages that were still in the handler pipeline. Now `multiple: false`.
+
 Same rules as #3490 §9: rows only from archived rig runs, exact E-cell + config recorded,
 before/after from the same rig version, one-liner phrased for release notes. Log negative
 results below the table.
 
 | Optimization | PR | Scenario (RE-cell) | Metric | Before | After | Release-note one-liner |
 |---|---|---|---|---|---|---|
-| _(RO1 batched inbox, RO2 ack coalescing, RO3 mapper fixes, ... — rows added as measured)_ | | | | | | |
+| RO1 batched durable inbox | #3512 | r-max-durable | throughput | 1,086/s | 3,101/s | Durable RabbitMQ listeners persist prefetched deliveries in one batched insert: +186% max throughput |
+| RO6 per-endpoint `ConsumerDispatchConcurrency` | this wave | r-thru-inline @2000/s, 5ms handler | throughput | 164/s | 1,999/s | Inline RabbitMQ listeners can now scale consumption per endpoint instead of transport-wide: 12x on a 5ms handler |
+| RO2 ack coalescing | — | r-max-inline | throughput | 41-44k/s | 37.7-39.5k/s | REJECTED — `basic.ack` is not an RPC; batching costs ~10% and saves nothing |
 
 ## 7. Sequencing & exit criteria
 

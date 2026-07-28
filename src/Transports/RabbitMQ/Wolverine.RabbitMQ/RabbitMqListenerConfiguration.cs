@@ -113,6 +113,25 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     }
 
     /// <summary>
+    ///     Override the RabbitMQ client's consumer dispatch concurrency for just this endpoint's
+    ///     listening channels. This governs how many deliveries the client hands to the consumer
+    ///     at once: at the default of 1, an <c>Inline</c> listener runs strictly one message at a
+    ///     time through the handler no matter how MaxDegreeOfParallelism is set. Raising it is the
+    ///     per-endpoint alternative to the transport-wide
+    ///     <c>ConfigureChannelCreation(o =&gt; o.ConsumerDispatchConcurrency = n)</c>. See GH-3492.
+    /// </summary>
+    public RabbitMqListenerConfiguration ConsumerDispatchConcurrency(ushort concurrency)
+    {
+        if (concurrency < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(concurrency), "Must be at least 1");
+        }
+
+        add(e => e.ConsumerDispatchConcurrency = concurrency);
+        return this;
+    }
+
+    /// <summary>
     /// For durable (inbox-backed) listeners, the maximum number of prefetched deliveries the
     /// consumer coalesces into one batched inbox insert (5ms max accumulation age). 1 reverts
     /// to strict message-at-a-time persistence. Ignored for Buffered/Inline endpoints.

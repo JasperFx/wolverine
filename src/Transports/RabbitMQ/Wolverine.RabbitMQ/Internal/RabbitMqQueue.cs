@@ -67,6 +67,15 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     public int MaximumMessagesToReceive { get; set; } = 100;
 
     /// <summary>
+    /// Overrides the transport-wide consumer dispatch concurrency for just this queue's listening
+    /// channels. This is the RabbitMQ client's own limit on how many deliveries it hands to a
+    /// consumer at once, and with the default of 1 an Inline listener consumes strictly one
+    /// message at a time no matter what MaxDegreeOfParallelism says. Null uses the transport-wide
+    /// value set through ConfigureChannelCreation(). See GH-3492.
+    /// </summary>
+    public ushort? ConsumerDispatchConcurrency { get; set; }
+
+    /// <summary>
     ///     The number of unacknowledged messages that can be processed concurrently
     /// </summary>
     public ushort PreFetchCount

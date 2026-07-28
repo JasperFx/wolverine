@@ -26,9 +26,21 @@ opts.ListenToRabbitQueue("orders")
 
     .MaximumParallelMessages(10);
 
-// 3. Raise the client's per-channel dispatch concurrency (applies transport-wide)
+// 3. Raise the client's dispatch concurrency for just this endpoint
+opts.ListenToRabbitQueue("orders").ConsumerDispatchConcurrency(20);
+
+// ...or transport-wide, for every channel in the process
 opts.UseRabbitMq(...).ConfigureChannelCreation(o => o.ConsumerDispatchConcurrency = 4);
 ```
+
+::: tip
+`ConsumerDispatchConcurrency` is usually the cheapest of the three for an Inline listener — it
+costs no extra channels or connections. On the local rig, an Inline listener with a 5ms handler
+under a 2,000 msg/s load went from **164 msg/s** at the default of 1 to **828 msg/s** at 5 and
+**1,999 msg/s** at 20, where it kept up with the full offered load (GH-3492). Raising it gives up
+strict one-at-a-time ordering on that endpoint, which is the whole point — if you need ordering,
+use `PartitionProcessingByGroupId` or sharded queues instead of a single serialized consumer.
+:::
 
 ## Choosing the endpoint mode
 

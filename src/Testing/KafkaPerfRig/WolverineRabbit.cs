@@ -85,6 +85,11 @@ public static class WolverineRabbit
         {
             listener.ListenerCount(cfg.ListenerCount);
         }
+
+        if (cfg.DispatchConcurrency > 0)
+        {
+            listener.ConsumerDispatchConcurrency((ushort)cfg.DispatchConcurrency);
+        }
     }
 
     public static async Task RunPublisherAsync(RigConfig cfg)

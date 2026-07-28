@@ -14,7 +14,12 @@ public enum ConnectionRole
 public interface IConnectionMonitor
 {
     Task ConnectAsync();
-    Task<IChannel> CreateChannelAsync();
+    /// <param name="consumerDispatchConcurrency">
+    /// Overrides the transport-wide <see cref="WolverineRabbitMqChannelOptions.ConsumerDispatchConcurrency"/>
+    /// for this one channel. Listeners use it to scale a single endpoint's consumption without
+    /// changing every other channel in the process (GH-3492).
+    /// </param>
+    Task<IChannel> CreateChannelAsync(ushort? consumerDispatchConcurrency = null);
     ConnectionRole Role { get; }
 }
 
@@ -54,15 +59,17 @@ internal class ConnectionMonitor : IAsyncDisposable, IConnectionMonitor
     /// Configures the channel using custom RabbitMQ channel creation options if specified.
     /// </summary>
     /// <returns>A task that resolves to an <see cref="IChannel"/> instance for RabbitMQ communication.</returns>
-    public Task<IChannel> CreateChannelAsync()
+    public Task<IChannel> CreateChannelAsync(ushort? consumerDispatchConcurrency = null)
     {
-        var connection = _connection 
+        var connection = _connection
             ?? throw new InvalidOperationException("The connection is not initialized");
 
         var wolverineOptions = new WolverineRabbitMqChannelOptions();
         _transport.ChannelCreationOptions?.Invoke(wolverineOptions);
 
-        var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled, wolverineOptions.PublisherConfirmationTrackingEnabled, consumerDispatchConcurrency: wolverineOptions.ConsumerDispatchConcurrency);
+        var options = new CreateChannelOptions(wolverineOptions.PublisherConfirmationsEnabled,
+            wolverineOptions.PublisherConfirmationTrackingEnabled,
+            consumerDispatchConcurrency: consumerDispatchConcurrency ?? wolverineOptions.ConsumerDispatchConcurrency);
 
         return connection.CreateChannelAsync(options);
     }

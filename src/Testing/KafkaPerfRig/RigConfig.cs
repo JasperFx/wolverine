@@ -49,6 +49,9 @@ public class RigConfig
     // 0 = leave the endpoint's default listener count
     public int ListenerCount { get; } = envInt("RIG_LISTENER_COUNT", 0);
 
+    // GH-3492 RO6: per-endpoint consumer dispatch concurrency. 0 leaves the transport-wide default.
+    public int DispatchConcurrency { get; } = envInt("RIG_DISPATCH_CONCURRENCY", 0);
+
     // --- RabbitMQ (GH-3492) ---
     public string RabbitUri { get; } = env("RIG_RABBIT_URI", "amqp://guest:guest@localhost:5672");
     public string SmallQueue => $"rig-small-{RunId}";
