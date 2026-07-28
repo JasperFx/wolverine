@@ -222,7 +222,13 @@ public class GrpcServiceChain : Chain<GrpcServiceChain, ModifyGrpcServiceChainAt
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
-        if (_generatedType != null) return;
+        // GH-3692: only short-circuit when this chain has already been assembled into *this*
+        // assembly. `MapWolverineGrpcServices()` eagerly initializes every chain at app-build
+        // time (it needs the concrete runtime type to hand to MapGrpcService<T>()), so by the
+        // time `codegen write` runs, _generatedType is already populated — but it belongs to a
+        // different GeneratedAssembly. A blanket early return left the codegen command's fresh
+        // assembly empty, and the written file contained nothing but a namespace declaration.
+        if (_generatedType != null && ReferenceEquals(_generatedType.ParentAssembly, assembly)) return;
 
         assembly.ReferenceAssembly(StubType.Assembly);
         assembly.ReferenceAssembly(ProtoServiceBase.Assembly);
