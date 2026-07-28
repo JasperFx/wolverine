@@ -167,8 +167,10 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
         _observer.RecordedStates.ShouldNotContain(ListeningStatus.Stopped);
     }
 
+    // virtual so a single variant can be skipped without taking the other variants with it --
+    // see durable_and_not_parallel and GH-3680.
     [Fact]
-    public async Task the_circuit_breaker_should_trip_and_restart()
+    public virtual async Task the_circuit_breaker_should_trip_and_restart()
     {
         var messageWaiter = _recorder.WaitForMessagesToBeProcessed(RequiredProcessedCountOnTrip, ProcessingBudget);
 

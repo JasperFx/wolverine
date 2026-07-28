@@ -426,13 +426,22 @@ using var host = await Host.CreateDefaultBuilder()
         {
             // Creates 4 sharded Pulsar topics named "orders1" through "orders4"
             // with matching companion local queues for sequential processing
-            topology.UseShardedPulsarTopics("orders", 4);
+            topology.UseShardedPulsarTopics("persistent://public/default/orders", 4);
             topology.MessagesImplementing<IMyMessage>();
         });
     }).StartAsync();
 ```
 
-This creates Pulsar topics named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
+This creates Pulsar topics named `persistent://public/default/orders1` through `...orders4` with companion
+local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on
+their group id, and Wolverine handles the coordination between nodes automatically.
+
+::: warning
+Like every other Pulsar API in Wolverine, the base name must be a **full Pulsar topic path**
+(`persistent://{tenant}/{namespace}/{topic}`); a bare topic name is rejected. The companion local queues
+are named from just the topic's short name, so they read as `global-orders1` the way they do on the other
+transports.
+:::
 
 ## Schema Support <Badge type="tip" text="6.8" />
 

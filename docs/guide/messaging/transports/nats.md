@@ -732,6 +732,14 @@ using var host = await Host.CreateDefaultBuilder()
 
 This creates NATS subjects named `orders1` through `orders4` with companion local queues `global-orders1` through `global-orders4`. Messages are routed to the correct shard based on their group id, and Wolverine handles the coordination between nodes automatically.
 
+::: info JetStream is implied
+Global partitioning forces every slot into durable mode, and a NATS endpoint can only be durable when it
+is JetStream-backed. `UseShardedNatsSubjects()` therefore turns JetStream on for its own endpoints and
+declares a work-queue stream per shard (named after the subject, upper-cased, dots replaced with
+underscores) so `AutoProvision` creates it. Declare a stream of the same name yourself if you need
+different retention or replication.
+:::
+
 ## URI reference
 
 The `NatsEndpointUri` helper class builds canonical endpoint URIs:

@@ -17,10 +17,13 @@
     <ItemGroup>
         <ProjectReference Include="..\Wolverine.Pulsar\Wolverine.Pulsar.csproj"/>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
+        <!-- The global partitioning topology forces durable mode on every slot, so those tests need a real message store -->
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Content Include="$(SolutionDir)xunit.runner.json" CopyToOutputDirectory="PreserveNewest"/>
+        <Compile Include="..\..\..\Servers.cs" Link="Servers.cs"/>
     </ItemGroup>
 
 </Project>

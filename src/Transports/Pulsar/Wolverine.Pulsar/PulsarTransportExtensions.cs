@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DotPulsar;
 using DotPulsar.Abstractions;
+using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
@@ -231,8 +232,22 @@ public static class PulsarTransportExtensions
             t.ConfigureListening(x => {});
             configure?.Invoke(t);
             return t;
-        }, baseName);
+        }, LocalQueueBaseNameFor(baseName));
         return topology;
+    }
+
+    /// <summary>
+    /// GH-3467. Pulsar topics are addressed by their full path (persistent://tenant/ns/topic), but that
+    /// whole string was being used verbatim as the companion local queue base name, producing local
+    /// queues like "global-persistent://public/default/orders1". Take just the topic name so the
+    /// companion queues read as "global-orders1" the way they do on every other transport.
+    /// </summary>
+    internal static string LocalQueueBaseNameFor(string baseName)
+    {
+        var lastSlash = baseName.LastIndexOf('/');
+        var shortName = lastSlash >= 0 ? baseName[(lastSlash + 1)..] : baseName;
+
+        return shortName.IsEmpty() ? baseName : shortName;
     }
 }
 
