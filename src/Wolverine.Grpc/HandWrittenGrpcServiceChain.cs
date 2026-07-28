@@ -137,7 +137,10 @@ public class HandWrittenGrpcServiceChain : Chain<HandWrittenGrpcServiceChain, Mo
 
     void ICodeFile.AssembleTypes(GeneratedAssembly assembly)
     {
-        if (_generatedType != null) return;
+        // GH-3692: see the note on GrpcServiceChain.AssembleTypes — only short-circuit when this
+        // chain has already been assembled into *this* assembly, or the `codegen write` command
+        // (which always starts a fresh GeneratedAssembly) writes an empty file.
+        if (_generatedType != null && ReferenceEquals(_generatedType.ParentAssembly, assembly)) return;
 
         assembly.ReferenceAssembly(ServiceClassType.Assembly);
         assembly.ReferenceAssembly(ServiceContractType.Assembly);
