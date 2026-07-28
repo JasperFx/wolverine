@@ -14,6 +14,16 @@ public class HttpTransport : TransportBase<HttpEndpoint>
     {
     }
 
+    /// <summary>
+    /// Name of the transport's own <see cref="IHttpClientFactory"/> client, registered by
+    /// <c>AddWolverineHttp()</c>. Transport sends resolve it whenever the destination has no named client
+    /// of its own, so envelope traffic carries transport configuration instead of inheriting whatever the
+    /// application configured on its default <see cref="HttpClient"/>. Configure it like any other named
+    /// client — <c>services.AddHttpClient(HttpTransport.HttpClientName, c =&gt; …)</c> — to set a timeout,
+    /// a handler, or a proxy across every HTTP-transport send.
+    /// </summary>
+    public const string HttpClientName = "Wolverine.Http.Transport";
+
     public const string EnvelopeContentType = "binary/wolverine-envelope";
     public const string EnvelopeBatchContentType = "binary/wolverine-envelopes";
     public const string CloudEventsContentType = "application/cloudevents+json";
