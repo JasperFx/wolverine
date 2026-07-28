@@ -107,6 +107,43 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     public int MaxNumberOfMessages { get; set; } = 10;
 
     /// <summary>
+    ///     Hard Amazon SQS limit on the number of entries in a single <c>DeleteMessageBatch</c>
+    ///     request.
+    /// </summary>
+    public const int MaximumDeleteBatchSize = 10;
+
+    private int _deleteMessageBatchSize = MaximumDeleteBatchSize;
+
+    /// <summary>
+    ///     How many message deletions this listener coalesces into a single
+    ///     <c>DeleteMessageBatch</c> call. Completion is otherwise one HTTP round trip -- and one
+    ///     billable API call -- per message, so a 10 message receive is paid for with 10 sequential
+    ///     deletes. Valid values are 1 through 10; 1 reverts to a delete per message. Default 10.
+    ///     See GH-3493.
+    /// </summary>
+    public int DeleteMessageBatchSize
+    {
+        get => _deleteMessageBatchSize;
+        set
+        {
+            if (value < 1 || value > MaximumDeleteBatchSize)
+            {
+                throw new ArgumentOutOfRangeException(nameof(DeleteMessageBatchSize),
+                    $"Must be between 1 and {MaximumDeleteBatchSize}");
+            }
+
+            _deleteMessageBatchSize = value;
+        }
+    }
+
+    /// <summary>
+    ///     The longest a completed message waits for its delete batch to fill before the batch is
+    ///     sent anyway. This is a maximum batch age, not a quiet period. Default 50 milliseconds --
+    ///     far inside any usable visibility timeout. See GH-3493.
+    /// </summary>
+    public TimeSpan DeleteMessageBatchTimeout { get; set; } = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
     ///     Additional configuration for how an SQS queue should be created
     /// </summary>
     [ChildDescription]

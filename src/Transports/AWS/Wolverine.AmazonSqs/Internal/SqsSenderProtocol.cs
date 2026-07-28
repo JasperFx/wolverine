@@ -30,12 +30,25 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
         return _queue.CanScheduleNatively(envelope, utcNow);
     }
 
+    /// <summary>
+    ///     Amazon SQS caps an entire <c>SendMessageBatch</c> request at 256KB, not just the
+    ///     individual messages. Chunk below that with room to spare, since the entry size here is
+    ///     an estimate (GH-3493).
+    /// </summary>
+    internal const int MaximumBatchPayloadBytes = 240 * 1024;
+
+    /// <summary>
+    ///     Fixed allowance per entry for the serialized envelope's headers and the SQS entry
+    ///     scaffolding, added before the base64 inflation. Over-estimating costs an extra request;
+    ///     under-estimating bounces a whole batch.
+    /// </summary>
+    internal const int EntryOverheadBytes = 1024;
+
     public async Task SendBatchAsync(ISenderCallback callback, OutgoingMessageBatch batch)
     {
         await _queue.InitializeAsync(_logger);
 
-        // SQS has a hard limit of 10 messages per batch request
-        var chunks = batch.Messages.Chunk(10).ToArray();
+        var chunks = ChunkMessages(batch.Messages);
 
         var successes = new List<Envelope>();
         var failures = new List<Envelope>();
@@ -81,6 +94,51 @@ internal class SqsSenderProtocol : ISenderProtocolWithNativeScheduling, IConditi
 
             await callback.MarkProcessingFailureAsync(new OutgoingMessageBatch(batch.Destination, failures));
         }
+    }
+
+    /// <summary>
+    ///     Split an outgoing batch on BOTH of SQS's limits: at most 10 entries per request, and at
+    ///     most 256KB across the whole request. Chunking on the count alone let ten individually
+    ///     legal 30KB messages bounce the entire request (GH-3493). A single message that is over
+    ///     the limit on its own still gets its own request and fails there, exactly as before.
+    /// </summary>
+    internal static Envelope[][] ChunkMessages(IEnumerable<Envelope> envelopes)
+    {
+        var chunks = new List<Envelope[]>();
+        var current = new List<Envelope>(10);
+        var currentSize = 0;
+
+        foreach (var envelope in envelopes)
+        {
+            var size = EstimateEntrySize(envelope);
+
+            if (current.Count > 0 && (current.Count == 10 || currentSize + size > MaximumBatchPayloadBytes))
+            {
+                chunks.Add(current.ToArray());
+                current.Clear();
+                currentSize = 0;
+            }
+
+            current.Add(envelope);
+            currentSize += size;
+        }
+
+        if (current.Count > 0)
+        {
+            chunks.Add(current.ToArray());
+        }
+
+        return chunks.ToArray();
+    }
+
+    /// <summary>
+    ///     Estimated wire size of one batch entry. The default mapper serializes the whole envelope
+    ///     -- headers included -- and base64 encodes it, which inflates by 4/3.
+    /// </summary>
+    internal static int EstimateEntrySize(Envelope envelope)
+    {
+        var raw = (envelope.Data?.Length ?? 0) + EntryOverheadBytes;
+        return (raw + 2) / 3 * 4;
     }
 
     // SendMessageBatchAsync is not transactional -- SQS can accept some entries and reject
