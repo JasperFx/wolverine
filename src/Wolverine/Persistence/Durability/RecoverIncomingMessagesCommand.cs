@@ -51,7 +51,26 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
 
         await _store.ReassignIncomingAsync(_settings.AssignedNodeNumber, envelopes);
 
-        await _circuit.EnqueueDirectlyAsync(envelopes);
+        // GH-3680. The rows above are now owned by *this* node, and orphan recovery only ever releases
+        // rows owned by a node it has proven to be dead. If the hand-off into the listener fails -- and it
+        // absolutely can, because a circuit breaker trip between DeterminePageSize() and here nulls out the
+        // agent's receiver -- then nothing on any node will ever release them again and the messages are
+        // lost for the life of the process. Hand ownership back so the next sweep can retry.
+        try
+        {
+            await _circuit.EnqueueDirectlyAsync(envelopes);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Error trying to enqueue {Count} recovered messages into the listener for {Destination}. Releasing them back to any node so that they are recovered on a later sweep",
+                envelopes.Count, _count.Destination);
+
+            await releaseAsync(envelopes);
+
+            return AgentCommands.Empty;
+        }
+
         _logger.RecoveredIncoming(envelopes);
 
         _logger.LogInformation("Successfully recovered {Count} messages from the inbox for listener {Listener}",
@@ -65,6 +84,20 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
         }
 
         return AgentCommands.Empty;
+    }
+
+    private async Task releaseAsync(IReadOnlyList<Envelope> envelopes)
+    {
+        try
+        {
+            await _store.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e,
+                "Error trying to release {Count} un-enqueued messages for {Destination} back to any node",
+                envelopes.Count, _count.Destination);
+        }
     }
 
     public virtual int DeterminePageSize(IListenerCircuit listener, IncomingCount count,

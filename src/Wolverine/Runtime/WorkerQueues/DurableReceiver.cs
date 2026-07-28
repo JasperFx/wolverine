@@ -422,6 +422,17 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
                 await executeWithRetriesAsync(async () =>
                 {
                     envelope.OwnerId = TransportConstants.AnyNode;
+
+                    // GH-3680 defense in depth. Never write an inbox row that no recovery sweep can see.
+                    // Status defaults to 'Outgoing' and received_at to null on an envelope that never went
+                    // through MarkReceived, and both are filter columns for inbox recovery.
+                    if (envelope.Status == EnvelopeStatus.Outgoing)
+                    {
+                        envelope.Status = EnvelopeStatus.Incoming;
+                    }
+
+                    envelope.Destination ??= Uri;
+
                     assignAncillaryStoreIfNeeded(envelope);
                     try
                     {
@@ -612,6 +623,17 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             throw new OperationCanceledException();
         }
 
+        // GH-3680. MarkReceived has to happen BEFORE the latch check, not after it. It is what stamps
+        // Status = Incoming, Destination (persisted as received_at) and Listener onto the envelope. The
+        // latched branch below persists the envelope to the inbox as a safety net, so skipping MarkReceived
+        // wrote rows with the default Status of 'Outgoing' and a null received_at -- invisible to
+        // CheckRecoverableIncomingMessagesOperation (which filters on Status = 'Incoming') and to
+        // LoadPageOfGloballyOwnedIncomingAsync (which filters on received_at), i.e. permanently orphaned.
+        // A null Listener also meant the latched branch silently skipped the defer back to the broker, so
+        // nothing else was going to redeliver them either. That is real message loss under a *durable*
+        // inbox whenever a circuit breaker trip latches the receiver mid-flight.
+        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
+
         // A latched receiver must apply the full single-envelope semantics (persist as
         // owner 0 + defer back to the listener), so route through the one-at-a-time path
         // which already implements them (GH-3492).
@@ -620,8 +642,6 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             foreach (var envelope in envelopes) await _receivingOne.PostAsync(envelope).ConfigureAwait(false);
             return;
         }
-
-        foreach (var envelope in envelopes) envelope.MarkReceived(listener, now, _settings, _endpoint.WireTap);
 
         // Per-envelope guards that the single-envelope path (receiveOneAsync) has always
         // applied but this batch path historically skipped (GH-3492): serializer unwrap
