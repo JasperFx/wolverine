@@ -379,7 +379,7 @@ application cluster while guaranteeing that messages within a group id are proce
 parallelism between message groups.
 :::
 
-Wolverine has direct support for partitioned routing to all eight of the transports that support the
+Wolverine has direct support for partitioned routing to all ten of the transports that support the
 [global partitioning](#global-partitioning) topology through a `PublishToSharded*()` companion to each
 `UseSharded*()` extension method:
 
@@ -393,6 +393,8 @@ Wolverine has direct support for partitioned routing to all eight of the transpo
 | GCP Pub/Sub | `PublishToShardedPubsubTopics()` |
 | NATS | `PublishToShardedNatsSubjects()` |
 | Redis Streams | `PublishToShardedRedisStreams()` |
+| PostgreSQL | `PublishToShardedPostgresqlQueues()` |
+| Sql Server | `PublishToShardedSqlServerQueues()` |
 
 Note that in both of the following examples, Wolverine is both setting up publishing rules out to these queues, and also configuring
 listeners for the queues. Beyond that, Wolverine is making each queue be "exclusive," meaning that only one node
@@ -522,13 +524,16 @@ Each supported transport has its own extension method for configuring the extern
 | GCP Pub/Sub | `UseShardedPubsubTopics()` | [GCP Pub/Sub Global Partitioning](/guide/messaging/transports/gcp-pubsub/#global-partitioning) |
 | NATS | `UseShardedNatsSubjects()` | [NATS Global Partitioning](/guide/messaging/transports/nats#global-partitioning) |
 | Redis Streams | `UseShardedRedisStreams()` | [Redis Global Partitioning](/guide/messaging/transports/redis#global-partitioning) |
+| PostgreSQL | `UseShardedPostgresqlQueues()` | [PostgreSQL Global Partitioning](/guide/durability/postgresql#global-partitioning) |
+| Sql Server | `UseShardedSqlServerQueues()` | [Sql Server Global Partitioning](/guide/durability/sqlserver#global-partitioning) |
 
-All eight extension methods share the same signature, `(string baseName, int numberOfEndpoints)`, and create endpoints named `baseName1`, `baseName2`, and so on, with matching companion local queues. Swap the RabbitMQ call in the example below for any of the others to use a different transport, for example `topology.UseShardedAzureServiceBusQueues("sequenced", 5)` or `topology.UseShardedNatsSubjects("sequenced", 5)`.
+All ten extension methods share the same signature, `(string baseName, int numberOfEndpoints)`, and create endpoints named `baseName1`, `baseName2`, and so on, with matching companion local queues. Swap the RabbitMQ call in the example below for any of the others to use a different transport, for example `topology.UseShardedAzureServiceBusQueues("sequenced", 5)` or `topology.UseShardedNatsSubjects("sequenced", 5)`.
 
 A couple of transport-specific notes:
 
 * **Kafka** -- all nodes listening to the sharded topics share a single Kafka consumer group named after the base name so that Kafka assigns each topic's partitions exclusively to one consumer at a time. Wolverine stamps that consumer group id onto the `GroupId` of incoming envelopes by default, which you can turn off per listener with `DisableConsumerGroupIdStamping()` when the consumer group name is not meaningful as envelope metadata (e.g. when combined with `PropagateGroupIdToPartitionKey()`).
 * **Azure Service Bus** -- the broker's native [session identifiers](/guide/messaging/transports/azureservicebus/session-identifiers) provide strictly ordered, per-session processing with a single queue and may be a simpler alternative if you are exclusively on Azure Service Bus. Global partitioning is the transport-agnostic option that behaves the same way across every broker in the table above.
+* **PostgreSQL / Sql Server** -- the database queues need no extra infrastructure at all; each shard is just another pair of tables in the database you already have. They are inherently durable, which suits global partitioning since the topology forces `EndpointMode.Durable` on every slot anyway. The Sql Server shard queues additionally opt into the [`seq`-clustered high-throughput table layout](/guide/durability/sqlserver#optimizing-queue-throughput) by default.
 
 ### Example with RabbitMQ
 

@@ -4,6 +4,7 @@ using JasperFx.Core.Reflection;
 using Wolverine.Configuration;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql.Transport;
+using Wolverine.Runtime.Partitioning;
 
 
 namespace Wolverine.Postgresql;
@@ -185,5 +186,58 @@ public static class PostgresqlConfigurationExtensions
         publishing.To(queue.Uri);
 
         return new PostgresqlSubscriberConfiguration(queue);
+    }
+
+    /// <summary>
+    /// Shard message publishing across a set of PostgreSQL queues named baseName1, baseName2, and so on
+    /// using the global message grouping rules. This is the publishing-only variant -- see
+    /// UseShardedPostgresqlQueues() for the full global partitioning topology that also shards the
+    /// message *execution* across companion local queues.
+    /// </summary>
+    /// <param name="rules"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static MessagePartitioningRules PublishToShardedPostgresqlQueues(this MessagePartitioningRules rules,
+        string baseName, int numberOfEndpoints, Action<PartitionedMessageTopologyWithDatabaseQueues> configure)
+    {
+        rules.AddPublishingTopology((opts, _) =>
+        {
+            var topology =
+                new PartitionedMessageTopologyWithDatabaseQueues(opts, PartitionSlots.Five, baseName, numberOfEndpoints);
+            topology.ConfigureListening(x => { });
+            configure(topology);
+            topology.AssertValidity();
+
+            return topology;
+        });
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Use sharded PostgreSQL queues for global partitioned message processing.
+    /// Queues will be named baseName1, baseName2, etc.
+    /// </summary>
+    /// <param name="topology"></param>
+    /// <param name="baseName"></param>
+    /// <param name="numberOfEndpoints"></param>
+    /// <param name="configure"></param>
+    /// <returns></returns>
+    public static GlobalPartitionedMessageTopology UseShardedPostgresqlQueues(
+        this GlobalPartitionedMessageTopology topology, string baseName, int numberOfEndpoints,
+        Action<PartitionedMessageTopologyWithDatabaseQueues>? configure = null)
+    {
+        topology.SetExternalTopology(opts =>
+        {
+            var t = new PartitionedMessageTopologyWithDatabaseQueues(opts, PartitionSlots.Five, baseName,
+                numberOfEndpoints);
+            t.ConfigureListening(x => { });
+            configure?.Invoke(t);
+            return t;
+        }, baseName);
+
+        return topology;
     }
 }
