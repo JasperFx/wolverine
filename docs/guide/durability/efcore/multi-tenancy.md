@@ -611,6 +611,34 @@ Note that with partitioning enabled, a tenant's partition must exist before rows
 Sagas are deliberately **not** partitioned in this release — they keep the conjoined query filtering and tenant
 stamping, but stay in unpartitioned tables so saga identity is untouched.
 
+### Partition Status Reporting <Badge type="tip" text="6.24" />
+
+Partition DDL is applied one table at a time with failures isolated, so a batch registration can partially
+succeed — one table's DDL failing does not roll back the tables that already reconciled. Every add returns a
+`TenantPartitionResult` reporting the outcome per table, so callers can surface partial failures instead of
+inferring success from the absence of an exception:
+
+snippet: sample_conjoined_partitioning_status_reporting
+
+On SQL Server the result also carries the `tenant_id -> ordinal` map that was assigned. On PostgreSQL, which
+partitions by list on the tenant id itself, `Ordinals` is empty.
+
+Tenant onboarding through `IDynamicTenantSource<string>` has nowhere to hand back per-table statuses, so a
+partial failure there throws `TenantPartitionException` — carrying the same `Failures` collection — rather than
+registering a tenant whose partitions were never created and letting it fail at its first write.
+
+### Back-filling a Table That Joins Late <Badge type="tip" text="6.24" />
+
+Routine migration deltas deliberately leave Weasel-managed partitions alone, so a table that joins an existing
+managed set — a newly deployed service, or a newly mapped `ITenanted` entity — has **no partition for any tenant
+registered before that table existed**. `MigrateTenantPartitionsAsync()` reconciles every partitioned table
+against the full registered tenant set:
+
+snippet: sample_conjoined_partitioning_back_fill
+
+The back-fill is a reconcile rather than a one-shot, so it is safe to run on every deploy. It also repairs a
+partitioned table that is missing a partition for an already-registered tenant.
+
 ### The Tenant Registry <Badge type="tip" text="6.21" />
 
 Conjoined registrations keep an authoritative tenant list in the `wolverine_tenants` table in the durability schema —

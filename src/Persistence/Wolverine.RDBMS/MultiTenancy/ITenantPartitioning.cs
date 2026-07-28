@@ -95,10 +95,22 @@ public interface ITenantPartitioning
     ///     Add partitions for the given tenants across all partitioned tables.
     ///     The dictionary value is the optional partition suffix -- tenants
     ///     sharing a suffix share a physical partition when AllowPartitionSharing
-    ///     is enabled; null values give each tenant its own partition
+    ///     is enabled; null values give each tenant its own partition.
+    ///     Partition DDL is applied per table with failures isolated, so the
+    ///     returned result can report a partial success
     /// </summary>
-    Task AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
+    Task<TenantPartitionResult> AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
         IReadOnlyDictionary<string, string?> tenantIdToSuffix, CancellationToken token);
+
+    /// <summary>
+    ///     Reconcile every partitioned table against the full registered tenant set.
+    ///     Routine migration deltas deliberately leave managed partitions alone, so a
+    ///     table that joins an existing managed set -- a newly deployed service, or a
+    ///     newly mapped entity -- has no partitions for the tenants registered before
+    ///     it existed until this back-fill runs
+    /// </summary>
+    Task<TenantPartitionResult> MigrateAllTablesAsync(ILogger logger, IDatabaseWithTables database,
+        CancellationToken token);
 
     /// <summary>
     ///     Remove the given tenants from the partition set. deleteData controls
