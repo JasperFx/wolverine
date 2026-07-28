@@ -131,8 +131,7 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
         Options.ClientOptions.ProtocolVersion = MqttProtocolVersion.V500;
         if (JwtAuthenticationOptions is not null)
         {
-            Options.ClientOptions.AuthenticationMethod = "OAUTH2-JWT";
-            Options.ClientOptions.AuthenticationData = await JwtAuthenticationOptions.GetTokenCallBack();
+            await ApplyJwtAuthenticationAsync(Options.ClientOptions, JwtAuthenticationOptions);
         }
 
         Client.ConnectedAsync += onClientConnected;
@@ -171,14 +170,23 @@ public class MqttTransport : TransportBase<MqttTopic>, IAsyncDisposable
 
         if (tenant.Jwt is not null)
         {
-            options.ClientOptions.AuthenticationMethod = "OAUTH2-JWT";
-            options.ClientOptions.AuthenticationData = await tenant.Jwt.GetTokenCallBack();
+            await ApplyJwtAuthenticationAsync(options.ClientOptions, tenant.Jwt);
             client.ConnectedAsync += buildTenantJwtRefreshHandler(client, tenant.Jwt);
         }
 
         await client.StartAsync(options);
 
         return client;
+    }
+
+    // GH-3588: the authentication method name is broker specific. It defaults to "OAUTH2-JWT", but brokers like
+    // Azure Event Grid expect their own name ("CUSTOM-JWT") for the very same token exchange, so it is configurable
+    // on MqttJwtAuthenticationOptions. Applied identically to the default connection and to each tenant connection.
+    internal static async Task ApplyJwtAuthenticationAsync(MqttClientOptions clientOptions,
+        MqttJwtAuthenticationOptions jwt)
+    {
+        clientOptions.AuthenticationMethod = jwt.AuthenticationMethod;
+        clientOptions.AuthenticationData = await jwt.GetTokenCallBack();
     }
 
     // Broker-per-tenant JWT re-authentication loop, scoped to a single tenant client. Mirrors the default
