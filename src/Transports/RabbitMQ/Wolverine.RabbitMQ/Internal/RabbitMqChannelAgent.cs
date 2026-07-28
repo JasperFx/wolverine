@@ -97,9 +97,15 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
         }
     }
 
+    /// <summary>
+    /// Per-agent override of the transport-wide consumer dispatch concurrency. Only listeners
+    /// consume, so senders leave this null (GH-3492).
+    /// </summary>
+    protected virtual ushort? ConsumerDispatchConcurrency => null;
+
     protected async Task startNewChannel()
     {
-        Channel = await _monitor.CreateChannelAsync();
+        Channel = await _monitor.CreateChannelAsync(ConsumerDispatchConcurrency);
 
         Channel.CallbackExceptionAsync += HandleChannelExceptionAsync;
         Channel.ChannelShutdownAsync += HandleChannelShutdownAsync;

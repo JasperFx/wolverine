@@ -163,13 +163,58 @@ transfer); the GH-3490 debounce never applied to Rabbit's sender path (default i
 buffered both unaffected — checked both directions); R5 buffered-below-inline max anomaly
 recorded but unfixed (RO5 follow-up).
 
+### Measured 2026-07-27 (wave 2; local rig, same box, `perf/3492-rabbitmq-wave2` vs `origin/main` @073312262)
+
+| Cell | BEFORE | AFTER | Verdict |
+|---|---|---|---|
+| r-thru-inline @2000/s, 5ms handler, default | 163.7/s | — | R1 reconfirmed on this box |
+| ...same cell + `ConsumerDispatchConcurrency(5)` | 163.7/s | **828/s (5.1x)** | **RO6 headline** |
+| ...same cell + `ConsumerDispatchConcurrency(20)` | 163.7/s | **1,999/s (12.2x)** | RO6 — keeps up with the full offered load |
+| r-max-inline (uncapped, 0ms handler) | 41.0k/41.0-44.2k/s | 42.7k/41.3k/s | ack `multiple:false` is throughput-neutral (change itself deferred, see below) |
+| r-max-native (anchor) | 51.0k/s | — | Wolverine inline ≈ 84% of the native twin at max throughput |
+
+**RO2 ack-watermark coalescing: REJECTED on measurement.** A prototype that batched settlements
+behind a 5ms/prefetch-sized `BatchingChannel` and issued one cumulative `basic.ack` per batch
+measured **37.7-39.5k/s vs a 41.0-44.2k/s baseline — a ~10% regression** across three runs each.
+The premise was wrong: `basic.ack` is a fire-and-forget AMQP frame, not an RPC, so coalescing
+saves no round trips while the extra channel hops cost real throughput. The native twin acks per
+message too, which is why acks were never the inline gap.
+
+**RO2 ack semantics (`multiple: true` → `false`): DEFERRED, and here is why it is not a one-liner.**
+`BasicAckAsync(tag, multiple: true)` on every completion also acks every lower delivery tag on the
+channel, so out-of-order completion under a concurrent listener acks messages still in the handler
+pipeline — a real at-least-once hole. But that sweep turns out to be **load-bearing**: it is
+currently the only thing settling deliveries that some paths never acknowledge at all. Flipping it
+to `multiple: false` in isolation makes those deliveries leak.
+
+Measured, after a full `Wolverine.RabbitMQ.Tests` run against a freshly deleted queue:
+
+| Build | quorum1 after the full suite |
+|---|---|
+| `origin/main` | 0 messages |
+| `multiple: false` | **1 message ready (leaked)** |
+
+CI caught it twice on fresh containers: `quorum_queue_compliance.will_requeue_and_increment_attempts`
+fails 2-of-2 attempts on the ack branch and passes on two sibling PRs off the same base that carry
+no RabbitMQ changes. The isolated retry runs fail because the leaked message is still sitting in the
+queue from the full run — locally the same test passes against a clean queue and fails against a
+dirty one, on both branches.
+
+The fix is to find and settle the leaking path (prime suspect:
+`RabbitMqInteropFriendlyCallback.MoveToErrorsAsync` posts a copy to the dead-letter queue and never
+acks or nacks the original, unlike `RabbitMqChannelCallback.moveToErrorQueueAsync` which nacks), NOT
+to keep the sweep. Split onto its own branch so the RO6 win is not held hostage to it.
+
 Same rules as #3490 §9: rows only from archived rig runs, exact E-cell + config recorded,
 before/after from the same rig version, one-liner phrased for release notes. Log negative
 results below the table.
 
 | Optimization | PR | Scenario (RE-cell) | Metric | Before | After | Release-note one-liner |
 |---|---|---|---|---|---|---|
-| _(RO1 batched inbox, RO2 ack coalescing, RO3 mapper fixes, ... — rows added as measured)_ | | | | | | |
+| RO1 batched durable inbox | #3512 | r-max-durable | throughput | 1,086/s | 3,101/s | Durable RabbitMQ listeners persist prefetched deliveries in one batched insert: +186% max throughput |
+| RO6 per-endpoint `ConsumerDispatchConcurrency` | this wave | r-thru-inline @2000/s, 5ms handler | throughput | 164/s | 1,999/s | Inline RabbitMQ listeners can now scale consumption per endpoint instead of transport-wide: 12x on a 5ms handler |
+| RO2 ack coalescing | — | r-max-inline | throughput | 41-44k/s | 37.7-39.5k/s | REJECTED — `basic.ack` is not an RPC; batching costs ~10% and saves nothing |
+| RO2 ack semantics (`multiple: false`) | deferred | full RabbitMQ suite | messages leaked into quorum1 | 0 | 1 | DEFERRED — the cumulative sweep is load-bearing; fix the unsettled path first |
 
 ## 7. Sequencing & exit criteria
 
