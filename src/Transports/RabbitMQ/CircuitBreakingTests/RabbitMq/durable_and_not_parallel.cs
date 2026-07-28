@@ -41,7 +41,7 @@ public class durable_and_not_parallel(ITestOutputHelper output)
     // this test can be a genuine message-loss bug -- so it is skipped rather than tuned away until
     // the missing messages are actually accounted for. Every sibling variant, and the
     // "do not ever trip" assertion in this class, still run.
-    [Fact(Skip = "Unreliable on CI, see https://github.com/JasperFx/wolverine/issues/3680")]
+    [Fact]
     public override Task the_circuit_breaker_should_trip_and_restart()
     {
         return base.the_circuit_breaker_should_trip_and_restart();

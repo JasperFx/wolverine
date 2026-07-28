@@ -111,7 +111,34 @@ public class ListenerInboxRecovery
             }
 
             await store.ReassignIncomingAsync(_runtime.DurabilitySettings.AssignedNodeNumber, envelopes);
-            await _circuit.EnqueueDirectlyAsync(envelopes);
+
+            // GH-3680. See the matching comment in RecoverIncomingMessagesCommand: once these rows are
+            // owned by this live node, only this node can ever give them back. A failed hand-off into the
+            // listener (e.g. the circuit tripped between the status check above and here) would otherwise
+            // strand them permanently.
+            try
+            {
+                await _circuit.EnqueueDirectlyAsync(envelopes);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e,
+                    "Error trying to enqueue {Count} recovered messages into single node listener {Listener}. Releasing them back to any node so that they are recovered on a later sweep",
+                    envelopes.Count, destination);
+
+                try
+                {
+                    await store.ReassignIncomingAsync(TransportConstants.AnyNode, envelopes);
+                }
+                catch (Exception releaseFailure)
+                {
+                    _logger.LogError(releaseFailure,
+                        "Error trying to release {Count} un-enqueued messages for {Listener} back to any node",
+                        envelopes.Count, destination);
+                }
+
+                break;
+            }
 
             _logger.RecoveredIncoming(envelopes);
             _logger.LogInformation(
