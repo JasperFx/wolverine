@@ -575,4 +575,41 @@ Wolverine validates global partitioning configuration at startup. It will throw 
 - No external transport topology is configured
 - The external and local topologies have different shard counts
 
+### Native Per-Transport Alternatives
+
+Global partitioning is the *portable* answer: it behaves identically on all ten transports because
+Wolverine owns the slot assignment and the failover. Several brokers also ship a native primitive
+that solves the same problem their own way, and on a single-broker system that can be the simpler
+choice.
+
+| Transport | Native primitive | How to use it |
+|-----------|-----------------|---------------|
+| Azure Service Bus | Sessions | [`RequireSessions()`](/guide/messaging/transports/azureservicebus/session-identifiers) with the session id set from your group id |
+| Amazon SQS | FIFO `MessageGroupId` | A FIFO queue plus [`EnableFairQueueMessageGroups()`](/guide/messaging/transports/sqs/) |
+| GCP Pub/Sub | Ordering keys | `EnableMessageOrdering`; Wolverine already maps the envelope's `GroupId` onto `OrderingKey` |
+| Pulsar | `KeyShared` subscription | `SubscriptionType(SubscriptionType.KeyShared)` on the listener |
+| Kafka | Partitions + consumer group | One topic with N partitions plus [`PropagateGroupIdToPartitionKey()`](/guide/messaging/transports/kafka) |
+
+The important difference is the **unit of ordering**:
+
+* **Global partitioning orders per _slot_.** Two unrelated group ids that hash to the same slot are
+  serialized against each other. That is stronger than you asked for -- it costs some parallelism,
+  but the number of slots is fixed, so there is no resource that grows with your key count.
+* **Most native primitives order per _key_.** Sessions, message groups, ordering keys and
+  `KeyShared` all allow unrelated keys to proceed in parallel, which is usually what you actually
+  wanted. The trade is that the broker carries state per *active key*, so a system that mints a
+  fresh group id per message will accumulate sessions/groups until it hits a service limit.
+
+The second difference is **poison-message behavior**. Under a native per-key primitive, a message
+that keeps failing blocks its entire key until it dead-letters. Under global partitioning it only
+occupies one slot's companion local queue, which continues draining other group ids up to its
+`MaxDegreeOfParallelism`.
+
+::: tip Which should I use?
+Reach for the native primitive when you are committed to one broker, you want unrelated keys to run
+in parallel, and your group ids come from a bounded set (tenants, accounts, streams). Reach for
+global partitioning when you want the same behavior across brokers, when your group id cardinality
+is unbounded, or when a single poison message must not stall a key.
+:::
+
 
