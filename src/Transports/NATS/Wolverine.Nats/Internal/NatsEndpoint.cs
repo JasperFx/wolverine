@@ -105,6 +105,21 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
     public string ScheduleSubjectSuffix { get; set; } = ".scheduled";
 
     /// <summary>
+    /// True when native JetStream scheduling is actually in play for this endpoint's stream, which
+    /// means <c>{subject}{ScheduleSubjectSuffix}</c> carries the schedule control messages and must
+    /// stay covered by this endpoint's consumer. Mirrors the predicate CreateSender uses to decide
+    /// whether a sender supports native scheduled send
+    /// </summary>
+    [IgnoreDescription]
+    internal bool UsesNativeScheduledSend =>
+        UseJetStream
+        && _transport.Configuration.EnableJetStream
+        && _transport.ServerSupportsScheduledSend
+        && StreamName != null
+        && _transport.Configuration.Streams.TryGetValue(StreamName, out var scheduleStreamConfig)
+        && scheduleStreamConfig.AllowMsgSchedules;
+
+    /// <summary>
     /// Per-endpoint override for the JetStream consumer's <c>DeliverPolicy</c>.
     /// When non-null this wins over
     /// <see cref="Configuration.JetStreamDefaults.DeliverPolicy"/>; when null the
