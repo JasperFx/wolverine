@@ -306,18 +306,54 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         return $"RabbitMqListener: {Address}";
     }
 
+    /// <summary>
+    /// True only when this delivery can still legitimately be settled -- that is, when the channel it
+    /// arrived on is the channel we currently hold AND that channel is still open.
+    ///
+    /// A bare null check is NOT sufficient here, and using one would silently lose messages. Delivery
+    /// tags are scoped to a single channel and restart at 1 on every new one, so a stale tag replayed
+    /// against a rebuilt channel addresses a completely different delivery -- and because CompleteAsync
+    /// acks with multiple: true, that would ack every LOWER tag on the new channel as well, including
+    /// messages still in the handler pipeline.
+    ///
+    /// When this returns false the correct behavior is to do nothing at all. The broker never saw an
+    /// ack, so it requeues the delivery on channel close and redelivers it; the durable inbox then
+    /// deduplicates it. Retrying the settle instead -- which is what the RetryBlock used to do after
+    /// `Channel!` threw a NullReferenceException mid-reconnect -- can never succeed on any later
+    /// channel, and just burns the retry budget while the same message cycles round again.
+    /// </summary>
+    internal bool CanSettle(RabbitMqEnvelope envelope)
+    {
+        var channel = Channel;
+        if (channel is null || !ReferenceEquals(channel, envelope.DeliveredOn) || !channel.IsOpen)
+        {
+            Logger.LogDebug(
+                "Discarding an unsettleable Rabbit MQ delivery tag {DeliveryTag} at {Uri}; the channel it arrived on was closed or replaced. The broker will redeliver and the durable inbox will deduplicate.",
+                envelope.DeliveryTag, Address);
+
+            return false;
+        }
+
+        return true;
+    }
+
     public async ValueTask RequeueAsync(RabbitMqEnvelope envelope)
     {
-        if (!envelope.Acknowledged)
+        if (!envelope.Acknowledged && CanSettle(envelope))
         {
-            await Channel!.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
+            await envelope.DeliveredOn.BasicNackAsync(envelope.DeliveryTag, false, false, _cancellation);
         }
 
         await _sender.Value.SendAsync(envelope);
     }
 
-    public async Task CompleteAsync(ulong deliveryTag)
+    public Task CompleteAsync(RabbitMqEnvelope envelope)
     {
+        if (!CanSettle(envelope))
+        {
+            return Task.CompletedTask;
+        }
+
         // NOTE: multiple: true also acks every LOWER delivery tag on this channel. That is wrong
         // under a concurrent listener -- it acks messages still in the handler pipeline -- but it
         // is currently load-bearing, because it sweeps up deliveries that some settle paths never
@@ -328,6 +364,6 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         // basic.ack is a fire-and-forget frame, not an RPC, so batching saves no round trips while
         // the extra channel hops cost ~10% of max inline throughput. See the ledger in
         // RABBITMQ-PERF-DEEP-DIVE-PLAN.md.
-        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
+        return envelope.DeliveredOn.BasicAckAsync(envelope.DeliveryTag, true, _cancellation).AsTask();
     }
 }

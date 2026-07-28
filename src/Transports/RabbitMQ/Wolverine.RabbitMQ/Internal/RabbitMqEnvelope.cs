@@ -1,12 +1,23 @@
+using RabbitMQ.Client;
+
 namespace Wolverine.RabbitMQ.Internal;
 
 internal class RabbitMqEnvelope : Envelope
 {
-    public RabbitMqEnvelope(RabbitMqListener listener, ulong deliveryTag)
+    public RabbitMqEnvelope(RabbitMqListener listener, ulong deliveryTag, IChannel deliveredOn)
     {
         RabbitMqListener = listener;
         DeliveryTag = deliveryTag;
+        DeliveredOn = deliveredOn;
     }
+
+    /// <summary>
+    /// The channel this delivery actually arrived on. Delivery tags are scoped to a single
+    /// channel and restart at 1 on each new one, so every settle path has to compare against
+    /// this rather than just using whatever channel the listener currently holds. See
+    /// <see cref="RabbitMqListener.CanSettle"/>.
+    /// </summary>
+    internal IChannel DeliveredOn { get; }
 
     /// <summary>
     /// This is only here for chaos testing. Don't use this for any
@@ -27,7 +38,7 @@ internal class RabbitMqEnvelope : Envelope
     {
         if (Acknowledged) return;
 
-        await RabbitMqListener.CompleteAsync(DeliveryTag);
+        await RabbitMqListener.CompleteAsync(this);
         Acknowledged = true;
     }
 
@@ -39,7 +50,7 @@ internal class RabbitMqEnvelope : Envelope
         // and consumes a prefetch slot (blocking PreFetchCount(1) entirely).
         if (!Acknowledged)
         {
-            await RabbitMqListener.CompleteAsync(DeliveryTag);
+            await RabbitMqListener.CompleteAsync(this);
             Acknowledged = true;
         }
 

@@ -10,20 +10,36 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
 {
     private readonly RetryBlock<RabbitMqEnvelope> _deadLetterQueue;
 
+    // Sample broker text:
+    //   Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer,
+    //   code=406, text='PRECONDITION_FAILED - unknown delivery tag 1', classId=60, methodId=80
+    //
+    // NOTE the tag number sits INSIDE the quotes. Earlier versions of this check looked for
+    // "'PRECONDITION_FAILED - unknown delivery tag'" with a trailing apostrophe, which never matched
+    // any real broker message -- so in moveToErrorQueueAsync the exception was rethrown and retried
+    // three times before being discarded. Match without the closing quote.
+    private const string UnknownDeliveryTag = "PRECONDITION_FAILED - unknown delivery tag";
+
+    private static bool isUnknownDeliveryTag(AlreadyClosedException exception)
+    {
+        return exception.Message.Contains(UnknownDeliveryTag);
+    }
+
     internal RabbitMqChannelCallback(ILogger logger, CancellationToken cancellationToken)
     {
         Logger = logger;
         Complete = new RetryBlock<RabbitMqEnvelope>(async (e, _) =>
         {
-            // AlreadyClosedException: Already closed: The AMQP operation was interrupted: AMQP close-reason, initiated by Peer, code=406, text='PRECONDITION_FAILED - unknown delivery tag 1', classId=60, methodId=80
-
             try
             {
                 await e.CompleteAsync();
             }
             catch (AlreadyClosedException exception)
             {
-                if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
+                // An unknown delivery tag is terminal -- the tag's channel is gone and no retry on any
+                // later channel can succeed. Swallowing it here stops the RetryBlock from burning its
+                // budget; the broker will redeliver and the durable inbox will deduplicate.
+                if (isUnknownDeliveryTag(exception))
                 {
                     logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
                 }
@@ -97,18 +113,20 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
     {
         try
         {
-            if (envelope.RabbitMqListener.Channel is not null)
+            // A null check is not enough -- the tag has to be nacked on the channel it arrived on, or
+            // it addresses an unrelated delivery on a rebuilt channel. See RabbitMqListener.CanSettle.
+            if (envelope.RabbitMqListener.CanSettle(envelope))
             {
                 // Mark as acknowledged before the NACK so that any subsequent
                 // CompleteAsync() call is a no-op (prevents double ack/nack)
                 envelope.Acknowledged = true;
                 envelope.HasBeenAcked = true;
-                await envelope.RabbitMqListener.Channel.BasicNackAsync(envelope.DeliveryTag, false, false, token);
+                await envelope.DeliveredOn.BasicNackAsync(envelope.DeliveryTag, false, false, token);
             }
         }
         catch (AlreadyClosedException exception)
         {
-            if (exception.Message.Contains("'PRECONDITION_FAILED - unknown delivery tag'"))
+            if (isUnknownDeliveryTag(exception))
             {
                 Logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
                 return;
