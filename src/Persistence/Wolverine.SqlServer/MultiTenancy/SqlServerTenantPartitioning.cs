@@ -79,69 +79,42 @@ internal class SqlServerTenantPartitioning : ITenantPartitioning
         var db = (IDatabase<SqlConnection>)database;
         await _partitions.InitializeAsync(db, token);
 
-        var ordinals = new Dictionary<string, int>();
-        var tables = new List<TenantPartitionTableStatus>();
-
-        // Tenants without a suffix each get their own auto-allocated ordinal.
-        // Tenants sharing a suffix share one ordinal (a shared physical partition),
-        // mirroring the PostgreSQL suffix bucketing
-        var standalone = tenantIdToSuffix.Where(x => x.Value == null).Select(x => x.Key).ToArray();
-        if (standalone.Any())
+        if (!_options.AllowPartitionSharing)
         {
-            accumulate(await _partitions.AddPartitionsToAllTables(logger, db, standalone, token));
+            assertNoSharing(tenantIdToSuffix);
         }
 
+        // Weasel resolves each named bucket to its ordinal through the registry's bucket column, so
+        // members of one bucket land in the same physical partition whether they were registered
+        // together or one release apart. Wolverine used to resolve the ordinal itself from the
+        // tenant -> ordinal map, which could not see the bucket at all: a brand new tenant matched
+        // nothing and silently got a fresh partition (GH-3683 / weasel#391)
+        var result = await _partitions.AddPartitionsToAllTables(logger, db, tenantIdToSuffix, token);
+
+        return new TenantPartitionResult(
+            result.Ordinals.ToDictionary(x => x.Key, x => x.Value),
+            result.Tables.Select(toStatus).ToList());
+    }
+
+    /// <summary>
+    ///     The bucket -> ordinal map is persisted, so this check spans calls just like the PostgreSQL
+    ///     one: two tenants land in the same bucket whether they were registered together or one
+    ///     release apart
+    /// </summary>
+    private void assertNoSharing(IReadOnlyDictionary<string, string?> tenantIdToSuffix)
+    {
         foreach (var bucket in tenantIdToSuffix.Where(x => x.Value != null).GroupBy(x => x.Value!))
         {
-            if (!_options.AllowPartitionSharing && bucket.Count() > 1)
+            var alreadyRegistered = _partitions.Buckets.TryGetValue(bucket.Key, out var ordinal)
+                ? _partitions.Ordinals.Where(x => x.Value == ordinal).Select(x => x.Key)
+                : [];
+
+            var members = bucket.Select(x => x.Key).Concat(alreadyRegistered).Distinct().ToArray();
+
+            if (members.Length > 1)
             {
                 throw new InvalidOperationException(
-                    $"Tenants {bucket.Select(x => x.Key).Join(", ")} share partition suffix '{bucket.Key}', but partition sharing is not enabled. Enable AllowPartitionSharing on the tenant partitioning options.");
-            }
-
-            // The bucket's ordinal is whichever member is already registered, or
-            // the next free ordinal for a brand new bucket
-            var members = bucket.Select(x => x.Key).ToArray();
-            var existing = members.Where(m => _partitions.Ordinals.ContainsKey(m))
-                .Select(m => _partitions.Ordinals[m]).Distinct().ToArray();
-
-            if (existing.Length > 1)
-            {
-                throw new InvalidOperationException(
-                    $"Tenants {members.Join(", ")} for suffix '{bucket.Key}' are already mapped to different partitions ({string.Join(", ", existing)})");
-            }
-
-            var ordinal = existing.Length == 1
-                ? existing[0]
-                : (_partitions.Ordinals.Values.DefaultIfEmpty(0).Max() + 1);
-
-            var mapping = members.ToDictionary(m => m, _ => ordinal);
-            accumulate(await _partitions.AddPartitionsToAllTables(logger, db, mapping, token));
-        }
-
-        return new TenantPartitionResult(ordinals, tables);
-
-        void accumulate(TenantPartitionAddResult result)
-        {
-            foreach (var pair in result.Ordinals)
-            {
-                ordinals[pair.Key] = pair.Value;
-            }
-
-            // A table can appear once per bucket; the worst status wins so a single
-            // failed batch isn't masked by a later successful one
-            foreach (var status in result.Tables)
-            {
-                var mapped = toStatus(status);
-                var index = tables.FindIndex(x => x.TableName == mapped.TableName);
-                if (index < 0)
-                {
-                    tables.Add(mapped);
-                }
-                else if (tables[index].Status == TenantPartitionStatus.Complete)
-                {
-                    tables[index] = mapped;
-                }
+                    $"Tenants {members.Join(", ")} share partition suffix '{bucket.Key}', but partition sharing is not enabled. Enable AllowPartitionSharing on the tenant partitioning options.");
             }
         }
     }

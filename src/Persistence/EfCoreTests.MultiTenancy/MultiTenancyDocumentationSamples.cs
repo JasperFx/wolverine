@@ -261,7 +261,12 @@ public class ConjoinedTenancyDocumentationSamples
 
                 // Weasel-managed physical partitioning: one partition (or shared
                 // bucket) per tenant on every non-saga ITenanted entity table
-                tenancy => tenancy.PartitionPerTenant());
+                tenancy => tenancy.PartitionPerTenant(partitioning =>
+                {
+                    // Opt in before registering two tenants against one suffix.
+                    // Without this a shared suffix is rejected outright
+                    partitioning.AllowPartitionSharing = true;
+                }));
             #endregion
         });
     }
@@ -275,8 +280,10 @@ public class ConjoinedTenancyDocumentationSamples
         // Each tenant gets its own physical partition
         await partitions.AddTenantAsync("tenant1");
 
-        // Or share one partition between small tenants ("bucketing") --
-        // requires AllowPartitionSharing on the partitioning options
+        // Or share one partition between small tenants ("bucketing") by registering
+        // them against the same suffix -- requires AllowPartitionSharing above.
+        // Members can be added one at a time as tenants onboard; the bucket is
+        // resolved from storage, so they land in the same physical partition
         await partitions.AddTenantAsync("small-tenant-a", "shared_bucket");
         await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
 

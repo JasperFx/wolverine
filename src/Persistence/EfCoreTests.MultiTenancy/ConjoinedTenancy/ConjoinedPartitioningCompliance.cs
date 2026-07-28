@@ -114,7 +114,9 @@ public abstract class ConjoinedPartitioningCompliance : IAsyncLifetime
                     opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<PartitionedItemsDbContext>(
                         (builder, connectionString) => builder.UseNpgsql(connectionString.Value),
                         AutoCreate.CreateOrUpdate,
-                        tenancy => tenancy.PartitionPerTenant());
+                        // Bucketing is opt-in; enabling it here does not change the behavior of the
+                        // non-bucketed tests, which still register tenants with no suffix
+                        tenancy => tenancy.PartitionPerTenant(p => p.AllowPartitionSharing = true));
                 }
                 else
                 {
@@ -122,7 +124,7 @@ public abstract class ConjoinedPartitioningCompliance : IAsyncLifetime
                     opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<PartitionedItemsDbContext>(
                         (builder, connectionString) => builder.UseSqlServer(connectionString.Value),
                         AutoCreate.CreateOrUpdate,
-                        tenancy => tenancy.PartitionPerTenant());
+                        tenancy => tenancy.PartitionPerTenant(p => p.AllowPartitionSharing = true));
                 }
 
                 opts.UseEntityFrameworkCoreTransactions();
@@ -280,6 +282,118 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
         (await green.Items.ToListAsync()).Single().Id.ShouldBe(id);
+    }
+
+    [Fact]
+    public async Task bucketed_tenants_registered_separately_share_one_partition()
+    {
+        // GH-3683 / weasel#391: registering bucket members ONE AT A TIME is the documented shape and the
+        // natural tenant-onboarding shape, and it silently did not work on either engine. PostgreSQL's
+        // second member was swallowed by CREATE TABLE IF NOT EXISTS so its first write failed with 23514;
+        // SQL Server's registry had no bucket key, so each call quietly allocated a separate ordinal and
+        // the tenants never actually shared the partition that bucketing exists to give them.
+        await thePartitions.AddTenantAsync("smalla", "shared_bucket");
+        await thePartitions.AddTenantAsync("smallb", "shared_bucket");
+
+        // Both members read and write...
+        var aId = Guid.NewGuid();
+        var bId = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("smalla", new CreatePartitionedItem(aId, "a")));
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(bId, "b")));
+
+        var a = await theBuilder.BuildAsync("smalla", CancellationToken.None);
+        (await a.Items.ToListAsync()).Single().Id.ShouldBe(aId);
+
+        var b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
+        (await b.Items.ToListAsync()).Single().Id.ShouldBe(bId);
+
+        // ...and they genuinely share ONE physical partition, which is the entire point
+        (await distinctPartitionCountAsync(["smalla", "smallb"])).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task bucketed_tenants_registered_together_share_one_partition()
+    {
+        await thePartitions.AddTenantsAsync(new Dictionary<string, string?>
+        {
+            ["smalla"] = "shared_bucket",
+            ["smallb"] = "shared_bucket"
+        });
+
+        (await distinctPartitionCountAsync(["smalla", "smallb"])).ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task dropping_one_bucket_member_leaves_the_others_working()
+    {
+        // The co-tenant data-loss defect found alongside GH-3683: on PostgreSQL the by-value drop resolved
+        // the tenant to its suffix and dropped BY SUFFIX, taking every co-tenant's rows with it.
+        await thePartitions.AddTenantAsync("smalla", "shared_bucket");
+        await thePartitions.AddTenantAsync("smallb", "shared_bucket");
+
+        var survivorId = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("smalla", new CreatePartitionedItem(Guid.NewGuid(), "doomed")));
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(survivorId, "survivor")));
+
+        await thePartitions.DropTenantAsync("smalla", deleteData: true);
+
+        // The survivor keeps its rows...
+        var b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
+        (await b.Items.ToListAsync()).Single().Id.ShouldBe(survivorId);
+
+        // ...and can still write
+        var moreId = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(moreId, "more")));
+
+        b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
+        (await b.Items.ToListAsync()).Select(x => x.Id).OrderBy(x => x)
+            .ShouldBe(new[] { survivorId, moreId }.OrderBy(x => x));
+    }
+
+    /// <summary>
+    ///     How many distinct physical partitions the given tenants occupy. PostgreSQL partitions by list on
+    ///     the tenant id, so the partition is the child table the row lands in; SQL Server partitions over a
+    ///     compact ordinal, so it is the registered ordinal
+    /// </summary>
+    private async Task<int> distinctPartitionCountAsync(string[] tenantIds)
+    {
+        if (_engine == DatabaseEngine.PostgreSQL)
+        {
+            await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+select count(distinct c.relname)
+from pg_class c
+join pg_inherits i on i.inhrelid = c.oid
+join pg_class parent on i.inhparent = parent.oid
+join pg_namespace ns on parent.relnamespace = ns.oid
+where ns.nspname = 'conjoined_part' and parent.relname = 'partitioned_items'
+  and pg_get_expr(c.relpartbound, c.oid) like any (@patterns)";
+            var parameter = cmd.CreateParameter();
+            parameter.ParameterName = "patterns";
+            parameter.Value = tenantIds.Select(x => $"%'{x}'%").ToArray();
+            cmd.Parameters.Add(parameter);
+            return (int)(long)(await cmd.ExecuteScalarAsync())!;
+        }
+
+        await using var sqlConn = new SqlConnection(Servers.SqlServerConnectionString);
+        await sqlConn.OpenAsync();
+        await using var sqlCmd = sqlConn.CreateCommand();
+        var names = tenantIds.Select((_, i) => $"@t{i}").ToArray();
+        for (var i = 0; i < tenantIds.Length; i++)
+        {
+            sqlCmd.Parameters.AddWithValue($"@t{i}", tenantIds[i]);
+        }
+
+        sqlCmd.CommandText =
+            $"SELECT COUNT(DISTINCT ordinal) FROM conjoined_part_wolverine.wolverine_tenant_partitions WHERE tenant_id IN ({string.Join(", ", names)})";
+        return (int)(await sqlCmd.ExecuteScalarAsync())!;
     }
 
     [Fact]

@@ -572,7 +572,12 @@ opts.Services.AddDbContextWithWolverineManagedConjoinedTenancy<ConjoinedTenancy.
 
     // Weasel-managed physical partitioning: one partition (or shared
     // bucket) per tenant on every non-saga ITenanted entity table
-    tenancy => tenancy.PartitionPerTenant());
+    tenancy => tenancy.PartitionPerTenant(partitioning =>
+    {
+        // Opt in before registering two tenants against one suffix.
+        // Without this a shared suffix is rejected outright
+        partitioning.AllowPartitionSharing = true;
+    }));
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/EfCoreTests.MultiTenancy/MultiTenancyDocumentationSamples.cs#L257-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conjoined_tenancy_with_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
@@ -582,7 +587,7 @@ With partitioning enabled:
 * On PostgreSQL, every non-saga `ITenanted` entity table becomes `PARTITION BY LIST (tenant_id)` with one partition per tenant, managed through a `wolverine_tenant_partitions` control table in the durability schema
 * On SQL Server (which can only range-partition over a compact value), entities gain an `int tenant_ordinal` column stamped automatically by Wolverine, and tables are `RANGE RIGHT` partitioned over the ordinal with a registry table mapping tenant ids to ordinals
 * The composite `(tenant, id)` primary key exists **only in the database** — your EF model keeps its own single key, so `FindAsync()`, `Attach()`, and saga loads keep exactly the same call shapes
-* Multiple small tenants can share one physical partition ("bucketing") by registering them with the same partition suffix — the answer to SQL Server's partition count ceiling and to "small tenants don't deserve their own partition"
+* Multiple small tenants can share one physical partition ("bucketing") by registering them with the same partition suffix — the answer to SQL Server's partition count ceiling and to "small tenants don't deserve their own partition". See [Tenant Bucketing](#tenant-bucketing) below
 * Partitioned conjoined contexts require `UseEntityFrameworkCoreWolverineManagedMigrations()` — EF migrations cannot express the partition DDL
 
 Manage tenants through `IConjoinedTenantPartitions<TDbContext>`:
@@ -596,8 +601,10 @@ var partitions = host.Services
 // Each tenant gets its own physical partition
 await partitions.AddTenantAsync("tenant1");
 
-// Or share one partition between small tenants ("bucketing") --
-// requires AllowPartitionSharing on the partitioning options
+// Or share one partition between small tenants ("bucketing") by registering
+// them against the same suffix -- requires AllowPartitionSharing above.
+// Members can be added one at a time as tenants onboard; the bucket is
+// resolved from storage, so they land in the same physical partition
 await partitions.AddTenantAsync("small-tenant-a", "shared_bucket");
 await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
 
@@ -610,6 +617,47 @@ await partitions.DropTenantAsync("tenant1", deleteData: true);
 Note that with partitioning enabled, a tenant's partition must exist before rows can be written for that tenant.
 Sagas are deliberately **not** partitioned in this release — they keep the conjoined query filtering and tenant
 stamping, but stay in unpartitioned tables so saga identity is untouched.
+
+### Tenant Bucketing <Badge type="tip" text="6.24" />
+
+Giving every tenant its own physical partition stops scaling somewhere — SQL Server caps a table at 15,000
+partitions, and long before that a few thousand nearly-empty partitions cost more in planning time than they
+save in scans. *Bucketing* is the escape hatch: register several small tenants against the same partition
+suffix and they share one physical partition, while large tenants keep theirs to themselves.
+
+Bucketing is opt-in. Set `AllowPartitionSharing` on the partitioning options, then pass the same suffix for
+every member of a bucket:
+
+```cs
+tenancy => tenancy.PartitionPerTenant(p => p.AllowPartitionSharing = true);
+
+// ...
+
+// big tenants keep a partition each
+await partitions.AddTenantAsync("enterprise-customer");
+
+// small ones share -- registered together, or one at a time as they sign up
+await partitions.AddTenantAsync("small-tenant-a", "shared_bucket");
+await partitions.AddTenantAsync("small-tenant-b", "shared_bucket");
+```
+
+Members can be registered together or in completely separate calls; the bucket is resolved from storage, so
+a tenant onboarding a release later still lands in the partition its bucket already owns.
+
+Dropping one member of a bucket removes only that tenant's rows — the remaining members keep the partition and
+their data. The partition itself is released only when its last member is dropped.
+
+::: warning
+`AllowPartitionSharing` is off by default, and passing a shared suffix without it fails fast rather than
+quietly giving each tenant its own partition. Leave it off unless you actually want tenants sharing storage:
+a shared partition means partition pruning no longer isolates those tenants from each other, and a
+partition-level operation touches every member.
+:::
+
+::: tip
+Bucketing required Weasel 9.20.0 (`JasperFx/weasel#391`). On earlier versions a shared suffix did not
+actually produce a shared partition on either engine — see [GH-3683](https://github.com/JasperFx/wolverine/issues/3683).
+:::
 
 ### Partition Status Reporting <Badge type="tip" text="6.24" />
 
