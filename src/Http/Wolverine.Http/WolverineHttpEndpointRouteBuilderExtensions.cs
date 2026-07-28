@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Matching;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using JasperFx.Events;
@@ -169,6 +170,15 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // service-collection extension registers the singleton on demand; only
         // apps that call UseNewtonsoftJsonForSerialization() pay for it now.
         services.AddSingleton<HttpTransportExecutor>();
+
+        // GH-3690 — the HTTP transport's send side needs an IWolverineHttpTransportClient and an
+        // IHttpClientFactory. Every application had to register both by hand, and the samples that got it
+        // wrong failed at runtime rather than at startup. Register them here: TryAdd so an application
+        // that supplies its own implementation (e.g. the CloudEvents variant) still wins, and a named
+        // client of the transport's own so envelope traffic is configurable in one place instead of
+        // inheriting the application's default HttpClient settings.
+        services.AddHttpClient(HttpTransport.HttpClientName);
+        services.TryAddScoped<IWolverineHttpTransportClient, WolverineHttpTransportClient>();
 
         services.AddSingleton(typeof(IProblemDetailSource<>), typeof(ProblemDetailSource<>));
         services.AddSingleton<MatcherPolicy, ContentTypeEndpointSelectorPolicy>();
