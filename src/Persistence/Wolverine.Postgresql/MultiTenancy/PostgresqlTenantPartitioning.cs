@@ -74,22 +74,80 @@ internal class PostgresqlTenantPartitioning : ITenantPartitioning
         return false;
     }
 
-    public async Task AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
+    public async Task<TenantPartitionResult> AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
         IReadOnlyDictionary<string, string?> tenantIdToSuffix, CancellationToken token)
     {
         var values = tenantIdToSuffix.ToDictionary(
             pair => pair.Key,
             pair => pair.Value ?? pair.Key.ToLowerInvariant());
 
+        if (!_options.AllowPartitionSharing)
+        {
+            await _partitions.InitializeAsync((PostgresqlDatabase)database, token);
+            assertNoSharing(values);
+        }
+
         var statuses =
             await _partitions.AddPartitionToAllTables(logger, (PostgresqlDatabase)database, values, token);
 
-        var failures = statuses.Where(x => x.Status != PartitionMigrationStatus.Complete).ToArray();
-        if (failures.Any())
+        return toResult(statuses);
+    }
+
+    public async Task<TenantPartitionResult> MigrateAllTablesAsync(ILogger logger, IDatabaseWithTables database,
+        CancellationToken token)
+    {
+        var db = (PostgresqlDatabase)database;
+        await _partitions.InitializeAsync(db, token);
+
+        // ManagedListPartitions has no dedicated back-fill entry point, but its add
+        // is purely additive and idempotent -- every partition is written as
+        // CREATE TABLE IF NOT EXISTS -- so replaying the full registered value ->
+        // suffix map reconciles any table that joined the managed set late
+        var registered = _partitions.Partitions.ToDictionary(pair => pair.Key, pair => pair.Value);
+        if (!registered.Any())
         {
-            throw new InvalidOperationException(
-                $"Adding tenant partitions failed for table(s) {failures.Select(x => x.Identifier.QualifiedName).Join(", ")}");
+            return TenantPartitionResult.Empty;
         }
+
+        var statuses = await _partitions.AddPartitionToAllTables(logger, db, registered, token);
+
+        return toResult(statuses);
+    }
+
+    /// <summary>
+    ///     PostgreSQL persists the tenant -> suffix map in the control table, so the
+    ///     check spans calls: two tenants land in the same bucket whether they were
+    ///     registered together or one release apart
+    /// </summary>
+    private void assertNoSharing(IReadOnlyDictionary<string, string> values)
+    {
+        foreach (var bucket in values.GroupBy(x => x.Value))
+        {
+            var members = bucket.Select(x => x.Key)
+                .Concat(_partitions.Partitions.Where(x => x.Value == bucket.Key).Select(x => x.Key))
+                .Distinct()
+                .ToArray();
+
+            if (members.Length > 1)
+            {
+                throw new InvalidOperationException(
+                    $"Tenants {members.Join(", ")} share partition suffix '{bucket.Key}', but partition sharing is not enabled. Enable AllowPartitionSharing on the tenant partitioning options.");
+            }
+        }
+    }
+
+    private static TenantPartitionResult toResult(IEnumerable<TablePartitionStatus> statuses)
+    {
+        var tables = statuses.Select(x => new TenantPartitionTableStatus(x.Identifier.QualifiedName,
+            x.Status switch
+            {
+                PartitionMigrationStatus.Complete => TenantPartitionStatus.Complete,
+                PartitionMigrationStatus.RequiresTableRebuild => TenantPartitionStatus.RequiresTableRebuild,
+                _ => TenantPartitionStatus.Failed
+            })).ToList();
+
+        // PostgreSQL partitions by list on the tenant id itself, so there are no ordinals
+        return new TenantPartitionResult(new Dictionary<string, int>(), tables);
     }
 
     public async Task DropTenantsAsync(ILogger logger, IDatabaseWithTables database, IReadOnlyList<string> tenantIds,

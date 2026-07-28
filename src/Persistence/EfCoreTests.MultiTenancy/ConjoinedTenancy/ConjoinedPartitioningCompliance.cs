@@ -230,6 +230,59 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
     }
 
     [Fact]
+    public async Task add_tenants_reports_the_outcome_for_every_managed_table()
+    {
+        var result = await thePartitions.AddTenantsAsync(new Dictionary<string, string?>
+        {
+            ["green"] = null,
+            ["blue"] = null
+        });
+
+        result.Succeeded.ShouldBeTrue();
+        result.Failures.ShouldBeEmpty();
+
+        // The partitioned entity table is reported; the saga table is excluded from
+        // physical partitioning, so it is not part of the managed set
+        result.Tables.ShouldContain(x => x.TableName.Contains("partitioned_items"));
+        result.Tables.ShouldNotContain(x => x.TableName.Contains("partitioned_counters"));
+
+        if (_engine == DatabaseEngine.SqlServer)
+        {
+            // SQL Server partitions over a compact ordinal, so the assigned map comes back
+            result.Ordinals.Keys.OrderBy(x => x).ShouldBe(["blue", "green"]);
+            result.Ordinals["green"].ShouldNotBe(result.Ordinals["blue"]);
+        }
+        else
+        {
+            // PostgreSQL partitions by list on the tenant id itself -- no ordinals
+            result.Ordinals.ShouldBeEmpty();
+        }
+    }
+
+    [Fact]
+    public async Task back_fill_reconciles_every_managed_table_and_is_idempotent()
+    {
+        await thePartitions.AddTenantAsync("green");
+        await thePartitions.AddTenantAsync("blue");
+
+        var first = await thePartitions.MigrateTenantPartitionsAsync();
+        first.Succeeded.ShouldBeTrue();
+        first.Tables.ShouldContain(x => x.TableName.Contains("partitioned_items"));
+
+        // Back-fill is a reconcile, not a one-shot -- re-running it changes nothing
+        var second = await thePartitions.MigrateTenantPartitionsAsync();
+        second.Succeeded.ShouldBeTrue();
+
+        // and the tenants registered before the back-fill still write and read
+        var id = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("green", new CreatePartitionedItem(id, "g")));
+
+        var green = await theBuilder.BuildAsync("green", CancellationToken.None);
+        (await green.Items.ToListAsync()).Single().Id.ShouldBe(id);
+    }
+
+    [Fact]
     public async Task physical_partition_exists_per_tenant()
     {
         await thePartitions.AddTenantAsync("green");
@@ -263,6 +316,45 @@ public class conjoined_partitioning_with_postgresql : ConjoinedPartitioningCompl
 {
     public conjoined_partitioning_with_postgresql() : base(DatabaseEngine.PostgreSQL)
     {
+    }
+
+    /// <summary>
+    ///     The back-fill's reason to exist, in the shape it can actually be forced on
+    ///     PostgreSQL: a partitioned table that is missing a partition for an already
+    ///     registered tenant. A table that joins the managed set late is the same
+    ///     situation -- routine migration deltas leave managed partitions alone, so
+    ///     nothing else recreates it
+    /// </summary>
+    [Fact]
+    public async Task back_fill_recreates_a_partition_missing_for_a_registered_tenant()
+    {
+        await thePartitions.AddTenantAsync("green");
+
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var drop = conn.CreateCommand();
+            drop.CommandText = "DROP TABLE conjoined_part.partitioned_items_green;";
+            await drop.ExecuteNonQueryAsync();
+        }
+
+        // Without its partition, the tenant's writes have nowhere to land
+        await Should.ThrowAsync<Exception>(async () =>
+        {
+            await theHost.TrackActivity().DoNotAssertOnExceptionsDetected()
+                .ExecuteAndWaitAsync(c =>
+                    c.InvokeForTenantAsync("green", new CreatePartitionedItem(Guid.NewGuid(), "before")));
+        });
+
+        var result = await thePartitions.MigrateTenantPartitionsAsync();
+        result.Succeeded.ShouldBeTrue();
+
+        var id = Guid.NewGuid();
+        await theHost.ExecuteAndWaitAsync(c =>
+            c.InvokeForTenantAsync("green", new CreatePartitionedItem(id, "after")));
+
+        var green = await theBuilder.BuildAsync("green", CancellationToken.None);
+        (await green.Items.ToListAsync()).Single().Id.ShouldBe(id);
     }
 }
 

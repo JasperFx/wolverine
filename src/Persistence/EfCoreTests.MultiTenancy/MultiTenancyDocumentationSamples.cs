@@ -284,6 +284,35 @@ public class ConjoinedTenancyDocumentationSamples
         await partitions.DropTenantAsync("tenant1", deleteData: true);
         #endregion
 
+        #region sample_conjoined_partitioning_status_reporting
+        // Partition DDL is applied per table with failures isolated, so a batch
+        // can partially succeed -- check the result rather than relying on the
+        // absence of an exception
+        var result = await partitions.AddTenantsAsync(new Dictionary<string, string?>
+        {
+            ["tenant2"] = null,
+            ["tenant3"] = null
+        });
+
+        if (!result.Succeeded)
+        {
+            foreach (var table in result.Failures)
+            {
+                Console.WriteLine($"{table.TableName} => {table.Status}");
+            }
+        }
+        #endregion
+
+        #region sample_conjoined_partitioning_back_fill
+        // Back-fill: reconcile every partitioned table against the full registered
+        // tenant set. Needed when a table joins an existing managed set -- a newly
+        // deployed service, or a newly mapped ITenanted entity -- because routine
+        // migrations deliberately leave managed partitions alone, so the new table
+        // would have no partition for any tenant registered before it existed
+        var backFill = await partitions.MigrateTenantPartitionsAsync();
+        Console.WriteLine($"Back-fill reconciled {backFill.Tables.Count} table(s)");
+        #endregion
+
         #region sample_conjoined_tenant_registry
         var tenants = host.Services.GetRequiredService<IDynamicTenantSource<string>>();
 

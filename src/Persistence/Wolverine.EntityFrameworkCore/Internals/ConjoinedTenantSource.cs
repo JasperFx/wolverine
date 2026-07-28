@@ -132,7 +132,19 @@ internal class ConjoinedTenantSource<T> : IDynamicTenantSource<string> where T :
 
         if (partitions != null)
         {
-            await partitions.AddTenantAsync(tenantId, token);
+            var result = await partitions.AddTenantAsync(tenantId, token);
+            if (!result.Succeeded)
+            {
+                // IDynamicTenantSource has nowhere to hand back the per-table
+                // statuses, and a tenant registered without its partitions would
+                // fail at its first write instead of here
+                _logger.LogError(
+                    "Registered conjoined tenant {TenantId} for {DbContextType}, but partition DDL failed for {Tables}",
+                    tenantId, typeof(T).Name,
+                    result.Failures.Select(x => x.TableName).Join(", "));
+
+                throw new TenantPartitionException(result.Failures);
+            }
         }
 
         _logger.LogInformation("Added conjoined tenant {TenantId} for {DbContextType}", tenantId, typeof(T).Name);

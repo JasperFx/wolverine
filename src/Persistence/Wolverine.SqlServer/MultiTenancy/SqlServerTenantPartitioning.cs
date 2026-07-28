@@ -73,11 +73,14 @@ internal class SqlServerTenantPartitioning : ITenantPartitioning
         return _partitions.Ordinals.TryGetValue(tenantId, out ordinal);
     }
 
-    public async Task AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
+    public async Task<TenantPartitionResult> AddTenantsAsync(ILogger logger, IDatabaseWithTables database,
         IReadOnlyDictionary<string, string?> tenantIdToSuffix, CancellationToken token)
     {
         var db = (IDatabase<SqlConnection>)database;
         await _partitions.InitializeAsync(db, token);
+
+        var ordinals = new Dictionary<string, int>();
+        var tables = new List<TenantPartitionTableStatus>();
 
         // Tenants without a suffix each get their own auto-allocated ordinal.
         // Tenants sharing a suffix share one ordinal (a shared physical partition),
@@ -85,7 +88,7 @@ internal class SqlServerTenantPartitioning : ITenantPartitioning
         var standalone = tenantIdToSuffix.Where(x => x.Value == null).Select(x => x.Key).ToArray();
         if (standalone.Any())
         {
-            await _partitions.AddPartitionToAllTables(logger, db, standalone, token);
+            accumulate(await _partitions.AddPartitionsToAllTables(logger, db, standalone, token));
         }
 
         foreach (var bucket in tenantIdToSuffix.Where(x => x.Value != null).GroupBy(x => x.Value!))
@@ -113,15 +116,55 @@ internal class SqlServerTenantPartitioning : ITenantPartitioning
                 : (_partitions.Ordinals.Values.DefaultIfEmpty(0).Max() + 1);
 
             var mapping = members.ToDictionary(m => m, _ => ordinal);
-            var result = await _partitions.AddPartitionsToAllTables(logger, db, mapping, token);
+            accumulate(await _partitions.AddPartitionsToAllTables(logger, db, mapping, token));
+        }
 
-            var failures = result.Tables.Where(x => x.Status != PartitionMigrationStatus.Complete).ToArray();
-            if (failures.Any())
+        return new TenantPartitionResult(ordinals, tables);
+
+        void accumulate(TenantPartitionAddResult result)
+        {
+            foreach (var pair in result.Ordinals)
             {
-                throw new InvalidOperationException(
-                    $"Adding tenant partitions failed for table(s) {failures.Select(x => x.Identifier.QualifiedName).Join(", ")}");
+                ordinals[pair.Key] = pair.Value;
+            }
+
+            // A table can appear once per bucket; the worst status wins so a single
+            // failed batch isn't masked by a later successful one
+            foreach (var status in result.Tables)
+            {
+                var mapped = toStatus(status);
+                var index = tables.FindIndex(x => x.TableName == mapped.TableName);
+                if (index < 0)
+                {
+                    tables.Add(mapped);
+                }
+                else if (tables[index].Status == TenantPartitionStatus.Complete)
+                {
+                    tables[index] = mapped;
+                }
             }
         }
+    }
+
+    public async Task<TenantPartitionResult> MigrateAllTablesAsync(ILogger logger, IDatabaseWithTables database,
+        CancellationToken token)
+    {
+        var db = (IDatabase<SqlConnection>)database;
+        var statuses = await _partitions.MigrateAllTablesAsync(logger, db, token);
+
+        return new TenantPartitionResult(
+            _partitions.Ordinals.ToDictionary(x => x.Key, x => x.Value),
+            statuses.Select(toStatus).ToList());
+    }
+
+    private static TenantPartitionTableStatus toStatus(TablePartitionStatus status)
+    {
+        return new TenantPartitionTableStatus(status.Identifier.QualifiedName, status.Status switch
+        {
+            PartitionMigrationStatus.Complete => TenantPartitionStatus.Complete,
+            PartitionMigrationStatus.RequiresTableRebuild => TenantPartitionStatus.RequiresTableRebuild,
+            _ => TenantPartitionStatus.Failed
+        });
     }
 
     public Task DropTenantsAsync(ILogger logger, IDatabaseWithTables database, IReadOnlyList<string> tenantIds,

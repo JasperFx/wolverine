@@ -20,23 +20,36 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public interface IConjoinedTenantPartitions<T> where T : DbContext
 {
     /// <summary>
-    ///     Create the partition for a new tenant across every partitioned table
+    ///     Create the partition for a new tenant across every partitioned table.
+    ///     The returned result reports the outcome per table -- partition DDL is
+    ///     applied with failures isolated, so check Succeeded rather than assuming
+    ///     an exception-free call reached every table
     /// </summary>
-    Task AddTenantAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<TenantPartitionResult> AddTenantAsync(string tenantId, CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Create or join a partition for a tenant. Tenants registered with the same
     ///     partition suffix share one physical partition ("bucketing") when
     ///     AllowPartitionSharing is enabled on the partitioning options
     /// </summary>
-    Task AddTenantAsync(string tenantId, string partitionSuffix, CancellationToken cancellationToken = default);
+    Task<TenantPartitionResult> AddTenantAsync(string tenantId, string partitionSuffix,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Batch registration of tenants; the dictionary value is the optional
     ///     partition suffix (null = own partition per tenant)
     /// </summary>
-    Task AddTenantsAsync(IReadOnlyDictionary<string, string?> tenantIdToSuffix,
+    Task<TenantPartitionResult> AddTenantsAsync(IReadOnlyDictionary<string, string?> tenantIdToSuffix,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    ///     Back-fill: reconcile every partitioned table against the full registered
+    ///     tenant set. Call this when a table joins an existing managed set -- a
+    ///     newly deployed service, or a newly mapped ITenanted entity -- because
+    ///     routine migrations deliberately leave managed partitions alone and the
+    ///     new table would otherwise have no partition for any existing tenant
+    /// </summary>
+    Task<TenantPartitionResult> MigrateTenantPartitionsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     ///     Remove a tenant from the partition set. On PostgreSQL this detaches and
@@ -145,22 +158,29 @@ internal class ConjoinedTenantPartitions<T> : IConjoinedTenantPartitions<T> wher
         return database;
     }
 
-    public async Task AddTenantAsync(string tenantId, CancellationToken cancellationToken = default)
+    public Task<TenantPartitionResult> AddTenantAsync(string tenantId, CancellationToken cancellationToken = default)
     {
-        await AddTenantsAsync(new Dictionary<string, string?> { [tenantId] = null }, cancellationToken);
+        return AddTenantsAsync(new Dictionary<string, string?> { [tenantId] = null }, cancellationToken);
     }
 
-    public Task AddTenantAsync(string tenantId, string partitionSuffix,
+    public Task<TenantPartitionResult> AddTenantAsync(string tenantId, string partitionSuffix,
         CancellationToken cancellationToken = default)
     {
         return AddTenantsAsync(new Dictionary<string, string?> { [tenantId] = partitionSuffix }, cancellationToken);
     }
 
-    public async Task AddTenantsAsync(IReadOnlyDictionary<string, string?> tenantIdToSuffix,
+    public async Task<TenantPartitionResult> AddTenantsAsync(IReadOnlyDictionary<string, string?> tenantIdToSuffix,
         CancellationToken cancellationToken = default)
     {
         var database = await BuildWeaselDatabaseAsync(cancellationToken);
-        await Partitioning.AddTenantsAsync(_logger, database, tenantIdToSuffix, cancellationToken);
+        return await Partitioning.AddTenantsAsync(_logger, database, tenantIdToSuffix, cancellationToken);
+    }
+
+    public async Task<TenantPartitionResult> MigrateTenantPartitionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var database = await BuildWeaselDatabaseAsync(cancellationToken);
+        return await Partitioning.MigrateAllTablesAsync(_logger, database, cancellationToken);
     }
 
     public async Task DropTenantAsync(string tenantId, bool deleteData = false,
