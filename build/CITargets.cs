@@ -473,6 +473,9 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Pulsar" / "Wolverine.Pulsar.Tests" / "Wolverine.Pulsar.Tests.csproj";
 
             BuildTestProjects(tests);
+            // The global partitioning topology forces durable mode on every slot, so that suite
+            // needs a real message store. Pulsar itself runs in Testcontainers. See #3467.
+            StartDockerServices("postgresql");
 
             RunTestProject(tests);
         });

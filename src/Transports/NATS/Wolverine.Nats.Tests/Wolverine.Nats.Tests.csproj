@@ -27,6 +27,8 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\Testing\Wolverine.ComplianceTests\Wolverine.ComplianceTests.csproj" />
         <ProjectReference Include="..\Wolverine.Nats\Wolverine.Nats.csproj" />
+        <!-- The global partitioning topology forces durable mode on every slot, so those tests need a real message store -->
+        <ProjectReference Include="..\..\..\Persistence\Wolverine.Postgresql\Wolverine.Postgresql.csproj" />
     </ItemGroup>
 
     <ItemGroup>
