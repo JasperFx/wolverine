@@ -318,16 +318,16 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
     public async Task CompleteAsync(ulong deliveryTag)
     {
-        // GH-3492 (RO2): ack ONLY this delivery. This used to pass multiple: true, which tells the
-        // broker "and every lower delivery tag on this channel too". Completions finish out of
-        // order under any concurrent listener -- Buffered or Durable with MaxDegreeOfParallelism
-        // above 1 -- so completing tag 10 silently acked tags 1-9 while they were still in the
-        // handler pipeline, and a crash then lost them.
+        // NOTE: multiple: true also acks every LOWER delivery tag on this channel. That is wrong
+        // under a concurrent listener -- it acks messages still in the handler pipeline -- but it
+        // is currently load-bearing, because it sweeps up deliveries that some settle paths never
+        // acknowledge at all. Changing it in isolation leaks those deliveries. Tracked separately;
+        // see GH-3492 and the ack-semantics branch.
         //
         // Coalescing these into cumulative acks behind a batching window was measured and REJECTED:
         // basic.ack is a fire-and-forget frame, not an RPC, so batching saves no round trips while
         // the extra channel hops cost ~10% of max inline throughput. See the ledger in
         // RABBITMQ-PERF-DEEP-DIVE-PLAN.md.
-        await Channel!.BasicAckAsync(deliveryTag, false, _cancellation);
+        await Channel!.BasicAckAsync(deliveryTag, true, _cancellation);
     }
 }
