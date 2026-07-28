@@ -6,7 +6,7 @@ namespace Wolverine.SqlServer.Transport;
 
 internal class QueueTable : Table
 {
-    public QueueTable(SqlServerTransport transport, string tableName) : base(
+    public QueueTable(SqlServerTransport transport, string tableName, bool optimizeThroughput) : base(
         new DbObjectName(transport.TransportSchemaName, tableName))
     {
         var id = AddColumn<Guid>(DatabaseConstants.Id);
@@ -15,7 +15,7 @@ internal class QueueTable : Table
         AddColumn<DateTimeOffset>(DatabaseConstants.KeepUntil);
         AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("SYSDATETIMEOFFSET()");
 
-        if (transport.OptimizeQueueThroughput)
+        if (optimizeThroughput)
         {
             // Opt-in high-throughput layout (see OptimizeQueueThroughput()): cluster on a monotonic
             // identity so the TOP(n) ... ORDER BY seq dequeue is a clustered seek and the matching

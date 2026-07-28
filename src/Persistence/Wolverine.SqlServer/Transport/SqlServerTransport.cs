@@ -56,6 +56,8 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     /// clustered on a monotonic <c>seq</c> identity column (for FIFO dequeue and contiguous deletes)
     /// with a unique non-clustered index on the message id, instead of a clustered primary key on a
     /// random Guid. Off by default. Enable via <see cref="SqlServerPersistenceExpression.OptimizeQueueThroughput"/>.
+    /// This is the default for every queue in this transport; an individual queue can opt in or out
+    /// through <see cref="SqlServerQueue.OptimizeThroughput"/> (sharded topology queues opt in).
     /// </summary>
     public bool OptimizeQueueThroughput { get; set; }
 

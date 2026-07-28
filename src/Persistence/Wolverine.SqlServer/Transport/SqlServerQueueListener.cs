@@ -54,7 +54,7 @@ internal class SqlServerQueueListener : IListener, IReportReceiveLoopHealth
 
         // When the high-throughput layout is enabled the tables are clustered on the monotonic
         // "seq" identity, so dequeue ordering must use it; otherwise fall back to "timestamp".
-        var orderBy = queue.Parent.OptimizeQueueThroughput ? "seq" : "timestamp";
+        var orderBy = queue.OptimizeThroughput ? "seq" : "timestamp";
 
         _tryPopMessagesDirectlySql = $@"
 DECLARE @NOCOUNT VARCHAR(3) = 'OFF';

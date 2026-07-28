@@ -229,6 +229,71 @@ _listener = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/SqlServerTests/Transport/with_multiple_hosts.cs#L21-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_sql_server_as_queue_between_two_apps' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Global Partitioning <Badge type="tip" text="6.24" />
+
+Sql Server queues can be used as the external transport for
+[global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This gives you
+cluster-wide sequential processing by group id with **no extra infrastructure** — the shards are
+just more tables in the database you already have.
+
+Use `UseShardedSqlServerQueues()` inside a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseSqlServerPersistenceAndTransport(connectionString)
+            .AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IOrderMessage>(x => x.OrderId.ToString());
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates Sql Server queues named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedSqlServerQueues("orders", 4);
+            topology.MessagesImplementing<IOrderMessage>();
+        });
+    }).StartAsync();
+```
+
+That creates queues named `orders1` through `orders4` — each backed by its own
+`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair — with companion
+local queues `global-orders1` through `global-orders4`. Each shard queue is marked exclusive, so
+only one node in the cluster listens to it at a time.
+
+If you only want the *publishing* half — sharded queues with no companion local queues, so every
+message really does round-trip through the database — use the `MessagePartitioningRules` variant
+instead:
+
+```cs
+opts.MessagePartitioning.PublishToShardedSqlServerQueues("orders", 4, topology =>
+{
+    topology.MessagesImplementing<IOrderMessage>();
+    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+});
+```
+
+**Sharded queues opt into the [high-throughput table layout](#optimizing-queue-throughput) by
+default**, because ordered per-slot processing is exactly the case the `seq`-clustered layout was
+designed for. That opt-in is per queue, so it does *not* change the layout of any other queue in the
+transport, and it does not flip the transport-wide `OptimizeQueueThroughput()` setting. Turn it off
+for the shard queues if you need them to match the default layout:
+
+```cs
+topology.UseShardedSqlServerQueues("orders", 4, t => t.OptimizeThroughput = false);
+```
+
+An individual non-sharded queue can also opt in or out directly through
+`SqlServerQueue.OptimizeThroughput`, which falls back to the transport-wide setting when it is not
+set explicitly.
+
+::: warning Multi-tenancy
+Under [database-per-tenant storage](#multi-tenancy-1) the shard queue tables are provisioned in
+**every** tenant database and slot routing is unchanged — a group id maps to the same slot number
+regardless of tenant.
+:::
+
 ### Resetting in Tests
 
 `RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave

@@ -262,6 +262,64 @@ Wolverine has an internal control queue (`dbcontrol`) used for internal operatio
 This queue is hardcoded to poll every second and should not be changed to ensure the stability of the application.
 :::
 
+### Global Partitioning <Badge type="tip" text="6.24" />
+
+PostgreSQL queues can be used as the external transport for
+[global partitioned messaging](/guide/messaging/partitioning#global-partitioning). This gives you
+cluster-wide sequential processing by group id with **no extra infrastructure** — the shards are
+just more tables in the database you already have.
+
+Use `UseShardedPostgresqlQueues()` inside a `GlobalPartitioned()` configuration:
+
+```cs
+using var host = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UsePostgresqlPersistenceAndTransport(connectionString)
+            .AutoProvision();
+
+        opts.MessagePartitioning.ByMessage<IOrderMessage>(x => x.OrderId.ToString());
+
+        opts.MessagePartitioning.GlobalPartitioned(topology =>
+        {
+            // Creates PostgreSQL queues named "orders1" through "orders4"
+            // with matching companion local queues for sequential processing
+            topology.UseShardedPostgresqlQueues("orders", 4);
+            topology.MessagesImplementing<IOrderMessage>();
+        });
+    }).StartAsync();
+```
+
+That creates queues named `orders1` through `orders4` — each backed by its own
+`wolverine_queue_orders{n}` / `wolverine_queue_orders{n}_scheduled` table pair — with companion
+local queues `global-orders1` through `global-orders4`. Each shard queue is marked exclusive, so
+only one node in the cluster listens to it at a time.
+
+If you only want the *publishing* half — sharded queues with no companion local queues, so every
+message really does round-trip through the database — use the `MessagePartitioningRules` variant
+instead:
+
+```cs
+opts.MessagePartitioning.PublishToShardedPostgresqlQueues("orders", 4, topology =>
+{
+    topology.MessagesImplementing<IOrderMessage>();
+    topology.MaxDegreeOfParallelism = PartitionSlots.Five;
+});
+```
+
+::: info Long base names
+PostgreSQL truncates identifiers at `NAMEDATALEN` (63 characters by default). Wolverine runs every
+queue table name through Weasel's deterministic shortening helper, so a long sharded base name still
+produces distinct, in-range table names for each shard.
+:::
+
+::: warning Multi-tenancy
+Under [database-per-tenant storage](#multi-tenancy) the shard queue tables are provisioned in
+**every** tenant database and slot routing is unchanged — a group id maps to the same slot number
+regardless of tenant. Listening is then assigned per `(queue, database)` pair by the sticky listener
+agent family rather than per queue.
+:::
+
 ### Resetting in Tests
 
 `RebuildAsync()` / `ClearAllAsync()` on the message store clear envelope storage only — they leave

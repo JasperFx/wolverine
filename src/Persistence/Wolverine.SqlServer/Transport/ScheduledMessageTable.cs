@@ -6,7 +6,7 @@ namespace Wolverine.SqlServer.Transport;
 
 internal class ScheduledMessageTable : Table
 {
-    public ScheduledMessageTable(SqlServerTransport transport, string tableName) : base(
+    public ScheduledMessageTable(SqlServerTransport transport, string tableName, bool optimizeThroughput) : base(
         new DbObjectName(transport.TransportSchemaName, tableName))
     {
         var id = AddColumn<Guid>(DatabaseConstants.Id);
@@ -22,7 +22,7 @@ internal class ScheduledMessageTable : Table
             Columns = [DatabaseConstants.ExecutionTime]
         });
 
-        if (transport.OptimizeQueueThroughput)
+        if (optimizeThroughput)
         {
             // Match the high-throughput layout of the ready queue table (see OptimizeQueueThroughput()):
             // cluster on a monotonic identity, keep the id unique and non-clustered for idempotent

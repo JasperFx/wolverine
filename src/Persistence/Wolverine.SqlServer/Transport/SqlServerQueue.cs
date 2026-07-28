@@ -44,14 +44,30 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         EndpointName = name;
         BrokerRole = "queue";
 
-        // Gotta be lazy so the schema names get set
-        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName));
-        _scheduledTable = new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, _scheduledTableName));
+        // Gotta be lazy so the schema names and OptimizeThroughput get set
+        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName, OptimizeThroughput));
+        _scheduledTable =
+            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, _scheduledTableName, OptimizeThroughput));
     }
 
     public string Name { get; }
 
     internal SqlServerTransport Parent { get; }
+
+    private bool? _optimizeThroughput;
+
+    /// <summary>
+    ///     Use the higher-throughput queue table storage layout for *this* queue: the queue and
+    ///     scheduled tables are clustered on a monotonic <c>seq</c> identity for FIFO dequeue and
+    ///     contiguous deletes, with a unique non-clustered index on the message id, instead of a
+    ///     clustered primary key on a random Guid. When not set explicitly this falls back to the
+    ///     transport-wide <see cref="SqlServerTransport.OptimizeQueueThroughput" /> setting.
+    /// </summary>
+    public bool OptimizeThroughput
+    {
+        get => _optimizeThroughput ?? Parent.OptimizeQueueThroughput;
+        set => _optimizeThroughput = value;
+    }
 
     internal Table QueueTable => _queueTable.Value;
 
@@ -329,7 +345,7 @@ public class SqlServerQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
 
         // Mirror the dequeue ordering chosen by the listener (see SqlServerQueueListener): "seq" under
         // the high-throughput layout, "timestamp" otherwise.
-        var orderBy = Parent.OptimizeQueueThroughput ? "seq" : "timestamp";
+        var orderBy = OptimizeThroughput ? "seq" : "timestamp";
 
         _writeDirectlyToQueueTableSql =
             $@"insert into {QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) values (@id, @body, @type, @expires)";
