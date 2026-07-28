@@ -100,7 +100,8 @@ public class MqttTransportExpression
     /// </summary>
     /// <param name="tenantId"></param>
     /// <param name="configure">Configuration for the tenant's own broker connection</param>
-    /// <param name="jwt">Optional OAUTH2-JWT authentication for the tenant's own connection.</param>
+    /// <param name="jwt">Optional bearer token authentication for the tenant's own connection. The authentication method
+    /// defaults to OAUTH2-JWT and is overridable via <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/>.</param>
     /// <returns></returns>
     public MqttTransportExpression AddTenant(string tenantId, Action<ManagedMqttClientOptionsBuilder> configure,
         MqttJwtAuthenticationOptions? jwt = null)
@@ -128,7 +129,8 @@ public class MqttTransportExpression
     /// </summary>
     /// <param name="tenantId"></param>
     /// <param name="mqttOptions">The connection options for the tenant's own broker</param>
-    /// <param name="jwt">Optional OAUTH2-JWT authentication for the tenant's own connection.</param>
+    /// <param name="jwt">Optional bearer token authentication for the tenant's own connection. The authentication method
+    /// defaults to OAUTH2-JWT and is overridable via <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/>.</param>
     /// <returns></returns>
     public MqttTransportExpression AddTenant(string tenantId, ManagedMqttClientOptions mqttOptions,
         MqttJwtAuthenticationOptions? jwt = null)

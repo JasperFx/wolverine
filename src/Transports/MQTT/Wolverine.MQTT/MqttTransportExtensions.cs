@@ -26,7 +26,8 @@ public static class MqttTransportExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="configure"></param>
-    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH-JWT and uses the callback to fetch a token.
+    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH2-JWT -- or whatever
+    /// <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/> is set to -- and uses the callback to fetch a token.
     /// When the configured period elapses, a new token is fetched and a ExtendedAuthenticationExchangeData with ReasonCode ReAuth is sent with the new token.
     /// <returns></returns>
     public static MqttTransportExpression UseMqtt(this WolverineOptions options,
@@ -48,7 +49,8 @@ public static class MqttTransportExtensions
     /// </summary>
     /// <param name="options"></param>
     /// <param name="mqttOptions"></param>
-    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH-JWT and uses the callback to fetch a token.
+    /// <param name="jwtAuthenticationOptions">Sets AuthenticationMethod to OAUTH2-JWT -- or whatever
+    /// <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/> is set to -- and uses the callback to fetch a token.
     /// When the configured period elapses, a new token is fetched and a ExtendedAuthenticationExchangeData with ReasonCode ReAuth is sent with the new token.
     /// <returns></returns>
     public static MqttTransportExpression UseMqtt(this WolverineOptions options, ManagedMqttClientOptions mqttOptions,
@@ -86,7 +88,8 @@ public static class MqttTransportExtensions
     /// <param name="options"></param>
     /// <param name="name">Identity of the additional MQTT broker</param>
     /// <param name="configure">Configuration for the additional broker's connection</param>
-    /// <param name="jwtAuthenticationOptions">Optional OAUTH2-JWT authentication for the additional broker.</param>
+    /// <param name="jwtAuthenticationOptions">Optional bearer token authentication for the additional broker. The
+    /// authentication method defaults to OAUTH2-JWT and is overridable via <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/>.</param>
     public static MqttTransportExpression AddNamedMqttBroker(this WolverineOptions options,
         BrokerName name,
         Action<ManagedMqttClientOptionsBuilder> configure,
@@ -109,7 +112,8 @@ public static class MqttTransportExtensions
     /// <param name="options"></param>
     /// <param name="name">Identity of the additional MQTT broker</param>
     /// <param name="mqttOptions">The connection options for the additional broker</param>
-    /// <param name="jwtAuthenticationOptions">Optional OAUTH2-JWT authentication for the additional broker.</param>
+    /// <param name="jwtAuthenticationOptions">Optional bearer token authentication for the additional broker. The
+    /// authentication method defaults to OAUTH2-JWT and is overridable via <see cref="MqttJwtAuthenticationOptions.AuthenticationMethod"/>.</param>
     public static MqttTransportExpression AddNamedMqttBroker(this WolverineOptions options,
         BrokerName name,
         ManagedMqttClientOptions mqttOptions,

@@ -426,8 +426,9 @@ public static ClearMqttTopic Handle(TriggerZero message)
 
 Wolverine supports MQTT v5 OAuth2/JWT authentication by supplying a token callback and refresh interval when you configure
 the transport. The callback returns raw token bytes (use UTF-8 encoding if your token is a string). When configured,
-Wolverine sets the MQTT authentication method to `OAUTH2-JWT`, sends the initial token with the connect packet, and
-re-authenticates on the configured refresh period while the client is connected.
+Wolverine sets the MQTT authentication method to `OAUTH2-JWT` by default, sends the initial token with the connect
+packet, and re-authenticates on the configured refresh period while the client is connected. Brokers that expect a
+different method name are covered [below](#custom-authentication-methods).
 
 ::: info
 You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
@@ -445,6 +446,50 @@ builder.UseWolverine(opts =>
             async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
             30.Minutes()));
 });
+```
+
+### Custom Authentication Methods <Badge type="tip" text="6.24" />
+
+Brokers do not agree on the *name* of the authentication method for what is otherwise the same bearer token
+exchange. Wolverine defaults to `OAUTH2-JWT`, but you can advertise any name the broker expects by passing it as a
+third argument to `MqttJwtAuthenticationOptions`. [Azure Event Grid's custom JWT
+authentication](https://learn.microsoft.com/en-us/azure/event-grid/mqtt-client-custom-jwt), for example, requires
+`CUSTOM-JWT`:
+
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.UseMqtt(
+        mqtt => mqtt.WithClientOptions(client =>
+            client.WithTcpServer("your-namespace.westus2-1.ts.eventgrid.azure.net", 8883)
+                .WithTlsOptions(tls => tls.UseTls())),
+
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
+            30.Minutes(),
+
+            // Anything the broker expects. MqttJwtAuthenticationOptions.OAuth2Jwt ("OAUTH2-JWT")
+            // is the default, and there is a constant for Event Grid's custom JWT method.
+            MqttJwtAuthenticationOptions.CustomJwt));
+});
+```
+
+The authentication method applies to both the initial CONNECT packet and every subsequent re-authentication, so
+you keep Wolverine's token refresh loop instead of having to hand-roll `WithAuthentication()` on the raw MQTTnet
+client options. It works the same way on
+[named brokers](#connecting-to-multiple-mqtt-brokers) and on
+[per-tenant connections](#broker-per-tenant), each of which takes its own `MqttJwtAuthenticationOptions`:
+
+```cs
+opts.UseMqtt(mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("shared-broker")))
+    .AddTenant("tenant-west",
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("west-broker")),
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetWestTokenAsync()),
+            30.Minutes(),
+            MqttJwtAuthenticationOptions.CustomJwt));
 ```
 
 ## Broker per Tenant
