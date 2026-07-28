@@ -194,6 +194,21 @@ public class AzureServiceBusSubscriptionListenerConfiguration : InteroperableLis
     }
 
     /// <summary>
+    ///     How many messages an <c>Inline</c> listener for this subscription processes concurrently.
+    ///     This is the Azure Service Bus SDK's <c>MaxConcurrentCalls</c>, which Wolverine left at
+    ///     the SDK default of 1 -- so an inline listener consumed strictly one message at a time per
+    ///     endpoint. On a session listener driven by a <c>ServiceBusSessionProcessor</c> this sets
+    ///     <c>MaxConcurrentCallsPerSession</c> instead, which trades away the per-session FIFO
+    ///     ordering. Has no effect on the default Buffered/Durable batch receive loop. See GH-3494.
+    /// </summary>
+    /// <param name="concurrency">Concurrent handler invocations. Must be at least 1</param>
+    public AzureServiceBusSubscriptionListenerConfiguration MaximumConcurrentCalls(int concurrency)
+    {
+        add(e => e.MaximumConcurrentCalls = concurrency);
+        return this;
+    }
+
+    /// <summary>
     /// Force this subscription listener to require session identifiers. Use this for FIFO semantics
     /// </summary>
     /// <param name="listenerCount">The maximum number of parallel sessions that can be processed at any one time</param>

@@ -171,6 +171,22 @@ public class
     }
 
     /// <summary>
+    ///     How many messages an <c>Inline</c> listener for this queue processes concurrently. This
+    ///     is the Azure Service Bus SDK's <c>MaxConcurrentCalls</c>, which Wolverine left at the SDK
+    ///     default of 1 -- so an inline Azure Service Bus listener consumed strictly one message at
+    ///     a time per endpoint. On a session listener driven by a <c>ServiceBusSessionProcessor</c>
+    ///     this sets <c>MaxConcurrentCallsPerSession</c> instead, which trades away the per-session
+    ///     FIFO ordering, so leave it alone on session endpoints unless you mean it. Has no effect
+    ///     on the default Buffered/Durable batch receive loop. See GH-3494.
+    /// </summary>
+    /// <param name="concurrency">Concurrent handler invocations. Must be at least 1</param>
+    public AzureServiceBusQueueListenerConfiguration MaximumConcurrentCalls(int concurrency)
+    {
+        add(e => e.MaximumConcurrentCalls = concurrency);
+        return this;
+    }
+
+    /// <summary>
     /// Completely disable all SQS dead letter queueing for just this queue
     /// </summary>
     /// <returns></returns>
