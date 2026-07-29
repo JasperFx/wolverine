@@ -65,9 +65,9 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
     public async Task expected_tables_exist_for_queue()
     {
         using var dataSource = new SqliteDataSource(_connectionString);
-        await using var conn = (SqliteConnection)await dataSource.OpenConnectionAsync();
+        await using var conn = (SqliteConnection)await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
-        var names = await conn.ExistingTablesAsync();
+        var names = await conn.ExistingTablesAsync(ct: TestContext.Current.CancellationToken);
 
         names.Any(x => x.Name == "wolverine_queue_one").ShouldBeTrue();
         names.Any(x => x.Name == "wolverine_queue_one_scheduled").ShouldBeTrue();
@@ -171,7 +171,7 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
 
         (await theQueue.CountAsync()).ShouldBe(3);
 
-        await theHost.StopAsync();
+        await theHost.StopAsync(TestContext.Current.CancellationToken);
 
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new SqliteQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);
@@ -205,7 +205,7 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
         (await theQueue.ScheduledCountAsync()).ShouldBe(30);
         (await theQueue.CountAsync()).ShouldBe(0);
 
-        await theHost.StopAsync();
+        await theHost.StopAsync(TestContext.Current.CancellationToken);
 
         var durableReceiver = new DurableReceiver(theQueue, theRuntime, Substitute.For<IHandlerPipeline>());
         await using var theListener = new SqliteQueueListener(theQueue, theRuntime, durableReceiver, theQueue.DataSource, null);

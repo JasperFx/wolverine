@@ -46,7 +46,7 @@ public class RedisAutoClaimIntegrationTests
         // Read with consumer A but do not ack, to create a pending entry
         await db.StreamReadGroupAsync(streamKey, group, consumerA, ">", 1, false);
         // Give the message a little idle time to satisfy minIdle
-        await Task.Delay(250);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -68,10 +68,10 @@ public class RedisAutoClaimIntegrationTests
                 
                 opts.Services.AddSingleton(tcs);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Wait up to 10 seconds for message to be handled via auto-claim
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         completed.ShouldBe(tcs.Task);
         var result = await tcs.Task;
         result.ShouldBeTrue();
@@ -105,9 +105,9 @@ public class RedisAutoClaimIntegrationTests
                 endpoint.AutoClaimEnabled.ShouldBeFalse();
                 endpoint.AutoClaimPeriod.ShouldBe(TimeSpan.FromSeconds(30)); // Default period
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await Task.Delay(100); // Brief delay to let host start
+        await Task.Delay(100, TestContext.Current.CancellationToken); // Brief delay to let host start
     }
 
     [Fact]

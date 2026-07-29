@@ -38,7 +38,7 @@ public class transaction_middleware_mode_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<EagerModeHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var chain = host.GetRuntime().Handlers.ChainFor<EagerModeMessage>()!;
 
@@ -71,7 +71,7 @@ public class transaction_middleware_mode_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<LightweightModeHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 
@@ -103,7 +103,7 @@ public class transaction_middleware_mode_tests
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<LightweightAttributeHandler>()
                     .IncludeType<EagerAutoApplyHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Verify the auto-applied handler uses the Eager default
         var eagerChain = host.GetRuntime().Handlers.ChainFor<EagerAutoApplyMessage>()!;
@@ -141,7 +141,7 @@ public class transaction_middleware_mode_tests
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<EagerAttributeHandler>()
                     .IncludeType<LightweightAutoApplyHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Verify the auto-applied handler uses the Lightweight default
         var lightChain = host.GetRuntime().Handlers.ChainFor<LightweightAutoApplyMessage>()!;
@@ -177,7 +177,7 @@ public class transaction_middleware_mode_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<LightweightStorageSideEffectHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Force compilation
         host.GetRuntime().Handlers.HandlerFor<LightweightStorageSideEffectMessage>();
@@ -209,7 +209,7 @@ public class transaction_middleware_mode_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<EagerStorageSideEffectHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Force compilation
         host.GetRuntime().Handlers.HandlerFor<EagerStorageSideEffectMessage>();
@@ -240,7 +240,7 @@ public class transaction_middleware_mode_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<DefaultModeHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var chain = host.GetRuntime().Handlers.ChainFor<DefaultModeMessage>()!;
 
@@ -271,7 +271,7 @@ public class transaction_middleware_mode_tests
                 opts.Policies.Add<EagerTransactionForMessagePolicy<IRequiresEagerTransaction>>();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<EagerPolicySaga>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.GetRuntime().Handlers.HandlerFor<StartEagerPolicySaga>();
         var chain = host.GetRuntime().Handlers.ChainFor<StartEagerPolicySaga>()!;

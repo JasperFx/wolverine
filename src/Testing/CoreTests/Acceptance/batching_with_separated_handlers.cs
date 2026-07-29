@@ -59,7 +59,7 @@ public class batching_with_separated_handlers
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<LoadEvent>(b => b.TriggerTime = 250.Milliseconds());
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         LoadPublisher.BatchCalls.Clear();
         LoadTelemetry.SingleCalls.Clear();
@@ -79,7 +79,7 @@ public class batching_with_separated_handlers
     [Fact]
     public async Task separated_multiple_batch_handlers_all_run()
     {
-        using var host = await ConfigureMultipleBatchHost(withDirectHandler: false).StartAsync();
+        using var host = await ConfigureMultipleBatchHost(withDirectHandler: false).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         InvoicePublisher.Calls.Clear();
         InvoiceArchiver.Calls.Clear();
@@ -100,7 +100,7 @@ public class batching_with_separated_handlers
     [Fact]
     public async Task separated_direct_handler_plus_multiple_batch_handlers_all_run()
     {
-        using var host = await ConfigureMultipleBatchHost(withDirectHandler: true).StartAsync();
+        using var host = await ConfigureMultipleBatchHost(withDirectHandler: true).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var runtime = host.GetRuntime();
 
         // The direct Handle(InvoiceEvent) collides with the batch element queue, so the batch was

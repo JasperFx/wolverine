@@ -11,7 +11,7 @@ public class internals_tests
         var validator = new Command1Validator();
         var command = new Command1();
 
-        var result = await validator.ValidateAsync(command);
+        var result = await validator.ValidateAsync(command, TestContext.Current.CancellationToken);
 
         var ex = Should.Throw<ValidationException>(() =>
         {

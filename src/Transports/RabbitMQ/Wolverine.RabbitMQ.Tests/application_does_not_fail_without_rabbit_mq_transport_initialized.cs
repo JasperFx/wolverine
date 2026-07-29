@@ -9,6 +9,6 @@ public class application_does_not_fail_without_rabbit_mq_transport_initialized
     public async Task do_not_fail()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 }

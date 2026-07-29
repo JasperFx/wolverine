@@ -52,10 +52,10 @@ public class Bug_310_saga_handler_that_returns_another_saga : IAsyncLifetime
 
         await using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 
-        var sagaA = await session.LoadAsync<PcSagaA>(id);
+        var sagaA = await session.LoadAsync<PcSagaA>(id, TestContext.Current.CancellationToken);
         sagaA!.One.ShouldBeTrue();
 
-        var sagaB = await session.LoadAsync<PcSagaB>(id);
+        var sagaB = await session.LoadAsync<PcSagaB>(id, TestContext.Current.CancellationToken);
         sagaB!.Two.ShouldBeTrue();
         sagaB.Three.ShouldBeTrue();
     }

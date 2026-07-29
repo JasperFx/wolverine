@@ -100,7 +100,7 @@ public class mqtt_per_tenant_broker_tests : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<TenantColor>().ToMqttTopic(topic).SendInline();
                 opts.ListenToMqttTopic(topic);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The default listener consumes broker A and the tenant listener consumes broker B; the message only
         // exists on broker B, so only the tenant listener consumes it and stamps the tenant id.

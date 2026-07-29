@@ -95,14 +95,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(recorder);
                 opts.Discovery.IncludeType(typeof(NoOwnExceptionHandler));
                 opts.Policies.AddMiddleware(typeof(GlobalOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForMiddlewareTest("middleware test"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("MiddlewareOnException:middleware test");
     }
@@ -117,14 +117,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(recorder);
                 opts.Discovery.IncludeType(typeof(MessageForInstanceMiddlewareHandler));
                 opts.Policies.AddMiddleware(typeof(InstanceOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForInstanceMiddleware("ctor inject test"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("InstanceMiddlewareOnException:ctor inject test");
     }
@@ -139,14 +139,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(recorder);
                 opts.Discovery.IncludeType(typeof(MessageForLoggerMiddlewareHandler));
                 opts.Policies.AddMiddleware(typeof(LoggerOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForLoggerMiddleware("logger test"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("LoggerOnException:logger test");
     }
@@ -164,14 +164,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(probe);
                 opts.Discovery.IncludeType(typeof(MessageForStaticMiddlewareDependencyHandler));
                 opts.Policies.AddMiddleware(typeof(StaticMiddlewareWithDependencyOnException));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForStaticMiddlewareDependency("static dependency test"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("StaticDependencyOnException:static dependency test");
         probe.WasCalled.ShouldBeTrue();
@@ -187,14 +187,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(recorder);
                 opts.Discovery.IncludeType(typeof(MessageForBeforeAndOnExceptionHandler));
                 opts.Policies.AddMiddleware(typeof(BeforeAndOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForBeforeAndOnException("before+onexception test"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("BeforeMiddleware:before+onexception test");
         recorder.Actions.ShouldContain("BeforeAndOnExceptionMiddleware:before+onexception test");
@@ -210,14 +210,14 @@ public class on_exception_convention
                 opts.Services.AddSingleton(recorder);
                 opts.Discovery.IncludeType(typeof(MessageForSharedInstanceStateHandler));
                 opts.Policies.AddMiddleware(typeof(SharedInstanceStateMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForSharedInstanceState("shared state"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         // The SAME middleware instance must be used for Before and OnException, so the state set in
         // Before is visible in OnException. A fresh catch-block instance would record "<lost>".
@@ -235,13 +235,13 @@ public class on_exception_convention
                 opts.Discovery.IncludeType(typeof(MessageForReturningOnExceptionHandler));
                 opts.Discovery.IncludeType(typeof(CascadedFromOnExceptionHandler));
                 opts.Policies.AddMiddleware(typeof(ReturningOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForReturningOnException("ret"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("ReturningOnException:ret");
         // The message RETURNED from OnException must be cascaded/published.
@@ -261,13 +261,13 @@ public class on_exception_convention
                 opts.Discovery.IncludeType(typeof(MessageForInstanceReturningOnExceptionHandler));
                 opts.Discovery.IncludeType(typeof(CascadedFromOnExceptionHandler));
                 opts.Policies.AddMiddleware(typeof(InstanceReturningOnExceptionMiddleware));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected()
             .PublishMessageAndWaitAsync(new MessageForInstanceReturningOnException("ret"));
 
         foreach (var action in recorder.Actions) _output.WriteLine($"\"{action}\"");
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         recorder.Actions.ShouldContain("InstanceReturningOnException:ret");
         session.Sent.SingleEnvelope<CascadedFromOnException>().Message

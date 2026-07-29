@@ -62,21 +62,21 @@ public class conjoined_tenancy : PostgresqlContext, IAsyncLifetime
         // Check the first tenant
         using (var session = store.LightweightSession("one"))
         {
-            var document = await session.LoadAsync<TenantedDocument>(id);
+            var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
             document!.Location.ShouldBe("Andor");
         }
 
         // Check the second tenant
         using (var session = store.LightweightSession("two"))
         {
-            var document = await session.LoadAsync<TenantedDocument>(id);
+            var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
             document!.Location.ShouldBe("Tear");
         }
 
         // Check the third tenant
         using (var session = store.LightweightSession("three"))
         {
-            var document = await session.LoadAsync<TenantedDocument>(id);
+            var document = await session.LoadAsync<TenantedDocument>(id, TestContext.Current.CancellationToken);
             document!.Location.ShouldBe("Illian");
         }
     }

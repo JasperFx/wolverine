@@ -19,7 +19,7 @@ public class Bug_1970_issue_with_scheduling
                 opts.PublishAllMessages().ToRedisStream("wolverine-messages");
                 opts.ListenToRedisStream("wolverine-messages", "test-consumers")
                     .StartFromNewMessages();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         

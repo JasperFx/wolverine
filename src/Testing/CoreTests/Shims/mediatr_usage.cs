@@ -13,8 +13,7 @@ public class mediatr_usage : IntegrationContext
     [Fact]
     public async Task response_is_returned_from_invoke_async()
     {
-        var response = await Host.MessageBus().InvokeAsync<Response>(
-            new RequestWithResponse("response-test"));
+        var response = await Host.MessageBus().InvokeAsync<Response>(new RequestWithResponse("response-test"), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
         response.Data.ShouldBe("passed: response-test");
@@ -23,8 +22,7 @@ public class mediatr_usage : IntegrationContext
     [Fact]
     public async Task response_type_is_correct()
     {
-        var response = await Host.MessageBus().InvokeAsync<Response>(
-            new RequestWithResponse("type-test"));
+        var response = await Host.MessageBus().InvokeAsync<Response>(new RequestWithResponse("type-test"), TestContext.Current.CancellationToken);
 
         response.ShouldBeOfType<Response>();
     }
@@ -32,8 +30,7 @@ public class mediatr_usage : IntegrationContext
     [Fact]
     public async Task invoke_mediatr_handler_with_response()
     {
-        var response = await Host.MessageBus().InvokeAsync<Response>(
-            new RequestWithResponse("test"));
+        var response = await Host.MessageBus().InvokeAsync<Response>(new RequestWithResponse("test"), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
         response.Data.ShouldBe("passed: test");

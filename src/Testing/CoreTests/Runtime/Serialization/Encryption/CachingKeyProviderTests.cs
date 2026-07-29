@@ -36,9 +36,9 @@ public class CachingKeyProviderTests
         var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");
         var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1));
 
-        await caching.GetKeyAsync("k1", default);
-        await caching.GetKeyAsync("k1", default);
-        await caching.GetKeyAsync("k1", default);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
 
         inner.CallCount.ShouldBe(1);
     }
@@ -49,9 +49,9 @@ public class CachingKeyProviderTests
         var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");
         var caching = new CachingKeyProvider(inner, TimeSpan.FromMilliseconds(50));
 
-        await caching.GetKeyAsync("k1", default);
-        await Task.Delay(80);
-        await caching.GetKeyAsync("k1", default);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await Task.Delay(80, TestContext.Current.CancellationToken);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
 
         inner.CallCount.ShouldBe(2);
     }
@@ -65,9 +65,9 @@ public class CachingKeyProviderTests
 
         var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1));
 
-        var task1 = caching.GetKeyAsync("k1", default).AsTask();
-        var task2 = caching.GetKeyAsync("k1", default).AsTask();
-        var task3 = caching.GetKeyAsync("k1", default).AsTask();
+        var task1 = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        var task2 = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
+        var task3 = caching.GetKeyAsync("k1", TestContext.Current.CancellationToken).AsTask();
 
         // GetOrAdd is synchronous, so dedup has already happened — no need to
         // sleep before releasing. Only ONE call has even reached Hook().
@@ -85,8 +85,8 @@ public class CachingKeyProviderTests
             "k1");
         var caching = new CachingKeyProvider(inner, TimeSpan.FromMinutes(1));
 
-        await caching.GetKeyAsync("k1", default);
-        await caching.GetKeyAsync("k2", default);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await caching.GetKeyAsync("k2", TestContext.Current.CancellationToken);
 
         inner.CallCount.ShouldBe(2);
     }
@@ -118,7 +118,7 @@ public class CachingKeyProviderTests
 
         // The faulted entry should have been evicted; second call must hit the inner
         // provider again and succeed.
-        var key = await caching.GetKeyAsync("k1", default);
+        var key = await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
         key.ShouldBe(Key32(0x01));
         attempt.ShouldBe(2);
     }
@@ -190,21 +190,21 @@ public class CachingKeyProviderTests
         var inner = new MultiKeyCountingProvider("a");
         var sut = new CachingKeyProvider(inner, TimeSpan.FromMinutes(5), maxEntries: 3);
 
-        await sut.GetKeyAsync("a", default);
-        await sut.GetKeyAsync("b", default);
-        await sut.GetKeyAsync("c", default);
-        await sut.GetKeyAsync("a", default);  // touch 'a' so 'b' becomes oldest
-        await sut.GetKeyAsync("d", default);  // forces eviction of 'b'
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);
+        await sut.GetKeyAsync("b", TestContext.Current.CancellationToken);
+        await sut.GetKeyAsync("c", TestContext.Current.CancellationToken);
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);  // touch 'a' so 'b' becomes oldest
+        await sut.GetKeyAsync("d", TestContext.Current.CancellationToken);  // forces eviction of 'b'
 
         inner.CallsFor("a").ShouldBe(1);
         inner.CallsFor("b").ShouldBe(1);
         inner.CallsFor("c").ShouldBe(1);
         inner.CallsFor("d").ShouldBe(1);
 
-        await sut.GetKeyAsync("b", default);  // evicted, must re-fetch
+        await sut.GetKeyAsync("b", TestContext.Current.CancellationToken);  // evicted, must re-fetch
         inner.CallsFor("b").ShouldBe(2);
 
-        await sut.GetKeyAsync("a", default);  // still cached
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);  // still cached
         inner.CallsFor("a").ShouldBe(1);
     }
 
@@ -233,14 +233,14 @@ public class CachingKeyProviderTests
         var inner = new MultiKeyCountingProvider("a");
         var sut = new CachingKeyProvider(inner, TimeSpan.FromMinutes(5), maxEntries: 1);
 
-        await sut.GetKeyAsync("a", default);
-        await sut.GetKeyAsync("a", default);                 // still cached
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);                 // still cached
         inner.CallsFor("a").ShouldBe(1);
 
-        await sut.GetKeyAsync("b", default);                 // evicts 'a'
+        await sut.GetKeyAsync("b", TestContext.Current.CancellationToken);                 // evicts 'a'
         inner.CallsFor("b").ShouldBe(1);
 
-        await sut.GetKeyAsync("a", default);                 // 'a' was evicted, must re-fetch
+        await sut.GetKeyAsync("a", TestContext.Current.CancellationToken);                 // 'a' was evicted, must re-fetch
         inner.CallsFor("a").ShouldBe(2);
     }
 
@@ -253,9 +253,9 @@ public class CachingKeyProviderTests
         var inner = new CountingProvider(new() { ["k1"] = Key32(0x01) }, "k1");
         var caching = new CachingKeyProvider(inner, TimeSpan.FromSeconds(5));
 
-        await caching.GetKeyAsync("k1", default);
-        await Task.Delay(50);                                // well within TTL
-        await caching.GetKeyAsync("k1", default);
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);                                // well within TTL
+        await caching.GetKeyAsync("k1", TestContext.Current.CancellationToken);
 
         inner.CallCount.ShouldBe(1);
     }

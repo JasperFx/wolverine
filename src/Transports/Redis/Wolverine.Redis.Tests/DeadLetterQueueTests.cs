@@ -79,7 +79,7 @@ public class DeadLetterQueueTests
         await bus.PublishAsync(command);
         
         // Wait for processing and failure - need more time for retries to exhaust
-        await Task.Delay(5000);
+        await Task.Delay(5000, TestContext.Current.CancellationToken);
         
         var tracker = host.Services.GetRequiredService<DeadLetterQueueTracker>();
         _output.WriteLine($"Handler was called {tracker.Attempts.Count} times");
@@ -129,7 +129,7 @@ public class DeadLetterQueueTests
         var command = new FailingCommand(Guid.NewGuid().ToString(), "Test error message");
         await bus.PublishAsync(command);
         
-        await Task.Delay(2000);
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
         
         // Read dead letter entry
         var deadLetterEntries = await database.StreamReadAsync(deadLetterKey, "0-0", count: 1);
@@ -199,7 +199,7 @@ public class DeadLetterQueueTests
         }
         
         // Wait for all to fail
-        await Task.Delay(3000);
+        await Task.Delay(3000, TestContext.Current.CancellationToken);
         
         // Verify all are in dead letter queue
         var deadLetterLength = await database.StreamLengthAsync(deadLetterKey);

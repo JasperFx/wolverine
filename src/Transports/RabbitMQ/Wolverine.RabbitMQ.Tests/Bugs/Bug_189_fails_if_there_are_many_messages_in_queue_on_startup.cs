@@ -33,7 +33,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             #endregion
 
 
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = sender.MessageBus();
 
@@ -42,7 +42,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             await bus.PublishAsync(new Bug189(Guid.NewGuid()));
         }
 
-        await sender.StopAsync();
+        await sender.StopAsync(TestContext.Current.CancellationToken);
 
         var waiter = Bug189Handler.WaitForCompletion(500, 120000);
 
@@ -55,7 +55,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
 
                 // TODO -- take in the parallel listener count within ProcessInline()? Just sugar, but still?
                 opts.ListenToRabbitQueue(queueName).ProcessInline().ListenerCount(5);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         try
         {
@@ -66,7 +66,7 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
             if (receiverTask.IsCompletedSuccessfully)
             {
                 var host = await receiverTask;
-                await host.StopAsync();
+                await host.StopAsync(TestContext.Current.CancellationToken);
             }
         }
     }

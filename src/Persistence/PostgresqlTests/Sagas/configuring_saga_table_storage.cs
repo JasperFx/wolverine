@@ -26,12 +26,12 @@ public class configuring_saga_table_storage : PostgresqlContext
                 opts.AddSagaType<BlueSaga>("blue");
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "color_sagas");
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        (await new Table(new DbObjectName("color_sagas", "red")).ExistsInDatabaseAsync(conn)).ShouldBeTrue();
-        (await new Table(new DbObjectName("color_sagas", "blue")).ExistsInDatabaseAsync(conn)).ShouldBeTrue();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        (await new Table(new DbObjectName("color_sagas", "red")).ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await new Table(new DbObjectName("color_sagas", "blue")).ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     private static async Task dropSchemaAsync()

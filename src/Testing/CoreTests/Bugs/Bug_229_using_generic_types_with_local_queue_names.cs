@@ -10,7 +10,7 @@ public class Bug_229_using_generic_types_with_local_queue_names
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 }
 

@@ -52,7 +52,7 @@ public class external_message_tables : IAsyncLifetime
                 opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
                 
                 opts.Policies.UseDurableLocalQueues();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
             .As<PostgresqlMessageStore>();
@@ -64,11 +64,11 @@ public class external_message_tables : IAsyncLifetime
         
 
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await table.MigrateAsync(conn);
 
-        var delta = await table.FindDeltaAsync(conn);
+        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
         
@@ -87,7 +87,7 @@ public class external_message_tables : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UsePostgresqlPersistenceAndTransport(Servers.PostgresConnectionString, "external");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
             .As<PostgresqlMessageStore>();
@@ -99,11 +99,11 @@ public class external_message_tables : IAsyncLifetime
         
 
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await table.MigrateAsync(conn);
 
-        var delta = await table.FindDeltaAsync(conn);
+        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
         
@@ -123,7 +123,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message1>(host).ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("external.incoming1", new Message1()));
@@ -147,7 +147,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("external.incoming1", new Message2()));
@@ -174,7 +174,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("external.incoming1", new Message2()));
@@ -203,12 +203,12 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Rig it up to fail
         var waiter = BlowsUpMessageHandler.WaiterForCall(true);
 
-        await host.SendMessageThroughExternalTable("external.incoming4", new BlowsUpMessage());
+        await host.SendMessageThroughExternalTable("external.incoming4", new BlowsUpMessage(), token: TestContext.Current.CancellationToken);
         var storage = host.GetRuntime().Storage;
         Guid[] ids = new Guid[0];
         while (!ids.Any())

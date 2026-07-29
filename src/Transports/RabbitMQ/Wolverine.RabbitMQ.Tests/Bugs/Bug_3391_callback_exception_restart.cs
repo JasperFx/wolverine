@@ -173,7 +173,7 @@ public class Bug_3391_callback_exception_restart : IAsyncLifetime
         uint consumers;
         while ((consumers = await consumerCountAsync()) != 1u && DateTimeOffset.UtcNow < deadline)
         {
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
 
         consumers.ShouldBe(1u, "The restarted listener should be consuming from the queue again");

@@ -27,7 +27,7 @@ public class grpc_endpoint_manifest_3235
                 opts.Discovery.IncludeAssembly(typeof(IGreeterCodeFirstService).Assembly);
             })
             .ConfigureServices(services => services.AddWolverineGrpc())
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var manifest = host.Services.GetRequiredService<IGrpcEndpointManifest>();
 
@@ -77,7 +77,7 @@ public class grpc_endpoint_manifest_3235
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.Services.GetService<IGrpcEndpointManifest>().ShouldBeNull();
     }

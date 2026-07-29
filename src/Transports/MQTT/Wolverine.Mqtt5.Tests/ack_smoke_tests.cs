@@ -56,7 +56,7 @@ public class ack_smoke_tests : IAsyncLifetime
         var bus = _sender.MessageBus();
         await bus.BroadcastToTopicAsync("red", new ZeroMessage("Zero"));
 
-        await Task.Delay(2.Seconds());
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public class ack_smoke_tests : IAsyncLifetime
         var bus = _sender.MessageBus();
         await bus.BroadcastToTopicAsync("red", new TriggerZero("red"));
 
-        await Task.Delay(2.Seconds());
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
     }
 
     public async ValueTask DisposeAsync()

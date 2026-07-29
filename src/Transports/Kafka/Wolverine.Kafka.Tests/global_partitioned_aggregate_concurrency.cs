@@ -150,7 +150,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
     public async Task should_not_have_concurrency_exceptions_for_same_stream()
     {
         var store = _replica1.Services.GetRequiredService<IDocumentStore>();
-        await store.Advanced.Clean.DeleteAllEventDataAsync();
+        await store.Advanced.Clean.DeleteAllEventDataAsync(TestContext.Current.CancellationToken);
 
         var bus = _publisher.Services.GetRequiredService<IMessageBus>();
 
@@ -166,6 +166,8 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
             {
                 var id = streamId;
                 var iteration = i;
+                // xUnit's own fixer declines this shape (it cannot tell which Task.Run overload to
+                // bind), so the token is threaded by hand.
                 tasks.Add(Task.Run(async () =>
                 {
                     if (iteration % 2 == 0)
@@ -178,7 +180,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
                     }
 
                     Interlocked.Increment(ref messageCount);
-                }));
+                }, TestContext.Current.CancellationToken));
             }
         }
 
@@ -186,7 +188,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
         _output.WriteLine($"Published {messageCount} messages across {streamIds.Length} streams");
 
         // Wait for processing to complete across both replicas
-        await Task.Delay(45.Seconds());
+        await Task.Delay(45.Seconds(), TestContext.Current.CancellationToken);
 
         var errors = ConcurrencyTracker.Errors.ToList();
         var concurrentAccessCount = ConcurrencyTracker.ConcurrentAccessDetected;

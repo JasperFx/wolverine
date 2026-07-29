@@ -98,7 +98,7 @@ public class RedisPerTenantConnectionTests : IClassFixture<SecondRedisServerFixt
                 opts.PublishMessage<RedisBrokerMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "tenant-group");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()

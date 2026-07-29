@@ -71,9 +71,9 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
                 opts.ListenToRabbitQueue(queueName).UseDurableInbox();
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await _host.ResetResourceState();
+        await _host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         // Debug print: check DeadLetterQueue and Mode
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -101,9 +101,9 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
                 opts.ListenToRabbitQueue(queueName); // No UseDurableInbox()
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await _host.ResetResourceState();
+        await _host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         // Debug print: check DeadLetterQueue and Mode
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -137,9 +137,9 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
                 opts.ListenToRabbitQueue(queueName);
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await _host.ResetResourceState();
+        await _host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         // Debug print: check DeadLetterQueue and Mode
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -202,9 +202,9 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
                 opts.EnableAutomaticFailureAcks = false;
                 opts.UseRabbitMq().DisableDeadLetterQueueing().AutoProvision().AutoPurgeOnStartup();
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await _host.ResetResourceState();
+        await _host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.RabbitMqTransport();
@@ -270,9 +270,9 @@ public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable
                 opts.ListenToRabbitQueue(queueName);
                 opts.PublishMessage<TestMessage>().ToRabbitQueue(queueName);
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await _host.ResetResourceState();
+        await _host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.RabbitMqTransport();

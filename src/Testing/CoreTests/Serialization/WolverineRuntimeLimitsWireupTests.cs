@@ -27,7 +27,7 @@ public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
                 opts.MaxIncomingEnvelopeDataSize = 9 * 1024 * 1024;
                 opts.MaxIncomingEnvelopeHeaderCount = 256;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         EnvelopeSerializer.Limits.MaxBatchSize.ShouldBe(4242);
         EnvelopeSerializer.Limits.MaxDataSize.ShouldBe(9 * 1024 * 1024);
@@ -39,7 +39,7 @@ public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(_ => { })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         EnvelopeSerializer.Limits.ShouldBe(EnvelopeReaderLimits.Default);
         WireProtocol.MaxFrameSize.ShouldBe(WireProtocol.DefaultMaxFrameSize);
@@ -53,7 +53,7 @@ public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
             {
                 opts.MaxIncomingTcpFrameSize = 7 * 1024 * 1024;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         WireProtocol.MaxFrameSize.ShouldBe(7 * 1024 * 1024);
     }

@@ -17,7 +17,7 @@ public class using_side_effect_as_return_values
             .UseWolverine(opts =>
             {
                 opts.Services.AddSingleton<Recorder>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<TriggerSideEffects>();

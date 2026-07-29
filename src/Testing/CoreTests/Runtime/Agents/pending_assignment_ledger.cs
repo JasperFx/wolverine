@@ -83,7 +83,7 @@ public class pending_assignment_ledger
 
         assignedAgentCount(await evaluateAsync()).ShouldBe(FakeAgentFamily.Names.Length);
 
-        await Task.Delay(100.Milliseconds()); // comfortably past the 20ms TTL
+        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken); // comfortably past the 20ms TTL
 
         // A start that never took must eventually be re-driven.
         assignedAgentCount(await evaluateAsync()).ShouldBe(FakeAgentFamily.Names.Length);

@@ -74,7 +74,7 @@ public class basic_functionality : IAsyncLifetime
     public async Task expected_tables_exist_for_queue()
     {
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var tables = new List<string>();
         await using var cmd = conn.CreateCommand();
@@ -83,8 +83,8 @@ SELECT table_name
 FROM information_schema.tables
 WHERE table_schema = 'wolverine_transports'
 AND table_name LIKE 'wolverine_queue_%'";
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
             tables.Add(reader.GetString(0));
         }

@@ -19,7 +19,7 @@ public class find_agent_uri_for_registered_projection(ITestOutputHelper output) 
             .OfType<EventSubscriptionAgentFamily>().Single();
 
         // "Trip:All" is the JasperFx ShardName.Identity for the registered TripProjection.
-        var uri = await family.FindAgentUriAsync("Trip:All", null);
+        var uri = await family.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
         uri!.AbsoluteUri.ShouldBe("event-subscriptions://marten/main/localhost.postgres/trip/all");
@@ -31,7 +31,7 @@ public class find_agent_uri_for_registered_projection(ITestOutputHelper output) 
         var family = theOriginalHost.Services.GetServices<IAgentFamily>()
             .OfType<EventSubscriptionAgentFamily>().Single();
 
-        var uri = await family.FindAgentUriAsync("DoesNotExist:All", null);
+        var uri = await family.FindAgentUriAsync("DoesNotExist:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldBeNull();
     }

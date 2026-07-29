@@ -104,7 +104,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
             .Or<CourseCreated, CourseId>(courseId)
             .Or<StudentEnrolledInFaculty, StudentId>(studentId);
 
-        var boundary = await session.Events.FetchForWritingByTags<SubscriptionState>(query);
+        var boundary = await session.Events.FetchForWritingByTags<SubscriptionState>(query, TestContext.Current.CancellationToken);
         boundary.Events.Count.ShouldBe(2);
         boundary.Aggregate.ShouldNotBeNull();
         boundary.Aggregate.CourseId.ShouldBe(courseId);
@@ -125,8 +125,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
 
         // Verify the subscription event was appended and discoverable by tag
         await using var session = theStore.LightweightSession();
-        var events = await session.Events.QueryByTagsAsync(
-            new EventTagQuery().Or<StudentId>(studentId));
+        var events = await session.Events.QueryByTagsAsync(new EventTagQuery().Or<StudentId>(studentId), TestContext.Current.CancellationToken);
 
         events.ShouldContain(e => e.Data is StudentSubscribedToCourse);
     }
@@ -143,7 +142,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
             new CourseCreated(FacultyId.Default, courseId, "Math 101", 10));
         courseCreated.WithTag(courseId);
         session.Events.Append(courseId.Value, courseCreated);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // The handler should throw because student is not enrolled
         await Should.ThrowAsync<InvalidOperationException>(async () =>
@@ -165,7 +164,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
             new StudentEnrolledInFaculty(FacultyId.Default, studentId, "Alice", "Smith"));
         enrolled.WithTag(studentId);
         session.Events.Append(studentId.Value, enrolled);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Should.ThrowAsync<InvalidOperationException>(async () =>
         {
@@ -195,7 +194,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
             new StudentSubscribedToCourse(FacultyId.Default, otherStudentId, courseId));
         subscribed.WithTag(otherStudentId, courseId);
         session.Events.Append(otherStudentId.Value, subscribed);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Now try to subscribe our student — should fail because course is full
         await Should.ThrowAsync<InvalidOperationException>(async () =>

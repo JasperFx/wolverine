@@ -200,7 +200,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
                 opts.UseNats(_natsUrl).AutoProvision();
                 opts.ListenToNatsSubject($"{root}.>").Named("resolver-wildcard");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var sender = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
@@ -218,7 +218,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject).SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var raw = await NatsTestHelpers.SubscribeRawAsync(_natsUrl, expectedSubject);
 
@@ -259,7 +259,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
                 opts.UseNats(_natsUrl).AutoProvision();
                 opts.ListenToNatsSubject($"{root}.>").Named("normalize-wildcard");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var sender = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddXunitLogging(_output))
@@ -275,7 +275,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject).SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var raw = await NatsTestHelpers.SubscribeRawAsync(_natsUrl, expectedSubject);
 

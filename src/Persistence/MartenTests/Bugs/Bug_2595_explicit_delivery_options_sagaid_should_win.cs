@@ -83,7 +83,7 @@ public class Bug_2595_explicit_delivery_options_sagaid_should_win : PostgresqlCo
         // not own its document table; load by id rather than asserting total
         // table count, so concurrent or prior runs don't break the assertion).
         var childId = Guid.Parse(doWorkEnvelope.SagaId!);
-        var child = await session.LoadAsync<Bug2595ChildSaga>(childId);
+        var child = await session.LoadAsync<Bug2595ChildSaga>(childId, TestContext.Current.CancellationToken);
         child.ShouldNotBeNull("ChildSaga.Start must have inserted the saga document");
 
         // Final proof: the WorkDone reply auto-propagated the (correct) child

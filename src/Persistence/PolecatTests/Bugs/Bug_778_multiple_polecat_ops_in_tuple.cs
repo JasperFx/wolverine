@@ -26,9 +26,9 @@ public class Bug_778_multiple_polecat_ops_in_tuple
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database.ApplyAllConfiguredChangesToDatabaseAsync();
+        await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database.ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var command = new PcSpawnTwo(Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
 
@@ -36,8 +36,8 @@ public class Bug_778_multiple_polecat_ops_in_tuple
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
-        var person1 = await session.LoadAsync<PcPerson>(command.Name1);
-        var person2 = await session.LoadAsync<PcPerson>(command.Name2);
+        var person1 = await session.LoadAsync<PcPerson>(command.Name1, TestContext.Current.CancellationToken);
+        var person2 = await session.LoadAsync<PcPerson>(command.Name2, TestContext.Current.CancellationToken);
 
         person1.ShouldNotBeNull();
         person2.ShouldNotBeNull();

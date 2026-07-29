@@ -45,7 +45,7 @@ public class end_to_end_with_named_broker
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         for (int i = 0; i < 10000; i++)
         {
@@ -94,7 +94,7 @@ public class end_to_end_with_named_broker
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         var request = new RequestId(Guid.NewGuid());
         var (tracked, response) =

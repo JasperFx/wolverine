@@ -129,7 +129,7 @@ public class WolverineOptionsTests
     {
         using var runtime = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         runtime.Services.GetRequiredService<IWolverineRuntime>()
             .Endpoints.EndpointFor(TransportConstants.DurableLocalUri)!

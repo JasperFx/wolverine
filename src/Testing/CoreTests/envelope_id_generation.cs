@@ -70,13 +70,16 @@ public class envelope_id_generation : IDisposable
         // Simulate the scenario from the bug report: multiple threads generating IDs
         for (var t = 0; t < 10; t++)
         {
+            // xUnit's own fixer declines this shape (it cannot tell which Task.Run overload to bind),
+            // so the token is threaded by hand. It only governs scheduling here -- the loop below has
+            // nothing to cancel.
             tasks.Add(Task.Run(() =>
             {
                 for (var i = 0; i < 1000; i++)
                 {
                     ids.Add(new Envelope().Id);
                 }
-            }));
+            }, TestContext.Current.CancellationToken));
         }
 
         await Task.WhenAll(tasks);
@@ -92,7 +95,7 @@ public class envelope_id_generation : IDisposable
             .UseWolverine(opts =>
             {
                 opts.EnvelopeIdGeneration = EnvelopeIdGeneration.GuidV7;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.InvokeMessageAndWaitAsync(new GuidV7TestMessage("hello"));
 

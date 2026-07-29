@@ -63,17 +63,17 @@ public class inline_receiver_drain_waits_for_in_flight
         var envelope = ObjectMother.Envelope();
 
         // Start receiving on a background task — it will block in InvokeAsync
-        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask());
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask(), TestContext.Current.CancellationToken);
 
         // Give the receive task time to enter the pipeline
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, theReceiver.QueueCount);
 
         // Simulate shutdown: Latch() is called first, then DrainAsync()
         theReceiver.Latch();
         var drainTask = theReceiver.DrainAsync().AsTask();
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.False(drainTask.IsCompleted, "DrainAsync should not complete while a message is in-flight");
 
@@ -82,7 +82,7 @@ public class inline_receiver_drain_waits_for_in_flight
         await receiveTask;
 
         // Drain should now complete
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, theReceiver.QueueCount);
     }
@@ -99,10 +99,10 @@ public class inline_receiver_drain_waits_for_in_flight
         var envelope = ObjectMother.Envelope();
 
         // Start receiving on a background task — it will block in InvokeAsync
-        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask());
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask(), TestContext.Current.CancellationToken);
 
         // Give the receive task time to enter the pipeline
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(1, theReceiver.QueueCount);
 
@@ -200,8 +200,8 @@ public class inline_receiver_drain_respects_timeout
         var envelope = ObjectMother.Envelope();
 
         // Start a receive that will block
-        _ = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask());
-        await Task.Delay(50);
+        _ = Task.Run(() => theReceiver.ReceivedAsync(theListener, envelope).AsTask(), TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         // Simulate shutdown: Latch() first, then DrainAsync should time out
         theReceiver.Latch();
@@ -238,17 +238,17 @@ public class inline_receiver_batch_drain_waits_for_all_messages
         var envelope3 = ObjectMother.Envelope();
 
         // Start batch receive on a background task — it will block on the first message
-        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2, envelope3 }).AsTask());
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2, envelope3 }).AsTask(), TestContext.Current.CancellationToken);
 
         // Give the receive task time to enter the pipeline for envelope1
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(3, theReceiver.QueueCount);
 
         // Simulate shutdown: Latch() first, then DrainAsync while the first message is still in-flight.
         theReceiver.Latch();
         var drainTask = theReceiver.DrainAsync().AsTask();
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.False(drainTask.IsCompleted, "DrainAsync must not complete while batch messages are still in-flight");
 
@@ -256,10 +256,10 @@ public class inline_receiver_batch_drain_waits_for_all_messages
         firstMessageBlocking.SetResult();
 
         // Wait for the full batch receive to complete
-        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         // Drain should now complete since all messages are processed/deferred
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, theReceiver.QueueCount);
 
@@ -297,25 +297,25 @@ public class inline_receiver_process_inline_while_draining_processes_batch
         var envelope3 = ObjectMother.Envelope();
 
         // Start batch receive — it will block on the first message
-        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2, envelope3 }).AsTask());
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2, envelope3 }).AsTask(), TestContext.Current.CancellationToken);
 
         // Give the receive task time to enter the pipeline for envelope1
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.Equal(3, theReceiver.QueueCount);
 
         // Simulate shutdown: Latch() first, then DrainAsync while the first message is still in-flight
         theReceiver.Latch();
         var drainTask = theReceiver.DrainAsync().AsTask();
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.False(drainTask.IsCompleted, "DrainAsync must not complete while batch messages are still in-flight");
 
         // Release the first message — with ProcessInlineWhileDraining, remaining messages should be processed, not deferred
         firstMessageBlocking.SetResult();
 
-        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
-        await drainTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        await drainTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, theReceiver.QueueCount);
 
@@ -388,8 +388,8 @@ public class inline_receiver_process_inline_while_draining_non_wait_drain
         var envelope2 = ObjectMother.Envelope();
 
         // Start batch receive — it will block on the first message
-        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2 }).AsTask());
-        await Task.Delay(50);
+        var receiveTask = Task.Run(() => theReceiver.ReceivedAsync(theListener, new[] { envelope1, envelope2 }).AsTask(), TestContext.Current.CancellationToken);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
 
         // DrainAsync without prior Latch() — returns immediately (non-wait path)
         var drainTask = theReceiver.DrainAsync();
@@ -397,7 +397,7 @@ public class inline_receiver_process_inline_while_draining_non_wait_drain
 
         // Release the first message — envelope2 should still be processed
         firstMessageBlocking.SetResult();
-        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
+        await receiveTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
 
         // Both messages should have been processed, not deferred
         await theListener.DidNotReceive().DeferAsync(envelope2);

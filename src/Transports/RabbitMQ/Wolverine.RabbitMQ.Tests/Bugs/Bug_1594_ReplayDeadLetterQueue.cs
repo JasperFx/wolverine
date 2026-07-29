@@ -50,13 +50,13 @@ public class Bug_1594_ReplayDeadLetterQueue
                 opts.ListenToRabbitQueue(queueName, q => q.As<Endpoint>().Mode = mode);
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await host.ResetResourceState();
+        await host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
         
         await host.MessageBus().PublishAsync(new ReplayTestMessage());
         
-        await Task.Delay(1000);
+        await Task.Delay(1000, TestContext.Current.CancellationToken);
 
         var messageStore = host.Services.GetRequiredService<IMessageStore>();
         var deadLetterQuery = new DeadLetterEnvelopeQuery { PageSize = 10 };
@@ -70,7 +70,7 @@ public class Bug_1594_ReplayDeadLetterQueue
                 deadLetterId = deadLetterResults.Envelopes.First().Id;
                 break;
             }
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
         
         deadLetterId.ShouldNotBeNull("Message should be in DLQ after failure");

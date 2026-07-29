@@ -74,7 +74,7 @@ public class global_partitioned_sharded_processing
                     topology.UseShardedKafkaTopics("gletters", 4);
                     topology.MessagesImplementing<IGLetterMessage>();
                 });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host
             .TrackActivity()

@@ -24,7 +24,7 @@ public class disabling_dead_letter_queue
                     .AutoProvision();
 
                 opts.ListenToSqsQueue("incoming");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 
@@ -50,7 +50,7 @@ public class disabling_dead_letter_queue
 
                 opts.ListenToSqsQueue("product-shipped")
                     .ConfigureDeadLetterQueue("product-shipped-error");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();
@@ -72,7 +72,7 @@ public class disabling_dead_letter_queue
 
                 options.ListenToSqsQueue("product-created")
                     .ConfigureDeadLetterQueue("product-created-error");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().As<WolverineRuntime>()
             .Options.Transports.GetOrCreate<AmazonSqsTransport>();

@@ -34,7 +34,7 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 
@@ -73,7 +73,7 @@ public class Bug_3399_batched_message_separated_handler_codegen
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
 
                 opts.BatchMessagesOf<ItemDeleted3399>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity()
             .Timeout(30.Seconds())

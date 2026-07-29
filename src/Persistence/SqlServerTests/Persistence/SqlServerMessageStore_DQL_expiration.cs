@@ -25,14 +25,14 @@ public class SqlServerMessageStore_DQL_expiration
 
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.DeadLetterQueueExpirationEnabled = false;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "target").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "target").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         dlq!.ColumnFor(DatabaseConstants.Expires).ShouldBeNull();
     }
 
@@ -46,14 +46,14 @@ public class SqlServerMessageStore_DQL_expiration
 
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         var column = dlq!.ColumnFor(DatabaseConstants.Expires);
         column.ShouldNotBeNull();
         column.AllowNulls.ShouldBeTrue();

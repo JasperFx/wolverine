@@ -52,13 +52,13 @@ public class NonDefaultDatabaseTests
 
                 opts.Services.AddSingleton(tcs);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var uri = new Uri($"redis://stream/{databaseId}/{streamKey}");
         await bus.EndpointFor(uri).SendAsync(new NonDefaultDbMessage("db1-test"));
 
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         completed.ShouldBe(tcs.Task, "Message on non-default database was never consumed — listener likely fell back to db0");
 
         var result = await tcs.Task;

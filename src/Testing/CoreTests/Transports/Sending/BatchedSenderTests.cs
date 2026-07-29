@@ -106,7 +106,7 @@ public class BatchedSenderTests
         var sw = Stopwatch.StartNew();
         await sender.SendAsync(Envelope.ForPing(TransportConstants.LocalUri));
 
-        await flushed.Task.WaitAsync(2.Seconds());
+        await flushed.Task.WaitAsync(2.Seconds(), TestContext.Current.CancellationToken);
         sw.Stop();
 
         sw.Elapsed.ShouldBeGreaterThanOrEqualTo(40.Milliseconds());

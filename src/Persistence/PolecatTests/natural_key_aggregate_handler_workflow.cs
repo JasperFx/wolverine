@@ -63,13 +63,13 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
         await using var session = _store.LightweightSession();
         session.Events.StartStream(streamId,
             new PcNkOrderCreated(orderNumber, "Alice"));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new AddPcNkOrderItem(orderNumber, "Widget", 9.99m));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.TotalAmount.ShouldBe(9.99m);
@@ -85,14 +85,14 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
         await using var session = _store.LightweightSession();
         session.Events.StartStream(streamId,
             new PcNkOrderCreated(orderNumber, "Bob"));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new AddPcNkOrderItems(orderNumber,
                 [("Gadget", 19.99m), ("Doohickey", 5.50m)]));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.TotalAmount.ShouldBe(25.49m);
@@ -108,13 +108,13 @@ public class natural_key_aggregate_handler_workflow : IAsyncLifetime
         session.Events.StartStream(streamId,
             new PcNkOrderCreated(orderNumber, "Charlie"),
             new PcNkItemAdded("Widget", 10.00m));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new CompletePcNkOrder(orderNumber));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<PcNkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.IsComplete.ShouldBeTrue();

@@ -62,7 +62,7 @@ public class when_initializing_the_endpoint
 
         theTopic.TopicArn.ShouldBe(theSnsTopicArn);
 
-        await theSnsClient.DidNotReceiveWithAnyArgs().CreateTopicAsync(theTopic.TopicName);
+        await theSnsClient.DidNotReceiveWithAnyArgs().CreateTopicAsync(theTopic.TopicName, Arg.Any<CancellationToken>());
     }
     
     [Fact]
@@ -72,8 +72,7 @@ public class when_initializing_the_endpoint
 
         const string theSnsTopicArn = "arn:aws:sns:us-east-2:123456789012:TheTopic";
 
-        theSnsClient.CreateTopicAsync(Arg.Any<CreateTopicRequest>())
-            .Returns(new CreateTopicResponse
+        theSnsClient.CreateTopicAsync(Arg.Any<CreateTopicRequest>(), TestContext.Current.CancellationToken).Returns(new CreateTopicResponse
             {
                 TopicArn = theSnsTopicArn
             });

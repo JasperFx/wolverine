@@ -74,8 +74,8 @@ public class with_one_postgresql_context : IAsyncLifetime
         {
             BlogId = 1,
             Url = "http://codebetter.com"
-        });
-        await context.SaveChangesAsync();
+        }, TestContext.Current.CancellationToken);
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]

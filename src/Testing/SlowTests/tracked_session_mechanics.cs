@@ -27,13 +27,13 @@ public class tracked_session_mechanics
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.PublishAllMessages().ToPort(port2);
                 opts.ListenAtPort(port1);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ListenAtPort(port2);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
         {
@@ -51,7 +51,7 @@ public class tracked_session_mechanics
             .UseWolverine(opts =>
             {
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should finish cleanly
         var tracked = await host.SendMessageAndWaitAsync(new TriggerScheduledMessage("Chiefs"));
@@ -75,7 +75,7 @@ public class tracked_session_mechanics
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
                 opts.Policies.UseDurableInboxOnAllListeners();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should finish cleanly
         var tracked = await host.SendMessageAndWaitAsync(new TriggerScheduledMessage("Chiefs"));
@@ -103,13 +103,13 @@ public class tracked_session_mechanics
             {
                 opts.PublishMessage<ScheduledMessage>().ToPort(port2);
                 opts.ListenAtPort(port1);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ListenAtPort(port2);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // Should finish cleanly
         var tracked = await sender

@@ -105,8 +105,7 @@ public class leadership_locking : IAsyncLifetime
             NodeId = Guid.NewGuid(),
             ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(-10)
         };
-        var put = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>("wolverine/scheduled", staleLock, 0));
+        var put = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>("wolverine/scheduled", staleLock, 0), token: TestContext.Current.CancellationToken);
         put.Successful.ShouldBeTrue();
 
         // Build a brand-new message store with no in-memory lock state — mirrors a
@@ -126,14 +125,12 @@ public class leadership_locking : IAsyncLifetime
         var lockId = "wolverine/leader/locking";
 
         (await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
-        var initial = await _store.Operations.SendAsync(
-            new GetCompareExchangeValueOperation<DistributedLock>(lockId));
+        var initial = await _store.Operations.SendAsync(new GetCompareExchangeValueOperation<DistributedLock>(lockId), token: TestContext.Current.CancellationToken);
 
-        await Task.Delay(10);
+        await Task.Delay(10, TestContext.Current.CancellationToken);
 
         (await store.Nodes.TryAttainLeadershipLockAsync(CancellationToken.None)).ShouldBeTrue();
-        var renewed = await _store.Operations.SendAsync(
-            new GetCompareExchangeValueOperation<DistributedLock>(lockId));
+        var renewed = await _store.Operations.SendAsync(new GetCompareExchangeValueOperation<DistributedLock>(lockId), token: TestContext.Current.CancellationToken);
 
         renewed.Index.ShouldBeGreaterThan(initial.Index);
         renewed.Value.ExpirationTime.ShouldBeGreaterThan(initial.Value.ExpirationTime);
@@ -151,32 +148,27 @@ public class leadership_locking : IAsyncLifetime
         var lock2 = new DistributedLock { NodeId = Guid.NewGuid(), ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
 
         // First acquisition - should succeed (key doesn't exist)
-        var firstPut = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lock1, 0));
+        var firstPut = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lock1, 0), token: TestContext.Current.CancellationToken);
         firstPut.Successful.ShouldBeTrue("First acquisition with index=0 must succeed");
 
         // Second acquisition with index=0 on same key - must FAIL if CE is exclusive
-        var secondPut = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lock2, 0));
+        var secondPut = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lock2, 0), token: TestContext.Current.CancellationToken);
         secondPut.Successful.ShouldBeFalse(
             "Second acquisition with index=0 on same key must fail - CompareExchange is exclusive");
         secondPut.Value.ShouldNotBeNull();
         secondPut.Value.NodeId.ShouldBe(lock1.NodeId, "Existing value should still be lock1's node");
 
         // Correct-index acquisition (using the index from first put) - should succeed
-        var correctIndexPut = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lock2, firstPut.Index));
+        var correctIndexPut = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lock2, firstPut.Index), token: TestContext.Current.CancellationToken);
         correctIndexPut.Successful.ShouldBeTrue("Acquisition with correct index must succeed");
 
         // Wrong-index delete - should FAIL
         var wrongIndex = correctIndexPut.Index + 999;
-        var wrongDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, wrongIndex));
+        var wrongDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, wrongIndex), token: TestContext.Current.CancellationToken);
         wrongDelete.Successful.ShouldBeFalse("Delete with wrong index must fail");
 
         // Correct-index delete - should succeed
-        var correctDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, correctIndexPut.Index));
+        var correctDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, correctIndexPut.Index), token: TestContext.Current.CancellationToken);
         correctDelete.Successful.ShouldBeTrue("Delete with correct index must succeed");
     }
 
@@ -196,8 +188,7 @@ public class leadership_locking : IAsyncLifetime
         var lockVal1 = new DistributedLock { NodeId = Guid.NewGuid(), ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
 
         // Acquire initially -> index becomes N
-        var create = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal1, 0));
+        var create = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal1, 0), token: TestContext.Current.CancellationToken);
         create.Successful.ShouldBeTrue();
         var expectedIndex = create.Index;
 
@@ -207,28 +198,24 @@ public class leadership_locking : IAsyncLifetime
 
         // - Caller 1 (correct index) succeeds -
         var lockVal2 = new DistributedLock { NodeId = Guid.NewGuid(), ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
-        var caller1 = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal2, expectedIndex));
+        var caller1 = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal2, expectedIndex), token: TestContext.Current.CancellationToken);
         caller1.Successful.ShouldBeTrue("Caller 1 renewal with correct index succeeds");
         var afterCaller1Index = caller1.Index;
 
         // - Caller 2 (stale index N, but actual index is now N+1) fails -
         var lockVal3 = new DistributedLock { NodeId = Guid.NewGuid(), ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
-        var caller2 = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal3, expectedIndex));
+        var caller2 = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lockVal3, expectedIndex), token: TestContext.Current.CancellationToken);
         caller2.Successful.ShouldBeFalse("Caller 2 with stale index MUST fail - proves race causes renewal failure");
 
         // - What Wolverine does: stepDownAsync -> ReleaseLeadershipLockAsync
         //     which deletes the lock value using its stale _lastLockIndex -
         //     This delete ALSO fails because index is wrong!
-        var staleDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, expectedIndex));
+        var staleDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, expectedIndex), token: TestContext.Current.CancellationToken);
         staleDelete.Successful.ShouldBeFalse(
             "Delete with stale index fails - lock value remains, so another node can acquire it via take-over");
 
         // - Cleanup: delete with correct index -
-        var cleanDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, afterCaller1Index));
+        var cleanDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, afterCaller1Index), token: TestContext.Current.CancellationToken);
         cleanDelete.Successful.ShouldBeTrue("Cleanup delete with correct index succeeds");
     }
 
@@ -251,8 +238,7 @@ public class leadership_locking : IAsyncLifetime
         var initialLock = new DistributedLock { NodeId = owner, ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
 
         // === Step 1: Host1 acquires the lock (index=N) ===
-        var create = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, initialLock, 0));
+        var create = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, initialLock, 0), token: TestContext.Current.CancellationToken);
         create.Successful.ShouldBeTrue();
         var sharedIndex = create.Index;   // This is like _lastLockIndex on Host1
         Console.WriteLine($"Step 1: Acquired lock, index={sharedIndex}");
@@ -262,10 +248,8 @@ public class leadership_locking : IAsyncLifetime
         // Caller B is CheckAgentHealth message processing
         var lockA = new DistributedLock { NodeId = owner, ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
         var lockB = new DistributedLock { NodeId = owner, ExpirationTime = DateTimeOffset.UtcNow.AddMinutes(5) };
-        var resultA = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lockA, sharedIndex));
-        var resultB = await _store.Operations.SendAsync(
-            new PutCompareExchangeValueOperation<DistributedLock>(key, lockB, sharedIndex));
+        var resultA = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lockA, sharedIndex), token: TestContext.Current.CancellationToken);
+        var resultB = await _store.Operations.SendAsync(new PutCompareExchangeValueOperation<DistributedLock>(key, lockB, sharedIndex), token: TestContext.Current.CancellationToken);
 
         // Exactly one succeeds (the one whose request wins the network race)
         // The other fails because the lock index was bumped by the first
@@ -275,14 +259,12 @@ public class leadership_locking : IAsyncLifetime
         // The FAILING caller simulates what happens in stepDownAsync:
         // it tries to delete the lock value using its stale sharedIndex
         // This delete FAILS because the lock value has a new index
-        var staleDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, sharedIndex));
+        var staleDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, sharedIndex), token: TestContext.Current.CancellationToken);
         staleDelete.Successful.ShouldBeFalse();
 
         // === Step 3: Cleanup - delete with actual current index ===
         var currentIndex = resultA.Successful ? resultA.Index : resultB.Index;
-        var cleanDelete = await _store.Operations.SendAsync(
-            new DeleteCompareExchangeValueOperation<DistributedLock>(key, currentIndex));
+        var cleanDelete = await _store.Operations.SendAsync(new DeleteCompareExchangeValueOperation<DistributedLock>(key, currentIndex), token: TestContext.Current.CancellationToken);
         cleanDelete.Successful.ShouldBeTrue("Cleanup delete succeeds");
     }
 
@@ -308,7 +290,7 @@ public class leadership_locking : IAsyncLifetime
                 opts.ServiceName = "race-test";
                 opts.UseRavenDbPersistence();
                 opts.UseTcpForControlEndpoint();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = balancedHost.GetRuntime();
         await runtime.DoHealthChecksAsync();

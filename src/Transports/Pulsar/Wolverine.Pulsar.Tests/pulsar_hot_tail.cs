@@ -65,7 +65,7 @@ public class pulsar_hot_tail
         using var nodeB = await hotTailNodeAsync(topic);
 
         // Latest means only messages published AFTER the readers attach are seen — give them a moment.
-        await Task.Delay(3.Seconds());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
 
         for (var i = 0; i < 5; i++)
         {

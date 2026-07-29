@@ -47,7 +47,7 @@ public class ScheduledMessageTests
         await bus.ScheduleAsync(command, DateTimeOffset.UtcNow.AddSeconds(-1));
         
         // Wait for message to be processed
-        await Task.Delay(2000);
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
         
         tracker.ReceivedMessages.ShouldContain(command.Id);
     }
@@ -66,11 +66,11 @@ public class ScheduledMessageTests
         await bus.ScheduleAsync(command, scheduledTime);
         
         // Wait a bit less than scheduled time - should not be processed yet
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
         tracker.ReceivedMessages.ShouldNotContain(command.Id);
         
         // Wait for the message to be processed after the scheduled time
-        await Task.Delay(7000);
+        await Task.Delay(7000, TestContext.Current.CancellationToken);
         
         tracker.ReceivedMessages.ShouldContain(command.Id);
         var executionTime = tracker.GetExecutionTime(command.Id);
@@ -96,7 +96,7 @@ public class ScheduledMessageTests
         await bus.ScheduleAsync(command3, DateTimeOffset.UtcNow.AddSeconds(1));
         
         // Wait for all messages to be processed
-        await Task.Delay(6000);
+        await Task.Delay(6000, TestContext.Current.CancellationToken);
         
         tracker.ReceivedMessages.ShouldContain(command1.Id);
         tracker.ReceivedMessages.ShouldContain(command2.Id);
@@ -123,7 +123,7 @@ public class ScheduledMessageTests
                     .StartFromBeginning();
                     
                 opts.Services.AddSingleton<ScheduledMessageTracker>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // This test verifies that scheduled messages use Redis sorted sets
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
@@ -140,7 +140,7 @@ public class ScheduledMessageTests
         await bus.ScheduleAsync(command, DateTimeOffset.UtcNow.AddSeconds(10));
         
         // Wait a bit for it to be persisted
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
         
         // Verify it's in the scheduled sorted set
         var count = await database.SortedSetLengthAsync(scheduledKey);

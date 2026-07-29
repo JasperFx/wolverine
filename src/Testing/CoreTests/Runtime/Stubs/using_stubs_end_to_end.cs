@@ -46,7 +46,7 @@ public class using_stubs_end_to_end : IAsyncLifetime
     public async Task baseline_state()
     {
         var bus = theSender.MessageBus();
-        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response.Id.ShouldBe("green");
     }
 
@@ -60,10 +60,10 @@ public class using_stubs_end_to_end : IAsyncLifetime
         });
         
         var bus = theSender.MessageBus();
-        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response.Id.ShouldBe("green-1");
         
-        var response2 = await bus.InvokeAsync<StubResponse2>(new StubMessage2("green"));
+        var response2 = await bus.InvokeAsync<StubResponse2>(new StubMessage2("green"), TestContext.Current.CancellationToken);
         response2.Id.ShouldBe("green");
     }
 
@@ -75,7 +75,7 @@ public class using_stubs_end_to_end : IAsyncLifetime
         theSender.ClearAllWolverineStubs();
         
         var bus = theSender.MessageBus();
-        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response.Id.ShouldBe("green");
     }
     
@@ -87,7 +87,7 @@ public class using_stubs_end_to_end : IAsyncLifetime
         theSender.WolverineStubs(x => x.Clear<StubMessage1>());
         
         var bus = theSender.MessageBus();
-        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response.Id.ShouldBe("green");
     }
 
@@ -97,12 +97,12 @@ public class using_stubs_end_to_end : IAsyncLifetime
         theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-1"));
 
         var bus = theSender.MessageBus();
-        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response.Id.ShouldBe("green-1");
         
         theSender.StubWolverineMessageHandling<StubMessage1, StubResponse1>(m => new StubResponse1(m.Id + "-2"));
         
-        var response2 = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"));
+        var response2 = await bus.InvokeAsync<StubResponse1>(new StubMessage1("green"), TestContext.Current.CancellationToken);
         response2.Id.ShouldBe("green-2");
     }
 }

@@ -33,7 +33,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncDisposable
 
                 opts.ListenToRabbitQueue(_queueName)
                     .UseInterop(new AlwaysThrowingMapper());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = _host.Services
             .GetRequiredService<IWolverineRuntime>()
@@ -64,7 +64,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncDisposable
             var count = await deadLetterQueue.QueuedCountAsync();
             if (count > 0) return;
             attempts++;
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new Exception(

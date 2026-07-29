@@ -129,7 +129,7 @@ public class Bug_2382_ancillary_store_inbox : IAsyncLifetime
             .TrackActivity()
             .SendMessageAndWaitAsync(message);
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -150,7 +150,7 @@ public class Bug_2382_ancillary_store_inbox : IAsyncLifetime
             .TrackActivity()
             .SendMessageAndWaitAsync(message);
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -177,18 +177,18 @@ public class Bug_2382_ancillary_store_inbox : IAsyncLifetime
             .TrackActivity()
             .SendMessageAndWaitAsync(mainMessage);
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         // Verify ancillary store has the document
         var ancillaryStore = _host.Services.GetRequiredService<IAncillaryStore2382>();
         await using var ancillarySession = ancillaryStore.LightweightSession();
-        var ancillaryDoc = await ancillarySession.LoadAsync<AncillaryDoc2382>(ancillaryMessage.Id);
+        var ancillaryDoc = await ancillarySession.LoadAsync<AncillaryDoc2382>(ancillaryMessage.Id, TestContext.Current.CancellationToken);
         ancillaryDoc.ShouldNotBeNull();
 
         // Verify main store has the document
         var mainStore = _host.Services.GetRequiredService<IDocumentStore>();
         await using var mainSession = mainStore.LightweightSession();
-        var mainDoc = await mainSession.LoadAsync<MainDoc2382>(mainMessage.Id);
+        var mainDoc = await mainSession.LoadAsync<MainDoc2382>(mainMessage.Id, TestContext.Current.CancellationToken);
         mainDoc.ShouldNotBeNull();
 
         // Neither should have lingering incoming envelopes
@@ -209,7 +209,7 @@ public class Bug_2382_ancillary_store_inbox : IAsyncLifetime
         // Verify the document was stored in the ancillary store
         var ancillaryStore = _host.Services.GetRequiredService<IAncillaryStore2382>();
         await using var session = ancillaryStore.LightweightSession();
-        var doc = await session.LoadAsync<AncillaryDoc2382>(message.Id);
+        var doc = await session.LoadAsync<AncillaryDoc2382>(message.Id, TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
     }
 }

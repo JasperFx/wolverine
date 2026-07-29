@@ -138,7 +138,7 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(baseSubject).SendInline();
                 opts.ListenToNatsSubject(baseSubject);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Single host both sends and receives via the broker, so explicitly wait for the round-trip receipt
         // rather than just the send settling.
@@ -177,13 +177,13 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
                     .DefineStream(streamName, s => s.WithSubjects($"{subject}.>"))
                     .AddTenant("tenantB", cfg => cfg.ConnectionString = _serverBUrl);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Prove the stream was actually created on server B (the tenant's own server), not just server A.
         // GetStreamAsync throws if the stream is absent, so a broken provisioning path fails the test.
         await using var connToB = new NatsConnection(new NatsOpts { Url = _serverBUrl });
         await connToB.ConnectAsync();
-        var streamOnB = await connToB.CreateJetStreamContext().GetStreamAsync(streamName);
+        var streamOnB = await connToB.CreateJetStreamContext().GetStreamAsync(streamName, cancellationToken: TestContext.Current.CancellationToken);
         streamOnB.ShouldNotBeNull();
     }
 

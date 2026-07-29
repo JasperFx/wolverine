@@ -61,9 +61,9 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
     public async Task builds_the_node_and_control_queue_tables()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var tables = await conn.ExistingTablesAsync(schemas: ["registry"]);
+        var tables = await conn.ExistingTablesAsync(schemas: ["registry"], ct: TestContext.Current.CancellationToken);
         await conn.CloseAsync();
 
         tables.ShouldContain(x => x.Name == DatabaseConstants.NodeTableName);
@@ -100,7 +100,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
     [Fact]
     public async Task deletes_the_node_on_shutdown()
     {
-        await _host.StopAsync();
+        await _host.StopAsync(TestContext.Current.CancellationToken);
         _host.Dispose();
         _host = null!;
 

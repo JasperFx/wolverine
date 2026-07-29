@@ -95,7 +95,7 @@ public class Bug_2155_ancillary_store_inbox_persistence : IAsyncLifetime
             .SendMessageAndWaitAsync(message);
 
         // Give a moment for the async mark-as-handled to complete
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         // The main store should have the envelope marked as Handled (not stuck as Incoming)
         var runtime = _host.GetRuntime();

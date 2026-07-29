@@ -66,7 +66,7 @@ public class MessageTypePoliciesEncryptFaultPairingTests
                 opts.PublishAllMessages().ToLocalQueue("target");
                 opts.LocalQueue("target");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 

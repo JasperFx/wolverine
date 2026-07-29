@@ -62,13 +62,13 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         await using var session = _store.LightweightSession();
         session.Events.StartStream<NkOrderAggregate>(streamId,
             new NkHandlerOrderCreated(orderNumber, "Alice"));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new AddNkOrderItem(orderNumber, "Widget", 9.99m));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.TotalAmount.ShouldBe(9.99m);
@@ -84,14 +84,14 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         await using var session = _store.LightweightSession();
         session.Events.StartStream<NkOrderAggregate>(streamId,
             new NkHandlerOrderCreated(orderNumber, "Bob"));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new AddNkOrderItems(orderNumber,
                 [("Gadget", 19.99m), ("Doohickey", 5.50m)]));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.TotalAmount.ShouldBe(25.49m);
@@ -107,13 +107,13 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         session.Events.StartStream<NkOrderAggregate>(streamId,
             new NkHandlerOrderCreated(orderNumber, "Charlie"),
             new NkHandlerItemAdded("Widget", 10.00m));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.TrackActivity()
             .SendMessageAndWaitAsync(new CompleteNkOrder(orderNumber));
 
         await using var verify = _store.LightweightSession();
-        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId);
+        var aggregate = await verify.LoadAsync<NkOrderAggregate>(streamId, TestContext.Current.CancellationToken);
 
         aggregate.ShouldNotBeNull();
         aggregate!.IsComplete.ShouldBeTrue();

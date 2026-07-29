@@ -196,8 +196,8 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
     [Fact]
     public async Task add_tenants_then_write_and_read_per_tenant()
     {
-        await thePartitions.AddTenantAsync("green");
-        await thePartitions.AddTenantAsync("blue");
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("blue", TestContext.Current.CancellationToken);
 
         var greenId = Guid.NewGuid();
         var blueId = Guid.NewGuid();
@@ -205,17 +205,17 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new CreatePartitionedItem(blueId, "b")));
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
-        (await green.Items.ToListAsync()).Single().Id.ShouldBe(greenId);
+        (await green.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(greenId);
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        (await blue.Items.ToListAsync()).Single().Id.ShouldBe(blueId);
+        (await blue.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(blueId);
     }
 
     [Fact]
     public async Task adding_the_same_tenant_twice_is_idempotent()
     {
-        await thePartitions.AddTenantAsync("green");
-        await thePartitions.AddTenantAsync("green");
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -238,7 +238,7 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         {
             ["green"] = null,
             ["blue"] = null
-        });
+        }, TestContext.Current.CancellationToken);
 
         result.Succeeded.ShouldBeTrue();
         result.Failures.ShouldBeEmpty();
@@ -264,15 +264,15 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
     [Fact]
     public async Task back_fill_reconciles_every_managed_table_and_is_idempotent()
     {
-        await thePartitions.AddTenantAsync("green");
-        await thePartitions.AddTenantAsync("blue");
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("blue", TestContext.Current.CancellationToken);
 
-        var first = await thePartitions.MigrateTenantPartitionsAsync();
+        var first = await thePartitions.MigrateTenantPartitionsAsync(TestContext.Current.CancellationToken);
         first.Succeeded.ShouldBeTrue();
         first.Tables.ShouldContain(x => x.TableName.Contains("partitioned_items"));
 
         // Back-fill is a reconcile, not a one-shot -- re-running it changes nothing
-        var second = await thePartitions.MigrateTenantPartitionsAsync();
+        var second = await thePartitions.MigrateTenantPartitionsAsync(TestContext.Current.CancellationToken);
         second.Succeeded.ShouldBeTrue();
 
         // and the tenants registered before the back-fill still write and read
@@ -281,7 +281,7 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
             c.InvokeForTenantAsync("green", new CreatePartitionedItem(id, "g")));
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
-        (await green.Items.ToListAsync()).Single().Id.ShouldBe(id);
+        (await green.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(id);
     }
 
     [Fact]
@@ -292,8 +292,8 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         // second member was swallowed by CREATE TABLE IF NOT EXISTS so its first write failed with 23514;
         // SQL Server's registry had no bucket key, so each call quietly allocated a separate ordinal and
         // the tenants never actually shared the partition that bucketing exists to give them.
-        await thePartitions.AddTenantAsync("smalla", "shared_bucket");
-        await thePartitions.AddTenantAsync("smallb", "shared_bucket");
+        await thePartitions.AddTenantAsync("smalla", "shared_bucket", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("smallb", "shared_bucket", TestContext.Current.CancellationToken);
 
         // Both members read and write...
         var aId = Guid.NewGuid();
@@ -304,10 +304,10 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
             c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(bId, "b")));
 
         var a = await theBuilder.BuildAsync("smalla", CancellationToken.None);
-        (await a.Items.ToListAsync()).Single().Id.ShouldBe(aId);
+        (await a.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(aId);
 
         var b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
-        (await b.Items.ToListAsync()).Single().Id.ShouldBe(bId);
+        (await b.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(bId);
 
         // ...and they genuinely share ONE physical partition, which is the entire point
         (await distinctPartitionCountAsync(["smalla", "smallb"])).ShouldBe(1);
@@ -320,7 +320,7 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         {
             ["smalla"] = "shared_bucket",
             ["smallb"] = "shared_bucket"
-        });
+        }, TestContext.Current.CancellationToken);
 
         (await distinctPartitionCountAsync(["smalla", "smallb"])).ShouldBe(1);
     }
@@ -330,8 +330,8 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
     {
         // The co-tenant data-loss defect found alongside GH-3683: on PostgreSQL the by-value drop resolved
         // the tenant to its suffix and dropped BY SUFFIX, taking every co-tenant's rows with it.
-        await thePartitions.AddTenantAsync("smalla", "shared_bucket");
-        await thePartitions.AddTenantAsync("smallb", "shared_bucket");
+        await thePartitions.AddTenantAsync("smalla", "shared_bucket", TestContext.Current.CancellationToken);
+        await thePartitions.AddTenantAsync("smallb", "shared_bucket", TestContext.Current.CancellationToken);
 
         var survivorId = Guid.NewGuid();
         await theHost.ExecuteAndWaitAsync(c =>
@@ -339,11 +339,11 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
         await theHost.ExecuteAndWaitAsync(c =>
             c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(survivorId, "survivor")));
 
-        await thePartitions.DropTenantAsync("smalla", deleteData: true);
+        await thePartitions.DropTenantAsync("smalla", deleteData: true, cancellationToken: TestContext.Current.CancellationToken);
 
         // The survivor keeps its rows...
         var b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
-        (await b.Items.ToListAsync()).Single().Id.ShouldBe(survivorId);
+        (await b.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(survivorId);
 
         // ...and can still write
         var moreId = Guid.NewGuid();
@@ -351,7 +351,7 @@ IF EXISTS (SELECT 1 FROM sys.partition_functions WHERE name = 'pf_partitioned_it
             c.InvokeForTenantAsync("smallb", new CreatePartitionedItem(moreId, "more")));
 
         b = await theBuilder.BuildAsync("smallb", CancellationToken.None);
-        (await b.Items.ToListAsync()).Select(x => x.Id).OrderBy(x => x)
+        (await b.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Select(x => x.Id).OrderBy(x => x)
             .ShouldBe(new[] { survivorId, moreId }.OrderBy(x => x));
     }
 
@@ -399,29 +399,29 @@ where ns.nspname = 'conjoined_part' and parent.relname = 'partitioned_items'
     [Fact]
     public async Task physical_partition_exists_per_tenant()
     {
-        await thePartitions.AddTenantAsync("green");
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
 
         if (_engine == DatabaseEngine.PostgreSQL)
         {
             await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
 select count(*) from pg_inherits
 join pg_class parent on pg_inherits.inhparent = parent.oid
 join pg_namespace ns on parent.relnamespace = ns.oid
 where ns.nspname = 'conjoined_part' and parent.relname = 'partitioned_items'";
-            var partitionCount = (long)(await cmd.ExecuteScalarAsync())!;
+            var partitionCount = (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
             partitionCount.ShouldBeGreaterThanOrEqualTo(1);
         }
         else
         {
             await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText =
                 "SELECT COUNT(*) FROM conjoined_part_wolverine.wolverine_tenant_partitions WHERE tenant_id = 'green'";
-            ((int)(await cmd.ExecuteScalarAsync())!).ShouldBe(1);
+            ((int)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!).ShouldBe(1);
         }
     }
 }
@@ -442,14 +442,14 @@ public class conjoined_partitioning_with_postgresql : ConjoinedPartitioningCompl
     [Fact]
     public async Task back_fill_recreates_a_partition_missing_for_a_registered_tenant()
     {
-        await thePartitions.AddTenantAsync("green");
+        await thePartitions.AddTenantAsync("green", TestContext.Current.CancellationToken);
 
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await using var drop = conn.CreateCommand();
             drop.CommandText = "DROP TABLE conjoined_part.partitioned_items_green;";
-            await drop.ExecuteNonQueryAsync();
+            await drop.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         // Without its partition, the tenant's writes have nowhere to land
@@ -460,7 +460,7 @@ public class conjoined_partitioning_with_postgresql : ConjoinedPartitioningCompl
                     c.InvokeForTenantAsync("green", new CreatePartitionedItem(Guid.NewGuid(), "before")));
         });
 
-        var result = await thePartitions.MigrateTenantPartitionsAsync();
+        var result = await thePartitions.MigrateTenantPartitionsAsync(TestContext.Current.CancellationToken);
         result.Succeeded.ShouldBeTrue();
 
         var id = Guid.NewGuid();
@@ -468,7 +468,7 @@ public class conjoined_partitioning_with_postgresql : ConjoinedPartitioningCompl
             c.InvokeForTenantAsync("green", new CreatePartitionedItem(id, "after")));
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
-        (await green.Items.ToListAsync()).Single().Id.ShouldBe(id);
+        (await green.Items.ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(id);
     }
 }
 

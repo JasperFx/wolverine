@@ -22,7 +22,7 @@ public class using_a_saga_with_separated_behavior_mode
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
 

@@ -73,7 +73,7 @@ public class FaultRedactionIntegrationTests
             fault.Exception.Message.ShouldBe(string.Empty);
             fault.Exception.StackTrace.ShouldNotBeNull();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -101,6 +101,6 @@ public class FaultRedactionIntegrationTests
             var otherFault = collector.Other.ShouldHaveSingleItem();
             otherFault.Exception.Message.ShouldBe("other-message-canary");
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 }

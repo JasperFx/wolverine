@@ -48,7 +48,7 @@ public class HeartbeatBackgroundServiceTests
         var execution = service.StartAsync(cts.Token);
 
         // Run the service for 250ms with a 50ms interval — expect at least 2 publishes
-        await Task.Delay(250);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
         await cts.CancelAsync();
         await service.StopAsync(CancellationToken.None);
 
@@ -72,7 +72,7 @@ public class HeartbeatBackgroundServiceTests
         await service.StartAsync(cts.Token);
 
         // Wait long enough for at least one publish
-        await Task.Delay(120);
+        await Task.Delay(120, TestContext.Current.CancellationToken);
         await cts.CancelAsync();
         await service.StopAsync(CancellationToken.None);
 
@@ -102,7 +102,7 @@ public class HeartbeatBackgroundServiceTests
         using var cts = new CancellationTokenSource();
         await service.StartAsync(cts.Token);
 
-        await Task.Delay(120);
+        await Task.Delay(120, TestContext.Current.CancellationToken);
         await cts.CancelAsync();
         await service.StopAsync(CancellationToken.None);
 

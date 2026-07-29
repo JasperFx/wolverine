@@ -105,7 +105,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().ToLocalQueue("encrypted-queue");
                 opts.LocalQueue("encrypted-queue");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -132,7 +132,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Receiver host: only knows "k1", will reject "ghost" with EncryptionKeyNotFoundException.
         using var receiver = await Host.CreateDefaultBuilder()
@@ -144,7 +144,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -173,7 +173,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -184,7 +184,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -209,7 +209,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Receiver marks EncryptedPayload as encryption-required. The HandlerPipeline
         // guard must DLQ the forged plain-JSON envelope before any serializer runs.
@@ -223,7 +223,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -250,7 +250,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Marker is on the LISTENER (.RequireEncryption()), not on the message type.
         // The HandlerPipeline guard must DLQ the forged plain-JSON envelope via the
@@ -264,7 +264,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort).RequireEncryption();
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -298,7 +298,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -310,7 +310,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -341,7 +341,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -353,7 +353,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))
@@ -407,7 +407,7 @@ public class encryption_acceptance : IDisposable
             catch (ObjectDisposedException)    { }
             catch (IOException)                { }
             catch (SocketException)            { }
-        });
+        }, TestContext.Current.CancellationToken);
 
         try
         {
@@ -421,7 +421,7 @@ public class encryption_acceptance : IDisposable
                     opts.PublishAllMessages().To($"tcp://localhost:{snifferPort}");
                     opts.ServiceName = "sender";
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             using var receiver = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts =>
@@ -433,7 +433,7 @@ public class encryption_acceptance : IDisposable
                     opts.ListenAtPort(receiverPort);
                     opts.ServiceName = "receiver";
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             await receiver
                 .TrackActivity(TimeSpan.FromSeconds(10))
@@ -459,7 +459,7 @@ public class encryption_acceptance : IDisposable
         {
             await snifferCts.CancelAsync();
             try { sniffer.Stop(); } catch { }
-            try { await proxyTask.WaitAsync(TimeSpan.FromSeconds(2)); } catch { }
+            try { await proxyTask.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken); } catch { }
         }
     }
 
@@ -561,7 +561,7 @@ public class encryption_acceptance : IDisposable
                 opts.PublishAllMessages().To($"tcp://localhost:{receiverPort}");
                 opts.ServiceName = "sender";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Receiver marks the SUPERTYPE (interface) as encryption-required. The
         // wire MessageType resolves to the concrete SensitiveSubtype, which is
@@ -577,7 +577,7 @@ public class encryption_acceptance : IDisposable
                 opts.ListenAtPort(receiverPort);
                 opts.ServiceName = "receiver";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await receiver
             .TrackActivity(TimeSpan.FromSeconds(10))

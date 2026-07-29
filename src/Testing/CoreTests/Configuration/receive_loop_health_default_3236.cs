@@ -19,7 +19,7 @@ public class receive_loop_health_default_3236
             .UseWolverine(opts =>
             {
                 opts.ListenAtPort(PortFinder.GetAvailablePort());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var snapshots = host.GetRuntime().Endpoints.CollectEndpointHealth();
         snapshots.ShouldNotBeEmpty();

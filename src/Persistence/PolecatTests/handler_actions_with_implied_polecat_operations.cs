@@ -53,7 +53,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         tracked.Sent.SingleMessage<PcMessage2>().Name.ShouldBe("Aubrey");
 
         await using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<PcNamedDocument>("Aubrey");
+        var doc = await session.LoadAsync<PcNamedDocument>("Aubrey", TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
     }
 
@@ -63,7 +63,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new InsertPcDocument("Declan"));
 
         await using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<PcNamedDocument>("Declan");
+        var doc = await session.LoadAsync<PcNamedDocument>("Declan", TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
     }
 
@@ -74,7 +74,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new UpdatePcDocument("Max", 10));
 
         await using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<PcNamedDocument>("Max");
+        var doc = await session.LoadAsync<PcNamedDocument>("Max", TestContext.Current.CancellationToken);
         doc!.Number.ShouldBe(10);
     }
 
@@ -85,7 +85,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new DeletePcDocument("Max"));
 
         await using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<PcNamedDocument>("Max");
+        var doc = await session.LoadAsync<PcNamedDocument>("Max", TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -97,11 +97,11 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         var id = 2345;
 
         session.Store(new PcIntIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeletePcDocumentByIntId(id));
 
-        var doc = await session.LoadAsync<PcIntIdDocument>(id);
+        var doc = await session.LoadAsync<PcIntIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -113,11 +113,11 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         var id = 23456L;
 
         session.Store(new PcLongIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeletePcDocumentByLongId(id));
 
-        var doc = await session.LoadAsync<PcLongIdDocument>(id);
+        var doc = await session.LoadAsync<PcLongIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -129,11 +129,11 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         var id = Guid.NewGuid();
 
         session.Store(new PcGuidIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeletePcDocumentByGuidId(id));
 
-        var doc = await session.LoadAsync<PcGuidIdDocument>(id);
+        var doc = await session.LoadAsync<PcGuidIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -145,11 +145,11 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         var id = "Max";
 
         session.Store(new PcStringIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeletePcDocumentByStringId(id));
 
-        var doc = await session.LoadAsync<PcStringIdDocument>(id);
+        var doc = await session.LoadAsync<PcStringIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -159,7 +159,7 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         // Clean up first
         await using var cleanSession = _store.LightweightSession();
         cleanSession.DeleteWhere<PcNamedDocument>(x => true);
-        await cleanSession.SaveChangesAsync();
+        await cleanSession.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new InsertPcDocument("foo"));
         await _host.InvokeMessageAndWaitAsync(new InsertPcDocument("bar"));
@@ -168,9 +168,9 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
 
         await using var session = _store.LightweightSession();
         // Load each document individually to verify
-        var foo = await session.LoadAsync<PcNamedDocument>("foo");
-        var bar = await session.LoadAsync<PcNamedDocument>("bar");
-        var baz = await session.LoadAsync<PcNamedDocument>("baz");
+        var foo = await session.LoadAsync<PcNamedDocument>("foo", TestContext.Current.CancellationToken);
+        var bar = await session.LoadAsync<PcNamedDocument>("bar", TestContext.Current.CancellationToken);
+        var baz = await session.LoadAsync<PcNamedDocument>("baz", TestContext.Current.CancellationToken);
 
         foo.ShouldNotBeNull();
         bar.ShouldBeNull();
@@ -183,15 +183,15 @@ public class handler_actions_with_implied_polecat_operations : IAsyncLifetime
         // Clean up first
         await using var cleanSession = _store.LightweightSession();
         cleanSession.DeleteWhere<PcNamedDocument>(x => true);
-        await cleanSession.SaveChangesAsync();
+        await cleanSession.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new AppendManyPcNamedDocuments(["red", "blue", "green"]));
 
         await using var session = _store.LightweightSession();
 
-        (await session.LoadAsync<PcNamedDocument>("red"))!.Number.ShouldBe(1);
-        (await session.LoadAsync<PcNamedDocument>("blue"))!.Number.ShouldBe(2);
-        (await session.LoadAsync<PcNamedDocument>("green"))!.Number.ShouldBe(3);
+        (await session.LoadAsync<PcNamedDocument>("red", TestContext.Current.CancellationToken))!.Number.ShouldBe(1);
+        (await session.LoadAsync<PcNamedDocument>("blue", TestContext.Current.CancellationToken))!.Number.ShouldBe(2);
+        (await session.LoadAsync<PcNamedDocument>("green", TestContext.Current.CancellationToken))!.Number.ShouldBe(3);
     }
 }
 

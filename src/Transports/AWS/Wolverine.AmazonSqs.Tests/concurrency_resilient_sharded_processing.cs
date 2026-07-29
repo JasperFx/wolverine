@@ -84,7 +84,7 @@ public class concurrency_resilient_sharded_processing
                 });
 
                 #endregion
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host
             .TrackActivity()

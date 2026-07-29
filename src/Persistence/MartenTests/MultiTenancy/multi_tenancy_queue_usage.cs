@@ -184,7 +184,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
 
             if (has3 && has4) return;
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new TimeoutException("Did not detect the two new per tenant listeners were started up");
@@ -204,7 +204,7 @@ public class multi_tenancy_queue_usage : PostgresqlContext, IAsyncLifetime
             .Destination.ShouldBe(new Uri("postgresql://one/tenant3"));
 
         await using var session = theStore.LightweightSession("tenant3");
-        var doc = await session.LoadAsync<TenantDoc>(message.Id);
+        var doc = await session.LoadAsync<TenantDoc>(message.Id, TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
         doc.Number.ShouldBe(10);
     }

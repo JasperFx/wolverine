@@ -42,17 +42,17 @@ public class override_of_event_metadata
 
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
         
         using var session = host.DocumentStore().LightweightSession();
         session.Events.StartStream<LetterAggregate>(id, new AEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new EmitEventsWithMetadata(id));
 
-        var stream = await session.Events.FetchStreamAsync(id);
+        var stream = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         foreach (var e in stream)
         {

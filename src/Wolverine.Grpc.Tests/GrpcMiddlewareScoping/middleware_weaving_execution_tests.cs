@@ -25,7 +25,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_fires_anywhere_scoped_before()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.AnywhereMarker).ShouldBeTrue(
             "[WolverineBefore] (Anywhere scope) must execute on every unary gRPC call");
@@ -34,7 +34,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_fires_grpc_scoped_before()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.GrpcMarker).ShouldBeTrue(
             "[WolverineBefore(MiddlewareScoping.Grpc)] must execute on unary gRPC calls");
@@ -43,7 +43,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_does_not_fire_message_handlers_scoped_before()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.MessageHandlersMarker).ShouldBeFalse(
             "[WolverineBefore(MiddlewareScoping.MessageHandlers)] must not execute on gRPC calls");
@@ -52,7 +52,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_fires_anywhere_scoped_after()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.AnywhereMarker + ".After").ShouldBeTrue(
             "[WolverineAfter] (Anywhere scope) must execute after a unary gRPC call");
@@ -61,7 +61,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_fires_grpc_scoped_after()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.GrpcMarker + ".After").ShouldBeTrue(
             "[WolverineAfter(MiddlewareScoping.Grpc)] must execute after a unary gRPC call");
@@ -70,7 +70,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_does_not_fire_message_handlers_scoped_after()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.MessageHandlersMarker + ".After").ShouldBeFalse(
             "[WolverineAfter(MiddlewareScoping.MessageHandlers)] must not execute on gRPC calls");
@@ -79,7 +79,7 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task unary_before_fires_before_handler_and_after_fires_after_handler()
     {
-        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" });
+        await _fixture.CreateClient().GreetAsync(new GreetRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var events = _fixture.Sink.Events;
         var beforeGrpcIdx = events.ToList().IndexOf(GreeterMiddlewareTestStub.GrpcMarker);
@@ -95,8 +95,8 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task server_streaming_fires_grpc_scoped_before()
     {
-        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" });
-        await foreach (var _ in call.ResponseStream.ReadAllAsync()) { }
+        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
+        await foreach (var _ in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken)) { }
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.GrpcMarker).ShouldBeTrue(
             "[WolverineBefore(MiddlewareScoping.Grpc)] must execute on server-streaming gRPC calls");
@@ -105,8 +105,8 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task server_streaming_fires_grpc_scoped_after()
     {
-        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" });
-        await foreach (var _ in call.ResponseStream.ReadAllAsync()) { }
+        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
+        await foreach (var _ in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken)) { }
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.GrpcMarker + ".After").ShouldBeTrue(
             "[WolverineAfter(MiddlewareScoping.Grpc)] must execute after the server-streaming loop completes");
@@ -115,8 +115,8 @@ public class middleware_weaving_execution_tests : IClassFixture<MiddlewareScopin
     [Fact]
     public async Task server_streaming_does_not_fire_message_handlers_scoped_middleware()
     {
-        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" });
-        await foreach (var _ in call.ResponseStream.ReadAllAsync()) { }
+        using var call = _fixture.CreateClient().GreetMany(new GreetManyRequest { Name = "test" }, cancellationToken: TestContext.Current.CancellationToken);
+        await foreach (var _ in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken)) { }
 
         _fixture.Sink.Contains(GreeterMiddlewareTestStub.MessageHandlersMarker).ShouldBeFalse(
             "[WolverineBefore(MiddlewareScoping.MessageHandlers)] must not execute on gRPC calls");

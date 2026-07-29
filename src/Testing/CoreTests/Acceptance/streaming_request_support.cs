@@ -136,12 +136,12 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
         var numbers = toStream(Enumerable.Range(1, 4).Select(i => new NumberToSum(i)));
-        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers);
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers, TestContext.Current.CancellationToken);
 
         sum.Total.ShouldBe(10);
         sum.Count.ShouldBe(4);
@@ -152,11 +152,11 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
-        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(toStream(Array.Empty<NumberToSum>()));
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(toStream(Array.Empty<NumberToSum>()), TestContext.Current.CancellationToken);
 
         sum.Total.ShouldBe(0);
         sum.Count.ShouldBe(0);
@@ -167,12 +167,12 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
         var numbers = toStream([new PlainNumber(5), new PlainNumber(7)]);
-        var sum = await bus.StreamAsync<PlainNumber, NumberSum>(numbers);
+        var sum = await bus.StreamAsync<PlainNumber, NumberSum>(numbers, TestContext.Current.CancellationToken);
 
         sum.Total.ShouldBe(12);
         sum.Count.ShouldBe(2);
@@ -183,7 +183,7 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -201,7 +201,7 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -219,7 +219,7 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -259,7 +259,7 @@ public class streaming_request_support
             {
                 opts.Services.AddSingleton(tracker);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         NumberSum? sum = null;
         await host.ExecuteAndWaitAsync(async context =>
@@ -281,13 +281,13 @@ public class streaming_request_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var options = new DeliveryOptions();
 
         var numbers = toStream([new NumberToSum(1), new NumberToSum(2)]);
-        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers, options);
+        var sum = await bus.StreamAsync<NumberToSum, NumberSum>(numbers, options, TestContext.Current.CancellationToken);
 
         sum.Total.ShouldBe(3);
     }
@@ -299,12 +299,12 @@ public class streaming_request_support
         // interfere with normal single-message request/reply on unrelated types.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
-        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(2)))
+        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(2), TestContext.Current.CancellationToken))
         {
             items.Add(item);
         }

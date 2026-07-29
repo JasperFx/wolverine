@@ -30,7 +30,7 @@ public class fanout_from_external_to_separated_local_handlers(ITestOutputHelper 
 
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new FanoutTestMessage(Guid.NewGuid());
 

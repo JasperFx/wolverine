@@ -49,7 +49,7 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
                 opts.Policies.AlwaysMakeScheduledMessagesDurable();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var store = host.Services.GetRequiredService<IMessageStore>();
@@ -83,7 +83,7 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
                 opts.LocalQueueFor<DurableTimeoutTestReminder>().BufferedInMemory();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var store = host.Services.GetRequiredService<IMessageStore>();
@@ -93,7 +93,7 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
 
         // Give any async outgoing flush a moment to complete; no scheduled rows should appear
         // because the in-memory scheduler is the destination, not the message store.
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
         var counts = await store.Admin.FetchCountsAsync();
         counts.Scheduled.ShouldBe(0);
     }

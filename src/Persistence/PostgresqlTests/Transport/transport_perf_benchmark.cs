@@ -66,7 +66,7 @@ CREATE INDEX idx_bench_c_seq ON bench_c (seq);", "seq")
     public async Task run()
     {
         await using var dataSource = NpgsqlDataSource.Create(ConnString);
-        await using var conn = await dataSource.OpenConnectionAsync();
+        await using var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
         foreach (var v in Variants())
         {
@@ -82,7 +82,7 @@ CREATE INDEX idx_bench_c_seq ON bench_c (seq);", "seq")
                 await using var cmd = conn.CreateCommand(insertSql);
                 cmd.Parameters.AddWithValue("id", Guid.NewGuid());
                 cmd.Parameters.AddWithValue("body", body);
-                await cmd.ExecuteNonQueryAsync();
+                await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
             }
             sw.Stop();
             var insertRate = InsertCount / sw.Elapsed.TotalSeconds;

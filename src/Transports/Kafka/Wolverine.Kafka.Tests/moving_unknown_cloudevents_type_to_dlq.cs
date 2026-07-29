@@ -73,8 +73,8 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
         await producer.ProduceAsync(_topicName, new Message<string, byte[]>
         {
             Value = Encoding.UTF8.GetBytes(cloudEventsJson)
-        });
-        producer.Flush();
+        }, TestContext.Current.CancellationToken);
+        producer.Flush(TestContext.Current.CancellationToken);
 
         // Poll until the message appears in the dead letter queue
         var storage = _receiver.GetRuntime().Storage;
@@ -89,7 +89,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
 
             if (deadLetters.Envelopes.Any()) break;
 
-            await Task.Delay(1.Seconds());
+            await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
         }
 
         deadLetters.Envelopes.ShouldNotBeEmpty();

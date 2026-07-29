@@ -22,7 +22,7 @@ public class description_mode_routes_are_not_cached
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<Bug2897RoutingHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

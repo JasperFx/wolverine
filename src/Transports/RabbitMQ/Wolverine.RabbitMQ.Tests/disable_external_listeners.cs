@@ -25,7 +25,7 @@ public class disable_external_listeners
                 // This could never, ever work
                 opts.UseRabbitMq().AutoProvision();
                 opts.ListenToRabbitQueue("incoming");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 

@@ -169,7 +169,7 @@ public class next_generation_rebalance_protocol
                 opts.PublishMessage<Kip848Message>().ToKafkaTopic("kip848");
                 // BeginAtEarliest so a record produced before the group finishes joining is still consumed
                 opts.ListenToKafkaTopic("kip848").BeginAtEarliest();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().IncludeExternalTransports().Timeout(60.Seconds())
             .WaitForMessageToBeReceivedAt<Kip848Message>(host)
@@ -223,7 +223,7 @@ public class next_generation_rebalance_protocol
                 opts.ListenToKafkaTopic("kip848-override")
                     .ConfigureConsumer(c => c.SessionTimeoutMs = 15000)
                     .BeginAtEarliest();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.TrackActivity().IncludeExternalTransports().Timeout(60.Seconds())
             .WaitForMessageToBeReceivedAt<Kip848GuardedMessage>(host)

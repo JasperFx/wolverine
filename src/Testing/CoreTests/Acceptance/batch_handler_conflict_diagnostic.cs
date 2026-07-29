@@ -34,7 +34,7 @@ public class batch_handler_conflict_diagnostic
             opts.Discovery.IncludeType<ConflictDirectHandler>();
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
-        }, logger).StartAsync();
+        }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldContain(x =>
             x.Level == LogLevel.Warning && x.Message.Contains("Batch handler conflict"));
@@ -75,7 +75,7 @@ public class batch_handler_conflict_diagnostic
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
             opts.AssertNoBatchHandlerConflicts();
-        }, logger).StartAsync();
+        }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));
     }
@@ -94,7 +94,7 @@ public class batch_handler_conflict_diagnostic
             opts.Discovery.IncludeType<ConflictBatchHandler>();
             opts.BatchMessagesOf<ConflictMessage>();
             opts.AssertNoBatchHandlerConflicts();
-        }, logger).StartAsync();
+        }, logger).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         logger.Entries.ShouldNotContain(x => x.Message.Contains("Batch handler conflict"));
     }

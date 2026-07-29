@@ -59,7 +59,7 @@ public class InMemoryKeyProviderTests
 
         Array.Clear(keyBytes);
 
-        var stored = await provider.GetKeyAsync("k1", default);
+        var stored = await provider.GetKeyAsync("k1", TestContext.Current.CancellationToken);
         stored.ShouldAllBe(b => b == 0x42);
     }
 }

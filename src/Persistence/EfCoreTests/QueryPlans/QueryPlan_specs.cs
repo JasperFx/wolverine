@@ -73,7 +73,7 @@ public class QueryPlan_specs : IAsyncLifetime
     {
         // Delete everything, then run the plan
         _db.Items.RemoveRange(_db.Items);
-        await _db.SaveChangesAsync();
+        await _db.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var plan = new FirstApprovedItem();
         var result = await plan.FetchAsync(_db, CancellationToken.None);
@@ -84,7 +84,7 @@ public class QueryPlan_specs : IAsyncLifetime
     [Fact]
     public async Task QueryByPlanAsync_extension_routes_to_the_plan()
     {
-        var result = await _db.QueryByPlanAsync(new FirstApprovedItem());
+        var result = await _db.QueryByPlanAsync(new FirstApprovedItem(), cancellation: TestContext.Current.CancellationToken);
 
         result.ShouldNotBeNull();
         result.Approved.ShouldBeTrue();
@@ -93,7 +93,7 @@ public class QueryPlan_specs : IAsyncLifetime
     [Fact]
     public async Task QueryByPlanAsync_extension_works_with_list_plan()
     {
-        var results = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Red"));
+        var results = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Red"), cancellation: TestContext.Current.CancellationToken);
 
         results.Count.ShouldBe(2);
     }
@@ -123,8 +123,8 @@ public class QueryPlan_specs : IAsyncLifetime
     {
         // Verify that distinct parameter values yield distinct results — the
         // core claim of the specification pattern
-        var red = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Red"));
-        var blue = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Blue"));
+        var red = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Red"), cancellation: TestContext.Current.CancellationToken);
+        var blue = await _db.QueryByPlanAsync(new ItemsByNamePrefix("Blue"), cancellation: TestContext.Current.CancellationToken);
 
         red.Count.ShouldBe(2);
         blue.Count.ShouldBe(1);

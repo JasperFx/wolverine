@@ -41,7 +41,7 @@ public class handler_type_activity_tagging : IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new TracingTestMessage("hello"));
 
         // Give a moment for activities to be captured
-        await Task.Delay(100.Milliseconds());
+        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
         var handlerActivities = _capturedActivities
             .Where(a => a.GetTagItem(WolverineTracing.HandlerType) != null)
@@ -60,7 +60,7 @@ public class handler_type_activity_tagging : IAsyncLifetime
     {
         await _host.InvokeMessageAndWaitAsync(new TracingTestMessage("hello"));
 
-        await Task.Delay(100.Milliseconds());
+        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
         var handlerActivities = _capturedActivities
             .Where(a => a.GetTagItem(WolverineTracing.MessageHandler) != null)
@@ -79,7 +79,7 @@ public class handler_type_activity_tagging : IAsyncLifetime
     {
         await _host.InvokeMessageAndWaitAsync(new TracingTestMessage("hello"));
 
-        await Task.Delay(100.Milliseconds());
+        await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
         var activity = _capturedActivities
             .FirstOrDefault(a => a.GetTagItem(WolverineTracing.HandlerType) != null);

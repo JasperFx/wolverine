@@ -40,9 +40,9 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
         table.Indexes.ShouldContain(x => x.Name.Contains("replayable"));
         table.Indexes.ShouldNotContain(x => x.Name.Contains("expires"));
 
-        await table.ApplyChangesAsync(theConnection);
+        await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 
-        var delta = await table.FindDeltaAsync(theConnection);
+        var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 
@@ -55,9 +55,9 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
         table.Indexes.ShouldContain(x => x.Name.Contains("replayable"));
         table.Indexes.ShouldContain(x => x.Name.Contains("expires"));
 
-        await table.ApplyChangesAsync(theConnection);
+        await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 
-        var delta = await table.FindDeltaAsync(theConnection);
+        var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 }

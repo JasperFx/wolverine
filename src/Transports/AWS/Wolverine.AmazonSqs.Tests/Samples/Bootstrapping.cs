@@ -367,7 +367,7 @@ public class Bootstrapping
                     .DisableAllNativeDeadLetterQueues()
                     .ConfigureListeners(l => l.InteropWith(new CustomSqsMapper()))
                     .ConfigureSenders(s => s.InteropWith(new CustomSqsMapper()));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }

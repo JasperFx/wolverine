@@ -21,7 +21,7 @@ public class connection_state_3231
             {
                 opts.UsePulsar(b => b.ServiceUrl(PulsarContainerFixture.ServiceUrl));
                 opts.ListenToPulsarTopic(topic);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
             host, "pulsar", TransportConnectionState.Connected);

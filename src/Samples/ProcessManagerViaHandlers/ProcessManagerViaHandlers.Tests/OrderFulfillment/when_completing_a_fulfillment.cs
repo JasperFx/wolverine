@@ -23,7 +23,7 @@ public class when_completing_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new ShipmentConfirmed(id, "TRACK-ABC"));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(5);
         events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
@@ -32,7 +32,7 @@ public class when_completing_a_fulfillment : IntegrationContext
         events[3].Data.ShouldBeOfType<ShipmentConfirmed>();
         events[4].Data.ShouldBeOfType<OrderFulfillmentCompleted>();
 
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id, TestContext.Current.CancellationToken);
         state.ShouldNotBeNull();
         state.IsCompleted.ShouldBeTrue();
         state.IsCancelled.ShouldBeFalse();
@@ -53,7 +53,7 @@ public class when_completing_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new PaymentConfirmed(id, 50m));
 
         await using var session = Store.LightweightSession();
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id, TestContext.Current.CancellationToken);
 
         state.ShouldNotBeNull();
         state.IsCompleted.ShouldBeTrue();
@@ -69,7 +69,7 @@ public class when_completing_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new PaymentConfirmed(id, 75m));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
@@ -90,7 +90,7 @@ public class when_completing_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new ShipmentConfirmed(id, "TRACK-2"));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(5);
     }
 }

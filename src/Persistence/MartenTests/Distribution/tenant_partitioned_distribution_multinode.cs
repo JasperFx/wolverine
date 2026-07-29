@@ -158,7 +158,7 @@ public class tenant_partitioned_distribution_multinode(ITestOutputHelper output)
         // The second node leaves the cluster — its subscription agents must reassign to the survivor
         // (all six per-tenant agents now on the original node).
         second.GetRuntime().Agents.DisableHealthChecks();
-        await second.StopAsync();
+        await second.StopAsync(TestContext.Current.CancellationToken);
 
         await theOriginalHost.WaitUntilAssignmentsChangeTo(w =>
         {

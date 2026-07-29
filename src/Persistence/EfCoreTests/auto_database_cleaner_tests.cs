@@ -99,15 +99,15 @@ public class auto_database_cleaner_registration_tests : IClassFixture<AutoDataba
         {
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = "Noise" });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act: the new one-liner for test teardown.
-        await _ctx.Host.ResetAllDataAsync<ItemsDbContext>();
+        await _ctx.Host.ResetAllDataAsync<ItemsDbContext>(ct: TestContext.Current.CancellationToken);
 
         using var check = _ctx.Host.Services.CreateScope();
         var checkDb = check.ServiceProvider.GetRequiredService<ItemsDbContext>();
-        var items = await checkDb.Items.OrderBy(x => x.Name).ToListAsync();
+        var items = await checkDb.Items.OrderBy(x => x.Name).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         items.Select(x => x.Name).ShouldBe(
             SeedItemsForTests.Items.Select(x => x.Name).OrderBy(n => n));

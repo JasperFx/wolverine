@@ -62,7 +62,7 @@ public class send_and_receive : IAsyncLifetime
                 opts
                     .PublishAllMessages()
                     .ToPubsubTopic("send_and_receive");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<PubsubTransport>();
         var endpoints = transport
             .Endpoints()

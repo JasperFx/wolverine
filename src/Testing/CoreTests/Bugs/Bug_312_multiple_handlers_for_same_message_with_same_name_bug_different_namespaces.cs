@@ -25,7 +25,7 @@ namespace CoreTests.Bugs
                     // not the lambda form, so allow the type explicitly.
                     opts.CodeGeneration.AlwaysUseServiceLocationFor<IIdentityService>();
                     opts.Services.AddScoped<IIdentityService>(x => new IdentityService());
-                }).StartAsync();
+                }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             await host.InvokeMessageAndWaitAsync(new SayStuff("Hi"));
         }

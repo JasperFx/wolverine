@@ -89,7 +89,7 @@ public class PulsarPerTenantConnectionTests : IAsyncLifetime
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<TenantColorHandler>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()

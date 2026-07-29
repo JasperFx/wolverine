@@ -30,7 +30,7 @@ public class observer_message_routed_skipped_during_description
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<Bug3088RoutingHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var fakeObserver = Substitute.For<IWolverineObserver>();

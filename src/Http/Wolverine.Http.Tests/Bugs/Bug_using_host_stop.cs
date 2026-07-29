@@ -33,7 +33,7 @@ public class Bug_using_host_stop
         var checkPoints = new bool[2];
 
         checkPoints[0] = IsRunning(wolverineRuntime);
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
         checkPoints[1] = IsRunning(wolverineRuntime);
 
         checkPoints.ShouldBe([true, false]);

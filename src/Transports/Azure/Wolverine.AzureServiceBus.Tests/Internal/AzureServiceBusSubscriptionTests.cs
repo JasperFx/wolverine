@@ -39,7 +39,7 @@ public class AzureServiceSubscriptionTests
 
         await subscription.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.DidNotReceive().CreateSubscriptionAsync(Arg.Any<CreateSubscriptionOptions>());
+        await theManagementClient.DidNotReceive().CreateSubscriptionAsync(Arg.Any<CreateSubscriptionOptions>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -52,9 +52,7 @@ public class AzureServiceSubscriptionTests
 
         await subscription.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.Received().CreateSubscriptionAsync(
-            Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"),
-            Arg.Is<CreateRuleOptions>(x => x.Equals(new CreateRuleOptions())));
+        await theManagementClient.Received().CreateSubscriptionAsync(Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"), Arg.Is<CreateRuleOptions>(x => x.Equals(new CreateRuleOptions())), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -74,11 +72,9 @@ public class AzureServiceSubscriptionTests
 
         await subscription.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.Received().CreateSubscriptionAsync(
-            Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"),
-            Arg.Is<CreateRuleOptions>(x =>
+        await theManagementClient.Received().CreateSubscriptionAsync(Arg.Is<CreateSubscriptionOptions>(x => x.TopicName == "foo" && x.SubscriptionName == "bar"), Arg.Is<CreateRuleOptions>(x =>
                 x.Filter.Equals(new SqlRuleFilter("foo = 'bar'")) &&
-                x.Action.Equals(new SqlRuleAction("SET foo = 'baz'"))));
+                x.Action.Equals(new SqlRuleAction("SET foo = 'baz'"))), TestContext.Current.CancellationToken);
 
     }
 }

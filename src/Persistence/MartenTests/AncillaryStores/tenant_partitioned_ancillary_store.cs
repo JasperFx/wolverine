@@ -79,17 +79,17 @@ public class tenant_partitioned_ancillary_store : PostgresqlContext, IAsyncLifet
     public async Task ancillary_store_append_lands_in_the_routed_tenant_partition()
     {
         var id = "thing-" + Guid.NewGuid().ToString("N");
-        await theHost.MessageBus().InvokeForTenantAsync("tenant1", new RecordPartThing(id, 3));
+        await theHost.MessageBus().InvokeForTenantAsync("tenant1", new RecordPartThing(id, 3), TestContext.Current.CancellationToken);
 
         await using (var s1 = theStore.LightweightSession("tenant1"))
         {
-            (await s1.Events.FetchStreamAsync(id)).Count.ShouldBe(1);
+            (await s1.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken)).Count.ShouldBe(1);
         }
 
         // Isolated: the same stream id is absent from tenant2's partition of the ancillary store.
         await using (var s2 = theStore.LightweightSession("tenant2"))
         {
-            (await s2.Events.FetchStreamAsync(id)).Count.ShouldBe(0);
+            (await s2.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken)).Count.ShouldBe(0);
         }
     }
 }

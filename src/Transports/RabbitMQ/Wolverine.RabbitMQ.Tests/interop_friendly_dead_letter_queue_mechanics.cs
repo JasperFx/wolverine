@@ -99,7 +99,7 @@ public class interop_friendly_dead_letter_queue_mechanics: IAsyncLifetime
             var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new Exception("Never got a message in the dead letter queue");

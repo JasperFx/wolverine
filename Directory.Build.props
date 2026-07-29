@@ -10,11 +10,7 @@
         <PackageProjectUrl>http://github.com/jasperfx/wolverine</PackageProjectUrl>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
-        <!-- xUnit1051 ("use TestContext.Current.CancellationToken") is new in the xUnit v3
-             analyzer set and ships at warning severity, which TreatWarningsAsErrors below
-             turns into a hard build break on several thousand call sites. Suppressed for the
-             v3 migration and tracked for reinstatement per-project. See XUNIT3-MIGRATION-PLAN.md. -->
-        <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618;VSTHRD200;xUnit1051</NoWarn>
+        <NoWarn>1570;1571;1572;1573;1574;1587;1591;1701;1702;1711;1735;0618;VSTHRD200</NoWarn>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <ImplicitUsings>true</ImplicitUsings>
         <Nullable>enable</Nullable>

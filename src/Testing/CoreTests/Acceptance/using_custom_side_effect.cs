@@ -11,7 +11,7 @@ public class using_custom_side_effect
     public async Task use_custom_side_effect()
     {
         var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new RecordText(Guid.NewGuid(), "some text"));
     }

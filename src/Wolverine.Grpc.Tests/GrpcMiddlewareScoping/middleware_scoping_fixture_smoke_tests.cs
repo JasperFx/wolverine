@@ -25,7 +25,7 @@ public class middleware_scoping_fixture_smoke_tests : IClassFixture<MiddlewareSc
     {
         var client = _fixture.CreateClient();
 
-        var reply = await client.GreetAsync(new GreetRequest { Name = "Erik" });
+        var reply = await client.GreetAsync(new GreetRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         reply.Message.ShouldBe("Hello, Erik");
         _fixture.Sink.Contains(GreetMessageHandler.Marker).ShouldBeTrue(
@@ -37,10 +37,10 @@ public class middleware_scoping_fixture_smoke_tests : IClassFixture<MiddlewareSc
     {
         var client = _fixture.CreateClient();
 
-        using var call = client.GreetMany(new GreetManyRequest { Name = "Erik" });
+        using var call = client.GreetMany(new GreetManyRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         var replies = new List<string>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
         {
             replies.Add(reply.Message);
         }

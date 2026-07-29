@@ -21,7 +21,7 @@ public class Bug_756_composite_handler_on_saga
                 opts.Discovery.IncludeType<SagaExample>();
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new DoSomething(Guid.NewGuid()));
     }

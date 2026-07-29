@@ -58,14 +58,14 @@ public class when_payment_times_out : IntegrationContext
         await WaitForCondition(id, state => state.IsTerminal);
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
         var cancelled = events[1].Data.ShouldBeOfType<OrderFulfillmentCancelled>();
         cancelled.Reason.ShouldBe("Payment timed out");
 
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id, TestContext.Current.CancellationToken);
         state.ShouldNotBeNull();
         state.IsCancelled.ShouldBeTrue();
     }
@@ -84,16 +84,16 @@ public class when_payment_times_out : IntegrationContext
 
         // Wait out the scheduler window. The timeout handler will run, observe
         // state.PaymentConfirmed == true, and yield break.
-        await Task.Delay(SchedulerObservationWindow);
+        await Task.Delay(SchedulerObservationWindow, TestContext.Current.CancellationToken);
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
         events[1].Data.ShouldBeOfType<PaymentConfirmed>();
 
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id, TestContext.Current.CancellationToken);
         state.ShouldNotBeNull();
         state.IsCancelled.ShouldBeFalse();
         state.PaymentConfirmed.ShouldBeTrue();

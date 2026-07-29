@@ -24,7 +24,7 @@ public class Bug_1516_get_the_schema_names_right : PostgresqlContext
 
                 o.PublishAllMessages().ToPostgresqlQueue("outbound");
                 o.ListenToPostgresqlQueue("outbound");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().IncludeExternalTransports().Timeout(30.Seconds())
             .SendMessageAndWaitAsync(new TraceMessage { Name = "Tom Landry" });

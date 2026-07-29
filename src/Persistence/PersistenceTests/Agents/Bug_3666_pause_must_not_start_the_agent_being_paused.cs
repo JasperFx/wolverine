@@ -57,8 +57,8 @@ public class Bug_3666_pause_must_not_start_the_agent_being_paused : IAsyncDispos
     {
         using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
-            await conn.DropSchemaAsync("bug3666");
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.DropSchemaAsync("bug3666", ct: TestContext.Current.CancellationToken);
             await conn.CloseAsync();
         }
 
@@ -78,7 +78,7 @@ public class Bug_3666_pause_must_not_start_the_agent_being_paused : IAsyncDispos
                 // misbehavior deterministic instead of a race against the polling loop.
                 opts.Durability.HealthCheckPollingTime = 1.Hours();
                 opts.Durability.CheckAssignmentPeriod = 1.Hours();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)_host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -98,7 +98,7 @@ public class Bug_3666_pause_must_not_start_the_agent_being_paused : IAsyncDispos
             }
 
             await runtime.Agents.KickstartHealthDetectionAsync();
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
 
         // One more evaluation while every agent is observed running, so the GH-3665
@@ -122,7 +122,7 @@ public class Bug_3666_pause_must_not_start_the_agent_being_paused : IAsyncDispos
 
         // The kickstart's commands cascade through the message bus asynchronously, so give any
         // pre-fix churn a moment to surface before asserting silence.
-        await Task.Delay(2.Seconds());
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
 
         recorder.StartedAgents.ShouldNotContain(uri,
             "pausing an agent must never start it — the kickstarted evaluation ran before the " +

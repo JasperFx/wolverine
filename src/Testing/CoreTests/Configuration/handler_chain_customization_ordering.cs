@@ -51,7 +51,7 @@ public class handler_chain_customization_ordering
 
                 // (1) handler policy
                 opts.Policies.Add<ChainErrorPolicy>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var handlers = host.GetRuntime().Handlers;
 
@@ -88,7 +88,7 @@ public class handler_chain_customization_ordering
                 });
 
                 opts.Policies.Add<ChainErrorPolicy>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var handlers = host.GetRuntime().Handlers;
         handlers.HandlerFor<StartOrderingSaga>().ShouldNotBeNull();
@@ -124,7 +124,7 @@ public class handler_chain_customization_ordering
                     .IncludeType(typeof(PurpleStickyHandler));
 
                 opts.Policies.Add<ChainErrorPolicy>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var handlers = host.GetRuntime().Handlers;
 

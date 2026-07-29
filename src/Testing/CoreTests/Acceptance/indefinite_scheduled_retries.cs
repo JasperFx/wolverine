@@ -15,7 +15,7 @@ public class indefinite_error_handling
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
@@ -34,7 +34,7 @@ public class indefinite_error_handling
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().RequeueIndefinitely())
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
@@ -53,7 +53,7 @@ public class indefinite_error_handling
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(50.Milliseconds(), 100.Milliseconds()))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, SucceedAfterAttempts: 5));
@@ -72,7 +72,7 @@ public class indefinite_error_handling
         using var cts = new CancellationTokenSource(5.Seconds());
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Policies.OnException<IndefiniteRetryException>().ScheduleRetryIndefinitely(100.Milliseconds()))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageBus = host.MessageBus();
         await messageBus.SendAsync(new IndefiniteRetriesCommand(cts, CancelAndFailAfterAttempts: 3));

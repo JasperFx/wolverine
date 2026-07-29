@@ -128,7 +128,7 @@ public class Bug_2669_ancillary_marten_store_local_message_from_main_store : IAs
             .GetRequiredService<IAncillaryStore2669>()
             .LightweightSession();
 
-        var document = await session.LoadAsync<AncillaryWorkDocument2669>(id);
+        var document = await session.LoadAsync<AncillaryWorkDocument2669>(id, TestContext.Current.CancellationToken);
         document.ShouldNotBeNull();
     }
 

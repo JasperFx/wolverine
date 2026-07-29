@@ -14,7 +14,7 @@ public class disable_requeueing
             .UseWolverine(opts =>
             {
                 opts.UseKafka("").ConsumeOnly();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>()
             .Usage.ShouldBe(KafkaUsage.ConsumeOnly);

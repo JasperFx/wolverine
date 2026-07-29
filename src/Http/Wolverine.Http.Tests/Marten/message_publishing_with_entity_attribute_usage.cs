@@ -17,7 +17,7 @@ public class message_publishing_with_entity_attribute_usage : IntegrationContext
         var todo = new Todo2 { Id = Guid.NewGuid().ToString(), IsComplete = true};
         using var session = Host.DocumentStore().LightweightSession();
         session.Store(todo);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var (tracked, response) = await TrackedHttpCall(x =>
         {

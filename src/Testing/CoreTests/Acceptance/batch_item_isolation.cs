@@ -108,7 +108,7 @@ public class batch_item_isolation : IAsyncLifetime
         await publishAsync(new IsoItem("a", false), new IsoItem("bad", true), new IsoItem("c", false));
 
         // The reduced batch (survivors only) is re-run to success.
-        await IsoItemBatchHandler.SuccessSignal.Task.WaitAsync(10.Seconds());
+        await IsoItemBatchHandler.SuccessSignal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         var successful = IsoItemBatchHandler.SuccessfulRuns.ShouldHaveSingleItem();
         successful.Select(x => x.Id).OrderBy(x => x).ShouldBe(new[] { "a", "c" });
@@ -127,8 +127,8 @@ public class batch_item_isolation : IAsyncLifetime
         await publishAsync(new IsoItem("a", false), new IsoItem("bad", true), new IsoItem("c", false));
 
         // Wait for the poison item to be dead-lettered, then confirm no replay happened.
-        await _deadLetters.Signal.Task.WaitAsync(10.Seconds());
-        await Task.Delay(500.Milliseconds());
+        await _deadLetters.Signal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        await Task.Delay(500.Milliseconds(), TestContext.Current.CancellationToken);
 
         _deadLetters.DeadLettered.OfType<IsoItem>().Select(x => x.Id).ShouldBe(new[] { "bad" });
 
@@ -153,7 +153,7 @@ public class batch_item_isolation : IAsyncLifetime
             new IsoItem("replay1", false),
             new IsoItem("replay2", false));
 
-        await IsoItemBatchHandler.SuccessSignal.Task.WaitAsync(10.Seconds());
+        await IsoItemBatchHandler.SuccessSignal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // Only the two non-acked survivors are replayed; "ackme" was settled without a re-run.
         var successful = IsoItemBatchHandler.SuccessfulRuns.ShouldHaveSingleItem();

@@ -57,7 +57,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
             new ShardName("invoicejournalentries", "all", 4, "98123456"),
             new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4/98123456"));
 
-        var result = await agent.CheckHealthAsync(new HealthCheckContext());
+        var result = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
 
         // Before the fix: "Projection ... is 8900 events behind (critical threshold: 5000)"
         result.Status.ShouldBe(HealthStatus.Healthy);
@@ -76,7 +76,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
             new ShardName("invoicejournalentries", "all", 4, "98123456"),
             new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4/98123456"));
 
-        var result = await agent.CheckHealthAsync(new HealthCheckContext());
+        var result = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("5900 events behind");
@@ -103,7 +103,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
         // with no stall churn. (The genuinely-stalled path is exercised in the next test.)
         for (var i = 0; i < 5; i++)
         {
-            var result = await agent.CheckHealthAsync(new HealthCheckContext());
+            var result = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
             result.Status.ShouldBe(HealthStatus.Healthy);
         }
     }
@@ -125,7 +125,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
             new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4/98123456"));
 
         // First check seeds stall tracking (_lastAdvancedAt = now) and is healthy.
-        (await agent.CheckHealthAsync(new HealthCheckContext())).Status.ShouldBe(HealthStatus.Healthy);
+        (await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken)).Status.ShouldBe(HealthStatus.Healthy);
 
         // The tenant's sequence never advances. Push _lastAdvancedAt past the 60s StallTimeout so the
         // following checks exercise the stall branch without a real-time wait.
@@ -134,7 +134,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
         // The stall report cites the TENANT mark (200), not the database mark (8900). Pre-fix this idle
         // tenant read as 8780 events behind the database mark and was flagged Unhealthy before the stall
         // detector was ever consulted, so it could not have reached this Degraded stall message.
-        var degraded = await agent.CheckHealthAsync(new HealthCheckContext());
+        var degraded = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
         degraded.Status.ShouldBe(HealthStatus.Degraded);
         degraded.Description!.ShouldContain("high water mark: 200");
 
@@ -142,7 +142,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
         var result = degraded;
         for (var i = 0; i < 5 && result.Status != HealthStatus.Unhealthy; i++)
         {
-            result = await agent.CheckHealthAsync(new HealthCheckContext());
+            result = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
         }
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
@@ -169,7 +169,7 @@ public class event_subscription_agent_health_check_uses_tenant_scoped_high_water
             new ShardName("invoicejournalentries"),
             new Uri("event-subscriptions://marten/main/db/invoicejournalentries/all/v4"));
 
-        var result = await agent.CheckHealthAsync(new HealthCheckContext());
+        var result = await agent.CheckHealthAsync(new HealthCheckContext(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Description!.ShouldContain("8800 events behind");

@@ -54,7 +54,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     .AddAsyncDaemon(DaemonMode.Solo);
 
                 opts.Policies.UseDurableLocalQueues();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var streamId = Guid.NewGuid();
 
@@ -100,7 +100,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
 
                 opts.Policies.UseDurableLocalQueues();
                 opts.Durability.Mode = DurabilityMode.Solo;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var streamId = Guid.NewGuid();
 
@@ -145,7 +145,7 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     .AddAsyncDaemon(DaemonMode.Solo);
 
                 opts.Policies.UseDurableLocalQueues();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var streamId = Guid.NewGuid();
 
@@ -200,13 +200,13 @@ public class end_to_end_publish_messages_through_marten_to_wolverine
                     opts.Services.AddHostedService<SideEffectInitialData>();
                 
                 opts.Policies.UseDurableLocalQueues();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var count = 0;
         while (count < 10)
         {
             if (GotBHandler.Received.Count >= 3) break;
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
         
         GotBHandler.Received.Count.ShouldBe(3);
@@ -345,7 +345,7 @@ public class
         var store = _host.DocumentStore();
         await using var session = store.LightweightSession();
         var customerId = session.Events.StartStream<Customer>(new CustomerAdded("Acme")).Id;
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Func<IMessageContext, Task> action = async _ =>
         {
@@ -370,7 +370,7 @@ public class
         var store = _host.DocumentStore();
         await using var session = store.LightweightSession();
         var customerId = session.Events.StartStream<Customer>(new CustomerAdded("Acme")).Id;
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         Func<IMessageContext, Task> action = async _ =>
         {

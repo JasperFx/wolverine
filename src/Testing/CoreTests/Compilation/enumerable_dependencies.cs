@@ -36,7 +36,7 @@ public class enumerable_dependencies
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 
                 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new WidgetUsingMessage());
         await host.InvokeMessageAndWaitAsync(new WidgetUsingMessage2());

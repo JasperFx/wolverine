@@ -66,19 +66,13 @@ public class RabbitMqQueueTests
         queue.DeadLetterQueue.ExchangeName.ShouldBe("publish-dlx-exchange");
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(default!, default, default, default, default!)
-            .ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
+        channel.QueueDeclareAsync(default!, default, default, default, default!, cancellationToken: TestContext.Current.CancellationToken).ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
 
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().QueueDeclareAsync(
-            "publish-queue",
-            queue.IsDurable,
-            queue.IsExclusive,
-            queue.AutoDelete,
-            Arg.Is<IDictionary<string, object?>>(args =>
+        await channel.Received().QueueDeclareAsync("publish-queue", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, Arg.Is<IDictionary<string, object?>>(args =>
                 args.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader) &&
-                Equals(args[RabbitMqTransport.DeadLetterQueueHeader], "publish-dlx-exchange")));
+                Equals(args[RabbitMqTransport.DeadLetterQueueHeader], "publish-dlx-exchange")), cancellationToken: TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -103,18 +97,12 @@ public class RabbitMqQueueTests
         queue.DeadLetterQueue.ShouldBeNull();
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(default!, default, default, default, default!)
-            .ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
+        channel.QueueDeclareAsync(default!, default, default, default, default!, cancellationToken: TestContext.Current.CancellationToken).ReturnsForAnyArgs(Task.FromResult(new QueueDeclareOk("publish-queue", 0, 0)));
 
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().QueueDeclareAsync(
-            "publish-queue",
-            queue.IsDurable,
-            queue.IsExclusive,
-            queue.AutoDelete,
-            Arg.Is<IDictionary<string, object?>>(args =>
-                !args.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader)));
+        await channel.Received().QueueDeclareAsync("publish-queue", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, Arg.Is<IDictionary<string, object?>>(args =>
+                !args.ContainsKey(RabbitMqTransport.DeadLetterQueueHeader)), cancellationToken: TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -151,7 +139,7 @@ public class RabbitMqQueueTests
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
         await channel.Received()
-            .QueueDeclareAsync("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, (IDictionary<string, object?>)queue.Arguments);
+            .QueueDeclareAsync("foo", queue.IsDurable, queue.IsExclusive, queue.AutoDelete, (IDictionary<string, object?>)queue.Arguments, cancellationToken: TestContext.Current.CancellationToken);
 
         queue.HasDeclared.ShouldBeTrue();
     }
@@ -167,8 +155,8 @@ public class RabbitMqQueueTests
 
         await queue.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
-        await theChannel.DidNotReceiveWithAnyArgs().QueuePurgeAsync("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null, cancellationToken: Arg.Any<CancellationToken>());
+        await theChannel.DidNotReceiveWithAnyArgs().QueuePurgeAsync("foo", Arg.Any<CancellationToken>());
     }
 
     public record PublishOverrideMessage;
@@ -184,8 +172,8 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
-        await theChannel.Received().QueuePurgeAsync("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null, cancellationToken: Arg.Any<CancellationToken>());
+        await theChannel.Received().QueuePurgeAsync("foo", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -200,8 +188,8 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null);
-        await theChannel.Received().QueuePurgeAsync("foo");
+        await theChannel.DidNotReceiveWithAnyArgs().QueueDeclareAsync("foo", true, true, true, null, cancellationToken: Arg.Any<CancellationToken>());
+        await theChannel.Received().QueuePurgeAsync("foo", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -216,8 +204,8 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments);
-        await theChannel.Received().QueuePurgeAsync("foo");
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments, cancellationToken: Arg.Any<CancellationToken>());
+        await theChannel.Received().QueuePurgeAsync("foo", Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -231,7 +219,7 @@ public class RabbitMqQueueTests
 
         await endpoint.InitializeAsync(theChannel, NullLogger.Instance);
 
-        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments);
-        await theChannel.Received().QueuePurgeAsync("foo");
+        await theChannel.Received().QueueDeclareAsync("foo", true, false, false, (IDictionary<string, object?>)endpoint.Arguments, cancellationToken: Arg.Any<CancellationToken>());
+        await theChannel.Received().QueuePurgeAsync("foo", Arg.Any<CancellationToken>());
     }
 }

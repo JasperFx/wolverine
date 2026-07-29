@@ -93,7 +93,7 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
         {
             results = await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
             if (results.Envelopes.Any()) break;
-            await Task.Delay(500);
+            await Task.Delay(500, TestContext.Current.CancellationToken);
         }
 
         results.ShouldNotBeNull();
@@ -127,7 +127,7 @@ public class dead_letter_queue_recovery_listener : IAsyncLifetime
         {
             results = await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
             if (results.Envelopes.Count() >= 3) break;
-            await Task.Delay(2.Seconds());
+            await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
         }
 
         results.ShouldNotBeNull();
@@ -202,7 +202,7 @@ public class dead_letter_queue_recovery_with_custom_queues : IAsyncLifetime
         {
             results = await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
             if (results.Envelopes.Any()) break;
-            await Task.Delay(500);
+            await Task.Delay(500, TestContext.Current.CancellationToken);
         }
 
         results.ShouldNotBeNull();

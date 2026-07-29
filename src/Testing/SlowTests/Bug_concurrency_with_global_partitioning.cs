@@ -87,10 +87,10 @@ public class Bug_concurrency_with_global_partitioning
         // Clean up the soccer schema from previous test runs to avoid stale durable messages
         await using (var conn = new Npgsql.NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "DROP SCHEMA IF EXISTS soccer CASCADE;";
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         var tracker = new ExceptionTracker();
@@ -98,14 +98,14 @@ public class Bug_concurrency_with_global_partitioning
 
         // Stand up 3 SampleService hosts to simulate a multi-node cluster.
         // Start the first host alone so it creates the Marten schema without DDL races.
-        using var sampleService1 = await BuildSampleServiceHost("SampleService1", tracker, destinationTracker).StartAsync();
-        using var sampleService2 = await BuildSampleServiceHost("SampleService2", tracker, destinationTracker).StartAsync();
-        using var sampleService3 = await BuildSampleServiceHost("SampleService3", tracker, destinationTracker).StartAsync();
+        using var sampleService1 = await BuildSampleServiceHost("SampleService1", tracker, destinationTracker).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+        using var sampleService2 = await BuildSampleServiceHost("SampleService2", tracker, destinationTracker).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+        using var sampleService3 = await BuildSampleServiceHost("SampleService3", tracker, destinationTracker).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var hosts = new[] { sampleService1, sampleService2, sampleService3 };
 
         // Allow Kafka consumer group rebalancing to stabilize before sending messages
-        await Task.Delay(15.Seconds());
+        await Task.Delay(15.Seconds(), TestContext.Current.CancellationToken);
 
         using var cts = new CancellationTokenSource(30.Seconds());
         cts.CancelAfter(30.Seconds());
@@ -160,7 +160,7 @@ public class Bug_concurrency_with_global_partitioning
         await Task.WhenAll(tasks);
 
         // Give time for in-flight messages to finish processing
-        await Task.Delay(10.Seconds());
+        await Task.Delay(10.Seconds(), TestContext.Current.CancellationToken);
 
         // === Duplicate Envelope.Id analysis ===
         Console.WriteLine("=== Duplicate Envelope.Id analysis ===");

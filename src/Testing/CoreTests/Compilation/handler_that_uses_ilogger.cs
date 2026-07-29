@@ -20,7 +20,7 @@ public class handler_that_uses_ilogger
         using var host = WolverineHost.Basic();
 
         var bus = host.MessageBus();
-        await bus.InvokeAsync(new ItemCreated());
+        await bus.InvokeAsync(new ItemCreated(), TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<ItemCreated>();

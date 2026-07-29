@@ -24,7 +24,7 @@ public class end_to_end
         using var nested = host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name, cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 
@@ -48,7 +48,7 @@ public class end_to_end
         using var nested = host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name, cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 
@@ -73,7 +73,7 @@ public class end_to_end
         using var nested = host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name, cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 
@@ -87,7 +87,7 @@ public class end_to_end
 
         var id = Guid.NewGuid();
         context.Add(new Item { Id = id, Name = name });
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var response = await host.GetAsJson<Item>("/api/item/" + id);
         response!.Name.ShouldBe(name);

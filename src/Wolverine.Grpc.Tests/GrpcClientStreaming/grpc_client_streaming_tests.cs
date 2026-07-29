@@ -24,11 +24,11 @@ public class grpc_client_streaming_tests : IClassFixture<ClientStreamingFixture>
     [Fact]
     public async Task streamed_requests_fold_into_a_single_reply()
     {
-        using var call = _fixture.CreateClient().Collect();
+        using var call = _fixture.CreateClient().Collect(cancellationToken: TestContext.Current.CancellationToken);
 
-        await call.RequestStream.WriteAsync(new NumberRequest { Value = 1 });
-        await call.RequestStream.WriteAsync(new NumberRequest { Value = 2 });
-        await call.RequestStream.WriteAsync(new NumberRequest { Value = 3 });
+        await call.RequestStream.WriteAsync(new NumberRequest { Value = 1 }, TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new NumberRequest { Value = 2 }, TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new NumberRequest { Value = 3 }, TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var reply = await call;
@@ -40,7 +40,7 @@ public class grpc_client_streaming_tests : IClassFixture<ClientStreamingFixture>
     [Fact]
     public async Task zero_requests_still_produce_a_reply()
     {
-        using var call = _fixture.CreateClient().Collect();
+        using var call = _fixture.CreateClient().Collect(cancellationToken: TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var reply = await call;
@@ -55,7 +55,7 @@ public class grpc_client_streaming_tests : IClassFixture<ClientStreamingFixture>
         using var cts = new CancellationTokenSource();
         using var call = _fixture.CreateClient().Collect(cancellationToken: cts.Token);
 
-        await call.RequestStream.WriteAsync(new NumberRequest { Value = 1 });
+        await call.RequestStream.WriteAsync(new NumberRequest { Value = 1 }, TestContext.Current.CancellationToken);
         await cts.CancelAsync();
 
         var ex = await Should.ThrowAsync<RpcException>(async () => await call);

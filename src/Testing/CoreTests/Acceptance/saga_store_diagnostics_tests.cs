@@ -41,7 +41,7 @@ public class saga_store_diagnostics_tests
                 opts.Services.AddSingleton<ISagaStoreDiagnostics>(martenStub);
                 opts.Services.AddSingleton<ISagaStoreDiagnostics>(efStub);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var diagnostics = host.GetRuntime().SagaStorage;
         var registered = await diagnostics.GetRegisteredSagasAsync(CancellationToken.None);
@@ -91,7 +91,7 @@ public class saga_store_diagnostics_tests
                 opts.Services.AddSingleton<ISagaStoreDiagnostics>(martenStub);
                 opts.Services.AddSingleton<ISagaStoreDiagnostics>(efStub);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var diagnostics = host.GetRuntime().SagaStorage;
 
@@ -124,7 +124,7 @@ public class saga_store_diagnostics_tests
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton<ISagaStoreDiagnostics>(stub))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var diagnostics = host.GetRuntime().SagaStorage;
 
@@ -149,7 +149,7 @@ public class saga_store_diagnostics_tests
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton<ISagaStoreDiagnostics>(stub))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var list = await host.GetRuntime().SagaStorage.ListSagaInstancesAsync(
             "Some.Unknown.Saga, Wherever", 10, CancellationToken.None);
@@ -184,7 +184,7 @@ public class saga_store_diagnostics_tests
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton<ISagaStoreDiagnostics>(stub))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var diagnostics = host.GetRuntime().SagaStorage;
 
@@ -206,7 +206,7 @@ public class saga_store_diagnostics_tests
         // from having to null-check IWolverineRuntime.SagaStorage.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(_ => { })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var diagnostics = host.GetRuntime().SagaStorage;
         diagnostics.ShouldNotBeNull();
@@ -243,7 +243,7 @@ public class service_capabilities_saga_types_tests
                 // than blowing up.
                 opts.Discovery.DisableConventionalDiscovery();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var capabilities = await Wolverine.Configuration.Capabilities.ServiceCapabilities.ReadFrom(
             host.GetRuntime(), null, CancellationToken.None);

@@ -33,7 +33,7 @@ public class environment_sensitive_configuration
                 });
             })
             .UseEnvironment("LocalDevEnvironment")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
@@ -62,7 +62,7 @@ public class environment_sensitive_configuration
                 });
             })
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
@@ -97,7 +97,7 @@ public class environment_sensitive_configuration
                 
             })
             .UseEnvironment("LocalDevEnvironment")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
@@ -135,7 +135,7 @@ public class environment_sensitive_configuration
                 
             })
             .UseEnvironment("LocalDevEnvironment")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 

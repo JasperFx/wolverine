@@ -18,7 +18,7 @@ public class serialization_configuration
         {
             opts.PublishAllMessages().To("stub://one");
             opts.PublishAllMessages().To("stub://two");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -39,7 +39,7 @@ public class serialization_configuration
 
             opts.PublishAllMessages().To("stub://two")
                 .CustomNewtonsoftJsonSerialization(customSettings);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -62,7 +62,7 @@ public class serialization_configuration
 
             opts.ListenForMessagesFrom("stub://two")
                 .CustomNewtonsoftJsonSerialization(customSettings);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -87,7 +87,7 @@ public class serialization_configuration
 
             opts.ListenForMessagesFrom("stub://two")
                 .CustomNewtonsoftJsonSerialization(customSettings);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -105,7 +105,7 @@ public class serialization_configuration
 
             opts.ListenForMessagesFrom("stub://two")
                 .CustomNewtonsoftJsonSerialization(customSettings);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -127,7 +127,7 @@ public class serialization_configuration
 
             opts.ListenForMessagesFrom("stub://two")
                 .DefaultSerializer(fooSerializer);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -148,7 +148,7 @@ public class serialization_configuration
             opts.PublishAllMessages().To("stub://one");
 
             opts.ListenForMessagesFrom("stub://two");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())!
@@ -174,7 +174,7 @@ public class serialization_configuration
 
             // Sibling sender with no override — must stay on the global STJ default.
             opts.PublishMessage<CustomSerializedMessage>().To("stub://plain");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var router = runtime.RoutingFor(typeof(CustomSerializedMessage));

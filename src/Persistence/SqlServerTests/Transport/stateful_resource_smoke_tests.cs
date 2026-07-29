@@ -92,8 +92,8 @@ public class stateful_resource_smoke_tests : IAsyncLifetime
     public async Task check_negative()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("sqlserver");
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await conn.DropSchemaAsync("sqlserver", ct: TestContext.Current.CancellationToken);
         await conn.CloseAsync();
         
         var result = await ConfigureBuilder(false, 10)

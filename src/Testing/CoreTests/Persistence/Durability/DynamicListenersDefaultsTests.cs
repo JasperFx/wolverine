@@ -36,19 +36,19 @@ public class DynamicListenersDefaultsTests
         // flag is off. Locks down the no-op contract: no exception, no state.
         var store = NullListenerStore.Instance;
 
-        await store.RegisterListenerAsync(new Uri("mqtt://topic/devices/abc"));
+        await store.RegisterListenerAsync(new Uri("mqtt://topic/devices/abc"), TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task null_listener_store_returns_empty_listing()
     {
-        var listeners = await NullListenerStore.Instance.AllListenersAsync();
+        var listeners = await NullListenerStore.Instance.AllListenersAsync(TestContext.Current.CancellationToken);
         listeners.ShouldBeEmpty();
     }
 
     [Fact]
     public async Task null_listener_store_remove_is_a_no_op()
     {
-        await NullListenerStore.Instance.RemoveListenerAsync(new Uri("mqtt://topic/whatever"));
+        await NullListenerStore.Instance.RemoveListenerAsync(new Uri("mqtt://topic/whatever"), TestContext.Current.CancellationToken);
     }
 }

@@ -14,7 +14,7 @@ public class respecting_jasper_fx_defaults
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         runtime.Options.CodeGeneration.TypeLoadMode.ShouldBe(TypeLoadMode.Dynamic);
@@ -38,7 +38,7 @@ public class respecting_jasper_fx_defaults
                 });
             })
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var runtime = host.GetRuntime();
         

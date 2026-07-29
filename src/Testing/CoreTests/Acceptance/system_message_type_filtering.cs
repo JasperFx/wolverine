@@ -58,7 +58,7 @@ public class system_message_type_filtering
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.Discovery.IncludeType<SystemFilteringHandler>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var capabilities = await ServiceCapabilities.ReadFrom(host.GetRuntime(), null, CancellationToken.None);
 
@@ -80,7 +80,7 @@ public class system_message_type_filtering
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.Discovery.IncludeType<SystemFilteringHandler>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

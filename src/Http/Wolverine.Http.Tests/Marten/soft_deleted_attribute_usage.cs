@@ -23,7 +23,7 @@ public class soft_deleted_attribute_usage : IntegrationContext
         using var session = Host.DocumentStore().LightweightSession();
         var invoice = new Invoice();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         
         // second, a hit
         var response = await Scenario(x =>

@@ -92,7 +92,7 @@ public class heartbeat_decoupled_from_command_execution
             .Returns(new NodeAgentState([SelfRow(DateTimeOffset.UtcNow)], new AgentRestrictions()));
 
         var wedged = _controller.DoHealthChecksAsync();
-        await entered.Task.WaitAsync(5.Seconds());
+        await entered.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         // The wedged evaluation is already past its own MarkHealthCheckAsync and is now stuck holding the
         // guard. Clear those calls, then prove the independent heartbeat path keeps writing regardless.
@@ -106,7 +106,7 @@ public class heartbeat_decoupled_from_command_execution
             Arg.Any<WolverineNode>(), Arg.Any<CancellationToken>());
 
         release.SetResult();
-        await wedged.WaitAsync(5.Seconds());
+        await wedged.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
     }
 
     [Fact]

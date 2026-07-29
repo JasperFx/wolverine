@@ -132,7 +132,7 @@ public class when_initializing_the_endpoint
 
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
@@ -141,7 +141,7 @@ public class when_initializing_the_endpoint
 
         theQueue.QueueUrl.ShouldBe(theSqsQueueUrl);
 
-        await theClient.DidNotReceiveWithAnyArgs().CreateQueueAsync(theQueue.QueueName);
+        await theClient.DidNotReceiveWithAnyArgs().CreateQueueAsync(theQueue.QueueName, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -151,8 +151,7 @@ public class when_initializing_the_endpoint
 
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>())
-            .Returns(new CreateQueueResponse
+        theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>(), TestContext.Current.CancellationToken).Returns(new CreateQueueResponse
             {
                 QueueUrl = theSqsQueueUrl
             });
@@ -170,14 +169,14 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
 
         await theQueue.InitializeAsync(NullLogger.Instance);
 
-        await theClient.DidNotReceiveWithAnyArgs().PurgeQueueAsync(theSqsQueueUrl);
+        await theClient.DidNotReceiveWithAnyArgs().PurgeQueueAsync(theSqsQueueUrl, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -188,14 +187,14 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theQueue.QueueName).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
 
         await theQueue.InitializeAsync(NullLogger.Instance);
 
-        await theClient.Received().PurgeQueueAsync(theSqsQueueUrl);
+        await theClient.Received().PurgeQueueAsync(theSqsQueueUrl, Arg.Any<CancellationToken>());
     }
 
     [Fact]

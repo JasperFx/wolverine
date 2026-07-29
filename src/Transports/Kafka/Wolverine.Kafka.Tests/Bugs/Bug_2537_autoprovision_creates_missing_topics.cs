@@ -79,7 +79,7 @@ public class Bug_2537_autoprovision_creates_missing_topics : IAsyncLifetime
 
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.Services.AddSingleton<ILoggerProvider>(new OutputLoggerProvider(_output));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // AutoProvision should have created the topic during host startup.
         ListAllTopics().ShouldContain(_topicName,
