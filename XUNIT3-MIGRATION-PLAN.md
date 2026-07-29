@@ -1,7 +1,8 @@
 # xUnit v3 Migration Plan
 
-**Status:** In flight on `feature/xunit3` — the coupled 40 are flipped and the solution builds
-clean; the independent 32 and all test verification remain
+**Status:** ✅ **All 73 projects migrated; PR [#3699](https://github.com/JasperFx/wolverine/pull/3699)
+is 31/31 green on CI.** Still a draft pending review of the PR description wording and the
+follow-up issues in §11.
 
 | Wave | State |
 |---|---|
@@ -9,8 +10,8 @@ clean; the independent 32 and all test verification remain
 | 1 — ComplianceTests + SqliteTests | ✅ committed `b03c461fa`, `CISqlite` 156/1/157 at exact parity |
 | 2 — atomic flip of the coupled 40 | ✅ committed `f5274e6b1`, `wolverine.slnx` Release 0 warnings 0 errors |
 | 3 — the independent 32 | ✅ committed `7a1bbd728`. **All 73 projects are on v3; 0 remain on v2.** |
-| — verify the coupled 40 per CI target | 🔄 handed to CI — see below |
-| 9 — merge to `main` | ⬜ open PR |
+| — CI verification | ✅ **31/31 green** after four rounds — see §12 |
+| 9 — merge to `main` | ⬜ PR #3699 open as draft |
 | 10 — cleanup | ⬜ |
 
 **Verification strategy changed:** rather than run 25 broker-backed CI targets serially on one
@@ -465,3 +466,66 @@ Nothing is currently blocking execution.
 - Migrating away from Shouldly, NSubstitute, or the 3 remaining FluentAssertions files.
 - Consolidating the 21 `NoParallelization.cs` files or revisiting the parallelization strategy.
 - Reworking the flaky-retry harness or the CI sharding introduced in #3350.
+
+
+---
+
+## 12. What CI found that local verification could not
+
+Four rounds. Every issue below is invisible to `dotnet build` and to a local `dotnet test` of an
+already-warm project, which is why the "let CI take the first pass" call was the right one.
+
+### 12.1 v3 test processes speak JSON over stdout
+
+The single most important thing to know about xUnit v3 in this codebase. The test project is an
+executable and the runner talks to it over **stdout using JSON**. Any non-JSON on that channel
+produces:
+
+```
+Catastrophic failure: Test process did not return valid JSON (non-object)
+```
+
+and **zero tests run** — it kills the whole assembly, not one test. Three sources were found:
+
+| Source | Projects | Fix |
+|---|---|---|
+| Testcontainers' "Connected to Docker" banner from a `[ModuleInitializer]` (runs before `Main`) | Redis, MQTT, Mqtt5, Pulsar | `.WithLogger(NullLogger.Instance)` on the **builder** — Testcontainers 4.x has no `TestcontainersSettings.Logger` |
+| A Wolverine host booted from a `[MemberData]` source (evaluated at **discovery**) | Http.Tests | mute stdout across the bootstrap |
+| **Doc samples with top-level statements hijacking the entry point** | Http.Tests, Redis.Tests | move the sample into a method |
+
+### 12.2 The entry-point hijack — a latent bug older than this migration
+
+`ExternalHttpServer.cs` and `RedisTransportWithScheduling.cs` were written as top-level
+statements. C# makes top-level statements **the** entry point and demotes any other `Main`,
+reporting **CS7022** — which this repo carried in `NoWarn`. Harmless under v2, where VSTest loads
+the DLL and never calls `Main`. Under v3 the runner *launches* the assembly and got a web app.
+
+**CS7022 is now out of `NoWarn`.** It names every instance instantly and the solution builds clean
+with it on. Leaving it suppressed would let the next sample reintroduce the same silent breakage.
+
+**Diagnostic technique worth reusing:** run the probe directly —
+`./<TestProject> -assemblyInfo` must emit JSON as its first line. This took seconds and gave the
+true answer after two rounds of log-reading had produced a plausible but wrong story.
+
+### 12.3 "The full solution builds" is weaker evidence than it sounds
+
+**Nine xUnit projects are not in `wolverine.slnx`**: `SampleTests`, `TracingTests`, and the seven
+F# drivers. `Wolverine.Http.AspVersioning.Tests` is in the solution but net10.0-only and built
+solely by its own CI target — which is how a `CS0029` reached CI past a clean local build.
+
+Two of those nine **do not compile on pristine `origin/main`** either (verified, not assumed):
+`SampleTests` references the long-gone `Oakton`; `TracingTests`' dependencies carry version-less
+`PackageReference`s under central package management. No CI target builds either. Pre-existing —
+see §11.
+
+### 12.4 Known-flaky, not migration damage
+
+- `CICosmosDb` / `leader_election.ability_to_send_messages_to_correct_node_or_forward` — failed
+  run 1, passed run 4 untouched. The documented CosmosDb/RavenDb leader-election timing race.
+- `Wolverine.Http.Tests.Transport.HttpTransportExecutorTests.batch_with_multiple_queues_routes_to_correct_queue`
+  — failed run 4, passed on re-run of the identical commit.
+
+Worth noting: **`CIHttp` calls `DotNetTest` directly rather than `RunTestProject`**, so unlike the
+persistence and transport targets it gets **no flaky-retry**. One intermittent test fails the whole
+job. Not changed here — it is existing CI policy, not migration work — but it makes `CIHttp` the
+most fragile-looking job on the board.
