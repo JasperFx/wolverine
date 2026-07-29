@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Threading.Channels;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -22,23 +21,11 @@ public partial class WolverineRuntime : IAgentRuntime
     private bool _agentsAreDisabled;
     private Task? _healthCheckLoop;
     private Task? _heartbeatLoop;
-    private Task? _agentCommandLoop;
 
-    // GH-3698 (part 2): commands produced by the health-check/assignment loop, executed by an independent
-    // pump so a wave of slow agent starts can never stop the leader from re-evaluating assignments. See
-    // drainAgentCommands.
-    private readonly Channel<IAgentCommand> _agentCommands =
-        Channel.CreateUnbounded<IAgentCommand>(new UnboundedChannelOptions { SingleReader = true });
-
-    // Commands currently queued for, or being executed by, that pump. Keyed on the command itself: every
-    // command the leader emits carries value equality, so an evaluation that re-emits work already in
-    // flight does not queue it a second time.
-    private readonly ConcurrentDictionary<IAgentCommand, byte> _queuedCommands = new();
-
-    // Agents the pump currently has a START queued or in flight for. Suppression has to happen at this
-    // level, not just per command: successive evaluations re-chunk the unstarted remainder differently, so
-    // two chunks naming overlapping agents are not equal as commands. See enqueueAgentCommand.
-    private readonly ConcurrentDictionary<Uri, byte> _inFlightAgents = new();
+    // GH-3698: executes the commands the health-check/assignment loop produces, on a persistent lane per
+    // destination node, so neither a slow node nor a dead one can stop the leader from re-evaluating
+    // assignments or hold up the other nodes. See AgentCommandDispatcher.
+    private AgentCommandDispatcher? _dispatcher;
 
     private readonly CancellationTokenSource _agentCancellation;
 
@@ -309,9 +296,12 @@ public partial class WolverineRuntime : IAgentRuntime
         _heartbeatLoop = Task.Run(writeHeartbeats, Cancellation);
         _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
 
-        // GH-3698 (part 2): the agent-command pump runs independently of the loop that produces the
-        // commands, so a long wave of slow agent starts can never stop assignments being re-evaluated.
-        _agentCommandLoop = Task.Run(drainAgentCommands, Cancellation);
+        // GH-3698: commands execute on the dispatcher's per-destination lanes, independently of the loop
+        // that produces them, so a long wave of slow agent starts can never stop assignments being
+        // re-evaluated and a lane wedged on a dead node cannot block a healthy one.
+        _dispatcher = new AgentCommandDispatcher(
+            async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
+            Logger, Cancellation);
     }
 
     // GH-3604 (D1): keep the node heartbeat wholly independent of DoHealthChecksAsync and the agent-command
@@ -356,8 +346,8 @@ public partial class WolverineRuntime : IAgentRuntime
     // while the evaluation that would have produced telemetry (and noticed a topology change) was parked
     // behind it. Same defect as GH-3604/D1, which decoupled the heartbeat; this decouples the other half.
     //
-    // Commands are now handed to an independent pump (drainAgentCommands) and this loop moves straight on
-    // to its next tick.
+    // Commands are now handed to an independent dispatcher (AgentCommandDispatcher) and this loop moves
+    // straight on to its next tick.
     private async Task executeHealthChecks()
     {
         await Task.Delay(Options.Durability.FirstHealthCheckExecution, Cancellation);
@@ -374,7 +364,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
                     foreach (var command in commands)
                     {
-                        enqueueAgentCommand(command);
+                        _dispatcher?.Enqueue(command);
                     }
                 }
                 catch (OperationCanceledException)
@@ -389,129 +379,16 @@ public partial class WolverineRuntime : IAgentRuntime
         }
     }
 
-    // The agents a command would START somewhere. Deliberately only the first-time placements: a
-    // ReassignAgent also stops the agent on its previous node, so suppressing one because a start is already
-    // pending would drop that stop, and the stop commands are not starts at all. Those keep the
-    // command-level suppression below and nothing more.
-    private static Uri[] startedAgentsOf(IAgentCommand command) => command switch
-    {
-        AssignAgent assign => [assign.AgentUri],
-        AssignAgents batch => batch.AgentIds,
-        _ => []
-    };
-
-    // GH-3698: enqueue a command for the pump, suppressing work already queued or in flight.
-    //
-    // Command-level equality alone is not enough. The pending-assignment ledger releases an agent after its
-    // TTL, and the next evaluation re-emits the still-unstarted remainder -- which batchCommands then
-    // re-chunks. Those chunks carry DIFFERENT membership than the ones the pump is still working through
-    // (900 agents chunk into 18 batches of 50; the 650 that have not started yet chunk into 13), so no
-    // command-level comparison can recognise them and the same agents get started twice. Suppress at the
-    // AGENT level instead: narrow an incoming batch to the agents nothing is already doing, and drop it
-    // outright if that leaves nothing.
-    //
-    // The check-then-add is not atomic against the pump's release, but only this loop writes and only the
-    // pump releases, so the sole consequence of losing that race is one redundant start -- which is exactly
-    // what this suppression is a best-effort optimisation for.
-    private void enqueueAgentCommand(IAgentCommand command)
-    {
-        var starting = startedAgentsOf(command);
-        if (starting.Length > 0)
-        {
-            var fresh = starting.Where(uri => !_inFlightAgents.ContainsKey(uri)).ToArray();
-            if (fresh.Length == 0)
-            {
-                return;
-            }
-
-            if (fresh.Length != starting.Length)
-            {
-                // Only a batch can be narrowed; a single-agent AssignAgent is all-or-nothing and would have
-                // been dropped above.
-                command = command is AssignAgents batch
-                    ? new AssignAgents(batch.Destination, fresh)
-                    : command;
-            }
-        }
-
-        // Identical command already queued or in flight: nothing to add. Command types without value
-        // equality fall back to reference equality and are simply never collapsed.
-        if (!_queuedCommands.TryAdd(command, 0))
-        {
-            return;
-        }
-
-        foreach (var uri in startedAgentsOf(command)) _inFlightAgents.TryAdd(uri, 0);
-
-        _agentCommands.Writer.TryWrite(command);
-    }
-
-    // GH-3698 (part 2): the pump that actually executes what the health-check loop produces, on its own
-    // task so no amount of slow agent-start work can stop the leader from re-evaluating assignments.
-    private async Task drainAgentCommands()
-    {
-        var drain = buildDrain();
-
-        while (!Cancellation.IsCancellationRequested)
-        {
-            try
-            {
-                // Block until there is something to do, then take everything queued up behind it so the
-                // whole batch is partitioned into per-destination lanes in one go.
-                var first = await _agentCommands.Reader.ReadAsync(Cancellation);
-
-                var batch = new AgentCommands { first };
-                while (_agentCommands.Reader.TryRead(out var next))
-                {
-                    batch.Add(next);
-                }
-
-                try
-                {
-                    // Failures are already logged per command, with their destination, inside the drain --
-                    // and this pump must keep running regardless, so there is nothing to do with them here.
-                    // NOTE the batch is mutated as it drains, hence the snapshot taken for the release below.
-                    var queued = batch.ToArray();
-                    try
-                    {
-                        await drain.DrainAsync(batch, Cancellation);
-                    }
-                    finally
-                    {
-                        // Released only once the batch is done, so anything re-emitted while it was in
-                        // flight was suppressed above, and anything still genuinely missing on the next
-                        // evaluation is free to be queued again -- including a start that failed, which the
-                        // pending-assignment ledger re-drives once its TTL expires.
-                        foreach (var command in queued)
-                        {
-                            _queuedCommands.TryRemove(command, out _);
-                            foreach (var uri in startedAgentsOf(command)) _inFlightAgents.TryRemove(uri, out _);
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, "Error trying to execute agent commands");
-            }
-        }
-    }
-
     private async Task teardownAgentsAsync()
     {
-        _agentCommands.Writer.TryComplete();
-
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
-        _agentCommandLoop?.SafeDispose();
+
+        if (_dispatcher != null)
+        {
+            await _dispatcher.DisposeAsync();
+            _dispatcher = null;
+        }
 
         if (NodeController != null)
         {
@@ -527,10 +404,14 @@ public partial class WolverineRuntime : IAgentRuntime
     internal async Task DisableAgentsAsync(DateTimeOffset lastHeartbeatTime)
     {
         _agentsAreDisabled = true;
-        _agentCommands.Writer.TryComplete();
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
-        _agentCommandLoop?.SafeDispose();
+
+        if (_dispatcher != null)
+        {
+            await _dispatcher.DisposeAsync();
+            _dispatcher = null;
+        }
 
         if (NodeController != null)
         {
