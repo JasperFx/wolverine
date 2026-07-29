@@ -46,7 +46,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
+        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data!.Length.ShouldBe(0);
@@ -56,12 +56,12 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         persisted.KeepUntil.HasValue.ShouldBeTrue();
         
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         
         var raw = await conn
             .CreateCommand($"select keep_until from dbo.{DatabaseConstants.IncomingTable} where id = @id")
             .With("id", persisted.Id)
-            .ExecuteScalarAsync();
+            .ExecuteScalarAsync(TestContext.Current.CancellationToken);
 
         raw.ShouldNotBeNull();
         raw.ShouldBeOfType<DateTimeOffset>().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
@@ -107,7 +107,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
 
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
         await transaction.PersistOutgoingAsync([envelope1, envelope2]);
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
+        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
 
         var outgoing = await runtime.Storage.Admin.AllOutgoingAsync();
         outgoing.ShouldContain(x => x.Id == envelope1.Id);
@@ -135,7 +135,7 @@ public class eager_idempotency_with_non_wolverine_mapped_db_context : IClassFixt
         var durabilitySettings = new DurabilitySettings();
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         ok.ShouldBeTrue();
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
+        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
         
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;

@@ -63,7 +63,7 @@ public class sticky_handlers_with_global_partitioning
                 opts.Policies.PropagateGroupIdToPartitionKey();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Publish a single message
         var message = new KafkaStickyCommand("group-1", "payload-1");
@@ -138,7 +138,7 @@ public class sticky_handlers_with_global_partitioning
                 opts.Policies.PropagateGroupIdToPartitionKey();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new KafkaStickyCommand("group-1", "dual-payload");
 
@@ -148,7 +148,7 @@ public class sticky_handlers_with_global_partitioning
         await bus.PublishAsync(message);
 
         // Wait for handlers to process
-        await Task.Delay(10.Seconds());
+        await Task.Delay(10.Seconds(), TestContext.Current.CancellationToken);
 
         _output.WriteLine($"Handler A executed {KafkaStickyHandlerA.ExecutionCount} times");
         _output.WriteLine($"Handler B executed {KafkaStickyHandlerB.ExecutionCount} times");
@@ -202,7 +202,7 @@ public class sticky_handlers_with_global_partitioning
                 opts.Policies.PropagateGroupIdToPartitionKey();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Send 3 messages
         for (int i = 0; i < 3; i++)

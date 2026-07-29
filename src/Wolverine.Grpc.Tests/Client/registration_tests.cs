@@ -98,7 +98,7 @@ public class registration_tests
         await using var provider = services.BuildServiceProvider();
         var client = provider.GetRequiredService<Greeter.GreeterClient>();
 
-        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" });
+        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         reply.Message.ShouldBe("Hello, Erik");
     }

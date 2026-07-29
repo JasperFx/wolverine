@@ -35,8 +35,8 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
         using var host = await CreateHostAsync(_db.ConnectionString);
         var store = (SqliteMessageStore)host.Services.GetRequiredService<IMessageStore>();
 
-        (await store.AdvisoryLock.TryAttainLockAsync(4242, default)).ShouldBeTrue();
-        (await store.AdvisoryLock.TryAttainLockAsync(4242, default)).ShouldBeTrue();
+        (await store.AdvisoryLock.TryAttainLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await store.AdvisoryLock.TryAttainLockAsync(4242, TestContext.Current.CancellationToken)).ShouldBeTrue();
         store.AdvisoryLock.HasLock(4242).ShouldBeTrue();
 
         await store.AdvisoryLock.ReleaseLockAsync(4242);
@@ -52,14 +52,14 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
         using var host = await CreateHostAsync(_db.ConnectionString);
         var store = (SqliteMessageStore)host.Services.GetRequiredService<IMessageStore>();
 
-        await store.AdvisoryLock.TryAttainLockAsync(7777, default);
+        await store.AdvisoryLock.TryAttainLockAsync(7777, TestContext.Current.CancellationToken);
         await store.AdvisoryLock.ReleaseLockAsync(7777);
 
         await using var conn = new SqliteConnection(_db.ConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "select count(*) from wolverine_locks where lock_id = 7777";
-        ((long)(await cmd.ExecuteScalarAsync())!).ShouldBe(0);
+        ((long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!).ShouldBe(0);
     }
 
     [Fact]
@@ -72,21 +72,21 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
 
         await using (var seed = new SqliteConnection(_db.ConnectionString))
         {
-            await seed.OpenAsync();
+            await seed.OpenAsync(TestContext.Current.CancellationToken);
             await using var cmd = seed.CreateCommand();
             cmd.CommandText = "INSERT INTO wolverine_locks (lock_id, acquired_at) VALUES ($id, $when)";
             cmd.Parameters.AddWithValue("$id", 9001);
             // Pre-date by 10s; TTL is 1s in this test
             cmd.Parameters.AddWithValue("$when",
                 DateTime.UtcNow.AddSeconds(-10).ToString("yyyy-MM-dd HH:mm:ss"));
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         var dataSource = new Weasel.Sqlite.SqliteDataSource(_db.ConnectionString);
         await using var lockA = new SqliteAdvisoryLock(dataSource, NullLogger.Instance,
             "test", TimeSpan.FromSeconds(1));
 
-        (await lockA.TryAttainLockAsync(9001, default)).ShouldBeTrue();
+        (await lockA.TryAttainLockAsync(9001, TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     [Fact]
@@ -104,14 +104,14 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
         await using var holderB = new SqliteAdvisoryLock(dataSource, NullLogger.Instance,
             "B", TimeSpan.FromSeconds(1));
 
-        (await holderA.TryAttainLockAsync(9100, default)).ShouldBeTrue();
+        (await holderA.TryAttainLockAsync(9100, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         // Beat the heartbeat across more than 2× TTL while B repeatedly tries
         for (var i = 0; i < 6; i++)
         {
-            await Task.Delay(500);
-            (await holderA.TryAttainLockAsync(9100, default)).ShouldBeTrue(); // heartbeat tick
-            (await holderB.TryAttainLockAsync(9100, default)).ShouldBeFalse(); // never steals
+            await Task.Delay(500, TestContext.Current.CancellationToken);
+            (await holderA.TryAttainLockAsync(9100, TestContext.Current.CancellationToken)).ShouldBeTrue(); // heartbeat tick
+            (await holderB.TryAttainLockAsync(9100, TestContext.Current.CancellationToken)).ShouldBeFalse(); // never steals
         }
     }
 
@@ -121,12 +121,12 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
         using var host = await CreateHostAsync(_db.ConnectionString);
         var store = (SqliteMessageStore)host.Services.GetRequiredService<IMessageStore>();
 
-        (await store.AdvisoryLock.TryAttainLockAsync(9200, default)).ShouldBeTrue();
+        (await store.AdvisoryLock.TryAttainLockAsync(9200, TestContext.Current.CancellationToken)).ShouldBeTrue();
         var firstAcquired = await readAcquiredAtAsync(_db.ConnectionString, 9200);
 
-        await Task.Delay(TimeSpan.FromSeconds(1.2));
+        await Task.Delay(TimeSpan.FromSeconds(1.2), TestContext.Current.CancellationToken);
 
-        (await store.AdvisoryLock.TryAttainLockAsync(9200, default)).ShouldBeTrue();
+        (await store.AdvisoryLock.TryAttainLockAsync(9200, TestContext.Current.CancellationToken)).ShouldBeTrue();
         var secondAcquired = await readAcquiredAtAsync(_db.ConnectionString, 9200);
 
         secondAcquired.ShouldBeGreaterThan(firstAcquired);

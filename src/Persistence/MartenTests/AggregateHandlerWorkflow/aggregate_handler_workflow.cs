@@ -249,7 +249,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         using (var session = theStore.LightweightSession())
         {
             session.Events.StartStream<Aggregate>(streamId, new AEvent(), new BEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var tracked = await theHost.SendMessageAndWaitAsync(new Event3(streamId));
@@ -259,7 +259,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
 
         using (var session = theStore.LightweightSession())
         {
-            var events = await session.Events.FetchStreamAsync(streamId);
+            var events = await session.Events.FetchStreamAsync(streamId, token: TestContext.Current.CancellationToken);
             events.OfType<IEvent<OutgoingMessages>>().Any().ShouldBeFalse();
         }
     }
@@ -271,7 +271,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         using (var session = theStore.LightweightSession())
         {
             session.Events.StartStream<Aggregate>(streamId, new AEvent(), new BEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var (tracked, updated) 
@@ -292,7 +292,7 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         {
             session.Events.StartStream<Aggregate>(streamId, new AEvent(), new CEvent());
             session.Events.StartStream<Aggregate>(streamId2, new CEvent(), new CEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         
         await theHost.InvokeMessageAndWaitAsync(new RaiseIfValidated(streamId));
@@ -301,11 +301,11 @@ public class aggregate_handler_workflow: PostgresqlContext, IAsyncLifetime
         using (var session = theStore.LightweightSession())
         {
             // Should not apply anything new if there is a value for ACount
-            var existing1 = await session.LoadAsync<LetterAggregate>(streamId);
+            var existing1 = await session.LoadAsync<LetterAggregate>(streamId, TestContext.Current.CancellationToken);
             existing1!.BCount.ShouldBe(0);
 
             // Should apply anything new if there was no value for ACount
-            var existing2 = await session.LoadAsync<LetterAggregate>(streamId2);
+            var existing2 = await session.LoadAsync<LetterAggregate>(streamId2, TestContext.Current.CancellationToken);
             existing2!.BCount.ShouldBe(1);
         }
     }

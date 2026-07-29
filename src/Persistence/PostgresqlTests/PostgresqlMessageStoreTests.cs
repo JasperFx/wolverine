@@ -83,11 +83,11 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
 
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await conn.CreateCommand(
                     $"update receiver.{DatabaseConstants.IncomingTable} set {DatabaseConstants.KeepUntil} = :cutoff where status = 'Handled'")
                 .With("cutoff", DateTimeOffset.UtcNow.Subtract(1.Hours()))
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
             await conn.CloseAsync();
         }
 
@@ -127,11 +127,11 @@ public class PostgresqlMessageStoreTests : MessageStoreCompliance
         await theHost.InvokeAsync(new DatabaseOperationBatch(messageDatabase, [log]));
 
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await conn.CreateCommand(
                 $"update receiver.{DatabaseConstants.NodeRecordTableName} set timestamp = :time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()))
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         await conn.CloseAsync();
         
         var recent2 = await thePersistence.Nodes.FetchRecentRecordsAsync(100);

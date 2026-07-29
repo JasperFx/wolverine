@@ -92,10 +92,10 @@ public class SchemaTests
         var migrator = new MySqlMigrator();
 
         // First, ensure database exists and drop all existing tables
-        await using var setupConn = await dataSource.OpenConnectionAsync();
+        await using var setupConn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var setupCmd = setupConn.CreateCommand();
         setupCmd.CommandText = "CREATE DATABASE IF NOT EXISTS `receiver`";
-        await setupCmd.ExecuteNonQueryAsync();
+        await setupCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
         // Drop existing tables
         setupCmd.CommandText = @"
@@ -109,7 +109,7 @@ public class SchemaTests
             DROP TABLE IF EXISTS receiver.wolverine_outgoing_envelopes;
             DROP TABLE IF EXISTS receiver.wolverine_dead_letters;
             SET FOREIGN_KEY_CHECKS = 1;";
-        await setupCmd.ExecuteNonQueryAsync();
+        await setupCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         await setupConn.CloseAsync();
 
         Console.WriteLine("=== Trying to create each table ===\n");
@@ -124,7 +124,7 @@ public class SchemaTests
 
             try
             {
-                await using var conn = await dataSource.OpenConnectionAsync();
+                await using var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
                 // Execute each statement separately
                 var statements = sql.Split(';', StringSplitOptions.RemoveEmptyEntries);
@@ -135,7 +135,7 @@ public class SchemaTests
 
                     await using var cmd = conn.CreateCommand();
                     cmd.CommandText = trimmed;
-                    await cmd.ExecuteNonQueryAsync();
+                    await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
                 }
 
                 await conn.CloseAsync();
@@ -148,12 +148,12 @@ public class SchemaTests
         }
 
         // Show what tables exist now
-        await using var checkConn = await dataSource.OpenConnectionAsync();
+        await using var checkConn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var checkCmd = checkConn.CreateCommand();
         checkCmd.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
-        await using var reader = await checkCmd.ExecuteReaderAsync();
+        await using var reader = await checkCmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         Console.WriteLine("\nTables that exist:");
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
             Console.WriteLine($"  - {reader.GetString(0)}");
         }
@@ -193,12 +193,12 @@ public class SchemaTests
         }
 
         // Verify tables exist in the receiver database
-        await using var conn = await dataSource.OpenConnectionAsync();
+        await using var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
-        await using var reader = await cmd.ExecuteReaderAsync();
+        await using var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         Console.WriteLine("\nTables after migration in receiver database:");
-        while (await reader.ReadAsync())
+        while (await reader.ReadAsync(TestContext.Current.CancellationToken))
         {
             Console.WriteLine($"  - {reader.GetString(0)}");
         }
@@ -217,12 +217,12 @@ public class SchemaTests
             "wolverine_dead_letters"
         };
 
-        await using var conn2 = await dataSource.OpenConnectionAsync();
+        await using var conn2 = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await using var cmd2 = conn2.CreateCommand();
         cmd2.CommandText = "SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = 'receiver'";
-        await using var reader2 = await cmd2.ExecuteReaderAsync();
+        await using var reader2 = await cmd2.ExecuteReaderAsync(TestContext.Current.CancellationToken);
         var actualTables = new List<string>();
-        while (await reader2.ReadAsync())
+        while (await reader2.ReadAsync(TestContext.Current.CancellationToken))
         {
             actualTables.Add(reader2.GetString(0));
         }

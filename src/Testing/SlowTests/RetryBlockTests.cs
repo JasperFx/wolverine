@@ -68,7 +68,7 @@ public class RetryBlockTests
         while (tries < 10 && !theLogger.Messages[LogLevel.Information].Any())
         {
             tries++;
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         theLogger.Messages[LogLevel.Information].Single()

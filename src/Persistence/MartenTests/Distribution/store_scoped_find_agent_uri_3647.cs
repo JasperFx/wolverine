@@ -96,7 +96,7 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     [Fact]
     public async Task scoping_to_the_main_store_resolves_that_store_s_agent_uri()
     {
-        var uri = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null);
+        var uri = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
         EventSubscriptionAgentFamily.StoreIdentityOf(uri!)
@@ -108,7 +108,7 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     {
         // The mirror image. Asserting both directions is what proves the overload narrows by store rather
         // than merely agreeing with the family's enumeration order.
-        var uri = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null);
+        var uri = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
         EventSubscriptionAgentFamily.StoreIdentityOf(uri!)
@@ -119,8 +119,8 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     public async Task the_two_store_scoped_lookups_return_different_uris()
     {
         // The single assertion that would have caught the bug: same shard identity, two stores, two answers.
-        var main = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null);
-        var ancillary = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null);
+        var main = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null, TestContext.Current.CancellationToken);
+        var ancillary = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null, TestContext.Current.CancellationToken);
 
         main.ShouldNotBeNull();
         ancillary.ShouldNotBeNull();
@@ -134,11 +134,11 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     [Fact]
     public async Task the_store_blind_overload_still_resolves_but_cannot_be_steered()
     {
-        var blind = await theFamily.FindAgentUriAsync("Trip:All", null);
+        var blind = await theFamily.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken);
         blind.ShouldNotBeNull();
 
-        var main = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null);
-        var ancillary = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null);
+        var main = await theFamily.FindAgentUriAsync(identityOf(_main), "Trip:All", null, TestContext.Current.CancellationToken);
+        var ancillary = await theFamily.FindAgentUriAsync(identityOf(_ancillary), "Trip:All", null, TestContext.Current.CancellationToken);
 
         new[] { main, ancillary }.ShouldContain(blind);
     }
@@ -146,14 +146,14 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     [Fact]
     public async Task a_store_outside_this_family_resolves_nothing()
     {
-        (await theFamily.FindAgentUriAsync("someone-else:Marten", "Trip:All", null)).ShouldBeNull(
+        (await theFamily.FindAgentUriAsync("someone-else:Marten", "Trip:All", null, TestContext.Current.CancellationToken)).ShouldBeNull(
             "so a caller looping over families can try the next one");
     }
 
     [Fact]
     public async Task an_unregistered_shard_in_a_known_store_resolves_nothing()
     {
-        (await theFamily.FindAgentUriAsync(identityOf(_main), "DoesNotExist:All", null)).ShouldBeNull();
+        (await theFamily.FindAgentUriAsync(identityOf(_main), "DoesNotExist:All", null, TestContext.Current.CancellationToken)).ShouldBeNull();
     }
 
     [Fact]
@@ -161,7 +161,7 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     {
         // System.Uri lowercases the authority while EventStoreIdentity preserves casing (GH-3168), so the
         // lookup has to normalize the same way the family keys its stores.
-        var uri = await theFamily.FindAgentUriAsync(identityOf(_main).ToUpperInvariant(), "Trip:All", null);
+        var uri = await theFamily.FindAgentUriAsync(identityOf(_main).ToUpperInvariant(), "Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
         EventSubscriptionAgentFamily.StoreIdentityOf(uri!).ShouldBe(identityOf(_main).ToLowerInvariant());

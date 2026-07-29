@@ -160,7 +160,7 @@ public class named_broker_tests : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<NamedColor>().ToMqttTopicOnNamedBroker(theName, topic).SendInline();
                 opts.ListenToMqttTopicOnNamedBroker(theName, topic);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()
@@ -192,7 +192,7 @@ public class named_broker_tests : IAsyncLifetime
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<NamedPing>().ToMqttTopicOnNamedBroker(theName, topic);
                 opts.ListenToMqttTopicOnNamedBroker(theName, topic);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var (_, response) = await host
             .TrackActivity()

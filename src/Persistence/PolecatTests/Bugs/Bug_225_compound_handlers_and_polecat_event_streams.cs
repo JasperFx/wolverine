@@ -26,17 +26,17 @@ public class Bug_225_compound_handlers_and_polecat_event_streams
                 }).IntegrateWithWolverine();
             })
             .UseWolverine(opts => { opts.Policies.AutoApplyTransactions(); })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
 
         await host.InvokeMessageAndWaitAsync(new PcStoreSomething2(id));
 
         await using var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var stream = await session.Events.FetchStreamAsync(id);
+        var stream = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         stream.ShouldNotBeEmpty();
     }

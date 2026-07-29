@@ -35,7 +35,7 @@ public class using_efcore : IntegrationContext
         using var nested = Host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
+        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync(cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 
@@ -55,7 +55,7 @@ public class using_efcore : IntegrationContext
         using var nested = Host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
+        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync(cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
 
         tracked.Sent.SingleMessage<ItemCreated>()
@@ -100,7 +100,7 @@ public class using_efcore : IntegrationContext
         using var nested = Host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
+        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync(cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldBeNull();
 
         var records = tracked.AllRecordsInOrder().ToArray();
@@ -126,7 +126,7 @@ public class using_efcore : IntegrationContext
         using var nested = Host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync();
+        var item = await context.Items.Where(x => x.Name == command.Name).FirstOrDefaultAsync(cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldBeNull();
 
         var scheduledMessage = tracked.Scheduled.SingleEnvelope<ItemCreated>();

@@ -95,7 +95,7 @@ public class Bug_2283_purge_session_subscription : IAsyncLifetime
                     .FromTopic("bug2283")
                     .RequireSessions(1)
                     .ProcessInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Send new messages through host2 and verify only the new ones arrive
         Func<IMessageContext, Task> sendNew = async bus =>
@@ -111,7 +111,7 @@ public class Bug_2283_purge_session_subscription : IAsyncLifetime
         var received = session.Received.MessagesOf<Bug2283Message>().Select(x => x.Name).ToArray();
         received.ShouldContain("New1");
 
-        await host2.StopAsync();
+        await host2.StopAsync(TestContext.Current.CancellationToken);
     }
 }
 

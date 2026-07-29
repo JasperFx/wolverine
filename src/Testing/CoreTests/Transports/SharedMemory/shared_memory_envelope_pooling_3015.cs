@@ -28,7 +28,7 @@ public class shared_memory_envelope_pooling_3015
                 opts.Discovery.DisableConventionalDiscovery();
                 opts.PublishAllMessages().ToSharedMemoryTopic(topicName);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>()
             .ShouldBeOfType<WolverineRuntime>();
@@ -145,7 +145,7 @@ public class shared_memory_envelope_pooling_3015
 
             await diagnosticAgent.DisposeAsync();
             foreach (var subscription in subscriptions) await subscription.StopAsync();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             await SharedMemoryQueueManager.ClearAllAsync();
         }
     }

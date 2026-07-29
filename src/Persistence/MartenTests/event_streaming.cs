@@ -160,7 +160,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
                         opts.SubscribeToEvent<SecondEvent>().TransformedTo(e =>
                             new SecondMessage(e.StreamId, e.Sequence));
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var aggregateId = Guid.NewGuid();
         await host.SaveInMartenAndWaitForOutgoingMessagesAsync(session =>
@@ -170,7 +170,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
 
         using var store = host.Services.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(aggregateId);
+        var events = await session.Events.FetchStreamAsync(aggregateId, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<SecondEvent>();
         events[1].Data.ShouldBeOfType<FourthEvent>();

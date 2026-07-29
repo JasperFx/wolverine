@@ -53,7 +53,7 @@ public class handler_actions_with_returned_StartStream : IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new PcStartStreamMessage(id));
 
         await using var session = _store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<AEvent>();
         events[1].Data.ShouldBeOfType<BEvent>();

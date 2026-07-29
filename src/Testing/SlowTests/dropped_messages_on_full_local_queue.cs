@@ -49,7 +49,7 @@ public class dropped_messages_on_full_local_queue
 
                 opts.Policies.DisableConventionalLocalRouting();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         await bus.PublishAsync(new StartPipeline());

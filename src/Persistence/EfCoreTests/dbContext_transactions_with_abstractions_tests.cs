@@ -63,7 +63,7 @@ public class dbContext_transactions_with_abstractions_tests
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var chain = runtime.Handlers.ChainFor<DbContextAbstractionTestFixture.AbstractionCommand>();
@@ -95,7 +95,7 @@ public class dbContext_transactions_with_abstractions_tests
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // If it compiles and runs without error, the cast worked
         Should.NotThrow(async () => await host.InvokeMessageAndWaitAsync(new DbContextAbstractionTestFixture.AbstractionCommand()));
@@ -120,7 +120,7 @@ public class dbContext_transactions_with_abstractions_tests
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<DbContextAbstractionTestFixture.AbstractionCommandHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var chain = runtime.Handlers.ChainFor<DbContextAbstractionTestFixture.AbstractionCommand>();

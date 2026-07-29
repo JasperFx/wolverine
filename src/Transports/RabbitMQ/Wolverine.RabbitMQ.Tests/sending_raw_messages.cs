@@ -31,7 +31,7 @@ public class sending_raw_messages
 
                 opts.PublishAllMessages()
                     .ToRabbitQueue(theQueueName).SendInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 
         using var receiver = await WolverineHost.ForAsync(opts =>
@@ -69,7 +69,7 @@ public class sending_raw_messages
 
                 opts.PublishAllMessages()
                     .ToRabbitQueue(theQueueName).SendInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 
         using var receiver = await WolverineHost.ForAsync(opts =>
@@ -105,7 +105,7 @@ public class sending_raw_messages
 
                 opts.PublishAllMessages()
                     .ToRabbitQueue(theQueueName).SendInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 
         using var receiver = await WolverineHost.ForAsync(opts =>

@@ -63,7 +63,7 @@ public class HttpScheduledMessageTests
             await bus.ScheduleAsync(command, scheduledTime);
         }
 
-        await Task.Delay(500); // some delay for batching
+        await Task.Delay(500, TestContext.Current.CancellationToken); // some delay for batching
         tracker.ReceivedMessages.Count.ShouldBe(count);
     }
 }

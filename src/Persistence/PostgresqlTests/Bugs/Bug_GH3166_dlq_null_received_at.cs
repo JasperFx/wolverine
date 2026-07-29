@@ -68,10 +68,10 @@ public class Bug_GH3166_dlq_null_received_at : IAsyncLifetime
 
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "update dlq_nullrecv.wolverine_dead_letters set received_at = null";
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         // Both of these threw on the DBNull received_at before the fix.

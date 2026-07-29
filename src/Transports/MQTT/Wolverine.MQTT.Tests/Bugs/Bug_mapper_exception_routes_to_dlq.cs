@@ -58,8 +58,8 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncLifetime
             .WithTcpServer(MosquittoContainerFixture.Host, MosquittoContainerFixture.Port)
             .Build();
 
-        await client.ConnectAsync(options);
-        await client.PublishStringAsync(_topic, "hello");
+        await client.ConnectAsync(options, TestContext.Current.CancellationToken);
+        await client.PublishStringAsync(_topic, "hello", cancellationToken: TestContext.Current.CancellationToken);
 
         var storage = _host.GetRuntime().Storage;
 
@@ -77,7 +77,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncLifetime
             }
 
             attempts++;
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new Exception(

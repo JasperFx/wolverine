@@ -64,7 +64,7 @@ public class Bug_2387_write_aggregate_throw_exception_codegen : PostgresqlContex
 
         await using var session = _store.LightweightSession();
         var action = session.Events.StartStream<Bug2387Aggregate>(new Bug2387Created("test"));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // If codegen is broken, this will throw a compilation error:
         // CS0841: Cannot use local variable 'stream_entity' before it is declared

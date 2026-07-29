@@ -78,7 +78,7 @@ public class FaultCryptoExceptionGuardTests
             // (see no_op_when_envelope_message_is_null in FaultPublisherTests).
             envelope.Message.ShouldBeNull();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class FaultCryptoExceptionGuardTests
             moveToErrorQueue.Exception.ShouldBeOfType<EncryptionKeyNotFoundException>();
             envelope.Message.ShouldBeNull();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -140,6 +140,6 @@ public class FaultCryptoExceptionGuardTests
             moveToErrorQueue.Exception.ShouldBeOfType<EncryptionPolicyViolationException>();
             envelope.Message.ShouldBeNull();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 }

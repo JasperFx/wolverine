@@ -105,7 +105,7 @@ public class Bug_3263_wire_tap_on_scheduled_send : IAsyncLifetime
         await context.ForwardScheduledEnvelopeAsync(recovered);
 
         // The send-side wire tap is fired fire-and-forget from WolverineRuntime.Sent.
-        await Task.Delay(250);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
 
         _wireTap.Successes.ShouldContain(
             e => e.MessageType == typeof(ScheduledAuditMessage).ToMessageTypeName(),
@@ -143,7 +143,7 @@ public class Bug_3263_wire_tap_on_scheduled_send : IAsyncLifetime
         await command.ExecuteAsync(runtime, CancellationToken.None);
 
         // The send-side wire tap is fired fire-and-forget from WolverineRuntime.Sent.
-        await Task.Delay(250);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
 
         _wireTap.Successes.ShouldContain(
             e => e.MessageType == typeof(ScheduledAuditMessage).ToMessageTypeName(),

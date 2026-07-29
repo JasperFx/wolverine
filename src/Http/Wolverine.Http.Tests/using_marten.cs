@@ -18,7 +18,7 @@ public class using_marten : IntegrationContext
         using (var session = Store.LightweightSession())
         {
             session.Store(data);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.GetAsJson<Data>($"/data/{data.Id}");
@@ -42,7 +42,7 @@ public class using_marten : IntegrationContext
         published.Name.ShouldBe(input.Name);
 
         using var session = Store.LightweightSession();
-        var loaded = await session.LoadAsync<Data>(input.Id);
+        var loaded = await session.LoadAsync<Data>(input.Id, TestContext.Current.CancellationToken);
 
         loaded.ShouldNotBeNull();
     }

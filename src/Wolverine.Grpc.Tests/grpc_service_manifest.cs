@@ -32,7 +32,7 @@ public class grpc_service_manifest
                     opts.ApplicationAssembly = typeof(GreeterGrpcService).Assembly;
                 })
                 .ConfigureServices(services => services.AddWolverineGrpc())
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();

@@ -24,7 +24,7 @@ public class connection_state_3237
 
                 opts.PublishMessage<ConnStateMessage>().ToPubsubTopic("connstate");
                 opts.ListenToPubsubTopic("connstate");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Prove the pipe actually works...
         await host.TrackActivity().IncludeExternalTransports().Timeout(30.Seconds())
@@ -60,7 +60,7 @@ public class connection_state_3237
                             c.RetryPolicy.MaxRetryCount = 2;
                             c.RetryPolicy.RetryDelay = 50;
                         });
-                }).StartAsync();
+                }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
                 host, PubsubTransport.ProtocolName, TransportConnectionState.Disconnected);

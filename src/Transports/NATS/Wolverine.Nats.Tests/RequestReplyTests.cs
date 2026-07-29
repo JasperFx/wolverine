@@ -103,10 +103,8 @@ public class RequestReplyTests : IAsyncLifetime
         await Assert.ThrowsAsync<UnknownEndpointException>(async () =>
         {
             await bus.EndpointFor("nats://nonexistent.subject")
-                .InvokeAsync<PongMessage>(
-                    new PingMessage { Name = "NoEndpoint" },
-                    timeout: TimeSpan.FromSeconds(1)
-                );
+                .InvokeAsync<PongMessage>(new PingMessage { Name = "NoEndpoint" },
+                    cancellation: TestContext.Current.CancellationToken);
         });
     }
 }

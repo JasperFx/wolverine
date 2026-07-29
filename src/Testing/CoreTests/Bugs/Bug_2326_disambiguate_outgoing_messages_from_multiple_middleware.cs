@@ -16,7 +16,7 @@ public class Bug_2326_disambiguate_outgoing_messages_from_multiple_middleware
             {
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<Bug2326Handler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // If code gen produces duplicate variable names, compilation will fail here
         var chain = host.GetRuntime().Handlers.ChainFor<Bug2326Command>();

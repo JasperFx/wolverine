@@ -21,7 +21,7 @@ public class disabling_all_external_transports
             // messages to run completely locally
             .ConfigureServices(services => services.DisableAllExternalWolverineTransports())
 
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 

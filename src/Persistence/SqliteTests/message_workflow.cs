@@ -26,7 +26,7 @@ public class message_workflow
             var message = new RegistrationSubmitted(Guid.NewGuid().ToString("N"), "nina@example.com");
             await host.SendAsync(message);
 
-            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds());
+            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
             received.UserId.ShouldBe(message.UserId);
             received.Email.ShouldBe("nina@example.com");
@@ -53,7 +53,7 @@ public class message_workflow
             var message = new RegistrationSubmitted(Guid.NewGuid().ToString("N"), "marco@example.com");
             await firstHost.SendAsync(message, new DeliveryOptions { ScheduleDelay = 3.Seconds() });
 
-            await Task.Delay(300.Milliseconds());
+            await Task.Delay(300.Milliseconds(), TestContext.Current.CancellationToken);
             audit.ReceivedMessage.Task.IsCompleted.ShouldBeFalse();
 
             await stopHost(firstHost);
@@ -61,7 +61,7 @@ public class message_workflow
 
             secondHost = await startHost(database.ConnectionString, audit);
 
-            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds());
+            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
             received.UserId.ShouldBe(message.UserId);
             received.Email.ShouldBe("marco@example.com");
         }

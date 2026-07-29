@@ -27,7 +27,7 @@ public class bug_369_reply_to_local_message_tries_to_be_Outgoing : PostgresqlCon
                 opts.Services.AddResourceSetupOnStartup();
 
                 opts.Policies.UseDurableInboxOnAllListeners();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.SendMessageAndWaitAsync(new Ping());
 

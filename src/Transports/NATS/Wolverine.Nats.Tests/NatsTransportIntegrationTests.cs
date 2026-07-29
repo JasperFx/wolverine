@@ -202,7 +202,7 @@ public class NatsTransportIntegrationTests : IAsyncLifetime
                     .DefaultIncomingMessage<DefaultTestMessage>()
                     .BufferedInMemory();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var nats = new NatsConnection(new NatsOpts { Url = natsUrl });
         await nats.ConnectAsync();

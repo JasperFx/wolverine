@@ -54,12 +54,12 @@ public class kafka_replay
 
         await waitForCountAsync(sink.Received, 6);
         // Let the live group commit its progress through the topic.
-        await Task.Delay(2000);
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
         var committedBefore = QueryCommittedOffset(liveGroup, topic);
 
         // Now replay just the tail of the window through the pipeline again.
         sink.Received.Clear();
-        var result = await host.ReplayKafkaTopicAsync(new KafkaReplayRequest { Topic = topic, FromOffset = 2 });
+        var result = await host.ReplayKafkaTopicAsync(new KafkaReplayRequest { Topic = topic, FromOffset = 2 }, token: TestContext.Current.CancellationToken);
 
         result.RecordsReplayed.ShouldBe(4);
         await waitForCountAsync(sink.Received, 4);
@@ -82,9 +82,9 @@ public class kafka_replay
         await host.SendAsync(new HotTailMessage { Id = "old-1" });
         await waitForCountAsync(sink.Received, 2);
 
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
         var boundary = DateTimeOffset.UtcNow;
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
 
         await host.SendAsync(new HotTailMessage { Id = "new-0" });
         await host.SendAsync(new HotTailMessage { Id = "new-1" });
@@ -92,7 +92,7 @@ public class kafka_replay
         await waitForCountAsync(sink.Received, 5);
 
         sink.Received.Clear();
-        var result = await host.ReplayKafkaTopicAsync(new KafkaReplayRequest { Topic = topic, FromTimestamp = boundary });
+        var result = await host.ReplayKafkaTopicAsync(new KafkaReplayRequest { Topic = topic, FromTimestamp = boundary }, token: TestContext.Current.CancellationToken);
 
         result.RecordsReplayed.ShouldBe(3);
         await waitForCountAsync(sink.Received, 3);

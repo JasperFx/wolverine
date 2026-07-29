@@ -22,7 +22,7 @@ public class todo_endpoint_specs : IntegrationContext
         await using var session = Store.LightweightSession();
         var todo = new Todo { Name = "First", IsComplete = false };
         session.Store(todo);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(opts =>
         {
@@ -30,7 +30,7 @@ public class todo_endpoint_specs : IntegrationContext
             opts.StatusCodeShouldBe(204);
         });
 
-        var changes = await session.LoadAsync<Todo>(todo.Id);
+        var changes = await session.LoadAsync<Todo>(todo.Id, TestContext.Current.CancellationToken);
         changes!.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }
@@ -41,14 +41,14 @@ public class todo_endpoint_specs : IntegrationContext
         await using var session = Store.LightweightSession();
         var todo = new Todo { Name = "First", IsComplete = false };
         session.Store(todo);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(opts =>
         {
             opts.Put.Json(new UpdateRequest("Second", true)).ToUrl("/todos2/" + todo.Id);
         });
 
-        var changes = await session.LoadAsync<Todo>(todo.Id);
+        var changes = await session.LoadAsync<Todo>(todo.Id, TestContext.Current.CancellationToken);
         changes!.IsComplete.ShouldBeTrue();
         changes.Name.ShouldBe("Second");
     }

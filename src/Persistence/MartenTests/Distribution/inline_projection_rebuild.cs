@@ -69,12 +69,12 @@ public class inline_projection_rebuild : IAsyncLifetime
         await using (var session = store.LightweightSession())
         {
             session.Events.StartStream<Trip>(streamId, new TripStarted { Day = 1 }, new TripEnded { Day = 2 });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await using (var session = store.QuerySession())
         {
-            (await session.LoadAsync<Trip>(streamId)).ShouldNotBeNull("Inline projection should have created the Trip");
+            (await session.LoadAsync<Trip>(streamId, TestContext.Current.CancellationToken)).ShouldNotBeNull("Inline projection should have created the Trip");
         }
 
         var family = _host.Services.GetServices<IAgentFamily>()
@@ -82,18 +82,18 @@ public class inline_projection_rebuild : IAsyncLifetime
 
         // An Inline projection is not distributed as an agent — there is no agent URI to route a rebuild
         // through. This is exactly the case the transient-rebuild path exists for.
-        (await family.FindAgentUriAsync("Trip:All", null)).ShouldBeNull(
+        (await family.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken)).ShouldBeNull(
             "An Inline projection has no distributed agent, so it resolves no agent URI.");
 
         // Wipe the read model — only a genuine rebuild re-applies the events to restore it.
         await using (var session = store.LightweightSession())
         {
             session.DeleteWhere<Trip>(_ => true);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         await using (var session = store.QuerySession())
         {
-            (await session.Query<Trip>().CountAsync()).ShouldBe(0);
+            (await session.Query<Trip>().CountAsync(token: TestContext.Current.CancellationToken)).ShouldBe(0);
         }
 
         // Rebuild via the transient-agent path: Wolverine finds the registered Inline projection, spins a
@@ -104,7 +104,7 @@ public class inline_projection_rebuild : IAsyncLifetime
         // PROOF the rebuild ran: the Trip read model is restored from the event stream.
         await using (var session = store.QuerySession())
         {
-            (await session.LoadAsync<Trip>(streamId)).ShouldNotBeNull(
+            (await session.LoadAsync<Trip>(streamId, TestContext.Current.CancellationToken)).ShouldNotBeNull(
                 "The transient rebuild should have restored the Inline projection's read model.");
         }
     }

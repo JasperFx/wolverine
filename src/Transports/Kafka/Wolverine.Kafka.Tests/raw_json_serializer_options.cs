@@ -36,7 +36,7 @@ public class raw_json_serializer_options
                 opts.ListenToKafkaTopic(topic).ReceiveRawJson<WireMessage>(options);
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = receiver.GetRuntime().Options.Transports.GetOrCreate<KafkaTransport>();
         var colorName = Guid.NewGuid().ToString();
@@ -59,7 +59,7 @@ public class raw_json_serializer_options
         session.Received.SingleMessage<WireMessage>()
             .ColorName.ShouldBe(colorName);
 
-        await receiver.StopAsync();
+        await receiver.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public class raw_json_serializer_options
                     .PublishRawJson(new JsonSerializerOptions());
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var colorName = Guid.NewGuid().ToString();
 
@@ -116,7 +116,7 @@ public class raw_json_serializer_options
         body.ShouldContain($"\"ColorName\":\"{colorName}\"");
 
         consumer.Close();
-        await sender.StopAsync();
+        await sender.StopAsync(TestContext.Current.CancellationToken);
     }
 }
 

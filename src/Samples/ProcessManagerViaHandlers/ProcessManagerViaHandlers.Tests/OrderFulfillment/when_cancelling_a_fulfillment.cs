@@ -22,13 +22,13 @@ public class when_cancelling_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new CancelOrderFulfillment(id, "Fraud suspected"));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(3);
         var cancelled = events[2].Data.ShouldBeOfType<OrderFulfillmentCancelled>();
         cancelled.Reason.ShouldBe("Fraud suspected");
 
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(id, TestContext.Current.CancellationToken);
         state.ShouldNotBeNull();
         state.IsCancelled.ShouldBeTrue();
         state.IsCompleted.ShouldBeFalse();
@@ -47,7 +47,7 @@ public class when_cancelling_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new PaymentConfirmed(id, 99m));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
@@ -64,7 +64,7 @@ public class when_cancelling_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(new CancelOrderFulfillment(id, "Second reason"));
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(2);
         events[1].Data.ShouldBeOfType<OrderFulfillmentCancelled>().Reason.ShouldBe("First reason");

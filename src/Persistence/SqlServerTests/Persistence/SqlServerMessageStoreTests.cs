@@ -77,11 +77,11 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
 
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             await conn.CreateCommand(
                     $"update receiver.{DatabaseConstants.IncomingTable} set {DatabaseConstants.KeepUntil} = @cutoff where status = 'Handled'")
                 .With("cutoff", DateTimeOffset.UtcNow.Subtract(1.Hours()))
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
             await conn.CloseAsync();
         }
 
@@ -174,10 +174,7 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
 
         var runtime = theHost.GetRuntime();
 
-        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime,
-            NullLogger.Instance,
-            durabilitySettings,
-            default);
+        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime, NullLogger.Instance, durabilitySettings, TestContext.Current.CancellationToken);
 
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
 
@@ -213,11 +210,11 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
         await theHost.InvokeAsync(new DatabaseOperationBatch(messageDatabase, [log]));
 
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await conn.CreateCommand(
                 $"update receiver.{DatabaseConstants.NodeRecordTableName} set timestamp = @time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()))
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         await conn.CloseAsync();
         
         var recent2 = await thePersistence.Nodes.FetchRecentRecordsAsync(100);

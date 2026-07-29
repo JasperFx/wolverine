@@ -199,7 +199,7 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
         handled.ShouldBeTrue($"Scheduled message {messageId} for tenant 'red' was never executed");
 
         // Give the losing node's poller every chance to run it a second time before counting.
-        await Task.Delay(5.Seconds());
+        await Task.Delay(5.Seconds(), TestContext.Current.CancellationToken);
 
         theTracker.Received.Count(r => r.Id == messageId).ShouldBe(1);
     }

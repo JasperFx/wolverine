@@ -73,9 +73,9 @@ public class per_destination_command_drain
 
         var draining = drain.DrainAsync(commands, CancellationToken.None);
 
-        await allEntered.Task.WaitAsync(10.Seconds());
+        await allEntered.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         gate.SetResult();
-        await draining.WaitAsync(10.Seconds());
+        await draining.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         log.Count(x => x.StartsWith("enter:")).ShouldBe(3);
     }
@@ -102,7 +102,7 @@ public class per_destination_command_drain
             return await command.ExecuteAsync(null!, token);
         });
 
-        await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds());
+        await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // One chunk in flight per destination at a time is what the WO-5 pending-assignment ledger assumes.
         peak.ShouldBe(1);
@@ -135,7 +135,7 @@ public class per_destination_command_drain
             return await command.ExecuteAsync(null!, token);
         });
 
-        await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds());
+        await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         peak.ShouldBe(1);
         log.Where(x => x.StartsWith("enter:")).ShouldBe(["enter:x", "enter:y", "enter:z"]);
@@ -163,7 +163,7 @@ public class per_destination_command_drain
             return result;
         });
 
-        var failures = await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds());
+        var failures = await drain.DrainAsync(commands, CancellationToken.None).WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // ...but the caller is still told what went wrong, so an operator-initiated ApplyRestrictionsAsync
         // can surface it instead of silently reporting success.
@@ -187,7 +187,7 @@ public class per_destination_command_drain
 
         var drain = drainFor((command, token) => command.ExecuteAsync(null!, token)!);
 
-        await drain.DrainAsync(new AgentCommands { producer }, CancellationToken.None).WaitAsync(10.Seconds());
+        await drain.DrainAsync(new AgentCommands { producer }, CancellationToken.None).WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // A cascade is deferred to the next round rather than appended to the lane that produced it, so it
         // always runs after its producer even though it is keyed onto a different node's lane.

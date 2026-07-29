@@ -119,11 +119,11 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
         var documentStore = theReceiver.Get<IDocumentStore>();
         await using (var session = documentStore.QuerySession())
         {
-            var item2 = await session.LoadAsync<ItemCreated>(item.Id);
+            var item2 = await session.LoadAsync<ItemCreated>(item.Id, TestContext.Current.CancellationToken);
             if (item2 == null)
             {
-                await Task.Delay(500);
-                item2 = await session.LoadAsync<ItemCreated>(item.Id);
+                await Task.Delay(500, TestContext.Current.CancellationToken);
+                item2 = await session.LoadAsync<ItemCreated>(item.Id, TestContext.Current.CancellationToken);
             }
 
             item2!.Name.ShouldBe("Shoe");

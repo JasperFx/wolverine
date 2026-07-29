@@ -149,13 +149,13 @@ public class publish_and_receive_raw_json : IAsyncLifetime
         await producer.ProduceAsync("json", new Message<string, string>
         {
             Value = "{garbage}"
-        });
-        producer.Flush();
+        }, TestContext.Current.CancellationToken);
+        producer.Flush(TestContext.Current.CancellationToken);
 
         // Wait long enough to detect any infinite retry loop, but not so long
         // it needlessly inflates CI run time. 30 seconds is sufficient — a tight
         // retry loop would exhaust resources well before then.
-        await Task.Delay(30.Seconds());
+        await Task.Delay(30.Seconds(), TestContext.Current.CancellationToken);
     }
 
     public async ValueTask DisposeAsync()

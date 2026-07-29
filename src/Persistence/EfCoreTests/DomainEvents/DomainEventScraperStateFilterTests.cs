@@ -58,7 +58,7 @@ public class DomainEventScraperStateFilterTests
         {
             seed.Items.Add(new Item { Id = Guid.Parse("00000000-0000-0000-0000-000000000001"), Name = "WillBeUnchanged" });
             seed.Items.Add(new Item { Id = Guid.Parse("00000000-0000-0000-0000-000000000002"), Name = "WillBeDeleted" });
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         using var ctx = new ScraperTestDbContext(options);
@@ -69,12 +69,12 @@ public class DomainEventScraperStateFilterTests
         addedItem.Approve(); // raises ItemApproved event
 
         // Modified – load, change, and let EF detect it
-        var modifiedItem = await ctx.Items.FindAsync(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        var modifiedItem = await ctx.Items.FindAsync(new object?[] { Guid.Parse("00000000-0000-0000-0000-000000000001") }, TestContext.Current.CancellationToken);
         modifiedItem!.Approve(); // raises event AND sets Approved=true → Modified state
 
         // Unchanged – load but do not touch
         // (we manually add an event to the unchanged item to prove the scraper skips it)
-        var unchangedItem = await ctx.Items.FindAsync(Guid.Parse("00000000-0000-0000-0000-000000000002"));
+        var unchangedItem = await ctx.Items.FindAsync(new object?[] { Guid.Parse("00000000-0000-0000-0000-000000000002") }, TestContext.Current.CancellationToken);
         unchangedItem!.Publish(new ItemApproved(unchangedItem.Id)); // event added, but state stays Unchanged
 
         // Verify states are as expected

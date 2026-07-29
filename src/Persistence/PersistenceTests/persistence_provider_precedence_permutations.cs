@@ -82,7 +82,7 @@ public class persistence_provider_precedence_permutations
                     m.DatabaseSchemaName = "provider_precedence";
                 })
                 .IntegrateWithWolverine(x => x.MessageStorageSchemaName = "provider_precedence");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await assertResolutionIsOrderIndependent(host);
     }
@@ -101,7 +101,7 @@ public class persistence_provider_precedence_permutations
 
             opts.Services.AddDbContextWithWolverineIntegration<SampleDbContext>(x =>
                 x.UseSqlServer(Servers.SqlServerConnectionString));
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await assertResolutionIsOrderIndependent(host);
     }

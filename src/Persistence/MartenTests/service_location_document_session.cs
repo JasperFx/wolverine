@@ -35,7 +35,7 @@ public class service_location_document_session : PostgresqlContext
                 // Force the capturing service to be resolved via service location so the chain creates
                 // a child scope — the path GH-3001 primes.
                 opts.CodeGeneration.AlwaysUseServiceLocationFor<SessionCapturingService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SessionIdentityProbe.Reset();
 

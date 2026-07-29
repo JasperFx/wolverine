@@ -54,7 +54,7 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
         var batch = db.CreateBatchQuery();
         var item1Task = batch.QuerySingle(db.Items.Where(x => x.Id == id1));
         var item2Task = batch.QuerySingle(db.Items.Where(x => x.Id == id2));
-        await batch.ExecuteAsync();
+        await batch.ExecuteAsync(TestContext.Current.CancellationToken);
 
         var item1 = await item1Task;
         var item2 = await item2Task;
@@ -80,7 +80,7 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_list_2" });
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         using (var scope = _host.Services.CreateScope())
@@ -88,7 +88,7 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
             var batch = db.CreateBatchQuery();
             var listTask = batch.Query(db.Items.Where(x => x.Name.StartsWith(prefix)));
-            await batch.ExecuteAsync();
+            await batch.ExecuteAsync(TestContext.Current.CancellationToken);
 
             var items = await listTask;
             items.Count.ShouldBe(3);
@@ -112,7 +112,7 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
                 new Item { Id = Guid.NewGuid(), Name = $"{prefix}_b" });
 #pragma warning restore VSTHRD103 // Call async methods when in an async method
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         using (var scope = _host.Services.CreateScope())
@@ -122,7 +122,7 @@ public class batch_query_tests : IClassFixture<EFCorePersistenceContext>
             var batch = db.CreateBatchQuery();
             var singleTask = batch.QuerySingle(db.Items.Where(x => x.Id == id1));
             var listTask = batch.Query(db.Items.Where(x => x.Name.StartsWith(prefix)));
-            await batch.ExecuteAsync();
+            await batch.ExecuteAsync(TestContext.Current.CancellationToken);
 
             var single = await singleTask;
             var list = await listTask;

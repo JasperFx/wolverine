@@ -183,7 +183,7 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
         {
             await Task.Delay(10.Seconds());
             _recorder.NeverFail = true;
-        });
+        }, TestContext.Current.CancellationToken);
 
         delayPublishHundredMessages(5.Seconds(), 5);
         delayPublishHundredMessages(10.Seconds(), 5);

@@ -23,7 +23,7 @@ public class Bug_281_erroneous_215 : IntegrationContext
         });
 
         var client = Host.Server.CreateClient();
-        var response = await client.PostAsJsonAsync("/users/sign-up", signUpRequest);
+        var response = await client.PostAsJsonAsync("/users/sign-up", signUpRequest, cancellationToken: TestContext.Current.CancellationToken);
         response.StatusCode.As<int>().ShouldBe(204);
     }
 }

@@ -25,7 +25,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
 
                     opts.Policies.AutoApplyTransactions();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -58,7 +58,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
 
                     opts.Policies.AutoApplyTransactions();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -79,7 +79,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
                         .IncludeType<UserRegistrationSaga>();
                     opts.Durability.Mode = DurabilityMode.Solo;
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -106,7 +106,7 @@ public class When_handling_messages_in_saga : PostgresqlContext
                         .IncludeType<UserRegistrationSaga>();
                     opts.Durability.Mode = DurabilityMode.Solo;
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 

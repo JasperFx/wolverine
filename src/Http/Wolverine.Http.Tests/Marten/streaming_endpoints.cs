@@ -27,7 +27,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var body = await Host.GetAsJson<Invoice>($"/streaming/invoice/{invoice.Id}");
@@ -44,7 +44,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.Scenario(x =>
@@ -75,7 +75,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Host.Scenario(x =>
@@ -92,7 +92,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Host.Scenario(x =>
@@ -110,7 +110,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.Scenario(x =>
@@ -129,7 +129,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             session.Store(invoice);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.Scenario(x =>
@@ -152,7 +152,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             foreach (var id in ids) session.Store(new Invoice { Id = id, Approved = true });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var body = await Host.GetAsJson<List<Invoice>>("/streaming/invoices/approved");
@@ -215,7 +215,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             foreach (var id in ids) session.Store(new Invoice { Id = id });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.Scenario(x =>
@@ -242,7 +242,7 @@ public class streaming_endpoints(AppFixture fixture) : IntegrationContext(fixtur
         await using (var session = Store.LightweightSession())
         {
             foreach (var id in ids) session.Store(new Invoice { Id = id });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var result = await Host.Scenario(x =>

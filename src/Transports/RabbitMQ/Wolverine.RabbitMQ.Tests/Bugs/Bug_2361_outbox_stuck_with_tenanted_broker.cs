@@ -69,10 +69,10 @@ public class Bug_2361_outbox_stuck_with_tenanted_broker
 
                 // Listen on the tenant's queue
                 opts.ListenToRabbitQueue(queueName);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Clean up any stale outbox data from previous runs
-        await host.ResetResourceState();
+        await host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         // Send a message targeted at the tenant
         var session = await host
@@ -90,15 +90,15 @@ public class Bug_2361_outbox_stuck_with_tenanted_broker
             .ShouldNotBeNull();
 
         // Wait for async outbox cleanup to complete
-        await Task.Delay(3.Seconds());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
 
         // Verify the outbox is empty - no stuck messages
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT count(*) FROM bug2361.wolverine_outgoing_envelopes";
-        var stuckCount = (long)(await cmd.ExecuteScalarAsync())!;
+        var stuckCount = (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
 
         _output.WriteLine($"Outbox messages remaining: {stuckCount}");
         stuckCount.ShouldBe(0, "Messages should not be stuck in the outbox after successful send to tenanted broker");

@@ -16,14 +16,14 @@ public class end_to_end : MultiTenancyContext
     public async Task send_tenant_related_message()
     {
         var store = Fixture.Host!.Services.GetRequiredService<IDocumentStore>();
-        await store.Advanced.Clean.DeleteAllDocumentsAsync();
+        await store.Advanced.Clean.DeleteAllDocumentsAsync(TestContext.Current.CancellationToken);
 
         var tracked = await Fixture.Host.SendMessageAndWaitAsync(new CreateTenantDoc("Tom", 11),
             new DeliveryOptions { TenantId = "tenant2" });
 
         using var session = store.LightweightSession("tenant2");
 
-        var loaded = await session.LoadAsync<TenantDoc>("Tom");
+        var loaded = await session.LoadAsync<TenantDoc>("Tom", TestContext.Current.CancellationToken);
         loaded!.Number.ShouldBe(11);
     }
 }

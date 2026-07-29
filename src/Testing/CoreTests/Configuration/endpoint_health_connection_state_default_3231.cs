@@ -20,7 +20,7 @@ public class endpoint_health_connection_state_default_3231
             {
                 opts.ListenAtPort(PortFinder.GetAvailablePort());
                 opts.PublishAllMessages().ToPort(PortFinder.GetAvailablePort());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var snapshots = host.GetRuntime().Endpoints.CollectEndpointHealth();
         snapshots.ShouldNotBeEmpty();

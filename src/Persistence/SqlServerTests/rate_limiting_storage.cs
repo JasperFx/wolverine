@@ -88,7 +88,7 @@ public class rate_limiting_storage : RateLimitStoreCompliance
     public async Task creates_rate_limit_table_on_startup()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText =
             "SELECT table_schema, table_name FROM information_schema.tables WHERE table_schema = @schema AND table_name = @name";
@@ -96,9 +96,9 @@ public class rate_limiting_storage : RateLimitStoreCompliance
         cmd.Parameters.Add(new SqlParameter("@name", "wolverine_rate_limits"));
 
         var found = false;
-        await using (var reader = await cmd.ExecuteReaderAsync())
+        await using (var reader = await cmd.ExecuteReaderAsync(TestContext.Current.CancellationToken))
         {
-            if (await reader.ReadAsync())
+            if (await reader.ReadAsync(TestContext.Current.CancellationToken))
             {
                 found = true;
             }

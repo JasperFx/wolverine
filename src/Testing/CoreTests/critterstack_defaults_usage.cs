@@ -24,7 +24,7 @@ public class critterstack_defaults_usage
                 });
             })
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
@@ -49,7 +49,7 @@ public class critterstack_defaults_usage
                 });
             })
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.GetRuntime().Options.ApplicationAssembly.ShouldBe(typeof(IInterfaceMessage).Assembly);
     }
@@ -63,7 +63,7 @@ public class critterstack_defaults_usage
 
             })
             .UseEnvironment("Development")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.GetRuntime().Options.ApplicationAssembly.ShouldBe(GetType().Assembly);
     }
@@ -82,7 +82,7 @@ public class critterstack_defaults_usage
                 });
             })
             .UseEnvironment("Production")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
@@ -105,7 +105,7 @@ public class critterstack_defaults_usage
                 });
             })
             .UseEnvironment("Production")
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
 

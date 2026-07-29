@@ -30,7 +30,7 @@ public class masstransit_interop_map_tenant_id
                     .UseMassTransitInterop(mt => mt.MapTenantIdFrom<TenantOrderPlaced>(env => env.Message?.Tenant));
 
                 opts.StubAllExternalTransports();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

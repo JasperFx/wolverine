@@ -80,7 +80,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, new DurabilitySettings(), CancellationToken.None);
         ok.ShouldBeTrue();
 
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
+        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
 
         var persisted = (await runtime.Storage.Admin.AllIncomingAsync()).Single(x => x.Id == envelope.Id);
         persisted.Data!.Length.ShouldBe(0);
@@ -90,12 +90,12 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         persisted.KeepUntil.HasValue.ShouldBeTrue();
 
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var raw = await conn
             .CreateCommand($"select keep_until from idempotency.{DatabaseConstants.IncomingTable} where id = @id")
             .With("id", persisted.Id)
-            .ExecuteScalarAsync();
+            .ExecuteScalarAsync(TestContext.Current.CancellationToken);
 
         raw.ShouldNotBeNull();
         raw.ShouldBeOfType<DateTimeOffset>().ShouldBeGreaterThan(DateTimeOffset.UtcNow);
@@ -118,7 +118,7 @@ public class using_add_dbcontext_with_wolverine_integration : IAsyncLifetime
         var durabilitySettings = new DurabilitySettings();
         var ok = await transaction.TryMakeEagerIdempotencyCheckAsync(envelope, durabilitySettings, CancellationToken.None);
         ok.ShouldBeTrue();
-        await dbContext.Database.CurrentTransaction!.CommitAsync();
+        await dbContext.Database.CurrentTransaction!.CommitAsync(TestContext.Current.CancellationToken);
         
         // Kind of resetting it here
         envelope.WasPersistedInInbox = false;

@@ -37,7 +37,7 @@ public class wire_tap_configuration : IAsyncLifetime
         await _host.SendMessageAndWaitAsync(new WireTapMessage("hello"));
 
         // Give async fire-and-forget wire tap a moment
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         _wireTap.Successes.ShouldContain(e => e.Message is WireTapMessage);
     }
@@ -55,10 +55,10 @@ public class wire_tap_configuration : IAsyncLifetime
 
                 opts.Services.AddSingleton<IWireTap>(tap);
                 // Notably: no UseWireTap() call
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.SendMessageAndWaitAsync(new WireTapMessage("no-tap"));
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         tap.Successes.ShouldBeEmpty();
     }
@@ -115,7 +115,7 @@ public class keyed_wire_tap_configuration : IAsyncLifetime
     {
         await _host.SendMessageAndWaitAsync(new WireTapMessage("default"));
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         _defaultTap.Successes.ShouldContain(e => e.Message is WireTapMessage);
     }
@@ -125,7 +125,7 @@ public class keyed_wire_tap_configuration : IAsyncLifetime
     {
         await _host.SendMessageAndWaitAsync(new KeyedWireTapMessage("special"));
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         _specialTap.Successes.ShouldContain(e => e.Message is KeyedWireTapMessage);
         _defaultTap.Successes.ShouldNotContain(e => e.Message is KeyedWireTapMessage);

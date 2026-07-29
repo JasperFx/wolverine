@@ -17,6 +17,6 @@ public class Bug_1921_order_of_operations
                     .CustomizeDeadLetterQueueing(
                         new($"my-awesome-dead-letter-queue", DeadLetterQueueMode.Native)
                     );
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 }

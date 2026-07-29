@@ -26,7 +26,7 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // Add the auto transaction middleware attachment policy
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var (tracked, created) = await host.InvokeMessageAndWaitAsync<ItemCreated>(new CreateItemCommand { Name = "Trevor" });
 
@@ -51,7 +51,7 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 // Add the auto transaction middleware attachment policy
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Func<IMessageContext, Task> execute = async c =>
         {

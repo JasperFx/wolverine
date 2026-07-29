@@ -54,7 +54,7 @@ public class Bug_2580_tenant_partitioning_with_inferred_grouping
                         topology.MaxDegreeOfParallelism = PartitionSlots.Three;
                         topology.ConfigureQueues(x => x.BufferedInMemory());
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
         await using (var session = store.LightweightSession())
@@ -64,7 +64,7 @@ public class Bug_2580_tenant_partitioning_with_inferred_grouping
                 session.Events.StartStream<TenantPartitionedAggregate>(aggregateId, new TenantPartitioningStarted());
             }
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var bus = host.Services.GetRequiredService<IMessageBus>();

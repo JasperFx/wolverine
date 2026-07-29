@@ -69,8 +69,8 @@ CREATE UNIQUE CLUSTERED INDEX cidx_bench_c_seq ON bench_c (seq);", "seq")
         const string schema = "benchopt";
         await using (var conn = new SqlConnection(ConnString))
         {
-            await conn.OpenAsync();
-            await conn.DropSchemaAsync(schema);
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.DropSchemaAsync(schema, ct: TestContext.Current.CancellationToken);
         }
 
         var transport = new Wolverine.SqlServer.Transport.SqlServerTransport(new Wolverine.RDBMS.DatabaseSettings
@@ -90,13 +90,13 @@ CREATE UNIQUE CLUSTERED INDEX cidx_bench_c_seq ON bench_c (seq);", "seq")
         // Clustered index must be on seq, not the id PK.
         await using (var conn = new SqlConnection(ConnString))
         {
-            await conn.OpenAsync();
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
             var clusteredCol = (string?)await conn.CreateCommand(
                 $@"select c.name from sys.indexes i
                    join sys.index_columns ic on i.object_id=ic.object_id and i.index_id=ic.index_id
                    join sys.columns c on ic.object_id=c.object_id and ic.column_id=c.column_id
                    where i.object_id = object_id('{schema}.wolverine_queue_verify') and i.type_desc='CLUSTERED'")
-                .ExecuteScalarAsync();
+                .ExecuteScalarAsync(TestContext.Current.CancellationToken);
             clusteredCol.ShouldBe("seq");
         }
 
@@ -117,7 +117,7 @@ CREATE UNIQUE CLUSTERED INDEX cidx_bench_c_seq ON bench_c (seq);", "seq")
     public async Task run()
     {
         await using var conn = new SqlConnection(ConnString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         foreach (var v in Variants())
         {
@@ -132,7 +132,7 @@ CREATE UNIQUE CLUSTERED INDEX cidx_bench_c_seq ON bench_c (seq);", "seq")
             {
                 await using var cmd = conn.CreateCommand(insertSql).With("id", Guid.NewGuid()).With("body", body);
                 cmd.CommandTimeout = 120;
-                await cmd.ExecuteNonQueryAsync();
+                await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
             }
             sw.Stop();
             var insertRate = InsertCount / sw.Elapsed.TotalSeconds;

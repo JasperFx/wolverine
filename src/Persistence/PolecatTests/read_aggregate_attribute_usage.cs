@@ -55,13 +55,13 @@ public class read_aggregate_attribute_usage : IAsyncLifetime
         await using (var session = theStore.LightweightSession())
         {
             session.Events.StartStream<LetterAggregate>(streamId, new AEvent(), new AEvent(), new CEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-            var latest = await session.Events.FetchLatest<LetterAggregate>(streamId);
+            var latest = await session.Events.FetchLatest<LetterAggregate>(streamId, TestContext.Current.CancellationToken);
             latest.ShouldNotBeNull();
         }
 
-        var envelope = await theHost.MessageBus().InvokeAsync<PcLetterAggregateEnvelope>(new PcFindAggregate(streamId));
+        var envelope = await theHost.MessageBus().InvokeAsync<PcLetterAggregateEnvelope>(new PcFindAggregate(streamId), TestContext.Current.CancellationToken);
         envelope.Inner.ACount.ShouldBe(2);
         envelope.Inner.CCount.ShouldBe(1);
     }
@@ -70,7 +70,7 @@ public class read_aggregate_attribute_usage : IAsyncLifetime
     public async Task end_to_end_sad_path()
     {
         var envelope = await theHost.MessageBus()
-            .InvokeAsync<PcLetterAggregateEnvelope>(new PcFindAggregate(Guid.NewGuid()));
+            .InvokeAsync<PcLetterAggregateEnvelope>(new PcFindAggregate(Guid.NewGuid()), TestContext.Current.CancellationToken);
         envelope.ShouldBeNull();
     }
 }

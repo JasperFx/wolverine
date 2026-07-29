@@ -24,7 +24,7 @@ public class EfCoreCompilationScenarios
             opts.UseEntityFrameworkCoreTransactions();
         });
 
-        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" }, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -39,8 +39,8 @@ public class EfCoreCompilationScenarios
             opts.UseEntityFrameworkCoreTransactions();
         });
 
-        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
-        await host.StopAsync();
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" }, TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
         host.Dispose();
     }
 
@@ -57,7 +57,7 @@ public class EfCoreCompilationScenarios
             opts.UseEntityFrameworkCoreTransactions();
         });
 
-        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" });
+        await host.MessageBus().InvokeAsync(new CreateItem { Name = "foo" }, TestContext.Current.CancellationToken);
     }
 }
 

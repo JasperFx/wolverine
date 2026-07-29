@@ -63,7 +63,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
     public async Task end_to_end_with_good_data()
     {
         var thing = new Thing();
-        await _host.DocumentStore().BulkInsertDocumentsAsync([thing]);
+        await _host.DocumentStore().BulkInsertDocumentsAsync([thing], cancellation: TestContext.Current.CancellationToken);
         
         var tracked = await _host.InvokeMessageAndWaitAsync(new UseThing1(thing.Id));
         
@@ -119,7 +119,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
     public async Task end_to_end_with_guid_identity_entity()
     {
         var guidThing = new GuidThing();
-        await _host.DocumentStore().BulkInsertDocumentsAsync([guidThing]);
+        await _host.DocumentStore().BulkInsertDocumentsAsync([guidThing], cancellation: TestContext.Current.CancellationToken);
 
         var tracked = await _host.InvokeMessageAndWaitAsync(new UseGuidThing1(guidThing.Id));
 

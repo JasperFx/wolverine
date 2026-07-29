@@ -28,9 +28,9 @@ public class saga_storage_operations : PostgresqlContext
     public async Task load_with_no_document_happily_returns_null()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        using var tx = await conn.BeginTransactionAsync();
+        using var tx = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
         
         var saga = await theSchema.LoadAsync(Guid.NewGuid(), tx, CancellationToken.None);
         saga.ShouldBeNull();
@@ -40,8 +40,8 @@ public class saga_storage_operations : PostgresqlContext
     public async Task get_an_argument_out_of_range_exception_for_missing_id()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await using var db = await conn.BeginTransactionAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga
         {
@@ -59,8 +59,8 @@ public class saga_storage_operations : PostgresqlContext
     public async Task insert_then_load()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await using var db = await conn.BeginTransactionAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga
         {
@@ -69,9 +69,9 @@ public class saga_storage_operations : PostgresqlContext
         };
         
         await theSchema.InsertAsync(saga, db, CancellationToken.None);
-        await db.CommitAsync();
+        await db.CommitAsync(TestContext.Current.CancellationToken);
         
-        using var db2 = await conn.BeginTransactionAsync();
+        using var db2 = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
         var saga2 = await theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         
         saga2!.Name.ShouldBe("Xavier Worthy");
@@ -81,8 +81,8 @@ public class saga_storage_operations : PostgresqlContext
     public async Task insert_update_then_load()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await using var db = await conn.BeginTransactionAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga
         {
@@ -94,9 +94,9 @@ public class saga_storage_operations : PostgresqlContext
 
         saga.Name = "Hollywood Brown";
         await theSchema.UpdateAsync(saga, db, CancellationToken.None);
-        await db.CommitAsync();
+        await db.CommitAsync(TestContext.Current.CancellationToken);
 
-        using var db2 = await conn.BeginTransactionAsync();
+        using var db2 = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
         var saga2 = await theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         
         saga2!.Name.ShouldBe("Hollywood Brown");
@@ -106,8 +106,8 @@ public class saga_storage_operations : PostgresqlContext
     public async Task insert_then_delete()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
-        await using var db = await conn.BeginTransactionAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await using var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga
         {
@@ -118,9 +118,9 @@ public class saga_storage_operations : PostgresqlContext
         await theSchema.InsertAsync(saga, db, CancellationToken.None);
 
         await theSchema.DeleteAsync(saga, db, CancellationToken.None);
-        await db.CommitAsync();
+        await db.CommitAsync(TestContext.Current.CancellationToken);
 
-        using var db2 = await conn.BeginTransactionAsync();
+        using var db2 = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
         var saga2 = await theSchema.LoadAsync(saga.Id, db2, CancellationToken.None);
         saga2.ShouldBeNull();
     }
@@ -131,12 +131,12 @@ public class saga_storage_operations : PostgresqlContext
         await theSchema.EnsureStorageExistsAsync(CancellationToken.None);
         
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         
         await conn.CreateCommand("delete from lightweight_sagas.lightweightsaga_saga")
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
-        var db = await conn.BeginTransactionAsync();
+        var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga
         {
@@ -145,17 +145,17 @@ public class saga_storage_operations : PostgresqlContext
         };
         
         await theSchema.InsertAsync(saga, db, CancellationToken.None);
-        await db.CommitAsync();
+        await db.CommitAsync(TestContext.Current.CancellationToken);
         await db.DisposeAsync();
         
-        db = await conn.BeginTransactionAsync();
+        db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         saga.Name = "Rashee Rice";
         await theSchema.UpdateAsync(saga, db, CancellationToken.None);
-        await db.CommitAsync();
+        await db.CommitAsync(TestContext.Current.CancellationToken);
         await db.DisposeAsync();
         
-        db = await conn.BeginTransactionAsync();
+        db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
         
         // I'm rewinding the version to make it throw
         saga.Version = 1;

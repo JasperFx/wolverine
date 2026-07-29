@@ -55,7 +55,7 @@ public class message_store_compliance_with_message_identity_using_id_and_destina
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         using var session = _store.OpenAsyncSession();
-        var incoming = await session.LoadAsync<IncomingMessage>(theHost.GetRuntime().Storage.As<RavenDbMessageStore>().IdentityFor(envelope));
+        var incoming = await session.LoadAsync<IncomingMessage>(theHost.GetRuntime().Storage.As<RavenDbMessageStore>().IdentityFor(envelope), TestContext.Current.CancellationToken);
         var metadata = session.Advanced.GetMetadataFor(incoming);
         metadata.TryGetValue("@expires", out var raw).ShouldBeTrue();
         

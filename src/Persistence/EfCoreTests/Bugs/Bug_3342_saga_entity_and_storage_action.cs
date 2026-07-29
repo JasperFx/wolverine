@@ -81,7 +81,7 @@ public class Bug_3342_saga_entity_and_storage_action : IAsyncLifetime
         // And the record persisted by the Update in the ProcessOrder handler must be up to date.
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<Order3342DbContext>();
-        var record = await db.OrderProcessRecords.FirstOrDefaultAsync(x => x.Id == TheOrderId);
+        var record = await db.OrderProcessRecords.FirstOrDefaultAsync(x => x.Id == TheOrderId, cancellationToken: TestContext.Current.CancellationToken);
         record.ShouldNotBeNull("Start's Storage.Insert must be persisted");
         record.StockChecked.ShouldBeTrue("the ProcessOrder handler's Storage.Update must be persisted");
     }

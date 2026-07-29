@@ -18,7 +18,7 @@ public class serialization_configuration
             opts.UseMemoryPackSerialization();
             opts.PublishAllMessages().To("stub://one");
             opts.ListenForMessagesFrom("stub://two");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())
@@ -36,7 +36,7 @@ public class serialization_configuration
             opts.PublishAllMessages().To("stub://one").UseMemoryPackSerialization();
             opts.ListenForMessagesFrom("stub://two").UseMemoryPackSerialization();
             opts.ListenForMessagesFrom("stub://three");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var root = host.Services.GetRequiredService<IWolverineRuntime>();
         root.Endpoints.EndpointFor("stub://one".ToUri())

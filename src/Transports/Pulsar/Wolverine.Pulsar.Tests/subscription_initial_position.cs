@@ -120,7 +120,7 @@ public class subscription_initial_position
         });
 
         // Give the subscription time to be established before publishing the "post" messages.
-        await Task.Delay(3.Seconds());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
 
         for (var i = 0; i < 3; i++)
         {

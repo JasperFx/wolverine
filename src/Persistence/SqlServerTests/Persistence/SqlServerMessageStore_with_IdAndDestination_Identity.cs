@@ -54,15 +54,15 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
     public async Task should_have_receive_at_in_primary_keys()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = theHost.GetRuntime();
 
-        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn);
+        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         incoming!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
 
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver2").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         dlq!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
     }
@@ -170,10 +170,7 @@ public class SqlServerMessageStore_with_IdAndDestination_Identity : MessageStore
 
         var runtime = theHost.GetRuntime();
         
-        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime,
-            NullLogger.Instance,
-            durabilitySettings,
-            default);
+        await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime, NullLogger.Instance, durabilitySettings, TestContext.Current.CancellationToken);
 
         var stored = (await thePersistence.Admin.AllIncomingAsync()).Single();
 

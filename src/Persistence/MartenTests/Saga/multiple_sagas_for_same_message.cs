@@ -51,11 +51,11 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
 
         await using var session = _host.DocumentStore().QuerySession();
 
-        var shipping = await session.LoadAsync<ShippingSaga>(id);
+        var shipping = await session.LoadAsync<ShippingSaga>(id, TestContext.Current.CancellationToken);
         shipping.ShouldNotBeNull();
         shipping.ProductName.ShouldBe("Widget");
 
-        var billing = await session.LoadAsync<BillingSaga>(id);
+        var billing = await session.LoadAsync<BillingSaga>(id, TestContext.Current.CancellationToken);
         billing.ShouldNotBeNull();
         billing.ProductName.ShouldBe("Widget");
     }
@@ -68,8 +68,8 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
         await using var session = _host.DocumentStore().QuerySession();
         
         await _host.SendMessageAndWaitAsync(new OrderPlaced(id, "Gadget"));
-        (await session.LoadAsync<ShippingSaga>(id)).ShouldNotBeNull();
-        (await session.LoadAsync<BillingSaga>(id)).ShouldNotBeNull();
+        (await session.LoadAsync<ShippingSaga>(id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
+        (await session.LoadAsync<BillingSaga>(id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
         
 
         // Complete only the shipping saga
@@ -78,11 +78,11 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
         
 
         // Shipping saga should be deleted (completed)
-        var shipping = await session.LoadAsync<ShippingSaga>(id);
+        var shipping = await session.LoadAsync<ShippingSaga>(id, TestContext.Current.CancellationToken);
         shipping.ShouldBeNull();
 
         // Billing saga should still exist
-        var billing = await session.LoadAsync<BillingSaga>(id);
+        var billing = await session.LoadAsync<BillingSaga>(id, TestContext.Current.CancellationToken);
         billing.ShouldNotBeNull();
         billing.ProductName.ShouldBe("Gadget");
 
@@ -90,7 +90,7 @@ public class multiple_sagas_for_same_message : IAsyncLifetime
         await _host.SendMessageAndWaitAsync(new PaymentReceived(id));
 
         await using var session2 = _host.DocumentStore().QuerySession();
-        (await session2.LoadAsync<BillingSaga>(id)).ShouldBeNull();
+        (await session2.LoadAsync<BillingSaga>(id, TestContext.Current.CancellationToken)).ShouldBeNull();
     }
 }
 

@@ -37,7 +37,7 @@ public class ScheduledMessageIntegrationTests
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // Verify scheduled messages are stored in Redis sorted set
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
@@ -53,7 +53,7 @@ public class ScheduledMessageIntegrationTests
         await bus.ScheduleAsync(command, DateTimeOffset.UtcNow.AddSeconds(10));
         
         // Wait a bit
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
         
         // Verify it's in a sorted set
         var keyType = await database.KeyTypeAsync(scheduledKey);
@@ -71,7 +71,7 @@ public class ScheduledMessageIntegrationTests
             {
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -99,7 +99,7 @@ public class ScheduledMessageIntegrationTests
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -114,13 +114,13 @@ public class ScheduledMessageIntegrationTests
         await bus.ScheduleAsync(command, DateTimeOffset.UtcNow.AddSeconds(1));
 
         // Check it's in the scheduled set
-        await Task.Delay(300);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
         var scheduledCount = await database.SortedSetLengthAsync(scheduledKey);
         scheduledCount.ShouldBeGreaterThan(0);
         _output.WriteLine($"Message added to scheduled set (count: {scheduledCount})");
 
         // Wait for it to be moved
-        await Task.Delay(2000);
+        await Task.Delay(2000, TestContext.Current.CancellationToken);
 
         // Should be removed from scheduled set
         var remainingScheduled = await database.SortedSetLengthAsync(scheduledKey);
@@ -149,7 +149,7 @@ public class ScheduledMessageIntegrationTests
                 opts.PublishAllMessages().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "integration-test-group")
                     .StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -164,7 +164,7 @@ public class ScheduledMessageIntegrationTests
         var command = new IntegrationTestCommand(Guid.NewGuid().ToString());
         await bus.ScheduleAsync(command, scheduledTime);
 
-        await Task.Delay(300);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
 
         // Get the score from Redis
         var entries = await database.SortedSetRangeByScoreWithScoresAsync(scheduledKey);

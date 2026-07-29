@@ -54,13 +54,13 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThingCategory { Id = "widgets" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new CreatePcThing("widget-1", "widgets"));
 
         await using var verify = _store.LightweightSession();
-        var thing = await verify.LoadAsync<PcThing>("widget-1");
+        var thing = await verify.LoadAsync<PcThing>("widget-1", TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
         thing!.CategoryId.ShouldBe("widgets");
     }
@@ -84,13 +84,13 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThingCategory { Id = "gadgets" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new CreatePcThing2("gadget-1", "gadgets"));
 
         await using var verify = _store.LightweightSession();
-        var thing = await verify.LoadAsync<PcThing>("gadget-1");
+        var thing = await verify.LoadAsync<PcThing>("gadget-1", TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
         thing!.CategoryId.ShouldBe("gadgets");
     }
@@ -111,7 +111,7 @@ public class using_data_requirements : IAsyncLifetime
         {
             session.Store(new PcThingCategory { Id = "dupes" });
             session.Store(new PcThing { Id = "existing-thing", CategoryId = "dupes" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Should.ThrowAsync<RequiredDataMissingException>(async () =>
@@ -130,13 +130,13 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThingCategory { Id = "attr-cat" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new CreatePcThingByAttribute("attr-thing", "attr-cat"));
 
         await using var verify = _store.LightweightSession();
-        var thing = await verify.LoadAsync<PcThing>("attr-thing");
+        var thing = await verify.LoadAsync<PcThing>("attr-thing", TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
         thing!.CategoryId.ShouldBe("attr-cat");
     }
@@ -160,13 +160,13 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThingCategory { Id = "explicit-cat" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new CreatePcThingByAttributeExplicit("explicit-thing", "explicit-cat"));
 
         await using var verify = _store.LightweightSession();
-        var thing = await verify.LoadAsync<PcThing>("explicit-thing");
+        var thing = await verify.LoadAsync<PcThing>("explicit-thing", TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
         thing!.CategoryId.ShouldBe("explicit-cat");
     }
@@ -196,7 +196,7 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThing { Id = "already-here", CategoryId = "whatever" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Should.ThrowAsync<RequiredDataMissingException>(async () =>
@@ -216,13 +216,13 @@ public class using_data_requirements : IAsyncLifetime
         await using (var session = _store.LightweightSession())
         {
             session.Store(new PcThingCategory { Id = "stacked-cat" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new CreatePcThingStacked("stacked-thing", "stacked-cat"));
 
         await using var verify = _store.LightweightSession();
-        var thing = await verify.LoadAsync<PcThing>("stacked-thing");
+        var thing = await verify.LoadAsync<PcThing>("stacked-thing", TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
     }
 
@@ -242,7 +242,7 @@ public class using_data_requirements : IAsyncLifetime
         {
             session.Store(new PcThingCategory { Id = "stacked-dupes" });
             session.Store(new PcThing { Id = "stacked-existing", CategoryId = "stacked-dupes" });
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await Should.ThrowAsync<RequiredDataMissingException>(async () =>

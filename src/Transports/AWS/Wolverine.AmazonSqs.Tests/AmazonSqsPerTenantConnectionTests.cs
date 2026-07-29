@@ -85,7 +85,7 @@ public class AmazonSqsPerTenantConnectionTests : IAsyncLifetime
                 opts.PublishMessage<TenantColorMessage>().ToSqsQueue(queue).SendInline();
                 opts.ListenToSqsQueue(queue);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The default listener polls the shared region and the tenant listener polls the tenant region; the message
         // only exists in the tenant region, so only the tenant listener consumes it and stamps the tenant id.
@@ -132,7 +132,7 @@ public class AmazonSqsPerTenantConnectionTests : IAsyncLifetime
 
         // AutoProvision + ConnectAsync must have created the shared topology queue on the tenant's own region.
         using var tenantClient = rawClient(TenantRegion);
-        var url = await tenantClient.GetQueueUrlAsync(queue);
+        var url = await tenantClient.GetQueueUrlAsync(queue, TestContext.Current.CancellationToken);
         url.QueueUrl.ShouldNotBeNull();
         url.QueueUrl.ShouldContain(TenantRegion);
     }

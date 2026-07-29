@@ -175,7 +175,7 @@ public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper 
         // Kill the node that owns tenant-b's agent (both agents, by affinity). Same stop pattern as
         // tenant_partitioned_distribution_multinode.agents_fail_over_to_the_surviving_node_when_a_node_leaves.
         owner.GetRuntime().Agents.DisableHealthChecks();
-        await owner.StopAsync();
+        await owner.StopAsync(TestContext.Current.CancellationToken);
 
         // If the owner was the leader (the usual case — see class comment), the survivor must first
         // assume leadership before it can evaluate assignments. Returns immediately when the survivor
@@ -212,7 +212,7 @@ public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper 
                 break;
             }
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         docB.ShouldNotBeNull();

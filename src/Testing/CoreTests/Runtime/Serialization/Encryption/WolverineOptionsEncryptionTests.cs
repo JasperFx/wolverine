@@ -26,7 +26,7 @@ public class WolverineOptionsEncryptionTests
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.UseEncryption(NewProvider()))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
         options.DefaultSerializer.ShouldBeOfType<EncryptingMessageSerializer>();
@@ -38,7 +38,7 @@ public class WolverineOptionsEncryptionTests
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.UseEncryption(NewProvider()))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
         var json = options.TryFindSerializer(EnvelopeConstants.JsonContentType);
@@ -67,7 +67,7 @@ public class WolverineOptionsEncryptionTests
                 opts.PublishAllMessages().ToLocalQueue("target");
                 opts.LocalQueue("target");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -97,7 +97,7 @@ public class WolverineOptionsEncryptionTests
                 opts.PublishAllMessages().ToLocalQueue("encrypted-q").Encrypted();
                 opts.LocalQueue("encrypted-q");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -153,7 +153,7 @@ public class WolverineOptionsEncryptionTests
 
                 opts.LocalQueue("encryption-required-queue").RequireEncryption();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var endpoint = (LocalQueue?)runtime.Endpoints.EndpointByName("encryption-required-queue")
@@ -197,7 +197,7 @@ public class WolverineOptionsEncryptionTests
                     }));
                 opts.LocalQueue("fault-encryption-required").RequireEncryption();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var endpoint = (LocalQueue?)runtime.Endpoints.EndpointByName("fault-encryption-required")
@@ -235,7 +235,7 @@ public class WolverineOptionsEncryptionTests
 
                 opts.LocalQueue("test-encrypted").RequireEncryption();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var queueUri = runtime.Endpoints.EndpointByName("test-encrypted")?.Uri
@@ -325,7 +325,7 @@ public class WolverineOptionsEncryptionTests
                     }));
                 opts.Policies.ForMessagesOfType<EncryptionRequiredMsg>().Encrypt();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.Services.GetRequiredService<IWolverineRuntime>();
         var pipelineNoEndpoint = new HandlerPipeline(runtime, runtime);
@@ -363,7 +363,7 @@ public class WolverineOptionsEncryptionTests
                 opts.PublishAllMessages().ToLocalQueue("target");
                 opts.LocalQueue("target");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 

@@ -26,7 +26,7 @@ public class non_transactional_attribute_opt_out
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 
@@ -47,7 +47,7 @@ public class non_transactional_attribute_opt_out
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 
@@ -68,7 +68,7 @@ public class non_transactional_attribute_opt_out
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

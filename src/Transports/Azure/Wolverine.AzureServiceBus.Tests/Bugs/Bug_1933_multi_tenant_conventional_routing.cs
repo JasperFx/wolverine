@@ -54,7 +54,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
                 var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
                 transport.Tenants["test"].Transport.ManagementConnectionString =
                     Servers.AzureServiceBusConnectionString;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Bug1933Message("Hello from default namespace");
 
@@ -81,7 +81,7 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
                 opts.UseAzureServiceBusTesting()
                     .AutoPurgeOnStartup()
                     .UseConventionalRouting();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Bug1933Message("Hello from default namespace");
 

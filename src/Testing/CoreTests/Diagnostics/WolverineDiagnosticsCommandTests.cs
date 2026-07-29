@@ -133,7 +133,7 @@ public class WolverineDiagnosticsCommandTests
                         .DisableConventionalDiscovery()
                         .IncludeType(typeof(DiagnosticsTestHandler));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var services = host.Services;
             var serviceVariableSource = services.GetService<JasperFx.CodeGeneration.Model.IServiceVariableSource>();
@@ -212,7 +212,7 @@ public class WolverineDiagnosticsCommandTests
                         .DisableConventionalDiscovery()
                         .IncludeType(typeof(DiagnosticsTestHandler));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
             var options = runtime.Options;
@@ -243,7 +243,7 @@ public class WolverineDiagnosticsCommandTests
                 {
                     opts.Discovery.DisableConventionalDiscovery();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
             WolverineSystemPart.WithinDescription = true;

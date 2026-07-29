@@ -47,10 +47,10 @@ public class health_check_timestamp_round_trip
         // expression bakes in the wrong offset — mirrors a real Oracle DB hosted in
         // a non-UTC region.
         var nodeId = Guid.NewGuid();
-        await using (var conn = await dataSource.OpenConnectionAsync())
+        await using (var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken))
         {
             await conn.CreateCommand("ALTER SESSION SET TIME_ZONE = '+05:00'")
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
             // Insert a node row using the column DEFAULT for health_check (the path
             // that NodeAgentController hits via PersistAsync on first heartbeat).
@@ -62,7 +62,7 @@ public class health_check_timestamp_round_trip
             insertCmd.With("capabilities", string.Empty);
             insertCmd.With("description", "tz-repro");
             insertCmd.With("version", "1.0");
-            await insertCmd.ExecuteNonQueryAsync();
+            await insertCmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         // Read back via the production API and apply the exact staleness predicate

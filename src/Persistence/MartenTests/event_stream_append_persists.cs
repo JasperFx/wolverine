@@ -57,7 +57,7 @@ public class event_stream_append_persists : PostgresqlContext, IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new AppendViaStreamCommand(id));
 
         await using var session = theStore.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(1); // was 0 (append dropped) before GH-3032
     }
 }

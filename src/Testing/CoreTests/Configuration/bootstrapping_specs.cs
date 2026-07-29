@@ -76,7 +76,7 @@ public class bootstrapping_specs : IntegrationContext
                 opts.UseRuntimeCompilation();
             }, ExtensionDiscovery.ManualOnly)
             
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 

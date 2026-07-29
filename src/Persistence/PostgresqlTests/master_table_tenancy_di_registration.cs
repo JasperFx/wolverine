@@ -68,7 +68,7 @@ public class master_table_tenancy_di_registration : PostgresqlContext
                     .UseMasterTableTenancy(_ => { }); // intentionally no seeded tenants
                 opts.Services.AddResourceSetupOnStartup();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Reaching a started host without throwing is the assertion; the registration still lights up.
         host.Services.GetServices<IDynamicTenantSource<string>>().ShouldNotBeEmpty();
@@ -86,7 +86,7 @@ public class master_table_tenancy_di_registration : PostgresqlContext
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "mt_lifecycle_3023")
                     .UseMasterTableTenancy(_ => { });
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var source = host.Services.GetServices<IDynamicTenantSource<string>>()
             .OfType<MasterTenantSource>().Single();

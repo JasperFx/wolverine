@@ -79,7 +79,7 @@ public class in_memory_scheduled_messages
 
         queue.Sent.ShouldBeEmpty();
 
-        await Task.Delay(2000.Milliseconds());
+        await Task.Delay(2000.Milliseconds(), TestContext.Current.CancellationToken);
 
         queue.Sent.ShouldBeEmpty();
     }

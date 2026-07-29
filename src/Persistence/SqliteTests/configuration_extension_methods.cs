@@ -188,7 +188,7 @@ public class configuration_extension_methods : SqliteContext
                 opts.PersistMessagesWithSqlite(database.ConnectionString)
                     .RegisterTenants(new LazyMemoryTenantSource("red"))
                     .EnableMessageTransport(x => x.AutoProvision());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<MultiTenantedMessageStore>();
@@ -201,7 +201,7 @@ public class configuration_extension_methods : SqliteContext
         ex.Message.ShouldContain("tenant connection string");
         ex.Message.ShouldContain("file-based");
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private class LazyMemoryTenantSource : ITenantedSource<string>

@@ -155,11 +155,11 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
 
         var transaction = new EfCoreEnvelopeTransaction(dbContext, context);
         await transaction.PersistOutgoingAsync(envelopes);
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         if (dbContext.Database.CurrentTransaction != null)
         {
-            await dbContext.Database.CurrentTransaction.CommitAsync();
+            await dbContext.Database.CurrentTransaction.CommitAsync(TestContext.Current.CancellationToken);
         }
 
         var storage = _host.Services.GetRequiredService<IMessageStore>();

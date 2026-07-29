@@ -32,7 +32,7 @@ public class write_aggregate_with_asparameters(AppFixture fixture) : Integration
 
         // The OrderShipped event was appended to the resolved stream
         using var session = Store.LightweightSession();
-        var order = await session.Events.AggregateStreamAsync<Order>(id);
+        var order = await session.Events.AggregateStreamAsync<Order>(id, token: TestContext.Current.CancellationToken);
         order!.IsShipped().ShouldBeTrue();
     }
 }

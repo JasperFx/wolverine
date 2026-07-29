@@ -70,7 +70,7 @@ public class configuring_middleware
             {
                 opts.Policies.ForMessagesOfType<SomeBaseMessage>().AddMiddleware(typeof(MiddlewareWithMessage));
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var chain = host.GetRuntime().Handlers.HandlerFor<MiddlewareMessage>()!.As<MessageHandler>().Chain;
         chain!.Middleware[1].ShouldBeOfType<ConstructorFrame>().Variable.VariableType

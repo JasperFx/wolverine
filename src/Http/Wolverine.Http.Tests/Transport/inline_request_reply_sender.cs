@@ -35,9 +35,9 @@ public class inline_request_reply_sender
     [Fact]
     public async Task invoke_reads_reply_from_the_http_response_slot()
     {
-        using var host = await ConfigureSender(new EchoingInlineClient()).StartAsync();
+        using var host = await ConfigureSender(new EchoingInlineClient()).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        var response = await host.MessageBus().InvokeAsync<InlineProbeResponse>(new InlineProbeRequest("Egwene"));
+        var response = await host.MessageBus().InvokeAsync<InlineProbeResponse>(new InlineProbeRequest("Egwene"), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
         response.Name.ShouldBe("Egwene");
@@ -46,7 +46,7 @@ public class inline_request_reply_sender
     [Fact]
     public async Task handler_failure_surfaces_as_request_reply_exception()
     {
-        using var host = await ConfigureSender(new FailingInlineClient()).StartAsync();
+        using var host = await ConfigureSender(new FailingInlineClient()).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var ex = await Should.ThrowAsync<WolverineRequestReplyException>(async () =>
             await host.MessageBus().InvokeAsync<InlineProbeResponse>(new InlineProbeRequest("Nynaeve")));

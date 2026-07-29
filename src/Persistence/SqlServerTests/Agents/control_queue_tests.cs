@@ -64,9 +64,9 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
     public async Task control_queue_table_should_exist()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var tables = await conn.ExistingTables("wolverine%");
+        var tables = await conn.ExistingTables("wolverine%", ct: TestContext.Current.CancellationToken);
         await conn.CloseAsync();
 
         tables.ShouldContain(x => x.Name == DatabaseConstants.ControlQueueTableName);

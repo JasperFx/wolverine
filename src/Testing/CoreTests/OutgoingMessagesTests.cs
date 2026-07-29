@@ -49,7 +49,7 @@ public class OutgoingMessagesTests
     public async Task end_to_end()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var guid = Guid.NewGuid();
         var tracked = await host.InvokeMessageAndWaitAsync(new SpawningMessage(guid));

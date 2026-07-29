@@ -55,7 +55,7 @@ public class NatsJetStreamDedupTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(subject).UseJetStream(stream).SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var orderId = Guid.NewGuid().ToString("N");
@@ -90,7 +90,7 @@ public class NatsJetStreamDedupTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(subject).UseJetStream(stream).SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var fixedMsgId = Guid.NewGuid().ToString("N");
@@ -128,7 +128,7 @@ public class NatsJetStreamDedupTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<OrderPlaced>().ToNatsSubject(subject).UseJetStream(stream).SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 

@@ -154,7 +154,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
             {
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.PublishAllMessages().ToPort(_port1).Named("one");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = theListener.GetRuntime();
 

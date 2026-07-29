@@ -24,7 +24,7 @@ public class connection_state_3231 : IClassFixture<NatsContainerFixture>
             {
                 opts.UseNats(_fixture.ConnectionString);
                 opts.ListenToNatsSubject(subject);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
             host, "nats", TransportConnectionState.Connected);

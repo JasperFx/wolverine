@@ -46,7 +46,7 @@ public class end_to_end_with_named_broker
             {
                 await publisher.SendAsync(new ColorChosen { Name = "blue" });
             }
-        });
+        }, TestContext.Current.CancellationToken);
         
 
 

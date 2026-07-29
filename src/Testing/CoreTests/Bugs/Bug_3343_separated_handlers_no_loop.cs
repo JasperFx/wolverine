@@ -45,7 +45,7 @@ public class Bug_3343_separated_handlers_no_loop
                 opts.Policies.OnException<ConcurrencyException3343>()
                     .RetryWithCooldown(50.Milliseconds(), 100.Milliseconds(), 250.Milliseconds());
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host
             .TrackActivity()

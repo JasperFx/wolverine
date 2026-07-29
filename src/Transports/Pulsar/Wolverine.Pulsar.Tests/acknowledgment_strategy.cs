@@ -185,7 +185,7 @@ public class acknowledgment_strategy
         var cutoff = DateTimeOffset.UtcNow.AddSeconds(30);
         while (DateTimeOffset.UtcNow < cutoff && sink.Received.Count < 5)
         {
-            await Task.Delay(100);
+            await Task.Delay(100, TestContext.Current.CancellationToken);
         }
 
         sink.Received.OrderBy(x => x).ShouldBe(["m-0", "m-1", "m-2", "m-3", "m-4"]);

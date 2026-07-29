@@ -31,7 +31,7 @@ public class advisory_lock_session_hygiene : PostgresqlContext
                 (await holder.TryAttainLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
 
                 // Let the backend settle back to idle after the lock command.
-                await Task.Delay(250);
+                await Task.Delay(250, TestContext.Current.CancellationToken);
 
                 var session = await findLockHolderSessionAsync(lockId);
                 session.ShouldNotBeNull("the advisory lock must be held by a live backend");
@@ -72,7 +72,7 @@ public class advisory_lock_session_hygiene : PostgresqlContext
             try
             {
                 (await holder.TryAttainLockAsync(lockId, CancellationToken.None)).ShouldBeTrue();
-                await Task.Delay(250);
+                await Task.Delay(250, TestContext.Current.CancellationToken);
 
                 var session = await findLockHolderSessionAsync(lockId);
                 session.ShouldNotBeNull();

@@ -30,7 +30,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
@@ -105,7 +105,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(id);
+        var order = await session.Events.AggregateStreamAsync<Order>(id, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Items["Socks"].Ready.ShouldBeTrue();
@@ -130,7 +130,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
@@ -156,7 +156,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
@@ -182,7 +182,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
@@ -219,7 +219,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
@@ -245,7 +245,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
 
         await using var session = Store.LightweightSession();
 
-        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(status1.OrderId, token: TestContext.Current.CancellationToken);
 
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
@@ -348,7 +348,7 @@ public class using_aggregate_handler_workflow(AppFixture fixture) : IntegrationC
         order.IsConfirmed.ShouldBeTrue();
 
         using var session = Host.DocumentStore().LightweightSession();
-        var stream = await session.Events.FetchStreamAsync(status.OrderId);
+        var stream = await session.Events.FetchStreamAsync(status.OrderId, token: TestContext.Current.CancellationToken);
         stream.Select(x => x.Data).OfType<UpdatedAggregate>().Any().ShouldBeFalse();
 
     }

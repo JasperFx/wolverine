@@ -15,7 +15,7 @@ public class building_a_saga_and_publishing_other_messages_from_http_endpoint : 
     public async Task can_create_saga_and_publish_message()
     {
         await Host.GetRuntime().Storage.Admin.ClearAllAsync();
-        await Store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Reservation));
+        await Store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Reservation), TestContext.Current.CancellationToken);
 
         IScenarioResult result = null!;
 
@@ -34,7 +34,7 @@ public class building_a_saga_and_publishing_other_messages_from_http_endpoint : 
             .ExecuteAndWaitAsync(action);
 
         using var session = Store.LightweightSession();
-        var reservation = await session.LoadAsync<Reservation>("dinner");
+        var reservation = await session.LoadAsync<Reservation>("dinner", TestContext.Current.CancellationToken);
         reservation.ShouldNotBeNull();
 
         var @event = await result.ReadAsJsonAsync<ReservationBooked>();

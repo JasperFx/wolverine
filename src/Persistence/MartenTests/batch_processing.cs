@@ -40,10 +40,10 @@ public class batch_processing
                     .IncludeType(typeof(BatchItemHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         await theHost.CleanAllMartenDataAsync();
-        await theHost.ResetResourceState();
+        await theHost.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
         
         var item1 = new BatchItem("one", Guid.NewGuid());
         var item2 = new BatchItem("two", Guid.NewGuid());
@@ -89,7 +89,7 @@ public class batch_processing
         items.ShouldContain(item8);
 
         using var session = theHost.DocumentStore().LightweightSession();
-        var count = await session.Query<BatchItem>().CountAsync();
+        var count = await session.Query<BatchItem>().CountAsync(token: TestContext.Current.CancellationToken);
         
         count.ShouldBe(8);
 
@@ -127,7 +127,7 @@ public class batch_processing
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(BatchItemHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var item1 = new BatchItem("one", Guid.NewGuid());
         var item2 = new BatchItem("two", Guid.NewGuid());
@@ -139,7 +139,7 @@ public class batch_processing
         var item8 = new BatchItem("eight", Guid.NewGuid());
 
         await theHost.CleanAllMartenDataAsync();
-        await theHost.ResetResourceState();
+        await theHost.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
         
         Func<IMessageContext, Task> publish = async c =>
         {
@@ -176,11 +176,11 @@ public class batch_processing
         items.ShouldContain(item8);
 
         using var blue = theHost.DocumentStore().LightweightSession("blue");
-        var blueItems = await blue.Query<BatchItem>().ToListAsync();
+        var blueItems = await blue.Query<BatchItem>().ToListAsync(token: TestContext.Current.CancellationToken);
         blueItems.Count.ShouldBe(5);
         
         using var green = theHost.DocumentStore().LightweightSession("green");
-        var greenItems = await green.Query<BatchItem>().ToListAsync();
+        var greenItems = await green.Query<BatchItem>().ToListAsync(token: TestContext.Current.CancellationToken);
         greenItems.Count.ShouldBe(3);
     }
 }

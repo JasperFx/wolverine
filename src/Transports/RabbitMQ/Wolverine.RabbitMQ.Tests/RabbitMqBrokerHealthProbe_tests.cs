@@ -79,7 +79,7 @@ public class RabbitMqBrokerHealthProbe_tests
         }
 
         // Give the connection-shutdown event a moment to fire on the client.
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var snapshot = await ((IBrokerHealthProbe)transport).ProbeAsync(CancellationToken.None);
 

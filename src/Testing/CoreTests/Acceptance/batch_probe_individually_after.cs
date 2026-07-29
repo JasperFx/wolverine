@@ -48,8 +48,8 @@ public class batch_probe_individually_after : IAsyncLifetime
         await bus.PublishAsync(new ProbeAfterItem("bad", true));
         await bus.PublishAsync(new ProbeAfterItem("good2", false));
 
-        await ProbeAfterHandler.BothGoodsSucceeded.Task.WaitAsync(15.Seconds());
-        await _deadLetters.Signal.Task.WaitAsync(15.Seconds());
+        await ProbeAfterHandler.BothGoodsSucceeded.Task.WaitAsync(15.Seconds(), TestContext.Current.CancellationToken);
+        await _deadLetters.Signal.Task.WaitAsync(15.Seconds(), TestContext.Current.CancellationToken);
 
         // The whole 3-item batch was retried exactly 3 times before the probe kicked in.
         ProbeAfterHandler.WholeBatchAttempts.ShouldBe(3);

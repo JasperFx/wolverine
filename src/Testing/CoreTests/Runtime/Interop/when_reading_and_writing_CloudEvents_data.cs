@@ -98,7 +98,7 @@ public class when_reading_and_writing_CloudEvents_data
             .UseWolverine(opts =>
             {
                 opts.RegisterMessageType(typeof(ApproveOrder), "com.dapr.event.sent");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var serializer = new CloudEventsMapper(runtime.Options.HandlerGraph,

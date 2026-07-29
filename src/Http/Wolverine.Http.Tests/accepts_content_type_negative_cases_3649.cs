@@ -145,7 +145,7 @@ public class accepts_content_type_negative_cases_3649 : IntegrationContext
         // GET /content-negotiation/items carries no Content-Type, so the 415 substitution must not swallow the
         // 405 that HttpMethodMatcherPolicy (Order 0) has already decided on. The policy only records candidates
         // that were valid when it saw them, which is what keeps these two apart.
-        var response = await Host.Server.CreateClient().GetAsync("/content-negotiation/items");
+        var response = await Host.Server.CreateClient().GetAsync("/content-negotiation/items", TestContext.Current.CancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
     }
 

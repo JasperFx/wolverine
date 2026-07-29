@@ -31,12 +31,12 @@ public class GettingStarted
 
         // The ProviderShift aggregate will be
         // updated at this time
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         // Load the persisted ProviderShift right out
         // of the database
         var shift = await session
-            .LoadAsync<ProviderShift>(shiftId);
+            .LoadAsync<ProviderShift>(shiftId, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class GettingStarted
 // Just a little reference data
         await using var session = store.LightweightSession();
         session.Store(provider);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var boardId = Guid.NewGuid();
 
@@ -72,11 +72,10 @@ public class GettingStarted
             new ProviderReady()
         ).Id;
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
 
-        var shift = await session.Events.AggregateStreamAsync<ProviderShift>(shiftId,
-            timestamp: DateTime.Today.AddHours(13));
+        var shift = await session.Events.AggregateStreamAsync<ProviderShift>(shiftId, timestamp: DateTime.Today.AddHours(13), token: TestContext.Current.CancellationToken);
 
         shift!.Name.ShouldBe("Larry Bird");
     }

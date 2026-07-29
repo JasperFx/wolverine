@@ -47,7 +47,7 @@ public class Connectivity
         await managedClient.EnqueueAsync(topic: "Step", payload: "1", MqttQualityOfServiceLevel.AtLeastOnce, retain: true);
         await managedClient.EnqueueAsync(topic: "Step", payload: "2", MqttQualityOfServiceLevel.AtLeastOnce, retain: true);
 
-        await Task.Delay(3.Seconds());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
 
         await managedClient.SubscribeAsync(topic: "xyz", qualityOfServiceLevel: MqttQualityOfServiceLevel.AtMostOnce);
         await managedClient.SubscribeAsync(topic: "abc", qualityOfServiceLevel: MqttQualityOfServiceLevel.AtMostOnce);
@@ -55,7 +55,7 @@ public class Connectivity
         await managedClient.EnqueueAsync(topic: "Step", payload: "3");
 
 
-        await Task.Delay(3.Seconds());
+        await Task.Delay(3.Seconds(), TestContext.Current.CancellationToken);
 
         // var transport = new MqttTransport();
         // transport.Configuration = builder =>

@@ -13,7 +13,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command1
         {
@@ -31,7 +31,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command1
         {
@@ -48,7 +48,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command2
         {
@@ -66,7 +66,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command2
         {
@@ -83,7 +83,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command4
         {
@@ -91,7 +91,7 @@ public class end_to_end
         };
 
         await Should.ThrowAsync<ValidationException>(() => host.InvokeAsync(command));
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public class end_to_end
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new Command4
         {
@@ -109,6 +109,6 @@ public class end_to_end
         };
 
         await Should.NotThrowAsync(() => host.InvokeAsync(command));
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 }

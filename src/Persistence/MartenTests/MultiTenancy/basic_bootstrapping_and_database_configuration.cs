@@ -61,9 +61,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Master"))
         {
-            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
+            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
-            var tables = (await conn.ExistingTablesAsync()).ToArray();
+            var tables = (await conn.ExistingTablesAsync(ct: TestContext.Current.CancellationToken)).ToArray();
 
             tables = tables.Where(x => x.Schema == "control").ToArray();
             tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
@@ -79,9 +79,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     {
         foreach (var database in Stores.ActiveDatabases().OfType<IMessageDatabase>().Where(x => x.Name != "Main"))
         {
-            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync();
+            await using var conn = (NpgsqlConnection)await database.DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
-            var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "mt").ToArray();
+            var tables = (await conn.ExistingTablesAsync(ct: TestContext.Current.CancellationToken)).Where(x => x.Schema == "mt").ToArray();
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.NodeTableName);
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.NodeAssignmentsTableName);
             tables.ShouldNotContain(x => x.Name == DatabaseConstants.ControlQueueTableName);
@@ -99,9 +99,9 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
     [Fact]
     public async Task master_database_has_every_storage_table()
     {
-        await using var conn = (NpgsqlConnection)await Stores.Main.As<IMessageDatabase>().DataSource.OpenConnectionAsync();
+        await using var conn = (NpgsqlConnection)await Stores.Main.As<IMessageDatabase>().DataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
-        var tables = (await conn.ExistingTablesAsync()).Where(x => x.Schema == "control").ToArray();
+        var tables = (await conn.ExistingTablesAsync(ct: TestContext.Current.CancellationToken)).Where(x => x.Schema == "control").ToArray();
         tables.ShouldContain(x => x.Name == DatabaseConstants.IncomingTable);
         tables.ShouldContain(x => x.Name == DatabaseConstants.OutgoingTable);
         tables.ShouldContain(x => x.Name == DatabaseConstants.DeadLetterTable);

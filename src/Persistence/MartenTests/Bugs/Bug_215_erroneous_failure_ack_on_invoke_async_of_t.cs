@@ -28,18 +28,18 @@ public class Bug_215_erroneous_failure_ack_on_invoke_async_of_t : PostgresqlCont
                     .IncludeType(typeof(LookupHandler));
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var data = new Bug215Data();
 
         using (var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
             session.Store(data);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var bus = host.MessageBus();
-        var response = await bus.InvokeAsync<Bug215Data>(new Lookup(data.Id));
+        var response = await bus.InvokeAsync<Bug215Data>(new Lookup(data.Id), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
     }

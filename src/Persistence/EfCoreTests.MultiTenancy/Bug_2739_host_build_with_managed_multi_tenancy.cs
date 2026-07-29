@@ -88,7 +88,7 @@ public class Bug_2739_host_build_with_managed_multi_tenancy
         });
 
         using var host = builder.Build();
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         // Force WolverineOptions singleton resolution. The bug from #2739
         // fires inside the WolverineOptions factory lambda in

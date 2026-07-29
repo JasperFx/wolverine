@@ -29,7 +29,7 @@ public class using_storage_return_types_and_entity_attributes
                 opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
                 opts.Services.AddSingleton(_fixture.Client);
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.InvokeMessageAndWaitAsync(new CreateDocument("doc1", "Test Document"));
         tracked.Executed.MessagesOf<CreateDocument>().Any().ShouldBeTrue();

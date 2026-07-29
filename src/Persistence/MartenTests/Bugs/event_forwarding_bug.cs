@@ -37,7 +37,7 @@ public class event_forwarding_bug
                     m.Projections.LiveStreamAggregation<ShoppingList>();
                 }).UseLightweightSessions()
                 .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var routing = runtime.RoutingFor(typeof(Event<ShoppingListCreated>));

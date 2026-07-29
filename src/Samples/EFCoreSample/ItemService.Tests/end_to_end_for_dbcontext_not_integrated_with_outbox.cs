@@ -21,7 +21,7 @@ public class end_to_end_for_dbcontext_not_integrated_with_outbox
         using var nested = host.Services.CreateScope();
         var context = nested.ServiceProvider.GetRequiredService<ItemsDbContext>();
 
-        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name);
+        var item = await context.Items.FirstOrDefaultAsync(x => x.Name == name, cancellationToken: TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 }

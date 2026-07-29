@@ -75,7 +75,7 @@ public class polecat_managed_event_subscription_distribution : IAsyncLifetime
     {
         var family = _host.Services.GetServices<IEventSubscriptionAgentFamily>().First();
 
-        var uri = await family.FindAgentUriAsync("Trip:All", null);
+        var uri = await family.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
         uri!.AbsolutePath.TrimEnd('/').ShouldEndWith("/trip/all");

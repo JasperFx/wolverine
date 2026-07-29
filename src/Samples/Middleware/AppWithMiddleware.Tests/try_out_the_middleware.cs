@@ -50,12 +50,12 @@ public class try_out_the_middleware
         var store = host.Services.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
         session.Store(account);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
-        await bus.InvokeAsync(new DebitAccount(account.Id, 100));
+        await bus.InvokeAsync(new DebitAccount(account.Id, 100), TestContext.Current.CancellationToken);
 
-        var account2 = await session.LoadAsync<Account>(account.Id);
+        var account2 = await session.LoadAsync<Account>(account.Id, TestContext.Current.CancellationToken);
 
         // Should be 1000 + 100
         account2!.Balance.ShouldBe(900);
@@ -74,7 +74,7 @@ public class try_out_the_middleware
         var store = host.Services.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
         session.Store(account);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 

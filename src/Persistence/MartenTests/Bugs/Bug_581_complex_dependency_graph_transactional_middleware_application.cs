@@ -47,7 +47,7 @@ public class Bug_581_complex_dependency_graph_transactional_middleware_applicati
 
                 opts.Policies.ForMessagesOfType<CreateUser2>()
                     .AddMiddleware<DoSomethingWithMartenMiddleware>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var handlers = runtime.Handlers;

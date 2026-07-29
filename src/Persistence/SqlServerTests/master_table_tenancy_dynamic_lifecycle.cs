@@ -41,7 +41,7 @@ public class master_table_tenancy_dynamic_lifecycle
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "mt_lifecycle_3023")
                     .UseMasterTableTenancy(_ => { });
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var source = host.Services.GetServices<IDynamicTenantSource<string>>()
             .OfType<MasterTenantSource>().Single();

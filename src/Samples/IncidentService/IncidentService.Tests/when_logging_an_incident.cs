@@ -57,7 +57,7 @@ public class when_logging_an_incident : IntegrationContext
         
         
         // This wallpapers over the exact projection lifecycle....
-        var incident = await session.Events.FetchLatest<Incident>(response.Value);
+        var incident = await session.Events.FetchLatest<Incident>(response.Value, TestContext.Current.CancellationToken);
         
         incident!.Status.ShouldBe(IncidentStatus.Pending);
     }

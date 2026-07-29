@@ -52,7 +52,7 @@ public class inner_envelope_is_stamped_before_serialization : IAsyncLifetime
                 bus.PublishAsync(new Message1(), new DeliveryOptions { ScheduleDelay = 1.Minutes() }).AsTask());
 
         await tracked.PlayScheduledMessagesAsync(2.Hours());
-        await Task.Delay(2.Minutes());
+        await Task.Delay(2.Minutes(), TestContext.Current.CancellationToken);
 
         var captured = await ScheduledEnvelopeCapture.WaitAsync(5.Seconds());
         captured.TenantId.ShouldBe("red");

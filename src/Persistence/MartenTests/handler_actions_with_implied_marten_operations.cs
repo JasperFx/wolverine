@@ -59,7 +59,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         tracked.Sent.SingleMessage<MartenMessage2>().Name.ShouldBe("Aubrey");
 
         using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<NamedDocument>("Aubrey");
+        var doc = await session.LoadAsync<NamedDocument>("Aubrey", TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
     }
 
@@ -69,7 +69,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("Declan"));
 
         using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<NamedDocument>("Declan");
+        var doc = await session.LoadAsync<NamedDocument>("Declan", TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
 
         await Should.ThrowAsync<DocumentAlreadyExistsException>(() =>
@@ -86,7 +86,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
 
 
         using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<NamedDocument>("Max");
+        var doc = await session.LoadAsync<NamedDocument>("Max", TestContext.Current.CancellationToken);
         doc!.Number.ShouldBe(10);
 
 
@@ -106,7 +106,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocument("Max"));
 
         using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<NamedDocument>("Max");
+        var doc = await session.LoadAsync<NamedDocument>("Max", TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
     
@@ -117,7 +117,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         await _host.SendMessageAndWaitAsync(new DeleteMartenDocument("Max"));
 
         using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<NamedDocument>("Max");
+        var doc = await session.LoadAsync<NamedDocument>("Max", TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -129,11 +129,11 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var id = 2345;
 
         session.Store(new IntIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByIntId(id));
 
-        var doc = await session.LoadAsync<IntIdDocument>(id);
+        var doc = await session.LoadAsync<IntIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -145,11 +145,11 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var id = 23456L;
 
         session.Store(new LongIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByLongId(id));
 
-        var doc = await session.LoadAsync<LongIdDocument>(id);
+        var doc = await session.LoadAsync<LongIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -161,11 +161,11 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var id = Guid.NewGuid();
 
         session.Store(new GuidIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByGuidId(id));
 
-        var doc = await session.LoadAsync<GuidIdDocument>(id);
+        var doc = await session.LoadAsync<GuidIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -177,11 +177,11 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         var id = "Max";
 
         session.Store(new StringIdDocument { Id = id });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentByStringId(id));
 
-        var doc = await session.LoadAsync<StringIdDocument>(id);
+        var doc = await session.LoadAsync<StringIdDocument>(id, TestContext.Current.CancellationToken);
         doc.ShouldBeNull();
     }
 
@@ -199,14 +199,14 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         session.Store(new LongIdDocument { Id = longId });
         session.Store(new GuidIdDocument { Id = guidId });
         session.Store(new StringIdDocument { Id = stringId });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentsByObjectIds(intId, longId, guidId, stringId));
 
-        var intDoc = await session.LoadAsync<IntIdDocument>(intId);
-        var longDoc = await session.LoadAsync<LongIdDocument>(longId);
-        var guidDoc = await session.LoadAsync<GuidIdDocument>(guidId);
-        var stringDoc = await session.LoadAsync<StringIdDocument>(stringId);
+        var intDoc = await session.LoadAsync<IntIdDocument>(intId, TestContext.Current.CancellationToken);
+        var longDoc = await session.LoadAsync<LongIdDocument>(longId, TestContext.Current.CancellationToken);
+        var guidDoc = await session.LoadAsync<GuidIdDocument>(guidId, TestContext.Current.CancellationToken);
+        var stringDoc = await session.LoadAsync<StringIdDocument>(stringId, TestContext.Current.CancellationToken);
         intDoc.ShouldBeNull();
         longDoc.ShouldBeNull();
         guidDoc.ShouldBeNull();
@@ -226,7 +226,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
     [Fact]
     public async Task delete_document_where()
     {
-        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument), TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("foo"));
         await _host.InvokeMessageAndWaitAsync(new InsertMartenDocument("bar"));
@@ -234,7 +234,7 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
         await _host.InvokeMessageAndWaitAsync(new DeleteMartenDocumentsStartingWith("ba"));
 
         await using var session = _store.LightweightSession();
-        var docs = await session.Query<NamedDocument>().ToListAsync();
+        var docs = await session.Query<NamedDocument>().ToListAsync(token: TestContext.Current.CancellationToken);
         
         docs.ShouldHaveSingleItem().Id.ShouldBe("foo");
     }
@@ -242,15 +242,15 @@ public class handler_actions_with_implied_marten_operations : PostgresqlContext,
     [Fact]
     public async Task use_enumerable_of_imartenop_as_return_value()
     {
-        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument));
+        await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(NamedDocument), TestContext.Current.CancellationToken);
 
         await _host.InvokeMessageAndWaitAsync(new AppendManyNamedDocuments(["red", "blue", "green"]));
 
         using var session = _store.LightweightSession();
         
-        (await session.LoadAsync<NamedDocument>("red"))!.Number.ShouldBe(1);
-        (await session.LoadAsync<NamedDocument>("blue"))!.Number.ShouldBe(2);
-        (await session.LoadAsync<NamedDocument>("green"))!.Number.ShouldBe(3);
+        (await session.LoadAsync<NamedDocument>("red", TestContext.Current.CancellationToken))!.Number.ShouldBe(1);
+        (await session.LoadAsync<NamedDocument>("blue", TestContext.Current.CancellationToken))!.Number.ShouldBe(2);
+        (await session.LoadAsync<NamedDocument>("green", TestContext.Current.CancellationToken))!.Number.ShouldBe(3);
     }
 }
 

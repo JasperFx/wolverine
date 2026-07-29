@@ -81,7 +81,7 @@ public class tenant_partitioned_aggregate_matrix_phase1b : PostgresqlContext, IA
 
         // Still just the seed event — no new append, aggregate unchanged.
         await using var session = theStore.LightweightSession("tenant1");
-        (await session.Events.FetchStreamAsync(id)).Count.ShouldBe(1);
+        (await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken)).Count.ShouldBe(1);
         (await LoadTally("tenant1", id))!.Total.ShouldBe(0);
     }
 

@@ -64,7 +64,7 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
     {
         var sagaId = Guid.NewGuid();
 
-        await _host.MessageBus().InvokeForTenantAsync("red", new StartSaga(sagaId));
+        await _host.MessageBus().InvokeForTenantAsync("red", new StartSaga(sagaId), TestContext.Current.CancellationToken);
 
         SagaTimeoutCapture.Snapshot captured;
         try
@@ -78,7 +78,7 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
             foreach (var tenant in new[] { "red", "*DEFAULT*" })
             {
                 await using var diag = store.QuerySession(tenant);
-                var row = await diag.LoadAsync<TenantedRabbitSaga>(sagaId);
+                var row = await diag.LoadAsync<TenantedRabbitSaga>(sagaId, TestContext.Current.CancellationToken);
                 if (row != null)
                 {
                     snapshots.Add($"tenant={tenant}, storedTenant={row.StoredTenantId ?? "null"}, timedOut={row.TimedOut}");
@@ -101,7 +101,7 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
         await using var session = store2.QuerySession();
         var remaining = await session.Query<TenantedRabbitSaga>()
             .Where(x => x.Id == sagaId)
-            .ToListAsync();
+            .ToListAsync(token: TestContext.Current.CancellationToken);
 
         remaining.ShouldBeEmpty();
     }

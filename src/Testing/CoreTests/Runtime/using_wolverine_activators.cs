@@ -22,7 +22,7 @@ public class using_wolverine_activators
                 opts.Services.AddSingleton(activator1);
                 opts.Services.AddSingleton(activator2);
                 opts.Services.AddSingleton(activator3);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         

@@ -18,7 +18,7 @@ public class Bug_42_concurrent_creation_of_command_handlers
             {
                 opts.Policies.AddMiddleware<SimpleBeforeAndAfter>();
                 opts.Policies.AddMiddleware<SimpleBeforeAndAfterAsync>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var bus = host.MessageBus();
 

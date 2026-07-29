@@ -48,17 +48,15 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
     public async Task invoke_locally()
     {
         var bus = _receiver.MessageBus();
-        await bus.InvokeAsync(new WithHeaders(),
-            new DeliveryOptions { TenantId = "millers" }.WithHeader("name", "Chewie")
-                .WithHeader("breed", "indeterminate"));
+        await bus.InvokeAsync(new WithHeaders(), new DeliveryOptions { TenantId = "millers" }.WithHeader("name", "Chewie")
+                .WithHeader("breed", "indeterminate"), TestContext.Current.CancellationToken);
     }
 
     [Fact]
     public async Task invoke_with_expected_outcome_locally()
     {
         var bus = _receiver.MessageBus();
-        var answer = await bus.InvokeAsync<Answer>(new DoMath(3, 4, "blue", "tom"),
-            new DeliveryOptions { TenantId = "blue" }.WithHeader("user-id", "tom"));
+        var answer = await bus.InvokeAsync<Answer>(new DoMath(3, 4, "blue", "tom"), new DeliveryOptions { TenantId = "blue" }.WithHeader("user-id", "tom"), TestContext.Current.CancellationToken);
         
         answer.Sum.ShouldBe(7);
     }

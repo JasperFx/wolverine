@@ -36,7 +36,7 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
     [Fact]
     public async Task make_the_request()
     {
-        await Store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Issue));
+        await Store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Issue), TestContext.Current.CancellationToken);
 
         var result = await Scenario(x =>
         {
@@ -48,7 +48,7 @@ public class using_create_response_and_metadata_derived_from_response_type : Int
         created.ShouldNotBeNull();
 
         using var session = Store.LightweightSession();
-        var issue = await session.LoadAsync<Issue>(created.Id);
+        var issue = await session.LoadAsync<Issue>(created.Id, TestContext.Current.CancellationToken);
         issue.ShouldNotBeNull();
         issue.Title.ShouldBe("It's bad");
 

@@ -53,7 +53,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
         await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
-            (await session.LoadAsync<User>("Tom")).ShouldNotBeNull();
+            (await session.LoadAsync<User>("Tom", TestContext.Current.CancellationToken)).ShouldNotBeNull();
         }
 
         theHost.Get<UserNames>()
@@ -67,7 +67,7 @@ public class MessageInvocationTests : PostgresqlContext, IAsyncLifetime
 
         await using (var session = theHost.Get<IDocumentStore>().QuerySession())
         {
-            (await session.LoadAsync<User>("Bill")).ShouldNotBeNull();
+            (await session.LoadAsync<User>("Bill", TestContext.Current.CancellationToken)).ShouldNotBeNull();
         }
 
         theHost.Get<UserNames>()

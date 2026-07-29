@@ -142,7 +142,7 @@ public class tenant_partitioned_events_string_identity : PostgresqlContext, IAsy
         // Landed in the default-tenant partition...
         await using (var session = theStore.LightweightSession())
         {
-            (await session.LoadAsync<TenantTally>(id))!.Total.ShouldBe(9);
+            (await session.LoadAsync<TenantTally>(id, TestContext.Current.CancellationToken))!.Total.ShouldBe(9);
         }
 
         // ...and is invisible to the named-tenant partitions.

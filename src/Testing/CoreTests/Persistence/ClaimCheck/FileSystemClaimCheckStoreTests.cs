@@ -34,16 +34,16 @@ public class FileSystemClaimCheckStoreTests : IDisposable
     public async Task store_load_delete_round_trip()
     {
         var bytes = new byte[] { 1, 2, 3, 4, 5 };
-        var token = await _store.StoreAsync(bytes, "application/octet-stream");
+        var token = await _store.StoreAsync(bytes, "application/octet-stream", TestContext.Current.CancellationToken);
 
         token.ShouldNotBeNull();
         token.Length.ShouldBe(bytes.Length);
         token.ContentType.ShouldBe("application/octet-stream");
 
-        var loaded = await _store.LoadAsync(token);
+        var loaded = await _store.LoadAsync(token, TestContext.Current.CancellationToken);
         loaded.ToArray().ShouldBe(bytes);
 
-        await _store.DeleteAsync(token);
+        await _store.DeleteAsync(token, TestContext.Current.CancellationToken);
 
         await Should.ThrowAsync<FileNotFoundException>(() => _store.LoadAsync(token));
     }
@@ -52,7 +52,7 @@ public class FileSystemClaimCheckStoreTests : IDisposable
     public async Task token_serialize_round_trip()
     {
         var bytes = new byte[] { 9, 8, 7 };
-        var token = await _store.StoreAsync(bytes, "image/png");
+        var token = await _store.StoreAsync(bytes, "image/png", TestContext.Current.CancellationToken);
 
         var encoded = token.Serialize();
         var decoded = ClaimCheckToken.Parse(encoded);
@@ -67,7 +67,7 @@ public class FileSystemClaimCheckStoreTests : IDisposable
         var localStore = new FileSystemClaimCheckStore(dir);
         Directory.Exists(dir).ShouldBeTrue();
 
-        var token = await localStore.StoreAsync(new byte[] { 1 }, "application/octet-stream");
-        (await localStore.LoadAsync(token)).ToArray().ShouldBe(new byte[] { 1 });
+        var token = await localStore.StoreAsync(new byte[] { 1 }, "application/octet-stream", TestContext.Current.CancellationToken);
+        (await localStore.LoadAsync(token, TestContext.Current.CancellationToken)).ToArray().ShouldBe(new byte[] { 1 });
     }
 }

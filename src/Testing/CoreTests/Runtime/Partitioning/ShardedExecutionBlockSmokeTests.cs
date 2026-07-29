@@ -31,7 +31,7 @@ public class ShardedExecutionBlockSmokeTests
                     envelope.Message = new Coffee2(Guid.NewGuid().ToString());
                     await block.PostAsync(envelope);
                 }
-            });
+            }, TestContext.Current.CancellationToken);
         }
 
         await Task.WhenAll(tasks);

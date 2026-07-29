@@ -21,7 +21,7 @@ public class saga_cascading_messages_with_separated_mode
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
         ExternalHandler.CascadedMessageCount = 0;
@@ -63,7 +63,7 @@ public class saga_cascading_messages_with_separated_mode
 
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
         CascadingFromStartSaga.CascadeHandledCount = 0;
