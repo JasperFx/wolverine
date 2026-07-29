@@ -32,8 +32,8 @@ internal static class ParityProbe
 
 public class MediaTypeOnlyParityFixture : ParityFixture
 {
-    public override ValueTask InitializeAsync() =>
-        BuildHost(
+    public override async ValueTask InitializeAsync() =>
+        await BuildHost(
             services =>
                 services.AddApiVersioning(options =>
                 {
@@ -128,8 +128,8 @@ public class MediaTypeOnlyParityTests
 
 public class AssumeDefaultParityFixture : ParityFixture
 {
-    public override ValueTask InitializeAsync() =>
-        BuildHost(
+    public override async ValueTask InitializeAsync() =>
+        await BuildHost(
             services =>
                 services.AddApiVersioning(options =>
                 {

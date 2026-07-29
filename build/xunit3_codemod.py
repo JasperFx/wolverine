@@ -31,12 +31,37 @@ EXPLICIT_DISPOSE = re.compile(rf'(\b{MODS})Task\s+IAsyncLifetime\.DisposeAsync(\
 EXPLICIT_INIT = re.compile(rf'(\b{MODS})Task\s+IAsyncLifetime\.InitializeAsync(\s*\()')
 
 
-# Expression-bodied lifetime member returning a non-ValueTask expression.
-EXPR_BODY_TASK = re.compile(
-    rf'^(\s*(?:(?:public|protected|internal|private|virtual|override|sealed|new)\s+)*)'
-    rf'(ValueTask\s+(?:InitializeAsync|DisposeAsync)\s*\(\s*\)\s*=>\s*)'
-    rf'(?!ValueTask\.CompletedTask)(?!await\b)(.+?;)\s*$',
-    re.M)
+# Expression-bodied lifetime member, e.g.
+#     public override ValueTask InitializeAsync() => BuildHost(...);
+# The body may continue on following lines, so we do NOT try to find its terminating ';' --
+# a lambda argument can contain one. Adding `async` to the signature and `await` to the front
+# of the expression is sufficient regardless of how far the expression runs.
+EXPR_BODY_DECL = re.compile(
+    r'^(\s*)((?:(?:public|protected|internal|private|virtual|override|sealed|new)\s+)*)'
+    r'(ValueTask\s+(?:InitializeAsync|DisposeAsync)\s*\(\s*\)\s*=>)[ \t]*(.*)$')
+
+
+def _async_expression_bodied(text: str) -> str:
+    lines = text.splitlines(keepends=True)
+    for i, line in enumerate(lines):
+        m = EXPR_BODY_DECL.match(line.rstrip('\r\n'))
+        if not m or 'async' in m.group(2):
+            continue
+        indent, mods, decl, rest = m.groups()
+        if rest.strip():
+            # Body starts on this line.
+            if rest.startswith('await') or rest.startswith('ValueTask.CompletedTask'):
+                continue
+            lines[i] = f'{indent}{mods}async {decl} await {rest}\n'
+        else:
+            # Body starts on a following line -- prefix the first non-blank one.
+            j = next((k for k in range(i + 1, len(lines)) if lines[k].strip()), None)
+            if j is None or lines[j].lstrip().startswith(('await', 'ValueTask.CompletedTask')):
+                continue
+            lines[i] = f'{indent}{mods}async {decl}\n'
+            body_indent = len(lines[j]) - len(lines[j].lstrip())
+            lines[j] = lines[j][:body_indent] + 'await ' + lines[j][body_indent:]
+    return ''.join(lines)
 
 # Block-bodied lifetime member declaration, not already async.
 _BLOCK_DECL = re.compile(
@@ -102,8 +127,7 @@ def convert(text: str) -> str:
     #
     #   public ValueTask DisposeAsync() => Cleanup();          -- expression-bodied
     #   public ValueTask InitializeAsync() { return Setup(x); } -- block-bodied
-    text = EXPR_BODY_TASK.sub(
-        lambda m: m.group(1) + 'async ' + m.group(2) + 'await ' + m.group(3), text)
+    text = _async_expression_bodied(text)
     text = _async_block_bodied(text)
 
     # ITestOutputHelper moved from Xunit.Abstractions to Xunit.
@@ -114,18 +138,46 @@ def convert(text: str) -> str:
     return text
 
 
+def _owning_project(path: pathlib.Path):
+    """The .csproj that compiles this file, i.e. the nearest one at or above it."""
+    for parent in [path.parent, *path.parents]:
+        projects = list(parent.glob('*.csproj'))
+        if projects:
+            return projects[0]
+    return None
+
+
+def _is_test_project(project: pathlib.Path, _cache={}) -> bool:
+    """Only xUnit projects may be rewritten.
+
+    Without this guard, pointing the codemod at src/ rewrites PRODUCT code: plenty of Wolverine
+    types have their own InitializeAsync/DisposeAsync that have nothing to do with
+    IAsyncLifetime, and turning those into ValueTask breaks the build (or worse, compiles and
+    changes an API).
+    """
+    key = str(project)
+    if key not in _cache:
+        _cache[key] = 'xunit' in project.read_text(errors='ignore')
+    return _cache[key]
+
+
 def main(roots):
-    changed = 0
+    changed = skipped = 0
     for root in roots:
         for path in pathlib.Path(root).rglob('*.cs'):
             if '/obj/' in str(path) or '/bin/' in str(path):
+                continue
+
+            project = _owning_project(path)
+            if project is None or not _is_test_project(project):
+                skipped += 1
                 continue
             original = path.read_text()
             updated = convert(original)
             if updated != original:
                 path.write_text(updated)
                 changed += 1
-    print(f'{changed} file(s) rewritten')
+    print(f'{changed} file(s) rewritten, {skipped} skipped (not in an xUnit project)')
 
 
 if __name__ == '__main__':
