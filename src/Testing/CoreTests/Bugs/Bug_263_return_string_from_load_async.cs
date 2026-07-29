@@ -10,7 +10,7 @@ public class Bug_263_return_string_from_load_async
     public async Task can_return_a_string_from_a_load_precursor_and_pass_to_main_handle()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new StringUsingCommand("one"));
 

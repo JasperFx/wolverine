@@ -61,7 +61,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         var thing = new PcThing();
         await using var insertSession = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
         insertSession.Store(thing);
-        await insertSession.SaveChangesAsync();
+        await insertSession.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var tracked = await _host.InvokeMessageAndWaitAsync(new UsePcThing1(thing.Id));
 
@@ -118,7 +118,7 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         var guidThing = new PcGuidThing();
         await using var insertSession = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
         insertSession.Store(guidThing);
-        await insertSession.SaveChangesAsync();
+        await insertSession.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var tracked = await _host.InvokeMessageAndWaitAsync(new UsePcGuidThing1(guidThing.Id));
 

@@ -134,7 +134,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
     [Fact]
     public async Task get_queue_depth_reflects_inserted_rows()
     {
-        await using (var conn = await _dataSource.OpenConnectionAsync())
+        await using (var conn = await _dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken))
         {
             try
             {
@@ -144,7 +144,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
                     insert.CommandText =
                         $"INSERT INTO {_tableName} (id, body, message_type, keep_until) " +
                         "VALUES (gen_random_uuid(), '\\x00'::bytea, 'TestMessage', null)";
-                    await insert.ExecuteNonQueryAsync();
+                    await insert.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
                 }
             }
             finally

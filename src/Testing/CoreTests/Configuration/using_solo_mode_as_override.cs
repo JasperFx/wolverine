@@ -12,7 +12,7 @@ public class using_solo_mode_as_override
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
             .ConfigureServices(services => services.UseWolverineSoloMode())
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var options = host.Services.GetRequiredService<WolverineOptions>();
         

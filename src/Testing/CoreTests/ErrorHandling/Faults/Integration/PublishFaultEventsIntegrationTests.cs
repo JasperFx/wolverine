@@ -76,7 +76,7 @@ public class PublishFaultEventsIntegrationTests
             collector.Order[0].Exception.Type.ShouldBe(typeof(InvalidOperationException).FullName);
             collector.Order[0].Exception.Message.ShouldBe("synthetic order failure");
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class PublishFaultEventsIntegrationTests
                 .ShouldBeEmpty();
             collector.Other.ShouldBeEmpty();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class PublishFaultEventsIntegrationTests
                 .ShouldBeEmpty();
             collector.Order.ShouldBeEmpty();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -134,7 +134,7 @@ public class PublishFaultEventsIntegrationTests
                 opts.OnException<Exception>().Discard();
                 opts.PublishFaultEvents(); // DLQ-only — discards excluded
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         try
         {
             var session = await host.TrackActivity()
@@ -144,7 +144,7 @@ public class PublishFaultEventsIntegrationTests
             session.AutoFaultsPublished.MessagesOf<Fault<OrderPlaced>>().ShouldBeEmpty();
             collector.Order.ShouldBeEmpty();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -158,7 +158,7 @@ public class PublishFaultEventsIntegrationTests
                 opts.OnException<Exception>().Discard();
                 opts.PublishFaultEvents(includeDiscarded: true);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         try
         {
             var session = await host.TrackActivity()
@@ -175,7 +175,7 @@ public class PublishFaultEventsIntegrationTests
             collector.Order[0].Exception.Message
                 .ShouldBe("synthetic order failure");
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class PublishFaultEventsIntegrationTests
 
             envelope.Headers[FaultHeaders.AutoPublished].ShouldBe("true");
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public class PublishFaultEventsIntegrationTests
 
             collector.Order.ShouldBeEmpty();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class PublishFaultEventsIntegrationTests
                 .MessagesOf<Fault<OrderPlaced>>()
                 .ShouldBeEmpty();
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -277,7 +277,7 @@ public class PublishFaultEventsIntegrationTests
             faultSpan!.TraceId.ShouldBe(executeSpan!.TraceId);
             faultSpan.ParentSpanId.ShouldBe(executeSpan.SpanId);
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -301,6 +301,6 @@ public class PublishFaultEventsIntegrationTests
             faultEnvelope.Headers[FaultHeaders.OriginalType]
                 .ShouldBe(typeof(OrderPlaced).ToMessageTypeName());
         }
-        finally { await host.StopAsync(); }
+        finally { await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 }

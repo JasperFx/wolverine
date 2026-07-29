@@ -76,7 +76,7 @@ public class end_to_end_with_named_broker : IAsyncLifetime
                 opts.PublishMessage<NamedBrokerMessage>()
                     .ToSnsTopicOnNamedBroker(theName, topic)
                     .SubscribeSqsQueue(queue);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.MessageBus().PublishAsync(new NamedBrokerMessage("blue"));
 

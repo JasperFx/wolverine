@@ -64,17 +64,16 @@ partial class Build : NukeBuild
     Target Full => _ => _
         .DependsOn(Test, PersistenceTests, SqliteTests, RabbitmqTests, PulsarTests);
 
+    // Every test target in this file goes through RunTestProject rather than calling DotNetTest
+    // directly, so they all get the flaky-retry harness and the standard Category!=Flaky filter.
+    // CoreTests is the one that matters most: the `CI` target above is what the .NET workflow runs,
+    // so before GH-3705 the largest core suite was the only thing in CI without a second attempt.
     Target CoreTests => _ => _
         .DependsOn(Compile)
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Testing.CoreTests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Testing.CoreTests);
         });
    
     Target PolicyTests => _ => _
@@ -82,12 +81,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Testing.PolicyTests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Testing.PolicyTests);
         });
 
     Target TestExtensions => _ => _
@@ -98,12 +92,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Extensions.Wolverine_FluentValidation_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Extensions.Wolverine_FluentValidation_Tests);
         });
 
     Target DataAnnotationsValidationTests => _ => _
@@ -111,12 +100,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Extensions.Wolverine_DataAnnotationsValidation_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Extensions.Wolverine_DataAnnotationsValidation_Tests);
         });
 
     Target MemoryPackTests => _ => _
@@ -124,12 +108,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Extensions.Wolverine_MemoryPack_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Extensions.Wolverine_MemoryPack_Tests);
         });
     
     Target MessagePackTests => _ => _
@@ -137,12 +116,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Extensions.Wolverine_MessagePack_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Extensions.Wolverine_MessagePack_Tests);
         });
 
     Target HttpTests => _ => _
@@ -153,12 +127,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Http.Wolverine_Http_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Http.Wolverine_Http_Tests);
         });
 
     Target Commands => _ => _
@@ -247,12 +216,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Persistence.Sqlite.SqliteTests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Persistence.Sqlite.SqliteTests);
         });
 
     Target PersistenceTests => _ => _
@@ -260,12 +224,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Persistence.PersistenceTests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Persistence.PersistenceTests);
         });
     
     Target RabbitmqTests => _ => _
@@ -273,12 +232,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Transports.RabbitMQ.Wolverine_RabbitMQ_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Transports.RabbitMQ.Wolverine_RabbitMQ_Tests);
         });
     
     Target PulsarTests => _ => _
@@ -286,12 +240,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Transports.Pulsar.Wolverine_Pulsar_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Transports.Pulsar.Wolverine_Pulsar_Tests);
         });
 
     Target TestSamples => _ => _
@@ -303,12 +252,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Samples.TodoWebService.TodoWebServiceTests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Samples.TodoWebService.TodoWebServiceTests);
         });
    
     Target BankingServiceSampleTests => _ => _
@@ -316,12 +260,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Samples.TestHarness.BankingService_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Samples.TestHarness.BankingService_Tests);
         });
 
     Target AppWithMiddlewareSampleTests => _ => _
@@ -329,12 +268,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Samples.Middleware.AppWithMiddleware_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Samples.Middleware.AppWithMiddleware_Tests);
         });
 
     Target ItemServiceSampleTests => _ => _
@@ -342,12 +276,7 @@ partial class Build : NukeBuild
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            DotNetTest(c => c
-                .SetProjectFile(Solution.Samples.EFCoreSample.ItemService_Tests)
-                .SetConfiguration(Configuration)
-                .EnableNoBuild()
-                .EnableNoRestore()
-                .SetFramework(Framework));
+            RunTestProject(Solution.Samples.EFCoreSample.ItemService_Tests);
         });
 
     Target Pack => _ => _

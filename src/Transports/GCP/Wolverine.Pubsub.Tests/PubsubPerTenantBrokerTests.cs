@@ -98,7 +98,7 @@ public class PubsubPerTenantBrokerTests : IAsyncLifetime
                 opts.PublishMessage<PerTenantMessage>().ToPubsubTopic(topic).SendInline();
                 opts.ListenToPubsubTopic(topic);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The default listener polls the default project and the tenant listener polls the tenant project; the
         // message only exists under the tenant project, so only the tenant listener consumes it and stamps the id.
@@ -134,13 +134,13 @@ public class PubsubPerTenantBrokerTests : IAsyncLifetime
                 opts.PublishMessage<PerTenantMessage>().ToPubsubTopic(topic);
                 opts.ListenToPubsubTopic(topic);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Prove the topic was actually created under the tenant project (GetTopicAsync throws when absent).
         var publisher = await new PublisherServiceApiClientBuilder
         {
             EmulatorDetection = EmulatorDetection.EmulatorOnly
-        }.BuildAsync();
+        }.BuildAsync(TestContext.Current.CancellationToken);
 
         var tenantTopic = await publisher.GetTopicAsync(new TopicName(TenantProject, topic));
         tenantTopic.ShouldNotBeNull();

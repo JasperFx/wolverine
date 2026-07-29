@@ -33,8 +33,8 @@ public class Bug_252_codegen_issue
     public async Task use_the_saga_type_to_determine_the_correct_DbContext_type()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("mt_items");
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await conn.DropSchemaAsync("mt_items", ct: TestContext.Current.CancellationToken);
         await conn.CloseAsync();
 
         using var host = await Host.CreateDefaultBuilder()
@@ -58,7 +58,7 @@ public class Bug_252_codegen_issue
                 opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 opt.Policies.UseDurableLocalQueues();
                 opt.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new OrderCreated(Guid.NewGuid()));
     }
@@ -67,8 +67,8 @@ public class Bug_252_codegen_issue
     public async Task bug_256_message_bus_should_be_in_outbox_transaction()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("mt_items");
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await conn.DropSchemaAsync("mt_items", ct: TestContext.Current.CancellationToken);
         await conn.CloseAsync();
 
         using var host = await Host.CreateDefaultBuilder()
@@ -92,7 +92,7 @@ public class Bug_252_codegen_issue
                 opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                 opt.Policies.UseDurableLocalQueues();
                 opt.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var chain = host.Services.GetRequiredService<HandlerGraph>().HandlerFor<CreateOrder>()!.As<MessageHandler>()!.Chain!;
 

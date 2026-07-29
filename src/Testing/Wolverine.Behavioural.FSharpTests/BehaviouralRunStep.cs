@@ -46,11 +46,11 @@ public class BehaviouralRunStep
                 opts.ApplicationAssembly = appAssembly;
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Static;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The pre-generated F# MessageHandler is loaded by name and executed — no runtime compilation.
         var bus = host.MessageBus();
-        await bus.InvokeAsync(new BehaviouralPing(42));
+        await bus.InvokeAsync(new BehaviouralPing(42), TestContext.Current.CancellationToken);
         // end-snippet
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));

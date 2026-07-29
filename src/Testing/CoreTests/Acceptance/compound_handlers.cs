@@ -16,7 +16,7 @@ public class compound_handlers
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Services.AddSingleton(tracer))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new AssignTask("green"));
 
@@ -31,7 +31,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing(20));
@@ -45,7 +45,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing3(20));
@@ -59,7 +59,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing4(20));
@@ -73,7 +73,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host
@@ -90,7 +90,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host.InvokeMessageAndWaitAsync(new MaybeBadThing2(20));
@@ -104,7 +104,7 @@ public class compound_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should fail validation if Number > 20
         var tracked = await host

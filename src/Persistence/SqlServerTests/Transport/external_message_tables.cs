@@ -46,7 +46,7 @@ public class external_message_tables : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
             .As<SqlServerMessageStore>();
@@ -58,11 +58,11 @@ public class external_message_tables : IAsyncLifetime
         
 
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await table.MigrateAsync(conn);
 
-        var delta = await table.FindDeltaAsync(conn);
+        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
         
@@ -81,7 +81,7 @@ public class external_message_tables : IAsyncLifetime
             .UseWolverine(opts =>
             {
                 opts.UseSqlServerPersistenceAndTransport(Servers.SqlServerConnectionString, "outside");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var storage = host.Services.GetRequiredService<IMessageStore>()
             .As<SqlServerMessageStore>();
@@ -93,11 +93,11 @@ public class external_message_tables : IAsyncLifetime
         
 
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         await table.MigrateAsync(conn);
 
-        var delta = await table.FindDeltaAsync(conn);
+        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
         
@@ -117,7 +117,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host
             .TrackActivity()
@@ -144,7 +144,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("outgoing.incoming1", new Message2()));
@@ -171,7 +171,7 @@ public class external_message_tables : IAsyncLifetime
                     table.PollingInterval = 1.Seconds();
                 });
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity().Timeout(1.Minutes()).WaitForMessageToBeReceivedAt<Message2>(host).ExecuteAndWaitAsync(
             _ => host.SendMessageThroughExternalTable("outside.incoming1", new Message2()));

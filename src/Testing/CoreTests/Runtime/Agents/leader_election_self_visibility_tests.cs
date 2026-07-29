@@ -195,7 +195,7 @@ public class leader_election_self_visibility_tests
                 new AgentRestrictions()));
 
         var winner = _controller.DoHealthChecksAsync();
-        await entered.Task.WaitAsync(5.Seconds());
+        await entered.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         // While the winner is parked inside the guarded section, every other
         // call must bounce off the guard with AgentCommands.Empty instead of
@@ -212,7 +212,7 @@ public class leader_election_self_visibility_tests
             .TryAttainLeadershipLockAsync(Arg.Any<CancellationToken>());
 
         release.SetResult();
-        await winner.WaitAsync(5.Seconds());
+        await winner.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
         _controller.IsLeader.ShouldBeTrue();
 
         // The guard must be released once the winner completes — a

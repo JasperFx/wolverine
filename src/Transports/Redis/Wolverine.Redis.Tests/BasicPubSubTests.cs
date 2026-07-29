@@ -49,14 +49,14 @@ public class BasicPubSubTests
                 opts.PublishAllMessages().ToRedisStream(streamKey);
                 opts.Services.AddSingleton(tcs);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         // Send directly to the Redis stream endpoint to avoid route misconfiguration
         var uri = new Uri($"redis://stream/0/{streamKey}");
         await bus.EndpointFor(uri).SendAsync(new PubMessage("123"));
 
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         completed.ShouldBe(tcs.Task);
         var result = await tcs.Task;
         result.ShouldBeTrue();

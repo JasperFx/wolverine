@@ -45,10 +45,10 @@ public class strong_named_identifiers : IAsyncLifetime
         using var session = theHost.DocumentStore().LightweightSession();
         session.Events.StartStream<StrongLetterAggregate>(streamId, new AEvent(), new BEvent(), new CEvent(),
             new CEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var bus = theHost.MessageBus();
-        var aggregate = await bus.InvokeAsync<StrongLetterAggregate>(new FetchCounts(new LetterId(streamId)));
+        var aggregate = await bus.InvokeAsync<StrongLetterAggregate>(new FetchCounts(new LetterId(streamId)), TestContext.Current.CancellationToken);
         
         aggregate.ACount.ShouldBe(1);
         aggregate.BCount.ShouldBe(1);
@@ -62,12 +62,12 @@ public class strong_named_identifiers : IAsyncLifetime
         using var session = theHost.DocumentStore().LightweightSession();
         session.Events.StartStream<StrongLetterAggregate>(streamId, new AEvent(), new BEvent(), new CEvent(),
             new CEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await theHost.InvokeAsync(new IncrementStrongA(new LetterId(streamId)));
 
         var bus = theHost.MessageBus();
-        var aggregate = await bus.InvokeAsync<StrongLetterAggregate>(new FetchCounts(new LetterId(streamId)));
+        var aggregate = await bus.InvokeAsync<StrongLetterAggregate>(new FetchCounts(new LetterId(streamId)), TestContext.Current.CancellationToken);
         
         aggregate.ACount.ShouldBe(2);
         aggregate.BCount.ShouldBe(1);
@@ -85,14 +85,14 @@ public class strong_named_identifiers : IAsyncLifetime
         
         session.Events.StartStream<StrongLetterAggregate>(stream2Id, new AEvent(), new BEvent(), new BEvent(),
             new AEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await theHost.InvokeMessageAndWaitAsync(new IncrementBOnBoth(new LetterId(stream1Id), new LetterId(stream2Id)));
 
-        var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
+        var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id, TestContext.Current.CancellationToken);
         aggregate1!.BCount.ShouldBe(2);
 
-        var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
+        var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id, TestContext.Current.CancellationToken);
         aggregate2!.BCount.ShouldBe(3);
 
     }
@@ -108,16 +108,16 @@ public class strong_named_identifiers : IAsyncLifetime
 
         session.Events.StartStream<StrongLetterAggregate>(stream2Id, new AEvent(), new BEvent(), new BEvent(),
             new AEvent(), new DEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await theHost.InvokeMessageAndWaitAsync(new AddFrom(new LetterId(stream1Id), new LetterId(stream2Id)));
 
-        var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id);
+        var aggregate1 = await session.Events.FetchLatest<StrongLetterAggregate>(stream1Id, TestContext.Current.CancellationToken);
         aggregate1!.BCount.ShouldBe(3);
         aggregate1.ACount.ShouldBe(3);
         aggregate1.DCount.ShouldBe(1);
 
-        var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id);
+        var aggregate2 = await session.Events.FetchLatest<StrongLetterAggregate>(stream2Id, TestContext.Current.CancellationToken);
         aggregate2!.BCount.ShouldBe(2);
     }
 

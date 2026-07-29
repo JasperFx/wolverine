@@ -72,7 +72,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
         await ProduceAsync(producer, _topicName, fixedId, new DupTestMessage("first"));
         await ProduceAsync(producer, _topicName, fixedId, new DupTestMessage("duplicate"));
         await ProduceAsync(producer, _topicName, freshId, new DupTestMessage("third"));
-        producer.Flush();
+        producer.Flush(TestContext.Current.CancellationToken);
 
         // Wait until both unique envelope IDs have been processed by the handler.
         var deadline = DateTimeOffset.UtcNow.AddSeconds(30);
@@ -84,7 +84,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
                 break;
             }
 
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
 
         DupTestHandler.HandledIds.ShouldContain(fixedId);

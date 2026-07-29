@@ -22,16 +22,16 @@ public class transactional_frame_end_to_end
                     m.ConnectionString = Servers.SqlServerConnectionString;
                     m.DatabaseSchemaName = "transactional";
                 }).IntegrateWithWolverine();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
-        await ((DocumentStore)store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
+        await ((DocumentStore)store).Database.ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var command = new PcCreateDocCommand();
         await host.InvokeAsync(command);
 
         await using var query = store.QuerySession();
-        (await query.LoadAsync<PcFakeDoc>(command.Id))
+        (await query.LoadAsync<PcFakeDoc>(command.Id, TestContext.Current.CancellationToken))
             .ShouldNotBeNull();
     }
 
@@ -46,16 +46,16 @@ public class transactional_frame_end_to_end
                     m.ConnectionString = Servers.SqlServerConnectionString;
                     m.DatabaseSchemaName = "transactional";
                 }).IntegrateWithWolverine();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
-        await ((DocumentStore)store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
+        await ((DocumentStore)store).Database.ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var command = new PcCreateDocCommand2();
         await host.InvokeAsync(command);
 
         await using var query = store.QuerySession();
-        (await query.LoadAsync<PcFakeDoc>(command.Id))
+        (await query.LoadAsync<PcFakeDoc>(command.Id, TestContext.Current.CancellationToken))
             .ShouldNotBeNull();
     }
 }

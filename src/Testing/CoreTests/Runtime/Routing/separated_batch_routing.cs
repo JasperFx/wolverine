@@ -34,7 +34,7 @@ public class separated_batch_routing
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<LoadEvent>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 
@@ -74,7 +74,7 @@ public class separated_batch_routing
                 // reach both the direct handler and the batch.
                 opts.ListenForMessagesFrom("stub://external");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var external = runtime.Options.Transports.AllEndpoints()
@@ -100,7 +100,7 @@ public class separated_batch_routing
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 opts.BatchMessagesOf<InvoiceEvent>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

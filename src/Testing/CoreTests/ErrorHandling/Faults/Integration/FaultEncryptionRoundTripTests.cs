@@ -54,7 +54,7 @@ public class FaultEncryptionRoundTripTests
 
                 opts.PublishFaultEvents();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.TrackActivity()
             .DoNotAssertOnExceptionsDetected()

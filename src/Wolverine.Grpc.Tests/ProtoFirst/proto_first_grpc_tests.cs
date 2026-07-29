@@ -25,7 +25,7 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     {
         var client = new Greeter.GreeterClient(_fixture.Channel);
 
-        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" });
+        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         reply.Message.ShouldBe("Hello, Erik");
     }
@@ -35,8 +35,8 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     {
         var client = new Greeter.GreeterClient(_fixture.Channel);
 
-        var hello = await client.SayHelloAsync(new HelloRequest { Name = "Wolverine" });
-        var bye = await client.SayGoodbyeAsync(new GoodbyeRequest { Name = "Wolverine" });
+        var hello = await client.SayHelloAsync(new HelloRequest { Name = "Wolverine" }, cancellationToken: TestContext.Current.CancellationToken);
+        var bye = await client.SayGoodbyeAsync(new GoodbyeRequest { Name = "Wolverine" }, cancellationToken: TestContext.Current.CancellationToken);
 
         hello.Message.ShouldBe("Hello, Wolverine");
         bye.Message.ShouldBe("Goodbye, Wolverine");
@@ -60,10 +60,10 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     {
         var client = new Greeter.GreeterClient(_fixture.Channel);
 
-        using var call = client.StreamGreetings(new StreamGreetingsRequest { Name = "Erik", Count = 3 });
+        using var call = client.StreamGreetings(new StreamGreetingsRequest { Name = "Erik", Count = 3 }, cancellationToken: TestContext.Current.CancellationToken);
 
         var received = new List<string>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
         {
             received.Add(reply.Message);
         }
@@ -76,9 +76,9 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
     {
         var client = new Greeter.GreeterClient(_fixture.Channel);
 
-        using var call = client.CollectGreetings();
-        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Erik" });
-        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Ripley" });
+        using var call = client.CollectGreetings(cancellationToken: TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Erik" }, TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new HelloRequest { Name = "Ripley" }, TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var summary = await call;
@@ -140,7 +140,7 @@ public class proto_first_grpc_tests : IClassFixture<ProtoFirstGrpcFixture>
         using var capture = new WolverineActivityCapture();
 
         var client = new Greeter.GreeterClient(_fixture.Channel);
-        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" });
+        var reply = await client.SayHelloAsync(new HelloRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         reply.Message.ShouldBe("Hello, Erik");
         capture.AssertRequestActivityChainedUnderServerHostingActivity<HelloRequest>();

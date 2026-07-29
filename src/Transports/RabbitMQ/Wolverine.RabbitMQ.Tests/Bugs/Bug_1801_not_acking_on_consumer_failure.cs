@@ -17,7 +17,7 @@ public class Bug_1801_not_acking_on_consumer_failure
 
                 opts.ListenToRabbitQueue("will_error");
                 opts.PublishMessage<CauseError>().ToRabbitQueue("will_error");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.TrackActivity()
             .IncludeExternalTransports()

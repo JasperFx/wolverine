@@ -39,7 +39,7 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
                 // Without UseDurableLocalQueues it's green.
                 w.Policies.UseDurableLocalQueues();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
 
@@ -50,7 +50,7 @@ public class saga_cannot_access_stream_just_persisted_in_immediate_timeout : Pos
 
         using var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 
-        var saga = await session.LoadAsync<SomeSaga>(id);
+        var saga = await session.LoadAsync<SomeSaga>(id, TestContext.Current.CancellationToken);
         saga.ShouldNotBeNull();
         saga.TimedOut.ShouldBeTrue();
     }

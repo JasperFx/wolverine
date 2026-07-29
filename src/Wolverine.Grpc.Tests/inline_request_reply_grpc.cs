@@ -44,7 +44,7 @@ public class inline_request_reply_grpc
         using var receiver = await startReceiverAsync();
         using var sender = await startSenderAsync();
 
-        var response = await sender.MessageBus().InvokeAsync<GrpcInlinePong>(new GrpcInlinePing("Rand"));
+        var response = await sender.MessageBus().InvokeAsync<GrpcInlinePong>(new GrpcInlinePing("Rand"), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
         response.Name.ShouldBe("Rand");

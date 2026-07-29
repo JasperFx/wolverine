@@ -29,7 +29,7 @@ public class publish_raw_json_wire_format
                 opts.PublishAllMessages().ToKafkaTopic("mapper-registration-out").PublishRawJson();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var transport = runtime.Options.Transports.GetOrCreate<KafkaTransport>();
@@ -37,7 +37,7 @@ public class publish_raw_json_wire_format
         transport.Topics["mapper-registration-in"].BuildMapper(runtime).ShouldBeOfType<JsonOnlyMapper>();
         transport.Topics["mapper-registration-out"].BuildMapper(runtime).ShouldBeOfType<JsonOnlyMapper>();
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class publish_raw_json_wire_format
                 opts.PublishAllMessages().ToKafkaTopic("clean-json").PublishRawJson();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // The topic may hold records from prior runs, so tag this run's message with a
         // unique color and scan for exactly that record.
@@ -101,6 +101,6 @@ public class publish_raw_json_wire_format
             .Color.ShouldBe(color);
 
         consumer.Close();
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 }

@@ -21,7 +21,7 @@ public class configuring_deliver_within_rules
                 opts.PublishAllMessages().ToPort(port)
                     .DeliverWithin(3.Seconds());
                 opts.ListenAtPort(port);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Message1();
 
@@ -42,7 +42,7 @@ public class configuring_deliver_within_rules
                 opts.PublishAllMessages().ToLocalQueue("volatile")
                     .DeliverWithin(3.Seconds());
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Message1();
 

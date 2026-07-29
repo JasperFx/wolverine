@@ -31,7 +31,7 @@ public class missing_handlers
                 break;
             }
 
-            await Task.Delay(250);
+            await Task.Delay(250, TestContext.Current.CancellationToken);
         }
 
         RecordingMissingHandler.Recorded.Single().Message.ShouldBeSameAs(message);

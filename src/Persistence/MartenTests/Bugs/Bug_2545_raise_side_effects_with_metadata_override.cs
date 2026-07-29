@@ -51,14 +51,14 @@ public class Bug_2545_raise_side_effects_with_metadata_override
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(Bug2545SideEffectHandler));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var streamId = Guid.NewGuid();
         Bug2545SideEffectHandler.Received.Clear();
 
         // Clear any prior state from earlier test runs.
         var store = host.Services.GetRequiredService<IDocumentStore>();
-        await store.Advanced.Clean.CompletelyRemoveAllAsync();
+        await store.Advanced.Clean.CompletelyRemoveAllAsync(TestContext.Current.CancellationToken);
 
         var tracked = await host
             .TrackActivity()

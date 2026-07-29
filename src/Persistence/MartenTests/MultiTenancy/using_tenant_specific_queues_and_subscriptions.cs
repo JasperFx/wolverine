@@ -236,7 +236,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
                 return;
             }
 
-            await Task.Delay(500.Milliseconds());
+            await Task.Delay(500.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new TimeoutException("The expected final state was never reached");

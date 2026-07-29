@@ -22,7 +22,7 @@ public class HandlerGraphTests
             .UseWolverine(opts =>
             {
                 opts.Policies.RegisterInteropMessageAssembly(typeof(IMessageAbstraction).Assembly);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
 
@@ -46,7 +46,7 @@ public class HandlerGraphTests
             .UseWolverine(opts =>
             {
                 opts.RegisterMessageType(typeof(DummyMessage), "custom-alias");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
 
@@ -64,7 +64,7 @@ public class HandlerGraphTests
             {
                 opts.RegisterMessageType(typeof(DummyMessage), "custom-alias-1");
                 opts.RegisterMessageType(typeof(DummyMessage), "custom-alias-2");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
 
@@ -99,7 +99,7 @@ public class HandlerGraphTests
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();

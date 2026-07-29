@@ -98,11 +98,11 @@ public class SqliteMessageStoreTests : MessageStoreCompliance, IAsyncLifetime
         await theHost.InvokeAsync(new DatabaseOperationBatch(messageDatabase, [log]));
 
         using var dataSource = new SqliteDataSource(_database.ConnectionString);
-        await using var conn = await dataSource.OpenConnectionAsync();
+        await using var conn = await dataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
         await conn.CreateCommand(
                 $"update {DatabaseConstants.NodeRecordTableName} set timestamp = @time where node_number = 2")
             .With("time", DateTimeOffset.UtcNow.Subtract(10.Days()).ToString("o"))
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
 
         var recent2 = await thePersistence.Nodes.FetchRecentRecordsAsync(100);
 

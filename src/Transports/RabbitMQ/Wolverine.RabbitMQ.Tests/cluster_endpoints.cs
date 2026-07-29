@@ -208,7 +208,7 @@ public class cluster_endpoints
                 opts.ListenToRabbitQueue(queueName);
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()

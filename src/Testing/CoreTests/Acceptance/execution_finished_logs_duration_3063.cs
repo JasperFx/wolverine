@@ -24,7 +24,7 @@ public class execution_finished_logs_duration_3063
             {
                 opts.Services.AddSingleton<ILoggerFactory>(new SingleLoggerFactory(logger));
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Route through the worker (Executor.ExecuteAsync), not the inline invoke path
         await host.SendMessageAndWaitAsync(new DurationTestMessage("hello"));

@@ -34,7 +34,7 @@ public class configuration_specs : IDisposable
                 opts.UseFluentValidation();
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var container = host.Services.GetRequiredService<IServiceContainer>();
 
@@ -55,7 +55,7 @@ public class configuration_specs : IDisposable
                 opts.UseFluentValidation();
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetRequiredService<IFailureAction<Command1>>()
             .ShouldBeOfType<FailureAction<Command1>>();
@@ -70,7 +70,7 @@ public class configuration_specs : IDisposable
                 opts.UseFluentValidation();
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
             .As<WolverineRuntime>().Options;
@@ -110,7 +110,7 @@ public class configuration_specs : IDisposable
                 });
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         ValidatorOptions.Global.DefaultRuleLevelCascadeMode.ShouldBe(CascadeMode.Stop);
         ValidatorOptions.Global.DefaultClassLevelCascadeMode.ShouldBe(CascadeMode.Stop);
@@ -129,7 +129,7 @@ public class configuration_specs : IDisposable
                 {
                     fv.RegistrationBehavior = RegistrationBehavior.ExplicitRegistration;
                 });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var container = host.Services.GetRequiredService<IServiceContainer>();
 
@@ -150,7 +150,7 @@ public class configuration_specs : IDisposable
                 });
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
             .As<WolverineRuntime>().Options;
@@ -177,7 +177,7 @@ public class configuration_specs : IDisposable
                 });
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var container = host.Services.GetRequiredService<IServiceContainer>();
 
@@ -196,7 +196,7 @@ public class configuration_specs : IDisposable
                 opts.UseFluentValidation();
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var container = host.Services.GetRequiredService<IServiceContainer>();
 
@@ -216,7 +216,7 @@ public class configuration_specs : IDisposable
                 });
 
                 opts.Services.AddScoped<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var container = host.Services.GetRequiredService<IServiceContainer>();
 

@@ -126,7 +126,7 @@ public class bootstrapping_ancillary_polecat_stores_with_wolverine : IAsyncLifet
         // The [PolecatStore]-routed handler must have stored the Player in the ANCILLARY store.
         var store = theHost.Services.GetRequiredService<IPlayerStore>();
         await using var session = store.QuerySession();
-        var player = await session.LoadAsync<Player>(message.Id);
+        var player = await session.LoadAsync<Player>(message.Id, TestContext.Current.CancellationToken);
 
         player.ShouldNotBeNull();
     }

@@ -19,7 +19,7 @@ public class handler_with_optional_side_effect
         using var host = WolverineHost.Basic();
 
         var bus = host.MessageBus();
-        await bus.InvokeAsync(new SomeCommand());
+        await bus.InvokeAsync(new SomeCommand(), TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<SomeCommand>();
@@ -33,7 +33,7 @@ public class handler_with_optional_side_effect
         using var host = WolverineHost.Basic();
 
         var bus = host.MessageBus();
-        await bus.InvokeAsync(new SomeOtherCommand());
+        await bus.InvokeAsync(new SomeOtherCommand(), TestContext.Current.CancellationToken);
 
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<SomeOtherCommand>();

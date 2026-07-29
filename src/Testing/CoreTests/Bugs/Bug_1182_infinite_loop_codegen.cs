@@ -20,7 +20,7 @@ public class Bug_1182_infinite_loop_codegen
             .UseWolverine(opts =>
             {
                 opts.Discovery.DisableConventionalDiscovery().IncludeType(typeof(InfiniteCommandHandlingThing));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var collections = host.Services.GetServices<ICodeFileCollection>().ToArray();
 

@@ -30,12 +30,12 @@ public class mixed_aggregate_handler_with_multiple_streams
                     m.Projections.Snapshot<XAccount>(SnapshotLifecycle.Inline);
                     m.Projections.Snapshot<Inventory>(SnapshotLifecycle.Inline);
                 }).IntegrateWithWolverine();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var session = host.DocumentStore().LightweightSession();
         var inventoryId = session.Events.StartStream<Inventory>(new InventoryStarted("XFX", 100, 10)).Id;
         var accountId = session.Events.StartStream<XAccount>(new XAccountOpened(2000)).Id;
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var (tracked, account) = await host.InvokeMessageAndWaitAsync<XAccount>(new MakePurchase(accountId, inventoryId, 30));
         account!.Balance.ShouldBe(1700);

@@ -130,7 +130,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
 
         await theSender.TrackActivity().AlsoTrack(theReceiver).SendMessageAndWaitAsync(item);
 
-        await Task.Delay(500.Milliseconds());
+        await Task.Delay(500.Milliseconds(), TestContext.Current.CancellationToken);
 
 
         await assertReceivedItemMatchesSent(item);

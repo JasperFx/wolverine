@@ -31,7 +31,7 @@ public class subscription_descriptor_agent_uris
                     opts.Projections.Add<DayProjection>(ProjectionLifecycle.Async);
                     opts.Projections.Add<DistanceProjection>(ProjectionLifecycle.Async);
                 });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var eventStore = host.Services.GetServices<IEventStore>().Single();
         var usage = await eventStore.TryCreateUsage(CancellationToken.None);
@@ -90,7 +90,7 @@ public class subscription_descriptor_agent_uris
 
                     opts.Projections.Add<TripProjection>(ProjectionLifecycle.Inline);
                 });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var eventStore = host.Services.GetServices<IEventStore>().Single();
         var usage = await eventStore.TryCreateUsage(CancellationToken.None);

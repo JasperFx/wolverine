@@ -47,16 +47,16 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
     {
         var payload = Encoding.UTF8.GetBytes("hello, claim check world");
 
-        var token = await _store.StoreAsync(payload, "text/plain");
+        var token = await _store.StoreAsync(payload, "text/plain", TestContext.Current.CancellationToken);
 
         token.Id.ShouldNotBeNullOrWhiteSpace();
         token.ContentType.ShouldBe("text/plain");
         token.Length.ShouldBe(payload.Length);
 
-        var loaded = await _store.LoadAsync(token);
+        var loaded = await _store.LoadAsync(token, TestContext.Current.CancellationToken);
         loaded.ToArray().ShouldBe(payload);
 
-        await _store.DeleteAsync(token);
+        await _store.DeleteAsync(token, TestContext.Current.CancellationToken);
 
         // After delete, loading should fail with a not-found error.
         await Should.ThrowAsync<KeyNotFoundException>(async () => await _store.LoadAsync(token));
@@ -68,7 +68,7 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
         var token = new ClaimCheckToken("does_not_exist_" + Guid.NewGuid().ToString("N"), "text/plain", 0);
 
         // Should not throw even though the row was never created.
-        await _store.DeleteAsync(token);
+        await _store.DeleteAsync(token, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -82,8 +82,8 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
             payload[i] = (byte)i;
         }
 
-        var token = await _store.StoreAsync(payload, "application/octet-stream");
-        var loaded = await _store.LoadAsync(token);
+        var token = await _store.StoreAsync(payload, "application/octet-stream", TestContext.Current.CancellationToken);
+        var loaded = await _store.LoadAsync(token, TestContext.Current.CancellationToken);
 
         loaded.Length.ShouldBe(payload.Length);
         loaded.ToArray().ShouldBe(payload);
@@ -94,10 +94,10 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
     {
         // A second store over the same schema/table must not fail re-running the
         // create-if-not-exists DDL, and must see the first store's row.
-        var token = await _store.StoreAsync(Encoding.UTF8.GetBytes("shared"), "text/plain");
+        var token = await _store.StoreAsync(Encoding.UTF8.GetBytes("shared"), "text/plain", TestContext.Current.CancellationToken);
 
         var second = new PostgresqlClaimCheckStore(_dataSource, _schema);
-        var loaded = await second.LoadAsync(token);
+        var loaded = await second.LoadAsync(token, TestContext.Current.CancellationToken);
 
         loaded.ToArray().ShouldBe(Encoding.UTF8.GetBytes("shared"));
     }

@@ -60,7 +60,7 @@ public class pulsar_replay
         using var replayer = await replayerAsync();
         var replaySink = replayer.Services.GetRequiredService<ReplaySink>();
 
-        var result = await replayer.ReplayPulsarTopicAsync(new PulsarReplayRequest { Topic = topic });
+        var result = await replayer.ReplayPulsarTopicAsync(new PulsarReplayRequest { Topic = topic }, token: TestContext.Current.CancellationToken);
 
         result.MessagesReplayed.ShouldBe(6);
         await waitForCountAsync(replaySink.Received, 6);
@@ -85,9 +85,9 @@ public class pulsar_replay
         await publisher.SendAsync(new ReplayMessage { Id = "old-0" });
         await publisher.SendAsync(new ReplayMessage { Id = "old-1" });
 
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
         var boundary = DateTimeOffset.UtcNow;
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
 
         await publisher.SendAsync(new ReplayMessage { Id = "new-0" });
         await publisher.SendAsync(new ReplayMessage { Id = "new-1" });
@@ -100,7 +100,7 @@ public class pulsar_replay
         {
             Topic = topic,
             FromTimestamp = boundary
-        });
+        }, token: TestContext.Current.CancellationToken);
 
         result.MessagesReplayed.ShouldBe(3);
         await waitForCountAsync(replaySink.Received, 3);
@@ -116,7 +116,7 @@ public class pulsar_replay
         using var publisher = await publisherAsync(topic);
 
         using var replayer = await replayerAsync();
-        var result = await replayer.ReplayPulsarTopicAsync(new PulsarReplayRequest { Topic = topic });
+        var result = await replayer.ReplayPulsarTopicAsync(new PulsarReplayRequest { Topic = topic }, token: TestContext.Current.CancellationToken);
 
         result.MessagesReplayed.ShouldBe(0);
     }

@@ -44,7 +44,7 @@ public class subscriptions_end_to_end
                 }).IntegrateWithWolverine()
                 .UseLightweightSessions()
                 .SubscribeToEvents(new TestBatchSubscription());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var routing = runtime.RoutingFor(typeof(IEvent<AEvent>));
@@ -81,10 +81,10 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<EventTotalsUpdated>().Count().ShouldBeGreaterThanOrEqualTo(4);
 
         using var query = store.QuerySession();
-        (await query.LoadAsync<EventTotals>("A"))!.Count.ShouldBe(6);
-        (await query.LoadAsync<EventTotals>("B"))!.Count.ShouldBe(7);
-        (await query.LoadAsync<EventTotals>("C"))!.Count.ShouldBe(5);
-        (await query.LoadAsync<EventTotals>("D"))!.Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("A", TestContext.Current.CancellationToken))!.Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("B", TestContext.Current.CancellationToken))!.Count.ShouldBe(7);
+        (await query.LoadAsync<EventTotals>("C", TestContext.Current.CancellationToken))!.Count.ShouldBe(5);
+        (await query.LoadAsync<EventTotals>("D", TestContext.Current.CancellationToken))!.Count.ShouldBe(6);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class subscriptions_end_to_end
                 }).IntegrateWithWolverine()
                 .UseLightweightSessions()
                 .SubscribeToEvents(subscription);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -142,10 +142,10 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<EventTotalsUpdated>().Count().ShouldBeGreaterThanOrEqualTo(2);
 
         using var query = store.QuerySession();
-        (await query.LoadAsync<EventTotals>("A"))!.Count.ShouldBe(6);
-        (await query.LoadAsync<EventTotals>("B"))!.Count.ShouldBe(7);
-        (await query.LoadAsync<EventTotals>("C")).ShouldBeNull();
-        (await query.LoadAsync<EventTotals>("D")).ShouldBeNull();
+        (await query.LoadAsync<EventTotals>("A", TestContext.Current.CancellationToken))!.Count.ShouldBe(6);
+        (await query.LoadAsync<EventTotals>("B", TestContext.Current.CancellationToken))!.Count.ShouldBe(7);
+        (await query.LoadAsync<EventTotals>("C", TestContext.Current.CancellationToken)).ShouldBeNull();
+        (await query.LoadAsync<EventTotals>("D", TestContext.Current.CancellationToken)).ShouldBeNull();
     }
 
     [Fact]
@@ -167,7 +167,7 @@ public class subscriptions_end_to_end
                 }).IntegrateWithWolverine()
                 .UseLightweightSessions()
                 .ProcessEventsWithWolverineHandlersInStrictOrder("Inline");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -180,7 +180,7 @@ public class subscriptions_end_to_end
         session.Events.StartStream(Guid.NewGuid(), new AEvent(), new AEvent(), new AEvent(), new AEvent());
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await daemon.WaitForNonStaleData(30.Seconds());
 
@@ -213,7 +213,7 @@ public class subscriptions_end_to_end
                         s.IncludeType<AEvent>();
                         s.IncludeType<BEvent>();
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -226,7 +226,7 @@ public class subscriptions_end_to_end
         session.Events.StartStream(Guid.NewGuid(), new AEvent(), new AEvent(), new AEvent(), new AEvent());
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await daemon.WaitForNonStaleData(30.Seconds());
 
@@ -250,7 +250,7 @@ public class subscriptions_end_to_end
                     }).IntegrateWithWolverine()
                     .UseLightweightSessions()
                     .PublishEventsToWolverine("Publish");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -311,7 +311,7 @@ public class subscriptions_end_to_end
                         x.PublishEvent<AEvent>();
                         x.PublishEvent<DEvent>();
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -378,7 +378,7 @@ public class subscriptions_end_to_end
                     {
                         x.PublishEvent<AEvent>();
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.DocumentStore();
 
@@ -447,7 +447,7 @@ public class subscriptions_end_to_end
                     {
                         x.PublishEvent<AEvent>();
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.DocumentStore();
 
@@ -508,7 +508,7 @@ public class subscriptions_end_to_end
                         x.PublishEvent<AEvent>();
                         x.PublishEvent<DEvent>((e, bus) => bus.PublishAsync(new TransformedMessage('D')));
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var store = host.DocumentStore();
 
@@ -572,7 +572,7 @@ public class subscriptions_end_to_end
                         x.PublishEvent<AEvent>();
                         x.PublishEvent<DEvent>((e, bus) => bus.PublishAsync(new TransformedMessage('D')));
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -634,7 +634,7 @@ public class subscriptions_end_to_end
                     }).IntegrateWithWolverine()
                     .UseLightweightSessions()
                     .SubscribeToEventsWithServices<ServiceUsingSubscription>(ServiceLifetime.Singleton);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -647,14 +647,14 @@ public class subscriptions_end_to_end
         session.Events.StartStream(Guid.NewGuid(), new AEvent(), new AEvent(), new AEvent(), new AEvent());
         session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await daemon.WaitForNonStaleData(20.Seconds());
 
 
         // Second round
         session.Events.StartStream(Guid.NewGuid(), new DEvent(), new DEvent(), new DEvent(), new DEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         // await daemon.WaitForNonStaleData(20.Seconds());
 
         ServiceUsingSubscription.Read.Count().ShouldBe(1);
@@ -686,7 +686,7 @@ public class subscriptions_end_to_end
                     }).IntegrateWithWolverine()
                     .UseLightweightSessions()
                     .SubscribeToEventsWithServices<ServiceUsingSubscription>(ServiceLifetime.Scoped);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
 
@@ -703,7 +703,7 @@ public class subscriptions_end_to_end
             session.Events.StartStream(Guid.NewGuid(), new AEvent(), new AEvent(), new AEvent(), new AEvent());
             session.Events.StartStream(Guid.NewGuid(), new BEvent(), new CEvent(), new CEvent(), new BEvent());
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await daemon.WaitForNonStaleData(60.Seconds());

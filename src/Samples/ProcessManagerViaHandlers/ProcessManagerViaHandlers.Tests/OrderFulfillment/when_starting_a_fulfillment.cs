@@ -26,7 +26,7 @@ public class when_starting_a_fulfillment : IntegrationContext
         await Host.InvokeMessageAndWaitAsync(command);
 
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(command.OrderFulfillmentStateId);
+        var events = await session.Events.FetchStreamAsync(command.OrderFulfillmentStateId, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(1);
         var started = events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();
@@ -35,7 +35,7 @@ public class when_starting_a_fulfillment : IntegrationContext
         started.TotalAmount.ShouldBe(command.TotalAmount);
 
         // Inline snapshot must have projected the event into the aggregate document.
-        var state = await session.Events.FetchLatest<OrderFulfillmentState>(command.OrderFulfillmentStateId);
+        var state = await session.Events.FetchLatest<OrderFulfillmentState>(command.OrderFulfillmentStateId, TestContext.Current.CancellationToken);
         state.ShouldNotBeNull();
         state.Id.ShouldBe(command.OrderFulfillmentStateId);
         state.CustomerId.ShouldBe(command.CustomerId);
@@ -63,7 +63,7 @@ public class when_starting_a_fulfillment : IntegrationContext
 
         // The first start's data must still be intact; the second start's transaction rolled back.
         await using var session = Store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
 
         events.Count.ShouldBe(1);
         var started = events[0].Data.ShouldBeOfType<OrderFulfillmentStarted>();

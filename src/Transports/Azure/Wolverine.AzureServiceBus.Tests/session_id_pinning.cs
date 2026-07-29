@@ -52,7 +52,7 @@ public class session_id_pinning : IAsyncLifetime
         {
             SessionId = "B",
             MessageId = Guid.NewGuid().ToString()
-        });
+        }, TestContext.Current.CancellationToken);
 
         // Drive three "A" messages through Wolverine and confirm ONLY those are received
         Func<IMessageContext, Task> sendAll = async bus =>
@@ -73,8 +73,8 @@ public class session_id_pinning : IAsyncLifetime
 
         // The "B" session message must still be sitting on the shared queue, never delivered to the
         // A-pinned listener.
-        await using var sessionReceiver = await client.AcceptSessionAsync("shared-pinned", "B");
-        var leftover = await sessionReceiver.ReceiveMessageAsync(5.Seconds());
+        await using var sessionReceiver = await client.AcceptSessionAsync("shared-pinned", "B", cancellationToken: TestContext.Current.CancellationToken);
+        var leftover = await sessionReceiver.ReceiveMessageAsync(5.Seconds(), TestContext.Current.CancellationToken);
         leftover.ShouldNotBeNull();
         leftover.SessionId.ShouldBe("B");
     }

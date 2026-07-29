@@ -13,7 +13,7 @@ public class Bug_143_disambiguate_logger_variables
         using var host = await Host
             .CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new LoggedMessage("Nick Boltan"));
     }

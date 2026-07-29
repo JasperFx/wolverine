@@ -26,10 +26,10 @@ public class When_handling_messages_in_saga
 
                     opts.Policies.AutoApplyTransactions();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -59,10 +59,10 @@ public class When_handling_messages_in_saga
 
                     opts.Policies.AutoApplyTransactions();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -81,7 +81,7 @@ public class When_handling_messages_in_saga
                 {
                     // No Polecat integration - in-memory only
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 
@@ -105,7 +105,7 @@ public class When_handling_messages_in_saga
                 {
                     // No Polecat integration - in-memory only
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var subscriptionId = Guid.NewGuid();
 

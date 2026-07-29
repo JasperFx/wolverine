@@ -26,7 +26,7 @@ public class using_ancillary_stores : IntegrationContext
         var store = Host.DocumentStore<IThingStore>();
         using var session = store.LightweightSession();
 
-        var thing = await session.Events.FetchLatest<Thing>(response.Id);
+        var thing = await session.Events.FetchLatest<Thing>(response.Id, TestContext.Current.CancellationToken);
         thing.ShouldNotBeNull();
     }
 }

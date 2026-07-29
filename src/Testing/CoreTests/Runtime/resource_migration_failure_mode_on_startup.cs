@@ -35,7 +35,7 @@ public class resource_migration_failure_mode_on_startup
                 opts.ResourceMigrationFailureMode = ResourceMigrationFailureMode.ContinueOnFailures;
                 opts.Transports.Add(new ThrowingTransport());
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // If we got here, startup continued despite the transport's InitializeAsync throwing
         host.Services.GetService(typeof(IWolverineRuntime)).ShouldNotBeNull();

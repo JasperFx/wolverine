@@ -110,7 +110,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(id, "one")));
 
         var context = await theBuilder.BuildAsync("green", CancellationToken.None);
-        var item = await context.Items.FindAsync(id);
+        var item = await context.Items.FindAsync(new object?[] { id }, TestContext.Current.CancellationToken);
 
         item.ShouldNotBeNull();
         item.TenantId.ShouldBe("green");
@@ -123,7 +123,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await theHost.InvokeMessageAndWaitAsync(new CreateConjoinedItem(id, "plain"));
 
         var context = await theBuilder.BuildAsync(CancellationToken.None);
-        var item = await context.Items.FindAsync(id);
+        var item = await context.Items.FindAsync(new object?[] { id }, TestContext.Current.CancellationToken);
 
         item.ShouldNotBeNull();
         item.TenantId.ShouldBe(StorageConstants.DefaultTenantId);
@@ -143,9 +143,9 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
         var greenAgain = await theBuilder.BuildAsync("green", CancellationToken.None);
 
-        (await green.Items.Where(x => x.Name == "same").ToListAsync()).Single().Id.ShouldBe(greenId);
-        (await blue.Items.Where(x => x.Name == "same").ToListAsync()).Single().Id.ShouldBe(blueId);
-        (await greenAgain.Items.Where(x => x.Name == "same").ToListAsync()).Single().Id.ShouldBe(greenId);
+        (await green.Items.Where(x => x.Name == "same").ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(greenId);
+        (await blue.Items.Where(x => x.Name == "same").ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(blueId);
+        (await greenAgain.Items.Where(x => x.Name == "same").ToListAsync(cancellationToken: TestContext.Current.CancellationToken)).Single().Id.ShouldBe(greenId);
     }
 
     [Fact]
@@ -157,10 +157,10 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(greenId, "mine")));
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        (await blue.Items.FindAsync(greenId)).ShouldBeNull();
+        (await blue.Items.FindAsync(new object?[] { greenId }, TestContext.Current.CancellationToken)).ShouldBeNull();
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
-        (await green.Items.FindAsync(greenId)).ShouldNotBeNull();
+        (await green.Items.FindAsync(new object?[] { greenId }, TestContext.Current.CancellationToken)).ShouldNotBeNull();
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(id, "guarded")));
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        var smuggled = await blue.Items.IgnoreQueryFilters().SingleAsync(x => x.Id == id);
+        var smuggled = await blue.Items.IgnoreQueryFilters().SingleAsync(x => x.Id == id, cancellationToken: TestContext.Current.CancellationToken);
         smuggled.Name = "hijacked";
 
         var ex = await Should.ThrowAsync<CrossTenantWriteException>(() => blue.SaveChangesAsync());
@@ -185,7 +185,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await theHost.ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("green", new CreateConjoinedItem(id, "keeper")));
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        var smuggled = await blue.Items.IgnoreQueryFilters().SingleAsync(x => x.Id == id);
+        var smuggled = await blue.Items.IgnoreQueryFilters().SingleAsync(x => x.Id == id, cancellationToken: TestContext.Current.CancellationToken);
         blue.Items.Remove(smuggled);
 
         await Should.ThrowAsync<CrossTenantWriteException>(() => blue.SaveChangesAsync());
@@ -213,12 +213,12 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
             .ExecuteAndWaitAsync(c => c.InvokeForTenantAsync("blue", new IncrementCounter(id))));
 
         var green = await theBuilder.BuildAsync("green", CancellationToken.None);
-        var saga = await green.Counters.SingleAsync(x => x.Id == id);
+        var saga = await green.Counters.SingleAsync(x => x.Id == id, cancellationToken: TestContext.Current.CancellationToken);
         saga.Count.ShouldBe(1);
         saga.TenantId.ShouldBe("green");
 
         var blue = await theBuilder.BuildAsync("blue", CancellationToken.None);
-        (await blue.Counters.FindAsync(id)).ShouldBeNull();
+        (await blue.Counters.FindAsync(new object?[] { id }, TestContext.Current.CancellationToken)).ShouldBeNull();
     }
 }
 

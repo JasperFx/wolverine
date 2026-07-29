@@ -25,7 +25,7 @@ public class transport_workflow
             var message = new FileBasedTransportMessage(Guid.NewGuid().ToString("N"), "welcome");
             await sendToQueue(host, message);
 
-            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds());
+            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
             received.MessageId.ShouldBe(message.MessageId);
             received.Payload.ShouldBe("welcome");
@@ -51,10 +51,10 @@ public class transport_workflow
             var message = new FileBasedTransportMessage(Guid.NewGuid().ToString("N"), "scheduled");
             await sendToQueue(host, message, 2.Seconds());
 
-            await Task.Delay(300.Milliseconds());
+            await Task.Delay(300.Milliseconds(), TestContext.Current.CancellationToken);
             audit.ReceivedMessage.Task.IsCompleted.ShouldBeFalse();
 
-            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds());
+            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
             received.Payload.ShouldBe("scheduled");
         }
         finally
@@ -78,7 +78,7 @@ public class transport_workflow
             var message = new FileBasedTransportMessage(Guid.NewGuid().ToString("N"), "after-restart");
             await sendToQueue(firstHost, message, 3.Seconds());
 
-            await Task.Delay(300.Milliseconds());
+            await Task.Delay(300.Milliseconds(), TestContext.Current.CancellationToken);
             audit.ReceivedMessage.Task.IsCompleted.ShouldBeFalse();
 
             await stopHost(firstHost);
@@ -86,7 +86,7 @@ public class transport_workflow
 
             secondHost = await startHost(database.ConnectionString, audit);
 
-            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds());
+            var received = await audit.ReceivedMessage.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
             received.MessageId.ShouldBe(message.MessageId);
             received.Payload.ShouldBe("after-restart");
         }

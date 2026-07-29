@@ -140,7 +140,7 @@ public class Bug_2576_ancillary_scheduled_message_stuck_incoming : IAsyncLifetim
 
         // The scheduled message has to wake up out of the scheduled-jobs poller
         // and run through the handler. Give it a moment.
-        await Task.Delay(5.Seconds());
+        await Task.Delay(5.Seconds(), TestContext.Current.CancellationToken);
 
         var runtime = _host.GetRuntime();
         var ancillaryStore = runtime.Stores.FindAncillaryStore(typeof(IAncillaryStore2576));

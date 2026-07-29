@@ -64,24 +64,24 @@ public class grpc_and_http_coexistence_3591 : IAsyncLifetime
     [Fact]
     public async Task http_get_still_responds_when_grpc_services_are_mapped()
     {
-        var response = await _client.GetAsync("/api/coexist/check");
+        var response = await _client.GetAsync("/api/coexist/check", TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldNotBe(System.Net.HttpStatusCode.NotFound);
         response.EnsureSuccessStatusCode();
 
-        (await response.Content.ReadAsStringAsync()).ShouldContain("ok");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldContain("ok");
     }
 
     [Fact]
     public async Task http_get_with_asparameters_and_invoke_still_responds_when_grpc_is_mapped()
     {
         // The issue's exact endpoint shape: [AsParameters] request forwarded through the message bus.
-        var response = await _client.GetAsync("/api/coexist/invoke?Name=bob");
+        var response = await _client.GetAsync("/api/coexist/invoke?Name=bob", TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldNotBe(System.Net.HttpStatusCode.NotFound);
         response.EnsureSuccessStatusCode();
 
-        (await response.Content.ReadAsStringAsync()).ShouldContain("bob");
+        (await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).ShouldContain("bob");
     }
 }
 

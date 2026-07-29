@@ -12,7 +12,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationEnumerableHandler.Handled = false;
 
@@ -26,7 +26,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationEnumerableHandler.Handled = false;
 
@@ -40,7 +40,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationStringArrayHandler.Handled = false;
 
@@ -54,7 +54,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationStringArrayHandler.Handled = false;
 
@@ -68,7 +68,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationAsyncHandler.Handled = false;
 
@@ -82,7 +82,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationAsyncHandler.Handled = false;
 
@@ -96,7 +96,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValueTaskHandler.Handled = false;
 
@@ -110,7 +110,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValidationOutcomeHandler.Handled = false;
 
@@ -124,7 +124,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValidationOutcomeHandler.Handled = false;
 
@@ -138,7 +138,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValidationOutcomeAsyncHandler.Handled = false;
 
@@ -152,7 +152,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValidationOutcomeAsyncHandler.Handled = false;
 
@@ -166,7 +166,7 @@ public class simple_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         SimpleValidationValueTaskHandler.Handled = false;
 

@@ -53,7 +53,7 @@ public class NatsDynamicSubjectTenancyTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessagesToNatsSubject<OrderPlaced>(m => $"{root}.{m.OrderId}").SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Each tenant's dynamic subject must be tenant-qualified: {tenantId}.{computed subject}.
         await using var subA = await NatsTestHelpers.SubscribeRawAsync(url, $"tenantA.{root}.{orderId}");

@@ -40,7 +40,7 @@ public class strong_typed_identifiers : PostgresqlContext, IAsyncLifetime
         var knob1 = new Knob() { Name = "Single" };
         using var session = _host.DocumentStore().LightweightSession();
         session.Store(knob1);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await _host.InvokeAsync(new TwistKnob(knob1.Id));
     }
@@ -52,7 +52,7 @@ public class strong_typed_identifiers : PostgresqlContext, IAsyncLifetime
         var knob2 = new Knob() { Name = "Two" };
         using var session = _host.DocumentStore().LightweightSession();
         session.Store(knob1, knob2);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         
         await _host.InvokeAsync(new TwistOneThenAnother(knob1.Id, knob2.Id));
     }

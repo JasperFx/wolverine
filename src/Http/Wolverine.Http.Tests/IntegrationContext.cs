@@ -118,6 +118,32 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
         return (tracked, result);
     }
 
+    /// <summary>
+    /// Same as <see cref="TrackedHttpCall(Action{Scenario},int)"/>, but lets the test state up front which
+    /// message executions it is waiting on. Necessary whenever the HTTP request only *enqueues* work — the
+    /// Wolverine HTTP transport endpoints (/_wolverine/batch, /_wolverine/invoke with a local queue) return
+    /// as soon as the envelopes are handed to the local queue, so the tracked session can observe zero
+    /// activity and complete before the first envelope reaches the handler pipeline. See GH-3714.
+    /// </summary>
+    protected async Task<(ITrackedSession, IScenarioResult)> TrackedHttpCall(
+        Action<Scenario> configuration,
+        Func<TrackedSessionConfiguration, TrackedSessionConfiguration> configureTracking,
+        int timeoutInMilliseconds = 5000)
+    {
+        IScenarioResult result = null!;
+
+        var session = configureTracking(Host.TrackActivity(TimeSpan.FromMilliseconds(timeoutInMilliseconds)));
+
+        Func<IMessageContext, Task> execution = async _ =>
+        {
+            result = await Host.Scenario(configuration);
+        };
+
+        var tracked = await session.ExecuteAndWaitAsync(execution);
+
+        return (tracked, result);
+    }
+
     protected Endpoint EndpointFor(string routePattern)
     {
         var endpoint = Host.Services.GetRequiredService<EndpointDataSource>()

@@ -37,7 +37,7 @@ public class codegen_preview_grpc_tests
                 {
                     services.AddWolverineGrpc();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             // Mimic MapProtoFirstServices() without needing a WebApplication: discover the
             // stubs, then push the graph into the supplemental code-file collection so that
@@ -112,7 +112,7 @@ public class codegen_preview_grpc_tests
                 {
                     services.AddWolverineGrpc();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();

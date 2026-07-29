@@ -50,7 +50,7 @@ public class RetryLimitTests
                 opts.Discovery.IncludeType<AlwaysFailingCommandHandler>();
                 
                 opts.Services.AddSingleton<RetryLimitTracker>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -67,7 +67,7 @@ public class RetryLimitTests
         var tracker = host.Services.GetRequiredService<RetryLimitTracker>();
 
         // Wait for listener to fully initialize
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         // Send a message that will ALWAYS fail
         var bus = host.MessageBus();
@@ -77,7 +77,7 @@ public class RetryLimitTests
         await bus.PublishAsync(command);
 
         // Wait for first attempt and first retry
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
         _output.WriteLine($"After 1.5s - Handler calls: {tracker.AttemptCount}");
         
         // Check scheduled set
@@ -85,7 +85,7 @@ public class RetryLimitTests
         _output.WriteLine($"  Scheduled messages: {scheduledCount1}");
         
         // Wait for second retry
-        await Task.Delay(1500);
+        await Task.Delay(1500, TestContext.Current.CancellationToken);
         _output.WriteLine($"After 3s - Handler calls: {tracker.AttemptCount}");
         
         var scheduledCount2 = await database.SortedSetLengthAsync(scheduledKey);
@@ -105,7 +105,7 @@ public class RetryLimitTests
         }
         
         // Wait longer for any remaining retries
-        await Task.Delay(3000);
+        await Task.Delay(3000, TestContext.Current.CancellationToken);
         
         var finalAttemptCount = tracker.AttemptCount;
         _output.WriteLine($"After 6s - Handler calls: {finalAttemptCount}");

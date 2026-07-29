@@ -78,7 +78,7 @@ public class parallel_drain_on_stop
         var stopping = controller.StopAsync(Substitute.For<IMessageBus>());
 
         // Exactly `dop` drains run concurrently; the rest queue behind them (Parallel.ForEachAsync bound).
-        await reachedCap.Task.WaitAsync(5.Seconds());
+        await reachedCap.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
         lock (gate)
         {
             concurrent.ShouldBe(dop);
@@ -86,7 +86,7 @@ public class parallel_drain_on_stop
         }
 
         release.SetResult();
-        await stopping.WaitAsync(5.Seconds());
+        await stopping.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         // Every agent was stopped and removed, and parallelism never exceeded the cap.
         maxConcurrent.ShouldBe(dop);
@@ -112,7 +112,7 @@ public class parallel_drain_on_stop
         var badUri = new Uri("fake://bad");
         controller.Agents[badUri] = new GatedAgent(badUri, () => throw new InvalidOperationException("wedged"));
 
-        await controller.StopAsync(Substitute.For<IMessageBus>()).WaitAsync(5.Seconds());
+        await controller.StopAsync(Substitute.For<IMessageBus>()).WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         // Every healthy agent still drained and was removed even though a peer threw. The throwing agent is
         // logged and left in the map (only a clean stop removes the entry), so the failure is contained.

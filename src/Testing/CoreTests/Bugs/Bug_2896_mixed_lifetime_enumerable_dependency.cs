@@ -28,9 +28,9 @@ public class Bug_2896_mixed_lifetime_enumerable_dependency
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType(typeof(Bug2896Handler));
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await host.MessageBus().InvokeAsync(new Bug2896Message());
+        await host.MessageBus().InvokeAsync(new Bug2896Message(), TestContext.Current.CancellationToken);
 
         var received = Bug2896Handler.Received.ShouldNotBeNull();
         received.Length.ShouldBe(2);

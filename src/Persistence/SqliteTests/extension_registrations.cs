@@ -19,7 +19,7 @@ public class extension_registrations : SqliteContext
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithSqlite(database.ConnectionString);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.Services.GetRequiredService<IMessageStore>()
             .ShouldBeOfType<SqliteMessageStore>();
@@ -34,7 +34,7 @@ public class extension_registrations : SqliteContext
             {
                 opts.PersistMessagesWithSqlite(database.ConnectionString);
                 opts.Durability.Mode = DurabilityMode.Solo;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         runtime.Storage.ShouldBeOfType<SqliteMessageStore>();

@@ -52,7 +52,7 @@ public class aggregate_handler_workflow_with_ievent
                 opts.Policies.AutoApplyTransactions();
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.DocumentStore();
         using var session = store.LightweightSession();
@@ -60,13 +60,13 @@ public class aggregate_handler_workflow_with_ievent
         var streamId = Guid.NewGuid();
 
         session.Events.StartStream<LetterAggregate>(streamId, new AEvent(), new BEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var tracked = await host.InvokeMessageAndWaitAsync(new RaiseABC(streamId));
 
         tracked.Executed.SingleEnvelope<IEvent<AEvent>>().ShouldNotBeNull();
 
-        var doc = await session.LoadAsync<LetterAggregate>(streamId);
+        var doc = await session.LoadAsync<LetterAggregate>(streamId, TestContext.Current.CancellationToken);
         doc!.DCount.ShouldBe(1);
     }
 
@@ -99,7 +99,7 @@ public class aggregate_handler_workflow_with_ievent
                 
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.DocumentStore();
         using var session = store.LightweightSession();
@@ -110,7 +110,7 @@ public class aggregate_handler_workflow_with_ievent
 
         tracked.Executed.SingleEnvelope<IEvent<AEvent>>().ShouldNotBeNull();
 
-        var doc = await session.LoadAsync<LetterCountsByString>(streamKey);
+        var doc = await session.LoadAsync<LetterCountsByString>(streamKey, TestContext.Current.CancellationToken);
         doc!.DCount.ShouldBe(1);
     }
     

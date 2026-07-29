@@ -17,7 +17,7 @@ public class runtime_compilation_extension
             .UseWolverine(opts =>
             {
                 opts.UseRuntimeCompilation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var generator = host.Services.GetService<IAssemblyGenerator>();
         generator.ShouldNotBeNull();
@@ -33,7 +33,7 @@ public class runtime_compilation_extension
                 opts.UseRuntimeCompilation();
                 opts.UseRuntimeCompilation();
                 opts.UseRuntimeCompilation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Should resolve a single registered instance and not throw at startup
         var generator = host.Services.GetService<IAssemblyGenerator>();

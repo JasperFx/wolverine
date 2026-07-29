@@ -31,8 +31,8 @@ public class transactional_dbcontext_selection_tests
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
-            await conn.DropSchemaAsync("widget_selection_schema");
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.DropSchemaAsync("widget_selection_schema", ct: TestContext.Current.CancellationToken);
             await conn.CreateCommand(
                     """
                     CREATE SCHEMA "widget_selection_schema";
@@ -41,7 +41,7 @@ public class transactional_dbcontext_selection_tests
                         "Name" text NOT NULL
                     );
                     """)
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         using var host = await Host.CreateDefaultBuilder()
@@ -64,7 +64,7 @@ public class transactional_dbcontext_selection_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<CreateWidgetHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // [Transactional]-attributed chains apply their attribute lazily on first compile, so force
         // it the same way transaction_middleware_mode_tests.cs does before inspecting Middleware.
@@ -85,7 +85,7 @@ public class transactional_dbcontext_selection_tests
 
         await using var scope = host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WidgetDbContext>();
-        (await db.Widgets.AnyAsync(w => w.Id == widgetId)).ShouldBeTrue();
+        (await db.Widgets.AnyAsync(w => w.Id == widgetId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public class transactional_dbcontext_selection_tests
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
-            await conn.DropSchemaAsync("gadget_selection_schema");
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.DropSchemaAsync("gadget_selection_schema", ct: TestContext.Current.CancellationToken);
             await conn.CreateCommand(
                     """
                     CREATE SCHEMA "gadget_selection_schema";
@@ -143,7 +143,7 @@ public class transactional_dbcontext_selection_tests
                         "Name" text NOT NULL
                     );
                     """)
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         using var host = await Host.CreateDefaultBuilder()
@@ -166,7 +166,7 @@ public class transactional_dbcontext_selection_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<CreateGadgetHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.GetRuntime().Handlers.HandlerFor<CreateGadget>();
         var chain = host.GetRuntime().Handlers.ChainFor<CreateGadget>();
@@ -183,7 +183,7 @@ public class transactional_dbcontext_selection_tests
 
         await using var scope = host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<GadgetDbContext>();
-        (await db.Gadgets.AnyAsync(g => g.Id == gadgetId)).ShouldBeTrue();
+        (await db.Gadgets.AnyAsync(g => g.Id == gadgetId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 }
 

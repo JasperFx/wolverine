@@ -33,7 +33,7 @@ public class configuration_precedence
                     }).Named("Specific"); // Not working as expected
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

@@ -93,7 +93,7 @@ public class PulsarPerTenantConfigurationTests
                 opts.PublishMessage<TenantColorMessage>()
                     .ToPulsarTopic("persistent://public/default/tenant-colors");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var transport = runtime.Options.Transports.GetOrCreate<PulsarTransport>();

@@ -104,7 +104,7 @@ public class Bug_2668_outboxed_session_listener_null_message_store : IAsyncLifet
             .SendMessageAndWaitAsync(new Bug2668Command(id, "Joe Mixon"));
 
         await using var session = _store.LightweightSession();
-        var doc = await session.LoadAsync<Bug2668Doc>(id);
+        var doc = await session.LoadAsync<Bug2668Doc>(id, TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull(
             "Handler did not persist the document — most likely because BeforeSaveChangesAsync threw NullReferenceException on the null SqlServerMessageStore (GH-2668). Confirm OutboxedSessionFactory.buildSessionOptions passes a real store to FlushOutgoingMessagesOnCommit.");
         doc.Name.ShouldBe("Joe Mixon");

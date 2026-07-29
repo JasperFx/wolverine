@@ -23,7 +23,7 @@ public class using_default_message_schema_name
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IMessageStore>();
         store.ShouldBeOfType<PostgresqlMessageStore>().Settings.SchemaName.ShouldBe("wolverine_default");
@@ -39,7 +39,7 @@ public class using_default_message_schema_name
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "non_default");
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IMessageStore>();
         store.ShouldBeOfType<PostgresqlMessageStore>().Settings.SchemaName.ShouldBe("non_default");
@@ -55,7 +55,7 @@ public class using_default_message_schema_name
                 opts.PersistMessagesWithPostgresql(NpgsqlDataSource.Create(Servers.PostgresConnectionString));
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = host.Services.GetRequiredService<IMessageStore>();
         store.ShouldBeOfType<PostgresqlMessageStore>().Settings.SchemaName.ShouldBe("wolverine_default");

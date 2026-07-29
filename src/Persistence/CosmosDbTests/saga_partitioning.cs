@@ -37,7 +37,7 @@ public class saga_partitioning
         using var host = await buildHostAsync(partitionById: true);
 
         var id = Guid.NewGuid().ToString();
-        await host.MessageBus().InvokeAsync(new StartPartitioned(id));
+        await host.MessageBus().InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
 
         // The point read CosmosDB is at its best on: id and partition key are the same value
         var saga = await loadAsync(id, new PartitionKey(id));
@@ -61,7 +61,7 @@ public class saga_partitioning
         using var host = await buildHostAsync(partitionById: false);
 
         var id = Guid.NewGuid().ToString();
-        await host.MessageBus().InvokeAsync(new StartPartitioned(id));
+        await host.MessageBus().InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
 
         (await loadAsync(id, PartitionKey.None)).ShouldNotBeNull();
         (await loadAsync(id, new PartitionKey(id))).ShouldBeNull();
@@ -77,14 +77,14 @@ public class saga_partitioning
         using var host = await buildHostAsync(partitionById: true);
 
         var id = Guid.NewGuid().ToString();
-        await host.MessageBus().InvokeAsync(new StartPartitioned(id));
-        await host.MessageBus().InvokeAsync(new IncrementPartitioned(id));
-        await host.MessageBus().InvokeAsync(new IncrementPartitioned(id));
+        await host.MessageBus().InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
+        await host.MessageBus().InvokeAsync(new IncrementPartitioned(id), TestContext.Current.CancellationToken);
+        await host.MessageBus().InvokeAsync(new IncrementPartitioned(id), TestContext.Current.CancellationToken);
 
         var saga = await loadAsync(id, new PartitionKey(id));
         saga!.Count.ShouldBe(2);
 
-        await host.MessageBus().InvokeAsync(new CompletePartitioned(id));
+        await host.MessageBus().InvokeAsync(new CompletePartitioned(id), TestContext.Current.CancellationToken);
 
         (await loadAsync(id, new PartitionKey(id))).ShouldBeNull();
     }
@@ -100,7 +100,7 @@ public class saga_partitioning
         var bus = host.MessageBus();
 
         var id = Guid.NewGuid().ToString();
-        await bus.InvokeAsync(new StartPartitioned(id));
+        await bus.InvokeAsync(new StartPartitioned(id), TestContext.Current.CancellationToken);
 
         // Commit a competing revision of the document between this message's read and its write, exactly as a
         // second node handling another message for this saga would
@@ -122,7 +122,7 @@ public class saga_partitioning
         using var host = await buildHostAsync(partitionById: true);
 
         var id = Guid.NewGuid().ToString();
-        await host.MessageBus().InvokeAsync(new StorePartitionedDirectly(id));
+        await host.MessageBus().InvokeAsync(new StorePartitionedDirectly(id), TestContext.Current.CancellationToken);
 
         var saga = await loadAsync(id, new PartitionKey(id));
         saga!.Count.ShouldBe(StorePartitionedDirectlyHandler.StoredCount);

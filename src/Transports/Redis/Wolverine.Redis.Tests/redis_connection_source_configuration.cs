@@ -107,13 +107,13 @@ public class redis_connection_source_configuration
                        opts.PublishAllMessages().ToRedisStream(streamKey);
                        opts.Services.AddSingleton(tcs);
                    })
-                   .StartAsync())
+                   .StartAsync(cancellationToken: TestContext.Current.CancellationToken))
         {
             var bus = host.MessageBus();
             await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}"))
                 .SendAsync(new ByoMuxMessage("123"));
 
-            var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
             completed.ShouldBe(tcs.Task);
         }
 
@@ -151,7 +151,7 @@ public class redis_connection_source_configuration
                        opts.PublishAllMessages().ToRedisStream(streamKey);
                        opts.Services.AddSingleton(tcs);
                    })
-                   .StartAsync())
+                   .StartAsync(cancellationToken: TestContext.Current.CancellationToken))
         {
             // The transport resolved its connection from the factory.
             var transport = host.Services.GetRequiredService<IWolverineRuntime>()
@@ -162,7 +162,7 @@ public class redis_connection_source_configuration
             await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}"))
                 .SendAsync(new ByoMuxMessage("123"));
 
-            var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+            var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
             completed.ShouldBe(tcs.Task);
         }
 
@@ -188,7 +188,7 @@ public class redis_connection_source_configuration
 
                 opts.ListenToRedisStream(streamKey, "g1").DefaultIncomingMessage<ByoMuxMessage>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>()
             .Options.Transports.GetOrCreate<RedisTransport>();

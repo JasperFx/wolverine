@@ -52,7 +52,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 Number = 1
             });
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         
         // Store the green doc
@@ -64,7 +64,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 Number = 2
             });
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var blueDoc = await host.GetAsJson<ColorDoc>("/color?tenant=blue");
@@ -117,7 +117,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 Number = 1
             });
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Store the green doc
@@ -129,7 +129,7 @@ public class multi_tenanted_session_factory_without_wolverine
                 Number = 2
             });
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var blueDoc = await host.GetAsJson<ColorDoc>("/color?tenant=blue");

@@ -14,7 +14,7 @@ public class missing_handler_behavior
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetServices<IMissingHandler>().ShouldBeEmpty();
     }
@@ -27,7 +27,7 @@ public class missing_handler_behavior
             {
                 opts.UnknownMessageBehavior = UnknownMessageBehavior.DeadLetterQueue;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetServices<IMissingHandler>().ShouldContain(x => x is MoveUnknownMessageToDeadLetterQueue);
     }
@@ -41,7 +41,7 @@ public class missing_handler_behavior
                 opts.UnknownMessageBehavior = UnknownMessageBehavior.DeadLetterQueue;
                 opts.UnknownMessageBehavior = UnknownMessageBehavior.LogOnly;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetServices<IMissingHandler>().ShouldBeEmpty();
     }
@@ -56,7 +56,7 @@ public class missing_handler_behavior
                 opts.UnknownMessageBehavior = UnknownMessageBehavior.LogOnly;
                 opts.UnknownMessageBehavior = UnknownMessageBehavior.DeadLetterQueue;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetServices<IMissingHandler>().ShouldContain(x => x is MoveUnknownMessageToDeadLetterQueue);
     }

@@ -61,7 +61,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
         await using var session = _host.DocumentStore().QuerySession();
 
         // Verify saga exists
-        var saga = await session.LoadAsync<SoftDeletedOrderSaga>(id);
+        var saga = await session.LoadAsync<SoftDeletedOrderSaga>(id, TestContext.Current.CancellationToken);
         saga.ShouldNotBeNull();
         saga.ProductName.ShouldBe("Widget");
 
@@ -70,14 +70,14 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
 
         // LoadAsync does NOT filter soft-deleted documents — this is standard Marten behavior
         await using var session2 = _host.DocumentStore().QuerySession();
-        var afterComplete = await session2.LoadAsync<SoftDeletedOrderSaga>(id);
+        var afterComplete = await session2.LoadAsync<SoftDeletedOrderSaga>(id, TestContext.Current.CancellationToken);
         afterComplete.ShouldNotBeNull("LoadAsync returns soft-deleted documents");
 
         // But a LINQ query WITHOUT MaybeDeleted() filters the soft-deleted saga out
         var filteredQuery = await session2
             .Query<SoftDeletedOrderSaga>()
             .Where(x => x.Id == id)
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(token: TestContext.Current.CancellationToken);
         filteredQuery.ShouldBeNull("LINQ queries filter soft-deleted documents by default");
 
         // With MaybeDeleted(), we can still find the soft-deleted saga
@@ -85,7 +85,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
             .Query<SoftDeletedOrderSaga>()
             .Where(x => x.Id == id)
             .Where(x => x.MaybeDeleted())
-            .FirstOrDefaultAsync();
+            .FirstOrDefaultAsync(token: TestContext.Current.CancellationToken);
         includingDeleted.ShouldNotBeNull();
         includingDeleted.ProductName.ShouldBe("Widget");
     }
@@ -117,7 +117,7 @@ public class soft_deleted_saga_experiment : IAsyncLifetime
 
         // The saga is resurrected — LoadAsync finds soft-deleted docs, and the
         // handler updates the document, removing the soft-delete marker
-        var normalLoad = await session.LoadAsync<SoftDeletedOrderSaga>(id);
+        var normalLoad = await session.LoadAsync<SoftDeletedOrderSaga>(id, TestContext.Current.CancellationToken);
         normalLoad.ShouldNotBeNull("Saga should be resurrected after receiving a message");
         normalLoad.WasHandledAfterCompletion.ShouldBeTrue();
     }

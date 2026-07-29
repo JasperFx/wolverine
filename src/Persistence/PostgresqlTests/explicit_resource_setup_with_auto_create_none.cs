@@ -58,7 +58,7 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
     {
         using var host = configureHost().Build();
 
-        await host.SetupResources();
+        await host.SetupResources(cancellation: TestContext.Current.CancellationToken);
 
         (await envelopeTablesExist()).ShouldBeTrue();
     }
@@ -92,8 +92,8 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
 
         try
         {
-            await host.StartAsync();
-            await host.StopAsync();
+            await host.StartAsync(TestContext.Current.CancellationToken);
+            await host.StopAsync(TestContext.Current.CancellationToken);
         }
         catch (Exception)
         {

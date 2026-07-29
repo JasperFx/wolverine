@@ -241,7 +241,7 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
 
         var store = theHost.DocumentStore<IPlayerStore>();
         using var session = store.QuerySession();
-        var player = await session.LoadAsync<Player>(message.Id);
+        var player = await session.LoadAsync<Player>(message.Id, TestContext.Current.CancellationToken);
 
         player.ShouldNotBeNull();
     }

@@ -41,7 +41,7 @@ public class RedisClaimingTests
         // Read with consumer A but do not ack, to create a pending entry
         await db.StreamReadGroupAsync(streamKey, group, consumerA, ">", 1, false);
         // Give the message a little idle time to satisfy minIdle
-        await Task.Delay(250);
+        await Task.Delay(250, TestContext.Current.CancellationToken);
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -64,10 +64,10 @@ public class RedisClaimingTests
 
                 opts.Services.AddSingleton(tcs);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Wait up to 10 seconds for message to be handled via claim loop
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         completed.ShouldBe(tcs.Task);
         var result = await tcs.Task;
         result.ShouldBeTrue();

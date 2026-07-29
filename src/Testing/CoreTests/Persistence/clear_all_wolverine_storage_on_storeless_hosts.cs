@@ -20,7 +20,7 @@ public class clear_all_wolverine_storage_on_storeless_hosts
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => { opts.Durability.Mode = DurabilityMode.Solo; })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await Should.NotThrowAsync(() => host.ClearAllWolverineStorageAsync());
     }
@@ -34,7 +34,7 @@ public class clear_all_wolverine_storage_on_storeless_hosts
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.PublishAllMessages().ToLocalQueue("clear-all-storage");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

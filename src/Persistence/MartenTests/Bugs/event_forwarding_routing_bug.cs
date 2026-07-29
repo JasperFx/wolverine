@@ -31,7 +31,7 @@ public class event_forwarding_routing_bug
                     })
                     .IntegrateWithWolverine(x => x.UseFastEventForwarding = true);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.SendMessageAndWaitAsync(new Event<SomeEvent>(new SomeEvent()));
         session.Executed.SingleEnvelope<IEvent<SomeEvent>>()
@@ -59,7 +59,7 @@ public class event_forwarding_routing_bug
                     .IntegrateWithWolverine()
                     .PublishEventsToWolverine("forwarded-events");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         bus.PreviewSubscriptions(new Event<SomeEvent>(new SomeEvent()))

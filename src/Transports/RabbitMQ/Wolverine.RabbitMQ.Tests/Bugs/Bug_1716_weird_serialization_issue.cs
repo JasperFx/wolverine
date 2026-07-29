@@ -16,10 +16,10 @@ public class Bug_1716_weird_serialization_issue
 
         var bus = host1.MessageBus();
         await bus.ScheduleAsync(new Bug1716("what"), DateTimeOffset.UtcNow.AddSeconds(15));
-        await host1.StopAsync();
+        await host1.StopAsync(TestContext.Current.CancellationToken);
 
         using var host2 = await startHost();
-        await Task.Delay(2.Minutes());
+        await Task.Delay(2.Minutes(), TestContext.Current.CancellationToken);
     }
 
     [Fact]

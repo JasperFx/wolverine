@@ -76,7 +76,7 @@ public class back_pressure_tripping_off(ITestOutputHelper output) : IAsyncLifeti
                     .SendAsync(message);
                 recorder.TrackPublished(message.Id);
             }
-        });
+        }, TestContext.Current.CancellationToken);
 
         await waitForTooBusy;
 

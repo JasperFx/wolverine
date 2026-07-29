@@ -61,10 +61,10 @@ public class using_revisioned_sagas : IAsyncLifetime
         var execution = Task.Run(async () =>
         {
             await theHost.MessageBus().InvokeAsync(slow);
-        });
+        }, TestContext.Current.CancellationToken);
 
         await RevisionedSaga.InSlowMessage.Task;
-        await theHost.MessageBus().InvokeAsync(new Command1(id));
+        await theHost.MessageBus().InvokeAsync(new Command1(id), TestContext.Current.CancellationToken);
         
         slow.Source.SetResult();
 

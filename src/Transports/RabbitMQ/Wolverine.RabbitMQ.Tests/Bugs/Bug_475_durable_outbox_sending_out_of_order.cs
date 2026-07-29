@@ -35,9 +35,9 @@ public class Bug_475_durable_outbox_sending_out_of_order
 
                 opts.Policies.UseDurableInboxOnAllListeners();
                 opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await host.ResetResourceState();
+        await host.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         Func<IMessageBus, Task> publishing = async bus =>
         {

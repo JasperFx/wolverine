@@ -51,7 +51,7 @@ public class configuration_model_specs
 
         await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeDeclareAsync("foo", "fanout", false, true, (IDictionary<string, object?>)exchange.Arguments);
+        await channel.Received().ExchangeDeclareAsync("foo", "fanout", false, true, (IDictionary<string, object?>)exchange.Arguments, cancellationToken: Arg.Any<CancellationToken>());
 
         exchange.HasDeclared.ShouldBeTrue();
     }
@@ -67,7 +67,7 @@ public class configuration_model_specs
 
         await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeDeclarePassiveAsync("foo");
+        await channel.Received().ExchangeDeclarePassiveAsync("foo", Arg.Any<CancellationToken>());
 
         exchange.HasDeclared.ShouldBeTrue();
     }
@@ -85,7 +85,7 @@ public class configuration_model_specs
 
         await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, (IDictionary<string, object?>)exchange.Arguments);
+        await channel.Received().ExchangeDeclareAsync("foo", "headers", false, true, (IDictionary<string, object?>)exchange.Arguments, cancellationToken: Arg.Any<CancellationToken>());
 
         exchange.HasDeclared.ShouldBeTrue();
     }

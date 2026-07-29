@@ -12,7 +12,7 @@ public class requirement_result_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         RequirementResultHandler.Handled = false;
 
@@ -26,7 +26,7 @@ public class requirement_result_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         RequirementResultHandler.Handled = false;
 
@@ -40,7 +40,7 @@ public class requirement_result_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         AsyncRequirementResultHandler.Handled = false;
 
@@ -54,7 +54,7 @@ public class requirement_result_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         AsyncRequirementResultHandler.Handled = false;
 
@@ -68,7 +68,7 @@ public class requirement_result_validation_handlers
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         EmptyMessagesRequirementResultHandler.Handled = false;
 

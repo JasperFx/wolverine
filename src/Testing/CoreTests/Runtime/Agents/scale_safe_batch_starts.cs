@@ -100,7 +100,7 @@ public class scale_safe_batch_starts
         var exec = new StartAgents(uris).ExecuteAsync(_runtime, CancellationToken.None);
 
         // Exactly `dop` starts run concurrently; the rest queue behind them (Parallel.ForEachAsync bound).
-        await reachedCap.Task.WaitAsync(5.Seconds());
+        await reachedCap.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
         lock (gate)
         {
             concurrent.ShouldBe(dop);
@@ -108,7 +108,7 @@ public class scale_safe_batch_starts
         }
 
         release.SetResult();
-        var result = await exec.WaitAsync(5.Seconds());
+        var result = await exec.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         // Every agent eventually started, and parallelism never exceeded the cap.
         result.OfType<AgentsStarted>().Single().AgentUris.Length.ShouldBe(total);

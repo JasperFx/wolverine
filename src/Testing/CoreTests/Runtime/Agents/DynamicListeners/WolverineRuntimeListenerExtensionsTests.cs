@@ -29,7 +29,7 @@ public class WolverineRuntimeListenerExtensionsTests
     public async Task register_listener_async_delegates_to_store()
     {
         var uri = new Uri("mqtt://broker/topic");
-        await _runtime.RegisterListenerAsync(uri);
+        await _runtime.RegisterListenerAsync(uri, cancellationToken: TestContext.Current.CancellationToken);
 
         await _store.Received(1).RegisterListenerAsync(uri, Arg.Any<CancellationToken>());
     }
@@ -38,7 +38,7 @@ public class WolverineRuntimeListenerExtensionsTests
     public async Task remove_listener_async_delegates_to_store()
     {
         var uri = new Uri("mqtt://broker/topic");
-        await _runtime.RemoveListenerAsync(uri);
+        await _runtime.RemoveListenerAsync(uri, cancellationToken: TestContext.Current.CancellationToken);
 
         await _store.Received(1).RemoveListenerAsync(uri, Arg.Any<CancellationToken>());
     }
@@ -54,7 +54,7 @@ public class WolverineRuntimeListenerExtensionsTests
         _store.AllListenersAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyList<Uri>>(listed));
 
-        var result = await _runtime.AllRegisteredListenersAsync();
+        var result = await _runtime.AllRegisteredListenersAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         result.ShouldBe(listed);
     }

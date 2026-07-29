@@ -25,7 +25,7 @@ public class type_name_disambiguation_tests
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts => opts.ApplicationAssembly = typeof(GreeterMiddlewareTestStub).Assembly)
                 .ConfigureServices(services => services.AddWolverineGrpc())
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
 
@@ -59,7 +59,7 @@ public class type_name_disambiguation_tests
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts => opts.ApplicationAssembly = typeof(GreeterMiddlewareTestStub).Assembly)
                 .ConfigureServices(services => services.AddWolverineGrpc())
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
 
@@ -101,7 +101,7 @@ public class type_name_disambiguation_tests
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts => opts.ApplicationAssembly = typeof(GreeterMiddlewareTestStub).Assembly)
                 .ConfigureServices(services => services.AddWolverineGrpc())
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var chain = new GrpcServiceChain(typeof(AlphaCollisionStub), graph);

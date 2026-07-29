@@ -116,7 +116,7 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new StartOrderSaga(orderId, "Han Solo"));
 
         using var session = _host.DocumentStore().QuerySession();
-        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId);
+        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId, TestContext.Current.CancellationToken);
 
         saga.ShouldNotBeNull();
         saga.Id.ShouldBe(orderId);
@@ -132,7 +132,7 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new PickOrderItems(orderId));
 
         using var session = _host.DocumentStore().QuerySession();
-        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId);
+        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId, TestContext.Current.CancellationToken);
 
         saga.ShouldNotBeNull();
         saga.ItemsPicked.ShouldBeTrue();
@@ -149,7 +149,7 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new ShipOrder(orderId));
 
         using var session = _host.DocumentStore().QuerySession();
-        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId);
+        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId, TestContext.Current.CancellationToken);
 
         // Saga should be deleted when completed
         saga.ShouldBeNull();
@@ -164,7 +164,7 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new CancelOrderSaga(orderId));
 
         using var session = _host.DocumentStore().QuerySession();
-        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId);
+        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId, TestContext.Current.CancellationToken);
 
         // Saga should be deleted after cancel (MarkCompleted)
         saga.ShouldBeNull();
@@ -180,7 +180,7 @@ public class strong_typed_id_saga : PostgresqlContext, IAsyncLifetime
         await _host.InvokeMessageAndWaitAsync(new ProcessOrderPayment(orderId));
 
         using var session = _host.DocumentStore().QuerySession();
-        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId);
+        var saga = await session.LoadAsync<OrderSagaWorkflow>(orderId, TestContext.Current.CancellationToken);
 
         saga.ShouldNotBeNull();
         saga.ItemsPicked.ShouldBeTrue();

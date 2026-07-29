@@ -45,7 +45,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
         using (var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
             session.Events.StartStream<Thing>(id, new ThingStarted(id, "stuff"));
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new UpdateThing(id, "new stuff"));

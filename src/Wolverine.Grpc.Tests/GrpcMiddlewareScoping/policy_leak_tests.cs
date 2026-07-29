@@ -39,7 +39,7 @@ public class policy_leak_tests
                     services.AddSingleton(new MiddlewareInvocationSink());
                     services.AddWolverineGrpc();
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
@@ -161,7 +161,7 @@ public class igpc_chain_policy_discover_services_tests
                     services.AddSingleton(new MiddlewareInvocationSink());
                     services.AddWolverineGrpc(opts => opts.AddPolicy(policy));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
@@ -191,7 +191,7 @@ public class igpc_chain_policy_discover_services_tests
                     services.AddSingleton(new MiddlewareInvocationSink());
                     services.AddWolverineGrpc(opts => opts.AddPolicy(policy));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
@@ -236,7 +236,7 @@ public class add_middleware_custom_filter_tests
                     services.AddWolverineGrpc(opts =>
                         opts.AddMiddleware<GrpcFilterScopeMiddleware>(filter: _ => false));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();
@@ -270,7 +270,7 @@ public class add_middleware_custom_filter_tests
                         opts.AddMiddleware<GrpcFilterScopeMiddleware>(
                             filter: c => c is GrpcServiceChain));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
             var grpcOptions = host.Services.GetRequiredService<WolverineGrpcOptions>();

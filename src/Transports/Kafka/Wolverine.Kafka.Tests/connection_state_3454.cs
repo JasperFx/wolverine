@@ -85,7 +85,7 @@ public class connection_state_3454
                 opts.PublishMessage<ConnStateMessage>().ToKafkaTopic("connstate-3454");
                 // BeginAtEarliest so a record produced before the group finishes joining is still consumed
                 opts.ListenToKafkaTopic("connstate-3454").BeginAtEarliest();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Prove records actually flow...
         await host.TrackActivity().IncludeExternalTransports().Timeout(60.Seconds())
@@ -109,7 +109,7 @@ public class connection_state_3454
             {
                 opts.UseKafka("localhost:19092");
                 opts.ListenToKafkaTopic("connstate-dead");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
             host, "kafka", TransportConnectionState.Disconnected, 30000);
@@ -132,7 +132,7 @@ public class connection_state_3454
                     .ConfigureConsumerBuilders(b =>
                         b.SetErrorHandler((_, _) => Interlocked.Increment(ref userHandlerHits)));
                 opts.ListenToKafkaTopic("connstate-user-handler");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Poll for the state we must NOT reach; the helper returns the last observed state on timeout
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(

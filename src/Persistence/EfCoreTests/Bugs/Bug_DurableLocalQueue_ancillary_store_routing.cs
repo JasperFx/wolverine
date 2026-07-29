@@ -214,7 +214,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
             .SendMessageAndWaitAsync(message);
 
         // Give a moment for post-processing
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -240,7 +240,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
             .TrackActivity()
             .SendMessageAndWaitAsync(message);
 
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
 
@@ -264,7 +264,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
         // Verify the entity was actually saved in the ancillary DbContext
         using var scope = _host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AncillaryLocalQueueDbContext>();
-        var doc = await db.Docs.FindAsync(message.Id);
+        var doc = await db.Docs.FindAsync(new object?[] { message.Id }, TestContext.Current.CancellationToken);
         doc.ShouldNotBeNull();
         doc.Name.ShouldBe("test-entity");
     }

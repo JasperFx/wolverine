@@ -76,7 +76,7 @@ public class nsb_dedicated_database_multitenancy : IAsyncLifetime
         for (var i = 0; i < 40 && dedicated == 0; i++)
         {
             dedicated = await RowCount(_dedicatedCs, _queue);
-            if (dedicated == 0) await Task.Delay(100);
+            if (dedicated == 0) await Task.Delay(100, TestContext.Current.CancellationToken);
         }
 
         dedicated.ShouldBe(1);

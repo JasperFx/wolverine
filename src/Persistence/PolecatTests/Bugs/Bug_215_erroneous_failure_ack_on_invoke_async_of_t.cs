@@ -26,21 +26,21 @@ public class Bug_215_erroneous_failure_ack_on_invoke_async_of_t
                 opts.Policies.AutoApplyTransactions();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var data = new PcBug215Data();
 
         await using (var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
             session.Store(data);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var bus = host.MessageBus();
-        var response = await bus.InvokeAsync<PcBug215Data>(new PcLookup(data.Id));
+        var response = await bus.InvokeAsync<PcBug215Data>(new PcLookup(data.Id), TestContext.Current.CancellationToken);
 
         response.ShouldNotBeNull();
     }

@@ -27,12 +27,12 @@ public class grpc_bidi_streaming_tests : IClassFixture<BidiStreamingFixture>
     [Fact]
     public async Task single_request_yields_the_expected_number_of_replies()
     {
-        using var call = _fixture.CreateClient().Echo();
-        await call.RequestStream.WriteAsync(new EchoRequest { Text = "ping", RepeatCount = 3 });
+        using var call = _fixture.CreateClient().Echo(cancellationToken: TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new EchoRequest { Text = "ping", RepeatCount = 3 }, TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var replies = new List<string>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
             replies.Add(reply.Text);
 
         replies.ShouldBe(["ping", "ping", "ping"]);
@@ -41,15 +41,15 @@ public class grpc_bidi_streaming_tests : IClassFixture<BidiStreamingFixture>
     [Fact]
     public async Task multiple_requests_each_produce_their_own_replies()
     {
-        using var call = _fixture.CreateClient().Echo();
+        using var call = _fixture.CreateClient().Echo(cancellationToken: TestContext.Current.CancellationToken);
 
-        await call.RequestStream.WriteAsync(new EchoRequest { Text = "a", RepeatCount = 2 });
-        await call.RequestStream.WriteAsync(new EchoRequest { Text = "b", RepeatCount = 1 });
-        await call.RequestStream.WriteAsync(new EchoRequest { Text = "c", RepeatCount = 3 });
+        await call.RequestStream.WriteAsync(new EchoRequest { Text = "a", RepeatCount = 2 }, TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new EchoRequest { Text = "b", RepeatCount = 1 }, TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new EchoRequest { Text = "c", RepeatCount = 3 }, TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var replies = new List<string>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
             replies.Add(reply.Text);
 
         replies.ShouldBe(["a", "a", "b", "c", "c", "c"]);
@@ -58,11 +58,11 @@ public class grpc_bidi_streaming_tests : IClassFixture<BidiStreamingFixture>
     [Fact]
     public async Task zero_requests_produces_zero_replies()
     {
-        using var call = _fixture.CreateClient().Echo();
+        using var call = _fixture.CreateClient().Echo(cancellationToken: TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var replies = new List<EchoReply>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
             replies.Add(reply);
 
         replies.ShouldBeEmpty();
@@ -71,12 +71,12 @@ public class grpc_bidi_streaming_tests : IClassFixture<BidiStreamingFixture>
     [Fact]
     public async Task request_with_zero_repeat_count_produces_no_replies()
     {
-        using var call = _fixture.CreateClient().Echo();
-        await call.RequestStream.WriteAsync(new EchoRequest { Text = "nothing", RepeatCount = 0 });
+        using var call = _fixture.CreateClient().Echo(cancellationToken: TestContext.Current.CancellationToken);
+        await call.RequestStream.WriteAsync(new EchoRequest { Text = "nothing", RepeatCount = 0 }, TestContext.Current.CancellationToken);
         await call.RequestStream.CompleteAsync();
 
         var replies = new List<EchoReply>();
-        await foreach (var reply in call.ResponseStream.ReadAllAsync())
+        await foreach (var reply in call.ResponseStream.ReadAllAsync(cancellationToken: TestContext.Current.CancellationToken))
             replies.Add(reply);
 
         replies.ShouldBeEmpty();
@@ -135,7 +135,7 @@ public class grpc_client_streaming_chain_construction_tests
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine(opts => opts.ApplicationAssembly = typeof(BidiEchoStub).Assembly)
                 .ConfigureServices(services => services.AddWolverineGrpc())
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<GrpcGraph>();
 

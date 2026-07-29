@@ -24,7 +24,7 @@ public class grpc_validate_convention_tests : IClassFixture<ValidateConventionFi
     [Fact]
     public async Task valid_request_passes_through_to_handler()
     {
-        var reply = await _fixture.CreateClient().GreetAsync(new ValidateGreetRequest { Name = "Erik" });
+        var reply = await _fixture.CreateClient().GreetAsync(new ValidateGreetRequest { Name = "Erik" }, cancellationToken: TestContext.Current.CancellationToken);
 
         reply.Message.ShouldBe("Hello, Erik");
         _fixture.Sink.Contains(ValidateGreetHandler.Marker).ShouldBeTrue(
@@ -74,7 +74,7 @@ public class grpc_validate_convention_tests : IClassFixture<ValidateConventionFi
     public async Task validate_returning_null_does_not_pollute_sink_from_handler_invocation()
     {
         _fixture.Sink.Clear();
-        await _fixture.CreateClient().GreetAsync(new ValidateGreetRequest { Name = "Alice" });
+        await _fixture.CreateClient().GreetAsync(new ValidateGreetRequest { Name = "Alice" }, cancellationToken: TestContext.Current.CancellationToken);
 
         _fixture.Sink.CountOf(ValidateGreetHandler.Marker).ShouldBe(1,
             "handler runs exactly once per valid call");

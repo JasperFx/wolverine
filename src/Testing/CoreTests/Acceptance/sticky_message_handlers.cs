@@ -77,7 +77,7 @@ public class sticky_message_handlers : IntegrationContext
                 
                 opts.Policies.Add(policy);
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // Original chain for StickyMessage
         // The sticky handler for "blue"
@@ -109,7 +109,7 @@ public class when_definining_sticky_handlers_by_fluent_interface
 
                 opts.LocalQueue("blue").AddStickyHandler(typeof(BlueSticky2Handler));
                 opts.LocalQueue("green").AddStickyHandler(typeof(GreenSticky2Handler));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var stickyMessage = new StickyMessage2();
         var session = await host.SendMessageAndWaitAsync(stickyMessage, timeoutInMilliseconds:60000);

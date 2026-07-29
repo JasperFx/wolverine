@@ -139,7 +139,7 @@ public class Bug_2318_ancillary_dlq_replay : IAsyncLifetime
             .InvokeMessageAndWaitAsync(message);
 
         // Give time for the message to be dead-lettered
-        await Task.Delay(5.Seconds());
+        await Task.Delay(5.Seconds(), TestContext.Current.CancellationToken);
 
         var runtime = _host.GetRuntime();
         var ancillaryStore = runtime.Stores.FindAncillaryStore(typeof(IAncillaryStore2318));
@@ -167,7 +167,7 @@ public class Bug_2318_ancillary_dlq_replay : IAsyncLifetime
         ancillaryStore.StartScheduledJobs(runtime);
 
         // Wait for the replayed message to be processed
-        await Task.Delay(10.Seconds());
+        await Task.Delay(10.Seconds(), TestContext.Current.CancellationToken);
 
         // Step 4: Verify the envelope is NOT stuck as Incoming in the ancillary store
         var incoming = await ancillaryStore.Admin.AllIncomingAsync();

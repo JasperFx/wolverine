@@ -24,7 +24,7 @@ public class Samples
 
                 // Just a prerequisite for some of the test validators
                 opts.Services.AddSingleton<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }
@@ -49,7 +49,7 @@ public class Samples
 
                 // Just a prerequisite for some of the test validators
                 opts.Services.AddSingleton<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }
@@ -70,7 +70,7 @@ public class Samples
                 
                 // Just a prerequisite for some of the test validators
                 opts.Services.AddSingleton<IDataService, DataService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }

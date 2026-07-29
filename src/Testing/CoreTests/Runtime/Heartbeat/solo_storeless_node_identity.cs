@@ -33,7 +33,7 @@ public class solo_storeless_node_identity
         var observer = Substitute.For<IWolverineObserver>();
         runtime.Observer = observer;
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         // Stable identity, set before the messaging transports start.
         runtime.Options.Durability.AssignedNodeNumber.ShouldBe(1);
@@ -42,7 +42,7 @@ public class solo_storeless_node_identity
         await observer.Received(1).NodeStarted();
         await observer.DidNotReceive().NodeStopped();
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         await observer.Received(1).NodeStopped();
     }
@@ -78,8 +78,8 @@ public class solo_storeless_node_identity
         var observer = Substitute.For<IWolverineObserver>();
         runtime.Observer = observer;
 
-        await host.StartAsync();
-        await host.StopAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
 
         await observer.DidNotReceive().NodeStarted();
         await observer.DidNotReceive().NodeStopped();

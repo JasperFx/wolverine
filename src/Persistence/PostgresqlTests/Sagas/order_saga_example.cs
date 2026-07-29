@@ -17,7 +17,7 @@ public class order_saga_example
             .UseWolverine(opts =>
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "order_saga");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new StartOrder(Guid.NewGuid().ToString(), DateTime.UtcNow));
     }

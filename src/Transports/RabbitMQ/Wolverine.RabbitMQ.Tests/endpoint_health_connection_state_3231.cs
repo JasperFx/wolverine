@@ -87,7 +87,7 @@ public class endpoint_health_connection_state_3231
         }
 
         // Give the connection-shutdown callback a moment to flip the agent state.
-        await Task.Delay(500);
+        await Task.Delay(500, TestContext.Current.CancellationToken);
 
         var snapshots = runtime.Endpoints.CollectEndpointHealth();
         var rabbitSender = snapshots.First(s => s.Direction == EndpointDirection.Sending && s.Uri.Scheme == "rabbitmq");

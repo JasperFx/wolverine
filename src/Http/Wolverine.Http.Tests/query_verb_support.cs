@@ -28,10 +28,10 @@ public class query_verb_support : IntegrationContext
             Content = JsonContent.Create(new SearchRequest("widget", 3))
         };
 
-        var response = await client.SendAsync(request);
+        var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        var results = await response.Content.ReadFromJsonAsync<SearchResults>();
+        var results = await response.Content.ReadFromJsonAsync<SearchResults>(cancellationToken: TestContext.Current.CancellationToken);
         results.ShouldNotBeNull();
         results.Term.ShouldBe("widget");
         results.Page.ShouldBe(3);

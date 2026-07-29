@@ -11,7 +11,7 @@ public class local_invoke_does_not_publish_the_return_value
     public async Task should_not_publish_the_return_value_when_invoking_locally()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var name = "Chris Jones";
         var (tracked, response) = await host.InvokeMessageAndWaitAsync<CommandInvoked>(new InvokeCommand(name));

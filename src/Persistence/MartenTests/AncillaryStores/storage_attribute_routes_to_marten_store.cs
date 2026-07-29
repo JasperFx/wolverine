@@ -55,7 +55,7 @@ public class storage_attribute_routes_to_marten_store : IAsyncLifetime
 
         var store = theHost.DocumentStore<IStorageAttrStore>();
         await using var session = store.QuerySession();
-        (await session.LoadAsync<StorageAttrPlayer>(message.Id)).ShouldNotBeNull();
+        (await session.LoadAsync<StorageAttrPlayer>(message.Id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
     }
 }
 

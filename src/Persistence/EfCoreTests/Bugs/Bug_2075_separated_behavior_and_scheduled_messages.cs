@@ -39,7 +39,7 @@ public class Bug_2075_separated_behavior_and_scheduled_messages(ITestOutputHelpe
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                 GlobalErrorHandlingPolicy.Invoke(opts);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var session = await host.TrackActivity().DoNotAssertOnExceptionsDetected().WaitForMessageToBeReceivedAt<SayStuffy2>(host).Timeout(30.Seconds())
             .SendMessageAndWaitAsync(new SayStuffy0());

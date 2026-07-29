@@ -13,7 +13,7 @@ public class delayed_message_end_to_end
     public async Task receive_timeout_message()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new KickOffMessage(23);
 

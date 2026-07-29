@@ -249,7 +249,7 @@ public class grpc_capabilities_3267_bidi_and_absent
         {
             using var host = await Host.CreateDefaultBuilder()
                 .UseWolverine()
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             host.Services.GetService<IGrpcEndpointDescriptorSource>().ShouldBeNull();
 

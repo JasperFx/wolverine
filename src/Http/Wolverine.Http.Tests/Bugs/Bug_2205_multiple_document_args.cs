@@ -17,7 +17,7 @@ public class Bug_2205_multiple_document_args(AppFixture fixture) : IntegrationCo
         await using var session = Store.LightweightSession();
         session.Store(new Invoice { Id = invoiceId });
         session.Store(new Receipt { Id = receiptId });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await Scenario(x =>
         {
@@ -37,7 +37,7 @@ public class Bug_2205_multiple_document_args(AppFixture fixture) : IntegrationCo
 
         await using var session = Store.LightweightSession();
         session.Store(new Receipt { Id = receiptId });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(x =>
         {
@@ -53,7 +53,7 @@ public class Bug_2205_multiple_document_args(AppFixture fixture) : IntegrationCo
 
         await using var session = Store.LightweightSession();
         session.Store(new Invoice { Id = invoiceId });
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(x =>
         {
@@ -71,7 +71,7 @@ public class Bug_2205_multiple_document_args(AppFixture fixture) : IntegrationCo
         await using var session = Store.LightweightSession();
         session.Store(new Invoice { Id = invoiceId });
         session.Events.StartStream<Order>(orderId, new OrderCreated([new Item { Name = "Widget" }]));
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var result = await Scenario(x =>
         {

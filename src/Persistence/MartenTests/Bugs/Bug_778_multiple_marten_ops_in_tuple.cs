@@ -27,7 +27,7 @@ public class Bug_778_multiple_marten_ops_in_tuple : PostgresqlContext
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var command = new SpawnTwo(Guid.NewGuid().ToString(), Guid.NewGuid().ToString());
 
@@ -35,8 +35,8 @@ public class Bug_778_multiple_marten_ops_in_tuple : PostgresqlContext
 
         var store = host.Services.GetRequiredService<IDocumentStore>();
         using var session = store.LightweightSession();
-        var person1 = await session.LoadAsync<Person>(command.Name1);
-        var person2 = await session.LoadAsync<Person>(command.Name2);
+        var person1 = await session.LoadAsync<Person>(command.Name1, TestContext.Current.CancellationToken);
+        var person2 = await session.LoadAsync<Person>(command.Name2, TestContext.Current.CancellationToken);
 
         person1.ShouldNotBeNull();
         person2.ShouldNotBeNull();

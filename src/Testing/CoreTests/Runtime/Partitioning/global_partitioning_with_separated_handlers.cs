@@ -51,7 +51,7 @@ public class global_partitioning_with_separated_handlers
                 opts.MessagePartitioning
                     .ByMessage<PartitionedCommand>(m => m.GroupId)
                     .ByMessage<CascadedFromPartition>(m => m.GroupId);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.SendMessageAndWaitAsync(
             new PartitionedCommand("group-1", "test-payload"),

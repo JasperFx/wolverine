@@ -117,7 +117,7 @@ public class KafkaPerTenantConfigurationTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.PublishMessage<TenantColor>().ToKafkaTopic("tenant-colors");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var transport = runtime.Options.Transports.GetOrCreate<KafkaTransport>();

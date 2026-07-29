@@ -58,7 +58,7 @@ public class QueryPlan_end_to_end : IAsyncLifetime
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = $"{prefix}_a", Approved = false });
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = $"{prefix}_b", Approved = false });
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = "untouched",   Approved = false });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new ApproveItemsByPrefix(prefix));
@@ -68,10 +68,10 @@ public class QueryPlan_end_to_end : IAsyncLifetime
 
         var approved = await verifyDb.Items
             .Where(x => x.Name.StartsWith(prefix) && x.Approved)
-            .CountAsync();
+            .CountAsync(cancellationToken: TestContext.Current.CancellationToken);
         approved.ShouldBe(2);
 
-        var untouched = await verifyDb.Items.SingleAsync(x => x.Name == "untouched");
+        var untouched = await verifyDb.Items.SingleAsync(x => x.Name == "untouched", cancellationToken: TestContext.Current.CancellationToken);
         untouched.Approved.ShouldBeFalse();
     }
 }

@@ -16,7 +16,7 @@ public class Bug_267_throw_descriptive_message_on_multiple_variables
             .UseWolverine(opts =>
             {
                 opts.DisableConventionalDiscovery().IncludeType<Bug267Handler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await Should.ThrowAsync<InvalidWolverineMiddlewareException>(async () =>
         {

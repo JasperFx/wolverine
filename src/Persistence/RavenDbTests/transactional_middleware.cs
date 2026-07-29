@@ -37,12 +37,12 @@ public class transactional_middleware
 
                 // Include handlers from this test assembly
                 opts.Discovery.IncludeAssembly(typeof(transactional_middleware).Assembly);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeAsync(new RecordTeam("Chiefs", 1960));
 
         using var session = store.OpenAsyncSession();
-        var team = await session.LoadAsync<Team>("Chiefs");
+        var team = await session.LoadAsync<Team>("Chiefs", TestContext.Current.CancellationToken);
         team.YearFounded.ShouldBe(1960);
     }
 }

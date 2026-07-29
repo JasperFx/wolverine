@@ -28,10 +28,10 @@ public class document_attribute_usage : IntegrationContext
         var invoice = new Invoice();
         using var session = Store.LightweightSession();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         
         session.Delete(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(x =>
         {
@@ -46,7 +46,7 @@ public class document_attribute_usage : IntegrationContext
         var invoice = new Invoice();
         using var session = Store.LightweightSession();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
 
         var invoice2 = await Host.GetAsJson<Invoice>("/invoices/" + invoice.Id);
@@ -59,7 +59,7 @@ public class document_attribute_usage : IntegrationContext
         var invoice = new Invoice();
         using var session = Store.LightweightSession();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Host.Scenario(x =>
         {
@@ -67,7 +67,7 @@ public class document_attribute_usage : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        var loaded = await session.LoadAsync<Invoice>(invoice.Id);
+        var loaded = await session.LoadAsync<Invoice>(invoice.Id, TestContext.Current.CancellationToken);
         loaded!.Paid.ShouldBeTrue();
     }
 
@@ -77,7 +77,7 @@ public class document_attribute_usage : IntegrationContext
         var invoice = new Invoice();
         await using var session = Store.LightweightSession();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Host.Scenario(x =>
         {
@@ -85,7 +85,7 @@ public class document_attribute_usage : IntegrationContext
             x.StatusCodeShouldBe(204);
         });
 
-        var loaded = await session.LoadAsync<Invoice>(invoice.Id);
+        var loaded = await session.LoadAsync<Invoice>(invoice.Id, TestContext.Current.CancellationToken);
         loaded!.Approved.ShouldBeTrue();
     }
 }
