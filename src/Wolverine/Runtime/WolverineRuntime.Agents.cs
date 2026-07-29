@@ -162,29 +162,37 @@ public partial class WolverineRuntime : IAgentRuntime
         // happened to re-read restrictions from the database. Every other caller of
         // EvaluateAssignmentsAsync pumps these commands; so does this one now.
         var commands = await NodeController!.EvaluateAssignmentsAsync(nodes, assignments);
-        await executeAgentCommandsAsync(commands, cancellationToken);
+        var failures = await executeAgentCommandsAsync(commands, cancellationToken);
 
         // The in-memory copy is otherwise only ever loaded at startup, but ListeningAgent reads it
         // on every start attempt to decide whether a listener is meant to stay paused — so without
         // this a listener paused through restrictions would keep restarting until the node did.
         Restrictions = assignments;
+
+        // GH-3698: the drain no longer lets one failed command discard the rest of the wave, but this is an
+        // operator-initiated call — "your pause was applied" must not be the answer when the StopRemoteAgent
+        // carrying it out failed. Every other command still ran, and the restriction is persisted either way.
+        if (failures.Count != 0)
+        {
+            throw new AggregateException(
+                "One or more agent commands carrying this restriction change failed. The restriction itself was persisted.",
+                failures);
+        }
     }
 
     // Drains an AgentCommands cascade through the message bus. Commands can yield further commands,
-    // so this keeps pumping until the queue is empty.
-    private async Task executeAgentCommandsAsync(AgentCommands commands, CancellationToken cancellationToken)
+    // so this keeps pumping until the queue is empty. The per-destination fan-out that makes this scale
+    // with cluster size — and the reason it had to change — lives in AgentCommandDrain (GH-3698).
+    private Task<IReadOnlyList<Exception>> executeAgentCommandsAsync(AgentCommands commands,
+        CancellationToken cancellationToken)
     {
-        var bus = new MessageBus(this);
+        // A MessageBus is not built to be shared across concurrent invocations, and the drain now runs one
+        // lane per destination node at the same time, so each command gets its own.
+        var drain = new AgentCommandDrain(
+            async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
+            Logger);
 
-        while (commands.Any())
-        {
-            var command = commands.Pop();
-            var additional = await bus.InvokeAsync<AgentCommands>(command, cancellationToken);
-            if (additional != null)
-            {
-                commands.AddRange(additional);
-            }
-        }
+        return drain.DrainAsync(commands, cancellationToken);
     }
 
     public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
@@ -326,8 +334,10 @@ public partial class WolverineRuntime : IAgentRuntime
                 try
                 {
 
-                    // TODO -- try to parallelize this later!!!
                     var commands = await NodeController.DoHealthChecksAsync();
+
+                    // Failures are already logged per command, with their destination, inside the drain --
+                    // and this loop must keep ticking regardless, so there is nothing to do with them here.
                     await executeAgentCommandsAsync(commands, Cancellation);
                 }
                 catch (OperationCanceledException)

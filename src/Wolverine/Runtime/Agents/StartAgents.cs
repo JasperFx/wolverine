@@ -26,6 +26,8 @@ internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 
 internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAgentCommand
 {
+    public Guid? DestinationNodeId => Destination.NodeId;
+
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
@@ -50,6 +52,8 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
 
 internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : IAgentCommand
 {
+    public Guid? DestinationNodeId => Destination.NodeId;
+
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
