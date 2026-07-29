@@ -14,7 +14,7 @@ public class AmazonS3ClaimCheckStoreTests : IAsyncLifetime
     private AmazonS3Client _client = null!;
     private AmazonS3ClaimCheckStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!LocalStack.IsRunning)
         {
@@ -31,7 +31,7 @@ public class AmazonS3ClaimCheckStoreTests : IAsyncLifetime
         _store = new AmazonS3ClaimCheckStore(_client, _bucketName);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_client is null)
         {

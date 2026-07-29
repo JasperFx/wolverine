@@ -17,7 +17,7 @@ public class GoogleCloudStorageClaimCheckStoreTests : IAsyncLifetime
     private StorageClient _client = null!;
     private GoogleCloudStorageClaimCheckStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!FakeGcs.IsRunning)
         {
@@ -38,7 +38,7 @@ public class GoogleCloudStorageClaimCheckStoreTests : IAsyncLifetime
         _store = new GoogleCloudStorageClaimCheckStore(_client, _bucketName);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_client is null)
         {

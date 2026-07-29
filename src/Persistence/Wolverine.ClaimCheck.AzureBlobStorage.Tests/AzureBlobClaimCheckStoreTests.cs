@@ -13,7 +13,7 @@ public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
     private BlobContainerClient _container = null!;
     private AzureBlobClaimCheckStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!Azurite.IsRunning)
         {
@@ -25,7 +25,7 @@ public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
         _store = new AzureBlobClaimCheckStore(_container);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container is not null)
         {

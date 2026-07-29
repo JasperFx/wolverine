@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using Shouldly;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.EfCore.FSharpTests;
 
 /// <summary>

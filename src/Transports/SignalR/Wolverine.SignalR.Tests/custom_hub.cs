@@ -12,7 +12,7 @@ public class custom_hub : WebSocketTestContextWithCustomHub<CustomWolverineHub>
 {
     public static List<string> ReceivedJson { get; } = new();
 
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         ReceivedJson.Clear();
         await base.DisposeAsync();
@@ -68,7 +68,7 @@ public class custom_hub_with_authentication : WebSocketTestContextWithCustomHub<
 {
     public static List<string> ReceivedJson { get; } = new();
 
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         ReceivedJson.Clear();
         await base.DisposeAsync();

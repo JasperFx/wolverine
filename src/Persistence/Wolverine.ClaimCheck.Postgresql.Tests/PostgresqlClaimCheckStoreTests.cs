@@ -14,7 +14,7 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
     private NpgsqlDataSource _dataSource = null!;
     private PostgresqlClaimCheckStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _dataSource = NpgsqlDataSource.Create(Servers.PostgresConnectionString);
         _store = new PostgresqlClaimCheckStore(_dataSource, _schema);
@@ -23,7 +23,7 @@ public class PostgresqlClaimCheckStoreTests : IAsyncLifetime
         await _store.DeleteAsync(new ClaimCheckToken("warmup", "text/plain", 0));
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         try
         {

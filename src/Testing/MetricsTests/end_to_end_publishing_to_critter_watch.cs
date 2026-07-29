@@ -2,8 +2,7 @@ using JasperFx.Core;
 using Newtonsoft.Json;
 using Shouldly;
 using Wolverine;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MetricsTests;
 
 public class end_to_end_publishing_to_critter_watch

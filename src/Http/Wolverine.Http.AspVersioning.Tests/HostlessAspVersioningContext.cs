@@ -12,16 +12,16 @@ public class HostlessAspVersioningFixture : IAsyncLifetime
 {
     public HttpGraph Parent { get; private set; } = null!;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         Parent = BuildParent();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         Parent = null!;
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     /// <summary>Build a host-free chain whose parent container can satisfy the Asp.Versioning finalizer.</summary>

@@ -1,6 +1,18 @@
 # xUnit v3 Migration Plan
 
-**Status:** Plan — spiked and validated, decisions settled, ready to execute
+**Status:** In flight on `feature/xunit3` — the coupled 40 are flipped and the solution builds
+clean; the independent 32 and all test verification remain
+
+| Wave | State |
+|---|---|
+| 0 — Foundation | ✅ committed `fb3d64c7f`, full solution Release build clean |
+| 1 — ComplianceTests + SqliteTests | ✅ committed `b03c461fa`, `CISqlite` 156/1/157 at exact parity |
+| 2 — atomic flip of the coupled 40 | ✅ committed `f5274e6b1`, `wolverine.slnx` Release 0 warnings 0 errors |
+| 3–8 — verify the coupled 40 per CI target | ⬜ not started — this is where Docker is needed |
+| — the independent 32 | ⬜ not started, no Docker needed to build |
+| 9 — merge to `main` | ⬜ |
+| 10 — cleanup | ⬜ |
+
 **Date:** 2026-07-29
 **Scope:** all 73 xUnit-referencing projects under `src/`, the Nuke build targets, and the GitHub Actions workflows
 **Spike branch:** `spike/xunit3` (worktree at `.claude/worktrees/xunit3-spike`)

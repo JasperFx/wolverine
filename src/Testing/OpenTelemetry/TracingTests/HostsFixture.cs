@@ -15,7 +15,7 @@ public class HostsFixture : IAsyncLifetime
     public IHost SecondSubscriber { get; private set; }
     public IAlbaHost WebApi { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         WebApi = await AlbaHost.For<Program>(x => { });
 
@@ -76,7 +76,7 @@ public class HostsFixture : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await WebApi.DisposeAsync();
         await FirstSubscriber.StopAsync();

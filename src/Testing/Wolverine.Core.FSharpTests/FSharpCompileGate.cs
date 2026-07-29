@@ -2,8 +2,6 @@ using System.Diagnostics;
 using Shouldly;
 using Wolverine.Diagnostics;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Core.FSharpTests;
 
 /// <summary>

@@ -15,7 +15,7 @@ public class NatsObjectStoreClaimCheckStoreTests : IAsyncLifetime
     private NatsConnection _connection = null!;
     private NatsObjectStoreClaimCheckStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!NatsServer.IsRunning)
         {
@@ -28,7 +28,7 @@ public class NatsObjectStoreClaimCheckStoreTests : IAsyncLifetime
         _store = new NatsObjectStoreClaimCheckStore(_connection, _bucketName);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_connection is null)
         {

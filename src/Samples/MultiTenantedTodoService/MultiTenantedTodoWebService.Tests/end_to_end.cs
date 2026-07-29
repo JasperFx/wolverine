@@ -24,7 +24,7 @@ public class end_to_end : IAsyncLifetime
         }
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection("Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres");
         await conn.OpenAsync();
@@ -43,9 +43,9 @@ public class end_to_end : IAsyncLifetime
         await store.Advanced.Clean.DeleteAllDocumentsAsync();
     }
 
-    public Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return _host.DisposeAsync().AsTask();
+        await _host.DisposeAsync().AsTask();
     }
 
     [Fact]

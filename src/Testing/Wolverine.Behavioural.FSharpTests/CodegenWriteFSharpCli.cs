@@ -1,8 +1,6 @@
 using System.Diagnostics;
 using Shouldly;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Behavioural.FSharpTests;
 
 // The behavioural F# tests each spawn nested `dotnet build`/`dotnet run` of the F# app and load its
