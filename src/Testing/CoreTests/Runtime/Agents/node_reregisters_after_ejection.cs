@@ -156,4 +156,23 @@ public class node_reregisters_after_ejection
             return Task.CompletedTask;
         }
     }
+
+    /// <summary>
+    /// GH-3698. <c>NodeRecord.For</c> reads <c>Options.Durability.AssignedNodeNumber</c>, and the Balanced
+    /// start path called the observer one line BEFORE adopting the number <c>PersistAsync</c> handed back —
+    /// so every <c>NodeStarted</c> row in a Balanced cluster carried the per-process default,
+    /// <c>Guid.NewGuid().ToString().GetDeterministicHashCode()</c>: a random value unrelated to the node it
+    /// describes. The Solo path already had the two in the right order.
+    /// </summary>
+    [Fact]
+    public async Task the_node_started_record_sees_the_assigned_node_number()
+    {
+        int? numberWhenObserved = null;
+        _runtime.Observer.When(x => x.NodeStarted())
+            .Do(_ => numberWhenObserved = _options.Durability.AssignedNodeNumber);
+
+        await startedControllerAsync();
+
+        numberWhenObserved.ShouldBe(AssignedNumber);
+    }
 }
