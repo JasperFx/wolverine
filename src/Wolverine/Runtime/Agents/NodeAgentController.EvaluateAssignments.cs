@@ -79,6 +79,9 @@ public partial class NodeAgentController
             }
         }
 
+        // GH-3698: must run before commands are built. See the method.
+        pinPendingAssignments(grid);
+
         var commands = new AgentCommands();
 
         foreach (var agent in grid.AllAgents)
@@ -121,6 +124,49 @@ public partial class NodeAgentController
         }
 
         return commands;
+    }
+
+    // GH-3698: an agent we have already dispatched an AssignAgent for, but whose destination has not managed
+    // to start it yet, still looks completely unassigned to the grid -- Agent.OriginalNode comes from each
+    // node's PERSISTED ActiveAgents, and the assignment row only appears once the agent is actually running.
+    // The distribution pass therefore re-decides its placement from scratch on every evaluation and can send
+    // it somewhere else. That did not matter while the leader's assignment loop was blocked behind the agent
+    // command drain (no evaluation ran during a wave at all), but now that the two are decoupled an
+    // evaluation lands every HealthCheckPollingTime while a wave of slow starts is still in flight -- and a
+    // re-targeted agent defeats the pending-assignment ledger (which is keyed on agent -> node), so the
+    // suppression stops working, every wave re-emits the whole remainder, and the AssignmentChanged flood of
+    // GH-3604/D6 comes straight back. Worse, the agent ends up dispatched to two nodes at once.
+    //
+    // So: while a dispatch is pending and unexpired, the destination we already chose wins. Deliberately
+    // does NOT touch Agent.OriginalNode -- the ledger confirms entries by matching OriginalNode, and
+    // fabricating one here would make every pending entry instantly self-confirming. An entry that never
+    // starts is released by the TTL below, and the next evaluation is then free to place it anywhere.
+    private void pinPendingAssignments(AssignmentGrid grid)
+    {
+        if (_pendingAssignments.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var agent in grid.AllAgents)
+        {
+            // Already running somewhere: not a pending placement.
+            if (agent.OriginalNode != null) continue;
+
+            // Deliberately left unassigned by this evaluation -- an operator pause or a restriction. That
+            // decision must stand; re-pinning it here would resurrect the GH-3663 class of bug where a
+            // pause is undone by the very evaluation meant to carry it out.
+            if (agent.AssignedNode == null) continue;
+
+            if (!_pendingAssignments.TryGetValue(agent.Uri, out var pending)) continue;
+            if (agent.AssignedNode.NodeId == pending.NodeId) continue;
+
+            // If the node we dispatched to is gone from the grid, the fresh decision is the right one.
+            var node = grid.Nodes.FirstOrDefault(x => x.NodeId == pending.NodeId);
+            if (node == null) continue;
+
+            node.Assign(agent);
+        }
     }
 
     // Confirm-and-suppress the pending-assignment ledger for this evaluation. See _pendingAssignments.

@@ -176,6 +176,12 @@ public class agent_assignment_at_scale : IAsyncLifetime
         convergedAt.ShouldNotBeNull();
         convergedAt.Value.ShouldBeLessThan(75.Seconds());
 
+        // The leader must keep re-evaluating assignments — and therefore keep writing AssignmentChanged —
+        // while starts are in flight. This is the symptom the report leads with: 40+ minutes of a healthy
+        // leader that had stopped saying anything. Before the drain was decoupled from the health-check
+        // loop this gap ran to the full length of the wave.
+        longestEvaluationGap.ShouldBeLessThan(20.Seconds());
+
         // Every node should be carrying a share of the universe.
         var final = samples.Last();
         foreach (var pair in final.AssignedPerNode)
