@@ -136,7 +136,7 @@ public class agent_assignment_at_scale : IAsyncLifetime
 
         while (stopwatch.Elapsed < hardTimeout)
         {
-            await Task.Delay(1.Seconds());
+            await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
 
             var sample = await takeSampleAsync(stopwatch.Elapsed);
             samples.Add(sample);
