@@ -13,7 +13,7 @@ public class batch_isolate_members : IAsyncLifetime
     private IHost _host = null!;
     private readonly CapturingDeadLetterInterceptor _deadLetters = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         ProbeItemBatchHandler.Reset();
 
@@ -37,7 +37,7 @@ public class batch_isolate_members : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -68,7 +68,7 @@ public class isolate_batch_members_on_a_non_batched_message : IAsyncLifetime
     private IHost _host = null!;
     private readonly CapturingDeadLetterInterceptor _deadLetters = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -83,7 +83,7 @@ public class isolate_batch_members_on_a_non_batched_message : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

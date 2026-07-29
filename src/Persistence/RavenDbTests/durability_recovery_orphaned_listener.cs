@@ -28,7 +28,7 @@ public class durability_recovery_orphaned_listener : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _store = _fixture.StartRavenStore();
         _capturingLogger = new CapturingLogger();
@@ -48,7 +48,7 @@ public class durability_recovery_orphaned_listener : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

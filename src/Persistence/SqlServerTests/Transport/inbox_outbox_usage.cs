@@ -15,7 +15,7 @@ public class inbox_outbox_usage : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -53,7 +53,7 @@ public class inbox_outbox_usage : IAsyncLifetime
             .Name.ShouldBe("scheduled");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -73,7 +73,7 @@ public class Bug_2318_ancillary_dlq_replay : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Switch2318.ShouldThrow = true;
 
@@ -120,7 +120,7 @@ public class Bug_2318_ancillary_dlq_replay : IAsyncLifetime
         await _host.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

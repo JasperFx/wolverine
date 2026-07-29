@@ -16,7 +16,7 @@ public class end_to_end_round_trip : IAsyncLifetime
     private IHost _receiver = null!;
     private string _claimCheckDirectory = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         CapturedMessages.Reset();
 
@@ -47,7 +47,7 @@ public class end_to_end_round_trip : IAsyncLifetime
         }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _receiver.StopAsync();
         await _publisher.StopAsync();

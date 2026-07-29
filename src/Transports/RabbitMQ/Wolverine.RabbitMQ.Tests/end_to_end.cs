@@ -19,8 +19,6 @@ using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 public static class RabbitTesting

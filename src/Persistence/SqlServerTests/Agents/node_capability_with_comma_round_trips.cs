@@ -22,7 +22,7 @@ public class node_capability_with_comma_round_trips : IAsyncLifetime
 {
     private SqlServerMessageStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
@@ -43,7 +43,7 @@ public class node_capability_with_comma_round_trips : IAsyncLifetime
         await _store.Admin.MigrateAsync();
     }
 
-    public async Task DisposeAsync() => await _store.DisposeAsync();
+    public async ValueTask DisposeAsync() => await _store.DisposeAsync();
 
     [Fact]
     public async Task persists_and_reads_a_capability_uri_that_contains_a_comma()

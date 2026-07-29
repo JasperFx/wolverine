@@ -12,7 +12,7 @@ public class NatsContainerFixture : IAsyncLifetime
 
     public string ConnectionString => _connectionString!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Lock.WaitAsync();
         try
@@ -34,7 +34,7 @@ public class NatsContainerFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Lock.WaitAsync();
         try

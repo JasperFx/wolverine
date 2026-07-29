@@ -21,7 +21,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await dropSchema();
 
@@ -42,7 +42,7 @@ public class message_store_initialization_and_configuration : PostgresqlContext,
         await conn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

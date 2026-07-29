@@ -2,8 +2,6 @@ using Alba;
 using Shouldly;
 using WolverineWebApi;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Http.Tests;
 
 public class OnExceptionTests : IntegrationContext

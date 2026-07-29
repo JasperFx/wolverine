@@ -8,8 +8,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace CircuitBreakingTests;
 
 public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
@@ -23,7 +22,7 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
     private IDisposable _trackerSubscription = null!;
     protected string _queueName = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _queueName = $"{GetType().Name}_{DateTime.UtcNow:yyyyMMddHHmmss}";
 
@@ -44,7 +43,7 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
         _trackerSubscription = _runtime.Tracker.Subscribe(_observer);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _trackerSubscription.Dispose();
         await _host.TeardownResources();

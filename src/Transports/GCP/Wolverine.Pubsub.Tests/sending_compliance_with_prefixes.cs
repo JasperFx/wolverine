@@ -12,7 +12,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var id = Guid.NewGuid().ToString();
 
@@ -43,7 +43,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await DisposeAsync();
     }

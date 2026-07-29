@@ -40,7 +40,7 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
 
     public IHost Main { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Main = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -102,7 +102,7 @@ public class MultiTenantedAzureServiceBusFixture : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Main.StopAsync();
         Main.Dispose();

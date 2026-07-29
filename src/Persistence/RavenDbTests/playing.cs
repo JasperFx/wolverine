@@ -6,8 +6,7 @@ using Raven.Embedded;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb.Internals;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace RavenDbTests;
 
 public class Playing

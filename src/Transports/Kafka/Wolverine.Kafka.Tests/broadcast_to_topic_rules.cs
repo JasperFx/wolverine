@@ -9,8 +9,7 @@ using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class broadcast_to_topic_rules : IAsyncLifetime
@@ -24,7 +23,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -96,7 +95,7 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             .Destination.ShouldBe(new Uri("kafka://topic/green"));
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

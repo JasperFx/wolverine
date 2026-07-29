@@ -17,7 +17,7 @@ public class kafka_by_key_concurrency : IAsyncLifetime
     private IHost _host = null!;
     private string _topic = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         ByKeyState.Reset();
         _topic = $"bykey-{Guid.NewGuid():N}";
@@ -38,7 +38,7 @@ public class kafka_by_key_concurrency : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

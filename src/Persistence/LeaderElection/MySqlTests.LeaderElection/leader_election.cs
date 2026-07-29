@@ -3,8 +3,7 @@ using MySqlConnector;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.MySql;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MySqlTests.LeaderElection;
 
 public class leader_election : LeadershipElectionCompliance

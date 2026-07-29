@@ -4,8 +4,6 @@ using Microsoft.Data.SqlClient;
 using Shouldly;
 using Weasel.SqlServer;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace SqlServerTests.Transport;
 
 // Manual benchmark for the SQL Server queue transport schema decision. Not part of CI.

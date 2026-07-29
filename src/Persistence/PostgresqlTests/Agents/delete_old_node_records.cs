@@ -19,7 +19,7 @@ public class delete_old_node_records : IAsyncLifetime
     private NpgsqlDataSource _dataSource = null!;
     private readonly string SchemaName = $"node_records_{Guid.NewGuid().ToString("N")[..8]}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -41,7 +41,7 @@ public class delete_old_node_records : IAsyncLifetime
         await _store.Admin.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _store.DisposeAsync();
         await _dataSource.DisposeAsync();

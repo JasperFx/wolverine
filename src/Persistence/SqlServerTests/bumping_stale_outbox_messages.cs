@@ -20,7 +20,7 @@ public class bumping_stale_outbox_messages : IAsyncLifetime
 {
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -32,7 +32,7 @@ public class bumping_stale_outbox_messages : IAsyncLifetime
         await theHost.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

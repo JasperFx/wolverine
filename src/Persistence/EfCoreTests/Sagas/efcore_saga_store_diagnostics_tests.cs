@@ -29,7 +29,7 @@ public class efcore_saga_store_diagnostics_tests : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -57,7 +57,7 @@ public class efcore_saga_store_diagnostics_tests : IAsyncLifetime
         await _host.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

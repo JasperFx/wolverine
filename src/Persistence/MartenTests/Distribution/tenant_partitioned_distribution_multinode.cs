@@ -21,8 +21,6 @@ using Wolverine.MessagePack;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // Phase 2 of #3021 (multi-node slice): the clustered case of the distribution granularity. Two async
@@ -45,7 +43,7 @@ public class tenant_partitioned_distribution_multinode(ITestOutputHelper output)
     private readonly string theSchema = "csp_mn_" + Guid.NewGuid().ToString("N");
     private IHost theOriginalHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theOriginalHost = await StartHostAsync();
 
@@ -60,7 +58,7 @@ public class tenant_partitioned_distribution_multinode(ITestOutputHelper output)
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
         {

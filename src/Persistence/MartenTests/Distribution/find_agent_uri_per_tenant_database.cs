@@ -9,8 +9,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution;
 
 // Regression for #3128: under database-per-tenant (sharded databases) FindAgentUriAsync must resolve

@@ -10,8 +10,6 @@ using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 /// <summary>
@@ -41,7 +39,7 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Distinct queue name per test run so concurrent test runs don't collide.
         _queueName = RabbitTesting.NextQueueName();
@@ -76,7 +74,7 @@ public class scheduled_messages_use_message_store_when_AlwaysMakeScheduledMessag
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_hostWithPolicy is not null)
         {

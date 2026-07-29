@@ -8,10 +8,8 @@ namespace Wolverine.AzureServiceBus.Tests;
 
 public class using_native_scheduling : IAsyncLifetime
 {
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     [Fact]
     public async Task with_inline_endpoint()
     {

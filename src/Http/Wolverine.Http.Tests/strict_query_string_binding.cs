@@ -20,13 +20,13 @@ public class StrictQueryBindingFixture : IAsyncLifetime
     public IAlbaHost StrictHost { get; private set; } = null!;
     public IAlbaHost LenientHost { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         StrictHost = await buildHost(rejectUnparseable: true);
         LenientHost = await buildHost(rejectUnparseable: false);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await StrictHost.DisposeAsync();
         await LenientHost.DisposeAsync();

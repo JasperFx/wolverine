@@ -12,8 +12,7 @@ using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace PostgresqlTests.MultiTenancy;
 
 // GH-3376: with multi-tenancy, every node was polling every tenant database for scheduled messages
@@ -56,7 +55,7 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
         }.ConnectionString;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -110,7 +109,7 @@ public class multi_node_tenant_database_connections : PostgresqlContext, IAsyncL
         return host;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
         {

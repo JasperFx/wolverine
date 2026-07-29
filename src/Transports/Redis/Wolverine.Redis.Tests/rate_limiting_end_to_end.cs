@@ -5,8 +5,6 @@ using Shouldly;
 using System.Collections.Concurrent;
 using Wolverine.RateLimiting;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
@@ -16,7 +14,7 @@ public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
     private IHost _host = null!;
     private RedisRateLimitTracker _tracker = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var streamKey = $"rate-limit-{Guid.NewGuid():N}";
         var groupName = $"rate-limit-group-{Guid.NewGuid():N}";
@@ -45,7 +43,7 @@ public class rate_limiting_end_to_end(ITestOutputHelper output) : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

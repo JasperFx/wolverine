@@ -4,8 +4,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution;
 
 public class blue_green_deployment_with_single_tenant(ITestOutputHelper output)

@@ -29,7 +29,7 @@ public class tenant_partitioned_unregistered_tenant : PostgresqlContext, IAsyncL
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // PartitionedTenancyHost registers tenant1 / tenant2 / *DEFAULT* only — "ghost" is never registered.
         theHost = await PartitionedTenancyHost.StartAsync(StreamIdentity.AsString,
@@ -44,7 +44,7 @@ public class tenant_partitioned_unregistered_tenant : PostgresqlContext, IAsyncL
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

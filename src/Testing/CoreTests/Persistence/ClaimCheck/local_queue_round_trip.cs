@@ -26,15 +26,15 @@ public class local_queue_round_trip : IAsyncLifetime
 {
     private string _claimCheckDirectory = null!;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         CapturedMessages.Reset();
         _claimCheckDirectory = Path.Combine(Path.GetTempPath(),
             "wolverine-claim-check-local-tests-" + Guid.NewGuid().ToString("N"));
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         try
         {
@@ -48,7 +48,7 @@ public class local_queue_round_trip : IAsyncLifetime
             // ignore cleanup failures
         }
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private async Task<IHost> StartHostAsync()

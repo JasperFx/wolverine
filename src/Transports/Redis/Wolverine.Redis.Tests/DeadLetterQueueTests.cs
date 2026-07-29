@@ -8,8 +8,6 @@ using Wolverine.Redis.Internal;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 [Collection("DeadLetterQueueTests")]

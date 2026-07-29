@@ -27,7 +27,7 @@ public class efcore_fetch_specifications_tests : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
@@ -51,7 +51,7 @@ public class efcore_fetch_specifications_tests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

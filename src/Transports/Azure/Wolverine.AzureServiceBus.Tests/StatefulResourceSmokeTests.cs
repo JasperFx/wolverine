@@ -9,10 +9,8 @@ namespace Wolverine.AzureServiceBus.Tests;
 [Trait("Category", "Flaky")]
 public class StatefulResourceSmokeTests : IAsyncLifetime
 {
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     private IHostBuilder ConfigureBuilder(bool autoProvision, int starting = 1)
     {
         return Host.CreateDefaultBuilder()

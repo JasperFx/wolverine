@@ -26,7 +26,7 @@ public class tenant_partitioned_ancillary_store : PostgresqlContext, IAsyncLifet
     private readonly string theMain = "anc_main_" + Guid.NewGuid().ToString("N");
     private readonly string theThings = "anc_things_" + Guid.NewGuid().ToString("N");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -69,7 +69,7 @@ public class tenant_partitioned_ancillary_store : PostgresqlContext, IAsyncLifet
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

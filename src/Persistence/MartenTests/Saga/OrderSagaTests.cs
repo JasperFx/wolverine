@@ -17,7 +17,7 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
     private IHost? _host;
     private Order? _order;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await
             Host.CreateDefaultBuilder()
@@ -52,7 +52,7 @@ public class When_starting_an_order : PostgresqlContext, IAsyncLifetime
         _order = await session.LoadAsync<Order>(orderId);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host!.StopAsync();
         _host.Dispose();

@@ -20,8 +20,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // JasperFx/jasperfx#486 WS1 — node failover must preserve each tenant's progression floor. Under
@@ -80,7 +78,7 @@ public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper 
         m.Projections.Snapshot<PartitionedCounter>(SnapshotLifecycle.Async);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -106,7 +104,7 @@ public class failover_preserves_per_tenant_progression_floors(ITestOutputHelper 
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
         {

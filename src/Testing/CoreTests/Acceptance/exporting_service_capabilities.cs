@@ -15,14 +15,14 @@ public class exporting_service_capabilities : IntegrationContext, IAsyncLifetime
     }
     
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theCapabilities = await ServiceCapabilities.ReadFrom(Host.GetRuntime(), null, CancellationToken.None);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

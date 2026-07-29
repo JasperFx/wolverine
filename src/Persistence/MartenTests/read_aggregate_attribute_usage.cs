@@ -18,7 +18,7 @@ public class read_aggregate_attribute_usage : PostgresqlContext, IAsyncLifetime
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -43,7 +43,7 @@ public class read_aggregate_attribute_usage : PostgresqlContext, IAsyncLifetime
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

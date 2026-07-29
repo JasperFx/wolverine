@@ -18,8 +18,7 @@ using Wolverine.Runtime.Routing;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests;
 
 public class event_streaming : PostgresqlContext, IAsyncLifetime
@@ -33,7 +32,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receiverPort = PortFinder.GetAvailablePort();
 
@@ -97,7 +96,7 @@ public class event_streaming : PostgresqlContext, IAsyncLifetime
         await theSender.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theReceiver.StopAsync();
         await theSender.StopAsync();
@@ -244,7 +243,7 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
     {
         if (logLevel == LogLevel.Error)
         {
-            _output.WriteLine(exception?.ToString());
+            _output.WriteLine(exception?.ToString() ?? formatter(state, exception));
         }
     }
 
@@ -345,6 +344,17 @@ public class TestOutputMartenLogger : IMartenLogger, IMartenSessionLogger, ILogg
 
     private class NoopTestOutputHelper : ITestOutputHelper
     {
+        // xUnit v3 widened ITestOutputHelper with Output and the two Write overloads.
+        public string Output => string.Empty;
+
+        public void Write(string message)
+        {
+        }
+
+        public void Write(string format, params object[] args)
+        {
+        }
+
         public void WriteLine(string message)
         {
         }

@@ -20,7 +20,7 @@ public class tenant_partitioned_natural_key_aggregate : PostgresqlContext, IAsyn
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await PartitionedTenancyHost.StartAsync(StreamIdentity.AsGuid,
             "tpe_nk_" + Guid.NewGuid().ToString("N"),
@@ -34,7 +34,7 @@ public class tenant_partitioned_natural_key_aggregate : PostgresqlContext, IAsyn
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

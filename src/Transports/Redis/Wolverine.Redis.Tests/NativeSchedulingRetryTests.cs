@@ -11,8 +11,6 @@ using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 [Collection("NativeSchedulingRetryTests")]

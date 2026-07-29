@@ -35,7 +35,7 @@ public class end_to_end : IAsyncLifetime
 
     #region Test setup
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receivingTcpPort = PortFinder.GetAvailablePort();
 
@@ -55,7 +55,7 @@ public class end_to_end : IAsyncLifetime
         }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _receivingHost.StopAsync();
         await _publishingHost.StopAsync();

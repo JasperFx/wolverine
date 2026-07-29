@@ -24,7 +24,7 @@ public class primary_store_database_per_tenant : IAsyncLifetime
     private string tenant1ConnectionString = null!;
     private string tenant2ConnectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
@@ -61,7 +61,7 @@ public class primary_store_database_per_tenant : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

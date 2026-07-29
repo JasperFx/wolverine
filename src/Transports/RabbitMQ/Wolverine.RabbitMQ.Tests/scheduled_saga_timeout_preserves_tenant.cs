@@ -17,7 +17,7 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
     private IHost _host = null!;
     private string _queueName = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         SagaTimeoutCapture.Reset();
 
@@ -53,7 +53,7 @@ public class scheduled_saga_timeout_preserves_tenant : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

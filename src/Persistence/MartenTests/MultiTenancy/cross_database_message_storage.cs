@@ -14,15 +14,15 @@ public class cross_database_message_storage : MultiTenancyContext, IAsyncLifetim
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await Stores.Admin.ClearAllAsync();
         await Runtime.DisableAgentsAsync(DateTimeOffset.UtcNow);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

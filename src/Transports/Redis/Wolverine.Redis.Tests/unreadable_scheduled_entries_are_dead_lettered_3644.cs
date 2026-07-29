@@ -32,7 +32,7 @@ public class unreadable_scheduled_entries_are_dead_lettered_3644 : IAsyncLifetim
     // Not a valid serialized Envelope, so EnvelopeSerializer.Deserialize throws on it every time.
     private static readonly RedisValue UnreadablePayload = new byte[] { 0xFF, 0x00, 0x13, 0x37, 0x42 };
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var streamKey = $"unreadable-3644-{Guid.NewGuid():N}";
 
@@ -63,7 +63,7 @@ public class unreadable_scheduled_entries_are_dead_lettered_3644 : IAsyncLifetim
         await _database.KeyDeleteAsync(_endpoint.DeadLetterQueueKey);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await resetAsync();
         await _listener.DisposeAsync();

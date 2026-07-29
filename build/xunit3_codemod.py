@@ -31,6 +31,52 @@ EXPLICIT_DISPOSE = re.compile(rf'(\b{MODS})Task\s+IAsyncLifetime\.DisposeAsync(\
 EXPLICIT_INIT = re.compile(rf'(\b{MODS})Task\s+IAsyncLifetime\.InitializeAsync(\s*\()')
 
 
+# Expression-bodied lifetime member returning a non-ValueTask expression.
+EXPR_BODY_TASK = re.compile(
+    rf'^(\s*(?:(?:public|protected|internal|private|virtual|override|sealed|new)\s+)*)'
+    rf'(ValueTask\s+(?:InitializeAsync|DisposeAsync)\s*\(\s*\)\s*=>\s*)'
+    rf'(?!ValueTask\.CompletedTask)(?!await\b)(.+?;)\s*$',
+    re.M)
+
+# Block-bodied lifetime member declaration, not already async.
+_BLOCK_DECL = re.compile(
+    r'^(\s*)((?:(?:public|protected|internal|private|virtual|override|sealed|new)\s+)*)'
+    r'(ValueTask\s+(?:InitializeAsync|DisposeAsync)\s*\(\s*\)\s*)$')
+
+
+def _async_block_bodied(text: str) -> str:
+    """Make a block-bodied lifetime member async when it returns a foreign Task."""
+    lines = text.splitlines(keepends=True)
+    out, i = [], 0
+    while i < len(lines):
+        m = _BLOCK_DECL.match(lines[i].rstrip('\r\n'))
+        if not m or 'async' in m.group(2):
+            out.append(lines[i]); i += 1; continue
+
+        # Collect the member body by brace depth.
+        j, depth, started, body = i + 1, 0, False, []
+        while j < len(lines):
+            depth += lines[j].count('{') - lines[j].count('}')
+            started = started or '{' in lines[j]
+            body.append(j)
+            if started and depth <= 0:
+                break
+            j += 1
+
+        returns = [k for k in body
+                   if re.search(r'\breturn\s+(?!ValueTask\.CompletedTask)\S', lines[k])]
+        if returns:
+            out.append(f'{m.group(1)}{m.group(2)}async {m.group(3)}\n')
+            for k in range(i + 1, j + 1):
+                lines[k] = re.sub(r'\breturn\s+(?!ValueTask\.CompletedTask)', 'await ', lines[k], count=1) \
+                    if k in returns else lines[k]
+                out.append(lines[k])
+            i = j + 1
+            continue
+        out.append(lines[i]); i += 1
+    return ''.join(out)
+
+
 def convert(text: str) -> str:
     text = EXPLICIT_DISPOSE.sub(r'\1ValueTask IAsyncDisposable.DisposeAsync\2', text)
     text = EXPLICIT_INIT.sub(r'\1ValueTask IAsyncLifetime.InitializeAsync\2', text)
@@ -50,6 +96,15 @@ def convert(text: str) -> str:
                 in_member = False
         out.append(line)
     text = ''.join(out)
+
+    # A non-async lifetime member that hands back somebody else's Task no longer converts,
+    # because the member now returns ValueTask. Make it async and await instead.
+    #
+    #   public ValueTask DisposeAsync() => Cleanup();          -- expression-bodied
+    #   public ValueTask InitializeAsync() { return Setup(x); } -- block-bodied
+    text = EXPR_BODY_TASK.sub(
+        lambda m: m.group(1) + 'async ' + m.group(2) + 'await ' + m.group(3), text)
+    text = _async_block_bodied(text)
 
     # ITestOutputHelper moved from Xunit.Abstractions to Xunit.
     if 'using Xunit.Abstractions;' in text:

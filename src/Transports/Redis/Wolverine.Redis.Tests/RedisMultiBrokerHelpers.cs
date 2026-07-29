@@ -56,7 +56,7 @@ public sealed class SecondRedisServerFixture : IAsyncLifetime
 
     public string? ConnectionString { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         try
         {
@@ -70,7 +70,7 @@ public sealed class SecondRedisServerFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_container != null)
         {

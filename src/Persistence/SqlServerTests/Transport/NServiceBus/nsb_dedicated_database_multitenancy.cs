@@ -24,7 +24,7 @@ public class nsb_dedicated_database_multitenancy : IAsyncLifetime
     private IHost _host = null!;
     private readonly string _queue = "dedicated_nsb_" + Guid.NewGuid().ToString("N")[..8];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _mainCs = await NsbMtDb.CreateDb("nsb_ded_main");
         _t1Cs = await NsbMtDb.CreateDb("nsb_ded_t1");
@@ -95,7 +95,7 @@ public class nsb_dedicated_database_multitenancy : IAsyncLifetime
         return (int)(await cmd.ExecuteScalarAsync())!;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -111,7 +111,7 @@ public class nsb_default_database_multitenancy : IAsyncLifetime
     private IHost _host = null!;
     private readonly string _queue = "default_nsb_" + Guid.NewGuid().ToString("N")[..8];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _mainCs = await NsbMtDb.CreateDb("nsb_def_main");
         _t1Cs = await NsbMtDb.CreateDb("nsb_def_t1");
@@ -139,7 +139,7 @@ public class nsb_default_database_multitenancy : IAsyncLifetime
         (await NsbMtDb.TableExists(_t1Cs, _queue)).ShouldBeFalse("must NOT be replicated into a tenant database");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

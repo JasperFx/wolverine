@@ -25,7 +25,7 @@ public class grpc_and_http_coexistence_3630 : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -52,7 +52,7 @@ public class grpc_and_http_coexistence_3630 : IAsyncLifetime
         _client = _app.GetTestServer().CreateClient();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _client.Dispose();
         await _app.StopAsync();

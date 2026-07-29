@@ -17,8 +17,6 @@ using Wolverine.Transports;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace PersistenceTests.Agents;
 
 public class durability_modes : PostgresqlContext, IAsyncDisposable

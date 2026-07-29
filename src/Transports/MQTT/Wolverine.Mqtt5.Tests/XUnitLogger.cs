@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 public class XUnitLogger : ILogger

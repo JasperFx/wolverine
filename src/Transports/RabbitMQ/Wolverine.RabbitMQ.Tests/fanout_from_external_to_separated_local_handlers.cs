@@ -4,8 +4,6 @@ using Shouldly;
 using Wolverine.Attributes;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 public class fanout_from_external_to_separated_local_handlers(ITestOutputHelper output)

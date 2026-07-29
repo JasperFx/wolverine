@@ -195,13 +195,48 @@ one-line hand fix; the compiler finds every one of them (`CS0029`).
 ## 7. Execution plan
 
 **All waves land on the integration branch `feature/xunit3`, not on `main`.** One merge to
-`main` at the end. Every wave is one PR into `feature/xunit3`, green-gated on its own CI
-target(s) before the next starts. Waves 4–8 are independent of each other and can run in
-parallel or be reordered freely.
+`main` at the end. See §8.1 for the workflow trigger change this requires — **without it the
+wave PRs get zero CI.**
 
-This is forced by ComplianceTests: it fans out to 40 projects, and a v2 test project
-referencing the v3 base classes will not compile, so waves 1–8 have to arrive together. See
-§8.1 for the workflow trigger change this requires — **without it the wave PRs get zero CI.**
+### ⚠️ 7.1 The coupling is harder than "same release" — measured 2026-07-29
+
+The original plan assumed a v2 project only broke against the v3 ComplianceTests if it
+*inherited* a base class. **That is wrong, and it was found the hard way during wave 2.**
+
+`xunit.core` (v2) and `xunit.v3.core` (v3) declare the same type names in the same `Xunit`
+namespace — `FactAttribute`, `IAsyncLifetime`, `CollectionBehavior`, and the rest. Once
+ComplianceTests references v3, that assembly flows transitively into every consumer's
+compilation. A consumer still on v2 then sees **both**, and every single `[Fact]` becomes
+ambiguous:
+
+```
+error CS0433: The type 'CollectionBehavior' exists in both
+  'xunit.core, Version=2.9.3.0, ...' and 'xunit.v3.core, Version=3.2.2.0, ...'
+```
+
+`CoreTests` alone produced **4,268 CS0433 errors**. This affects every consumer, whether or not
+it inherits anything, and it cannot be dodged — `PrivateAssets="all"` on the ComplianceTests
+side does not help, because the base classes' public surface genuinely exposes v3 types that
+consumers must bind against.
+
+**Consequence: the 40 projects that reach ComplianceTests must flip in one atomic change.**
+There is no ordering that keeps them green in between, so the per-project waves 3–8 were never
+achievable for that set.
+
+**Revised model — measured split:**
+
+| Set | Count | How it lands |
+|---|---|---|
+| **Coupled** — transitively reference ComplianceTests | **40** | One atomic commit. Includes `CoreTests`, `MartenTests`, `PolecatTests`, `RabbitMQ.Tests`, both AWS suites (via `CoreTests`), and all of Persistence. |
+| **Independent** — no path to ComplianceTests | **32** | Normal waves, any order, fully independent. Claim-check suites, all 8 samples, the 7 F# drivers, `MessageRoutingTests`, `MetricsTests`, `TracingTests`, `BackPressureTests`, `SignalR`, `HealthChecks`, `Http.AspVersioning`, `MartenSubscriptionTests`, `PolecatIncidentService`, and 2 extension suites. |
+
+The wave table below therefore describes a **verification and fix schedule for the coupled set,
+not a landing schedule.** The source flip is one commit; each CI target is then run in turn and
+failures fixed in follow-up commits. The independent 32 keep the original per-wave model.
+
+Practical note: the branch is **uncompilable between the atomic flip and the point where it
+builds clean.** That is expected and acceptable on an integration branch, but it does mean
+`git bisect` across that span is useless.
 
 ### Wave 0 — Foundation (no behavior change)
 

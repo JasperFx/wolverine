@@ -29,7 +29,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
     private PostgresqlMessageStore? _receiverMessageStore;
     private PostgresqlMessageStore? _senderMessageStore;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
@@ -118,7 +118,7 @@ public class marten_durability_end_to_end : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _receivers)
         {

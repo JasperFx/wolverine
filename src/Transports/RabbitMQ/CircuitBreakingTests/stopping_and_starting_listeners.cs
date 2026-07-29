@@ -23,7 +23,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
     private int _port3;
     private IHost theListener = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _port1 = PortFinder.GetAvailablePort();
         _port2 = PortFinder.GetAvailablePort();
@@ -51,7 +51,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync() 
+    public async ValueTask DisposeAsync() 
     {
         await theListener.TeardownResources();
         await theListener.StopAsync();

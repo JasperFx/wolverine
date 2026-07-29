@@ -31,7 +31,7 @@ public class exclusive_listener_recovery_from_ancillary_store : IAsyncLifetime
     private IHost _host = null!;
     private string _ancillaryConnectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -69,7 +69,7 @@ public class exclusive_listener_recovery_from_ancillary_store : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

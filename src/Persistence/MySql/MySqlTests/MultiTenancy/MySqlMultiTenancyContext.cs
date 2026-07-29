@@ -13,7 +13,7 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
     protected string tenant2ConnectionString = string.Empty;
     protected string tenant3ConnectionString = string.Empty;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
         await conn.OpenAsync();
@@ -39,7 +39,7 @@ public abstract class MySqlMultiTenancyContext : IAsyncLifetime
 
     protected virtual Task onStartup() => Task.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

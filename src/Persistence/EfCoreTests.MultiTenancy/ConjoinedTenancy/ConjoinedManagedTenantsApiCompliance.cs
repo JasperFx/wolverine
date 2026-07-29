@@ -29,7 +29,7 @@ public abstract class ConjoinedManagedTenantsApiCompliance : IAsyncLifetime
         _engine = engine;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -62,7 +62,7 @@ public abstract class ConjoinedManagedTenantsApiCompliance : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

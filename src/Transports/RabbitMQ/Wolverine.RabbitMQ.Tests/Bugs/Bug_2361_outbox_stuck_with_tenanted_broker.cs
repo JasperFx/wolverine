@@ -11,8 +11,6 @@ using Wolverine.Marten;
 using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 /// <summary>

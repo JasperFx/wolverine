@@ -27,7 +27,7 @@ public class data_operations : IAsyncLifetime
     private SqlServerQueue theQueue = null!;
     private IMessageStore theMessageStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var schemaName = "sqlserver" + ++count;
 
@@ -72,7 +72,7 @@ public class data_operations : IAsyncLifetime
         theQueue = theTransport.Queues["one"];
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

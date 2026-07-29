@@ -31,7 +31,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
     private IDocumentStore _receiverStore = null!;
     private IDocumentStore _senderStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
@@ -93,7 +93,7 @@ public class ravendb_durability_end_to_end : RavenTestDriver, IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _receivers)
         {

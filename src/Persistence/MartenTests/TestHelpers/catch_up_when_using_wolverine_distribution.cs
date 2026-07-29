@@ -16,7 +16,7 @@ public class catch_up_when_using_wolverine_distribution : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
 
         _host = await Host.CreateDefaultBuilder()
@@ -46,7 +46,7 @@ public class catch_up_when_using_wolverine_distribution : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -7,8 +7,6 @@ using Shouldly;
 using Wolverine.ErrorHandling;
 using Wolverine.Runtime.Handlers;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 public class Bug_2078_pause_then_requeue : IAsyncLifetime
@@ -23,7 +21,7 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
         _queueName = RabbitTesting.NextQueueName();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         PauseThenRequeueHandler.Reset();
 
@@ -42,7 +40,7 @@ public class Bug_2078_pause_then_requeue : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

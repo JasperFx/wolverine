@@ -12,7 +12,7 @@ public class send_to_topic_and_receive_in_queue_with_rawMessageDelivery : IAsync
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -32,7 +32,7 @@ public class send_to_topic_and_receive_in_queue_with_rawMessageDelivery : IAsync
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         var options = _host.Services.GetRequiredService<WolverineOptions>();
         

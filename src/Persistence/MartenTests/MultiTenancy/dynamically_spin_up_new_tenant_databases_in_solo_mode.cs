@@ -23,7 +23,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
     private string tenant3ConnectionString = null!;
     private string tenant4ConnectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -84,7 +84,7 @@ public class dynamically_spin_up_new_tenant_databases_in_solo_mode : IAsyncLifet
         return builder.ConnectionString;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

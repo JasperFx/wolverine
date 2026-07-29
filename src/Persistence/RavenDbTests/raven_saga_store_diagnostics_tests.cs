@@ -30,7 +30,7 @@ public class raven_saga_store_diagnostics_tests : RavenTestDriver, IAsyncLifetim
     private IDocumentStore _store = null!;
     private IHost _host = null!;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         DatabaseFixture.EnsureServerConfigured();
         _store = GetDocumentStore();
@@ -57,14 +57,14 @@ public class raven_saga_store_diagnostics_tests : RavenTestDriver, IAsyncLifetim
             })
             .Start();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _host?.Dispose();
         _store?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

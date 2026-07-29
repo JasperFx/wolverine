@@ -21,7 +21,7 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Drop the schema if it exists to avoid migration conflicts
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
@@ -78,7 +78,7 @@ public class boundary_model_workflow_tests : PostgresqlContext, IAsyncLifetime
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

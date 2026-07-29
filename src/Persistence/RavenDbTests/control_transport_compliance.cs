@@ -26,7 +26,7 @@ public class RavenDbControlTransportFixture : TransportComplianceFixture, IAsync
         MustReset = false;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _databases = new DatabaseFixture();
         _store = _databases.StartRavenStore();
@@ -72,7 +72,7 @@ public class RavenDbControlTransportFixture : TransportComplianceFixture, IAsync
 
     // Satisfy IAsyncLifetime; real teardown (stopping hosts + store cleanup) runs
     // through the base IAsyncDisposable.DisposeAsync/AfterDisposeAsync path.
-    public new Task DisposeAsync() => Task.CompletedTask;
+    public new async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
 }
 
 [Collection("raven")]

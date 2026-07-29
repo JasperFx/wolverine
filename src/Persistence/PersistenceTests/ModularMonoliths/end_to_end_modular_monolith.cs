@@ -26,8 +26,6 @@ using Weasel.SqlServer;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Marten;
 using Wolverine.Persistence;
-using Xunit.Abstractions;
-
 namespace PersistenceTests.ModularMonoliths;
 
 public class MonolithFixture : IAsyncLifetime
@@ -53,7 +51,7 @@ public class MonolithFixture : IAsyncLifetime
 
     public Table ItemsTable { get; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -127,7 +125,7 @@ public class MonolithFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();
@@ -160,15 +158,15 @@ public class end_to_end_modular_monolith : IClassFixture<MonolithFixture>, IAsyn
         theHost = fixture.Host;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Make it empty...
         await theHost.RebuildAllEnvelopeStorageAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -9,8 +9,6 @@ using ProtoBuf.Grpc.Server;
 using Shouldly;
 using Wolverine.Grpc.Tests.GrpcMiddlewareScoping;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Grpc.Tests;
 
 /// <summary>

@@ -18,8 +18,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // Regression test for marten#4862: SINGLE-database × Wolverine-managed cell of the distribution
@@ -56,7 +54,7 @@ public class single_db_tenant_partitioned_distribution(ITestOutputHelper output)
     // resource-setup DDL reconciliation against the same schema.
     private readonly string theSchema = "csp_lag_" + Guid.NewGuid().ToString("N")[..8];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -94,7 +92,7 @@ public class single_db_tenant_partitioned_distribution(ITestOutputHelper output)
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         theHost.GetRuntime().Agents.DisableHealthChecks();
         await theHost.StopAsync();

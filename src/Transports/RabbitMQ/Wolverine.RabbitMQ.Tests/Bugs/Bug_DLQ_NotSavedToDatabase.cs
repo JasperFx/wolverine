@@ -34,8 +34,6 @@ using Wolverine.RabbitMQ;
 using Wolverine.RabbitMQ.Internal;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 public class Bug_DLQ_NotSavedToDatabase : IAsyncDisposable

@@ -8,8 +8,7 @@ using MQTTnet.Protocol;
 using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]

@@ -10,7 +10,7 @@ public class When_ordering_a_happy_meal : IAsyncLifetime
     private IHost? _host;
     private PcSodaRequested? _sodaRequested;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await
             Host.CreateDefaultBuilder()
@@ -22,10 +22,10 @@ public class When_ordering_a_happy_meal : IAsyncLifetime
         _sodaRequested = session.Sent.SingleMessage<PcSodaRequested>();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _host?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

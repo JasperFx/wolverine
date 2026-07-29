@@ -34,7 +34,7 @@ public abstract class ConjoinedDescriptorCompliance : IAsyncLifetime
         _engine = engine;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -69,7 +69,7 @@ public abstract class ConjoinedDescriptorCompliance : IAsyncLifetime
         theSource = theHost.Services.GetRequiredService<IDynamicTenantSource<string>>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

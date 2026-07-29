@@ -16,7 +16,7 @@ public class AppFixture : IAsyncLifetime
 {
     public IAlbaHost? Host { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // For "integration" test collection (based on this fixture) ApplicationAssembly is WolverineWebApi.
         // If not set explicitly here other tests may set it to the test assembly causing issues with endpoints discovery.
@@ -44,7 +44,7 @@ public class AppFixture : IAsyncLifetime
         #endregion
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Host is null)
             return;
@@ -77,7 +77,7 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
 
     public IDocumentStore Store => Host.Services.GetRequiredService<IDocumentStore>();
 
-    async Task IAsyncLifetime.InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         // Using Marten, wipe out all data and reset the state
         // back to exactly what we described in InitialAccountData
@@ -87,9 +87,9 @@ public abstract class IntegrationContext : IAsyncLifetime, IOpenApiSource
     // This is required because of the IAsyncLifetime
     // interface. Note that I do *not* tear down database
     // state after the test. That's purposeful
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     public async Task<IScenarioResult> Scenario(Action<Scenario> configure)

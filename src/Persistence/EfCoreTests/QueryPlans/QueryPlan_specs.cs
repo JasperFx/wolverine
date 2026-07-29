@@ -15,7 +15,7 @@ public class QueryPlan_specs : IAsyncLifetime
 {
     private QueryPlanDbContext _db = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var options = new DbContextOptionsBuilder<QueryPlanDbContext>()
             .UseInMemoryDatabase($"querypans-{Guid.NewGuid():N}")
@@ -34,7 +34,7 @@ public class QueryPlan_specs : IAsyncLifetime
         await _db.SaveChangesAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _db.DisposeAsync();
     }

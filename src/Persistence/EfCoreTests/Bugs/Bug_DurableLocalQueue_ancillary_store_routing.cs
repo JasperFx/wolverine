@@ -126,7 +126,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Clean up schemas from previous runs
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
@@ -197,7 +197,7 @@ public class Bug_DurableLocalQueue_ancillary_store_routing : IAsyncLifetime
         await setupConn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -27,7 +27,7 @@ public class scheduled_entries_are_never_silently_dropped_3613 : IAsyncLifetime
     private string _scheduledKey = null!;
     private string _streamKey = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _streamKey = $"retention-3613-{Guid.NewGuid():N}";
 
@@ -52,7 +52,7 @@ public class scheduled_entries_are_never_silently_dropped_3613 : IAsyncLifetime
         await _database.KeyDeleteAsync(_scheduledKey);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _database.KeyDeleteAsync(_scheduledKey);
         await _listener.DisposeAsync();

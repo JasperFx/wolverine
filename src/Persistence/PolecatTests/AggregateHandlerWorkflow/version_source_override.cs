@@ -22,7 +22,7 @@ public class version_source_override : IAsyncLifetime
     private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -44,7 +44,7 @@ public class version_source_override : IAsyncLifetime
         await ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

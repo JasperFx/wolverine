@@ -20,15 +20,15 @@ namespace EfCoreTests;
 
 public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLifetime
 {
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         SqlConnection.ClearAllPools();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Theory]

@@ -25,7 +25,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
     private Envelope theIncomingEnvelope = null!;
     private Envelope theOutgoingEnvelope = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -91,7 +91,7 @@ public class persisting_envelopes_with_sqlserver : IAsyncLifetime
         await context.SaveChangesAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

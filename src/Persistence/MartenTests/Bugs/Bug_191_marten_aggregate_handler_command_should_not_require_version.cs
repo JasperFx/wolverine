@@ -14,7 +14,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -32,7 +32,7 @@ public class Bug_191_marten_aggregate_handler_command_should_not_require_version
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

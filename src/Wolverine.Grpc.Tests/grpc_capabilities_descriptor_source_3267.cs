@@ -33,7 +33,7 @@ public sealed class GrpcCapabilitiesFixture : IAsyncLifetime
     public IReadOnlyList<GrpcRpcDescriptor> SourceEndpoints { get; private set; } = [];
     public ServiceCapabilities Capabilities { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -48,7 +48,7 @@ public sealed class GrpcCapabilitiesFixture : IAsyncLifetime
         Capabilities = await ServiceCapabilities.ReadFrom(_host.GetRuntime(), null, CancellationToken.None);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host is not null)
         {

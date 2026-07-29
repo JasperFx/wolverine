@@ -30,7 +30,7 @@ public class tenant_partitioned_subscription_attribution : PostgresqlContext, IA
     private IDocumentStore theStore = null!;
     private readonly string theSchema = "tpe_sub_" + Guid.NewGuid().ToString("N");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         SubscribedCounterHandler.TenantByAmount.Clear();
 
@@ -67,7 +67,7 @@ public class tenant_partitioned_subscription_attribution : PostgresqlContext, IA
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

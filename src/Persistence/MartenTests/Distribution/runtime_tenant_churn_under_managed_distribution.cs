@@ -20,8 +20,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // JasperFx/jasperfx#486 WS1 — runtime tenant churn under Wolverine-managed distribution. The sibling
@@ -73,7 +71,7 @@ public class runtime_tenant_churn_under_managed_distribution(ITestOutputHelper o
     private string ShardDatabase => $"w486_churn_{theSuffix}";
     private string MasterSchema => $"csp_churn_{theSuffix}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -143,7 +141,7 @@ public class runtime_tenant_churn_under_managed_distribution(ITestOutputHelper o
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         theHost.GetRuntime().Agents.DisableHealthChecks();
         await theHost.StopAsync();

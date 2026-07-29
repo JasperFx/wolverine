@@ -3,8 +3,7 @@ using JasperFx.Resources;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class configuration_precedence

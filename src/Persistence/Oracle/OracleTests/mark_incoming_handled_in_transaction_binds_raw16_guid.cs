@@ -24,7 +24,7 @@ public class mark_incoming_handled_in_transaction_binds_raw16_guid : IAsyncLifet
     private OracleMessageStore theStore = null!;
     private OracleDataSource theDataSource = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theDataSource = new OracleDataSource(Servers.OracleConnectionString);
         var settings = new DatabaseSettings
@@ -41,7 +41,7 @@ public class mark_incoming_handled_in_transaction_binds_raw16_guid : IAsyncLifet
         await theStore.Admin.ClearAllAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theStore.DisposeAsync();
     }

@@ -10,8 +10,6 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Configuration;
 
 // Characterization tests that PIN the order in which the various HandlerChain customization

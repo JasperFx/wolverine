@@ -8,8 +8,6 @@ using Testcontainers.Kafka;
 using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Kafka.Tests;
 
 /// <summary>
@@ -38,7 +36,7 @@ public class KafkaPerTenantConnectionTests : IAsyncLifetime
 
     public KafkaPerTenantConnectionTests(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (!IsKafkaAvailable(_clusterAServers))
         {
@@ -63,7 +61,7 @@ public class KafkaPerTenantConnectionTests : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_clusterB != null)
         {

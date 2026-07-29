@@ -12,8 +12,7 @@ using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Bugs;
 
 public class Bug_581_complex_dependency_graph_transactional_middleware_application : PostgresqlContext

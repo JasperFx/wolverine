@@ -25,7 +25,7 @@ public class polecat_managed_distribution_starts_agents_3168 : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -50,7 +50,7 @@ public class polecat_managed_distribution_starts_agents_3168 : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _host.GetRuntime().Agents.DisableHealthChecks();
         await _host.StopAsync();

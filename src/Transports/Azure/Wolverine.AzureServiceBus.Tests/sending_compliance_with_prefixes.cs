@@ -15,7 +15,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         MustReset = false;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/foo." + queueName);
@@ -38,9 +38,9 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     protected override Task AfterDisposeAsync()

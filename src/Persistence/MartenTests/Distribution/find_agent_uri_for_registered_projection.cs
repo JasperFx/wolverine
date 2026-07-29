@@ -4,8 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution;
 
 // Regression for #3124: IEventSubscriptionAgentFamily.FindAgentUriAsync must resolve the agent URI

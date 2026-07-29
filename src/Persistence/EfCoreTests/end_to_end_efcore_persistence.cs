@@ -27,7 +27,7 @@ public class EFCorePersistenceContext : IAsyncLifetime
 {
     public IHost theHost { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Drop the schema first so Weasel migrations can cleanly create/alter columns
         // without conflicting with stale data from previous test runs
@@ -58,7 +58,7 @@ public class EFCorePersistenceContext : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

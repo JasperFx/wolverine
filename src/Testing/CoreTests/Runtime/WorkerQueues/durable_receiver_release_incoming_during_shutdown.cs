@@ -42,9 +42,8 @@ public class durable_receiver_release_incoming_during_shutdown : IAsyncLifetime
         _receiver = new DurableReceiver(endpoint, _runtime, _pipeline);
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task drain_terminates_within_seconds_when_inbox_release_throws_repeatedly()
     {

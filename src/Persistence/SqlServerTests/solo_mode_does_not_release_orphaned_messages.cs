@@ -19,7 +19,7 @@ public class solo_mode_does_not_release_orphaned_messages : IAsyncLifetime
     private const string SoloSchema = "solo_orphan";
     private const string BalancedSchema = "balanced_orphan";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theSoloHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -40,7 +40,7 @@ public class solo_mode_does_not_release_orphaned_messages : IAsyncLifetime
         await theBalancedHost.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theSoloHost.StopAsync();
         await theBalancedHost.StopAsync();

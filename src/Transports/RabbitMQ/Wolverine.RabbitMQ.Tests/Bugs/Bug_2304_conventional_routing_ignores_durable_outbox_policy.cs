@@ -16,7 +16,7 @@ public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IAsyn
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -56,7 +56,7 @@ public class Bug_2304_conventional_routing_ignores_durable_outbox_policy : IAsyn
         endpoint.Mode.ShouldBe(EndpointMode.Durable);
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

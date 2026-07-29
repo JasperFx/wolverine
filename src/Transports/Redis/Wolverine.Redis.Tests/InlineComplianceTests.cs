@@ -14,7 +14,7 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receiverStream = $"wolverine-tests-inline-receiver-{Guid.NewGuid():N}";
         OutboundAddress = new Uri($"redis://stream/0/{receiverStream}");
@@ -34,9 +34,9 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
 
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 

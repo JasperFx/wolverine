@@ -7,8 +7,6 @@ using Wolverine.RabbitMQ.Internal;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 public class end_to_end_with_named_broker

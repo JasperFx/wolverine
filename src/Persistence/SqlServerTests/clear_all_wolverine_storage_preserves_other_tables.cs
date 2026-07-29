@@ -30,7 +30,7 @@ public class clear_all_wolverine_storage_preserves_other_tables : IAsyncLifetime
 
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
         {
@@ -49,7 +49,7 @@ public class clear_all_wolverine_storage_preserves_other_tables : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

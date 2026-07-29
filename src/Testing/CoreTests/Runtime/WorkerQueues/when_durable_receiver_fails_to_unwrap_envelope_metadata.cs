@@ -34,14 +34,13 @@ public class when_durable_receiver_fails_to_unwrap_envelope_metadata : IAsyncLif
         theEnvelope.Serializer = serializer;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await theReceiver.ReceivedAsync(theListener, theEnvelope);
         await theReceiver.DrainAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task the_listener_was_completed_so_the_transport_does_not_redeliver_the_message()
     {

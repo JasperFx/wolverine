@@ -9,8 +9,7 @@ using Shouldly;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.AmazonSqs.Tests;
 
 [Trait("Category", "Flaky")]

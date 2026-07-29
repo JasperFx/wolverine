@@ -18,7 +18,7 @@ public class storage_attribute_routes_to_polecat_store : IAsyncLifetime
 {
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -47,7 +47,7 @@ public class storage_attribute_routes_to_polecat_store : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

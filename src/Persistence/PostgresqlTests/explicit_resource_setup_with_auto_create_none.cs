@@ -17,7 +17,7 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
 {
     private const string SchemaName = "autocreate_none";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -25,9 +25,9 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
         await conn.CloseAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private static IHostBuilder configureHost()

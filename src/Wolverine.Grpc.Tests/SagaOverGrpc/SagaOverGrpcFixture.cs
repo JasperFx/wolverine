@@ -27,7 +27,7 @@ public class SagaOverGrpcFixture : IAsyncLifetime
     /// </summary>
     public IServiceProvider Services => _app!.Services;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -57,7 +57,7 @@ public class SagaOverGrpcFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Channel?.Dispose();
         if (_app != null)

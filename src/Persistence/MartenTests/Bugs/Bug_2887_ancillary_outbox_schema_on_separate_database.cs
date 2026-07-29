@@ -43,7 +43,7 @@ public class Bug_2887_ancillary_outbox_schema_on_separate_database : IAsyncLifet
     private IHost _host = null!;
     private string _refsConnectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // The ancillary store lives on a SEPARATE physical database. On it, only the
         // per-store envelope schema ("debtors") will exist — the main store's "public"
@@ -109,7 +109,7 @@ public class Bug_2887_ancillary_outbox_schema_on_separate_database : IAsyncLifet
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

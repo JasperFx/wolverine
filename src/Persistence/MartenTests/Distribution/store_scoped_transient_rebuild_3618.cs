@@ -27,7 +27,7 @@ public class store_scoped_transient_rebuild_3618 : IAsyncLifetime
     private IDocumentStore _main = null!;
     private IGh3618AncillaryStore _ancillary = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -69,7 +69,7 @@ public class store_scoped_transient_rebuild_3618 : IAsyncLifetime
         _ancillary = _host.Services.GetRequiredService<IGh3618AncillaryStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _host.GetRuntime().Agents.DisableHealthChecks();
         await _host.StopAsync();

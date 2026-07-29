@@ -6,8 +6,6 @@ using NATS.Client.JetStream;
 using NATS.Net;
 using Shouldly;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>

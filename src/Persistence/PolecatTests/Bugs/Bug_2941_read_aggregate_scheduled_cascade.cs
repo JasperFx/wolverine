@@ -96,7 +96,7 @@ public class ReadAggregateScheduledCascadeContext : IAsyncLifetime
     public IHost Host { get; private set; } = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -139,7 +139,7 @@ public class ReadAggregateScheduledCascadeContext : IAsyncLifetime
         await ((DocumentStore)_store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();

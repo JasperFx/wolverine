@@ -6,8 +6,6 @@ using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.MQTT.Tests;
 
 /// <summary>
@@ -33,7 +31,7 @@ public class mqtt_per_tenant_broker_tests : IAsyncLifetime
 
     public mqtt_per_tenant_broker_tests(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _portA = PortFinder.GetAvailablePort();
         _portB = PortFinder.GetAvailablePort();
@@ -45,7 +43,7 @@ public class mqtt_per_tenant_broker_tests : IAsyncLifetime
         await _brokerB.StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _brokerA.DisposeAsync();
         await _brokerB.DisposeAsync();

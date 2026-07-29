@@ -42,7 +42,7 @@ public class Bug_2668_outboxed_session_listener_null_message_store : IAsyncLifet
     private IHost _host = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -83,7 +83,7 @@ public class Bug_2668_outboxed_session_listener_null_message_store : IAsyncLifet
         await session.SaveChangesAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

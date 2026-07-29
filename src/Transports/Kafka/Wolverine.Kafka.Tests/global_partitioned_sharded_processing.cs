@@ -12,8 +12,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Kafka.Tests;
 
 public class global_partitioned_sharded_processing

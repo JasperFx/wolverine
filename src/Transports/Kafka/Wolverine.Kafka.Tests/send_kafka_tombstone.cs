@@ -4,8 +4,7 @@ using JasperFx.Resources;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class send_kafka_tombstone : IAsyncLifetime
@@ -18,7 +17,7 @@ public class send_kafka_tombstone : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -60,7 +59,7 @@ public class send_kafka_tombstone : IAsyncLifetime
         result.Message.Value.ShouldBeNull();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

@@ -11,8 +11,6 @@ using Wolverine.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace PostgresqlTests;
 
 /// <summary>

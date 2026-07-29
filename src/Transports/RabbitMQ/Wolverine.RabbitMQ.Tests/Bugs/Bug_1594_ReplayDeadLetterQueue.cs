@@ -17,8 +17,6 @@ using Wolverine.RabbitMQ;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 public class Bug_1594_ReplayDeadLetterQueue

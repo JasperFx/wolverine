@@ -61,7 +61,7 @@ public class MultiTenancyFixture : IAsyncLifetime
         await InitializeAsync();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -99,7 +99,7 @@ public class MultiTenancyFixture : IAsyncLifetime
         await conn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (Host != null)
         {

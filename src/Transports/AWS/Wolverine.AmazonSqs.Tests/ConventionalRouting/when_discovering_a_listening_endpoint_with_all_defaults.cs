@@ -11,12 +11,12 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     private readonly Uri theExpectedUri = "sqs://routed".ToUri();
     private AmazonSqsQueue theQueue = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theQueue = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsQueue>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()

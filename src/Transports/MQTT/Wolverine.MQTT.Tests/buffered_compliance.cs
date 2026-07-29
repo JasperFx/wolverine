@@ -16,7 +16,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
 
@@ -52,7 +52,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public LocalMqttBroker Broker { get; private set; } = null!;
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await Broker.StopAsync();
         await Broker.DisposeAsync();

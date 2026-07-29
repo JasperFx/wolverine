@@ -34,7 +34,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         _engine = engine;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -78,7 +78,7 @@ public abstract class ConjoinedTenancyCompliance : IAsyncLifetime
         await context.GlobalThings.ExecuteDeleteAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

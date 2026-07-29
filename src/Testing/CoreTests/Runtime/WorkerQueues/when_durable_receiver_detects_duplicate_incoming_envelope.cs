@@ -30,7 +30,7 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
             .Throws(new DuplicateIncomingEnvelopeException(theEnvelope));
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await theReceiver.ReceivedAsync(theListener, theEnvelope);
 
@@ -38,9 +38,9 @@ public class when_durable_receiver_detects_duplicate_incoming_envelope : IAsyncL
         await theReceiver.DrainAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

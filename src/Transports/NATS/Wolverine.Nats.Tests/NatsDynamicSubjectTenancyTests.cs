@@ -4,8 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>

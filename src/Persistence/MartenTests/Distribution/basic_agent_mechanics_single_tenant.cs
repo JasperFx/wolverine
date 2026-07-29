@@ -6,8 +6,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution;
 
 public class basic_agent_mechanics_single_tenant(ITestOutputHelper output)

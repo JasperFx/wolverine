@@ -16,7 +16,7 @@ public class reacting_to_read_aggregate : IAsyncLifetime
 {
     private IAlbaHost theHost = null!;
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
 
@@ -40,7 +40,7 @@ public class reacting_to_read_aggregate : IAsyncLifetime
         });
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         if (theHost != null)
         {

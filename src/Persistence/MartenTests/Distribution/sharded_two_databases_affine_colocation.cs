@@ -19,8 +19,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // JasperFx/jasperfx#486, the database-affine half of the revised #3280 design: with TWO shard databases
@@ -65,7 +63,7 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
         m.Projections.Snapshot<PartitionedCounter>(SnapshotLifecycle.Async);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -91,7 +89,7 @@ public class sharded_two_databases_affine_colocation(ITestOutputHelper output) :
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
         {

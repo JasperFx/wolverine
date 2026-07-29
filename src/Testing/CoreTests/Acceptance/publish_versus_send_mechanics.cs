@@ -13,9 +13,9 @@ public class publish_versus_send_mechanics : IntegrationContext, IAsyncLifetime
     {
     }
 
-    public Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
-        return with(opts =>
+        await with(opts =>
         {
             opts.DisableConventionalDiscovery();
 
@@ -28,7 +28,7 @@ public class publish_versus_send_mechanics : IntegrationContext, IAsyncLifetime
         });
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task publish_message_with_no_known_subscribers()

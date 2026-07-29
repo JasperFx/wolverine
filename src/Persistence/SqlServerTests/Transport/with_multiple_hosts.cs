@@ -16,7 +16,7 @@ public class with_multiple_hosts : IAsyncLifetime
     private IHost _sender = null!;
     private IHost _listener = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         #region sample_sql_server_as_queue_between_two_apps
         _sender = await Host.CreateDefaultBuilder()
@@ -79,7 +79,7 @@ public class with_multiple_hosts : IAsyncLifetime
             
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

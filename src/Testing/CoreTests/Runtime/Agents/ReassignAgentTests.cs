@@ -11,16 +11,16 @@ public class ReassignAgentTests : IAsyncLifetime
     private readonly ReassignAgent theCommand = new(new Uri("blue://one"), NodeDestination.Standin(), NodeDestination.Standin());
     private readonly MockWolverineRuntime theRuntime = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theCascadingMessages = await theCommand.ExecuteAsync(theRuntime, CancellationToken.None);
 
         await theRuntime.Tracker.DrainAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

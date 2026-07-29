@@ -19,7 +19,7 @@ public class ValidateConventionFixture : IAsyncLifetime
     public GrpcChannel? Channel { get; private set; }
     public MiddlewareInvocationSink Sink { get; } = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -46,7 +46,7 @@ public class ValidateConventionFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Channel?.Dispose();
         if (_app != null)

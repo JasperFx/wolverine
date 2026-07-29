@@ -65,7 +65,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (_engine == DatabaseEngine.PostgreSQL)
         {
@@ -79,7 +79,7 @@ public abstract class MultiTenancyCompliance : IAsyncLifetime, IWolverineExtensi
         theBuilder = theHost.Services.GetRequiredService<IDbContextBuilder<ItemsDbContext>>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         try
         {

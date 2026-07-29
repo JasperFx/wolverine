@@ -60,7 +60,7 @@ public class registration_of_message_stores : IAsyncLifetime
         return builder.ConnectionString;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -71,7 +71,7 @@ public class registration_of_message_stores : IAsyncLifetime
         connectionString4 = await CreateDatabaseIfNotExists(conn, "database4");
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         if (_host != null)
         {

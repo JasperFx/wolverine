@@ -4,8 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Tracking;
 
 public record FileAdded(string FileName);
@@ -40,7 +38,7 @@ public class when_session_is_tracked_for_published_message_without_handler : IAs
         ITestOutputHelper testOutputHelper
     ) => _testOutputHelper = testOutputHelper;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var hostBuilder = Host.CreateDefaultBuilder();
         hostBuilder.ConfigureServices(
@@ -109,7 +107,7 @@ public class when_session_is_tracked_for_published_message_without_handler : IAs
     }
 
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

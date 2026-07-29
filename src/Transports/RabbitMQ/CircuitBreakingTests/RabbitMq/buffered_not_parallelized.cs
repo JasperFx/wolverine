@@ -2,8 +2,7 @@ using JasperFx.Core;
 using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.RabbitMQ;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace CircuitBreakingTests.RabbitMq;
 
 public class buffered_not_parallelized(ITestOutputHelper output)

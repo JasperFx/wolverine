@@ -24,7 +24,7 @@ public class remote_invocation : IAsyncLifetime
 
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var senderPort = PortFinder.GetAvailablePort();
         _receiver1Port = PortFinder.GetAvailablePort();
@@ -69,7 +69,7 @@ public class remote_invocation : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _receiver1.StopAsync();
         _receiver1.Dispose();

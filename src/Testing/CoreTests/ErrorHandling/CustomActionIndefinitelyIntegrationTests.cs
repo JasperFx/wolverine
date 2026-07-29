@@ -12,7 +12,7 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
 {
     private IHost? _host;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -69,7 +69,7 @@ public class CustomActionIndefinitelyIntegrationTests : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

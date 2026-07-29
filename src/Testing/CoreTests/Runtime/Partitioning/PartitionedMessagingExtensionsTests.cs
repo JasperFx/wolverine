@@ -1,8 +1,6 @@
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Partitioning;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Runtime.Partitioning;
 
 public class PartitionedMessagingExtensionsTests

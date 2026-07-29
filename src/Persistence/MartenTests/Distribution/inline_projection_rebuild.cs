@@ -24,7 +24,7 @@ public class inline_projection_rebuild : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -52,7 +52,7 @@ public class inline_projection_rebuild : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _host.GetRuntime().Agents.DisableHealthChecks();
         await _host.StopAsync();

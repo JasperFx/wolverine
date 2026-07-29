@@ -18,7 +18,7 @@ public class handler_actions_with_returned_StartStream : IAsyncLifetime
     private IHost _host = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -39,7 +39,7 @@ public class handler_actions_with_returned_StartStream : IAsyncLifetime
         await ((DocumentStore)_store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

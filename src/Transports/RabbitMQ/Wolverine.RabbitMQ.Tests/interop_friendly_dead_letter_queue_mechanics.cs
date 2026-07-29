@@ -22,8 +22,7 @@ public class interop_friendly_dead_letter_queue_mechanics: IAsyncLifetime
         deadLetterQueueName = QueueName + "_DLQ";
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
     private async Task afterBootstrapping()
     {
         _host = await Host.CreateDefaultBuilder()
@@ -47,7 +46,7 @@ public class interop_friendly_dead_letter_queue_mechanics: IAsyncLifetime
             .GetOrCreate<RabbitMqTransport>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Try to eliminate queues to keep them from accumulating
         if (_host != null)

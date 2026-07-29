@@ -13,7 +13,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await SenderIs(opts =>
         {
@@ -36,7 +36,7 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
     }

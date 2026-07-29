@@ -14,7 +14,7 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
     private IHost _publisher = null!;
     private IHost _receiver = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var publisherPort = PortFinder.GetAvailablePort();
         var receiverPort = PortFinder.GetAvailablePort();
@@ -36,7 +36,7 @@ public class invoke_async_with_delivery_options : IAsyncLifetime
 
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _publisher.StopAsync();
         _publisher.Dispose();

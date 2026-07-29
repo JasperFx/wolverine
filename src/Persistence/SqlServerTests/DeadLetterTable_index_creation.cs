@@ -19,13 +19,13 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
 {
     private SqlConnection theConnection = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theConnection = new SqlConnection(Servers.SqlServerConnectionString);
         await theConnection.OpenAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theConnection.DisposeAsync();
     }

@@ -70,7 +70,7 @@ public class NamedBrokerRoundTripTests : IAsyncLifetime
     private IHost? _host;
     private bool _skip;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _skip = !await TestingExtensions.IsEmulatorAvailable();
         if (_skip)
@@ -94,7 +94,7 @@ public class NamedBrokerRoundTripTests : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host is not null)
         {

@@ -21,7 +21,7 @@ public class conjoined_tenancy_http_detection : IAsyncLifetime
 {
     private IAlbaHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -66,7 +66,7 @@ public class conjoined_tenancy_http_detection : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

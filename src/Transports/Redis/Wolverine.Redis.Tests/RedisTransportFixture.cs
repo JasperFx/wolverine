@@ -9,7 +9,7 @@ public class RedisTransportFixture : TransportComplianceFixture
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await SenderIs(opts =>
         {

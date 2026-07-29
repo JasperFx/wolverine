@@ -9,13 +9,12 @@ namespace CoreTests.Serialization;
 [Collection("EnvelopeSerializerLimits")]
 public class WolverineRuntimeLimitsWireupTests : IAsyncLifetime
 {
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync()
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public ValueTask DisposeAsync()
     {
         EnvelopeSerializer.Limits = EnvelopeReaderLimits.Default;
         WireProtocol.MaxFrameSize = WireProtocol.DefaultMaxFrameSize;
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

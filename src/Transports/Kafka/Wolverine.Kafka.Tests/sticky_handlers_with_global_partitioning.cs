@@ -5,8 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Kafka.Tests;
 
 /// <summary>

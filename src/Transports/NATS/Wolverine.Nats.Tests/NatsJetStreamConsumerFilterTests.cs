@@ -10,8 +10,6 @@ using Wolverine.Attributes;
 using Wolverine.Nats.Internal;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>

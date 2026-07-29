@@ -20,7 +20,7 @@ public class using_an_aggregate_that_handles_commands : IAsyncLifetime
     private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -43,7 +43,7 @@ public class using_an_aggregate_that_handles_commands : IAsyncLifetime
         await database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

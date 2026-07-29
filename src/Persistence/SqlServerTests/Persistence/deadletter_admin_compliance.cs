@@ -6,8 +6,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.SqlServer;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace SqlServerTests.Persistence;
 
 public class deadletter_admin_compliance : DeadLetterAdminCompliance

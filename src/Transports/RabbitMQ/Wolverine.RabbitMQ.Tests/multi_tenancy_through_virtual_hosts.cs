@@ -32,7 +32,7 @@ public static class MultiTenantMessageHandler
 
 public class MultiTenantedRabbitFixture : IAsyncLifetime
 {
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await declareVirtualHost("vh1");
         await declareVirtualHost("vh2");
@@ -117,7 +117,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
 
     public IHost Main { get; private set; } = null!;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Main.StopAsync();
         Main.Dispose();

@@ -7,8 +7,6 @@ using Testcontainers.Nats;
 using Wolverine.Nats.Internal;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
@@ -94,7 +92,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
 
     public NatsNamedBrokerTests(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _serverAUrl = NatsTestHelpers.ResolveUrl();
 
@@ -112,7 +110,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
         _output.WriteLine($"Server B (named):   {_serverBUrl}");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_serverB != null)
         {

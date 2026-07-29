@@ -20,7 +20,7 @@ public class Bug_3041_saga_and_handler_with_handler_type_naming : IAsyncLifetime
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -39,7 +39,7 @@ public class Bug_3041_saga_and_handler_with_handler_type_naming : IAsyncLifetime
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void both_the_saga_and_the_regular_handler_get_listener_queues()

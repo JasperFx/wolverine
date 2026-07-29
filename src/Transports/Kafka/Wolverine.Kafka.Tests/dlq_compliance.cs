@@ -11,7 +11,7 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receiverTopic = "buffered.dlq.receiver";
         var senderTopic = "buffered.dlq.sender";
@@ -44,9 +44,9 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 

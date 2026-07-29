@@ -20,8 +20,7 @@ using Shouldly;
 using Wolverine.Http.Runtime.MultiTenancy;
 using Wolverine.Http.Tests.Bugs;
 using Wolverine.Marten;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Http.Tests.MultiTenancy;
 
 public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDisposable

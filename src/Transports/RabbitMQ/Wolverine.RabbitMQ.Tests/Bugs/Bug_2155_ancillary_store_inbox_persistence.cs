@@ -40,7 +40,7 @@ public class Bug_2155_ancillary_store_inbox_persistence : IAsyncLifetime
     private IHost _host = null!;
     private string _queueName = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _queueName = RabbitTesting.NextQueueName();
 
@@ -78,7 +78,7 @@ public class Bug_2155_ancillary_store_inbox_persistence : IAsyncLifetime
         await _host.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

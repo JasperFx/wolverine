@@ -14,8 +14,7 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.AggregateHandlerWorkflow;
 
 public class aggregate_handler_workflow_with_ievent

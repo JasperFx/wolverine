@@ -40,7 +40,7 @@ public sealed class GreeterManifestFixture : IAsyncLifetime
 
     public IReadOnlyList<GrpcEndpointDescriptor> Endpoints { get; private set; } = [];
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -57,7 +57,7 @@ public sealed class GreeterManifestFixture : IAsyncLifetime
         Endpoints = _host.Services.GetRequiredService<IGrpcEndpointManifest>().Endpoints;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host is not null)
         {

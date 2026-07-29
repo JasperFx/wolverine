@@ -19,8 +19,6 @@ using Wolverine.MessagePack;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // Phase 2 of the per-tenant-partitioned-events matrix (#3021): projection/subscription distribution
@@ -43,7 +41,7 @@ public class tenant_partitioned_distribution_granularity(ITestOutputHelper outpu
     // resource-setup DDL reconciliation against the same schema.
     private readonly string theSchema = "csp_tpe_" + Guid.NewGuid().ToString("N");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -83,7 +81,7 @@ public class tenant_partitioned_distribution_granularity(ITestOutputHelper outpu
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         theHost.GetRuntime().Agents.DisableHealthChecks();
         await theHost.StopAsync();

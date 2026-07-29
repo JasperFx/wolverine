@@ -11,7 +11,7 @@ public class BufferedSharedMemoryInlineFixture : TransportComplianceFixture, IAs
         AllLocally = true;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await SharedMemoryQueueManager.ClearAllAsync();
         
@@ -27,9 +27,9 @@ public class BufferedSharedMemoryInlineFixture : TransportComplianceFixture, IAs
         });
     }
 
-    public new Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
-        return SharedMemoryQueueManager.ClearAllAsync();
+        await SharedMemoryQueueManager.ClearAllAsync();
     }
 }
 

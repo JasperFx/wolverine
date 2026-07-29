@@ -22,7 +22,7 @@ public class exporting_saga_capabilities : IAsyncLifetime
     private IHost _host = null!;
     private ServiceCapabilities _capabilities = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -35,7 +35,7 @@ public class exporting_saga_capabilities : IAsyncLifetime
         _capabilities = await ServiceCapabilities.ReadFrom(_host.GetRuntime(), null, CancellationToken.None);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

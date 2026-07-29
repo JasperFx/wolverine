@@ -12,8 +12,7 @@ using Wolverine.EntityFrameworkCore;
 using Wolverine.ErrorHandling;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace EfCoreTests.Bugs;
 
 [Collection("postgresql")]

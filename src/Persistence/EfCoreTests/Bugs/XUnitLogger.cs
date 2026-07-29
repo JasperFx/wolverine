@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace EfCoreTests.Bugs;
 
 public class XUnitLogger : ILogger

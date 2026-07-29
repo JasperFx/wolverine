@@ -10,12 +10,12 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     private PubsubEndpoint theEndpoint = null!;
     private readonly Uri theExpectedUri = $"{PubsubTransport.ProtocolName}://wolverine/routed".ToUri();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<PubsubEndpoint>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()

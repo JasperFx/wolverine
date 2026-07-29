@@ -6,8 +6,6 @@ using Wolverine.ComplianceTests;
 using Wolverine.Attributes;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Configuration;
 
 public class find_handlers_with_the_default_handler_discovery : IntegrationContext

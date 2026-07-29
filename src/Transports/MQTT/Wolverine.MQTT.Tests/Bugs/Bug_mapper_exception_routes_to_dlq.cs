@@ -17,7 +17,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncLifetime
     private readonly string _topic = "mapper-explosion/" + Guid.NewGuid().ToString("N");
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -39,7 +39,7 @@ public class Bug_mapper_exception_routes_to_dlq : IAsyncLifetime
         await _host.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host is not null)
         {

@@ -16,7 +16,7 @@ public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -31,7 +31,7 @@ public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void listener_endpoint_should_be_named_after_handler_type()

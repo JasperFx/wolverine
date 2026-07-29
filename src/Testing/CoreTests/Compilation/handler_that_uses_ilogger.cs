@@ -3,8 +3,6 @@ using Microsoft.Extensions.Logging;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime.Handlers;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Compilation;
 
 public class handler_that_uses_ilogger
@@ -27,7 +25,7 @@ public class handler_that_uses_ilogger
         var graph = host.Services.GetRequiredService<HandlerGraph>();
         var chain = graph.ChainFor<ItemCreated>();
 
-        _output.WriteLine(chain!.SourceCode);
+        _output.WriteLine(chain!.SourceCode!);
     }
 }
 

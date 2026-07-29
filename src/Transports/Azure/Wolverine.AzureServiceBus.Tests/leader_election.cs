@@ -3,8 +3,7 @@ using Npgsql;
 using Weasel.Postgresql;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.AzureServiceBus.Tests;
 
 public class leader_election : LeadershipElectionCompliance

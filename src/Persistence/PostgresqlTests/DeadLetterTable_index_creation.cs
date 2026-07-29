@@ -19,13 +19,13 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
 {
     private NpgsqlConnection theConnection = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theConnection = new NpgsqlConnection(Servers.PostgresConnectionString);
         await theConnection.OpenAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theConnection.DisposeAsync();
     }

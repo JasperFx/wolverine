@@ -28,7 +28,7 @@ public class Bug_discard_after_failed_outbox_commit : IAsyncLifetime
     private const string Schema = "discard_failed_commit_pc";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -54,7 +54,7 @@ public class Bug_discard_after_failed_outbox_commit : IAsyncLifetime
         await store.Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

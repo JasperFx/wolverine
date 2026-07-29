@@ -3,8 +3,6 @@ using IntegrationTests;
 using Npgsql;
 using Weasel.Postgresql;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace PostgresqlTests.Transport;
 
 // Manual benchmark for the PostgreSQL queue transport schema decision. Not part of CI.

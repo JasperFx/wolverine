@@ -26,7 +26,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifet
     private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await WolverineHost.ForAsync(opts =>
         {
@@ -51,7 +51,7 @@ public class marten_command_workflow_middleware : PostgresqlContext, IAsyncLifet
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

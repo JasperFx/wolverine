@@ -18,7 +18,7 @@ public class resource_setup_against_a_missing_database : PostgresqlContext, IAsy
     private const string DatabaseName = "wolverine_fresh_provisioning";
     private string _connectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _connectionString = new NpgsqlConnectionStringBuilder(Servers.PostgresConnectionString)
         {
@@ -32,9 +32,9 @@ public class resource_setup_against_a_missing_database : PostgresqlContext, IAsy
         await conn.CloseAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

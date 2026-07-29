@@ -11,7 +11,7 @@ public class Bug_2283_purge_session_subscription : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // This should not throw even though the subscription has sessions enabled
         // and AutoPurgeOnStartup is set. Before the fix, PurgeAsync on a session-enabled
@@ -34,7 +34,7 @@ public class Bug_2283_purge_session_subscription : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

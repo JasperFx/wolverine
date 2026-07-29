@@ -20,7 +20,7 @@ public class ProtoFirstGrpcFixture : IAsyncLifetime
     public IServiceProvider Services => _app?.Services
         ?? throw new InvalidOperationException("Fixture has not been initialized yet.");
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -52,7 +52,7 @@ public class ProtoFirstGrpcFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Channel?.Dispose();
         if (_app != null)
