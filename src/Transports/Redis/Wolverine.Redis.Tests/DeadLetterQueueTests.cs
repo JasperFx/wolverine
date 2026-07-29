@@ -14,10 +14,12 @@ namespace Wolverine.Redis.Tests;
 public class DeadLetterQueueTests
 {
     private readonly ITestOutputHelper _output;
+    private readonly ConditionPoller _poller;
 
     public DeadLetterQueueTests(ITestOutputHelper output)
     {
         _output = output;
+        _poller = new ConditionPoller(output, maxRetries: 40, retryDelay: 250.Milliseconds());
     }
 
     private async Task<(IHost host, string streamKey)> CreateHostAsync(bool enableDeadLetterQueue = true)
@@ -128,9 +130,13 @@ public class DeadLetterQueueTests
         var bus = host.MessageBus();
         var command = new FailingCommand(Guid.NewGuid().ToString(), "Test error message");
         await bus.PublishAsync(command);
-        
-        await Task.Delay(2000);
-        
+
+        // GH-3707: dead-lettering only happens once the retry policy is exhausted, so a fixed sleep is a
+        // bet on how loaded the machine is. Poll for the entry instead -- a busy CI agent then costs the
+        // test time rather than a failure.
+        await _poller.WaitForAsync($"dead letter entry at {deadLetterKey}",
+            async () => (await database.StreamReadAsync(deadLetterKey, "0-0", count: 1)).Length > 0);
+
         // Read dead letter entry
         var deadLetterEntries = await database.StreamReadAsync(deadLetterKey, "0-0", count: 1);
         deadLetterEntries.Length.ShouldBeGreaterThan(0);
