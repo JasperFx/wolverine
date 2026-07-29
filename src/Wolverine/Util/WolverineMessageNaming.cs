@@ -153,6 +153,8 @@ public static class WolverineMessageNaming
     {
         if (_namingStrategies[0] is T) return;
         _namingStrategies.Insert(0, new T());
+
+        clearCache();
     }
 
     /// <summary>
@@ -163,7 +165,22 @@ public static class WolverineMessageNaming
     public static void AddMessageInterfaceAssembly(Assembly assembly)
     {
         var naming = _namingStrategies.OfType<InteropAssemblyInterfaces>().Single();
+        if (naming.Assemblies.Contains(assembly)) return;
+
         naming.Assemblies.Fill(assembly);
+
+        clearCache();
+    }
+
+    /// <summary>
+    /// Discard every memoized message type name. Changing the naming strategies invalidates any name
+    /// already resolved by the previous set -- a type cached under its full name by an earlier
+    /// <see cref="ToMessageTypeName(Type)"/> call (or by <see cref="PrepopulateCache"/> during a host
+    /// start) would otherwise keep that name forever and silently ignore the new strategy. See GH-3703.
+    /// </summary>
+    private static void clearCache()
+    {
+        _typeNames = ImHashMap<Type, string>.Empty;
     }
 
     public static string GetPrettyName(this Type t)
