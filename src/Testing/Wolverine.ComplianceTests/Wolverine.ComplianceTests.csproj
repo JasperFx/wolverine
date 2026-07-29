@@ -3,6 +3,12 @@
     <PropertyGroup>
         <Description>Compliance test harnesses for adding persistence and transport options to Wolverine</Description>
         <PackageId>WolverineFx.ComplianceTests</PackageId>
+        <!--
+          This is a LIBRARY of xUnit base classes, not a test project, so it references
+          xunit.v3.extensibility.core rather than xunit.v3. xunit.v3 would force
+          <OutputType>Exe</OutputType> (its targets hard-error otherwise), which a package
+          consumed by ~40 downstream test projects must not be.
+        -->
     </PropertyGroup>
 
     <ItemGroup>
@@ -24,10 +30,9 @@
           package by hand.
         -->
         <ProjectReference Include="..\..\Extensions\Wolverine.Newtonsoft\Wolverine.Newtonsoft.csproj"/>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="Shouldly" />
-        <PackageReference Include="xunit" />
+        <PackageReference Include="xunit.v3.extensibility.core" />
     </ItemGroup>
 
 </Project>

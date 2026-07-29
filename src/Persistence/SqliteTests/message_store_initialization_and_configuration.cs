@@ -28,7 +28,7 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
         _connectionString = _database.ConnectionString;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -39,7 +39,7 @@ public class message_store_initialization_and_configuration : SqliteContext, IAs
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

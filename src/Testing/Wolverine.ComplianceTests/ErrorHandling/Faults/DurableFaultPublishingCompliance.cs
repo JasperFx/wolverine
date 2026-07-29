@@ -30,8 +30,8 @@ public abstract class DurableFaultPublishingCompliance : IAsyncLifetime
     /// </summary>
     protected abstract Task<DurableSnapshot> SnapshotAsync(IHost host);
 
-    public Task InitializeAsync() => Task.CompletedTask;
-    public Task DisposeAsync() => Task.CompletedTask;
+    public ValueTask InitializeAsync() => ValueTask.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public async Task smoke_durable_terminal_failure_publishes_fault()

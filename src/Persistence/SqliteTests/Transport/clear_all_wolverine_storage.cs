@@ -24,7 +24,7 @@ public class clear_all_wolverine_storage : ClearAllWolverineStorageCompliance
         return ((SqliteQueue)theQueue).SendAsync(envelope);
     }
 
-    public override async Task DisposeAsync()
+    public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         _database.Dispose();

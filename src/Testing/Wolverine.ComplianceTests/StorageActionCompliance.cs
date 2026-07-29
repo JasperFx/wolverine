@@ -10,7 +10,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 {
     public List<IDisposable> Disposables = new();
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -34,7 +34,7 @@ public abstract class StorageActionCompliance : IAsyncLifetime
 
     protected abstract void configureWolverine(WolverineOptions opts);
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var disposable in Disposables)
         {

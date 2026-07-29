@@ -32,7 +32,7 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         _theSchema = new DatabaseSagaSchema<LightweightSaga, Guid>(definition, settings);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Create the saga table before any tests run (avoids locking issues
         // when ensureStorageExistsAsync opens a second connection while a transaction is open)
@@ -45,11 +45,11 @@ public class saga_storage_operations : SqliteContext, IAsyncLifetime
         _theSchema.MarkAsChecked();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _dataSource.Dispose();
         _database.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -3,8 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Wolverine.Logging;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.ComplianceTests;
 
 public class XUnitEventObserver : IObserver<IWolverineEvent>

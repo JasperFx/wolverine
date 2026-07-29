@@ -57,9 +57,9 @@ public abstract class ExclusiveListenerRecoveryCompliance : IAsyncLifetime
         return host.ResetResourceState();
     }
 
-    public virtual Task InitializeAsync() => Task.CompletedTask;
+    public virtual ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts.ToArray())
         {

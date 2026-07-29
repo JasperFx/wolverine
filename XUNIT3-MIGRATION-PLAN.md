@@ -147,11 +147,15 @@ Consumers who are not ready pin `WolverineFx.ComplianceTests` **6.24.x** and sta
 they move to xunit v3 themselves. That pin is the migration story and it must be stated
 explicitly in the release notes — not left for people to discover at compile time.
 
-Wave 1 therefore owes three deliverables beyond the code:
+Wave 1 therefore owes these deliverables beyond the code:
 
-- a `CHANGELOG.md` entry naming the minimum xunit version and the 6.24.x pin,
-- a `docs/guide/testing.md` update for extension authors,
-- a callout in the release announcement.
+- a `CHANGELOG.md` entry naming the minimum xunit version and the 6.24.x pin — **done, wording
+  is draft and needs Jeremy's review**;
+- a callout in the release announcement — **outstanding**;
+- ~~a `docs/guide/testing.md` update for extension authors~~ — **not applicable.** Checked:
+  there is no extension-author page for `WolverineFx.ComplianceTests` anywhere in `docs/`. Every
+  reference is an mdsnippet source link into `src/Testing/Wolverine.ComplianceTests/`. Writing
+  one would be worthwhile but it is new documentation, not a migration edit — raise separately.
 
 Rejected: a second package ID (`WolverineFx.ComplianceTests.V3`) — permanent dual identity and
 disambiguation debt across every doc and sample, to spare a small audience a one-line pin.

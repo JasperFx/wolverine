@@ -14,16 +14,16 @@ public class sqlite_advisory_lock : SqliteContext, IAsyncLifetime
 {
     private SqliteTestDatabase _db = null!;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _db = Servers.CreateDatabase("sqlite_advisory_lock");
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _db.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -18,14 +18,14 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
     private SqliteTestDatabase _database = null!;
     private SqliteConnection theConnection = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _database = Servers.CreateDatabase(nameof(DeadLetterTable_index_creation));
         theConnection = new SqliteConnection(_database.ConnectionString);
         await theConnection.OpenAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theConnection.DisposeAsync();
         _database.Dispose();

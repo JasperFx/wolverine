@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### WolverineFx.ComplianceTests
+
+> ⚠️ DRAFT WORDING — needs Jeremy's review before release.
+
+- **Now built on xUnit v3, and requires consumers to be on xUnit v3.** The compliance suites are
+  base classes you inherit, and an xUnit v2 test project cannot inherit from an xUnit v3 base
+  class — so this is a hard break with no side-by-side option. If you maintain a community
+  transport or persistence provider and are not ready to move, **pin
+  `WolverineFx.ComplianceTests` to 6.24.x** and stay there until you migrate; the 6.24.x package
+  continues to work against xUnit v2 exactly as before.
+
+  To move: reference `xunit.v3` instead of `xunit`, add `<OutputType>Exe</OutputType>` to your
+  test project (xUnit v3 test projects are executables and its targets hard-error without it),
+  and change your `IAsyncLifetime` implementations from `Task` to `ValueTask` — in v3
+  `IAsyncLifetime` derives from `IAsyncDisposable`, so `DisposeAsync` returns `ValueTask` too.
+  `ITestOutputHelper` also moved from `Xunit.Abstractions` to `Xunit`. The xUnit team's
+  [v3 migration guide](https://xunit.net/docs/getting-started/v3/migration) covers the rest.
+
+  The package itself is unchanged in shape: it is still a plain library (it references
+  `xunit.v3.extensibility.core`, not `xunit.v3`, so it stays a DLL rather than becoming an
+  executable) and the base classes, their names, and their test methods are all as they were.
+
 ### WolverineFx.Oracle
 
 - **Durable inbox no longer fails on Oracle with "Value does not fall within the expected range".**

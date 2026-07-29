@@ -13,8 +13,7 @@ using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Sqlite;
 using Wolverine.Sqlite.Transport;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace SqliteTests.Transport;
 
 public class basic_functionality : SqliteContext, IAsyncLifetime
@@ -36,7 +35,7 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
     private IMessageStore theMessageStore = null!;
     private WolverineRuntime theRuntime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -55,7 +54,7 @@ public class basic_functionality : SqliteContext, IAsyncLifetime
         theRuntime = theHost.GetRuntime();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

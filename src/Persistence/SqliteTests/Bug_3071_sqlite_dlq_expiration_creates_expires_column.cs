@@ -42,13 +42,13 @@ public class Bug_3071_sqlite_dlq_expiration_creates_expires_column : IAsyncLifet
     private SqliteTestDatabase _database = null!;
     private IHost? _host;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _database = Servers.CreateDatabase(nameof(Bug_3071_sqlite_dlq_expiration_creates_expires_column));
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

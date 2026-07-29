@@ -26,7 +26,7 @@ public class control_endpoint_policy_resistance : SqliteContext, IAsyncLifetime
     private IHost _host = null!;
     private SqliteTestDatabase _database = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _database = Servers.CreateDatabase(nameof(control_endpoint_policy_resistance));
 
@@ -43,7 +43,7 @@ public class control_endpoint_policy_resistance : SqliteContext, IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

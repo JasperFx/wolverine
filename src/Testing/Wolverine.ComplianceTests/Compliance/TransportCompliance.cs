@@ -201,7 +201,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
     public T Fixture { get; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         if (_ownFixture && Fixture is IAsyncLifetime lifetime)
         {
@@ -225,7 +225,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
         Fixture.BeforeEach();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (!_ownFixture)
             return;

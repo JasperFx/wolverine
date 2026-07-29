@@ -57,7 +57,7 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await beforeHostAsync();
 
@@ -86,7 +86,7 @@ public abstract class ClearAllWolverineStorageCompliance : IAsyncLifetime
         await theMessageStore.Admin.ClearAllAsync();
     }
 
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

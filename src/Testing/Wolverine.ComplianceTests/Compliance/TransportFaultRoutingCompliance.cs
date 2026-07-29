@@ -29,13 +29,13 @@ public abstract class TransportFaultRoutingCompliance : IAsyncLifetime
     /// </summary>
     public abstract Task<IHost> BuildReceiverAsync(FaultSink sink);
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theReceiver = await BuildReceiverAsync(theSink);
         theSender = await BuildSenderAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (theSender is not null)
         {
