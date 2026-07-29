@@ -525,7 +525,14 @@ see §11.
 - `Wolverine.Http.Tests.Transport.HttpTransportExecutorTests.batch_with_multiple_queues_routes_to_correct_queue`
   — failed run 4, passed on re-run of the identical commit.
 
-Worth noting: **`CIHttp` calls `DotNetTest` directly rather than `RunTestProject`**, so unlike the
-persistence and transport targets it gets **no flaky-retry**. One intermittent test fails the whole
-job. Not changed here — it is existing CI policy, not migration work — but it makes `CIHttp` the
-most fragile-looking job on the board.
+**`CIHttp` was the only test target calling `DotNetTest` directly** rather than going through
+`RunTestProject`, so unlike every other target it had **no flaky-retry** and did not apply the
+standard `Category!=Flaky` filter. One intermittent test failed the whole job, where the same flake
+in `CIRabbitMQ` or `CIMarten` is retried and reported as flaky-but-passing. `CIHttpAspVersioning`
+already used `RunTestProject`; `CIHttp` was simply inconsistent.
+
+Fixed here, because it was the last thing keeping the PR red. The intermittent tests themselves are
+a cluster in `Http.Tests/Transport/` that all fail with `No messages of type HttpMessage1 were
+received` / "No activity detected" — a message-tracking timeout. The suite passes locally
+(944/954) and passed CI outright on run 3, so this is runner-load timing rather than a v3 defect.
+Tracked in GH-3705.
