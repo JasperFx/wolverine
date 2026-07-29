@@ -1,4 +1,5 @@
 using Alba;
+using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
@@ -11,9 +12,9 @@ namespace TracingTests;
 
 public class HostsFixture : IAsyncLifetime
 {
-    public IHost FirstSubscriber { get; private set; }
-    public IHost SecondSubscriber { get; private set; }
-    public IAlbaHost WebApi { get; private set; }
+    public IHost FirstSubscriber { get; private set; } = null!;
+    public IHost SecondSubscriber { get; private set; } = null!;
+    public IAlbaHost WebApi { get; private set; } = null!;
 
     public async ValueTask InitializeAsync()
     {
@@ -37,15 +38,9 @@ public class HostsFixture : IAsyncLifetime
                 opts.PublishMessage<RabbitMessage2>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
 
-                opts.Services.AddOpenTelemetryTracing(builder =>
-                {
-                    builder
-                        .SetResourceBuilder(ResourceBuilder
-                            .CreateDefault()
-                            .AddService("Subscriber1"))
-                        .AddJaegerExporter()
-                        .AddSource("Wolverine");
-                });
+                opts.Services.AddOpenTelemetry()
+                    .ConfigureResource(resource => resource.AddService("Subscriber1"))
+                    .WithTracing(tracing => tracing.AddSource("Wolverine"));
             }).StartAsync();
 
         SecondSubscriber = await Host.CreateDefaultBuilder()
@@ -65,14 +60,9 @@ public class HostsFixture : IAsyncLifetime
                 // Publish to the same subscriber
                 opts.PublishMessage<RabbitMessage3>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
-                opts.Services.AddOpenTelemetryTracing(builder =>
-                {
-                    builder.SetResourceBuilder(ResourceBuilder
-                            .CreateDefault()
-                            .AddService("Subscriber2"))
-                        .AddJaegerExporter()
-                        .AddSource("Wolverine");
-                });
+                opts.Services.AddOpenTelemetry()
+                    .ConfigureResource(resource => resource.AddService("Subscriber2"))
+                    .WithTracing(tracing => tracing.AddSource("Wolverine"));
             }).StartAsync();
     }
 

@@ -256,11 +256,23 @@
     <Project Path="src/Testing/MetricsTests/MetricsTests.csproj" />
     <Project Path="src/Testing/Module1/Module1.csproj" />
     <Project Path="src/Testing/Module2/Module2.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/OtelMessages/OtelMessages.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/OtelWebApi/OtelWebApi.csproj" />
     <Project Path="src/Testing/OpenTelemetry/OtelWebApiWolverineMarten/OtelWebApiWolverineMarten.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/Subscriber1/Subscriber1.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/Subscriber2/Subscriber2.csproj" />
+    <Project Path="src/Testing/OpenTelemetry/TracingTests/TracingTests.csproj" />
     <Project Path="src/Testing/OrderExtension/OrderExtension.csproj" />
     <Project Path="src/Testing/PolicyTests/PolicyTests.csproj" />
     <Project Path="src/Testing/SlowTests/SlowTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Behavioural.FSharpTests/Wolverine.Behavioural.FSharpTests.csproj" />
     <Project Path="src/Testing/Wolverine.ComplianceTests/Wolverine.ComplianceTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Core.FSharpTests/Wolverine.Core.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Cosmos.FSharpTests/Wolverine.Cosmos.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.EfCore.FSharpTests/Wolverine.EfCore.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Http.FSharpTests/Wolverine.Http.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.Marten.FSharpTests/Wolverine.Marten.FSharpTests.csproj" />
+    <Project Path="src/Testing/Wolverine.MartenAggregate.FSharpTests/Wolverine.MartenAggregate.FSharpTests.csproj" />
   </Folder>
   <Folder Name="/Transports/" />
   <Folder Name="/Transports/AWS/">

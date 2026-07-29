@@ -10,8 +10,8 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
 {
     private readonly HostsFixture _fixture;
     private readonly ITestOutputHelper _output;
-    private Envelope theOriginalEnvelope;
-    private ITrackedSession theSession;
+    private Envelope theOriginalEnvelope = null!;
+    private ITrackedSession theSession = null!;
 
     public correlation_tracing(HostsFixture fixture, ITestOutputHelper output)
     {
@@ -57,7 +57,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Executed.SingleEnvelope<LocalMessage1>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("OtelWebApi");
+        envelope.Source.ShouldBe(MessagingConstants.WebApiServiceName);
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
@@ -67,7 +67,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Executed.SingleEnvelope<LocalMessage2>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("OtelWebApi");
+        envelope.Source.ShouldBe(MessagingConstants.WebApiServiceName);
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
@@ -77,7 +77,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelope = theSession.Received.SingleEnvelope<TcpMessage1>();
 
         envelope.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
-        envelope.Source.ShouldBe("OtelWebApi");
+        envelope.Source.ShouldBe(MessagingConstants.WebApiServiceName);
         envelope.ConversationId.ShouldBe(theOriginalEnvelope.Id);
     }
 
@@ -87,14 +87,15 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         var envelopes = theSession.FindEnvelopesWithMessageType<RabbitMessage1>()
             .Where(x => x.MessageEventType == MessageEventType.MessageSucceeded)
             .Select(x => x.Envelope)
-            .OrderBy(x => x.Source)
+            .Where(x => x is not null)
+            .OrderBy(x => x!.Source)
             .ToArray();
 
-        var atSubscriber1 = envelopes[0];
-        var atSubscriber2 = envelopes[1];
+        var atSubscriber1 = envelopes[0]!;
+        var atSubscriber2 = envelopes[1]!;
 
-        atSubscriber1.Source.ShouldBe("OtelWebApi");
-        atSubscriber2.Source.ShouldBe("OtelWebApi");
+        atSubscriber1.Source.ShouldBe(MessagingConstants.WebApiServiceName);
+        atSubscriber2.Source.ShouldBe(MessagingConstants.WebApiServiceName);
 
         atSubscriber1.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);
         atSubscriber2.CorrelationId.ShouldBe(theOriginalEnvelope.CorrelationId);

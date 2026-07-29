@@ -1,4 +1,5 @@
-using Oakton;
+using JasperFx;
+using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
@@ -20,14 +21,9 @@ return await Host.CreateDefaultBuilder(args)
         // Publish to the same subscriber
         opts.PublishMessage<RabbitMessage3>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
-        opts.Services.AddOpenTelemetryTracing(builder =>
-        {
-            builder
-                .SetResourceBuilder(ResourceBuilder
-                    .CreateDefault()
-                    .AddService("Subscriber2"))
-                .AddSource("Wolverine")
-                .AddJaegerExporter();
-        });
+        opts.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("Subscriber2"))
+            .WithTracing(tracing => tracing.AddSource("Wolverine"))
+            .UseOtlpExporter();
     })
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
