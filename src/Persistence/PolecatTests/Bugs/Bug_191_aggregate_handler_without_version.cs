@@ -13,7 +13,7 @@ public class Bug_191_aggregate_handler_without_version : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -31,7 +31,7 @@ public class Bug_191_aggregate_handler_without_version : IAsyncLifetime
         await ((DocumentStore)_host.Services.GetRequiredService<IDocumentStore>()).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

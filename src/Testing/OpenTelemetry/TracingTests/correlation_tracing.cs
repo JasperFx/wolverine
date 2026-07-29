@@ -4,8 +4,7 @@ using Shouldly;
 using TracingTests;
 using Wolverine;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 [Collection("otel")]
 public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
 {
@@ -20,7 +19,7 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theSession = await _fixture.WebApi
             .TrackActivity()
@@ -41,9 +40,9 @@ public class correlation_tracing : IClassFixture<HostsFixture>, IAsyncLifetime
         theOriginalEnvelope = theSession.Executed.SingleEnvelope<InitialCommand>();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

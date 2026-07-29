@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using Xunit.Abstractions;
+using Xunit;
 
 namespace IntegrationTests;
 
@@ -59,7 +59,7 @@ public class XunitLogger : ILogger
         if (exception != null)
         {
             _output.WriteLine($"Exception: {exception.GetType().Name}: {exception.Message}");
-            _output.WriteLine(exception.StackTrace);
+            _output.WriteLine(exception.StackTrace ?? "(no stack trace)");
         }
     }
 }

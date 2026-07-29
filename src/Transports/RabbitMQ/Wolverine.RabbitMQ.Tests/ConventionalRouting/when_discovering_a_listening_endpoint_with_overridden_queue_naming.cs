@@ -11,7 +11,7 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
     private RabbitMqEndpoint theEndpoint = null!;
     private readonly Uri theExpectedUri = "rabbitmq://queue/routed2".ToUri();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await ConfigureConventions(c =>
         {
@@ -22,7 +22,7 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
         theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()

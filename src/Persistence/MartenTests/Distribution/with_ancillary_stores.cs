@@ -19,8 +19,7 @@ using Wolverine.MessagePack;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Wolverine.Transports.SharedMemory;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution;
 
 public class with_ancillary_stores(ITestOutputHelper output) : IAsyncLifetime
@@ -29,7 +28,7 @@ public class with_ancillary_stores(ITestOutputHelper output) : IAsyncLifetime
     private readonly ConcurrentBag<XUnitEventObserver> _observers = [];
     protected IHost theOriginalHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -40,7 +39,7 @@ public class with_ancillary_stores(ITestOutputHelper output) : IAsyncLifetime
         theOriginalHost = await startHostAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _observers.Each(x => x.Dispose());
         await Task.WhenAll(_hosts.Select(ShutdownHostAsync));

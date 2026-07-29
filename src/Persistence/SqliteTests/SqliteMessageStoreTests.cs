@@ -40,7 +40,7 @@ public class SqliteMessageStoreTests : MessageStoreCompliance, IAsyncLifetime
         return host;
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         await base.DisposeAsync();
         _database.Dispose();

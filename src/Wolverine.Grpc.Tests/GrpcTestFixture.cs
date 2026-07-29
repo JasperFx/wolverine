@@ -21,7 +21,7 @@ public class GrpcTestFixture : IAsyncLifetime
     private WebApplication? _app;
     public GrpcChannel? Channel { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
 
@@ -62,7 +62,7 @@ public class GrpcTestFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Channel?.Dispose();
         if (_app != null)

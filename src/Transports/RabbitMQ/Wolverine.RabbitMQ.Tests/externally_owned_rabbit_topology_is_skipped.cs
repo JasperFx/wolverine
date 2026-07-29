@@ -20,9 +20,8 @@ public class externally_owned_rabbit_topology_is_skipped : IAsyncLifetime
     private readonly string _ownedQueue = "owned-queue-" + Guid.NewGuid().ToString("N");
     private readonly string _passiveExchange = "passive-exchange-" + Guid.NewGuid().ToString("N");
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
     {
         try
         {

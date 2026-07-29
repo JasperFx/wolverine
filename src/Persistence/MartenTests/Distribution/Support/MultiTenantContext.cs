@@ -14,8 +14,7 @@ using Wolverine.Marten;
 using Wolverine.Marten.Distribution;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution.Support;
 
 public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifetime
@@ -27,7 +26,7 @@ public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifet
     protected MasterTableTenancy _tenancy = null!;
     protected IHost theOriginalHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await DropSchemasAsync("tenants", "multiple", "csp");
         await Task.WhenAll([
@@ -49,7 +48,7 @@ public abstract class MultiTenantContext(ITestOutputHelper output) : IAsyncLifet
         theOriginalHost = await startHostAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _observers.Each(x => x.Dispose());
         await _tenancyStore.DisposeAsync();

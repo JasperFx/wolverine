@@ -1,8 +1,7 @@
 using JasperFx.Core;
 using OtelMessages;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace TracingTests;
 
 [Collection("otel")]

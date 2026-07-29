@@ -42,15 +42,14 @@ public class when_durable_receiver_detects_duplicate_incoming_envelopes_in_batch
             .Returns(Task.CompletedTask);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var now = DateTimeOffset.UtcNow;
         await theReceiver.ProcessReceivedMessagesAsync(now, theListener, new[] { theDuplicate, theFreshEnvelope });
         await theReceiver.DrainAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task the_duplicate_listener_was_completed()
     {

@@ -9,8 +9,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Kafka.Internals;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class DeadLetterQueueTests : IAsyncLifetime
@@ -27,7 +26,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
         _dlqTopicName = "wolverine-dead-letter-queue";
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -158,7 +157,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
         return string.Empty;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {
@@ -180,7 +179,7 @@ public class BufferedDeadLetterQueueTests : IAsyncLifetime
         _dlqTopicName = $"dlq-buffered-verify-{Guid.NewGuid():N}";
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -255,7 +254,7 @@ public class BufferedDeadLetterQueueTests : IAsyncLifetime
         result.Message.Value.ShouldNotBeNull();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

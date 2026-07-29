@@ -11,7 +11,7 @@ public class wire_tap_configuration : IAsyncLifetime
     private IHost _host = default!;
     private readonly RecordingWireTap _wireTap = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -25,7 +25,7 @@ public class wire_tap_configuration : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -85,7 +85,7 @@ public class keyed_wire_tap_configuration : IAsyncLifetime
     private readonly RecordingWireTap _defaultTap = new();
     private readonly RecordingWireTap _specialTap = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -104,7 +104,7 @@ public class keyed_wire_tap_configuration : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

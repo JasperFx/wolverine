@@ -9,8 +9,6 @@ using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Runtime;
 
 /// <summary>
@@ -67,7 +65,7 @@ public class tracking_diagnostics_opt_in
         chain.ShouldNotBeNull();
 
         _output.WriteLine($"=== Generated source for {nameof(TrackingDiagnosticsHandler)} ({label}) ===");
-        _output.WriteLine(chain.SourceCode);
+        _output.WriteLine(chain.SourceCode!);
     }
 
     [Fact]

@@ -11,13 +11,13 @@ public class when_discovering_a_listening_endpoint_with_all_defaults : Conventio
     private RabbitMqEndpoint theEndpoint = null!;
     private readonly Uri theExpectedUri = "rabbitmq://queue/routed".ToUri();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await ConfigureConventions(x=> x.IncludeTypes(ConventionalRoutingTestDefaults.RoutingMessageOnly));
         theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()

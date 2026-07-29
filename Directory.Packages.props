@@ -135,8 +135,14 @@
     <PackageVersion Include="Weasel.SqlServer" Version="9.20.0" />
     <PackageVersion Include="Weasel.Sqlite" Version="9.20.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.assemblyfixture" Version="2.2.0" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <!-- xUnit v3. Test projects use xunit.v3 and must set <OutputType>Exe</OutputType>.
+         Shared/base-class libraries that are referenced by test projects (notably
+         Wolverine.ComplianceTests) use xunit.v3.extensibility.core instead so they stay
+         plain netstandard2.0 libraries. See XUNIT3-MIGRATION-PLAN.md. -->
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.assert" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
   </ItemGroup>
   <!-- TFM-conditional Microsoft.Extensions.* for Wolverine core (version ranges for NuGet compatibility) -->
   <ItemGroup Condition=" '$(TargetFramework)' == 'net9.0' ">

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 using Amazon.S3;
 
@@ -58,7 +59,10 @@ internal static class LocalStack
 /// </summary>
 public sealed class LocalStackFactAttribute : FactAttribute
 {
-    public LocalStackFactAttribute()
+    public LocalStackFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!LocalStack.IsRunning)
         {

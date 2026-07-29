@@ -24,7 +24,7 @@ public class polecat_command_workflow_middleware : IAsyncLifetime, IDisposable
     private IDocumentStore theStore = null!;
     private Guid theStreamId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await WolverineHost.ForAsync(opts =>
         {
@@ -46,7 +46,7 @@ public class polecat_command_workflow_middleware : IAsyncLifetime, IDisposable
         await ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

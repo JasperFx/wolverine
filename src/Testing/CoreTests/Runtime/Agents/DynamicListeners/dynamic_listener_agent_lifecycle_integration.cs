@@ -28,7 +28,7 @@ public class dynamic_listener_agent_lifecycle_integration : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -39,10 +39,10 @@ public class dynamic_listener_agent_lifecycle_integration : IAsyncLifetime
         });
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _host.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

@@ -9,8 +9,6 @@ using Wolverine;
 using Wolverine.Postgresql;
 using Wolverine.RateLimiting;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 public class rate_limiting_end_to_end

@@ -15,7 +15,7 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -30,7 +30,7 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

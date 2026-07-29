@@ -15,7 +15,7 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         MustReset = false;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var queueName = Guid.NewGuid().ToString();
         OutboundAddress = new Uri("asb://queue/" + queueName);
@@ -35,9 +35,9 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     protected override Task AfterDisposeAsync()

@@ -66,7 +66,7 @@ public class Bug_2669_ancillary_marten_store_local_message_from_main_store : IAs
         .Replace(".", "_")
         .ToLowerInvariant() ?? "default";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -108,7 +108,7 @@ public class Bug_2669_ancillary_marten_store_local_message_from_main_store : IAs
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

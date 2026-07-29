@@ -5,8 +5,6 @@ using Shouldly;
 using Wolverine.Nats.Configuration;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
@@ -36,7 +34,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
 
     public NatsDynamicSubjectTests(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _natsUrl = NatsTestHelpers.ResolveUrl();
         _root = $"orders.events.{Guid.NewGuid():N}";
@@ -76,7 +74,7 @@ public class NatsDynamicSubjectTests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_sender != null)
         {

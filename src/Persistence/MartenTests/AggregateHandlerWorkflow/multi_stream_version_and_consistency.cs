@@ -23,7 +23,7 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
     private Guid fromAccountId;
     private Guid toAccountId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -51,7 +51,7 @@ public class multi_stream_version_and_consistency : PostgresqlContext, IAsyncLif
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

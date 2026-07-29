@@ -6,8 +6,6 @@ using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Acceptance;
 
 public class on_exception_convention

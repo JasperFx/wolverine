@@ -74,7 +74,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
     private PostgresqlTransport _transport = null!;
     private string _tableName = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _transport = new PostgresqlTransport();
         _parentQueue = new PostgresqlQueue("stickyhealth", _transport);
@@ -100,7 +100,7 @@ public class sticky_listener_health_db_tests : PostgresqlContext, IAsyncLifetime
         await _parentQueue.EnsureSchemaExists("tenantA", _dataSource);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await using var conn = await _dataSource.OpenConnectionAsync();
         try

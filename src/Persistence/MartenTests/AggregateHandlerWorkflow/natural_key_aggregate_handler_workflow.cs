@@ -23,7 +23,7 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
     private IHost _host = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -47,7 +47,7 @@ public class natural_key_aggregate_handler_workflow : PostgresqlContext, IAsyncL
         _store = _host.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

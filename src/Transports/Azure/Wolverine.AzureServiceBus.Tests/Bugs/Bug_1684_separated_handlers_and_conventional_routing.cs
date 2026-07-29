@@ -6,17 +6,13 @@ using Wolverine.Attributes;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
 [Trait("Category", "Flaky")]
 public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output) : IAsyncLifetime
 {
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public Task DisposeAsync() => AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     [Fact]
     public async Task try_it_and_send_to_multiple_topic_subscriptions()
     {

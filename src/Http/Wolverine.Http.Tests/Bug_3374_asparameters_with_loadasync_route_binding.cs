@@ -26,7 +26,7 @@ public class Bug_3374_asparameters_with_loadasync_route_binding : IAsyncLifetime
 {
     private IAlbaHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -74,7 +74,7 @@ public class Bug_3374_asparameters_with_loadasync_route_binding : IAsyncLifetime
             """);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.DisposeAsync();
     }

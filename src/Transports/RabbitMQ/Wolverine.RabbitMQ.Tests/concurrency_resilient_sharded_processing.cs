@@ -9,8 +9,6 @@ using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 public class concurrency_resilient_sharded_processing

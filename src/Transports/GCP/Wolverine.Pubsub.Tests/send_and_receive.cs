@@ -11,7 +11,7 @@ public class send_and_receive : IAsyncLifetime
 {
     private IHost _host = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -29,7 +29,7 @@ public class send_and_receive : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -118,7 +118,7 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
 {
     private IHost _host = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -136,7 +136,7 @@ public class send_and_receive_with_cloudevents : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

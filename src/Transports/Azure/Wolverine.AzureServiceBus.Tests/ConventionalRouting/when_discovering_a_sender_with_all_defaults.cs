@@ -12,7 +12,7 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
 {
     private MessageRoute theRoute = null!;
 
-    public override async Task InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         await base.InitializeAsync();
         theRoute = (await PublishingRoutesFor<PublishedMessage>()).Single().As<MessageRoute>();

@@ -12,8 +12,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Postgresql;
 using Wolverine.Tracking;
 using Wolverine.Transports.Tcp;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Persistence;
 
 public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
@@ -27,7 +26,7 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theSender = await WolverineHost.ForAsync(opts =>
         {
@@ -75,11 +74,11 @@ public class end_to_end_with_persistence : PostgresqlContext, IAsyncLifetime
         await theReceiver.ResetResourceState();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         theSender?.Dispose();
         theReceiver?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

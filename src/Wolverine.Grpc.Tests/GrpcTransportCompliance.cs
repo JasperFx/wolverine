@@ -11,7 +11,7 @@ public class GrpcComplianceFixture : TransportComplianceFixture, IAsyncLifetime
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         OutboundAddress = new Uri($"grpc://localhost:{ReceiverPort}");
 
@@ -27,7 +27,7 @@ public class GrpcComplianceFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    public new Task DisposeAsync() => Task.CompletedTask;
+    public new async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
 }
 
 [Collection("GrpcSerialTests")]

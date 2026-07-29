@@ -14,7 +14,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -36,7 +36,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

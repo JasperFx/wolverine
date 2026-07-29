@@ -53,7 +53,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IAsyncLifetime
     protected DurabilitySettings theSettings = null!;
 
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _documentStore = DocumentStore.For(opts =>
             opts.Connection(Servers.PostgresConnectionString));
@@ -76,7 +76,7 @@ public class MartenBackedListenerContext : PostgresqlContext, IAsyncLifetime
         _receiver = new DurableReceiver(new LocalQueue("temp"), runtime, runtime.Pipeline);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_documentStore is not null)
             await _documentStore.DisposeAsync();

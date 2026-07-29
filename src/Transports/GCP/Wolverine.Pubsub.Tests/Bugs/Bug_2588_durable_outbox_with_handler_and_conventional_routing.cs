@@ -25,7 +25,7 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
 {
     private IHost _host = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -46,7 +46,7 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null) await _host.StopAsync();
         _host?.Dispose();

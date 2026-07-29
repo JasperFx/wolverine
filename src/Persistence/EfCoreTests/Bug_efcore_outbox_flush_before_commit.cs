@@ -18,8 +18,6 @@ using Wolverine.Postgresql;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace EfCoreTests.Bugs;
 
 /// <summary>

@@ -18,7 +18,7 @@ public class ResponseStreamMechanics : IAsyncLifetime
     private RedisStreamEndpoint _endpoint = null!;
     private string _expectedStreamKey = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -40,7 +40,7 @@ public class ResponseStreamMechanics : IAsyncLifetime
         _endpoint = reply.ShouldBeOfType<RedisStreamEndpoint>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -83,7 +83,7 @@ public class ResponseStreamDisabling : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -95,7 +95,7 @@ public class ResponseStreamDisabling : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

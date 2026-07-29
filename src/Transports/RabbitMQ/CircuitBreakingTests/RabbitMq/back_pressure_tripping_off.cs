@@ -8,8 +8,7 @@ using Wolverine;
 using Wolverine.RabbitMQ;
 using Wolverine.Runtime;
 using Wolverine.Transports;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace CircuitBreakingTests.RabbitMq;
 
 public class back_pressure_tripping_off(ITestOutputHelper output) : IAsyncLifetime
@@ -19,7 +18,7 @@ public class back_pressure_tripping_off(ITestOutputHelper output) : IAsyncLifeti
     private IWolverineRuntime _runtime = null!;
     private IDisposable _trackSubscription = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var queueName = $"{GetType().Name}_{DateTime.UtcNow:yyyyMMddHHmmss}";
 
@@ -46,7 +45,7 @@ public class back_pressure_tripping_off(ITestOutputHelper output) : IAsyncLifeti
         _trackSubscription = _runtime.Tracker.Subscribe(_listenerObserver);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _trackSubscription.Dispose();
         await _host.TeardownResources();

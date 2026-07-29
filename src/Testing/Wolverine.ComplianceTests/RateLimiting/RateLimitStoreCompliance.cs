@@ -21,13 +21,13 @@ public abstract class RateLimitStoreCompliance : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Store = await BuildStoreAsync();
         await InitializeStoreAsync(Store);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DisposeStoreAsync(Store);
 

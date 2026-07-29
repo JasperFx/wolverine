@@ -9,8 +9,6 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 [Collection("DatabaseBackedEndpointTests")]

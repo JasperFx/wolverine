@@ -14,7 +14,7 @@ public class kafka_retry_topics : IAsyncLifetime
     private IHost _host = null!;
     private string _topic = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         RetryState.Reset();
         _topic = $"retry-{Guid.NewGuid():N}";
@@ -40,7 +40,7 @@ public class kafka_retry_topics : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

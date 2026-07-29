@@ -10,7 +10,7 @@ public class When_ordering_a_happy_meal : PostgresqlContext, IAsyncLifetime
     private IHost? _host;
     private SodaRequested? _sodaRequested;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await
             Host.CreateDefaultBuilder()
@@ -28,10 +28,10 @@ public class When_ordering_a_happy_meal : PostgresqlContext, IAsyncLifetime
         _sodaRequested = session.Sent.SingleMessage<SodaRequested>();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _host?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

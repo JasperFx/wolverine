@@ -16,8 +16,7 @@ using Wolverine.Marten.Distribution;
 using Wolverine.MessagePack;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests.Distribution.Support;
 
 public abstract class SingleTenantContext(ITestOutputHelper output) : IAsyncLifetime
@@ -26,14 +25,14 @@ public abstract class SingleTenantContext(ITestOutputHelper output) : IAsyncLife
     private readonly ConcurrentBag<XUnitEventObserver> _observers = [];
     protected IHost theOriginalHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await DropSchemasAsync("csp");
 
         theOriginalHost = await startHostAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _observers.Each(x => x.Dispose());
         await Task.WhenAll(_hosts.Select(ShutdownHostAsync));

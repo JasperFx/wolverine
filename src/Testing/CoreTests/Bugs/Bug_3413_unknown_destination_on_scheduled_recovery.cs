@@ -36,7 +36,7 @@ public class Bug_3413_unknown_destination_on_scheduled_recovery : IAsyncLifetime
 
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Note that there is no Rabbit MQ transport registered in this application
         _host = await Host.CreateDefaultBuilder()
@@ -44,7 +44,7 @@ public class Bug_3413_unknown_destination_on_scheduled_recovery : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

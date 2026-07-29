@@ -13,7 +13,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var queueName = RabbitTesting.NextQueueName();
         OutboundAddress = $"rabbitmq://queue/{queueName}".ToUri();
@@ -61,7 +61,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
     }

@@ -28,25 +28,43 @@ public class open_api_generation : IntegrationContext
 
     public static object[][] Chains()
     {
-        var fixture = new AppFixture();
+        // [MemberData] is evaluated during test DISCOVERY. Under xUnit v3 the test project is an
+        // executable whose stdout IS the runner's JSON protocol channel, and discovery happens
+        // outside the per-test console capture. Booting a Wolverine host here writes its startup
+        // logging ("Found N Wolverine HTTP endpoints") straight into that channel and kills the
+        // entire assembly with "Test process did not return valid JSON" -- no tests run at all.
+        //
+        // Mute stdout across the bootstrap. The console logger captures Console.Out when it is
+        // constructed, which happens inside this block, so it picks up the null writer.
+        var originalOut = Console.Out;
+        Console.SetOut(TextWriter.Null);
+
+        try
+        {
+            var fixture = new AppFixture();
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-        fixture.InitializeAsync().GetAwaiter().GetResult();
+            fixture.InitializeAsync().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
-        var chains = fixture
-            .Host!
-            .Services
-            .GetRequiredService<WolverineHttpOptions>()
-            .Endpoints!
-            .Chains
-            .Where(x => x.Method.Method.HasAttribute<OpenApiExpectationAttribute>())
-            .Select(x => new object[]{x}).ToArray();
+            var chains = fixture
+                .Host!
+                .Services
+                .GetRequiredService<WolverineHttpOptions>()
+                .Endpoints!
+                .Chains
+                .Where(x => x.Method.Method.HasAttribute<OpenApiExpectationAttribute>())
+                .Select(x => new object[]{x}).ToArray();
 
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
-        fixture.DisposeAsync().GetAwaiter().GetResult();
+            fixture.DisposeAsync().GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
-        return chains;
+            return chains;
+        }
+        finally
+        {
+            Console.SetOut(originalOut);
+        }
     }
 
     [Theory]

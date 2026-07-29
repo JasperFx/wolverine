@@ -24,7 +24,7 @@ public class Bug_3171_channel_only_shutdown_recovery : IAsyncLifetime
     private readonly string _queueName = $"bug3171-{Guid.NewGuid():N}";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -41,7 +41,7 @@ public class Bug_3171_channel_only_shutdown_recovery : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

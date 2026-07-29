@@ -18,7 +18,7 @@ public class delete_old_node_records : IAsyncLifetime
     private SqlServerMessageStore _store = null!;
     private const string SchemaName = "node_records_test";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
@@ -37,7 +37,7 @@ public class delete_old_node_records : IAsyncLifetime
         await _store.Admin.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _store.DisposeAsync();
     }

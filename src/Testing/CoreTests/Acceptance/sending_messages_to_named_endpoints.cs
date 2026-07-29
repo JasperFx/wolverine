@@ -16,7 +16,7 @@ public class sending_messages_to_named_endpoints : IAsyncLifetime, IDisposable
     private IHost _receiver3 = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port1 = PortFinder.GetAvailablePort();
         var port2 = PortFinder.GetAvailablePort();
@@ -48,7 +48,7 @@ public class sending_messages_to_named_endpoints : IAsyncLifetime, IDisposable
         });
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

@@ -10,7 +10,7 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         MustReset = false;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await SenderIs(opts =>
         {
@@ -27,9 +27,9 @@ public class TopicsComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     protected override Task AfterDisposeAsync()

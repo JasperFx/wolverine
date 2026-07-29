@@ -26,7 +26,7 @@ public abstract class ScheduledJobCompliance: IAsyncLifetime
     
     public abstract void ConfigurePersistence(WolverineOptions opts);
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host
             .CreateDefaultBuilder()
@@ -49,7 +49,7 @@ public abstract class ScheduledJobCompliance: IAsyncLifetime
         await theHost.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

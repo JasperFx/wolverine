@@ -27,7 +27,7 @@ public class WolverineGrpcClientFixture : IAsyncLifetime
     /// </summary>
     public HttpMessageHandler ServerHandler { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -57,7 +57,7 @@ public class WolverineGrpcClientFixture : IAsyncLifetime
         ServerHandler = _app.GetTestServer().CreateHandler();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_app != null)
         {

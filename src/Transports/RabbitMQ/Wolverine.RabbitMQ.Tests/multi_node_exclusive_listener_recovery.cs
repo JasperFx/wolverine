@@ -17,8 +17,6 @@ using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests;
 
 /// <summary>
@@ -45,7 +43,7 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -53,7 +51,7 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         await conn.CloseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _hosts.Reverse();
         foreach (var host in _hosts.ToArray())

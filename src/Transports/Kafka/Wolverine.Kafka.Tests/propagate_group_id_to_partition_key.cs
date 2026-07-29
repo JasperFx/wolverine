@@ -12,7 +12,7 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -69,7 +69,7 @@ public class propagate_group_id_to_partition_key : IAsyncLifetime
         envelope.PartitionKey.ShouldBe("fixture-abc");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -107,7 +107,7 @@ public class propagate_group_id_via_property_name : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -164,7 +164,7 @@ public class propagate_group_id_via_property_name : IAsyncLifetime
         envelope.PartitionKey.ShouldNotBe("my-application-name");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

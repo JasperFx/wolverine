@@ -13,7 +13,7 @@ public class handler_type_activity_tagging : IAsyncLifetime
     private readonly List<Activity> _capturedActivities = new();
     private ActivityListener _listener = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Set up an ActivityListener to capture Wolverine activities
         _listener = new ActivityListener
@@ -28,7 +28,7 @@ public class handler_type_activity_tagging : IAsyncLifetime
             .UseWolverine().StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _listener.Dispose();
         await _host.StopAsync();

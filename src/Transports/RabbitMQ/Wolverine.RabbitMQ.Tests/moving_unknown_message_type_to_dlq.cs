@@ -35,7 +35,7 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
         #endregion
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await SharedMemoryQueueManager.ClearAllAsync();
 
@@ -66,7 +66,7 @@ public class moving_unknown_message_type_to_dlq : IAsyncLifetime
         await _receiver.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

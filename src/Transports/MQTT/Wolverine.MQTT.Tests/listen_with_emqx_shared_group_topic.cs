@@ -4,8 +4,7 @@ using Shouldly;
 using Wolverine.ComplianceTests;
 using Wolverine.Tracking;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]
@@ -20,7 +19,7 @@ public class listen_with_emqx_shared_group_topic : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
 
@@ -66,7 +65,7 @@ public class listen_with_emqx_shared_group_topic : IAsyncLifetime
 
     public LocalMqttBroker Broker { get; set; } = null!;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Broker.StopAsync();
         await Broker.DisposeAsync();

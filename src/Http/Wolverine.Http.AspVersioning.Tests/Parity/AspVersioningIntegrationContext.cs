@@ -16,8 +16,8 @@ namespace Wolverine.Http.AspVersioning.Tests.Parity;
 /// </summary>
 public class AspVersioningAppFixture : ParityFixture
 {
-    public override Task InitializeAsync() =>
-        BuildHost(
+    public override async ValueTask InitializeAsync() =>
+        await BuildHost(
             services =>
             {
                 services

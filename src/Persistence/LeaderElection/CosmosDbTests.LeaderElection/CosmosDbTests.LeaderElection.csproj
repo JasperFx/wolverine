@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
@@ -10,8 +11,7 @@
         <PackageReference Include="GitHubActionsTestLogger" PrivateAssets="All" />
         <PackageReference Include="Testcontainers" />
         <PackageReference Include="Testcontainers.CosmosDb" />
-        <PackageReference Include="xunit" />
-        <PackageReference Include="xunit.assemblyfixture" />
+        <PackageReference Include="xunit.v3" />
         <PackageReference Include="xunit.runner.visualstudio">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

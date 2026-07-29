@@ -45,7 +45,7 @@ public class exclusive_listener_recovery_across_tenant_databases : PostgresqlCon
         }.ConnectionString;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -88,7 +88,7 @@ public class exclusive_listener_recovery_across_tenant_databases : PostgresqlCon
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

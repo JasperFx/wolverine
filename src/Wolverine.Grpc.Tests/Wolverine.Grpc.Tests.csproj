@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <OutputType>Exe</OutputType>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net9.0</TargetFrameworks>
     </PropertyGroup>
@@ -47,7 +48,7 @@
         <PackageReference Include="protobuf-net.Grpc"/>
         <PackageReference Include="protobuf-net.Grpc.AspNetCore"/>
         <PackageReference Include="Shouldly"/>
-        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.v3"/>
         <PackageReference Include="xunit.runner.visualstudio">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>

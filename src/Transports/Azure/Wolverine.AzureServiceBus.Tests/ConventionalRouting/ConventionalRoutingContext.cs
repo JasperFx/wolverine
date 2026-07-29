@@ -20,12 +20,12 @@ public abstract class ConventionalRoutingContext : IAsyncLifetime
         return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    public virtual Task InitializeAsync()
+    public virtual ValueTask InitializeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public virtual async Task DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         if (_host != null) await _host.StopAsync();
         _host?.Dispose();

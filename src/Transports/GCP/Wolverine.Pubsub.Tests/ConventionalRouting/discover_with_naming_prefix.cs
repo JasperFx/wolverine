@@ -3,8 +3,6 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Pubsub.Tests.ConventionalRouting;
 
 public class discover_with_naming_prefix : IDisposable

@@ -16,7 +16,7 @@ public class reset_data_first : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
 
         _host = await Host.CreateDefaultBuilder()
@@ -58,7 +58,7 @@ public class reset_data_first : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

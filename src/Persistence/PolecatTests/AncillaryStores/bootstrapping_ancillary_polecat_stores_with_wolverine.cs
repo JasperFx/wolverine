@@ -23,7 +23,7 @@ public class bootstrapping_ancillary_polecat_stores_with_wolverine : IAsyncLifet
 {
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -55,7 +55,7 @@ public class bootstrapping_ancillary_polecat_stores_with_wolverine : IAsyncLifet
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

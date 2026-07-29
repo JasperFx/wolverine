@@ -13,8 +13,6 @@ using Wolverine.Attributes;
 using Wolverine.ErrorHandling;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Bugs;
 
 // GH-3343: reporter claims MultipleHandlerBehavior.Separated with two handlers for one event type causes

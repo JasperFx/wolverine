@@ -22,7 +22,7 @@ public class from_services_store_resolution : IAsyncLifetime
     private IHost _publisher = null!;
     private IHost _receiver = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         CapturedMessages.Reset();
 
@@ -49,7 +49,7 @@ public class from_services_store_resolution : IAsyncLifetime
         }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _receiver.StopAsync();
         await _publisher.StopAsync();

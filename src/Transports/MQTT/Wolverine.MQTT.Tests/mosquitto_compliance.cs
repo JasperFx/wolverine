@@ -5,8 +5,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Tracking;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IAsyncLifetime
@@ -17,7 +16,7 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++Number;
         var receiverTopic = "mosquitto-receiver-" + number;
@@ -47,7 +46,7 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         // Nothing extra to dispose; Mosquitto runs in Docker
     }
@@ -72,7 +71,7 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -107,7 +106,7 @@ public class mosquitto_shared_subscription_specific_topic : IAsyncLifetime
         received.Color.ShouldBe("green");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();
@@ -132,7 +131,7 @@ public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -168,7 +167,7 @@ public class mosquitto_shared_subscription_with_wildcard : IAsyncLifetime
         received.Color.ShouldBe("red");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

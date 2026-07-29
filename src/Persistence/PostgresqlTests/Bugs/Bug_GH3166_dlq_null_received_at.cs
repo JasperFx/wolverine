@@ -28,7 +28,7 @@ public class Bug_GH3166_dlq_null_received_at : IAsyncLifetime
     private IHost _host = null!;
     private IMessageStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -54,7 +54,7 @@ public class Bug_GH3166_dlq_null_received_at : IAsyncLifetime
         await _store.Admin.ClearAllAsync();
     }
 
-    public async Task DisposeAsync() => await _host.StopAsync();
+    public async ValueTask DisposeAsync() => await _host.StopAsync();
 
     [Fact]
     public async Task summarize_and_query_tolerate_a_null_received_at()

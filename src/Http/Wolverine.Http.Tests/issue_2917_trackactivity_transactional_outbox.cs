@@ -3,8 +3,6 @@ using Shouldly;
 using Wolverine.Tracking;
 using WolverineWebApi;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Http.Tests;
 
 // Regression test for https://github.com/JasperFx/wolverine/issues/2917.
@@ -31,7 +29,7 @@ public class issue_2917_trackactivity_transactional_outbox : IntegrationContext
             .TrackActivity()
             .ExecuteAndWaitAsync(_ => Host.Scenario(x => x.Post.Json(new Issue2917Request("test")).ToUrl("/issue2917")));
 
-        _output.WriteLine(tracked.ToString());
+        _output.WriteLine(tracked.ToString()!);
 
         tracked.MessageSucceeded.SingleMessage<Issue2917Message>()
             .Name.ShouldBe("test");

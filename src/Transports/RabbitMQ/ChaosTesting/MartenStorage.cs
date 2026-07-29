@@ -84,7 +84,7 @@ public class MultiDatabaseMartenStorageStrategy : IMessageStorageStrategy
     private string tenant2ConnectionString = null!;
     private string tenant3ConnectionString = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();

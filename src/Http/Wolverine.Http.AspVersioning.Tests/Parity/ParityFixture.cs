@@ -40,9 +40,9 @@ public abstract class ParityFixture : IAsyncLifetime
         );
     }
 
-    public abstract Task InitializeAsync();
+    public abstract ValueTask InitializeAsync();
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         await Host.DisposeAsync();

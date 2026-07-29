@@ -11,12 +11,12 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
 {
     private MessageRoute theRoute = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theRoute = (await PublishingRoutesFor<PublishedMessage>()).Single().As<MessageRoute>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void should_have_exactly_one_route()

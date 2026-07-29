@@ -6,8 +6,6 @@ using Wolverine.Runtime.Handlers;
 using Wolverine.Shims.MassTransit;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Shims;
 
 public class masstransit_end_to_end : IAsyncLifetime
@@ -20,7 +18,7 @@ public class masstransit_end_to_end : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -31,7 +29,7 @@ public class masstransit_end_to_end : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -71,7 +69,7 @@ public class masstransit_end_to_end : IAsyncLifetime
         chain.ShouldNotBeNull();
 
         _output.WriteLine("=== Generated Code for MtPlaceOrder (MassTransit IConsumer<T>) ===");
-        _output.WriteLine(chain.SourceCode);
+        _output.WriteLine(chain.SourceCode!);
     }
 
     [Fact]
@@ -85,7 +83,7 @@ public class masstransit_end_to_end : IAsyncLifetime
         chain.ShouldNotBeNull();
 
         _output.WriteLine("=== Generated Code for MtOrderPlaced cascade handler ===");
-        _output.WriteLine(chain.SourceCode);
+        _output.WriteLine(chain.SourceCode!);
     }
 }
 

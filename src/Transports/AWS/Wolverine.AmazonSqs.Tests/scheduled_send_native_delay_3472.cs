@@ -97,7 +97,7 @@ public class scheduled_send_with_native_delay : IAsyncLifetime
     private const string QueueName = "native-delay-3472";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Deliberately storageless (no message store) so a natively delayed delivery
         // cannot be confused with Wolverine's own scheduled message polling
@@ -113,7 +113,7 @@ public class scheduled_send_with_native_delay : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -193,7 +193,7 @@ public class inline_scheduled_send_with_native_delay : IAsyncLifetime
     private const string QueueName = "native-delay-inline-3472";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -207,7 +207,7 @@ public class inline_scheduled_send_with_native_delay : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();
@@ -246,7 +246,7 @@ public class scheduled_send_to_fifo_queue_falls_back : IAsyncLifetime
     private const string QueueName = "native-delay-3472.fifo";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -272,7 +272,7 @@ public class scheduled_send_to_fifo_queue_falls_back : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -19,8 +19,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // Phase 3 of the per-tenant-partitioned-events matrix — the #3280 regression itself: under
@@ -46,7 +44,7 @@ public class sharded_tenant_partitioned_distribution(ITestOutputHelper output) :
     private string ShardDatabase => $"w3281_shard_{theSuffix}";
     private string MasterSchema => $"csp_sharded_{theSuffix}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Provision the physical shard database (the master/pool lives in the default test database
         // under its own schema).
@@ -121,7 +119,7 @@ public class sharded_tenant_partitioned_distribution(ITestOutputHelper output) :
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         theHost.GetRuntime().Agents.DisableHealthChecks();
         await theHost.StopAsync();

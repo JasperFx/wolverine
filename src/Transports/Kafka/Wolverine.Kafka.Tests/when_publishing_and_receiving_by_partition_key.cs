@@ -22,7 +22,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
     
     private IHost _sender = null!;
     private IHost _receiver = null!;
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -114,7 +114,7 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         singleEnvelope.PartitionId.Value.ShouldBeGreaterThanOrEqualTo(0);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

@@ -7,8 +7,7 @@ using Wolverine.Marten;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MartenTests;
 
 /// <summary>

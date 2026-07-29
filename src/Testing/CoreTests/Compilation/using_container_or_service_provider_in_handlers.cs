@@ -5,8 +5,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Compilation;
 
 public class using_container_or_service_provider_in_handlers : CompilationContext

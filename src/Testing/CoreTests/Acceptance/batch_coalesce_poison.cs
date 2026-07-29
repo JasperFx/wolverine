@@ -12,7 +12,7 @@ public class batch_coalesce_poison : IAsyncLifetime
     private IHost _host = null!;
     private readonly CapturingDeadLetterInterceptor _deadLetters = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         CoalPoisonHandler.Reset();
 
@@ -32,7 +32,7 @@ public class batch_coalesce_poison : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

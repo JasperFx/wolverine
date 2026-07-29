@@ -19,12 +19,12 @@ public class control_queue_tests : MySqlContext, IAsyncLifetime
     private static IHost _receiver = null!;
     private static Uri _receiverUri = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await dropControlSchema();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

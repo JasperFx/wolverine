@@ -11,14 +11,14 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
 {
     private IMessageStore _database = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _database = await buildCleanMessageStore();
     }
 
     protected abstract Task<IMessageStore> buildCleanMessageStore();
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _database.DisposeAsync();
     }

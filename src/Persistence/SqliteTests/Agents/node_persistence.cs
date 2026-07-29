@@ -32,7 +32,7 @@ public class node_persistence : NodePersistenceCompliance, IAsyncLifetime
         return database;
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         await base.DisposeAsync();
         _database.Dispose();

@@ -6,8 +6,7 @@ using Wolverine;
 using Wolverine.ErrorHandling;
 using Wolverine.Marten;
 using Wolverine.Transports;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace CircuitBreakingTests;
 
 public class local_durable_queue(ITestOutputHelper output)

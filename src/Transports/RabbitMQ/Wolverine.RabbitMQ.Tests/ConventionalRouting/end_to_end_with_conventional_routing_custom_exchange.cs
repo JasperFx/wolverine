@@ -12,7 +12,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IAsyncLifeti
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await WolverineHost.ForAsync(opts =>
         {
@@ -57,7 +57,7 @@ public class end_to_end_with_conventional_routing_custom_exchange : IAsyncLifeti
 
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

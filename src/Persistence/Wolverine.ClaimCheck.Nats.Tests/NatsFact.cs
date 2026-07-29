@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 
 namespace Wolverine.ClaimCheck.Nats.Tests;
@@ -43,7 +44,10 @@ internal static class NatsServer
 /// </summary>
 public sealed class NatsFactAttribute : FactAttribute
 {
-    public NatsFactAttribute()
+    public NatsFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!NatsServer.IsRunning)
         {

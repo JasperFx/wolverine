@@ -11,15 +11,12 @@ using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.AzureServiceBus.Tests;
 
 public class end_to_end_with_named_broker : IAsyncLifetime
 {
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync() => await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
 
     private static async Task bootstrap_with_named_brokers()
     {

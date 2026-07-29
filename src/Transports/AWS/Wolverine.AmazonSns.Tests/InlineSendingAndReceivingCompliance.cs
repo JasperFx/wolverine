@@ -13,7 +13,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         IsSenderOnlyTransport = true;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++_number;
 
@@ -47,7 +47,7 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
     }

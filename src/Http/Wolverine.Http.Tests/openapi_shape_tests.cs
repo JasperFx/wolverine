@@ -32,7 +32,7 @@ public class OpenApiShapeFixture : IAsyncLifetime
 {
     public JsonDocument Document { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder();
 
@@ -68,10 +68,10 @@ public class OpenApiShapeFixture : IAsyncLifetime
         Document = JsonDocument.Parse(writer.ToString());
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         Document?.Dispose();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 

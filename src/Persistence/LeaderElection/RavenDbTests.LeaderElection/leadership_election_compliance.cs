@@ -7,7 +7,7 @@ using Wolverine.ComplianceTests;
 using Wolverine.RavenDb;
 using Wolverine.Transports.Tcp;
 using Wolverine.Util;
-using Xunit.Abstractions;
+using Xunit;
 using RavenDbTests;
 
 namespace RavenDbTests.LeaderElection;

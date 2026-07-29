@@ -8,8 +8,6 @@ using Wolverine.ErrorHandling;
 using Wolverine.Redis.Internal;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 [Collection("EndToEndRetryTests")]
@@ -23,7 +21,7 @@ public class EndToEndRetryTests(ITestOutputHelper output): IAsyncLifetime
     private IHost _host = null!;
     private E2ERetryTracker _tracker = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _streamKey = $"e2e-retry-{Guid.NewGuid():N}";
 
@@ -65,7 +63,7 @@ public class EndToEndRetryTests(ITestOutputHelper output): IAsyncLifetime
         await DeleteDatabaseKeys();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await DeleteDatabaseKeys();
         await _host.StopAsync();

@@ -7,8 +7,6 @@ using Wolverine.Nats.Internal;
 using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 #region Unit Tests - No NATS Infrastructure Required
@@ -308,7 +306,7 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
         _baseSubject = $"test.multitenancy.{Guid.NewGuid():N}";
@@ -354,7 +352,7 @@ public class MultiTenancyIntegrationTests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_sender != null)
         {
@@ -501,7 +499,7 @@ public class TenantIdRequiredBehaviorTests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
         _baseSubject = $"test.required.{Guid.NewGuid():N}";
@@ -542,7 +540,7 @@ public class TenantIdRequiredBehaviorTests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_sender != null)
         {

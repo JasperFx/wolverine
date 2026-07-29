@@ -32,7 +32,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
     private string tenant4ConnectionString = null!;
     private IDocumentStore theSenderStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -103,7 +103,7 @@ public class using_tenant_specific_queues_and_subscriptions : PostgresqlContext,
         theSenderStore = _sender.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Task.WhenAll([
             .._receivers.Select(ShutdownHostAsync),

@@ -43,13 +43,13 @@ public class Bug_2680_message_identity_id_and_destination_emits_invalid_ddl : IA
     private SqliteTestDatabase _database = null!;
     private IHost? _host;
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         _database = Servers.CreateDatabase(nameof(Bug_2680_message_identity_id_and_destination_emits_invalid_ddl));
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

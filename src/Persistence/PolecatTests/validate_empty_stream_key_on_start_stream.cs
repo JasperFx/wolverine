@@ -14,7 +14,7 @@ public class validate_empty_stream_key_on_start_stream : IAsyncLifetime
     private IHost _host = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -36,7 +36,7 @@ public class validate_empty_stream_key_on_start_stream : IAsyncLifetime
         await ((DocumentStore)_store).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

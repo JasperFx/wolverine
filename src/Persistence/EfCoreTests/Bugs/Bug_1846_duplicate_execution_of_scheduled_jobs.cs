@@ -9,8 +9,7 @@ using Wolverine;
 using Wolverine.EntityFrameworkCore;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace EfCoreTests.Bugs;
 
 [Collection("sqlserver")]

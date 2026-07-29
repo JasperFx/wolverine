@@ -29,7 +29,7 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -54,7 +54,7 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
         });
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void conventionally_routed_sender_should_be_durable_when_handler_is_also_registered()

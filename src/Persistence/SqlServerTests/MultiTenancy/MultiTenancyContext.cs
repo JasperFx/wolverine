@@ -15,7 +15,7 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
     protected string tenant2ConnectionString = null!;
     protected string tenant3ConnectionString = null!;
 
-    public new async Task InitializeAsync()
+    public new async ValueTask InitializeAsync()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
@@ -38,7 +38,7 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
 
     protected virtual Task onStartup() => Task.CompletedTask;
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

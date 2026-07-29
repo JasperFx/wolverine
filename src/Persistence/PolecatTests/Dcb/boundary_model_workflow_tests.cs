@@ -26,7 +26,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -65,7 +65,7 @@ public class boundary_model_workflow_tests : IAsyncLifetime
         await theStore.Advanced.CleanAllEventDataAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

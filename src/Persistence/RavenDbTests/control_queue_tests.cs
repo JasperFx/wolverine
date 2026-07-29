@@ -25,7 +25,7 @@ public class control_queue_tests : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Both nodes must share the same RavenDB database so that control messages
         // written by one node are visible to the other node's control listener.
@@ -53,7 +53,7 @@ public class control_queue_tests : IAsyncLifetime
         _receiverUri = new Uri($"ravendb://{nodeId}");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

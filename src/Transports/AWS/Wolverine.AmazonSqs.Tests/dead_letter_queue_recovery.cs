@@ -25,7 +25,7 @@ public class dead_letter_queue_recovery : IAsyncLifetime
     private readonly string _queueName = $"dlq-recovery-{Guid.NewGuid():N}";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -55,7 +55,7 @@ public class dead_letter_queue_recovery : IAsyncLifetime
         await _host.ResetResourceState();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

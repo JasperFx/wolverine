@@ -5,8 +5,6 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace PostgresqlTests.LeaderElection;
 
 [Collection("marten")]

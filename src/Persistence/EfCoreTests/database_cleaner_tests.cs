@@ -42,7 +42,7 @@ public class DatabaseCleanerContext : IAsyncLifetime
 {
     public IHost Host { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .ConfigureServices((_, services) =>
@@ -70,7 +70,7 @@ public class DatabaseCleanerContext : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();

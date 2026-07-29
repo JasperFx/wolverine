@@ -24,7 +24,7 @@ public class with_one_sqlserver_context : IAsyncLifetime
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
@@ -49,7 +49,7 @@ public class with_one_sqlserver_context : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -12,7 +12,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime, 
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await WolverineHost.ForAsync(opts =>
         {
@@ -38,7 +38,7 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime, 
         });
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

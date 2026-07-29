@@ -9,8 +9,6 @@ using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.ComplianceTests;
 
 public abstract class LeadershipElectionCompliance : IAsyncLifetime
@@ -27,14 +25,14 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         _output = output;
     }
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await beforeBuildingHost();
 
         _originalHost = await startHostAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _hosts)
         {

@@ -60,7 +60,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
             });
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         WolverineHost = ConfigureBuilder().Build();
         await WolverineHost.StartAsync();
@@ -234,7 +234,7 @@ public class PulsarNativeReliabilityTests : /*TransportComplianceFixture,*/ IAsy
 
 
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await WolverineHost.StopAsync();
         WolverineHost.Dispose();

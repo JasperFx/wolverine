@@ -30,7 +30,7 @@ public class send_by_topics : IAsyncLifetime
     private IHost theSender = null!;
     private IHost theThirdReceiver = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         #region sample_binding_topics_and_topic_patterns_to_queues
         theSender = await Host.CreateDefaultBuilder()
@@ -79,7 +79,7 @@ public class send_by_topics : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (theSender != null)
         {
@@ -297,7 +297,7 @@ public class send_by_topics_durable : IAsyncLifetime
     private IHost theSender = null!;
     private IHost theThirdReceiver = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theSender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -342,7 +342,7 @@ public class send_by_topics_durable : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (theSender != null)
         {

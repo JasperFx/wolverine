@@ -262,6 +262,6 @@ public class rate_limiting_core_tests
         public ValueTask CompleteAsync(Envelope envelope) => ValueTask.CompletedTask;
         public ValueTask DeferAsync(Envelope envelope) => ValueTask.CompletedTask;
         public ValueTask StopAsync() => ValueTask.CompletedTask;
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     }
 }

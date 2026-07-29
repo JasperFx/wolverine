@@ -3,8 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Wolverine.ComplianceTests;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]
@@ -20,7 +19,7 @@ public class ack_smoke_tests : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
 
@@ -69,7 +68,7 @@ public class ack_smoke_tests : IAsyncLifetime
         await Task.Delay(2.Seconds());
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

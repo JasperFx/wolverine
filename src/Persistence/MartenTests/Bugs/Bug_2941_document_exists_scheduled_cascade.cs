@@ -74,7 +74,7 @@ public class DocumentExistsScheduledCascadeContext : PostgresqlContext, IAsyncLi
 
     public IHost Host { get; private set; } = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -113,7 +113,7 @@ public class DocumentExistsScheduledCascadeContext : PostgresqlContext, IAsyncLi
         await session.SaveChangesAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();

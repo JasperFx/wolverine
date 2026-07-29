@@ -12,7 +12,7 @@ public class MessageSucceededContinuationTester : IAsyncLifetime
 
     private readonly MockWolverineRuntime theRuntime = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theEnvelope.Message = new object();
 
@@ -22,8 +22,7 @@ public class MessageSucceededContinuationTester : IAsyncLifetime
             .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task should_mark_the_message_as_successful()
     {
@@ -44,7 +43,7 @@ public class MessageSucceededContinuation_failure_handling_Tester : IAsyncLifeti
     private readonly IEnvelopeLifecycle theLifecycle = Substitute.For<IEnvelopeLifecycle>();
     private readonly MockWolverineRuntime theRuntime = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theLifecycle.When(x => x.FlushOutgoingMessagesAsync())
             .Throw(theException);
@@ -55,8 +54,7 @@ public class MessageSucceededContinuation_failure_handling_Tester : IAsyncLifeti
             .ExecuteAsync(theLifecycle, theRuntime, DateTimeOffset.Now, null);
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task should_send_a_failure_ack()
     {

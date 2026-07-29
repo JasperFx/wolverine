@@ -7,8 +7,6 @@ using Wolverine.ErrorHandling;
 using Wolverine.Redis.Internal;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Redis.Tests;
 
 [Collection("RetryLimitTests")]

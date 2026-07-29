@@ -10,7 +10,7 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var topic = Guid.NewGuid().ToString();
         var topicPath = $"persistent://public/default/compliance{topic}";
@@ -30,7 +30,7 @@ public class PulsarTransportFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         await ((IAsyncDisposable)this).DisposeAsync();
     }

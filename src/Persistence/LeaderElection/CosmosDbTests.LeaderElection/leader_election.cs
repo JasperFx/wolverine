@@ -2,8 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Wolverine;
 using Wolverine.CosmosDb;
 using Wolverine.ComplianceTests;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace CosmosDbTests.LeaderElection;
 
 [Collection("cosmosdb")]

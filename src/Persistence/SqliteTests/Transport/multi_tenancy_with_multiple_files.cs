@@ -23,7 +23,7 @@ public class multi_tenancy_with_multiple_files : SqliteContext, IAsyncLifetime
     private SqliteTestDatabase _red = null!;
     private SqliteTestDatabase _blue = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _main = Servers.CreateDatabase("sqlite_multi_tenant_main");
         _red = Servers.CreateDatabase("sqlite_multi_tenant_red");
@@ -54,7 +54,7 @@ public class multi_tenancy_with_multiple_files : SqliteContext, IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

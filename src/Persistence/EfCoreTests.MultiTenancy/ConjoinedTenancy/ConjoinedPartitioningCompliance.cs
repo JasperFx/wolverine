@@ -95,7 +95,7 @@ public abstract class ConjoinedPartitioningCompliance : IAsyncLifetime
         _engine = engine;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await dropPartitionedObjectsAsync();
 
@@ -139,7 +139,7 @@ public abstract class ConjoinedPartitioningCompliance : IAsyncLifetime
             .GetRequiredService<IConjoinedTenantPartitions<PartitionedItemsDbContext>>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

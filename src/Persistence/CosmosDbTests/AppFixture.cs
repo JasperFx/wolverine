@@ -39,7 +39,7 @@ public class AppFixture : IAsyncLifetime
         }
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await EnsureContainerStarted();
 
@@ -86,7 +86,7 @@ public class AppFixture : IAsyncLifetime
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Client?.Dispose();
     }

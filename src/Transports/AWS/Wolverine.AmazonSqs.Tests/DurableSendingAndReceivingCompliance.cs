@@ -19,7 +19,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++Number;
 
@@ -67,7 +67,7 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         await Receiver.RebuildAllEnvelopeStorageAsync();
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
     }

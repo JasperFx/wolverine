@@ -95,7 +95,7 @@ public class user_exception_mapping_integration_tests : IAsyncLifetime
     private WebApplication? _app;
     private GrpcChannel? _channel;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
         builder.WebHost.UseTestServer();
@@ -126,7 +126,7 @@ public class user_exception_mapping_integration_tests : IAsyncLifetime
         _channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions { HttpHandler = handler });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _channel?.Dispose();
         if (_app != null)

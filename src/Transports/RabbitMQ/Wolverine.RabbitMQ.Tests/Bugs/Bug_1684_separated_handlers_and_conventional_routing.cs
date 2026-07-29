@@ -4,8 +4,6 @@ using Wolverine.Attributes;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.RabbitMQ.Tests.Bugs;
 
 public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output)

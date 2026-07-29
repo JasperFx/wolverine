@@ -13,7 +13,7 @@ public class AppFixture : IAsyncLifetime
 {
     public IAlbaHost? Host { get; private set; }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Host = await AlbaHost.For<Program>(x =>
         {
@@ -25,7 +25,7 @@ public class AppFixture : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host!.StopAsync();
         Host.Dispose();
@@ -51,14 +51,14 @@ public abstract class IntegrationContext : IAsyncLifetime
     public IAlbaHost Host => _fixture.Host!;
     public IDocumentStore Store => _fixture.Host!.Services.GetRequiredService<IDocumentStore>();
 
-    async Task IAsyncLifetime.InitializeAsync()
+    async ValueTask IAsyncLifetime.InitializeAsync()
     {
         await Host.ResetAllPolecatDataAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     public Task<IScenarioResult> Scenario(Action<Scenario> configure)

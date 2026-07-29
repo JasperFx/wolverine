@@ -14,7 +14,7 @@ public class InlineNatsTransportFixture : TransportComplianceFixture, IAsyncLife
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++Counter;
         var receiverSubject = $"compliance.receiver.inline.{number}";
@@ -38,9 +38,9 @@ public class InlineNatsTransportFixture : TransportComplianceFixture, IAsyncLife
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 
@@ -55,7 +55,7 @@ public class BufferedNatsTransportFixture : TransportComplianceFixture, IAsyncLi
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++Counter;
         var receiverSubject = $"compliance.receiver.buffered.{number}";
@@ -79,9 +79,9 @@ public class BufferedNatsTransportFixture : TransportComplianceFixture, IAsyncLi
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 
@@ -96,7 +96,7 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var number = ++Counter;
         var streamName = $"COMPLIANCE_{number}";
@@ -133,9 +133,9 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
 

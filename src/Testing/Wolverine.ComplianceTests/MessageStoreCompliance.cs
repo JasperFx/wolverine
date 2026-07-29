@@ -24,7 +24,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
     
     public abstract Task<IHost> BuildCleanHost();
     
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await BuildCleanHost();
 
@@ -33,7 +33,7 @@ public abstract class MessageStoreCompliance : IAsyncLifetime
         thePersistence = theHost.Services.GetRequiredService<IMessageStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

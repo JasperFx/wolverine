@@ -22,12 +22,12 @@ public class exclusive_listener_recovery_compliance : ExclusiveListenerRecoveryC
         _fixture = fixture;
     }
 
-    public override Task InitializeAsync()
+    public override ValueTask InitializeAsync()
     {
         // RavenTestDriver hands back a brand new database on every call and xUnit builds one instance of
         // this class per test method, so each scenario gets its own isolated inbox.
         _store = _fixture.StartRavenStore();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     protected override void ConfigureStorage(WolverineOptions options)

@@ -22,7 +22,7 @@ public class tenant_partitioned_aggregate_matrix_phase1b : PostgresqlContext, IA
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await PartitionedTenancyHost.StartAsync(StreamIdentity.AsString,
             "tpe_p1b_" + Guid.NewGuid().ToString("N"),
@@ -37,7 +37,7 @@ public class tenant_partitioned_aggregate_matrix_phase1b : PostgresqlContext, IA
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

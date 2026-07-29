@@ -40,7 +40,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         return builder.ConnectionString;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -95,7 +95,7 @@ public class dynamically_spin_up_new_durability_agents_for_new_tenant_databases 
         await tenancy.ClearAllDatabaseRecordsAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

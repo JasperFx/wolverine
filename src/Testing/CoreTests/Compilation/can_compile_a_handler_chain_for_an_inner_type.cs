@@ -2,8 +2,6 @@
 using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Compilation;
 
 public class can_compile_a_handler_chain_for_an_inner_type : IntegrationContext

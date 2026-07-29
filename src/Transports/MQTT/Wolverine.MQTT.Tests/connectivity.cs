@@ -6,8 +6,7 @@ using MQTTnet.Internal;
 using MQTTnet.Protocol;
 using Wolverine.ComplianceTests;
 using Wolverine.Util;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.MQTT.Tests;
 
 [Collection("acceptance")]

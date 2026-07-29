@@ -1,7 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net9.0</TargetFramework>
+        <OutputType>Exe</OutputType>
+        <!--
+          Deliberately TargetFrameworks (plural) even though there is only one TFM, matching
+          every other test project. Microsoft.Testing.Platform.MSBuild takes a different code
+          path for single-<TargetFramework> projects that does not honour the
+          GenerateTestingPlatformEntryPoint=false that xunit.v3 sets, so it emits its own entry
+          point alongside xunit's and the build fails with CS0017 (more than one entry point).
+        -->
+        <TargetFrameworks>net9.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>
@@ -12,7 +20,7 @@
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="NSubstitute" />
         <PackageReference Include="Shouldly" />
-        <PackageReference Include="xunit"/>
+        <PackageReference Include="xunit.v3"/>
         <PackageReference Include="xunit.runner.visualstudio">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

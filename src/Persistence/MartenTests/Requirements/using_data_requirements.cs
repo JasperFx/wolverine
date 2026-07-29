@@ -16,7 +16,7 @@ public class using_data_requirements : IAsyncLifetime
     private IHost _host = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -42,7 +42,7 @@ public class using_data_requirements : IAsyncLifetime
         await _store.Advanced.Clean.DeleteDocumentsByTypeAsync(typeof(Thing));
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

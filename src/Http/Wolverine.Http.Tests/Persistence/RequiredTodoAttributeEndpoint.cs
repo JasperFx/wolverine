@@ -9,8 +9,7 @@ using Shouldly;
 using Wolverine.Marten;
 using Wolverine.Persistence;
 using WolverineWebApi.Todos;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Http.Tests.Persistence;
 
 public class RequiredTodoAttributeEndpoint {

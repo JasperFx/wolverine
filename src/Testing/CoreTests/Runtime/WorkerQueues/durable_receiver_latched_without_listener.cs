@@ -24,7 +24,7 @@ public class durable_receiver_latched_without_listener : IAsyncLifetime
         theReceiver = new DurableReceiver(stubEndpoint, theRuntime, thePipeline);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Latch the receiver to simulate draining/paused state
         theReceiver.Latch();
@@ -37,9 +37,9 @@ public class durable_receiver_latched_without_listener : IAsyncLifetime
         await theReceiver.DrainAsync();
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     [Fact]

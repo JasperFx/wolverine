@@ -25,7 +25,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -61,7 +61,7 @@ public class end_to_end_with_CloudEvents : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();
@@ -89,7 +89,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
     private IHost _receiver = null!;
     private IHost _sender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -118,7 +118,7 @@ public class inline_end_to_end_with_CloudEvents : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

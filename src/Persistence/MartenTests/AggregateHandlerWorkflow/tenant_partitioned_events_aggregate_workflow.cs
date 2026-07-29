@@ -76,7 +76,7 @@ public class tenant_partitioned_events_string_identity : PostgresqlContext, IAsy
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Unique schema per run: managed partitions created in one run otherwise break the next
         // run's resource-setup DDL reconciliation against the same schema.
@@ -90,7 +90,7 @@ public class tenant_partitioned_events_string_identity : PostgresqlContext, IAsy
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();
@@ -156,7 +156,7 @@ public class tenant_partitioned_events_guid_identity : PostgresqlContext, IAsync
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await PartitionedTenancyHost.StartAsync(StreamIdentity.AsGuid, "tpe_guid_" + Guid.NewGuid().ToString("N"),
             m =>
@@ -168,7 +168,7 @@ public class tenant_partitioned_events_guid_identity : PostgresqlContext, IAsync
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

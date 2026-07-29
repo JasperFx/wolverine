@@ -15,7 +15,7 @@ public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -42,7 +42,7 @@ public class when_using_handler_type_naming : IAsyncLifetime, IDisposable
             .ShouldBeTrue($"Expected active listener containing '{expectedName}' for handler type");
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     public void Dispose()
     {

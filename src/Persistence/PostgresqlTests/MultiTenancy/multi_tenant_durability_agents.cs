@@ -12,8 +12,7 @@ using Wolverine;
 using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.Runtime;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace PostgresqlTests.MultiTenancy;
 
 public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
@@ -29,7 +28,7 @@ public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -63,7 +62,7 @@ public class multi_tenant_durability_agents : PostgresqlContext, IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

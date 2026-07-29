@@ -64,7 +64,7 @@ public class PolecatDocumentExistsScheduledCascadeContext : IAsyncLifetime
     public IHost Host { get; private set; } = null!;
     private IDocumentStore _store = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         Host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -101,7 +101,7 @@ public class PolecatDocumentExistsScheduledCascadeContext : IAsyncLifetime
         await session.SaveChangesAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();

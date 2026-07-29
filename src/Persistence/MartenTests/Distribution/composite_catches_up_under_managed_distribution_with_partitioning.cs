@@ -22,8 +22,6 @@ using Wolverine;
 using Wolverine.Marten;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace MartenTests.Distribution;
 
 // Regression guard for a composite projection catching up under the Wolverine-hosted daemon
@@ -68,7 +66,7 @@ public partial class composite_catches_up_under_managed_distribution_with_partit
         m.Schema.For<CsTripNotice>().DocumentAlias("cs_notice");
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -106,7 +104,7 @@ public partial class composite_catches_up_under_managed_distribution_with_partit
         }
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _host.GetRuntime().Agents.DisableHealthChecks();
         await _host.StopAsync();

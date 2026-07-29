@@ -13,8 +13,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace MySqlTests.Transport;
 
 [Collection("mysql")]
@@ -33,7 +32,7 @@ public class basic_functionality : IAsyncLifetime
     private IMessageStore theMessageStore = null!;
     private WolverineRuntime theRuntime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         // Clean up the schema first
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
@@ -65,7 +64,7 @@ public class basic_functionality : IAsyncLifetime
         theRuntime = theHost.GetRuntime();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

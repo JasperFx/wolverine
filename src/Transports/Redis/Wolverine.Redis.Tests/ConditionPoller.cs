@@ -1,5 +1,4 @@
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Redis.Tests;
 
 public class ConditionPoller(ITestOutputHelper output, int maxRetries, TimeSpan retryDelay)

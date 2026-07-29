@@ -5,8 +5,7 @@ using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Metrics;
 using Wolverine.Runtime.Routing;
 using Wolverine.Transports;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace BackPressureTests;
 
 public class XUnitObserver(ITestOutputHelper Output) : IWolverineObserver

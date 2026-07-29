@@ -28,13 +28,12 @@ public class end_to_end_with_named_broker : IAsyncLifetime
     private readonly BrokerName theName = new("other");
     private bool _skip;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _skip = !await SnsTestingExtensions.IsLocalStackAvailable();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public void named_broker_topic_uri_uses_the_broker_name_as_scheme()
     {

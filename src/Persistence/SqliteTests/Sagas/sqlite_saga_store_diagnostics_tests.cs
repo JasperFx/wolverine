@@ -24,7 +24,7 @@ public class sqlite_saga_store_diagnostics_tests : SqliteContext, IAsyncLifetime
     private SqliteTestDatabase _database = null!;
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _database = Servers.CreateDatabase(nameof(sqlite_saga_store_diagnostics_tests));
 
@@ -39,7 +39,7 @@ public class sqlite_saga_store_diagnostics_tests : SqliteContext, IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

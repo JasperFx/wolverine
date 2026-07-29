@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 
 namespace Wolverine.ClaimCheck.AzureBlobStorage.Tests;
@@ -51,7 +52,10 @@ internal static class Azurite
 /// </summary>
 public sealed class AzuriteFactAttribute : FactAttribute
 {
-    public AzuriteFactAttribute()
+    public AzuriteFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!Azurite.IsRunning)
         {

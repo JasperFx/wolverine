@@ -10,8 +10,7 @@ using Wolverine.Attributes;
 using Wolverine.ComplianceTests;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class multi_topic_listening : IAsyncLifetime
@@ -25,7 +24,7 @@ public class multi_topic_listening : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -125,7 +124,7 @@ public class multi_topic_listening : IAsyncLifetime
         envelope.PartitionId.Value.ShouldBeGreaterThanOrEqualTo(0);
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

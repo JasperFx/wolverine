@@ -6,8 +6,6 @@ using Wolverine.ComplianceTests.Compliance;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace CoreTests.Persistence.Sagas;
 
 public class saga_action_discovery : IntegrationContext
@@ -26,7 +24,7 @@ public class saga_action_discovery : IntegrationContext
         var handlerChain = _fixture.ChainFor<T>();
         if (handlerChain != null)
         {
-            _output.WriteLine(handlerChain.SourceCode);
+            _output.WriteLine(handlerChain.SourceCode!);
         }
 
         return handlerChain!;

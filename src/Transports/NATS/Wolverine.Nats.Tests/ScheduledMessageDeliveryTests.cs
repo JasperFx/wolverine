@@ -24,7 +24,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
     private string _receiverSubject = "";
     private string _streamName = "";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var natsUrl = Environment.GetEnvironmentVariable("NATS_URL") ?? "nats://localhost:4222";
 
@@ -67,7 +67,7 @@ public class ScheduledMessageDeliveryTests : IAsyncLifetime
             .StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Delete the run's stream while a connection is still open so persistent NATS instances
         // don't accumulate long-lived test artifacts. Best-effort: the stream may never have been

@@ -45,7 +45,7 @@ public class async_method_name_saga : IAsyncLifetime
     private IHost _host = null!;
     private AsyncSagaProbe _probe = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -57,7 +57,7 @@ public class async_method_name_saga : IAsyncLifetime
         _probe = _host.Services.GetRequiredService<AsyncSagaProbe>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

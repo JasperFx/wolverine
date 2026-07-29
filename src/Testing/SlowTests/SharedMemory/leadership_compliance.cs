@@ -5,8 +5,7 @@ using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.Postgresql;
 using Wolverine.Transports.SharedMemory;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace SlowTests.SharedMemory;
 
 public class leadership_compliance: LeadershipElectionCompliance

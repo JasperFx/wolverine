@@ -85,7 +85,7 @@ public class coalescing_batch_processing_end_to_end : IAsyncLifetime
 {
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         CoalescedScoreHandler.LastBatch = null;
 
@@ -107,7 +107,7 @@ public class coalescing_batch_processing_end_to_end : IAsyncLifetime
         #endregion
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();
@@ -140,7 +140,7 @@ public class batch_context_injection : IAsyncLifetime
 {
     private IHost theHost = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         BatchContextItemHandler.LastContext = null;
 
@@ -155,7 +155,7 @@ public class batch_context_injection : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

@@ -13,7 +13,7 @@ public class RedisBufferedComplianceFixture : TransportComplianceFixture, IAsync
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receiverStream = $"wolverine-tests-buffered-receiver-{Guid.NewGuid():N}";
         OutboundAddress = new Uri($"redis://stream/0/{receiverStream}");
@@ -31,9 +31,9 @@ public class RedisBufferedComplianceFixture : TransportComplianceFixture, IAsync
         });
     }
 
-    public new Task DisposeAsync()
+    public new ValueTask DisposeAsync()
     {
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 }
 

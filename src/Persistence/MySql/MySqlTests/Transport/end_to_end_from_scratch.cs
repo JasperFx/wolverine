@@ -12,7 +12,7 @@ namespace MySqlTests.Transport;
 [Collection("mysql")]
 public class end_to_end_from_scratch : IAsyncLifetime
 {
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var connectionString = Servers.MySqlConnectionString;
 
@@ -47,7 +47,7 @@ public class end_to_end_from_scratch : IAsyncLifetime
     public IHost Api { get; private set; } = null!;
     public IHost UI { get; private set; } = null!;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Api.StopAsync();
         await UI.StopAsync();

@@ -21,7 +21,7 @@ public class metrics_source_tag : IAsyncLifetime
     // instrument name -> list of tag dictionaries captured for each recorded measurement
     private readonly ConcurrentDictionary<string, ConcurrentBag<Dictionary<string, object?>>> _measurements = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -54,7 +54,7 @@ public class metrics_source_tag : IAsyncLifetime
         _listener.Start();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _listener.Dispose();
         await _host.StopAsync();

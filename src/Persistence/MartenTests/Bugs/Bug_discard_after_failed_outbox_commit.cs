@@ -32,7 +32,7 @@ public class Bug_discard_after_failed_outbox_commit : PostgresqlContext, IAsyncL
     private const string Schema = "discard_failed_commit";
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -62,7 +62,7 @@ public class Bug_discard_after_failed_outbox_commit : PostgresqlContext, IAsyncL
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

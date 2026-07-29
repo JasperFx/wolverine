@@ -16,16 +16,16 @@ public class LocalSqliteBackedFixture : TransportComplianceFixture, IAsyncLifeti
         _connectionString = _database.ConnectionString;
     }
 
-    public Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
-        return TheOnlyAppIs(opts =>
+        await TheOnlyAppIs(opts =>
         {
             opts.PersistMessagesWithSqlite(_connectionString);
             opts.Durability.Mode = DurabilityMode.Solo;
         });
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         _database.Dispose();

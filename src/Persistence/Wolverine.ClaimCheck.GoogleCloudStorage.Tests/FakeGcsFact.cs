@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 
 namespace Wolverine.ClaimCheck.GoogleCloudStorage.Tests;
@@ -43,7 +44,10 @@ internal static class FakeGcs
 /// </summary>
 public sealed class FakeGcsFactAttribute : FactAttribute
 {
-    public FakeGcsFactAttribute()
+    public FakeGcsFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!FakeGcs.IsRunning)
         {

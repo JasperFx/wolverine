@@ -9,8 +9,7 @@ using Weasel.Postgresql;
 using Weasel.Postgresql.Migrations;
 using Wolverine;
 using Wolverine.Postgresql;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace PostgresqlTests.MultiTenancy;
 
 // GH-3376: scheduled job polling moved onto the distributed durability agent, and the node-wide
@@ -33,7 +32,7 @@ public class scheduled_jobs_without_durability_agents : PostgresqlContext, IAsyn
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
@@ -74,7 +73,7 @@ public class scheduled_jobs_without_durability_agents : PostgresqlContext, IAsyn
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

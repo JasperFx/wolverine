@@ -23,7 +23,7 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
     private Guid fromAccountId;
     private Guid toAccountId;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -45,7 +45,7 @@ public class multi_stream_version_and_consistency : IAsyncLifetime
         await ((DocumentStore)theStore).Database.ApplyAllConfiguredChangesToDatabaseAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();

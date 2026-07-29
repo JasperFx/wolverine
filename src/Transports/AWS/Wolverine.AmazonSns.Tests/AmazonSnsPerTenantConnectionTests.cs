@@ -38,13 +38,12 @@ public class AmazonSnsPerTenantConnectionTests : IAsyncLifetime
 
     private bool _skip;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _skip = !await SnsTestingExtensions.IsLocalStackAvailable();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     // NOTE on the test design: these two routing tests each provision a subscription observation in only ONE region.
     // We deliberately do NOT stand up same-named observation topics in BOTH regions at once and assert the negative
     // ("and NOT the other region"): LocalStack's community SNS implementation delivers unreliably when a topic of the

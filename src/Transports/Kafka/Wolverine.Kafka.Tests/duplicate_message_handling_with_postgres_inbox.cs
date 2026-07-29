@@ -32,7 +32,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
     private IHost _host = null!;
     private string _topicName = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         DupTestHandler.Reset();
 
@@ -53,7 +53,7 @@ public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

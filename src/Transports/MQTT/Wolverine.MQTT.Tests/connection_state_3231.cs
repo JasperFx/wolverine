@@ -4,8 +4,6 @@ using Wolverine.ComplianceTests;
 using Wolverine.Transports;
 using Wolverine.Util;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.MQTT.Tests;
 
 // GH-3231: MqttListener implements IReportConnectionState off the managed MQTT client's IsConnected, so a healthy
@@ -19,7 +17,7 @@ public class connection_state_3231 : IAsyncLifetime
 
     public connection_state_3231(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var port = PortFinder.GetAvailablePort();
         _broker = new LocalMqttBroker(port) { Logger = new XUnitLogger(_output, "MQTT") };
@@ -33,7 +31,7 @@ public class connection_state_3231 : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

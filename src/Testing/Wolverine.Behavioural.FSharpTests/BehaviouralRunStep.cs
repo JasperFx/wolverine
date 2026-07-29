@@ -6,8 +6,6 @@ using Shouldly;
 using Wolverine;
 using WolverineBehaviouralFSharpApp;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Behavioural.FSharpTests;
 
 /// <summary>

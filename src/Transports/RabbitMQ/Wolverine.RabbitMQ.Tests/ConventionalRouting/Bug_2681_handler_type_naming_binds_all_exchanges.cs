@@ -31,7 +31,7 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, 
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -46,7 +46,7 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void handler_queue_is_bound_to_every_handled_message_exchange()
@@ -101,7 +101,7 @@ public class Bug_2681_custom_bindings_are_not_double_added : IAsyncLifetime, IDi
     private IHost _host = null!;
     private IWolverineRuntime _runtime = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -127,7 +127,7 @@ public class Bug_2681_custom_bindings_are_not_double_added : IAsyncLifetime, IDi
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    Task IAsyncLifetime.DisposeAsync() => Task.CompletedTask;
+    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void user_custom_binding_is_not_double_added_by_the_convention()

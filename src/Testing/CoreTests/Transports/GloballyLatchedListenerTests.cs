@@ -23,7 +23,7 @@ public class GloballyLatchedListenerTests : IAsyncLifetime
         _port = PortFinder.GetAvailablePort();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await WolverineHost.ForAsync(opts =>
         {
@@ -32,7 +32,7 @@ public class GloballyLatchedListenerTests : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_host != null)
         {

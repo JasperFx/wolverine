@@ -26,8 +26,7 @@ public class wolverine_storage_dead_letter_queue_mechanics : IAsyncLifetime
         connectionString = Servers.SqlServerConnectionString;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
     private async Task afterBootstrapping()
     {
         await CreateHost(QueueName, useDurableInbox: false);
@@ -68,7 +67,7 @@ public class wolverine_storage_dead_letter_queue_mechanics : IAsyncLifetime
             .GetOrCreate<RabbitMqTransport>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         // Try to eliminate queues to keep them from accumulating
         if (_host != null)

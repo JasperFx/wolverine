@@ -14,7 +14,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
         private IHost _sender = null!;
         private string theQueueName = null!;
 
-        public async Task InitializeAsync()
+        public async ValueTask InitializeAsync()
         {
             theQueueName = "buffered_" + Guid.NewGuid().ToString("N")[..8];
             _host = await Host.CreateDefaultBuilder()
@@ -109,7 +109,7 @@ namespace Wolverine.AmazonSqs.Tests.RawJson
             ((int)sendMessageResponse.HttpStatusCode).ShouldBeLessThan(300, customMessage: "Ensure Success StatusCode");
         }
 
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             await _host.StopAsync();
             _host.Dispose();

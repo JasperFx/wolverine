@@ -7,8 +7,7 @@ using Wolverine.Postgresql;
 using Wolverine.Tracking;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests;
 
 public class configure_consumers_and_publishers : IAsyncLifetime
@@ -22,7 +21,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
 
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
          _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -98,7 +97,7 @@ public class configure_consumers_and_publishers : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

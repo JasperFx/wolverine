@@ -19,12 +19,12 @@ public class control_queue_tests : SqlServerContext, IAsyncLifetime
     private static IHost _receiver = null!;
     private static Uri _receiverUri = null!;
 
-    public new async Task InitializeAsync()
+    public new async ValueTask InitializeAsync()
     {
         await dropControlSchema();
     }
 
-    public new async Task DisposeAsync()
+    public new async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

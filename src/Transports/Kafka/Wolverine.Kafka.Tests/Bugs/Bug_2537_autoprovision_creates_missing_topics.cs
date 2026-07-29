@@ -6,8 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine.ComplianceTests;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace Wolverine.Kafka.Tests.Bugs;
 
 /// <summary>
@@ -39,9 +38,8 @@ public class Bug_2537_autoprovision_creates_missing_topics : IAsyncLifetime
         _output = output;
     }
 
-    public Task InitializeAsync() => Task.CompletedTask;
-
-    public async Task DisposeAsync()
+    public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
+    public async ValueTask DisposeAsync()
     {
         // Clean up so reruns start from a blank state, regardless of pass/fail.
         try

@@ -29,13 +29,12 @@ public class AmazonSqsPerTenantConnectionTests : IAsyncLifetime
 
     private bool _skip;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _skip = !await IsLocalStackAvailable();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task tenant_message_is_published_to_the_tenant_region_and_not_the_default()
     {

@@ -34,7 +34,7 @@ public class multi_stream_projection_with_side_effects_on_ancillary_store : IAsy
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -74,7 +74,7 @@ public class multi_stream_projection_with_side_effects_on_ancillary_store : IAsy
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

@@ -124,7 +124,7 @@ public class AggregatePublishContext : PostgresqlContext, IAsyncLifetime
 
     public ConcurrentBag<string> Warnings { get; } = new();
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -164,7 +164,7 @@ public class AggregatePublishContext : PostgresqlContext, IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await Host.StopAsync();
         Host.Dispose();

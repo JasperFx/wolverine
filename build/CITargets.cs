@@ -500,12 +500,12 @@ partial class Build
             BuildTestProjects(tests);
             StartDockerServices("postgresql");
 
-            var framework = Framework;
-            DotNetTest(c => c
-                .SetProjectFile(tests)
-                .SetConfiguration(Configuration)
-                .SetFramework(framework)
-                .EnableNoBuild());
+            // Was a bare DotNetTest, which made this the only test target without the flaky-retry
+            // harness -- so a single intermittent test failed the whole http workflow job, where
+            // the same flake in CIRabbitMQ or CIMarten is retried and reported as flaky-but-passing.
+            // It also missed the standard Category!=Flaky filter that RunTestProject applies.
+            // See GH-3705.
+            RunTestProject(tests);
         });
 
     Target CIHttpAspVersioning => _ => _

@@ -14,8 +14,7 @@ using Wolverine.Persistence.Durability.DeadLetterManagement;
 using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
 using Wolverine.Tracking;
-using Xunit.Abstractions;
-
+using Xunit;
 namespace PostgresqlTests.Bugs;
 
 /// <summary>
@@ -43,14 +42,13 @@ public class Bug_1942_replay_dlq_to_buffered_or_inline : PostgresqlContext, IAsy
         _output = output;
     }
 
-    public Task InitializeAsync()
+    public ValueTask InitializeAsync()
     {
         Bug1942Handler.Reset();
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task buffered_local_queue_replay_does_not_loop()
     {

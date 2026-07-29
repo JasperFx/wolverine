@@ -15,8 +15,6 @@ using Wolverine.Kafka;
 using Wolverine.Marten;
 using Wolverine.Runtime.Partitioning;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace SlowTests;
 
 public class Bug_concurrency_with_global_partitioning

@@ -23,7 +23,7 @@ public class nservicebus_postgresql_transport_smoke : IAsyncLifetime
     private IHost _publisher = null!;
     private IHost _receiver = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _publisher = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -67,7 +67,7 @@ public class nservicebus_postgresql_transport_smoke : IAsyncLifetime
         received.Message.ShouldBeOfType<NsbInteropPing>().Name.ShouldBe("hello");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _publisher.StopAsync();
         _publisher.Dispose();

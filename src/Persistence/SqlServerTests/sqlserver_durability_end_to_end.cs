@@ -28,7 +28,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
 
     private LightweightCache<string, IHost> _senders = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _listener = new Uri($"tcp://localhost:{PortFinder.GetAvailablePort()}");
 
@@ -88,7 +88,7 @@ public class sqlserver_durability_end_to_end : IAsyncLifetime
         });
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         foreach (var host in _receivers)
         {

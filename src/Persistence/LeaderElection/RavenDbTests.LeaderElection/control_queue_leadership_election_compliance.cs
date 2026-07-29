@@ -3,7 +3,7 @@ using Raven.Client.Documents;
 using Wolverine;
 using Wolverine.ComplianceTests;
 using Wolverine.RavenDb;
-using Xunit.Abstractions;
+using Xunit;
 using RavenDbTests;
 
 namespace RavenDbTests.LeaderElection;

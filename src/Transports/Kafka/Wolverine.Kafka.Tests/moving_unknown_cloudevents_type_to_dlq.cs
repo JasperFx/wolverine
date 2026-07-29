@@ -19,7 +19,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
 
     private readonly string _topicName = $"cloudevents-dlq-{Guid.NewGuid():N}";
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -45,7 +45,7 @@ public class moving_unknown_cloudevents_type_to_dlq : IAsyncLifetime
         await _receiver.RebuildAllEnvelopeStorageAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _receiver.StopAsync();
         _receiver.Dispose();

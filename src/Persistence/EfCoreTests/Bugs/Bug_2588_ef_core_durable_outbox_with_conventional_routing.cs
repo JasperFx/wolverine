@@ -41,7 +41,7 @@ public class Bug_2588_ef_core_durable_outbox_with_conventional_routing : IAsyncL
 {
     private IHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -77,7 +77,7 @@ public class Bug_2588_ef_core_durable_outbox_with_conventional_routing : IAsyncL
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

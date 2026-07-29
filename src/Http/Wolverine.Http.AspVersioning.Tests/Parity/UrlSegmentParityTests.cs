@@ -17,8 +17,8 @@ namespace Wolverine.Http.AspVersioning.Tests.Parity;
 
 public class UrlSegmentParityFixture : ParityFixture
 {
-    public override Task InitializeAsync() =>
-        BuildHost(
+    public override async ValueTask InitializeAsync() =>
+        await BuildHost(
             services =>
             {
                 services

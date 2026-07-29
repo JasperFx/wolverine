@@ -26,14 +26,13 @@ public class when_durable_receiver_receives_envelope_with_missing_message_type :
         theEnvelope.MessageType = null;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await theReceiver.ReceivedAsync(theListener, theEnvelope);
         await theReceiver.DrainAsync();
     }
 
-    public Task DisposeAsync() => Task.CompletedTask;
-
+    public async ValueTask DisposeAsync() =>await  ValueTask.CompletedTask;
     [Fact]
     public async Task the_listener_was_completed_so_the_transport_does_not_redeliver_the_message()
     {

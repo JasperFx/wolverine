@@ -30,7 +30,7 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
     private IDocumentStore _main = null!;
     private IGh3647AncillaryStore _ancillary = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
@@ -70,7 +70,7 @@ public class store_scoped_find_agent_uri_3647 : IAsyncLifetime
         _ancillary = _host.Services.GetRequiredService<IGh3647AncillaryStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _host.GetRuntime().Agents.DisableHealthChecks();
         await _host.StopAsync();

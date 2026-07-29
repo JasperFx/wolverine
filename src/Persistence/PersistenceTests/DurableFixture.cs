@@ -18,7 +18,7 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
     private IHost theReceiver = null!;
     private IHost theSender = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var receiverPort = PortFinder.GetAvailablePort();
         var senderPort = PortFinder.GetAvailablePort();
@@ -66,12 +66,12 @@ public abstract class DurableFixture<TTriggerHandler, TItemCreatedHandler> : IAs
         await initializeStorage(theSender, theReceiver);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         theSender?.Dispose();
         theReceiver?.Dispose();
 
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private async Task cleanDatabase()

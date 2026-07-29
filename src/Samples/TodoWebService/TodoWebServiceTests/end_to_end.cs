@@ -12,7 +12,7 @@ public class end_to_end : IAsyncLifetime
 {
     private IAlbaHost _host = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await AlbaHost.For<Program>();
 
@@ -21,9 +21,9 @@ public class end_to_end : IAsyncLifetime
         await store.Advanced.Clean.DeleteAllDocumentsAsync();
     }
 
-    public Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return _host.DisposeAsync().AsTask();
+        await _host.DisposeAsync().AsTask();
     }
 
     #region sample_testing_hello_world_for_http

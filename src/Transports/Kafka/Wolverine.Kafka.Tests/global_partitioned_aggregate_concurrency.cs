@@ -14,8 +14,6 @@ using Wolverine.Marten;
 using Wolverine.Runtime.Partitioning;
 using Wolverine.Tracking;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Kafka.Tests;
 
 /// <summary>
@@ -94,7 +92,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
         opts.Services.AddResourceSetupOnStartup();
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         ConcurrencyTracker.Reset();
 
@@ -132,7 +130,7 @@ public class global_partitioned_aggregate_concurrency : IAsyncLifetime
         await Task.Delay(5.Seconds());
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_publisher != null) { await _publisher.StopAsync(); _publisher.Dispose(); }
         if (_replica2 != null) { await _replica2.StopAsync(); _replica2.Dispose(); }

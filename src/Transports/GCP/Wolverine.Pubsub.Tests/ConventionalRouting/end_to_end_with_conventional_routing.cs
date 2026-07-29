@@ -13,7 +13,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
     private IHost _receiver = default!;
     private IHost _sender = default!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await Host
             .CreateDefaultBuilder()
@@ -52,7 +52,7 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _sender.StopAsync();
         _sender.Dispose();

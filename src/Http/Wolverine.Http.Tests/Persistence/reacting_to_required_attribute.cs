@@ -8,8 +8,7 @@ using Shouldly;
 using Wolverine;
 using Wolverine.Http;
 using Wolverine.Marten;
-using Xunit.Abstractions;
-
+using Xunit;
 public class reacting_to_required_attribute : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
@@ -20,7 +19,7 @@ public class reacting_to_required_attribute : IAsyncLifetime
         _output = output;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var builder = WebApplication.CreateBuilder([]);
 
@@ -44,7 +43,7 @@ public class reacting_to_required_attribute : IAsyncLifetime
         });
     }
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         if (theHost != null)
         {

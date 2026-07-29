@@ -5,8 +5,6 @@ using Wolverine.ComplianceTests;
 using Wolverine.Oracle;
 using Wolverine.RDBMS;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace OracleTests.LeaderElection;
 
 // Regression coverage for #2622 — OracleMessageStore.Initialize must register

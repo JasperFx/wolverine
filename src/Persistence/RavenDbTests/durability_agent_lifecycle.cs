@@ -30,7 +30,7 @@ public class durability_agent_lifecycle : IAsyncLifetime
         _fixture = fixture;
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _store = _fixture.StartRavenStore();
         _host = await Host.CreateDefaultBuilder()
@@ -43,7 +43,7 @@ public class durability_agent_lifecycle : IAsyncLifetime
             }).StartAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

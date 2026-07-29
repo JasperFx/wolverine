@@ -10,7 +10,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
     {
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         var topic = Guid.NewGuid().ToString();
         var topicPath = $"persistent://public/default/compliance{topic}";
@@ -35,7 +35,7 @@ public class PulsarWithCloudEventsFixture : TransportComplianceFixture, IAsyncLi
 
     public record FakeMessage;
 
-    async Task IAsyncLifetime.DisposeAsync()
+    async ValueTask IAsyncDisposable.DisposeAsync()
     {
         await ((IAsyncDisposable)this).DisposeAsync();
     }

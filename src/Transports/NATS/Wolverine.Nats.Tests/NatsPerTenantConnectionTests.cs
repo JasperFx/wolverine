@@ -9,8 +9,6 @@ using Testcontainers.Nats;
 using Wolverine.Tracking;
 using Wolverine.Transports.Sending;
 using Xunit;
-using Xunit.Abstractions;
-
 namespace Wolverine.Nats.Tests;
 
 /// <summary>
@@ -44,7 +42,7 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
 
     public NatsPerTenantConnectionTests(ITestOutputHelper output) => _output = output;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _serverAUrl = NatsTestHelpers.ResolveUrl();
 
@@ -64,7 +62,7 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
         _output.WriteLine($"Server B (tenant): {_serverBUrl}");
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_serverB != null)
         {

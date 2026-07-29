@@ -177,7 +177,7 @@ public class native_scheduled_delivery_end_to_end : IAsyncLifetime
     private IHost? _sender;
     private IHost? _receiver;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _sender = await WolverineHost.ForAsync(opts =>
         {
@@ -203,7 +203,7 @@ public class native_scheduled_delivery_end_to_end : IAsyncLifetime
         await Task.Delay(2.Seconds());
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_sender != null)
         {

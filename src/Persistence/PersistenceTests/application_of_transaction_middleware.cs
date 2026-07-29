@@ -27,7 +27,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
     private IServiceContainer theContainer = null!;
     private HandlerGraph theHandlers = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _host = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
@@ -54,7 +54,7 @@ public class application_of_transaction_middleware : IAsyncLifetime
         theContainer = _host.Services.GetRequiredService<IServiceContainer>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _host.StopAsync();
         _host.Dispose();

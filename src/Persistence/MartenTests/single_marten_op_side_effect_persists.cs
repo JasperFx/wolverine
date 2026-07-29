@@ -19,7 +19,7 @@ public class single_marten_op_side_effect_persists : PostgresqlContext, IAsyncLi
     private IHost theHost = null!;
     private IDocumentStore theStore = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         theHost = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -44,7 +44,7 @@ public class single_marten_op_side_effect_persists : PostgresqlContext, IAsyncLi
         theStore = theHost.Services.GetRequiredService<IDocumentStore>();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await theHost.StopAsync();
         theHost.Dispose();
