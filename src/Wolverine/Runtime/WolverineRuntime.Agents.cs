@@ -35,6 +35,11 @@ public partial class WolverineRuntime : IAgentRuntime
     // flight does not queue it a second time.
     private readonly ConcurrentDictionary<IAgentCommand, byte> _queuedCommands = new();
 
+    // Agents the pump currently has a START queued or in flight for. Suppression has to happen at this
+    // level, not just per command: successive evaluations re-chunk the unstarted remainder differently, so
+    // two chunks naming overlapping agents are not equal as commands. See enqueueAgentCommand.
+    private readonly ConcurrentDictionary<Uri, byte> _inFlightAgents = new();
+
     private readonly CancellationTokenSource _agentCancellation;
 
     public NodeAgentController? NodeController { get; private set; }
@@ -369,16 +374,7 @@ public partial class WolverineRuntime : IAgentRuntime
 
                     foreach (var command in commands)
                     {
-                        // Now that evaluation no longer waits for the pump, an evaluation can land while the
-                        // work of the previous one is still queued or in flight -- and it will, because the
-                        // pending-assignment ledger only suppresses re-emission for its TTL. Enqueue a
-                        // command only if an equal one is not already pending, so a long wave of slow starts
-                        // isn't re-issued against itself once per TTL. Command types without value equality
-                        // fall back to reference equality and are simply never collapsed.
-                        if (_queuedCommands.TryAdd(command, 0))
-                        {
-                            _agentCommands.Writer.TryWrite(command);
-                        }
+                        enqueueAgentCommand(command);
                     }
                 }
                 catch (OperationCanceledException)
@@ -391,6 +387,63 @@ public partial class WolverineRuntime : IAgentRuntime
                 }
             }
         }
+    }
+
+    // The agents a command would START somewhere. Deliberately only the first-time placements: a
+    // ReassignAgent also stops the agent on its previous node, so suppressing one because a start is already
+    // pending would drop that stop, and the stop commands are not starts at all. Those keep the
+    // command-level suppression below and nothing more.
+    private static Uri[] startedAgentsOf(IAgentCommand command) => command switch
+    {
+        AssignAgent assign => [assign.AgentUri],
+        AssignAgents batch => batch.AgentIds,
+        _ => []
+    };
+
+    // GH-3698: enqueue a command for the pump, suppressing work already queued or in flight.
+    //
+    // Command-level equality alone is not enough. The pending-assignment ledger releases an agent after its
+    // TTL, and the next evaluation re-emits the still-unstarted remainder -- which batchCommands then
+    // re-chunks. Those chunks carry DIFFERENT membership than the ones the pump is still working through
+    // (900 agents chunk into 18 batches of 50; the 650 that have not started yet chunk into 13), so no
+    // command-level comparison can recognise them and the same agents get started twice. Suppress at the
+    // AGENT level instead: narrow an incoming batch to the agents nothing is already doing, and drop it
+    // outright if that leaves nothing.
+    //
+    // The check-then-add is not atomic against the pump's release, but only this loop writes and only the
+    // pump releases, so the sole consequence of losing that race is one redundant start -- which is exactly
+    // what this suppression is a best-effort optimisation for.
+    private void enqueueAgentCommand(IAgentCommand command)
+    {
+        var starting = startedAgentsOf(command);
+        if (starting.Length > 0)
+        {
+            var fresh = starting.Where(uri => !_inFlightAgents.ContainsKey(uri)).ToArray();
+            if (fresh.Length == 0)
+            {
+                return;
+            }
+
+            if (fresh.Length != starting.Length)
+            {
+                // Only a batch can be narrowed; a single-agent AssignAgent is all-or-nothing and would have
+                // been dropped above.
+                command = command is AssignAgents batch
+                    ? new AssignAgents(batch.Destination, fresh)
+                    : command;
+            }
+        }
+
+        // Identical command already queued or in flight: nothing to add. Command types without value
+        // equality fall back to reference equality and are simply never collapsed.
+        if (!_queuedCommands.TryAdd(command, 0))
+        {
+            return;
+        }
+
+        foreach (var uri in startedAgentsOf(command)) _inFlightAgents.TryAdd(uri, 0);
+
+        _agentCommands.Writer.TryWrite(command);
     }
 
     // GH-3698 (part 2): the pump that actually executes what the health-check loop produces, on its own
@@ -427,8 +480,13 @@ public partial class WolverineRuntime : IAgentRuntime
                     {
                         // Released only once the batch is done, so anything re-emitted while it was in
                         // flight was suppressed above, and anything still genuinely missing on the next
-                        // evaluation is free to be queued again.
-                        foreach (var command in queued) _queuedCommands.TryRemove(command, out _);
+                        // evaluation is free to be queued again -- including a start that failed, which the
+                        // pending-assignment ledger re-drives once its TTL expires.
+                        foreach (var command in queued)
+                        {
+                            _queuedCommands.TryRemove(command, out _);
+                            foreach (var uri in startedAgentsOf(command)) _inFlightAgents.TryRemove(uri, out _);
+                        }
                     }
                 }
                 catch (OperationCanceledException)
