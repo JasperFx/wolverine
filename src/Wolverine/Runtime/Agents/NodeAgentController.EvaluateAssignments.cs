@@ -69,7 +69,13 @@ public partial class NodeAgentController
                 
                 // Apply this every time to pick up any agents from above
                 grid.ApplyRestrictions(restrictions);
-                
+
+                // GH-3698: must run AFTER restrictions (an operator pause or pin outranks a pending
+                // dispatch) and BEFORE the family distributes, so the distribution balances the remaining
+                // agents *around* the ones already in flight instead of spreading everything evenly and
+                // then having them yanked back. See the method.
+                pinPendingAssignments(grid);
+
                 await agentFamily.EvaluateAssignmentsAsync(grid);
             }
             catch (Exception e)
@@ -78,9 +84,6 @@ public partial class NodeAgentController
                     agentFamily.Scheme);
             }
         }
-
-        // GH-3698: must run before commands are built. See the method.
-        pinPendingAssignments(grid);
 
         var commands = new AgentCommands();
 
@@ -137,10 +140,15 @@ public partial class NodeAgentController
     // suppression stops working, every wave re-emits the whole remainder, and the AssignmentChanged flood of
     // GH-3604/D6 comes straight back. Worse, the agent ends up dispatched to two nodes at once.
     //
-    // So: while a dispatch is pending and unexpired, the destination we already chose wins. Deliberately
-    // does NOT touch Agent.OriginalNode -- the ledger confirms entries by matching OriginalNode, and
-    // fabricating one here would make every pending entry instantly self-confirming. An entry that never
-    // starts is released by the TTL below, and the next evaluation is then free to place it anywhere.
+    // So: while a dispatch is pending and unexpired, the destination we already chose wins. This runs BEFORE
+    // the family distributes precisely so the distribution sees those agents as already placed -- they count
+    // toward their node's share and are not in its "missing" queue, so it balances the genuinely unassigned
+    // remainder around them. Pinning after the fact instead leaves the distribution's own even split intact
+    // and then moves agents on top of it, which overloads whichever node the pins land on.
+    //
+    // Deliberately does NOT touch Agent.OriginalNode -- the ledger confirms entries by matching OriginalNode,
+    // and fabricating one here would make every pending entry instantly self-confirming. An entry that never
+    // starts is released by the ledger's TTL, and the next evaluation is then free to place it anywhere.
     private void pinPendingAssignments(AssignmentGrid grid)
     {
         if (_pendingAssignments.Count == 0)
@@ -153,15 +161,15 @@ public partial class NodeAgentController
             // Already running somewhere: not a pending placement.
             if (agent.OriginalNode != null) continue;
 
-            // Deliberately left unassigned by this evaluation -- an operator pause or a restriction. That
-            // decision must stand; re-pinning it here would resurrect the GH-3663 class of bug where a
-            // pause is undone by the very evaluation meant to carry it out.
-            if (agent.AssignedNode == null) continue;
+            // An operator's pause or explicit pin outranks a dispatch we have not managed to complete.
+            // Re-placing a paused agent here would resurrect the GH-3663 class of bug where a pause is
+            // undone by the very evaluation meant to carry it out.
+            if (agent.IsPaused || agent.IsPinned) continue;
 
             if (!_pendingAssignments.TryGetValue(agent.Uri, out var pending)) continue;
-            if (agent.AssignedNode.NodeId == pending.NodeId) continue;
+            if (agent.AssignedNode?.NodeId == pending.NodeId) continue;
 
-            // If the node we dispatched to is gone from the grid, the fresh decision is the right one.
+            // If the node we dispatched to is gone from the grid, there is nothing to hold it to.
             var node = grid.Nodes.FirstOrDefault(x => x.NodeId == pending.NodeId);
             if (node == null) continue;
 
