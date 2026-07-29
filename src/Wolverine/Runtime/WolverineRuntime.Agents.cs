@@ -279,8 +279,20 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task startNodeAgentWorkflowAsync()
     {
+        // GH-3698: commands execute on the dispatcher's per-destination lanes, independently of the loop
+        // that produces them, so a long wave of slow agent starts can never stop assignments being
+        // re-evaluated and a lane wedged on a dead node cannot block a healthy one. Built before the loops
+        // start so the very first health check has somewhere to put its commands.
+        _dispatcher = new AgentCommandDispatcher(
+            async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
+            Logger, Cancellation);
+
         if (NodeController != null)
         {
+            // The dispatcher is the leader's "confirmed or failed" signal for a dispatched agent start; see
+            // NodeAgentController.PendingDispatches.
+            NodeController.PendingDispatches = _dispatcher.TryFindPendingDestination;
+
             var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
             Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
             
@@ -295,13 +307,6 @@ public partial class WolverineRuntime : IAgentRuntime
         // first heartbeat either.
         _heartbeatLoop = Task.Run(writeHeartbeats, Cancellation);
         _healthCheckLoop = Task.Run(executeHealthChecks, Cancellation);
-
-        // GH-3698: commands execute on the dispatcher's per-destination lanes, independently of the loop
-        // that produces them, so a long wave of slow agent starts can never stop assignments being
-        // re-evaluated and a lane wedged on a dead node cannot block a healthy one.
-        _dispatcher = new AgentCommandDispatcher(
-            async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
-            Logger, Cancellation);
     }
 
     // GH-3604 (D1): keep the node heartbeat wholly independent of DoHealthChecksAsync and the agent-command
@@ -390,6 +395,8 @@ public partial class WolverineRuntime : IAgentRuntime
             _dispatcher = null;
         }
 
+        if (NodeController != null) NodeController.PendingDispatches = null;
+
         if (NodeController != null)
         {
             var bus = new MessageBus(this);
@@ -412,6 +419,8 @@ public partial class WolverineRuntime : IAgentRuntime
             await _dispatcher.DisposeAsync();
             _dispatcher = null;
         }
+
+        if (NodeController != null) NodeController.PendingDispatches = null;
 
         if (NodeController != null)
         {

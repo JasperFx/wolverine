@@ -71,6 +71,16 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     internal IReadOnlyDictionary<Uri, Guid> InFlightAgents => _inFlight;
 
     /// <summary>
+    ///     Is a start for this agent still queued or executing, and if so against which node? This is the
+    ///     leader's "confirmed or failed" signal: an entry lives from the moment a command is queued until its
+    ///     lane has finished with it, however it finished. GH-3698 — the pending-assignment ledger holds an
+    ///     agent on its destination for exactly as long as this says the dispatch is still outstanding, rather
+    ///     than for a fixed TTL that a wave of slow starts trivially outlives.
+    /// </summary>
+    public bool TryFindPendingDestination(Uri agentUri, out Guid nodeId)
+        => _inFlight.TryGetValue(agentUri, out nodeId);
+
+    /// <summary>
     ///     Queue a command for its destination's lane, unless equivalent work is already queued or running.
     ///     Never blocks on execution.
     /// </summary>
@@ -225,6 +235,11 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         }
 
         _lanes.Clear();
+
+        // Nothing is outstanding once the lanes are gone. Leaving these populated would make
+        // TryFindPendingDestination claim a start is still on its way for the rest of the process.
+        _queued.Clear();
+        _inFlight.Clear();
     }
 
     private class Lane

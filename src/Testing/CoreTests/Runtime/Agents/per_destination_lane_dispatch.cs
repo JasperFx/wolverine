@@ -45,9 +45,8 @@ public class per_destination_lane_dispatch
     }
 
     private static AgentCommandDispatcher dispatcherFor(
-        Func<IAgentCommand, CancellationToken, Task<AgentCommands?>> executor,
-        CancellationToken token = default)
-        => new(executor, NullLogger.Instance, token);
+        Func<IAgentCommand, CancellationToken, Task<AgentCommands?>> executor)
+        => new(executor, NullLogger.Instance, TestContext.Current.CancellationToken);
 
     private static Task<AgentCommands?> execute(IAgentCommand command, CancellationToken token)
         => command.ExecuteAsync(null!, token)!;
@@ -75,7 +74,7 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new GatedCommand("healthy", NodeB, Task.CompletedTask, log));
 
         // The healthy node's command completes while the wedged one is still blocked.
-        await healthyRan.Task.WaitAsync(10.Seconds());
+        await healthyRan.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         log.ShouldContain("exit:healthy");
         log.ShouldNotContain("exit:wedged");
 
@@ -103,10 +102,10 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new GatedCommand("wedged", NodeA, wedged.Task, log));
 
         // Simulate the next evaluation landing while the first lane is still stuck.
-        await Task.Delay(50);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
         dispatcher.Enqueue(new GatedCommand("later", NodeC, Task.CompletedTask, log));
 
-        await laterRan.Task.WaitAsync(10.Seconds());
+        await laterRan.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         log.ShouldNotContain("exit:wedged");
 
         wedged.SetResult();
@@ -137,7 +136,7 @@ public class per_destination_lane_dispatch
             dispatcher.Enqueue(new GatedCommand($"a{i}", NodeA, Task.CompletedTask, log));
         }
 
-        await done.Task.WaitAsync(10.Seconds());
+        await done.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // One command in flight per destination at a time is what the pending-assignment ledger assumes.
         peak.ShouldBe(1);
@@ -214,7 +213,7 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeB)));
 
         // The re-target went to a different lane and is running there, while the doomed copy sits on NodeA.
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
         destinations.Distinct().OrderBy(x => x).Count().ShouldBe(2);
 
         gate.SetResult();
@@ -244,7 +243,7 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new GatedCommand("y", null, Task.CompletedTask, log));
         dispatcher.Enqueue(new GatedCommand("z", null, Task.CompletedTask, log));
 
-        await done.Task.WaitAsync(10.Seconds());
+        await done.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         peak.ShouldBe(1);
         dispatcher.LaneCount.ShouldBe(1);
@@ -267,15 +266,15 @@ public class per_destination_lane_dispatch
         var command = new AssignAgent(agent("one"), destination(NodeA));
         dispatcher.Enqueue(command);
 
-        await failed.Task.WaitAsync(10.Seconds());
+        await failed.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // The claim must be gone once the command finished, however it finished, or the pending-assignment
         // ledger's retry after its TTL would be silently dropped forever.
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
         dispatcher.InFlightAgents.ShouldBeEmpty();
 
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
         attempts.ShouldBe(2);
     }
 
@@ -301,7 +300,7 @@ public class per_destination_lane_dispatch
 
         dispatcher.Enqueue(new ReassignAgent(agent("one"), destination(NodeA), destination(NodeB)));
 
-        await done.Task.WaitAsync(10.Seconds());
+        await done.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         order.ToList().ShouldBe(["reassign", $"assign:{NodeB}"]);
     }
 }
