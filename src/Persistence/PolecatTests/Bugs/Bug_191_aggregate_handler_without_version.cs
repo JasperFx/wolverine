@@ -44,7 +44,7 @@ public class Bug_191_aggregate_handler_without_version : IAsyncLifetime
         await using (var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession())
         {
             session.Events.StartStream<PcThing>(id, new PcThingStarted(id, "stuff"));
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await _host.InvokeMessageAndWaitAsync(new UpdatePcThing(id, "new stuff"));

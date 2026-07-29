@@ -73,9 +73,9 @@ public class basic_functionality : PostgresqlContext, IAsyncLifetime
     public async Task expected_tables_exist_for_queue()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var names = await conn.ExistingTablesAsync(schemas: ["transports"]);
+        var names = await conn.ExistingTablesAsync(schemas: ["transports"], ct: TestContext.Current.CancellationToken);
 
         await conn.CloseAsync();
 

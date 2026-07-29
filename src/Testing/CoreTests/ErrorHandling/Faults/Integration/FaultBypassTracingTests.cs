@@ -93,7 +93,7 @@ public class FaultBypassTracingTests
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.PublishFaultEvents())
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.Services.GetRequiredService<IWolverineRuntime>();
         var envelope = new Envelope
@@ -118,7 +118,7 @@ public class FaultBypassTracingTests
                 t.Key == WolverineTracing.MessageType
                 && (string?)t.Value == typeof(OrderPlaced).ToMessageTypeName());
         }
-        finally { activity.Dispose(); listener.Dispose(); await host.StopAsync(); }
+        finally { activity.Dispose(); listener.Dispose(); await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class FaultBypassTracingTests
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(_ => { /* no PublishFaultEvents */ })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = (WolverineRuntime)host.Services.GetRequiredService<IWolverineRuntime>();
         var envelope = new Envelope
@@ -149,6 +149,6 @@ public class FaultBypassTracingTests
                 .Where(e => e.Name == WolverineTracing.FaultBypassedSendSide)
                 .ShouldBeEmpty();
         }
-        finally { activity.Dispose(); listener.Dispose(); await host.StopAsync(); }
+        finally { activity.Dispose(); listener.Dispose(); await host.StopAsync(TestContext.Current.CancellationToken); }
     }
 }

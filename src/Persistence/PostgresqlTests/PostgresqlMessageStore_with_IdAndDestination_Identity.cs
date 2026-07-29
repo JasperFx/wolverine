@@ -69,15 +69,15 @@ public class PostgresqlMessageStore_with_IdAndDestination_Identity : MessageStor
     public async Task should_have_receive_at_in_primary_keys()
     {
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = theHost.GetRuntime();
 
-        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn);
+        var incoming = await new IncomingEnvelopeTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         incoming!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         incoming.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
 
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "receiver").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         dlq!.PrimaryKeyColumns.ShouldContain(DatabaseConstants.Id);
         dlq.PrimaryKeyColumns.ShouldContain(DatabaseConstants.ReceivedAt);
         

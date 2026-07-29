@@ -24,7 +24,7 @@ public class concurrent_saga_chain_compilation
                     opts.Discovery.DisableConventionalDiscovery().IncludeType<RaceSaga>();
                     opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
                     opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Dynamic;
-                }).StartAsync();
+                }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var graph = host.Services.GetRequiredService<HandlerGraph>();
 

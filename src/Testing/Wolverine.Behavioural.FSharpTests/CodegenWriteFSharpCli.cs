@@ -63,15 +63,15 @@ public class CodegenWriteFSharpCli
             // behavioural run-step compiles + executes under TypeLoadMode.Static.
             var adapterFile = generatedFiles.Single(f =>
                 Path.GetFileName(f).StartsWith("BehaviouralPingHandler", StringComparison.Ordinal));
-            var generatedAdapter = Normalize(await File.ReadAllTextAsync(adapterFile));
-            var committedAdapter = Normalize(await File.ReadAllTextAsync(BehaviouralCodegen.GeneratedFilePath()));
+            var generatedAdapter = Normalize(await File.ReadAllTextAsync(adapterFile, TestContext.Current.CancellationToken));
+            var committedAdapter = Normalize(await File.ReadAllTextAsync(BehaviouralCodegen.GeneratedFilePath(), TestContext.Current.CancellationToken));
             generatedAdapter.ShouldBe(committedAdapter);
 
             // The static HandlerRegistry was also emitted as valid F# (the Type[] accessors as F#
             // array literals) — this is what previously threw NotSupportedException.
             var registryFile = generatedFiles.Single(f =>
                 Path.GetFileName(f) == "GeneratedHandlerRegistry.fs");
-            var registry = await File.ReadAllTextAsync(registryFile);
+            var registry = await File.ReadAllTextAsync(registryFile, TestContext.Current.CancellationToken);
             registry.ShouldContain("inherit Wolverine.Runtime.Handlers.HandlerRegistry()");
             registry.ShouldContain("typeof<WolverineBehaviouralFSharpApp.BehaviouralPingHandler>");
         }

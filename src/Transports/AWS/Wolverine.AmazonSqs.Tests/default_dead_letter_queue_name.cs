@@ -39,7 +39,7 @@ public class default_dead_letter_queue_name
             {
                 opts.UseAmazonSqsTransportLocally().AutoProvision();
                 opts.ListenToSqsQueue("orders");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -59,7 +59,7 @@ public class default_dead_letter_queue_name
 
                 opts.ListenToSqsQueue("orders");
                 opts.ListenToSqsQueue("shipments");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -84,7 +84,7 @@ public class default_dead_letter_queue_name
 
                 // No override here — should still pick up the transport default.
                 opts.ListenToSqsQueue("shipments");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -106,7 +106,7 @@ public class default_dead_letter_queue_name
                     .DisableDeadLetterQueueing();
 
                 opts.ListenToSqsQueue("orders");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -128,7 +128,7 @@ public class default_dead_letter_queue_name
                     .DisableAllNativeDeadLetterQueues();
 
                 opts.ListenToSqsQueue("orders");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -160,7 +160,7 @@ public class default_dead_letter_queue_name
                     .AutoProvision();
 
                 opts.ListenToSqsQueue("orders");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -180,7 +180,7 @@ public class default_dead_letter_queue_name
 
                 opts.ListenToSqsQueue("orders");
                 opts.ListenToSqsQueue("shipments");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -207,7 +207,7 @@ public class default_dead_letter_queue_name
 
                 opts.ListenToSqsQueue("notifications")
                     .DisableDeadLetterQueueing();                       // disabled, no DLQ provisioned for this one
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 
@@ -249,7 +249,7 @@ public class default_dead_letter_queue_name
                     .AutoProvision();
 
                 opts.ListenToSqsQueue("orders");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = TransportFor(host);
 

@@ -12,7 +12,7 @@ public class Bug_559_erroneous_failure_ack : IntegrationContext
     public async Task no_failure_ack()
     {
         var id = Guid.NewGuid();
-        var expected = await Publisher.InvokeAsync<Guid>(new Bug559Request(id));
+        var expected = await Publisher.InvokeAsync<Guid>(new Bug559Request(id), TestContext.Current.CancellationToken);
 
         expected.ShouldBe(id);
     }

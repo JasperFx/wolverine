@@ -33,7 +33,7 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
     [Fact]
     public async Task creates_the_replayable_index_and_is_stable_without_expiration()
     {
-        await theConnection.ResetSchemaAsync("dlq_idx_no_exp");
+        await theConnection.ResetSchemaAsync("dlq_idx_no_exp", ct: TestContext.Current.CancellationToken);
 
         var durability = new DurabilitySettings { DeadLetterQueueExpirationEnabled = false };
         var table = new DeadLettersTable(durability, "dlq_idx_no_exp");
@@ -41,16 +41,16 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
         table.Indexes.ShouldContain(x => x.Name.Contains("replayable"));
         table.Indexes.ShouldNotContain(x => x.Name.Contains("expires"));
 
-        await table.ApplyChangesAsync(theConnection);
+        await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 
-        var delta = await table.FindDeltaAsync(theConnection);
+        var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 
     [Fact]
     public async Task creates_replayable_and_expires_indexes_and_is_stable_with_expiration()
     {
-        await theConnection.ResetSchemaAsync("dlq_idx_exp");
+        await theConnection.ResetSchemaAsync("dlq_idx_exp", ct: TestContext.Current.CancellationToken);
 
         var durability = new DurabilitySettings { DeadLetterQueueExpirationEnabled = true };
         var table = new DeadLettersTable(durability, "dlq_idx_exp");
@@ -58,9 +58,9 @@ public class DeadLetterTable_index_creation : IAsyncLifetime
         table.Indexes.ShouldContain(x => x.Name.Contains("replayable"));
         table.Indexes.ShouldContain(x => x.Name.Contains("expires"));
 
-        await table.ApplyChangesAsync(theConnection);
+        await table.ApplyChangesAsync(theConnection, ct: TestContext.Current.CancellationToken);
 
-        var delta = await table.FindDeltaAsync(theConnection);
+        var delta = await table.FindDeltaAsync(theConnection, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 }

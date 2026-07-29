@@ -26,13 +26,13 @@ public class Bug_309_service_dependencies_should_be_deep_on_injected_arguments
                 opts.Services.AddScoped<IItemRepository, ItemRepository>();
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<CreateItemHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var (_, created) = await host.InvokeMessageAndWaitAsync<ItemCreated>(new CreateItem());
 
         using var session = host.DocumentStore().LightweightSession();
 
-        var item = await session.LoadAsync<Item>(created!.Id);
+        var item = await session.LoadAsync<Item>(created!.Id, TestContext.Current.CancellationToken);
         item.ShouldNotBeNull();
     }
 }

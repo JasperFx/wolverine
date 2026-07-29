@@ -27,7 +27,7 @@ public class explain_routing
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Discovery.IncludeType(typeof(ExplainLocalHandler)))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var explanation = host.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage));
 
@@ -50,7 +50,7 @@ public class explain_routing
                 // Explicit publishing rule — ExplicitRouting is terminating
                 opts.PublishMessage<ExplainPublishedMessage>().ToPort(port);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var explanation = host.GetRuntime().ExplainRoutingFor(typeof(ExplainPublishedMessage));
 
@@ -68,7 +68,7 @@ public class explain_routing
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Discovery.IncludeType(typeof(ExplainLocalHandler)))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var explanation = host.GetRuntime().ExplainRoutingFor(typeof(ExplainUnroutedMessage));
 
@@ -81,7 +81,7 @@ public class explain_routing
     {
         using var enabled = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Discovery.IncludeType(typeof(ExplainLocalHandler)))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         enabled.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage))
             .LocalRoutingConventionDisabled.ShouldBeFalse();
 
@@ -91,7 +91,7 @@ public class explain_routing
                 opts.Discovery.IncludeType(typeof(ExplainLocalHandler));
                 opts.Policies.DisableConventionalLocalRouting();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var explanation = disabled.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage));
         explanation.LocalRoutingConventionDisabled.ShouldBeTrue();
@@ -101,7 +101,7 @@ public class explain_routing
     [Fact]
     public async Task flags_system_message_types()
     {
-        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync();
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var explanation = host.GetRuntime().ExplainRoutingFor(typeof(ExplainAgentCommand));
         explanation.IsSystemMessageType.ShouldBeTrue();
@@ -112,7 +112,7 @@ public class explain_routing
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.Discovery.IncludeType(typeof(ExplainLocalHandler)))
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var text = host.GetRuntime().ExplainRoutingFor(typeof(ExplainLocalMessage)).ToText();
 

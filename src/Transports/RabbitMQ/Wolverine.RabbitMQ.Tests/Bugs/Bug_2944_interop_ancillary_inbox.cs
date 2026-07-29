@@ -132,7 +132,7 @@ public class Bug_2944_interop_ancillary_inbox : IAsyncLifetime
 
         // Brief settle so the inbox row commits before we query - the tracker fires on Received,
         // not on inbox commit.
-        await Task.Delay(1000);
+        await Task.Delay(1000, TestContext.Current.CancellationToken);
 
         var ancillaryStore = runtime.Stores.FindAncillaryStore(typeof(IAncillaryStore2944));
 

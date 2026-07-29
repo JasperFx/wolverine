@@ -54,7 +54,7 @@ public class commit_strategy_end_to_end
         await waitForCountAsync(firstBatch, 5);
 
         // Graceful shutdown flushes/commits the stored offsets (StoreThenAutoFlush + clean Close).
-        await first.StopAsync();
+        await first.StopAsync(TestContext.Current.CancellationToken);
         first.Dispose();
 
         // --- Phase 2: a fresh consumer in the SAME group should only see the new messages ---
@@ -70,7 +70,7 @@ public class commit_strategy_end_to_end
         await waitForCountAsync(secondBatch, 3);
 
         // Give any (incorrect) redelivery of the first batch a chance to show up before asserting.
-        await Task.Delay(1000);
+        await Task.Delay(1000, TestContext.Current.CancellationToken);
 
         secondBatch.ShouldNotContain(x => x.StartsWith("first-"),
             "The second consumer reprocessed already-committed messages — offsets were not committed/flushed");

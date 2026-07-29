@@ -12,7 +12,7 @@ public class Bug_147_disambiguate_variables_from_multiple_handlers
     public async Task can_return_same_type_from_multiple_handlers()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.InvokeMessageAndWaitAsync(new StartingMessage("Creed Humphrey"));
 

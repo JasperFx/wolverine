@@ -57,7 +57,7 @@ public class single_marten_op_side_effect_persists : PostgresqlContext, IAsyncLi
         await theHost.InvokeMessageAndWaitAsync(new StartViaOp(id));
 
         await using var session = theStore.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(1); // was 0 (op dropped) before GH-3025
     }
 
@@ -68,7 +68,7 @@ public class single_marten_op_side_effect_persists : PostgresqlContext, IAsyncLi
         await theHost.InvokeMessageAndWaitAsync(new StoreViaOp(id));
 
         await using var session = theStore.LightweightSession();
-        (await session.LoadAsync<OpDoc>(id)).ShouldNotBeNull();
+        (await session.LoadAsync<OpDoc>(id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
     }
 }
 

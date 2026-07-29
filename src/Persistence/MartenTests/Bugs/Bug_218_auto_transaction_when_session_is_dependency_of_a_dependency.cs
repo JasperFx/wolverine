@@ -27,14 +27,14 @@ public class Bug_218_auto_transaction_when_session_is_dependency_of_a_dependency
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<CreateBug218Handler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
 
         await host.InvokeMessageAndWaitAsync(new CreateBug218(id));
 
         using var session = host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
-        var doc = await session.LoadAsync<Bug218>(id);
+        var doc = await session.LoadAsync<Bug218>(id, TestContext.Current.CancellationToken);
 
         doc.ShouldNotBeNull();
     }

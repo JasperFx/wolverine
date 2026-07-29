@@ -20,7 +20,7 @@ public class Bug_1634_not_using_default_serializer_correctly
 
                 opts.UseMqttWithLocalBroker()
                     .ConfigureSenders(sub => sub.DefaultSerializer(new Serializer()));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var topic = runtime.Options.Transports.GetOrCreate<MqttTransport>().Topics["One"];

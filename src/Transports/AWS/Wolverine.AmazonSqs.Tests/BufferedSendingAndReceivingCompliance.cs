@@ -60,7 +60,7 @@ public class BufferedSendingAndReceivingCompliance : TransportCompliance<Buffere
         var transport = runtime.Options.Transports.GetOrCreate<AmazonSqsTransport>();
         var queue = transport.Queues[AmazonSqsTransport.DeadLetterQueueName];
         await queue.InitializeAsync(NullLogger.Instance);
-        var messages = await transport.Client!.ReceiveMessageAsync(queue.QueueUrl);
+        var messages = await transport.Client!.ReceiveMessageAsync(queue.QueueUrl, TestContext.Current.CancellationToken);
         messages.Messages.Count.ShouldBeGreaterThan(0);
     }
 }

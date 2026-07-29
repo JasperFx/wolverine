@@ -28,8 +28,8 @@ public class storage_dbcontext_selection_tests
     {
         await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
         {
-            await conn.OpenAsync();
-            await conn.DropSchemaAsync("invoice_storage_schema");
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await conn.DropSchemaAsync("invoice_storage_schema", ct: TestContext.Current.CancellationToken);
             await conn.CreateCommand(
                     """
                     CREATE SCHEMA "invoice_storage_schema";
@@ -38,7 +38,7 @@ public class storage_dbcontext_selection_tests
                         "Memo" text NOT NULL
                     );
                     """)
-                .ExecuteNonQueryAsync();
+                .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         }
 
         using var host = await Host.CreateDefaultBuilder()
@@ -60,7 +60,7 @@ public class storage_dbcontext_selection_tests
 
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<CreateInvoiceHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.GetRuntime().Handlers.HandlerFor<CreateInvoice>();
         var chain = host.GetRuntime().Handlers.ChainFor<CreateInvoice>();
@@ -79,7 +79,7 @@ public class storage_dbcontext_selection_tests
 
         await using var scope = host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<InvoiceDbContext>();
-        (await db.Invoices.AnyAsync(i => i.Id == invoiceId)).ShouldBeTrue();
+        (await db.Invoices.AnyAsync(i => i.Id == invoiceId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     [Fact]

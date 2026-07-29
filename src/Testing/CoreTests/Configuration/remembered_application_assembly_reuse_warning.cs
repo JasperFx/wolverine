@@ -31,7 +31,7 @@ public class remembered_application_assembly_reuse_warning
         // Sanity + false-positive guard: a normal host registered from this test assembly resolves the same
         // application assembly it adopts, so it must NOT warn. Also pins that the constructor captured the
         // caller's assembly (this test assembly), not "Wolverine".
-        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync();
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var options = host.Services.GetRequiredService<WolverineOptions>();
 
         options.RegistrationCallingAssembly!.GetName().Name.ShouldBe(ThisTestAssembly.GetName().Name);

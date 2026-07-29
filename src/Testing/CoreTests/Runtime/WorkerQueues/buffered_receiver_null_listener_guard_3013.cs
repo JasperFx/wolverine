@@ -28,7 +28,7 @@ public class buffered_receiver_null_listener_guard_3013
         using var host = await Host.CreateDefaultBuilder()
             .ConfigureLogging(logging => logging.AddProvider(captor))
             .UseWolverine(opts => { opts.LocalQueue("buffered-3013"); })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var endpoint = (LocalQueue?)runtime.Endpoints.EndpointByName("buffered-3013")

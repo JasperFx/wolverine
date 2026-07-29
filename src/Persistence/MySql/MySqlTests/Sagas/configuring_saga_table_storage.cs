@@ -27,20 +27,20 @@ public class configuring_saga_table_storage
                 opts.AddSagaType<MySqlBlueSaga>("blue");
                 opts.PersistMessagesWithMySql(Servers.MySqlConnectionString, "color_sagas");
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var conn = new MySqlConnection(Servers.MySqlConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         // Check that the saga tables exist
         var redTable = new Table(new DbObjectName("color_sagas", "red"));
-        (await redTable.ExistsInDatabaseAsync(conn)).ShouldBeTrue();
+        (await redTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         var blueTable = new Table(new DbObjectName("color_sagas", "blue"));
-        (await blueTable.ExistsInDatabaseAsync(conn)).ShouldBeTrue();
+        (await blueTable.ExistsInDatabaseAsync(conn, TestContext.Current.CancellationToken)).ShouldBeTrue();
 
         await conn.CloseAsync();
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private static async Task dropSchemaAsync()

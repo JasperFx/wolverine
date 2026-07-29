@@ -9,7 +9,7 @@ public class Bug_263_returning_string_from_middleware_method
     public async Task can_return_and_use_string_from_tuple()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeAsync(new Bug263("Tom"));
 

@@ -129,7 +129,7 @@ public class dedup_load_boundary_frame_tests : PostgresqlContext, IAsyncLifetime
             enrolled.WithTag(studentId);
             session.Events.Append(studentId.Value, enrolled);
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Pre-fix: this throws at handler-compilation with CS0128.
@@ -137,8 +137,7 @@ public class dedup_load_boundary_frame_tests : PostgresqlContext, IAsyncLifetime
             new TwoBoundaryModelParamsCommand(studentId, courseId));
 
         await using var verifySession = theStore.LightweightSession();
-        var events = await verifySession.Events.QueryByTagsAsync(
-            new EventTagQuery().Or<StudentId>(studentId));
+        var events = await verifySession.Events.QueryByTagsAsync(new EventTagQuery().Or<StudentId>(studentId), TestContext.Current.CancellationToken);
 
         events.ShouldContain(e => e.Data is StudentSubscribedToCourse);
     }

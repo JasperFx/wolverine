@@ -187,7 +187,7 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
             
             var item = new Item { Id = itemId, Name = "Latte"};
             dbContext.Items.Add(item);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         
         var tracked = await theHost.InvokeMessageAndWaitAsync(new ApproveItem(itemId));
@@ -208,7 +208,7 @@ public class configuration_of_domain_events_scrapers : IAsyncDisposable
             
             var item = new Item { Id = itemId, Name = "Smoothie"};
             dbContext.Items.Add(item);
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
         
         var tracked = await theHost.InvokeMessageAndWaitAsync(new ApproveItem(itemId));

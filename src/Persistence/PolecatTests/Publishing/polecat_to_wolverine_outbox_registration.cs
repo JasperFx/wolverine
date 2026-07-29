@@ -41,7 +41,7 @@ public class polecat_to_wolverine_outbox_registration
                 }).IntegrateWithWolverine();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var store = (DocumentStore)host.Services.GetRequiredService<IDocumentStore>();
 
@@ -71,7 +71,7 @@ public class polecat_to_wolverine_outbox_registration
             })
             .Build();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         try
         {
@@ -80,7 +80,7 @@ public class polecat_to_wolverine_outbox_registration
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
         }
     }
 }

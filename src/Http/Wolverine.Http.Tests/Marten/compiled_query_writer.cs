@@ -120,7 +120,7 @@ public class compiled_query_writer : IntegrationContext
             session.Store(invoice);
         }
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var approvedInvoiceList = await Host.GetAsJson<List<Invoice>>("/invoices/approved");
         approvedInvoiceList.ShouldNotBeNull();
@@ -141,7 +141,7 @@ public class compiled_query_writer : IntegrationContext
             session.Store(invoice);
         }
 
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         var invoiceCountString = await Host.GetAsText("/invoices/compiled/count");
         invoiceCountString.ShouldNotBeNull();
@@ -224,7 +224,7 @@ public class compiled_query_writer : IntegrationContext
         };
         using var session = Store.LightweightSession();
         session.Store(invoice);
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
 
         var invoiceCompiled = await Host.GetAsJson<Invoice>($"/invoices/compiled/{invoice.Id}");

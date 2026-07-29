@@ -16,8 +16,8 @@ public class from_form_file_binding : IntegrationContext
         content.Add(new StringContent("test-name"), "Name");
         content.Add(new ByteArrayContent(new byte[] { 1, 2, 3 }), "File", "test.txt");
 
-        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-file", content);
-        var text = await response.Content.ReadAsStringAsync();
+        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-file", content, TestContext.Current.CancellationToken);
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
         text.ShouldBe("test-name|test.txt|3");
     }
@@ -30,9 +30,9 @@ public class from_form_file_binding : IntegrationContext
         content.Add(new ByteArrayContent(new byte[] { 1, 2, 3 }), "Files", "file1.txt");
         content.Add(new ByteArrayContent(new byte[] { 4, 5 }), "Files", "file2.txt");
 
-        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-files", content);
+        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-files", content, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync();
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         text.ShouldBe("test-name|2");
     }
 
@@ -42,9 +42,9 @@ public class from_form_file_binding : IntegrationContext
         var content = new MultipartFormDataContent();
         content.Add(new StringContent("test-name"), "Name");
 
-        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-file", content);
+        var response = await Host.Server.CreateClient().PostAsync("/api/fromform-file", content, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync();
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         text.ShouldBe("test-name||");
     }
 
@@ -55,9 +55,9 @@ public class from_form_file_binding : IntegrationContext
         content.Add(new ByteArrayContent(new byte[] { 1, 2, 3 }), "document", "doc.pdf");
         content.Add(new ByteArrayContent(new byte[] { 4, 5 }), "thumbnail", "thumb.jpg");
 
-        var response = await Host.Server.CreateClient().PostAsync("/upload/named-files", content);
+        var response = await Host.Server.CreateClient().PostAsync("/upload/named-files", content, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync();
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         text.ShouldBe("doc.pdf|3|thumb.jpg|2");
     }
 
@@ -69,9 +69,9 @@ public class from_form_file_binding : IntegrationContext
         content.Add(new StringContent("A description"), "Description");
         content.Add(new ByteArrayContent(new byte[] { 1, 2, 3 }), "file", "test.pdf");
 
-        var response = await Host.Server.CreateClient().PostAsync("/upload/mixed", content);
+        var response = await Host.Server.CreateClient().PostAsync("/upload/mixed", content, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync();
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         text.ShouldBe("My Document|A description|test.pdf|3");
     }
 
@@ -83,9 +83,9 @@ public class from_form_file_binding : IntegrationContext
         content.Add(new StringContent("value2"), "key2");
         content.Add(new ByteArrayContent(new byte[] { 1 }), "file", "test.txt");
 
-        var response = await Host.Server.CreateClient().PostAsync("/upload/form-collection", content);
+        var response = await Host.Server.CreateClient().PostAsync("/upload/form-collection", content, TestContext.Current.CancellationToken);
         response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync();
+        var text = await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
         text.ShouldBe("keys:key1,key2|files:1");
     }
 }

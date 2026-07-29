@@ -242,7 +242,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await using (var session = theStore.LightweightSession())
         {
             session.Events.StartStream<PcAggregate>(streamId, new AEvent(), new BEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var tracked = await theHost.SendMessageAndWaitAsync(new PcEvent3(streamId));
@@ -252,7 +252,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
 
         await using (var session = theStore.LightweightSession())
         {
-            var events = await session.Events.FetchStreamAsync(streamId);
+            var events = await session.Events.FetchStreamAsync(streamId, token: TestContext.Current.CancellationToken);
             events.OfType<IEvent<OutgoingMessages>>().Any().ShouldBeFalse();
         }
     }
@@ -264,7 +264,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         await using (var session = theStore.LightweightSession())
         {
             session.Events.StartStream<PcAggregate>(streamId, new AEvent(), new BEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var (tracked, updated)
@@ -285,7 +285,7 @@ public class aggregate_handler_workflow : IAsyncLifetime
         {
             session.Events.StartStream<PcAggregate>(streamId, new AEvent(), new CEvent());
             session.Events.StartStream<PcAggregate>(streamId2, new CEvent(), new CEvent());
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         await theHost.InvokeMessageAndWaitAsync(new RaiseIfValidated(streamId));
@@ -293,10 +293,10 @@ public class aggregate_handler_workflow : IAsyncLifetime
 
         await using (var session = theStore.LightweightSession())
         {
-            var existing1 = await session.LoadAsync<LetterAggregate>(streamId);
+            var existing1 = await session.LoadAsync<LetterAggregate>(streamId, TestContext.Current.CancellationToken);
             existing1!.BCount.ShouldBe(0);
 
-            var existing2 = await session.LoadAsync<LetterAggregate>(streamId2);
+            var existing2 = await session.LoadAsync<LetterAggregate>(streamId2, TestContext.Current.CancellationToken);
             existing2!.BCount.ShouldBe(1);
         }
     }

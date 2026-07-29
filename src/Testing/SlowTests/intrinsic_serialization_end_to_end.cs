@@ -21,13 +21,13 @@ public class intrinsic_serialization_end_to_end
             .UseWolverine(opts =>
             {
                 opts.PublishAllMessages().ToPort(port);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 opts.ListenAtPort(port);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await sender.TrackActivity()
             .AlsoTrack(receiver)

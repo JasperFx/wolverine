@@ -53,8 +53,8 @@ public class batch_isolate_members : IAsyncLifetime
 
         // The whole batch throws the opaque ProbeFailure; IsolateBatchMembers re-runs each member as its
         // own size-1 batch. The two healthy singletons succeed; the poison singleton dead-letters.
-        await ProbeItemBatchHandler.BothGoodsSucceeded.Task.WaitAsync(10.Seconds());
-        await _deadLetters.Signal.Task.WaitAsync(10.Seconds());
+        await ProbeItemBatchHandler.BothGoodsSucceeded.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        await _deadLetters.Signal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         ProbeItemBatchHandler.SucceededIds.OrderBy(x => x).ShouldBe(new[] { "good1", "good2" });
 
@@ -94,7 +94,7 @@ public class isolate_batch_members_on_a_non_batched_message : IAsyncLifetime
     {
         await _host.MessageBus().PublishAsync(new SoloProbe("only"));
 
-        await _deadLetters.Signal.Task.WaitAsync(10.Seconds());
+        await _deadLetters.Signal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         _deadLetters.DeadLettered.OfType<SoloProbe>().Select(x => x.Id).ShouldBe(new[] { "only" });
     }

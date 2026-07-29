@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- GH-3702: xUnit1051 reinstated for this project -->
+        <XUnitCancellationTokenEnforced>true</XUnitCancellationTokenEnforced>
         <OutputType>Exe</OutputType>
         <Nullable>enable</Nullable>
         <IsPackable>false</IsPackable>

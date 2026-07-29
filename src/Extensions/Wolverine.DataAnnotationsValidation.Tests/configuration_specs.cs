@@ -19,7 +19,7 @@ public class configuration_specs
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         host.Services.GetRequiredService<IFailureAction<Command1>>()
             .ShouldBeOfType<FailureAction<Command1>>();
@@ -32,7 +32,7 @@ public class configuration_specs
             .UseWolverine(opts =>
             {
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var wolverineOptions = host.Services.GetRequiredService<IWolverineRuntime>()
             .As<WolverineRuntime>().Options;

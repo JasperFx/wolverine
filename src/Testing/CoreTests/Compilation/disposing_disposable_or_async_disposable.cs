@@ -16,7 +16,7 @@ public class disposing_disposable_or_async_disposable
                 opts.Services.AddScoped<IDisposedService, DisposedService>();
                 opts.Services.AddScoped<IAsyncDisposedService, AsyncDisposedService>();
                 opts.Services.AddScoped<INotDisposed, NotDisposed>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         await host.InvokeAsync(new DisposingMessage());
         

@@ -32,7 +32,7 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
         });
 
         await using var session = Store.LightweightSession();
-        var order = await session.Events.AggregateStreamAsync<Order>(orderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(orderId, token: TestContext.Current.CancellationToken);
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }
@@ -64,7 +64,7 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
         });
 
         await using var session = Store.LightweightSession();
-        var order = await session.Events.AggregateStreamAsync<Order>(orderId);
+        var order = await session.Events.AggregateStreamAsync<Order>(orderId, token: TestContext.Current.CancellationToken);
         order.ShouldNotBeNull();
         order.Shipped.HasValue.ShouldBeTrue();
     }

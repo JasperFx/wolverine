@@ -67,7 +67,7 @@ public class cold_catch_up_with_wolverine_distribution : IAsyncLifetime
             .InvokeMessageAndWaitAsync(new AppendLetters(id, ["AAAACCCCBDEEE", "ABCDECCC", "BBBA", "DDDAE"]));
 
         await using var session = _host.DocumentStore().LightweightSession();
-        var counts = (await session.Query<LetterCounts>().ToListAsync()).Single();
+        var counts = (await session.Query<LetterCounts>().ToListAsync(token: TestContext.Current.CancellationToken)).Single();
         counts.Id.ShouldBe(id);
 
         counts.ACount.ShouldBe(7);
@@ -86,7 +86,7 @@ public class cold_catch_up_with_wolverine_distribution : IAsyncLifetime
             .InvokeMessageAndWaitAsync(new AppendLetters2(id, ["AAAACCCCBDEEE", "ABCDECCC", "BBBA", "DDDAE"]));
 
         await using var session = _host.DocumentStore<ILetterStore>().LightweightSession();
-        var counts = (await session.Query<LetterCounts>().ToListAsync()).Single();
+        var counts = (await session.Query<LetterCounts>().ToListAsync(token: TestContext.Current.CancellationToken)).Single();
         counts.Id.ShouldBe(id);
 
         counts.ACount.ShouldBe(7);

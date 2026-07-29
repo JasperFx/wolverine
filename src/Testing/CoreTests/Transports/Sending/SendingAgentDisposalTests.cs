@@ -27,9 +27,9 @@ public class SendingAgentDisposalTests
         // that cancellation, so settle first before taking the baseline -- otherwise a tick that
         // was already running when Dispose() was called could tick over during the assertion
         // window below and cause a spurious failure.
-        await Task.Delay(200.Milliseconds());
+        await Task.Delay(200.Milliseconds(), TestContext.Current.CancellationToken);
         var countAtDispose = circuit.CallCount;
-        await Task.Delay(200.Milliseconds());
+        await Task.Delay(200.Milliseconds(), TestContext.Current.CancellationToken);
 
         // Before the fix, Dispose() only released the Task wrapper -- pingUntilConnectedAsync kept
         // running against the caller's (still live) token, so this count kept climbing forever.
@@ -62,9 +62,9 @@ public class SendingAgentDisposalTests
 
         // See circuit_watcher_dispose_stops_the_ping_loop above: settle before taking the baseline
         // so an already-in-flight ping can't tick over during the assertion window below.
-        await Task.Delay(200.Milliseconds());
+        await Task.Delay(200.Milliseconds(), TestContext.Current.CancellationToken);
         var pingCountAtDispose = sender.PingCount;
-        await Task.Delay(200.Milliseconds());
+        await Task.Delay(200.Milliseconds(), TestContext.Current.CancellationToken);
 
         // Before the fix, SendingAgent.DisposeAsync() never touched the CircuitWatcher, so a sender
         // pointed at a permanently unreachable destination (e.g. Kafka against a dead broker) kept

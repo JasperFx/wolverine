@@ -40,7 +40,7 @@ public class configuring_local_queues : IntegrationContext
         using var host = await new HostBuilder().UseWolverine(opts =>
         {
             opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         var runtime = host.GetRuntime();
         runtime.Endpoints.EndpointByName(typeof(MultipleMessage1Handler).FullNameInCode().ToLowerInvariant())

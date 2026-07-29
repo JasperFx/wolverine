@@ -13,7 +13,7 @@ public class Bug_608_using_route_variables_in_middleware_without_argument : Inte
     {
         using var session = Store.LightweightSession();
         session.Store(new SomeDocument{Id = "ball"});
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await Scenario(x =>
         {

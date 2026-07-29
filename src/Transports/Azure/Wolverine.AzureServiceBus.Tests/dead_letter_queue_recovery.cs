@@ -84,7 +84,7 @@ public class dead_letter_queue_recovery : IAsyncLifetime
         {
             results = await messageStore.DeadLetters.QueryAsync(query, CancellationToken.None);
             if (results.Envelopes.Any()) break;
-            await Task.Delay(500);
+            await Task.Delay(500, TestContext.Current.CancellationToken);
         }
 
         results.ShouldNotBeNull();

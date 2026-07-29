@@ -41,7 +41,7 @@ public class WolverineBusHealthCheckTests
         var runtime = BuildRuntime(started: true, cancellationRequested: false);
         var check = new WolverineBusHealthCheck(runtime);
 
-        var result = await check.CheckHealthAsync(ContextFor());
+        var result = await check.CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data.ShouldContainKey("started");
@@ -56,7 +56,7 @@ public class WolverineBusHealthCheckTests
         var runtime = BuildRuntime(started: false, cancellationRequested: false);
         var check = new WolverineBusHealthCheck(runtime);
 
-        var result = await check.CheckHealthAsync(ContextFor());
+        var result = await check.CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Data["started"].ShouldBe(false);
@@ -69,7 +69,7 @@ public class WolverineBusHealthCheckTests
         var runtime = BuildRuntime(started: false, cancellationRequested: false);
         var check = new WolverineBusHealthCheck(runtime);
 
-        var result = await check.CheckHealthAsync(ContextFor(failureStatus: HealthStatus.Degraded));
+        var result = await check.CheckHealthAsync(ContextFor(failureStatus: HealthStatus.Degraded), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Degraded);
     }
@@ -80,7 +80,7 @@ public class WolverineBusHealthCheckTests
         var runtime = BuildRuntime(started: true, cancellationRequested: true);
         var check = new WolverineBusHealthCheck(runtime);
 
-        var result = await check.CheckHealthAsync(ContextFor());
+        var result = await check.CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Data["cancellationRequested"].ShouldBe(true);

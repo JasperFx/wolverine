@@ -38,7 +38,7 @@ public class modular_monolith_usage
                 }).IntegrateWithWolverine();
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
@@ -72,7 +72,7 @@ public class modular_monolith_usage
                 }).IntegrateWithWolverine();
                 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
@@ -108,7 +108,7 @@ public class modular_monolith_usage
                 }).IntegrateWithWolverine(x => x.SchemaName = "different");
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         var stores = (await runtime.Stores.FindAllAsync()).OfType<PostgresqlMessageStore>().ToArray();
@@ -144,7 +144,7 @@ public class modular_monolith_usage
                 }).IntegrateWithWolverine();
                 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

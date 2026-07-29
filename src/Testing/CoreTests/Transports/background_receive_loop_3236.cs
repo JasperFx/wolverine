@@ -86,13 +86,13 @@ public class background_receive_loop_3236
         });
 
         theLoop.Start();
-        await entered.Task.WaitAsync(5.Seconds()); // heartbeat was bumped before the iteration call
+        await entered.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken); // heartbeat was bumped before the iteration call
         var frozen = theLoop.LastReceiveLoopActivityAt;
         frozen.ShouldNotBeNull();
 
         // While the iteration is hung, the heartbeat stops advancing — this is exactly the "Accepting but not
         // consuming" signal an external monitor reads.
-        await Task.Delay(100);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
         theLoop.LastReceiveLoopActivityAt.ShouldBe(frozen);
 
         // Cancellation unblocks the hung Task.Delay; the loop observes the OCE and stops cleanly.
@@ -104,7 +104,7 @@ public class background_receive_loop_3236
     {
         var theLoop = loop(_ => Task.FromResult(false));
         theLoop.Start();
-        await Task.Delay(30);
+        await Task.Delay(30, TestContext.Current.CancellationToken);
 
         await theLoop.StopAsync(2.Seconds());
 
@@ -130,7 +130,7 @@ public class background_receive_loop_3236
         });
 
         theLoop.Start();
-        await entered.Task.WaitAsync(5.Seconds());
+        await entered.Task.WaitAsync(5.Seconds(), TestContext.Current.CancellationToken);
 
         var stopwatch = Stopwatch.StartNew();
         await theLoop.StopAsync(200.Milliseconds());

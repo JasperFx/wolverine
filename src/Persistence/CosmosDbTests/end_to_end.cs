@@ -29,7 +29,7 @@ public class end_to_end
                 opts.UseCosmosDbPersistence(AppFixture.DatabaseName);
                 opts.Services.AddSingleton(_fixture.Client);
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await host.InvokeMessageAndWaitAsync(new SmokeTestMessage("Hello, CosmosDb!"));
 

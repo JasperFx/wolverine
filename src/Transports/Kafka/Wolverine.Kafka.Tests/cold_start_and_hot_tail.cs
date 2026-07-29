@@ -107,7 +107,7 @@ public class cold_start_and_hot_tail
 
         // Latest means only messages published AFTER the consumers join are seen — give them a moment
         // to be assigned their partitions before publishing.
-        await Task.Delay(3000);
+        await Task.Delay(3000, TestContext.Current.CancellationToken);
 
         for (var i = 0; i < 5; i++)
         {

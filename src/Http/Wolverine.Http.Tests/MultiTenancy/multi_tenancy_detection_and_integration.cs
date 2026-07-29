@@ -300,7 +300,7 @@ public class multi_tenancy_detection_and_integration : IAsyncDisposable, IDispos
 
 
         await theHost.Services.GetRequiredService<IDocumentStore>().Advanced.Clean
-            .DeleteDocumentsByTypeAsync(typeof(TenantTodo));
+            .DeleteDocumentsByTypeAsync(typeof(TenantTodo), TestContext.Current.CancellationToken);
 
         // Create todo to "red"
         await theHost.Scenario(x =>

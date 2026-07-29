@@ -54,10 +54,10 @@ public class EndToEndIntegrationTests
     [Fact]
     public async Task health_endpoint_reports_healthy_after_startup()
     {
-        using var host = await BuildHostBuilder().StartAsync();
+        using var host = await BuildHostBuilder().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var client = host.GetTestClient();
 
-        var response = await client.GetAsync("/health");
+        var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
     }
@@ -93,18 +93,18 @@ public class EndToEndIntegrationTests
                 });
             })
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         try
         {
             var client = host.GetTestClient();
 
-            (await client.GetAsync("/health/ready")).StatusCode.ShouldBe(HttpStatusCode.OK);
-            (await client.GetAsync("/health/live")).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await client.GetAsync("/health/ready", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
+            (await client.GetAsync("/health/live", TestContext.Current.CancellationToken)).StatusCode.ShouldBe(HttpStatusCode.OK);
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }

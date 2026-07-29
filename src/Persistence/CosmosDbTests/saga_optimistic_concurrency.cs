@@ -51,7 +51,7 @@ public class saga_optimistic_concurrency
         var bus = host.MessageBus();
 
         var id = Guid.NewGuid().ToString();
-        await bus.InvokeAsync(new StartCounter(id));
+        await bus.InvokeAsync(new StartCounter(id), TestContext.Current.CancellationToken);
 
         // Interfere exactly the way a second node would: the handler reads the saga, then another writer
         // commits a new revision of the same document before this message gets to write. Without the
@@ -73,7 +73,7 @@ public class saga_optimistic_concurrency
             opts.Policies.OnException<SagaConcurrencyException>().RetryTimes(5));
 
         var id = Guid.NewGuid().ToString();
-        await host.MessageBus().InvokeAsync(new StartCounter(id));
+        await host.MessageBus().InvokeAsync(new StartCounter(id), TestContext.Current.CancellationToken);
 
         // Both handlers pause between the saga read and the saga write, so both genuinely read Count = 0.
         // Pre-fix, the loser's blind upsert overwrote the winner and Count ended at 1 with no error at all.
@@ -81,8 +81,10 @@ public class saga_optimistic_concurrency
         // driven concurrently.
         var pause = TimeSpan.FromMilliseconds(500);
         await Task.WhenAll(
-            host.MessageBus().InvokeAsync(new IncrementCounter(id) { Delay = pause }),
-            host.MessageBus().InvokeAsync(new IncrementCounter(id) { Delay = pause }));
+            host.MessageBus().InvokeAsync(new IncrementCounter(id) { Delay = pause },
+                TestContext.Current.CancellationToken),
+            host.MessageBus().InvokeAsync(new IncrementCounter(id) { Delay = pause },
+                TestContext.Current.CancellationToken));
 
         var saga = await loadAsync(id);
         saga!.Count.ShouldBe(2);
@@ -97,7 +99,7 @@ public class saga_optimistic_concurrency
         var bus = host.MessageBus();
 
         var id = Guid.NewGuid().ToString();
-        await bus.InvokeAsync(new StartCounter(id));
+        await bus.InvokeAsync(new StartCounter(id), TestContext.Current.CancellationToken);
 
         // Completing a saga deletes the document. A blind delete would drop the interfering writer's
         // revision just as silently as a blind upsert would.

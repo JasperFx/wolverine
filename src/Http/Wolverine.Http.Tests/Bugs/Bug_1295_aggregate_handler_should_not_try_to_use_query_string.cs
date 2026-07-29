@@ -46,7 +46,7 @@ public class Bug_1295_aggregate_handler_should_not_try_to_use_query_string
         await using var session = host.DocumentStore().LightweightSession();
         var streamKey = Guid.NewGuid().ToString();
         session.Events.StartStream(streamKey, new TestEvent());
-        await session.SaveChangesAsync();
+        await session.SaveChangesAsync(TestContext.Current.CancellationToken);
 
         await host.Scenario(x =>
         {

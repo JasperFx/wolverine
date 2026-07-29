@@ -35,7 +35,7 @@ public class masstransit_interop_serializer_on_retry
                 opts.ListenToRabbitQueue("orders").UseMassTransitInterop();
 
                 opts.StubAllExternalTransports();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
 

@@ -92,12 +92,12 @@ public class basic_marten_integration : PostgresqlContext, IAsyncLifetime
         using (var session = theHost.DocumentStore().LightweightSession())
         {
             session.Store(doc);
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         using (var query = theHost.DocumentStore().QuerySession())
         {
-            (await query.LoadAsync<FakeDoc>(doc.Id)).ShouldNotBeNull();
+            (await query.LoadAsync<FakeDoc>(doc.Id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
         }
     }
 

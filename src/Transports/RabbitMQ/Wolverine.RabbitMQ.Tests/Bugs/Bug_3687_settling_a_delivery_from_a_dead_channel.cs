@@ -118,7 +118,7 @@ public class Bug_3687_settling_a_delivery_from_a_dead_channel : IAsyncLifetime
         // against a queue that does not exist returns 404 NOT_FOUND and takes the channel down.
         try
         {
-            await originalChannel.QueueDeclarePassiveAsync($"missing-{Guid.NewGuid():N}");
+            await originalChannel.QueueDeclarePassiveAsync($"missing-{Guid.NewGuid():N}", TestContext.Current.CancellationToken);
         }
         catch
         {

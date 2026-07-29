@@ -42,7 +42,7 @@ public class histogram_bucket_boundaries_3224
                 opts.ServiceName = serviceName;
                 opts.Metrics.HistogramBucketBoundaries = boundaries;
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<MetricSuccessHandler>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Drive a message so both histograms (execution-time + effective-time) record.
         await host.TrackActivity().SendMessageAndWaitAsync(new MetricSuccess());

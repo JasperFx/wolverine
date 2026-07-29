@@ -110,11 +110,11 @@ public class database_cleaner_usage_tests : IClassFixture<DatabaseCleanerContext
         {
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = "Temp Item" });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act: FK-safe bulk delete (no seeding)
-        await Cleaner.DeleteAllDataAsync();
+        await Cleaner.DeleteAllDataAsync(TestContext.Current.CancellationToken);
 
         // Assert
         (await CountItemsAsync()).ShouldBe(0);
@@ -128,16 +128,16 @@ public class database_cleaner_usage_tests : IClassFixture<DatabaseCleanerContext
         {
             var db = scope.ServiceProvider.GetRequiredService<ItemsDbContext>();
             db.Items.Add(new Item { Id = Guid.NewGuid(), Name = "Noise Item" });
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         // Act: delete all + run IInitialData<T> seeders
-        await Cleaner.ResetAllDataAsync();
+        await Cleaner.ResetAllDataAsync(TestContext.Current.CancellationToken);
 
         // Assert: exactly the seed rows remain
         using var checkScope = _ctx.Host.Services.CreateScope();
         var checkDb = checkScope.ServiceProvider.GetRequiredService<ItemsDbContext>();
-        var items = await checkDb.Items.OrderBy(x => x.Name).ToListAsync();
+        var items = await checkDb.Items.OrderBy(x => x.Name).ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         items.Count.ShouldBe(SeedItemsForTests.Items.Length);
         items.Select(x => x.Name).ShouldBe(

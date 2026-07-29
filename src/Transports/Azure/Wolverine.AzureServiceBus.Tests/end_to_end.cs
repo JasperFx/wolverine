@@ -89,7 +89,7 @@ public class end_to_end : IAsyncLifetime
                 opts.ListenToAzureServiceBusQueue("send_and_receive");
 
                 opts.PublishAllMessages().ToAzureServiceBusQueue("send_and_receive");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = host.GetRuntime().Options.Transports.GetOrCreate<AzureServiceBusTransport>();
 

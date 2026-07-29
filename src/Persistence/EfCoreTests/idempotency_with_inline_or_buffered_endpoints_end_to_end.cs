@@ -59,7 +59,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.UseEntityFrameworkCoreWolverineManagedMigrations();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageId = Guid.NewGuid();
         var tracked1 = await host.SendMessageAndWaitAsync(new MaybeIdempotent(messageId));
@@ -110,7 +110,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "idempotency");
                 opts.UseEntityFrameworkCoreTransactions();
                 opts.UseEntityFrameworkCoreWolverineManagedMigrations();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var messageId = Guid.NewGuid();
         var tracked1 = await host.SendMessageAndWaitAsync(new MaybeIdempotent(messageId));
@@ -155,7 +155,7 @@ public class idempotency_with_inline_or_buffered_endpoints_end_to_end : IAsyncLi
                 
                 // THIS RIGHT HERE
                 opts.Policies.AutoApplyIdempotencyOnNonTransactionalHandlers();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
 

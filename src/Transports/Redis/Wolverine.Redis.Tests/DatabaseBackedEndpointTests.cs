@@ -32,7 +32,7 @@ public class DatabaseBackedEndpointTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -55,7 +55,7 @@ public class DatabaseBackedEndpointTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -84,7 +84,7 @@ public class DatabaseBackedEndpointTests
         await endpoint!.ScheduleRetryAsync(envelope, CancellationToken.None);
 
         // Wait a moment for Redis to persist
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Verify the message is in the scheduled set
         var scheduledCount = await database.SortedSetLengthAsync(scheduledKey);
@@ -119,7 +119,7 @@ public class DatabaseBackedEndpointTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -146,7 +146,7 @@ public class DatabaseBackedEndpointTests
         await endpoint!.ScheduleRetryAsync(envelope, CancellationToken.None);
         var afterSchedule = DateTimeOffset.UtcNow;
 
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var entries = await database.SortedSetRangeByScoreWithScoresAsync(scheduledKey);
         entries.Length.ShouldBe(1);
@@ -179,7 +179,7 @@ public class DatabaseBackedEndpointTests
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.PublishMessage<TestMessage>().ToRedisStream(streamKey).SendInline();
                 opts.ListenToRedisStream(streamKey, "dbe-test-group").StartFromBeginning();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         var transport = runtime.Options.Transports.GetOrCreate<RedisTransport>();
@@ -204,14 +204,14 @@ public class DatabaseBackedEndpointTests
         envelope.ContentType = writer.ContentType;
 
         await endpoint!.ScheduleRetryAsync(envelope, CancellationToken.None);
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Verify it's in scheduled set
         var initialCount = await database.SortedSetLengthAsync(scheduledKey);
         initialCount.ShouldBe(1);
 
         // Wait for polling to move it to the stream
-        await Task.Delay(3000);
+        await Task.Delay(3000, TestContext.Current.CancellationToken);
 
         // Verify it's been removed from scheduled set
         var finalCount = await database.SortedSetLengthAsync(scheduledKey);

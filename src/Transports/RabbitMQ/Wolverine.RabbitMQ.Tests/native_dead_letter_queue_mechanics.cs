@@ -104,7 +104,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
                     });
 
                 opts.LocalRoutingConventionDisabled = true;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         theTransport = _host
             .Services
@@ -141,7 +141,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
                     .DisableDeadLetterQueueing();
 
                 opts.LocalRoutingConventionDisabled = true;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         theTransport = _host
             .Services
@@ -167,7 +167,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
                 opts.ListenToRabbitQueue(queueName);
 
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>().Options.RabbitMqTransport();
@@ -192,7 +192,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
                 opts.ListenToRabbitQueue(QueueName);
 
                 opts.LocalRoutingConventionDisabled = true;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         theTransport = _host
             .Services
@@ -226,7 +226,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
             var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new Exception("Never got a message in the dead letter queue");
@@ -259,9 +259,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         queue.Compile(runtime);
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
-                Arg.Any<IDictionary<string, object?>>())
-            .Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
 
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
@@ -335,9 +333,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         overrideEndpoint.Compile(runtime);
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(),
-                Arg.Any<IDictionary<string, object?>>())
-            .Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
 
         await defaultEndpoint.DeclareAsync(channel, NullLogger.Instance);
         await overrideEndpoint.DeclareAsync(channel, NullLogger.Instance);
@@ -362,7 +358,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
                 opts.LocalRoutingConventionDisabled = true;
 
                 opts.ListenToRabbitQueue(QueueName + "Different").DeadLetterQueueing(new DeadLetterQueue(deadLetterQueueName));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         theTransport = _host
             .Services
@@ -384,7 +380,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
             var queuedCount = await deadLetterQueue.QueuedCountAsync();
             if (queuedCount > 0) return;
 
-            await Task.Delay(250.Milliseconds());
+            await Task.Delay(250.Milliseconds(), TestContext.Current.CancellationToken);
         }
 
         throw new Exception("Never got a message in the dead letter queue");

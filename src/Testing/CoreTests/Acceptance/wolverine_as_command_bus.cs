@@ -54,7 +54,7 @@ public class wolverine_as_command_bus : IntegrationContext
 
         var message = new Message5();
 
-        await Publisher.InvokeAsync(message);
+        await Publisher.InvokeAsync(message, TestContext.Current.CancellationToken);
 
         theTracker.LastMessage.ShouldBeSameAs(message);
     }
@@ -65,7 +65,7 @@ public class wolverine_as_command_bus : IntegrationContext
         await configure();
         var message = new InvokedMessage { FailThisManyTimes = 2 };
 
-        await Publisher.InvokeAsync(message);
+        await Publisher.InvokeAsync(message, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class wolverine_as_command_bus : IntegrationContext
 
         var message = new Message5();
 
-        await Publisher.InvokeAsync(message);
+        await Publisher.InvokeAsync(message, TestContext.Current.CancellationToken);
 
         var m1 = await theTracker.Message1;
         m1.Id.ShouldBe(message.Id);
@@ -97,7 +97,7 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task invoke_expecting_a_response()
     {
-        var answer = await Bus.InvokeAsync<Answer>(new Question { One = 3, Two = 4 });
+        var answer = await Bus.InvokeAsync<Answer>(new Question { One = 3, Two = 4 }, TestContext.Current.CancellationToken);
 
         answer.Sum.ShouldBe(7);
         answer.Product.ShouldBe(12);
@@ -106,7 +106,7 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task invoke_expecting_a_response_with_struct()
     {
-        var answer = await Bus.InvokeAsync<AnswerStruct>(new QuestionStruct { One = 3, Two = 4 });
+        var answer = await Bus.InvokeAsync<AnswerStruct>(new QuestionStruct { One = 3, Two = 4 }, TestContext.Current.CancellationToken);
 
         answer.Sum.ShouldBe(7);
         answer.Product.ShouldBe(12);
@@ -124,14 +124,14 @@ public class wolverine_as_command_bus : IntegrationContext
     [Fact]
     public async Task invoke_with_no_known_response_do_not_blow_up()
     {
-        (await Bus.InvokeAsync<Answer>(new QuestionWithNoAnswer()))
+        (await Bus.InvokeAsync<Answer>(new QuestionWithNoAnswer(), TestContext.Current.CancellationToken))
             .ShouldBeNull();
     }
 
     [Fact]
     public async Task should_return_result_for_command_with_castable_result()
     {
-        var answer = await Bus.InvokeAsync<IAnswer>(new Question { One = 3, Two = 4 });
+        var answer = await Bus.InvokeAsync<IAnswer>(new Question { One = 3, Two = 4 }, TestContext.Current.CancellationToken);
 
         answer.Sum.ShouldBe(7);
         answer.Product.ShouldBe(12);

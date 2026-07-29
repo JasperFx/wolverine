@@ -30,7 +30,7 @@ public class invoke_tracing_mode
             })
             .Build();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         try
         {
@@ -44,7 +44,7 @@ public class invoke_tracing_mode
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -62,7 +62,7 @@ public class invoke_tracing_mode
             })
             .Build();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         try
         {
@@ -76,7 +76,7 @@ public class invoke_tracing_mode
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -94,7 +94,7 @@ public class invoke_tracing_mode
             })
             .Build();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         try
         {
@@ -107,7 +107,7 @@ public class invoke_tracing_mode
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -125,7 +125,7 @@ public class invoke_tracing_mode
             })
             .Build();
 
-        await host.StartAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         try
         {
@@ -138,7 +138,7 @@ public class invoke_tracing_mode
         }
         finally
         {
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }

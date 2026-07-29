@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <!-- GH-3702: xUnit1051 reinstated for this project -->
+        <XUnitCancellationTokenEnforced>true</XUnitCancellationTokenEnforced>
         <Description>Compliance test harnesses for adding persistence and transport options to Wolverine</Description>
         <PackageId>WolverineFx.ComplianceTests</PackageId>
         <!--

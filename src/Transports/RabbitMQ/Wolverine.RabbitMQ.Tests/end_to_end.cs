@@ -174,7 +174,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         await publisher
             .TrackActivity()
@@ -216,7 +216,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         for (int i = 0; i < 10000; i++)
         {
@@ -263,7 +263,7 @@ public class end_to_end
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         for (int i = 0; i < 10000; i++)
         {
@@ -298,7 +298,7 @@ public class end_to_end
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
             
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -310,9 +310,9 @@ public class end_to_end
 
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         for (int i = 0; i < 10000; i++)
         {
@@ -346,7 +346,7 @@ public class end_to_end
                 .SendInline();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var receiver = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
@@ -359,7 +359,7 @@ public class end_to_end
 
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         Func<IMessageContext, Task> publishing = async c =>
         {
@@ -405,7 +405,7 @@ public class end_to_end
             }).IntegrateWithWolverine();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var receiver = await Host.CreateDefaultBuilder().UseWolverine(opts =>
         {
@@ -424,7 +424,7 @@ public class end_to_end
             }).IntegrateWithWolverine();
 
             opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await publisher
             .TrackActivity()
@@ -510,7 +510,7 @@ public class end_to_end
             }).IntegrateWithWolverine();
         });
 
-        await publisher.ResetResourceState();
+        await publisher.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         var receiver = await WolverineHost.ForAsync(opts =>
         {
@@ -529,7 +529,7 @@ public class end_to_end
             }).IntegrateWithWolverine();
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         try
         {
@@ -864,7 +864,7 @@ public class end_to_end
             opts.ListenToRabbitQueue(queueName);
         });
 
-        await receiver.ResetResourceState();
+        await receiver.ResetResourceState(cancellation: TestContext.Current.CancellationToken);
 
         await publisher
             .TrackActivity()

@@ -31,7 +31,7 @@ public class Bug_3497_model_cache_key_includes_wolverine_schema
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "bug3497_a");
                 opts.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
                     x => x.UseNpgsql(Servers.PostgresConnectionString));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var hostB = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -41,7 +41,7 @@ public class Bug_3497_model_cache_key_includes_wolverine_schema
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "bug3497_b");
                 opts.Services.AddDbContextWithWolverineIntegration<ItemsDbContext>(
                     x => x.UseNpgsql(Servers.PostgresConnectionString));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         using var scopeA = hostA.Services.CreateScope();
         using var scopeB = hostB.Services.CreateScope();

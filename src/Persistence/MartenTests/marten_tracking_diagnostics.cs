@@ -44,7 +44,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
                 // with marten.savechanges.start / .finished ActivityEvents.
                 opts.Policies.AutoApplyTransactions();
                 opts.Tracking.OutboxDiagnosticsEnabled = true;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Force codegen by resolving the handler.
         host.GetRuntime().Handlers.HandlerFor<MartenTrackingMessage>();
@@ -71,7 +71,7 @@ public class marten_tracking_diagnostics : PostgresqlContext
                 opts.Services.AddMarten(Servers.PostgresConnectionString).IntegrateWithWolverine();
                 opts.Policies.AutoApplyTransactions();
                 // OutboxDiagnosticsEnabled left at its default (false)
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         host.GetRuntime().Handlers.HandlerFor<MartenTrackingMessage>();
 

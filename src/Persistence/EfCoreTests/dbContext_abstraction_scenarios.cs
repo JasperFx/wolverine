@@ -89,7 +89,7 @@ public class dbContext_abstraction_scenarios
                     .IncludeType<RegisterCustomerDirectHandler>();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var orderId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
@@ -99,10 +99,10 @@ public class dbContext_abstraction_scenarios
 
         await using var scope = host.Services.CreateAsyncScope();
         (await scope.ServiceProvider.GetRequiredService<OrdersDbContext>()
-                .Orders.AnyAsync(o => o.Id == orderId))
+                .Orders.AnyAsync(o => o.Id == orderId, cancellationToken: TestContext.Current.CancellationToken))
             .ShouldBeTrue("abstracted handler must commit through the IOrderRepository transaction");
         (await scope.ServiceProvider.GetRequiredService<CustomersDbContext>()
-                .Customers.AnyAsync(c => c.Id == customerId))
+                .Customers.AnyAsync(c => c.Id == customerId, cancellationToken: TestContext.Current.CancellationToken))
             .ShouldBeTrue("direct handler must commit through the CustomersDbContext transaction");
     }
 
@@ -155,7 +155,7 @@ public class dbContext_abstraction_scenarios
                     .IncludeType<RecordStoreOrderHandler>();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var itemId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -165,8 +165,8 @@ public class dbContext_abstraction_scenarios
 
         await using var scope = host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
-        (await db.Items.AnyAsync(i => i.Id == itemId)).ShouldBeTrue();
-        (await db.StoreOrders.AnyAsync(o => o.Id == orderId)).ShouldBeTrue();
+        (await db.Items.AnyAsync(i => i.Id == itemId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await db.StoreOrders.AnyAsync(o => o.Id == orderId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     // --- Scenario 3: same handler uses both abstractions; assert SAME DbContext instance -------
@@ -212,7 +212,7 @@ public class dbContext_abstraction_scenarios
                     .IncludeType<CrossAbstractionAuditHandler>();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var itemId = Guid.NewGuid();
         var orderId = Guid.NewGuid();
@@ -230,8 +230,8 @@ public class dbContext_abstraction_scenarios
         // And both writes must have landed via that single context's single SaveChanges.
         await using var scope = host.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<StoreDbContext>();
-        (await db.Items.AnyAsync(i => i.Id == itemId)).ShouldBeTrue();
-        (await db.StoreOrders.AnyAsync(o => o.Id == orderId)).ShouldBeTrue();
+        (await db.Items.AnyAsync(i => i.Id == itemId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
+        (await db.StoreOrders.AnyAsync(o => o.Id == orderId, cancellationToken: TestContext.Current.CancellationToken)).ShouldBeTrue();
     }
 
     // EF Core's EnsureCreatedAsync is a no-op when the database already exists — and the shared

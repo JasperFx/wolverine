@@ -327,7 +327,7 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
 
         // Several recovery sweeps go by with nothing to find. This is the window a one-shot recovery would
         // have spent its single look in.
-        await Task.Delay(2.Seconds());
+        await Task.Delay(2.Seconds(), TestContext.Current.CancellationToken);
 
         tracking.Count.ShouldBe(0,
             "The listener must not touch inbox rows that are still owned by another node");

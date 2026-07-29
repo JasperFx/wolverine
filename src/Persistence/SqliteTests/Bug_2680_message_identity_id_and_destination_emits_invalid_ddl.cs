@@ -75,12 +75,12 @@ public class Bug_2680_message_identity_id_and_destination_emits_invalid_ddl : IA
                 opts.PersistMessagesWithSqlite(_database.ConnectionString);
                 opts.Services.AddResourceSetupOnStartup();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var connection = new SqliteConnection(_database.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
 
-        var tables = await connection.ExistingTablesAsync(schemas: ["main"]);
+        var tables = await connection.ExistingTablesAsync(schemas: ["main"], ct: TestContext.Current.CancellationToken);
         tables.ShouldContain(
             x => string.Equals(x.Name, DatabaseConstants.IncomingTable, StringComparison.OrdinalIgnoreCase),
             $"{DatabaseConstants.IncomingTable} must exist after host startup; pre-fix the migration aborts and the table is never created.");
@@ -93,9 +93,9 @@ public class Bug_2680_message_identity_id_and_destination_emits_invalid_ddl : IA
         pragma.CommandText = $"PRAGMA table_info({DatabaseConstants.IncomingTable});";
 
         var pkColumns = new List<string>();
-        await using (var reader = await pragma.ExecuteReaderAsync())
+        await using (var reader = await pragma.ExecuteReaderAsync(TestContext.Current.CancellationToken))
         {
-            while (await reader.ReadAsync())
+            while (await reader.ReadAsync(TestContext.Current.CancellationToken))
             {
                 var columnName = reader.GetString(1);
                 var pk = reader.GetInt32(5);

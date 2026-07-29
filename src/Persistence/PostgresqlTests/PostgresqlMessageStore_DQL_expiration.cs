@@ -30,14 +30,14 @@ public class PostgresqlMessageStore_DQL_expiration
 
                 opts.ListenAtPort(2345).UseDurableInbox();
                 opts.Durability.DeadLetterQueueExpirationEnabled = false;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         dlq!.ColumnFor(DatabaseConstants.Expires).ShouldBeNull();
     }
 
@@ -57,14 +57,14 @@ public class PostgresqlMessageStore_DQL_expiration
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
 
                 opts.Services.AddResourceSetupOnStartup();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         
-        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn);
+        var dlq = await new DeadLettersTable(runtime.Options.Durability, "dlq_expiration").FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         var column = dlq!.ColumnFor(DatabaseConstants.Expires);
         column.ShouldNotBeNull();
         column.AllowNulls.ShouldBeTrue();

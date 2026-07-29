@@ -73,7 +73,7 @@ public class StartFromBehaviorTests
             {
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = publisherHost.MessageBus();
         
@@ -82,7 +82,7 @@ public class StartFromBehaviorTests
         await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("before-2"));
         await bus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("before-3"));
 
-        await publisherHost.StopAsync();
+        await publisherHost.StopAsync(TestContext.Current.CancellationToken);
 
         // Now create a listener with StartFromNewMessages (default behavior)
         using var listenerHost = await Host.CreateDefaultBuilder()
@@ -104,17 +104,17 @@ public class StartFromBehaviorTests
                 opts.Services.AddSingleton(tcs);
                 opts.Discovery.IncludeAssembly(typeof(StartFromBehaviorTests).Assembly);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Give listener time to start
-        await Task.Delay(200);
+        await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Send a message after the listener is active
         var listenerBus = listenerHost.MessageBus();
         await listenerBus.EndpointFor(new Uri($"redis://stream/0/{streamKey}")).SendAsync(new TestMessage("after-1"));
 
         // Wait for completion or timeout
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5)));
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
         if (completed == tcs.Task)
         {
             // Should only have received the message sent after listener creation
@@ -131,7 +131,7 @@ public class StartFromBehaviorTests
             tracker.ReceivedMessages.ShouldContain("after-1");
         }
 
-        await listenerHost.StopAsync();
+        await listenerHost.StopAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public class StartFromBehaviorTests
                 opts.PublishMessage<TestMessage>().To(new Uri($"redis://stream/0/{streamKey}"))
                     .SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = publisherHost.MessageBus();
         
@@ -158,7 +158,7 @@ public class StartFromBehaviorTests
         await bus.PublishAsync(new TestMessage("existing-1"));
         await bus.PublishAsync(new TestMessage("existing-2"));
 
-        await publisherHost.StopAsync();
+        await publisherHost.StopAsync(TestContext.Current.CancellationToken);
 
         var waiter = tracker.WaitForNumberOfMessages(2, 10000);
 
@@ -181,7 +181,7 @@ public class StartFromBehaviorTests
                 opts.Services.AddSingleton(tracker);
                 opts.Discovery.IncludeAssembly(typeof(StartFromBehaviorTests).Assembly);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // Give time for message processing
         await waiter;
@@ -191,6 +191,6 @@ public class StartFromBehaviorTests
         tracker.ReceivedMessages.ShouldContain("existing-1");
         tracker.ReceivedMessages.ShouldContain("existing-2");
 
-        await listenerHost.StopAsync();
+        await listenerHost.StopAsync(TestContext.Current.CancellationToken);
     }
 }

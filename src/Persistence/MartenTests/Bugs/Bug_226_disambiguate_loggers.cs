@@ -35,7 +35,7 @@ public class Bug_226_disambiguate_loggers : PostgresqlContext
                     .IncludeType<StoreSomethingHandler>();
                 opts.Durability.Mode = DurabilityMode.Solo;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var id = Guid.NewGuid();
 

@@ -38,7 +38,7 @@ public class send_kafka_tombstone : IAsyncLifetime
         await bus.BroadcastToTopicAsync(topicName, new KafkaTombstone(tombstoneKey));
 
         // Give the batched sender time to flush
-        await Task.Delay(5.Seconds());
+        await Task.Delay(5.Seconds(), TestContext.Current.CancellationToken);
 
         var consumerConfig = new ConsumerConfig
         {

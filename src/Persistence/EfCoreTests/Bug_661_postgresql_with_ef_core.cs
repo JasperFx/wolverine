@@ -26,6 +26,6 @@ public class Bug_661_postgresql_with_ef_core
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString);
                 opts.Services.AddResourceSetupOnStartup();
                 opts.Services.AddDbContext<AppDbContext>(opt => opt.UseNpgsql(Servers.PostgresConnectionString));
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
     }
 }

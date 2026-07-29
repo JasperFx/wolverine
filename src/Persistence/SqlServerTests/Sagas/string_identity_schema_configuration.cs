@@ -60,14 +60,14 @@ public class string_identity_schema_configuration
     public async Task can_create_nvarchar_table_and_delta_is_none()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("string_sagas");
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await conn.DropSchemaAsync("string_sagas", ct: TestContext.Current.CancellationToken);
 
         var table = BuildSchema(useNVarCharForStringId: true).Table.ShouldBeOfType<Table>();
 
         await table.MigrateAsync(conn);
 
-        var delta = await table.FindDeltaAsync(conn);
+        var delta = await table.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         delta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 
@@ -75,14 +75,14 @@ public class string_identity_schema_configuration
     public async Task can_migrate_varchar_to_nvarchar_and_delta_is_none()
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
-        await conn.DropSchemaAsync("string_sagas");
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
+        await conn.DropSchemaAsync("string_sagas", ct: TestContext.Current.CancellationToken);
 
         // Step 1: create with default varchar(100)
         var varcharTable = BuildSchema(useNVarCharForStringId: false).Table.ShouldBeOfType<Table>();
         await varcharTable.MigrateAsync(conn);
 
-        var initialDelta = await varcharTable.FindDeltaAsync(conn);
+        var initialDelta = await varcharTable.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         initialDelta.Difference.ShouldBe(SchemaPatchDifference.None);
 
         // Step 2: switch to nvarchar(100) and migrate
@@ -90,7 +90,7 @@ public class string_identity_schema_configuration
         await nvarcharTable.MigrateAsync(conn);
 
         // Step 3: verify no remaining delta
-        var finalDelta = await nvarcharTable.FindDeltaAsync(conn);
+        var finalDelta = await nvarcharTable.FindDeltaAsync(conn, TestContext.Current.CancellationToken);
         finalDelta.Difference.ShouldBe(SchemaPatchDifference.None);
     }
 

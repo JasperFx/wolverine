@@ -17,7 +17,7 @@ public class RabbitMqExchangeBindingTests
 
         await binding.DeclareAsync(channel, NullLogger.Instance);
 
-        await channel.Received().ExchangeBindAsync("destination", "source", "routing.key", (IDictionary<string, object?>)binding.Arguments);
+        await channel.Received().ExchangeBindAsync("destination", "source", "routing.key", (IDictionary<string, object?>)binding.Arguments, cancellationToken: Arg.Any<CancellationToken>());
         binding.HasDeclared.ShouldBeTrue();
     }
 
@@ -29,7 +29,7 @@ public class RabbitMqExchangeBindingTests
 
         await binding.TeardownAsync(channel);
 
-        await channel.Received().ExchangeUnbindAsync("destination", "source", "routing.key", (IDictionary<string, object?>)binding.Arguments);
+        await channel.Received().ExchangeUnbindAsync("destination", "source", "routing.key", (IDictionary<string, object?>)binding.Arguments, cancellationToken: Arg.Any<CancellationToken>());
     }
     
     public class when_adding_exchange_to_exchange_bindings
@@ -197,9 +197,8 @@ public class RabbitMqExchangeBindingTests
 
             await exchange.DeclareAsync(channel, NullLogger.Instance);
 
-            await channel.Received().ExchangeDeclareAsync("dest", "topic", true, false, (IDictionary<string, object?>)exchange.Arguments);
-            await channel.Received().ExchangeBindAsync("dest", "source", "routing.key",
-                Arg.Any<IDictionary<string, object?>>());
+            await channel.Received().ExchangeDeclareAsync("dest", "topic", true, false, (IDictionary<string, object?>)exchange.Arguments, cancellationToken: Arg.Any<CancellationToken>());
+            await channel.Received().ExchangeBindAsync("dest", "source", "routing.key", Arg.Any<IDictionary<string, object?>>(), cancellationToken: Arg.Any<CancellationToken>());
         }
     }
 }

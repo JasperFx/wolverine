@@ -145,7 +145,7 @@ public class Bug_3171_channel_only_shutdown_recovery : IAsyncLifetime
         // of #3171 — the listener sits blocked and will not self-heal on its own.
         try
         {
-            await originalChannel.QueueDeclarePassiveAsync($"missing-{Guid.NewGuid():N}");
+            await originalChannel.QueueDeclarePassiveAsync($"missing-{Guid.NewGuid():N}", TestContext.Current.CancellationToken);
         }
         catch
         {

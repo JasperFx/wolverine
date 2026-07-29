@@ -419,7 +419,7 @@ public class remote_invocation : IAsyncLifetime
 
         // The response should ALSO have been published as a cascading message
         // and handled by AlwaysPublishResponseReceivedHandler on the receiver
-        var handled = await AlwaysPublishResponseReceivedHandler.Received.Task.WaitAsync(10.Seconds());
+        var handled = await AlwaysPublishResponseReceivedHandler.Received.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
         handled.ShouldBeTrue();
     }
 }

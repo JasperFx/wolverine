@@ -48,7 +48,7 @@ public class sticky_handlers_with_global_partitioning
 
                 // This is the key: propagate group ID to partition key (as in the bug report)
                 opts.Policies.PropagateGroupIdToPartitionKey();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new StickyPartitionedMessage("group-1", "test-payload");
         var session = await host.SendMessageAndWaitAsync(message, timeoutInMilliseconds: 15000);
@@ -90,7 +90,7 @@ public class sticky_handlers_with_global_partitioning
                     .ByMessage<StickyPartitionedMessage>(m => m.Id);
 
                 opts.Policies.PropagateGroupIdToPartitionKey();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Send 3 messages with the same group ID
         for (int i = 0; i < 3; i++)

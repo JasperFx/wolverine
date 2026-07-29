@@ -38,11 +38,11 @@ public class sqlite_migration_lock : SqliteContext, IAsyncLifetime
         var migrationLockId = store.Settings.MigrationLockId;
 
         await using var conn = new SqliteConnection(_db.ConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = "select count(*) from wolverine_locks where lock_id = $id";
         cmd.Parameters.AddWithValue("$id", migrationLockId);
-        var count = (long)(await cmd.ExecuteScalarAsync())!;
+        var count = (long)(await cmd.ExecuteScalarAsync(TestContext.Current.CancellationToken))!;
         count.ShouldBe(0);
     }
 
@@ -57,7 +57,7 @@ public class sqlite_migration_lock : SqliteContext, IAsyncLifetime
             CreateHostAsync(_db.ConnectionString),
             CreateHostAsync(_db.ConnectionString));
 
-        var hosts = await startup.WaitAsync(TimeSpan.FromSeconds(15));
+        var hosts = await startup.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken);
         try
         {
             hosts.ShouldNotBeNull();
@@ -65,7 +65,7 @@ public class sqlite_migration_lock : SqliteContext, IAsyncLifetime
         }
         finally
         {
-            foreach (var h in hosts) await h.StopAsync();
+            foreach (var h in hosts) await h.StopAsync(TestContext.Current.CancellationToken);
             foreach (var h in hosts) h.Dispose();
         }
     }

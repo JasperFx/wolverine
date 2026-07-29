@@ -49,7 +49,7 @@ public class Optimistic_concurrency_with_ef_core
                     opt.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
                     opt.Policies.UseDurableLocalQueues();
                     opt.Policies.AutoApplyTransactions();
-                }).StartAsync();
+                }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             using var scope = host.Services.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<OptConcurrencyDbContext>();
@@ -70,8 +70,8 @@ public class Optimistic_concurrency_with_ef_core
                 Id = sagaId,
                 Value = "initial value",
                 Version = 0,
-            });
-            await dbContext.SaveChangesAsync();
+            }, TestContext.Current.CancellationToken);
+            await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             await Should.ThrowAsync<SagaConcurrencyException>(() =>
                 host.InvokeMessageAndWaitAsync(new UpdateConcurrencyTestSaga(sagaId, "updated value")));

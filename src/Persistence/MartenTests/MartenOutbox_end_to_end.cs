@@ -52,7 +52,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
 
             await outbox.PublishAsync(new OutboxedMessage { Id = id });
 
-            await session.SaveChangesAsync();
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var message = await waiter;
@@ -61,7 +61,7 @@ public class MartenOutbox_end_to_end : PostgresqlContext, IAsyncLifetime
         await using var query = _host.Services.GetRequiredService<IDocumentStore>()
             .QuerySession();
         ;
-        (await query.LoadAsync<Item>(id)).ShouldNotBeNull();
+        (await query.LoadAsync<Item>(id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
     }
 }
 

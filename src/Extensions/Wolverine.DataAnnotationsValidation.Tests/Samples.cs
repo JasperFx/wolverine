@@ -16,7 +16,7 @@ public class Samples
             {
                 // Apply the validation middleware
                 opts.UseDataAnnotationsValidation();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }
@@ -34,7 +34,7 @@ public class Samples
                 // Override the service registration for IFailureAction
                 opts.Services.AddSingleton(typeof(IFailureAction<>), typeof(CustomFailureAction<>));
                 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         #endregion
     }

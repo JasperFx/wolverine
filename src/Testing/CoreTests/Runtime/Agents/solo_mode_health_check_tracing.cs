@@ -87,7 +87,7 @@ public class solo_mode_health_check_tracing : IDisposable
         await _controller.StartSoloModeAsync();
 
         // Let the recurring loop fire several times (25ms period).
-        await Task.Delay(400.Milliseconds());
+        await Task.Delay(400.Milliseconds(), TestContext.Current.CancellationToken);
 
         // Stop the loop before asserting.
         await _cancellation.CancelAsync();
@@ -122,7 +122,7 @@ public class solo_mode_health_check_tracing : IDisposable
         _options.Durability.NodeAssignmentHealthCheckTraceSamplingPeriod = 1.Hours();
 
         await _controller.StartSoloModeAsync();
-        await Task.Delay(400.Milliseconds());
+        await Task.Delay(400.Milliseconds(), TestContext.Current.CancellationToken);
         await _cancellation.CancelAsync();
 
         // Only the startup tick should trace within a 1-hour sampling window.

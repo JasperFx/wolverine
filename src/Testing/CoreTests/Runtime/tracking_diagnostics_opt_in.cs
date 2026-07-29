@@ -71,7 +71,7 @@ public class tracking_diagnostics_opt_in
     [Fact]
     public async Task all_tracking_flags_default_to_false()
     {
-        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync();
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.GetRuntime().Options;
 
@@ -105,7 +105,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -133,7 +133,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -151,7 +151,7 @@ public class tracking_diagnostics_opt_in
         try
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
             writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = true");
 
@@ -167,7 +167,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -180,7 +180,7 @@ public class tracking_diagnostics_opt_in
         try
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
             writeGeneratedSource(host, "HandlerExecutionDiagnosticsEnabled = false (default)");
 
@@ -196,7 +196,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -231,7 +231,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -260,7 +260,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -274,7 +274,7 @@ public class tracking_diagnostics_opt_in
         try
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
             var handlerActivity = captured.FirstOrDefault(a =>
                 a.GetTagItem(WolverineTracing.MessageHandler) is string h
@@ -286,7 +286,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -299,7 +299,7 @@ public class tracking_diagnostics_opt_in
         try
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
             var handlerActivity = captured.FirstOrDefault(a =>
                 a.GetTagItem(WolverineTracing.MessageHandler) is string h
@@ -312,7 +312,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -336,14 +336,14 @@ public class tracking_diagnostics_opt_in
         try
         {
             await host.InvokeMessageAndWaitAsync(new TrackingDiagnosticsMessage("hello"));
-            await Task.Delay(100.Milliseconds());
+            await Task.Delay(100.Milliseconds(), TestContext.Current.CancellationToken);
 
             captured.Any(a => a.OperationName == WolverineTracing.Deserialize).ShouldBeFalse();
         }
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }
@@ -398,7 +398,7 @@ public class tracking_diagnostics_opt_in
         finally
         {
             listener.Dispose();
-            await host.StopAsync();
+            await host.StopAsync(TestContext.Current.CancellationToken);
             host.Dispose();
         }
     }

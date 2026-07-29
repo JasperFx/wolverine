@@ -138,8 +138,8 @@ public class convention_discovery_tests
         // This should discover PingGrpcService via the "GrpcService" suffix convention
         app.MapWolverineGrpcServices();
 
-        await app.StartAsync();
-        await app.StopAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
+        await app.StopAsync(TestContext.Current.CancellationToken);
         await app.DisposeAsync();
     }
 }

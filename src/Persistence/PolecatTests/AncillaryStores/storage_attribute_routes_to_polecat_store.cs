@@ -61,7 +61,7 @@ public class storage_attribute_routes_to_polecat_store : IAsyncLifetime
 
         var store = theHost.Services.GetRequiredService<IPlayerStore>();
         await using var session = store.QuerySession();
-        (await session.LoadAsync<Player>(message.Id)).ShouldNotBeNull();
+        (await session.LoadAsync<Player>(message.Id, TestContext.Current.CancellationToken)).ShouldNotBeNull();
     }
 }
 

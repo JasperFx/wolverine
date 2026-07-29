@@ -17,7 +17,7 @@ public class Bug_2004_separated_handler_stuff
                 opts.CodeGeneration.TypeLoadMode = TypeLoadMode.Auto;
                 opts.MultipleHandlerBehavior = MultipleHandlerBehavior.Separated;
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.SendMessageAndWaitAsync(new SayStuff0());
     }

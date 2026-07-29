@@ -45,7 +45,7 @@ public class WolverineListenerHealthCheckTests
             FakeListener(ListeningStatus.Accepting, "local://default")
         );
 
-        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor());
+        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data["accepting"].ShouldBe(2);
@@ -62,7 +62,7 @@ public class WolverineListenerHealthCheckTests
             FakeListener(ListeningStatus.TooBusy, "rabbitmq://orders")
         );
 
-        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor());
+        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Data["tooBusy"].ShouldBe(1);
@@ -76,7 +76,7 @@ public class WolverineListenerHealthCheckTests
             FakeListener(ListeningStatus.GloballyLatched, "rabbitmq://orders")
         );
 
-        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor());
+        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Degraded);
         result.Data["globallyLatched"].ShouldBe(1);
@@ -90,7 +90,7 @@ public class WolverineListenerHealthCheckTests
             FakeListener(ListeningStatus.Stopped, "local://default")
         );
 
-        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor());
+        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Data["stopped"].ShouldBe(2);
@@ -103,7 +103,7 @@ public class WolverineListenerHealthCheckTests
         // who want a missing listener to fail can register a separate check.
         var runtime = RuntimeWithListeners();
 
-        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor());
+        var result = await new WolverineListenerHealthCheck(runtime).CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Healthy);
         result.Data["listenerCount"].ShouldBe(0);
@@ -122,7 +122,7 @@ public class WolverineListenerHealthCheckTests
         var check = new WolverineListenerHealthCheck(runtime,
             agent => agent.Uri.Scheme == "rabbitmq");
 
-        var result = await check.CheckHealthAsync(ContextFor());
+        var result = await check.CheckHealthAsync(ContextFor(), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Unhealthy);
         result.Data["listenerCount"].ShouldBe(1);
@@ -137,7 +137,7 @@ public class WolverineListenerHealthCheckTests
         );
 
         var result = await new WolverineListenerHealthCheck(runtime)
-            .CheckHealthAsync(ContextFor(failureStatus: HealthStatus.Degraded));
+            .CheckHealthAsync(ContextFor(failureStatus: HealthStatus.Degraded), TestContext.Current.CancellationToken);
 
         result.Status.ShouldBe(HealthStatus.Degraded);
     }

@@ -30,10 +30,10 @@ public class result_types_end_to_end
     [Fact]
     public async Task invokeasync_T_against_result_returning_handler_unwraps_success()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var bus = host.Services.GetRequiredService<IMessageBus>();
 
-        var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrder("o-1", 5));
+        var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrder("o-1", 5), TestContext.Current.CancellationToken);
 
         placed.ShouldNotBeNull();
         placed.OrderId.ShouldBe("o-1");
@@ -47,7 +47,7 @@ public class result_types_end_to_end
     [Fact(Skip = "GH-2221 follow-up: failure-branch InvokeAsync<T> requires seam 2 to ship the raw wrapper on the reply path so component R can throw ResultFailureException. Same bucket as B-3 — Phase 3 polish + Phase 4 HTTP.")]
     public async Task invokeasync_T_against_result_failure_throws_resultfailureexception()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var bus = host.Services.GetRequiredService<IMessageBus>();
 
         var ex = await Should.ThrowAsync<ResultFailureException>(async () =>
@@ -64,14 +64,14 @@ public class result_types_end_to_end
     [Fact(Skip = "GH-2221 follow-up: InvokeAsync<Result<T>> wrapper-passthrough requires seam 2 to keep the raw wrapper on the reply path while seam 3 unwraps for fire-and-forget. Tracked as Phase 3 polish, alongside Phase 4 HTTP.")]
     public async Task invokeasync_of_raw_result_T_returns_the_wrapper_on_both_branches()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var bus = host.Services.GetRequiredService<IMessageBus>();
 
-        var success = await bus.InvokeAsync<Result<OrderPlaced>>(new CreateOrder("o-3", 5));
+        var success = await bus.InvokeAsync<Result<OrderPlaced>>(new CreateOrder("o-3", 5), TestContext.Current.CancellationToken);
         success.IsSuccess.ShouldBeTrue();
         success.Value.OrderId.ShouldBe("o-3");
 
-        var failure = await bus.InvokeAsync<Result<OrderPlaced>>(new CreateOrder("o-4", 0));
+        var failure = await bus.InvokeAsync<Result<OrderPlaced>>(new CreateOrder("o-4", 0), TestContext.Current.CancellationToken);
         failure.IsFailed.ShouldBeTrue();
         failure.Errors.Select(e => e.Message).ShouldContain("Quantity must be positive");
     }
@@ -84,7 +84,7 @@ public class result_types_end_to_end
     [Fact]
     public async Task invokeasync_void_against_result_success_cascades_inner_T()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var book = host.Services.GetRequiredService<OrdersBook>();
 
         var tracked = await host
@@ -108,7 +108,7 @@ public class result_types_end_to_end
     [Fact]
     public async Task invokeasync_void_against_result_failure_does_not_cascade_anything()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var book = host.Services.GetRequiredService<OrdersBook>();
 
         var tracked = await host
@@ -130,10 +130,10 @@ public class result_types_end_to_end
     [Fact]
     public async Task async_handler_returning_task_of_result_unwraps_normally()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var bus = host.Services.GetRequiredService<IMessageBus>();
 
-        var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrderAsync("o-7", 5));
+        var placed = await bus.InvokeAsync<OrderPlaced>(new CreateOrderAsync("o-7", 5), TestContext.Current.CancellationToken);
         placed.OrderId.ShouldBe("o-7");
     }
 
@@ -141,13 +141,13 @@ public class result_types_end_to_end
     [Fact]
     public async Task plain_non_result_handlers_are_unaffected_when_result_types_registered()
     {
-        using var host = await hostWithFluentResultsRegistered().StartAsync();
+        using var host = await hostWithFluentResultsRegistered().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         var bus = host.Services.GetRequiredService<IMessageBus>();
 
         // PlainCommand returns PlainResponse directly — no Result wrapper. The seam-3 policy
         // should leave its return-action source on the default CascadingMessageActionSource, and
         // the InvokeAsync<T> caller path should bypass the Result-aware branch.
-        var response = await bus.InvokeAsync<PlainResponse>(new PlainCommand("hello"));
+        var response = await bus.InvokeAsync<PlainResponse>(new PlainCommand("hello"), TestContext.Current.CancellationToken);
         response.Echo.ShouldBe("hello");
     }
 }

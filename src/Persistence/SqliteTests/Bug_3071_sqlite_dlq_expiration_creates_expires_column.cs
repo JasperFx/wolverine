@@ -73,12 +73,12 @@ public class Bug_3071_sqlite_dlq_expiration_creates_expires_column : IAsyncLifet
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
                 opts.Services.AddResourceSetupOnStartup();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var connection = new SqliteConnection(_database.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
 
-        var tables = await connection.ExistingTablesAsync(schemas: ["main"]);
+        var tables = await connection.ExistingTablesAsync(schemas: ["main"], ct: TestContext.Current.CancellationToken);
         tables.ShouldContain(
             x => string.Equals(x.Name, DatabaseConstants.DeadLetterTable, StringComparison.OrdinalIgnoreCase),
             $"{DatabaseConstants.DeadLetterTable} must exist after host startup with DeadLetterQueueExpirationEnabled.");
@@ -109,10 +109,10 @@ public class Bug_3071_sqlite_dlq_expiration_creates_expires_column : IAsyncLifet
                 opts.Durability.DeadLetterQueueExpirationEnabled = false;
                 opts.Services.AddResourceSetupOnStartup();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var connection = new SqliteConnection(_database.ConnectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
 
         var columns = await GetColumnNamesAsync(connection, DatabaseConstants.DeadLetterTable);
         columns.ShouldNotContain(DatabaseConstants.Expires);

@@ -25,10 +25,10 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         var (tracked, created) =
             await host.InvokeMessageAndWaitAsync<PcItemCreated>(new PcCreateItemCommand { Name = "Trevor" });
@@ -52,10 +52,10 @@ public class Bug_305_invoke_async_with_return_not_publishing_with_tuple_return_v
                 }).IntegrateWithWolverine();
 
                 opts.Policies.AutoApplyTransactions();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         Func<IMessageContext, Task> execute = async c =>
         {

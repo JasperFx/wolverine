@@ -54,34 +54,34 @@ public class Bug_2518_concurrent_migration_advisory_lock : PostgresqlContext
         var lockId = new DatabaseSettings().MigrationLockId;
 
         await using var holder = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await holder.OpenAsync();
+        await holder.OpenAsync(TestContext.Current.CancellationToken);
 
         await using var contender = new NpgsqlConnection(Servers.PostgresConnectionString);
-        await contender.OpenAsync();
+        await contender.OpenAsync(TestContext.Current.CancellationToken);
 
-        var holderResult = await holder.TryGetGlobalLock(lockId);
+        var holderResult = await holder.TryGetGlobalLock(lockId, cancellation: TestContext.Current.CancellationToken);
         try
         {
             holderResult.ShouldBe(AttainLockResult.Success);
 
-            var contenderResult = await contender.TryGetGlobalLock(lockId);
+            var contenderResult = await contender.TryGetGlobalLock(lockId, cancellation: TestContext.Current.CancellationToken);
             contenderResult.Succeeded.ShouldBeFalse(
                 "A second session must not be able to acquire the same advisory lock");
         }
         finally
         {
-            await holder.ReleaseGlobalLock(lockId);
+            await holder.ReleaseGlobalLock(lockId, cancellation: TestContext.Current.CancellationToken);
         }
 
         // After release, contender can acquire it
-        var afterRelease = await contender.TryGetGlobalLock(lockId);
+        var afterRelease = await contender.TryGetGlobalLock(lockId, cancellation: TestContext.Current.CancellationToken);
         try
         {
             afterRelease.ShouldBe(AttainLockResult.Success);
         }
         finally
         {
-            await contender.ReleaseGlobalLock(lockId);
+            await contender.ReleaseGlobalLock(lockId, cancellation: TestContext.Current.CancellationToken);
         }
     }
 

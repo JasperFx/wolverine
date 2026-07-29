@@ -29,7 +29,7 @@ public class Bug_710_rabbit_exchange_errorneously_used_for_system_queues
 
                 opts.Services.AddMarten(Servers.PostgresConnectionString)
                     .IntegrateWithWolverine();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<IWolverineRuntime>().Options;
 

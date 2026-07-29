@@ -56,7 +56,7 @@ public class exclusive_listeners : IAsyncLifetime
                 opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("one");
                 opts.ListenAtPort(PortFinder.GetAvailablePort()).ListenWithStrictOrdering().Named("two");
                 opts.ListenAtPort(PortFinder.GetAvailablePort()).Named("three");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.GetRuntime();
         runtime.Endpoints.ActiveListeners().Where(x => x.Uri.Scheme != "stub" ).Select(x => x.Endpoint.EndpointName)

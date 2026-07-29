@@ -60,13 +60,13 @@ public class resource_setup_against_a_missing_database : PostgresqlContext, IAsy
         // does not exist yet. Before the discovery seam, FindResources() threw
         // BrokerInitializationException out of PostgresqlTransport's eager connectivity probe
         // before DatabaseCreator ever ran.
-        await host.SetupResources();
+        await host.SetupResources(cancellation: TestContext.Current.CancellationToken);
 
         (await tableExistsAsync("fresh_queues", "wolverine_queue_incoming")).ShouldBeTrue();
         (await tableExistsAsync("fresh", DatabaseConstants.IncomingTable)).ShouldBeTrue();
 
-        await host.StartAsync();
-        await host.StopAsync();
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 
     private async Task<bool> tableExistsAsync(string schema, string table)

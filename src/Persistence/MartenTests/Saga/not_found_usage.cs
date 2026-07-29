@@ -50,7 +50,7 @@ public class not_found_usage : IAsyncLifetime
         await using var query = _host.DocumentStore().LightweightSession();
         
         // Should be deleted at this point
-        (await query.LoadAsync<InvitationPolicy>(id)).ShouldBeNull();
+        (await query.LoadAsync<InvitationPolicy>(id, TestContext.Current.CancellationToken)).ShouldBeNull();
         
         // NotFound should fire here, and no exceptions
         await _host.InvokeMessageAndWaitAsync(new InvitationTimeout( id));

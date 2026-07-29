@@ -68,7 +68,7 @@ public class connection_state_3237
                 opts.PublishMessage<ConnStateMessage>().ToAzureServiceBusQueue("connstate-batched");
 
                 opts.ListenToAzureServiceBusQueue("connstate-inline").ProcessInline();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Prove the pipe actually works...
         await host.TrackActivity().IncludeExternalTransports().Timeout(30.Seconds())

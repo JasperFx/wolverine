@@ -63,7 +63,7 @@ public class Bug_2471_codegen_without_connectivity
                     opts.Discovery.DisableConventionalDiscovery()
                         .IncludeType(typeof(SimpleCodegenHandler2471));
                 })
-                .StartAsync();
+                .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             var runtime = host.GetRuntime();
 

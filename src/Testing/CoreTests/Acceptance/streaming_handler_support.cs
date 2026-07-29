@@ -97,12 +97,12 @@ public class streaming_handler_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
-        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(3)))
+        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(3), TestContext.Current.CancellationToken))
         {
             items.Add(item);
         }
@@ -116,12 +116,12 @@ public class streaming_handler_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
         var items = new List<StreamItem>();
-        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(0)))
+        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(0), TestContext.Current.CancellationToken))
         {
             items.Add(item);
         }
@@ -134,7 +134,7 @@ public class streaming_handler_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -168,7 +168,7 @@ public class streaming_handler_support
             {
                 opts.Services.AddSingleton(tracker);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new CascadeRequest(3));
 
@@ -185,7 +185,7 @@ public class streaming_handler_support
         // composing streaming handlers - partial results are not silently swallowed.
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -216,7 +216,7 @@ public class streaming_handler_support
 
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 
@@ -238,13 +238,13 @@ public class streaming_handler_support
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         var options = new DeliveryOptions();
 
         var items = new List<StreamItem>();
-        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(2), options))
+        await foreach (var item in bus.StreamAsync<StreamItem>(new StreamRequest(2), options, TestContext.Current.CancellationToken))
         {
             items.Add(item);
         }

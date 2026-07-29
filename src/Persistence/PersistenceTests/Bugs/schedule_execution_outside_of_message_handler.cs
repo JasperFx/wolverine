@@ -18,14 +18,14 @@ public class schedule_execution_outside_of_message_handler
             {
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "wolverine");
                 opts.Policies.UseDurableLocalQueues();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         
         var bus = host.MessageBus();
         await bus.ScheduleAsync(new MyGuy("Hey"), 10.Minutes());
 
 
-        await Task.Delay(1.Minutes());
+        await Task.Delay(1.Minutes(), TestContext.Current.CancellationToken);
     }
 }
 

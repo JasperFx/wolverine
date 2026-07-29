@@ -21,7 +21,7 @@ public class connection_state_3231
             {
                 opts.UseRedisTransport(RedisContainerFixture.ConnectionString).AutoProvision();
                 opts.ListenToRedisStream(streamKey, "g1").BlockTimeout(100.Milliseconds());
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var state = await ConnectionStateTestHelpers.WaitForListenerConnectionStateAsync(
             host, "redis", TransportConnectionState.Connected);

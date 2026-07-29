@@ -23,10 +23,10 @@ public class Bug_756_composite_handler_on_saga
                     m.ConnectionString = Servers.SqlServerConnectionString;
                     m.DatabaseSchemaName = "bugs_756";
                 }).IntegrateWithWolverine();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await ((DocumentStore)host.Services.GetRequiredService<IDocumentStore>()).Database
-            .ApplyAllConfiguredChangesToDatabaseAsync();
+            .ApplyAllConfiguredChangesToDatabaseAsync(ct: TestContext.Current.CancellationToken);
 
         await host.InvokeMessageAndWaitAsync(new PcDoSomething(Guid.NewGuid()));
     }

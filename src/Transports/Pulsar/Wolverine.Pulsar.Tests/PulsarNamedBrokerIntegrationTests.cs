@@ -42,7 +42,7 @@ public class PulsarNamedBrokerIntegrationTests
 
                 opts.Discovery.DisableConventionalDiscovery().IncludeType<NamedBrokerHandler>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()

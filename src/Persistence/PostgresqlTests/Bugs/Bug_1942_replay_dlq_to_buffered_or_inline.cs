@@ -63,7 +63,7 @@ public class Bug_1942_replay_dlq_to_buffered_or_inline : PostgresqlContext, IAsy
                 opts.LocalQueueFor<Bug1942Message>().BufferedInMemory();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await runReplayScenarioAsync(host, "bug1942_buffered");
     }
@@ -89,7 +89,7 @@ public class Bug_1942_replay_dlq_to_buffered_or_inline : PostgresqlContext, IAsy
                 opts.ListenToRabbitQueue(queueName).ProcessInline();
 
                 opts.Services.AddResourceSetupOnStartup(StartupAction.ResetState);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await runReplayScenarioAsync(host, "bug1942_inline");
     }

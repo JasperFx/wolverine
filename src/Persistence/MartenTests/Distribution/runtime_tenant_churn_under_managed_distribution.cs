@@ -170,7 +170,7 @@ public class runtime_tenant_churn_under_managed_distribution(ITestOutputHelper o
 
         // Phase 2: WHILE the host is running, add tenant-b to the same shard database through the
         // running store — the same provisioning path the sibling tests use before startup.
-        await theStore.Advanced.AddTenantToShardAsync(TenantB, "shard-1", default);
+        await theStore.Advanced.AddTenantToShardAsync(TenantB, "shard-1", TestContext.Current.CancellationToken);
 
         // Within the assignment-evaluation window (CheckAssignmentPeriod = 1s; generous ceiling for CI)
         // the leader re-enumerates the usage and starts tenant-b's agent.

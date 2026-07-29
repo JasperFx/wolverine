@@ -158,7 +158,7 @@ public class envelope_pool_tests
                 opts.Discovery.DisableConventionalDiscovery()
                     .IncludeType<EnvelopeCapturingHandler>();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         EnvelopeCapturingHandler.LastSeen = null;
         EnvelopeCapturingHandler.CapturedId = default;

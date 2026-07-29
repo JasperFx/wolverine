@@ -21,7 +21,7 @@ public class Bug_2023_invoke_with_discard_error_handling
                         // Do some application-specific error handling here...
                         return new ValueTask();
                     });
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
 

@@ -35,7 +35,7 @@ public class AzureServiceBusTopicTests
 
         await endpoint.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.DidNotReceive().CreateTopicAsync(Arg.Any<CreateTopicOptions>());
+        await theManagementClient.DidNotReceive().CreateTopicAsync(Arg.Any<CreateTopicOptions>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -47,6 +47,6 @@ public class AzureServiceBusTopicTests
 
         await endpoint.InitializeAsync(theManagementClient, NullLogger.Instance);
 
-        await theManagementClient.Received().CreateTopicAsync(Arg.Is<CreateTopicOptions>(x => x.Name == "foo"));
+        await theManagementClient.Received().CreateTopicAsync(Arg.Is<CreateTopicOptions>(x => x.Name == "foo"), Arg.Any<CancellationToken>());
     }
 }

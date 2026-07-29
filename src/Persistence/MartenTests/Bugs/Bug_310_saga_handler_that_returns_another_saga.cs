@@ -48,10 +48,10 @@ public class Bug_310_saga_handler_that_returns_another_saga : PostgresqlContext,
 
         using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
 
-        var saga1 = await session.LoadAsync<Saga1>(id);
+        var saga1 = await session.LoadAsync<Saga1>(id, TestContext.Current.CancellationToken);
         saga1!.One.ShouldBeTrue();
 
-        var saga2 = await session.LoadAsync<Saga2>(id);
+        var saga2 = await session.LoadAsync<Saga2>(id, TestContext.Current.CancellationToken);
         saga2!.Two.ShouldBeTrue();
         saga2.Three.ShouldBeTrue();
     }

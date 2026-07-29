@@ -14,7 +14,7 @@ public class configuring_idempotency_style
     {
         using var host = await Host.CreateDefaultBuilder()
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Forces the codegen rules to be applied that will execute
         // the transactional attribute among other things
@@ -43,7 +43,7 @@ public class configuring_idempotency_style
             {
                 opts.Policies.AutoApplyTransactions(IdempotencyStyle.Eager);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
             #endregion
         
@@ -79,7 +79,7 @@ public class configuring_idempotency_style
             {
                 opts.Policies.AutoApplyTransactions(IdempotencyStyle.Optimistic);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         // Forces the codegen rules to be applied that will execute
         // the transactional attribute among other things

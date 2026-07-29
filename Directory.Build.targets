@@ -2,6 +2,25 @@
 <Project>
 
     <!--
+      xUnit1051 ("use TestContext.Current.CancellationToken") is new in the xUnit v3 analyzer set.
+      It ships at warning severity, and TreatWarningsAsErrors turns it into a hard build break, so
+      it was suppressed wholesale for the v3 migration (#3699).
+
+      Reinstating it is a per-project job rather than a flag flip: threading the token genuinely
+      changes how a suite cancels, and a suite has to be run, not just compiled, before its
+      conversion counts. A project opts in with
+
+          <XUnitCancellationTokenEnforced>true</XUnitCancellationTokenEnforced>
+
+      in its own PropertyGroup. This lives in .targets rather than .props because the property is
+      set by the project file, which is evaluated after Directory.Build.props. Remove this block
+      once every xUnit project is converted; the remaining ones are tracked in GH-3702.
+    -->
+    <PropertyGroup Condition=" '$(XUnitCancellationTokenEnforced)' != 'true' ">
+        <NoWarn>$(NoWarn);xUnit1051</NoWarn>
+    </PropertyGroup>
+
+    <!--
       Security remediation for GHSA-v5pm-xwqc-g5wc (uncontrolled recursion / stack overflow
       when parsing OpenAPI documents with circular schema references).
 

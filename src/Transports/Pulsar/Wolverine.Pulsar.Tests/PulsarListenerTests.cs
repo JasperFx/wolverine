@@ -20,11 +20,11 @@ public class PulsarListenerTests
             var topic = "persistent://public/default/test";
             opts.PublishMessage<PulsarListenerTestMessage>().ToPulsarTopic(topic);
             opts.ListenToPulsarTopic(topic).SubscriptionName("test");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.MessageBus().PublishAsync(new PulsarListenerTestMessage());
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
         host.Dispose();
 
         var subscriptionExists = await SubscriptionExists();
@@ -43,11 +43,11 @@ public class PulsarListenerTests
             var topic = "persistent://public/default/test";
             opts.PublishMessage<PulsarListenerTestMessage>().ToPulsarTopic(topic);
             opts.ListenToPulsarTopic(topic).SubscriptionName("test");
-        }).StartAsync();
+        }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.MessageBus()!.PublishAsync(new PulsarListenerTestMessage());
 
-        await host.StopAsync();
+        await host.StopAsync(TestContext.Current.CancellationToken);
         host.Dispose();
 
         var subscriptionExists = await SubscriptionExists();

@@ -117,7 +117,7 @@ public class FaultPublishingPolicyResolveTests
     {
         using var host = await Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
             .UseWolverine(opts => opts.PublishFaultEvents())
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var runtime = host.Services.GetRequiredService<IWolverineRuntime>();
         Should.Throw<InvalidOperationException>(() =>

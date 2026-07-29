@@ -130,7 +130,7 @@ public class KafkaPerTenantConnectionTests : IAsyncLifetime
                 opts.Discovery.IncludeAssembly(GetType().Assembly);
                 opts.Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerProvider>(new OutputLoggerProvider(_output));
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Single host both publishes (to the tenant cluster) and listens (on the tenant cluster), so the
         // message round-trips back stamped with the tenant id.

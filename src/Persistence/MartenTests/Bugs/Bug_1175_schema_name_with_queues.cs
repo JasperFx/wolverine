@@ -44,7 +44,7 @@ public class Bug_1175_schema_name_with_queues
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
         
         using var listener = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -74,7 +74,7 @@ public class Bug_1175_schema_name_with_queues
                 opts.Durability.Mode = DurabilityMode.Solo;
                 opts.Services.AddResourceSetupOnStartup();
 
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var tracked = await sender.TrackActivity().AlsoTrack(listener).SendMessageAndWaitAsync(new ColorRequest("red"));
         tracked.Received.SingleMessage<ColorResponse>().Color.ShouldBe("red");

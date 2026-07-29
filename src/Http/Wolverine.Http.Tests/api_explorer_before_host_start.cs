@@ -72,7 +72,7 @@ public class api_explorer_before_host_start
         // Forces the early publish, exactly as a build-time OpenAPI read or a monitoring snapshot would
         readDescriptions(app).ShouldNotBeEmpty();
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var routes = app.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
@@ -84,9 +84,9 @@ public class api_explorer_before_host_start
 
         // The proof that matters: an ambiguous match would throw here rather than answer
         var client = app.GetTestServer().CreateClient();
-        (await client.GetAsync("/minimal/hello")).EnsureSuccessStatusCode();
+        (await client.GetAsync("/minimal/hello", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
 
-        await app.StopAsync();
+        await app.StopAsync(TestContext.Current.CancellationToken);
     }
 
     // Endpoints are only ever published from the application's root route builder. MapWolverineEndpoints()
@@ -103,7 +103,7 @@ public class api_explorer_before_host_start
         // Forces the publish, exactly as a build-time OpenAPI read or a monitoring snapshot would
         readDescriptions(app).ShouldNotBeEmpty();
 
-        await app.StartAsync();
+        await app.StartAsync(TestContext.Current.CancellationToken);
 
         var routes = app.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
@@ -113,7 +113,7 @@ public class api_explorer_before_host_start
         routes.Count(x => x == "/api/validate2/customer").ShouldBe(1);
         routes.ShouldNotContain("/validate2/customer");
 
-        await app.StopAsync();
+        await app.StopAsync(TestContext.Current.CancellationToken);
     }
 
     // Wolverine reaches RouteOptions.EndpointDataSources — internal to Microsoft.AspNetCore.Routing —

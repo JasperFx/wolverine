@@ -53,7 +53,7 @@ public class handler_actions_with_returned_StartStream : PostgresqlContext, IAsy
         await _host.InvokeMessageAndWaitAsync(new StartStreamMessage(id));
 
         using var session = _store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<AEvent>();
         events[1].Data.ShouldBeOfType<BEvent>();
@@ -105,7 +105,7 @@ public class start_stream_by_string_from_return_value : PostgresqlContext, IAsyn
         await _host.InvokeMessageAndWaitAsync(new StartStreamMessage2(id));
 
         using var session = _store.LightweightSession();
-        var events = await session.Events.FetchStreamAsync(id);
+        var events = await session.Events.FetchStreamAsync(id, token: TestContext.Current.CancellationToken);
         events.Count.ShouldBe(2);
         events[0].Data.ShouldBeOfType<CEvent>();
         events[1].Data.ShouldBeOfType<BEvent>();

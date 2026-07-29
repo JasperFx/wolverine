@@ -115,7 +115,7 @@ public class store_scoped_transient_rebuild_3618 : IAsyncLifetime
     public async Task neither_store_has_a_live_agent_for_the_inline_projection()
     {
         // Establishes that this is the no-live-agent path, not the store-scoped live-agent path.
-        (await theFamily.FindAgentUriAsync("Trip:All", null)).ShouldBeNull();
+        (await theFamily.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken)).ShouldBeNull();
     }
 
     [Fact]

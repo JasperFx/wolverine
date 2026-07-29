@@ -183,7 +183,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
                 opts.PublishMessage<OrderPlaced>().ToNatsSubjectOnNamedBroker(theName, subject).SendInline();
                 opts.ListenToNatsSubjectOnNamedBroker(theName, subject);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host
             .TrackActivity()
@@ -219,7 +219,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
                 opts.PublishMessage<NamedPing>().ToNatsSubjectOnNamedBroker(theName, subject);
                 opts.ListenToNatsSubjectOnNamedBroker(theName, subject);
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var (_, response) = await host
             .TrackActivity()

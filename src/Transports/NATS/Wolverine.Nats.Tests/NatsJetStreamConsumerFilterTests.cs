@@ -54,7 +54,7 @@ public class NatsJetStreamConsumerFilterTests
                 opts.ListenToNatsSubject(subjectA).UseJetStream(stream, $"consumer-a-{id}");
                 opts.ListenToNatsSubject(subjectB).UseJetStream(stream, $"consumer-b-{id}");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await using var connection = new NatsConnection(new NatsOpts { Url = natsUrl });
         await connection.ConnectAsync();
@@ -62,10 +62,10 @@ public class NatsJetStreamConsumerFilterTests
 
         // Each durable consumer must be scoped to the subject its listener was bound to.
         // Before the fix both came back with a null FilterSubject
-        var consumerA = await js.GetConsumerAsync(stream, $"consumer-a-{id}");
+        var consumerA = await js.GetConsumerAsync(stream, $"consumer-a-{id}", TestContext.Current.CancellationToken);
         consumerA.Info.Config.FilterSubject.ShouldBe(subjectA);
 
-        var consumerB = await js.GetConsumerAsync(stream, $"consumer-b-{id}");
+        var consumerB = await js.GetConsumerAsync(stream, $"consumer-b-{id}", TestContext.Current.CancellationToken);
         consumerB.Info.Config.FilterSubject.ShouldBe(subjectB);
     }
 
@@ -91,7 +91,7 @@ public class NatsJetStreamConsumerFilterTests
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ListenToNatsSubject(subject).UseJetStream(stream, $"sched-consumer-{id}");
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var transport = host.Services.GetRequiredService<IWolverineRuntime>()
             .Options.Transports.GetOrCreate<NatsTransport>();
@@ -105,7 +105,7 @@ public class NatsJetStreamConsumerFilterTests
         // filter covers both that and "{subject}", and on a work queue stream a control message no
         // consumer covers is discarded, so the scheduled send silently never arrives. The consumer
         // therefore has to carry both subjects
-        var consumer = await js.GetConsumerAsync(stream, $"sched-consumer-{id}");
+        var consumer = await js.GetConsumerAsync(stream, $"sched-consumer-{id}", TestContext.Current.CancellationToken);
         consumer.Info.Config.FilterSubjects.ShouldBe([subject, $"{subject}.scheduled"]);
     }
 
@@ -141,7 +141,7 @@ public class NatsJetStreamConsumerFilterTests
                 opts.PublishMessage<FilteredMessage>().ToNatsSubject(subjectA).UseJetStream(stream)
                     .SendInline();
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         await host.MessageBus().SendAsync(new FilteredMessage(id));
 

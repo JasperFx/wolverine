@@ -104,7 +104,7 @@ public class message_store_compliance : MessageStoreCompliance
         await thePersistence.Inbox.MarkIncomingEnvelopeAsHandledAsync(envelope);
 
         using var session = _store.OpenAsyncSession();
-        var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString());
+        var incoming = await session.LoadAsync<IncomingMessage>(envelope.Id.ToString(), TestContext.Current.CancellationToken);
         var metadata = session.Advanced.GetMetadataFor(incoming);
         metadata.TryGetValue("@expires", out var raw).ShouldBeTrue();
 
@@ -147,8 +147,7 @@ public class message_store_compliance : MessageStoreCompliance
         };
         optimisticStore.Conventions.UseOptimisticConcurrency = true;
         optimisticStore.Initialize();
-        await optimisticStore.Maintenance.Server.SendAsync(
-            new CreateDatabaseOperation(new DatabaseRecord(optimisticStore.Database)));
+        await optimisticStore.Maintenance.Server.SendAsync(new CreateDatabaseOperation(new DatabaseRecord(optimisticStore.Database)), TestContext.Current.CancellationToken);
 
         var ravenStore = new RavenDbMessageStore(optimisticStore, new WolverineOptions());
 

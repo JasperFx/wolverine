@@ -11,13 +11,13 @@ public class Bootstrapping
     public async Task create_an_open_client()
     {
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine(opts => { opts.UseAmazonSnsTransportLocally(); }).StartAsync();
+            .UseWolverine(opts => { opts.UseAmazonSnsTransportLocally(); }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSnsTransport();
 
         // Just a smoke test on configuration here
-        var topicNames = await transport.SnsClient!.ListTopicsAsync("0");
+        var topicNames = await transport.SnsClient!.ListTopicsAsync("0", TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -31,7 +31,7 @@ public class Bootstrapping
                 opts.UseAmazonSnsTransportLocally().AutoProvision();
 
                 opts.PublishMessage<Message1>().ToSnsTopic(topicName);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSnsTransport();
@@ -41,7 +41,7 @@ public class Bootstrapping
         topic.ShouldNotBeNull();
         topic.TopicArn.ShouldNotBeNull();
 
-        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn);
+        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class Bootstrapping
                 opts.UseAmazonSnsTransportLocally().AutoPurgeOnStartup().AutoProvision();
 
                 opts.PublishMessage<Message1>().ToSnsTopic(topicName);
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var options = host.Services.GetRequiredService<WolverineOptions>();
         var transport = options.AmazonSnsTransport();
@@ -65,6 +65,6 @@ public class Bootstrapping
         topic.ShouldNotBeNull();
         topic.TopicArn.ShouldNotBeNull();
 
-        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn);
+        await transport.SnsClient.DeleteTopicAsync(topic.TopicArn, TestContext.Current.CancellationToken);
     }
 }

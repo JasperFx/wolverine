@@ -48,8 +48,8 @@ public class batch_coalesce_poison : IAsyncLifetime
         await bus.PublishAsync(new CoalItem("A", 3, true));
         await bus.PublishAsync(new CoalItem("B", 1, false));
 
-        await CoalPoisonHandler.SurvivorSucceeded.Task.WaitAsync(10.Seconds());
-        await _deadLetters.Signal.Task.WaitAsync(10.Seconds());
+        await CoalPoisonHandler.SurvivorSucceeded.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+        await _deadLetters.Signal.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
 
         // Every member that collapsed into the poisoned key "A" is dead-lettered - all three versions.
         var deadLettered = _deadLetters.DeadLettered.OfType<CoalItem>().ToArray();

@@ -42,9 +42,9 @@ public class bumping_stale_outbox_messages : IAsyncLifetime
     public async Task got_the_right_column()
     {
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
 
-        var table = await new Table(new DbObjectName("stale_outbox", DatabaseConstants.OutgoingTable)).FetchExistingAsync(conn);
+        var table = await new Table(new DbObjectName("stale_outbox", DatabaseConstants.OutgoingTable)).FetchExistingAsync(conn, TestContext.Current.CancellationToken);
         
         table!.HasColumn(DatabaseConstants.Timestamp).ShouldBeTrue();
         
@@ -76,21 +76,21 @@ public class bumping_stale_outbox_messages : IAsyncLifetime
         await messageStore.Outbox.StoreOutgoingAsync(envelope5, 3);
         
         using var conn = new SqlConnection(Servers.SqlServerConnectionString);
-        await conn.OpenAsync();
+        await conn.OpenAsync(TestContext.Current.CancellationToken);
         await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope1.Id)
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
         await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope3.Id)
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
         await conn.CreateCommand("update stale_outbox.wolverine_outgoing_envelopes set \"timestamp\" = @time where id = @id")
             .With("time", DateTimeOffset.UtcNow.Subtract(2.Hours()))
             .With("id", envelope5.Id)
-            .ExecuteNonQueryAsync();
+            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
         
         var envelopesBefore = await messageStore.Admin.AllOutgoingAsync();
         envelopesBefore.Count(x => x.OwnerId == 0).ShouldBe(0);

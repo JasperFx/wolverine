@@ -51,7 +51,7 @@ public class generated_code_output_path_configuration
                 });
             })
             .UseWolverine()
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var wolverineOptions = host.Services.GetRequiredService<WolverineOptions>();
         wolverineOptions.CodeGeneration.GeneratedCodeOutputPath
@@ -73,7 +73,7 @@ public class generated_code_output_path_configuration
             {
                 opts.CodeGeneration.GeneratedCodeOutputPath = "/explicit/wolverine/path";
             })
-            .StartAsync();
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var wolverineOptions = host.Services.GetRequiredService<WolverineOptions>();
         wolverineOptions.CodeGeneration.GeneratedCodeOutputPath

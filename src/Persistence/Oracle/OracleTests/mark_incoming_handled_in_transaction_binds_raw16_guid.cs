@@ -54,15 +54,15 @@ public class mark_incoming_handled_in_transaction_binds_raw16_guid : IAsyncLifet
 
         var keepUntil = DateTimeOffset.UtcNow.AddHours(1);
 
-        await using var conn = (OracleConnection)await theDataSource.OpenConnectionAsync();
-        var tx = (DbTransaction)await conn.BeginTransactionAsync();
+        await using var conn = (OracleConnection)await theDataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
+        var tx = (DbTransaction)await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         // The exact call EfCoreEnvelopeTransaction.CommitAsync makes for a durable-inbox message,
         // sharing the caller's connection and transaction.
         await theStore.MarkIncomingEnvelopeAsHandledInTransactionAsync(conn, tx, envelope, keepUntil,
             CancellationToken.None);
 
-        await tx.CommitAsync();
+        await tx.CommitAsync(TestContext.Current.CancellationToken);
         await conn.CloseAsync();
 
         var counts = await theStore.Admin.FetchCountsAsync();
@@ -80,7 +80,7 @@ public class mark_incoming_handled_in_transaction_binds_raw16_guid : IAsyncLifet
         var envelope = ObjectMother.Envelope();
         await theStore.StoreIncomingAsync(envelope);
 
-        await using var conn = (OracleConnection)await theDataSource.OpenConnectionAsync();
+        await using var conn = (OracleConnection)await theDataSource.OpenConnectionAsync(TestContext.Current.CancellationToken);
 
         // conn typed as the base DbConnection, so .With(Guid) binds through the generic Weasel.Core
         // extension (DbType.Guid) rather than the Oracle-aware one — the pre-fix code path. ODP.NET

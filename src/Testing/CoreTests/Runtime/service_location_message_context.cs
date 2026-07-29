@@ -36,7 +36,7 @@ public class service_location_message_context
                 // the ServiceLocationAwareExecutor wraps it. Mirrors the pattern in the
                 // existing service_location_assertions tests.
                 opts.CodeGeneration.AlwaysUseServiceLocationFor<BusUsingService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.TrackActivity().IncludeExternalTransports().ExecuteAndWaitAsync(c =>
             c.PublishAsync(new ServiceLocatedBusCommand("hello")));
@@ -59,7 +59,7 @@ public class service_location_message_context
             .UseWolverine(opts =>
             {
                 opts.ServiceLocationPolicy = ServiceLocationPolicy.NotAllowed;
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         CleanCommandProbe.Reset();
 
@@ -74,7 +74,7 @@ public class service_location_message_context
         // Outside any handler invocation the scope holder is empty, so IMessageBus falls back to a
         // fresh MessageContext — resolution must still succeed for hosted services / admin tools.
         using var host = await Host.CreateDefaultBuilder()
-            .UseWolverine().StartAsync();
+            .UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var bus = host.MessageBus();
         bus.ShouldNotBeNull();
@@ -92,7 +92,7 @@ public class service_location_message_context
                 // Force the capturing service to be resolved via service location so the
                 // chain is flagged UsesServiceLocation = true.
                 opts.CodeGeneration.AlwaysUseServiceLocationFor<ContextCapturingService>();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         ContextIdentityProbe.Reset();
 

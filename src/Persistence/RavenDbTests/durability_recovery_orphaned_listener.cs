@@ -70,8 +70,8 @@ public class durability_recovery_orphaned_listener : IAsyncLifetime
                 Status = EnvelopeStatus.Incoming,
                 Body = Array.Empty<byte>(),
                 MessageType = "orphaned"
-            });
-            await session.SaveChangesAsync();
+            }, TestContext.Current.CancellationToken);
+            await session.SaveChangesAsync(TestContext.Current.CancellationToken);
         }
 
         var store = _host.Services.GetRequiredService<IMessageStore>().As<RavenDbMessageStore>();

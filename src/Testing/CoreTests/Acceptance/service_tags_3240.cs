@@ -19,7 +19,7 @@ public class service_tags_3240
             {
                 opts.Tags.Add("team:payments");
                 opts.Tags.Add("tier:critical");
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var capabilities = await ServiceCapabilities.ReadFrom(host.GetRuntime(), null, CancellationToken.None);
 
@@ -29,7 +29,7 @@ public class service_tags_3240
     [Fact]
     public async Task tags_default_to_empty()
     {
-        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync();
+        using var host = await Host.CreateDefaultBuilder().UseWolverine().StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var capabilities = await ServiceCapabilities.ReadFrom(host.GetRuntime(), null, CancellationToken.None);
 

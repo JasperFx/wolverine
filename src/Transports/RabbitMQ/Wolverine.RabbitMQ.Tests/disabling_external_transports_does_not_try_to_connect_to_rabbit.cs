@@ -21,7 +21,7 @@ public class disabling_external_transports_does_not_try_to_connect_to_rabbit
                 opts.PublishMessage<SayName>().ToRabbitQueue("name");
 
                 opts.StubAllExternalTransports();
-            }).StartAsync();
+            }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var session = await host.SendMessageAndWaitAsync(new SayName("Jennifer Coolidge"));
 
