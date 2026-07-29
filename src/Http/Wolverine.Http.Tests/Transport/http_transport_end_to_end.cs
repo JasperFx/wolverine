@@ -17,13 +17,6 @@ public class http_transport_end_to_end : IntegrationContext
     {
     }
 
-    // GH-3707: order-dependent. Posts to /_wolverine/batch/{queue} for a queue that is
-    // configured nowhere, so on its own the message lands somewhere nothing executes it and the
-    // tracking session records no activity. It only passes when earlier tests in the shared
-    // AppFixture have already warmed that path. Fails in isolation on main under xUnit 2 as well,
-    // so this is a pre-existing defect -- xUnit v3 merely orders the suite differently and
-    // stopped hiding it. Excluded from CI until the underlying behaviour is settled.
-    [Trait("Category", "Flaky")]
     [Fact]
     public async Task publish_multiple_messages()
     {
@@ -37,10 +30,16 @@ public class http_transport_end_to_end : IntegrationContext
 
         var data = EnvelopeSerializer.Serialize(envelopes);
 
+        // The batch endpoint returns as soon as the envelopes are handed to the local queue, so the
+        // tracked session has to be told what to wait for or it completes with no activity at all
+        // before the handler pipeline has picked anything up. GH-3714.
         var (tracked, result) = await TrackedHttpCall(s =>
         {
             s.Post.ByteArray(data).ToUrl("/_wolverine/batch/one").ContentType(HttpTransport.EnvelopeBatchContentType);
-        });
+        }, t => t
+            .WaitForExecutionOf<HttpMessage1>()
+            .WaitForExecutionOf<HttpMessage2>()
+            .WaitForExecutionOf<HttpMessage3>());
 
         tracked.Executed.SingleMessage<HttpMessage1>().Name.ShouldBe("one");
         tracked.Executed.SingleMessage<HttpMessage2>().Name.ShouldBe("two");

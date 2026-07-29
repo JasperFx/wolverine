@@ -85,10 +85,27 @@ public class OnExceptionTests : IntegrationContext
             x.StatusCodeShouldBe(500);
         });
 
+        // GH-3714: the generated endpoint writes the ProblemDetails response from inside the try block, so
+        // Alba can see a complete response while the server-side finally frame has not run yet. Waiting on
+        // the recorded action is the only ordering this test can rely on -- asserting straight after the
+        // scenario made it a race that only the rest of the suite running first happened to win.
+        await waitForRecordedActionAsync("Finally");
+
         // Handler threw, OnException handled it, Finally always runs
         ExceptionWithFinallyEndpoints.Actions.ShouldContain("Handler");
         ExceptionWithFinallyEndpoints.Actions.ShouldContain("OnException");
         ExceptionWithFinallyEndpoints.Actions.ShouldContain("Finally");
+    }
+
+    private static async Task waitForRecordedActionAsync(string action)
+    {
+        // List<T>.Contains scans by index, so it is safe to read while the request thread is still
+        // appending -- unlike an Enumerable.Contains, which would throw on a concurrent modification.
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (!ExceptionWithFinallyEndpoints.Actions.Contains(action) && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
     }
 
     [Fact]

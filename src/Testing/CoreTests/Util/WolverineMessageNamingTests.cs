@@ -44,6 +44,10 @@ public class WolverineMessageNamingTests
     [Fact]
     public void use_interface_from_interop_message_naming()
     {
+        // GH-3703: this used to fail whenever any earlier test in the assembly had already booted a host
+        // that named ConcreteMessage -- WolverineMessageNaming memoizes into a static map, and registering
+        // the interop assembly did not invalidate what was already in it. AddMessageInterfaceAssembly now
+        // clears the cache, so the registration below takes effect regardless of what ran first.
         WolverineMessageNaming.AddMessageInterfaceAssembly(typeof(IInterfaceMessage).Assembly);
 
         typeof(ConcreteMessage).ToMessageTypeName().ShouldBe(typeof(IInterfaceMessage).ToMessageTypeName());
