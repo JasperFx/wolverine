@@ -598,6 +598,25 @@ partial class Build
             RunTestProject(tests);
         });
 
+    /// <summary>
+    /// TracingTests asserts that correlation and causation IDs survive an HTTP invoke, a local
+    /// message, a TCP hop and two RabbitMQ subscribers -- the OpenTelemetry plumbing no unit test
+    /// covers. It had rotted to the point of not compiling (GH-3704), because nothing built it: it
+    /// was outside wolverine.slnx *and* outside every CI target. It is in the solution now, and this
+    /// target keeps it honest by actually running it.
+    /// </summary>
+    Target CIOtel => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var tests = RootDirectory / "src" / "Testing" / "OpenTelemetry" / "TracingTests" / "TracingTests.csproj";
+
+            BuildTestProjects(tests);
+            StartDockerServices("rabbitmq");
+
+            RunTestProject(tests);
+        });
+
     // ─── AOT Smoke ──────────────────────────────────────────────────────
     //
     // Builds the Wolverine.AotSmoke project, which sets IsAotCompatible=true +

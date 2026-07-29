@@ -7,7 +7,7 @@
     <ItemGroup>
         <PackageReference Include="OpenTelemetry" />
         <PackageReference Include="OpenTelemetry.Api" />
-        <PackageReference Include="OpenTelemetry.Exporter.Jaeger" />
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     </ItemGroup>
 

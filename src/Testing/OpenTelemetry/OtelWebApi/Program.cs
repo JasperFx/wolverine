@@ -1,3 +1,4 @@
+using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
@@ -10,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseWolverine(opts =>
 {
-    opts.ServiceName = "WebApi";
+    opts.ServiceName = MessagingConstants.WebApiServiceName;
     opts.ApplicationAssembly = typeof(InitialCommandHandler).Assembly;
 
     opts.PublishMessage<TcpMessage1>().ToPort(MessagingConstants.Subscriber1Port);
@@ -35,18 +36,18 @@ builder.Services.AddControllers();
 
 #region sample_enabling_open_telemetry
 // builder.Services is an IServiceCollection object
-builder.Services.AddOpenTelemetryTracing(x =>
-{
-    x.SetResourceBuilder(ResourceBuilder
-            .CreateDefault()
-            .AddService("OtelWebApi")) // <-- sets service name
-        .AddJaegerExporter()
-        .AddAspNetCoreInstrumentation()
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService("OtelWebApi")) // <-- sets service name
+    .WithTracing(tracing =>
+    {
+        tracing
+            .AddAspNetCoreInstrumentation()
 
-        // This is absolutely necessary to collect the Wolverine
-        // open telemetry tracing information in your application
-        .AddSource("Wolverine");
-});
+            // This is absolutely necessary to collect the Wolverine
+            // open telemetry tracing information in your application
+            .AddSource("Wolverine");
+    })
+    .UseOtlpExporter();
 
 #endregion
 
