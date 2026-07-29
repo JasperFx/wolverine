@@ -4,10 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    # feature/xunit3 is the xUnit v3 migration integration branch. pull_request.branches
-    # filters on the BASE branch, so without it the migration wave PRs run no CI at all.
-    # Remove this entry when feature/xunit3 merges. See XUNIT3-MIGRATION-PLAN.md.
-    branches: [ main, feature/xunit3 ]
+    branches: [ main ]
   workflow_dispatch:
 
 env:

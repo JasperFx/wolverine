@@ -8,10 +8,21 @@ clean; the independent 32 and all test verification remain
 | 0 — Foundation | ✅ committed `fb3d64c7f`, full solution Release build clean |
 | 1 — ComplianceTests + SqliteTests | ✅ committed `b03c461fa`, `CISqlite` 156/1/157 at exact parity |
 | 2 — atomic flip of the coupled 40 | ✅ committed `f5274e6b1`, `wolverine.slnx` Release 0 warnings 0 errors |
-| 3–8 — verify the coupled 40 per CI target | ⬜ not started — this is where Docker is needed |
-| — the independent 32 | ⬜ not started, no Docker needed to build |
-| 9 — merge to `main` | ⬜ |
+| 3 — the independent 32 | ✅ committed `7a1bbd728`. **All 73 projects are on v3; 0 remain on v2.** |
+| — verify the coupled 40 per CI target | 🔄 handed to CI — see below |
+| 9 — merge to `main` | ⬜ open PR |
 | 10 — cleanup | ⬜ |
+
+**Verification strategy changed:** rather than run 25 broker-backed CI targets serially on one
+developer box, the branch goes up as a PR and CI takes the first pass across its 27-way matrix.
+Local verification stopped after the two Docker-free gates, both at exact parity:
+
+- `CISqlite` — 156 passed / 1 skipped / 157 total
+- `CoreTests` — 2104 total / 2101 passed / 1 failed / 2 skipped, identical on `origin/main`,
+  wave 0 and wave 2. The single failure
+  (`WolverineMessageNamingTests.use_interface_from_interop_message_naming`) is **pre-existing on
+  `main`** — an order-dependent test over the global `WolverineMessageNaming._typeNames` cache
+  that `WolverineRuntime.HostService` prepopulates. Deserves its own issue; out of scope here.
 
 **Date:** 2026-07-29
 **Scope:** all 73 xUnit-referencing projects under `src/`, the Nuke build targets, and the GitHub Actions workflows
@@ -346,7 +357,12 @@ on:
 `pull_request.branches` filters on the **base** branch. A PR targeting `feature/xunit3`
 therefore matches nothing and **runs no CI at all** — the wave PRs would merge unverified.
 
-Wave 0 adds the integration branch to the three test workflows:
+**This turned out to be unnecessary and was reverted.** Every wave landed directly on
+`feature/xunit3` rather than as a separate PR into it, so the only PR is `feature/xunit3` →
+`main`, which matches the existing `branches: [ main ]` filter. The change is documented here
+because it *would* be required if the waves were ever re-split into per-wave PRs.
+
+Wave 0 added the integration branch to the three test workflows:
 
 ```yaml
   pull_request:
