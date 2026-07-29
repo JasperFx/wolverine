@@ -259,7 +259,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         queue.Compile(runtime);
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: TestContext.Current.CancellationToken).Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult(new QueueDeclareOk(queue.QueueName, 0, 0)));
 
         await queue.DeclareAsync(channel, NullLogger.Instance);
 
@@ -333,7 +333,7 @@ public class native_dead_letter_queue_mechanics : IAsyncLifetime
         overrideEndpoint.Compile(runtime);
 
         var channel = Substitute.For<IChannel>();
-        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: TestContext.Current.CancellationToken).Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
+        channel.QueueDeclareAsync(Arg.Any<string>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<bool>(), Arg.Any<IDictionary<string, object?>>(), cancellationToken: Arg.Any<CancellationToken>()).Returns(Task.FromResult(new QueueDeclareOk(defaultQueue, 0, 0)));
 
         await defaultEndpoint.DeclareAsync(channel, NullLogger.Instance);
         await overrideEndpoint.DeclareAsync(channel, NullLogger.Instance);

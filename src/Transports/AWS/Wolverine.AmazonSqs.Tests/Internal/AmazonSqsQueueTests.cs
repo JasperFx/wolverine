@@ -132,7 +132,7 @@ public class when_initializing_the_endpoint
 
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, Arg.Any<CancellationToken>()).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
@@ -151,7 +151,7 @@ public class when_initializing_the_endpoint
 
         var theSqsQueueUrl = "https://someserver.com/foo";
 
-        theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>(), TestContext.Current.CancellationToken).Returns(new CreateQueueResponse
+        theClient.CreateQueueAsync(Arg.Any<CreateQueueRequest>(), Arg.Any<CancellationToken>()).Returns(new CreateQueueResponse
             {
                 QueueUrl = theSqsQueueUrl
             });
@@ -169,7 +169,7 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, Arg.Any<CancellationToken>()).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
@@ -187,7 +187,7 @@ public class when_initializing_the_endpoint
 
         // Gotta set this up to make the test work
         var theSqsQueueUrl = "https://someserver.com/foo";
-        theClient.GetQueueUrlAsync(theQueue.QueueName, TestContext.Current.CancellationToken).Returns(new GetQueueUrlResponse
+        theClient.GetQueueUrlAsync(theQueue.QueueName, Arg.Any<CancellationToken>()).Returns(new GetQueueUrlResponse
         {
             QueueUrl = theSqsQueueUrl
         });
