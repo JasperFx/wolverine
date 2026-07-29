@@ -10,8 +10,12 @@ using Xunit;
 namespace Wolverine.Redis.Tests;
 
 [Collection("ScheduledMessageTests")]
-public class ScheduledMessageTests
+public class ScheduledMessageTests(ITestOutputHelper output)
 {
+    // GH-3707: a fixed sleep is a bet on how loaded the machine is. Poll for the outcome instead so a
+    // busy CI agent costs the test time rather than a failure.
+    private readonly ConditionPoller _poller = new(output, maxRetries: 40, retryDelay: 250.Milliseconds());
+
     private async Task<IHost> CreateHostAsync()
     {
         var streamKey = $"scheduled-test-{Guid.NewGuid():N}";
@@ -45,10 +49,10 @@ public class ScheduledMessageTests
         
         // Schedule for 1 second ago (should execute immediately)
         await bus.ScheduleAsync(command, DateTimeOffset.UtcNow.AddSeconds(-1));
-        
-        // Wait for message to be processed
-        await Task.Delay(2000);
-        
+
+        await _poller.WaitForAsync($"scheduled message {command.Id} to be received",
+            () => tracker.ReceivedMessages.Contains(command.Id));
+
         tracker.ReceivedMessages.ShouldContain(command.Id);
     }
 
