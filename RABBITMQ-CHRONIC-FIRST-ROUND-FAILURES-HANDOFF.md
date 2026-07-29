@@ -23,10 +23,29 @@ Same three tests. Nearly identical elapsed times. The **only** difference in out
 `main`'s second round rescued all three, #3722's rescued two of three. PR #3722 touched no RabbitMQ
 code at all — 16 files, none in the transport, and its `CITargets.cs` change was purely additive.
 
+A third observation, from re-running #3722's failed job on the *same commit*, makes this firmer —
+and adds a fourth test:
+
+| First round | job `90731920012` (re-run of #3722) |
+|---|---|
+| `…listener_failover.listener_fails_over…crashes` | FAIL @ 1:37.15 |
+| `Bug_1594…can_replay_dead_letter_message(BufferedInMemory)` | FAIL @ 4:24.39 |
+| `…conventional_routing.send_from_one_node_to_another…` | FAIL @ 10:02.72 |
+| `…listener_recovery.rows_released_after_the_listener_is_already_running_are_still_recovered` | FAIL @ 8.91s, again @ 15.56s |
+| **outcome** | **success** — harness logged `=== Wolverine.RabbitMQ.Tests Flaky tests ===` |
+
+So it is **3 of 3 observed runs**, not merely "most." The core three fail round one every time; a
+fourth — `multi_node_exclusive_listener_recovery.rows_released_after_the_listener_is_already_running_are_still_recovered`
+— joins intermittently, and note it failed *twice* inside the same job before finally passing.
+
 Jobs for reference:
 
-- `main` @ `0a92b4cb7` — run `30494608184`, job `90720398967`, **conclusion: success**
-- PR #3722 — run `30494220093`, job `90719159672`, **conclusion: failure**
+- `main` @ `0a92b4cb7` — run `30494608184`, job `90720398967`, **success** (retry rescued 3/3)
+- PR #3722 — run `30494220093`, job `90719159672`, **failure** (retry rescued 2/3)
+- PR #3722 re-run — run `30494220093`, job `90731920012`, **success** (retry rescued 4/4)
+
+The re-run passing is *why #3722 was safe to merge* — it ended 31/31 — but it is also the clearest
+demonstration of the problem: same commit, same three tests failing round one, opposite job outcome.
 
 Note what this means about the retry harness (see GH-3705): it is doing exactly what it was built
 to do, and in doing so it has been hiding a chronic condition for an unknown length of time. Three
@@ -66,6 +85,12 @@ Shouldly.ShouldAssertException :
 Fails in ~7s. Only the `BufferedInMemory` theory case is listed — worth confirming whether the
 durable case passes, because if it does, the difference points at buffered-mode timing rather than
 replay logic.
+
+### 3b. `multi_node_exclusive_listener_recovery.rows_released_after_the_listener_is_already_running_are_still_recovered`
+
+Appeared only in the third observation, and failed **twice** within that job (at 8.91s and 15.56s)
+before passing. Same file family as item 1 — `multi_node_exclusive_listener_*` — so treat the two as
+likely sharing a cause and investigate them together rather than separately.
 
 ### 3. `end_to_end_with_conventional_routing.send_from_one_node_to_another_all_with_conventional_routing`
 
