@@ -17,10 +17,15 @@ public partial class NodeAgentController
         _capabilities = current.Capabilities.ToArray();
 
         current.AssignedNodeNumber = await _persistence.PersistAsync(current, _cancellation.Token);
-        
-        await _observer.NodeStarted();
 
+        // GH-3698: adopt the assigned number BEFORE the observer writes the NodeStarted record. NodeRecord.For
+        // reads it straight off Options.Durability, which until this line still holds the per-process default
+        // -- Guid.NewGuid().ToString().GetDeterministicHashCode() -- so every NodeStarted row in a Balanced
+        // cluster carried a random node_number unrelated to the node it describes. The Solo path in
+        // StartLocally.cs already sets it first.
         _runtime.Options.Durability.AssignedNodeNumber = current.AssignedNodeNumber;
+
+        await _observer.NodeStarted();
 
         _logger.LogInformation("Starting agents for Node {NodeId} with assigned node id {Id} and Control Uri {ControlUri}",
             options.UniqueNodeId, current.AssignedNodeNumber,current.ControlUri);
