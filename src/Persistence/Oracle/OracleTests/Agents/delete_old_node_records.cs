@@ -36,15 +36,33 @@ public class delete_old_node_records : IAsyncLifetime
         _store = new OracleMessageStore(settings, new DurabilitySettings(), dataSource,
             NullLogger<OracleMessageStore>.Instance, Array.Empty<SagaTableDefinition>());
 
-        await _store.Admin.RebuildAsync();
+        // Deliberately NOT Admin.RebuildAsync(). In Oracle a schema IS a user, so every test in the
+        // "oracle" collection shares WOLVERINE -- rebuilding it drops the tables out from under the
+        // siblings that run after this class. Migrate to make sure the table exists, then clear only the
+        // one table this class actually owns.
+        await _store.Admin.MigrateAsync();
+        await clearNodeRecordsAsync();
     }
 
     public async ValueTask DisposeAsync()
     {
+        await clearNodeRecordsAsync();
         await _store.DisposeAsync();
     }
 
-    private async Task insertNodeRecordsAsync(int count)
+    private static async Task clearNodeRecordsAsync()
+    {
+        await using var conn = new OracleConnection(Servers.OracleConnectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"DELETE FROM {SchemaName}.{DatabaseConstants.NodeRecordTableName}";
+        await cmd.ExecuteNonQueryAsync();
+
+        await conn.CloseAsync();
+    }
+
+    private static async Task insertNodeRecordsAsync(int count)
     {
         await using var conn = new OracleConnection(Servers.OracleConnectionString);
         await conn.OpenAsync();
@@ -53,11 +71,15 @@ public class delete_old_node_records : IAsyncLifetime
         {
             await using var cmd = conn.CreateCommand();
             cmd.BindByName = true;
+
+            // NOT :number -- NUMBER is an Oracle reserved word and a bind variable named after one is
+            // rejected with ORA-01745: invalid host/bind variable name. Same for :description, which
+            // collides with the DESCRIPTION keyword in some contexts. Prefix them.
             cmd.CommandText =
-                $"INSERT INTO {SchemaName}.{DatabaseConstants.NodeRecordTableName} (node_number, event_name, description) VALUES (:number, :event_name, :description)";
-            cmd.Parameters.Add("number", 1);
-            cmd.Parameters.Add("event_name", NodeRecordType.AssignmentChanged.ToString());
-            cmd.Parameters.Add("description", $"Record {i:00}");
+                $"INSERT INTO {SchemaName}.{DatabaseConstants.NodeRecordTableName} (node_number, event_name, description) VALUES (:p_number, :p_event, :p_description)";
+            cmd.Parameters.Add("p_number", 1);
+            cmd.Parameters.Add("p_event", NodeRecordType.AssignmentChanged.ToString());
+            cmd.Parameters.Add("p_description", $"Record {i:00}");
             await cmd.ExecuteNonQueryAsync();
         }
 
