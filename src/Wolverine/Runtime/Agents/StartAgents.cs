@@ -59,6 +59,68 @@ internal static class AgentUriSet
     }
 }
 
+/// <summary>
+///     GH-3733: the wire format for the <c>Uri[]</c> payload every batched agent command carries.
+///
+///     <para>These commands used to join and split on a comma. A comma is a <b>legal</b> URI character —
+///     RFC 3986 lists it as a sub-delim, permitted unescaped in a path segment — and agent URIs embed
+///     operator- and tenant-supplied strings: an event-subscription URI is
+///     <c>event-subscriptions://marten/main/&lt;host&gt;.&lt;db&gt;/&lt;projection&gt;/all/v&lt;n&gt;/&lt;tenant&gt;</c>.
+///     One comma anywhere in one agent URI shattered that agent into fragments, and because the read side
+///     built the whole array in a single projection, the resulting <c>UriFormatException</c> took out the
+///     <b>entire batch</b>, not just the offending entry. For <c>AgentsStarted</c> — the reply that confirms
+///     an agent start — that means the leader gets no confirmation for the whole chunk, which is exactly the
+///     shape of stall reported in GH-3698.</para>
+///
+///     <para>A newline is the delimiter instead: it is not legal unescaped in a URI, and
+///     <see cref="Uri.ToString" /> will never emit a bare one.</para>
+///
+///     <para>The comma nonetheless stays the default on the wire, because it is what every 6.24.0-and-earlier
+///     node both writes and reads, and a rolling upgrade has to keep working in both directions. Only a
+///     payload that actually contains a comma — the case that was already broken — switches to the newline
+///     form, and it announces itself with a leading newline. The two formats can never be confused: a legacy
+///     payload always begins with a URI scheme character.</para>
+/// </summary>
+internal static class AgentUriList
+{
+    public static byte[] Write(Uri[] uris)
+    {
+        var texts = uris.Select(x => x.ToString()).ToArray();
+
+        if (texts.Any(x => x.Contains(',')))
+        {
+            return Encoding.UTF8.GetBytes("\n" + texts.Join("\n"));
+        }
+
+        return Encoding.UTF8.GetBytes(texts.Join(","));
+    }
+
+    public static Uri[] Read(byte[] bytes)
+    {
+        var text = Encoding.UTF8.GetString(bytes);
+        var delimiter = text.StartsWith('\n') ? '\n' : ',';
+
+        var parts = text.Split(delimiter, StringSplitOptions.RemoveEmptyEntries);
+        var uris = new Uri[parts.Length];
+
+        for (var i = 0; i < parts.Length; i++)
+        {
+            // Parsed one at a time so a bad entry names itself. The bare
+            // "Invalid URI: The format of the URI could not be determined." from a LINQ projection over the
+            // whole payload gave no way to tell which agent, or which node, was responsible.
+            if (!Uri.TryCreate(parts[i], UriKind.Absolute, out var uri))
+            {
+                throw new FormatException(
+                    $"Unable to read agent Uri '{parts[i]}' out of an agent command payload. Full payload was '{text}'.");
+            }
+
+            uris[i] = uri;
+        }
+
+        return uris;
+    }
+}
+
 internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
@@ -73,14 +135,12 @@ internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+        return AgentUriList.Write(AgentUris);
     }
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => new Uri(x)).ToArray();
-        return new AgentsStarted(uris);
+        return new AgentsStarted(AgentUriList.Read(bytes));
     }
 }
 
@@ -183,14 +243,12 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+        return AgentUriList.Write(AgentUris);
     }
 
     public static object Read(byte[] bytes)
     {
-        var agents = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => new Uri(x)).ToArray();
-        return new StartAgents(agents);
+        return new StartAgents(AgentUriList.Read(bytes));
     }
 }
 
@@ -208,14 +266,12 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+        return AgentUriList.Write(AgentUris);
     }
 
     public static object Read(byte[] bytes)
     {
-        var uris = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => new Uri(x)).ToArray();
-        return new AgentsStopped(uris);
+        return new AgentsStopped(AgentUriList.Read(bytes));
     }
 }
 
@@ -253,13 +309,11 @@ internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
 
     public byte[] Write()
     {
-        return Encoding.UTF8.GetBytes(AgentUris.Select(x => x.ToString()).Join(","));
+        return AgentUriList.Write(AgentUris);
     }
 
     public static object Read(byte[] bytes)
     {
-        var agents = Encoding.UTF8.GetString(bytes).Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(x => new Uri(x)).ToArray();
-        return new StopAgents(agents);
+        return new StopAgents(AgentUriList.Read(bytes));
     }
 }
