@@ -376,6 +376,20 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         return records;
     }
 
+    // GH-3701: the row cap that bounds the node record table alongside the age sweep. Without this the
+    // store fell through to the interface's no-op default and only the age bound applied.
+    public async Task DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        if (retainCount <= 0) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand(
+                $"delete from {NodeRecordTableName} where id not in (select id from {NodeRecordTableName} order by id desc limit @retain)")
+            .With("retain", retainCount);
+
+        await cmd.ExecuteNonQueryAsync();
+    }
+
     public bool HasLeadershipLock()
     {
         return _database.AdvisoryLock.HasLock(_lockId);

@@ -378,6 +378,21 @@ internal class MySqlNodePersistence : DatabaseConstants, INodeAgentPersistence
             .FetchListAsync(readRecord);
     }
 
+    // GH-3701: the row cap that bounds the node record table alongside the age sweep. Without this the
+    // store fell through to the interface's no-op default and only the age bound applied. MySQL rejects
+    // a LIMIT inside a subquery of the same table being deleted ("This version of MySQL doesn't yet
+    // support 'LIMIT & IN/ALL/ANY/SOME subquery'"), so the surviving window is resolved to a floor id in
+    // a derived table first and the delete is a plain range scan on the primary key.
+    public async Task DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        if (retainCount <= 0) return;
+
+        await _dataSource.CreateCommand(
+                $"DELETE FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE id < COALESCE((SELECT floor_id FROM (SELECT MIN(id) AS floor_id FROM (SELECT id FROM {_settings.SchemaName}.{NodeRecordTableName} ORDER BY id DESC LIMIT @retain) AS keep) AS floor), 0)")
+            .With("retain", retainCount)
+            .ExecuteNonQueryAsync();
+    }
+
     public bool HasLeadershipLock()
     {
         return _database.AdvisoryLock.HasLock(_lockId);

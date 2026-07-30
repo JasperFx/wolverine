@@ -31,6 +31,7 @@ internal class DurabilityAgent : IAgent
     private Timer? _recoveryTimer;
     private Timer? _scheduledJobTimer;
     private Timer? _handledCleanupTimer;
+    private Timer? _nodeRecordPruningTimer;
 
     private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
@@ -134,6 +135,20 @@ internal class DurabilityAgent : IAgent
             _runningBlock.Post(command);
         }, _settings, 5.Seconds(), _settings.HandledMessageCleanupPollingTime);
 
+        // GH-3701: node records only exist on the Main store, and their housekeeping is slow, unbounded-scan
+        // work that has no business riding along on the recovery batch. See PruneNodeRecords.
+        if (_database.Settings.Role == MessageStoreRole.Main)
+        {
+            // Hold the first pass back so it can't pile onto startup, but never past the configured period
+            // itself -- a host that asks for a short period is asking to see pruning promptly.
+            var pruningStart = _settings.NodeRecordPruningPeriod < 1.Minutes()
+                ? _settings.NodeRecordPruningPeriod
+                : 1.Minutes();
+
+            _nodeRecordPruningTimer = new Timer(_ => PruneNodeRecords(), _settings, pruningStart,
+                _settings.NodeRecordPruningPeriod);
+        }
+
         if (AutoStartScheduledJobPolling)
         {
             StartScheduledJobPolling();
@@ -168,6 +183,11 @@ internal class DurabilityAgent : IAgent
             await _handledCleanupTimer.DisposeAsync();
         }
 
+        if (_nodeRecordPruningTimer != null)
+        {
+            await _nodeRecordPruningTimer.DisposeAsync();
+        }
+
         Status = AgentStatus.Stopped;
     }
 
@@ -193,23 +213,31 @@ internal class DurabilityAgent : IAgent
         return new Uri($"{uri}{markerType.Name}");
     }
 
-#pragma warning disable CS0649 // Field is never assigned to
-    private DateTimeOffset? _lastNodeRecordPruneTime;
-#pragma warning restore CS0649
-
-    private bool isTimeToPruneNodeEventRecords()
+    /// <summary>
+    /// GH-3701: everything that keeps the node record table from growing without bound. Two deletes, both
+    /// against the <c>Main</c> store, both on the slow <see cref="DurabilitySettings.NodeRecordPruningPeriod"/>
+    /// timer rather than the five-second recovery batch:
+    ///
+    /// 1. <see cref="DeleteOldNodeEventRecords"/> — the age sweep against
+    ///    <see cref="DurabilitySettings.NodeEventRecordExpirationTime"/> (5 days by default). This one already
+    ///    existed, but it was appended to <see cref="buildOperationBatch"/> behind an
+    ///    <c>isTimeToPruneNodeEventRecords()</c> guard reading a field that was never assigned — the
+    ///    suppression on it (<c>CS0649</c>) said so outright — so the guard always returned true and the whole
+    ///    delete ran on every recovery cycle.
+    /// 2. <see cref="TrimNodeRecordsCommand"/> — the row cap against
+    ///    <see cref="DurabilitySettings.NodeRecordRetention"/>. An age bound alone puts no ceiling on the
+    ///    table: the reporting cluster wrote one <c>AssignmentChanged</c> row per agent per assignment
+    ///    decision, ~12.8M rows/day, reaching 36M rows / 16 GB well inside the 5-day window.
+    /// </summary>
+    internal void PruneNodeRecords()
     {
-        if (_lastNodeRecordPruneTime == null)
-        {
-            return true;
-        }
+        _runningBlock.Post(new DatabaseOperationBatch(_database,
+            [new DeleteOldNodeEventRecords(_database, _settings)]));
 
-        if (DateTimeOffset.UtcNow.Subtract(_lastNodeRecordPruneTime.Value) > 1.Hours())
+        if (_settings.NodeRecordRetention > 0)
         {
-            return true;
+            _runningBlock.Post(new TrimNodeRecordsCommand(_database, _settings, _logger));
         }
-
-        return false;
     }
 
     internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
@@ -238,13 +266,8 @@ internal class DurabilityAgent : IAgent
             }
         }
 
-        if (_database.Settings.Role == MessageStoreRole.Main)
-        {
-            if (isTimeToPruneNodeEventRecords())
-            {
-                ops.Add(new DeleteOldNodeEventRecords(_database, _settings));
-            }
-        }
+        // GH-3701: node record pruning used to live here, on the five-second recovery cadence. It now runs
+        // on its own timer -- see PruneNodeRecords.
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
         {
