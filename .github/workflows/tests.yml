@@ -39,6 +39,7 @@ jobs:
           - CIMySql
           - CINATS
           - CIOracle
+          - CIOtel
           - CIPersistence
           # PolecatTests is one serial SqlServer project sharded three ways by namespace. CIPolecat is the
           # "everything else" shard, so a newly added namespace still runs somewhere. See #3350.

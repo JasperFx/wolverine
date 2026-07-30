@@ -9,6 +9,11 @@ public static class MessagingConstants
     public const string Subscriber2Queue = "otel.subscriber.2";
 
     public const string OtelExchangeName = "otel.exchange";
+
+    // Wolverine stamps this onto Envelope.Source, and TracingTests asserts on it. Shared as a
+    // constant because the two had silently disagreed ("WebApi" vs "OtelWebApi") for as long as
+    // nothing compiled the test project -- see GH-3704.
+    public const string WebApiServiceName = "WebApi";
 }
 
 // What's posted to the web api
@@ -23,7 +28,7 @@ public class InitialPost
         Name = name;
     }
 
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 // Turned into a command. Try both invoked and enqueued
@@ -38,17 +43,17 @@ public record TcpMessage2(string Name);
 // Sent to both Subscriber1 & Subscriber2
 public class RabbitMessage1
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class RabbitMessage2
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 public class RabbitMessage3
 {
-    public string Name { get; set; }
+    public string Name { get; set; } = null!;
 }
 
 // Handled in WebApi

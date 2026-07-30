@@ -146,4 +146,50 @@ public class ejection_hysteresis_tests
 
         await assertPeerDeleted(1);
     }
+
+    /// <summary>
+    /// GH-3698. The observer writes one DormantNodeEjected record per node it is handed, and it used to be
+    /// handed the whole stale list — including every node the checks above deliberately spare. A node that
+    /// blipped stale for a single tick and recovered was therefore recorded as ejected while still
+    /// heartbeating, which is exactly the contradiction reported against the production cluster: an
+    /// "ejected" record sitting next to a fresh health_check.
+    /// </summary>
+    [Fact]
+    public async Task records_no_ejection_for_a_peer_still_inside_the_hysteresis_window()
+    {
+        snapshotIs(Self(), Peer(stale: true));
+
+        await tickAsync(); // observed stale, but below the ejection threshold
+
+        await _persistence.DidNotReceive().DeleteAsync(_peerId, Arg.Any<int>());
+        await _runtime.Observer.DidNotReceive().StaleNodes(Arg.Any<IReadOnlyList<WolverineNode>>());
+    }
+
+    [Fact]
+    public async Task records_no_ejection_for_a_stale_leader_a_follower_may_not_delete()
+    {
+        _options.Durability.StaleNodeEjectionThreshold = 1;
+        _persistence.HasLeadershipLock().Returns(false);
+
+        snapshotIs(Self(), Peer(stale: true, isLeader: true));
+
+        await tickAsync();
+
+        await _persistence.DidNotReceive().DeleteAsync(_peerId, Arg.Any<int>());
+        await _runtime.Observer.DidNotReceive().StaleNodes(Arg.Any<IReadOnlyList<WolverineNode>>());
+    }
+
+    [Fact]
+    public async Task records_an_ejection_for_the_peer_it_actually_deleted()
+    {
+        _options.Durability.StaleNodeEjectionThreshold = 1;
+
+        snapshotIs(Self(), Peer(stale: true));
+
+        await tickAsync();
+
+        await assertPeerDeleted(1);
+        await _runtime.Observer.Received(1)
+            .StaleNodes(Arg.Is<IReadOnlyList<WolverineNode>>(x => x.Count == 1 && x[0].NodeId == _peerId));
+    }
 }

@@ -302,7 +302,8 @@ public partial class NodeAgentController
 
         IsLeader = true;
 
-        _logger.LogInformation("Node {NodeNumber} successfully assumed leadership", _runtime.Options.UniqueNodeId);
+        _logger.LogInformation("Node {NodeNumber} ({NodeId}) successfully assumed leadership",
+            _runtime.Options.Durability.AssignedNodeNumber, _runtime.Options.UniqueNodeId);
 
         await _observer.AssumedLeadership();
 
@@ -335,6 +336,13 @@ public partial class NodeAgentController
         // blip from destroying a live leader's row, ownership, and assignments.
         var holdsLeadership = _persistence.HasLeadershipLock();
 
+        // GH-3698: only the nodes actually deleted below get a DormantNodeEjected record. Reporting the whole
+        // stale list wrote one for every node the checks here deliberately SPARE -- this node itself, a
+        // leader a follower may not evict, and above all a node inside the GH-3604 hysteresis window. So a
+        // node that blipped stale for one tick and recovered was recorded as ejected while still heartbeating,
+        // which is exactly the contradiction reported: an "ejected" record alongside a fresh health_check.
+        var ejected = new List<WolverineNode>();
+
         // As per GH-1116, don't delete yourself!
         foreach (var staleNode in staleNodes.Where(x => x.AssignedNodeNumber != _runtime.DurabilitySettings.AssignedNodeNumber))
         {
@@ -355,11 +363,12 @@ public partial class NodeAgentController
 
             await _persistence.DeleteAsync(staleNode.NodeId, staleNode.AssignedNodeNumber);
             _staleObservations.Remove(staleNode.NodeId);
+            ejected.Add(staleNode);
         }
 
-        if (staleNodes.Any())
+        if (ejected.Count != 0)
         {
-            await _observer.StaleNodes(staleNodes);
+            await _observer.StaleNodes(ejected);
         }
     }
 

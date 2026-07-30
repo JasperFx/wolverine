@@ -1,4 +1,5 @@
-using Oakton;
+using JasperFx;
+using OpenTelemetry;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OtelMessages;
@@ -25,21 +26,18 @@ return await Host.CreateDefaultBuilder(args)
         opts.PublishMessage<RabbitMessage2>().ToRabbitQueue(MessagingConstants.Subscriber2Queue);
 
         // Add Open Telemetry tracing
-        opts.Services.AddOpenTelemetryTracing(builder =>
-        {
-            builder
-                .SetResourceBuilder(ResourceBuilder
-                    .CreateDefault()
-                    .AddService("Subscriber1"))
-                .AddJaegerExporter()
-
+        opts.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService("Subscriber1"))
+            .WithTracing(tracing =>
+            {
                 // Add Wolverine as a source
-                .AddSource("Wolverine");
-        });
+                tracing.AddSource("Wolverine");
+            })
+            .UseOtlpExporter();
     })
 
-    // Executing with Oakton as the command line parser to unlock
+    // Executing with JasperFx as the command line parser to unlock
     // quite a few utilities and diagnostics in our Wolverine application
-    .RunOaktonCommands(args);
+    .RunJasperFxCommands(args);
 
 #endregion
