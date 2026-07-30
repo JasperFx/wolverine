@@ -7,6 +7,7 @@ using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime;
@@ -158,31 +159,77 @@ public class ServiceCapabilities : OptionsDescription
             SystemControlUri = systemControlUri
         };
 
-        readTransports(runtime, capabilities);
+        // GH-3740: every section below is a purely *diagnostic* read of the application's own configuration,
+        // and the snapshot as a whole is best effort. Before this, one misbehaving property getter,
+        // descriptor source, or unreachable database anywhere in the graph aborted ReadFrom outright -- and
+        // a monitoring console (CritterWatch) consequently received *no* capabilities at all for the
+        // service, permanently, since it retries the same doomed call on every batch. Each section is now
+        // isolated: it either contributes its data or logs a warning and is left out.
+        readSection(runtime, nameof(Brokers), token, () => readTransports(runtime, capabilities, token));
 
-        await readMessageStores(runtime, capabilities);
+        await readSectionAsync(runtime, nameof(MessageStores), token, () => readMessageStores(runtime, capabilities));
 
-        await readEventStores(runtime, token, capabilities);
+        await readSectionAsync(runtime, nameof(EventStores), token, () => readEventStores(runtime, token, capabilities));
 
-        await readDocumentStores(runtime, token, capabilities);
+        await readSectionAsync(runtime, nameof(DocumentStores), token,
+            () => readDocumentStores(runtime, token, capabilities));
 
-        await readDbContexts(runtime, token, capabilities);
+        await readSectionAsync(runtime, nameof(DbContexts), token, () => readDbContexts(runtime, token, capabilities));
 
-        await readHttpGraphs(runtime, token, capabilities);
+        await readSectionAsync(runtime, nameof(HttpGraphs), token, () => readHttpGraphs(runtime, token, capabilities));
 
-        readAspNetEndpoints(runtime, capabilities);
+        readSection(runtime, nameof(AspNetEndpoints), token, () => readAspNetEndpoints(runtime, capabilities));
 
-        readGrpcEndpoints(runtime, capabilities);
+        readSection(runtime, nameof(GrpcEndpoints), token, () => readGrpcEndpoints(runtime, capabilities));
 
-        readMessageTypes(runtime, capabilities);
+        readSection(runtime, nameof(Messages), token, () => readMessageTypes(runtime, capabilities));
 
-        readEndpoints(runtime, capabilities);
+        readSection(runtime, nameof(MessagingEndpoints), token, () => readEndpoints(runtime, capabilities, token));
 
-        readSagas(runtime, capabilities);
+        readSection(runtime, nameof(Sagas), token, () => readSagas(runtime, capabilities));
 
-        readAdditionalCapabilities(runtime, capabilities);
+        readSection(runtime, nameof(AdditionalCapabilities), token,
+            () => readAdditionalCapabilities(runtime, capabilities));
 
         return capabilities;
+    }
+
+    private static void readSection(IWolverineRuntime runtime, string section, CancellationToken token, Action read)
+    {
+        try
+        {
+            read();
+        }
+        catch (Exception e)
+        {
+            warnAboutFailedSection(runtime, section, token, e);
+        }
+    }
+
+    private static async Task readSectionAsync(IWolverineRuntime runtime, string section, CancellationToken token,
+        Func<Task> read)
+    {
+        try
+        {
+            await read();
+        }
+        catch (Exception e)
+        {
+            warnAboutFailedSection(runtime, section, token, e);
+        }
+    }
+
+    private static void warnAboutFailedSection(IWolverineRuntime runtime, string section, CancellationToken token,
+        Exception e)
+    {
+        // A cancelled token means the host is shutting down or the caller gave up waiting -- that's not a
+        // failure of this particular section, and there's no point grinding through the remaining ones or
+        // logging a dozen warnings about it.
+        token.ThrowIfCancellationRequested();
+
+        runtime.Logger.LogWarning(e,
+            "Wolverine was unable to read the {Section} section of the ServiceCapabilities diagnostic snapshot for service {ServiceName}. That section will be missing or incomplete, the rest of the snapshot is unaffected.",
+            section, runtime.Options.ServiceName);
     }
 
     /// <summary>
@@ -248,12 +295,27 @@ public class ServiceCapabilities : OptionsDescription
         capabilities.GrpcEndpoints.AddRange(list.OrderBy(x => x.ServiceName + "::" + x.MethodName, StringComparer.Ordinal));
     }
 
-    private static void readEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    private static void readEndpoints(IWolverineRuntime runtime, ServiceCapabilities capabilities,
+        CancellationToken token)
     {
         foreach (var endpoint in runtime.Options.Transports.AllEndpoints().OrderBy(x => x.Uri.ToString()))
         {
             if (endpoint.Role == EndpointRole.System) continue;
-            capabilities.MessagingEndpoints.Add(new EndpointDescriptor(endpoint));
+
+            // GH-3740: same reasoning as readTransports() -- EndpointDescriptor reflects over the endpoint's
+            // public properties, and one bad getter shouldn't empty out the whole endpoint list
+            try
+            {
+                capabilities.MessagingEndpoints.Add(new EndpointDescriptor(endpoint));
+            }
+            catch (Exception e)
+            {
+                token.ThrowIfCancellationRequested();
+
+                runtime.Logger.LogWarning(e,
+                    "Wolverine was unable to build a diagnostic description of the endpoint at {EndpointUri}. It will be missing from the ServiceCapabilities snapshot.",
+                    endpoint.Uri);
+            }
         }
     }
 
@@ -451,13 +513,28 @@ public class ServiceCapabilities : OptionsDescription
         }
     }
 
-    private static void readTransports(IWolverineRuntime runtime, ServiceCapabilities capabilities)
+    private static void readTransports(IWolverineRuntime runtime, ServiceCapabilities capabilities,
+        CancellationToken token)
     {
         foreach (var transport in runtime.Options.Transports)
         {
-            if (transport.TryBuildBrokerUsage(out var usage))
+            // GH-3740: BrokerDescription reflects over every public property of the transport, so one
+            // throwing getter on one broker's configuration must not cost us the description of every
+            // *other* broker in the application
+            try
             {
-                capabilities.Brokers.Add(usage);
+                if (transport.TryBuildBrokerUsage(out var usage))
+                {
+                    capabilities.Brokers.Add(usage);
+                }
+            }
+            catch (Exception e)
+            {
+                token.ThrowIfCancellationRequested();
+
+                runtime.Logger.LogWarning(e,
+                    "Wolverine was unable to build a diagnostic description of the {Protocol} ({TransportName}) transport. It will be missing from the ServiceCapabilities snapshot.",
+                    transport.Protocol, transport.Name);
             }
         }
     }

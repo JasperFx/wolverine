@@ -36,6 +36,10 @@ public class PulsarTransport : TransportBase<PulsarEndpoint>, IAsyncDisposable
             new LightweightCache<Uri, PulsarEndpoint>(uri => new PulsarEndpoint(uri, this));
     }
 
+    // GH-3740: an indexer is still a public property as far as reflection is concerned, and reading one
+    // without index arguments throws TargetParameterCountException -- which used to abort the whole
+    // ServiceCapabilities snapshot for any application using Pulsar
+    [IgnoreDescription]
     public PulsarEndpoint this[Uri uri] => _endpoints[uri];
 
     [IgnoreDescription]
