@@ -22,9 +22,14 @@ internal class LeaderPinnedListenerAgent : IAgent
         Uri = new Uri($"{LeaderPinnedListenerFamily.SchemeName}://{_endpoint.Uri.Scheme}/{_endpoint.EndpointName}");
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        return _runtime.Endpoints.StartListenerAsync(_endpoint, cancellationToken);
+        await _runtime.Endpoints.StartListenerAsync(_endpoint, cancellationToken);
+
+        // GH-3604: same cached-instance hazard as ExclusiveListenerAgent -- a leader-pinned listener is
+        // stopped on the old leader and started on the new one, so every election after the first would
+        // otherwise restart this listener while still reporting it Stopped.
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

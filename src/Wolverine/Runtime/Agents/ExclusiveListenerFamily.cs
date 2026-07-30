@@ -22,9 +22,16 @@ internal class ExclusiveListenerAgent : IAgent
         Uri = new Uri($"{ExclusiveListenerFamily.SchemeName}://{_endpoint.Uri.Scheme}/{_endpoint.EndpointName}");
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        return _runtime.Endpoints.StartListenerAsync(_endpoint, cancellationToken);
+        await _runtime.Endpoints.StartListenerAsync(_endpoint, cancellationToken);
+
+        // GH-3604: the family hands out ONE cached agent instance per endpoint for the life of the runtime,
+        // so a restart lands on the very object a previous StopAsync() marked Stopped. Without resetting the
+        // status here, a node that has ever given this listener up runs it but reports it as not running --
+        // it never appears in AllRunningAgentUris() again, and CheckHealthAsync() below reports Unhealthy
+        // forever.
+        Status = AgentStatus.Running;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
