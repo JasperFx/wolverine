@@ -168,6 +168,84 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         runtime.Restrictions.FindPausedAgentUris().ShouldContain(uri);
     }
 
+    private static Uri[] AllFakeAgents =>
+        FakeAgentFamily.Names.Select(x => new Uri($"fake://{x}")).ToArray();
+
+    private Uri[] runningAgentsAcrossTheCluster()
+        => _hosts.SelectMany(x => x.RunningAgents()).ToArray();
+
+    /// <summary>
+    /// Polls until every agent in <paramref name="expected" /> is running on exactly one node and nothing in
+    /// <paramref name="stopped" /> is running anywhere, then asserts the same thing so a timeout fails with
+    /// the actual placement rather than "the loop ended".
+    /// </summary>
+    private async Task expectExactlyOneCopyOfEachAsync(Uri[] expected, Uri[] stopped, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+
+        while (!cancellation.IsCancellationRequested)
+        {
+            var running = runningAgentsAcrossTheCluster();
+            if (expected.All(uri => running.Count(x => x == uri) == 1)
+                && stopped.All(uri => !running.Contains(uri)))
+            {
+                return;
+            }
+
+            await Task.Delay(250.Milliseconds());
+        }
+
+        var final = runningAgentsAcrossTheCluster();
+
+        // Two distinct failure modes, and the difference matters: a MISSING agent means a stop was issued
+        // without a start reaching anyone, a DUPLICATED one means a start was issued without a stop.
+        final.Where(x => expected.Contains(x)).GroupBy(x => x).Where(g => g.Count() > 1)
+            .Select(g => g.Key).ShouldBeEmpty("These agents are running on more than one node");
+
+        expected.Where(uri => !final.Contains(uri)).ShouldBeEmpty("These agents are not running anywhere");
+
+        stopped.Where(uri => final.Contains(uri)).ShouldBeEmpty("These agents were paused but are running");
+    }
+
+    /// <summary>
+    /// GH-3698. Puts the two situations the pending-assignment work exists for into one scenario: an
+    /// operator pause landing while assignments are in flight, and then the nodes holding the rest of them
+    /// disappearing — the leader among them, so a fresh election has to carry the restriction forward too.
+    /// Neither may lose an agent, and neither may leave one running twice.
+    ///
+    /// <para>Before the fix, re-placing a dispatched-but-unconfirmed agent produced a bare start on the new
+    /// node with no stop for the copy already coming up on the old one, and pausing such an agent produced
+    /// no command at all — there was no <c>OriginalNode</c> to stop it on, so the in-flight start came up and
+    /// ran straight through the pause.</para>
+    /// </summary>
+    [Fact]
+    public async Task every_agent_survives_a_pause_and_losing_the_nodes_that_held_them()
+    {
+        await _originalHost.WaitUntilAssumesLeadershipAsync(10.Seconds());
+
+        var host2 = await startHostAsync();
+        var host3 = await startHostAsync();
+
+        // Settle first, so the agents about to be moved are ones the cluster genuinely placed rather than
+        // ones that were never assigned in the first place.
+        await expectExactlyOneCopyOfEachAsync(AllFakeAgents, [], 30.Seconds());
+
+        var paused = new Uri("fake://twelve");
+        var restrictions = new AgentRestrictions([]);
+        restrictions.PauseAgent(paused);
+        await _originalHost.GetRuntime().Agents.ApplyRestrictionsAsync(restrictions, CancellationToken.None);
+
+        // Take away the leader and one more, leaving a single survivor that has to pick up everything.
+        await shutdownHostAsync(_originalHost);
+        await shutdownHostAsync(host2);
+
+        var expected = AllFakeAgents.Where(x => x != paused).ToArray();
+        await expectExactlyOneCopyOfEachAsync(expected, [paused], 60.Seconds());
+
+        // ...and the survivor really is the only node left holding them.
+        host3.RunningAgents().ShouldContain(expected[0]);
+    }
+
     /***** NEW TESTS END HERE **********************************************/
 
     [Fact]
