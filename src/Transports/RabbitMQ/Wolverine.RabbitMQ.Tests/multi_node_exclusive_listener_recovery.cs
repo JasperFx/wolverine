@@ -200,7 +200,12 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
     }
 
 
-    private static async Task<Envelope[]> seedDormantMessagesAsync(IHost host, int count)
+    /// <summary>
+    /// Seeds inbox rows directly. <paramref name="ownerId" /> is the owner they are persisted WITH, which
+    /// matters: staging rows as claimable and reassigning them afterwards leaves a window in which the
+    /// listener's recovery loop can legitimately claim them. See GH-3729.
+    /// </summary>
+    private static async Task<Envelope[]> seedDormantMessagesAsync(IHost host, int count, int ownerId)
     {
         var runtime = host.GetRuntime();
         var store = host.Services.GetRequiredService<IMessageStore>();
@@ -215,9 +220,7 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
                 Destination = queueUri(),
                 Status = EnvelopeStatus.Incoming,
 
-                // Exactly how an ungraceful shutdown leaves them, and how the durability agent releases
-                // the rows a dead node owned.
-                OwnerId = TransportConstants.AnyNode,
+                OwnerId = ownerId,
                 ContentType = serializer.ContentType,
                 MessageType = typeof(NodeTrackedMessage).ToMessageTypeName(),
                 SentAt = DateTimeOffset.UtcNow
@@ -268,7 +271,9 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         // these two agents are on different nodes.
         listenerNode.ShouldNotBe(agentNode);
 
-        var seeded = await seedDormantMessagesAsync(listener, 5);
+        // Dormant and claimable from the outset -- exactly how an ungraceful shutdown leaves them once the
+        // durability agent has released the rows a dead node owned.
+        var seeded = await seedDormantMessagesAsync(listener, 5, TransportConstants.AnyNode);
         var expected = seeded.Select(x => x.Id).ToArray();
 
         var recovered = await waitForAsync(() => expected.All(tracking.Contains), 60.Seconds());
@@ -315,12 +320,17 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         var listenerNode = nodeNumberOf(listener);
 
         var store = listener.Services.GetRequiredService<IMessageStore>();
-        var seeded = await seedDormantMessagesAsync(listener, 5);
 
         // Owned by a node that is not part of this cluster -- the state a dead node's in-flight batch is in
         // before the durability agent gets around to releasing it.
+        //
+        // GH-3729: these have to be seeded owned by the departed node, not stored as claimable and reassigned
+        // a round-trip later. The listener's recovery loop polls every ScheduledJobPollingTime (250ms here), so
+        // a sweep landing in that window claimed the rows perfectly correctly -- and then the assertion below,
+        // which exists to prove the listener leaves other nodes' rows alone, failed on the test's own setup
+        // rather than on any product behaviour. That was roughly 40% of runs.
         const int departedNode = 987654;
-        await store.ReassignIncomingAsync(departedNode, seeded);
+        var seeded = await seedDormantMessagesAsync(listener, 5, departedNode);
 
         (await store.LoadPageOfGloballyOwnedIncomingAsync(queueUri(), 100))
             .ShouldBeEmpty("Nothing should be dormant yet -- the rows are still owned by the departed node");
