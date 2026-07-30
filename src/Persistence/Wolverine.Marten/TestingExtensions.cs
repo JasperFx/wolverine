@@ -5,6 +5,7 @@ using Marten;
 using Marten.Events;
 using Marten.Events.Daemon.Coordination;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Wolverine.Runtime;
 using Wolverine.Tracking;
 
@@ -121,6 +122,115 @@ public static class TestingExtensions
     }
 
     private static readonly TimeSpan CatchUpTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Force every Marten projection and subscription running asynchronously under Wolverine-managed event
+    /// subscription distribution to catch up to the current high water mark, then restore the daemons to the
+    /// state named by <paramref name="mode"/>.
+    ///
+    /// This is the standalone equivalent of
+    /// <see cref="PauseThenCatchUpOnMartenDaemonActivity(TrackedSessionConfiguration,CatchUpMode)"/>, for suites
+    /// that are not driving the work through <c>TrackActivity()</c>. Marten's own
+    /// <c>IHost.ForceAllMartenDaemonActivityToCatchUpAsync()</c> is deliberately a passive read-only wait when
+    /// the store is <c>DaemonMode.ExternallyManaged</c> — which is the mode Wolverine puts it in — and punts
+    /// active catch-up to the external coordinator. This is that path.
+    ///
+    /// Note what it does NOT do: it never calls <c>IProjectionDaemon.CatchUpAsync</c>. Doing that while the
+    /// coordinator owns the shards introduces a *second* writer of each progression row, which is what produces
+    /// the <c>ProgressionProgressOutOfOrderException</c> ("multiple processes try to process the projection")
+    /// and the <c>23505 duplicate key value violates unique constraint "pk_mt_event_progression"</c> on a
+    /// shard's first progression row. Resuming the agents that already own those shards and waiting for
+    /// non-stale data means there is only ever one writer, so neither race exists to be swallowed.
+    /// </summary>
+    /// <param name="host"></param>
+    /// <param name="mode">Whether to leave the daemons running afterwards (the default) or re-pause them</param>
+    /// <param name="timeout">How long to allow for catch-up. Defaults to 60 seconds.</param>
+    /// <param name="cancellation"></param>
+    public static Task PauseThenCatchUpOnMartenDaemonActivityAsync(this IHost host,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default)
+    {
+        return host.Services.PauseThenCatchUpOnMartenDaemonActivityAsync(mode, timeout, cancellation);
+    }
+
+    /// <summary>
+    /// Force every Marten projection and subscription running asynchronously under Wolverine-managed event
+    /// subscription distribution to catch up to the current high water mark, then restore the daemons to the
+    /// state named by <paramref name="mode"/>. See the <c>IHost</c> overload for the full rationale.
+    /// </summary>
+    public static Task PauseThenCatchUpOnMartenDaemonActivityAsync(this IServiceProvider services,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default)
+    {
+        var coordinator = services.GetRequiredService<IProjectionCoordinator>();
+
+        return resumeAndWaitForNonStaleAsync(coordinator,
+            t => services.DocumentStore().WaitForNonStaleProjectionDataAsync(t),
+            mode, timeout ?? CatchUpTimeout, "the main Marten store", cancellation);
+    }
+
+    /// <summary>
+    /// Force every Marten projection and subscription in an ancillary store running asynchronously under
+    /// Wolverine-managed event subscription distribution to catch up to the current high water mark, then
+    /// restore the daemons to the state named by <paramref name="mode"/>. See the non-generic <c>IHost</c>
+    /// overload for the full rationale.
+    /// </summary>
+    public static Task PauseThenCatchUpOnMartenDaemonActivityAsync<T>(this IHost host,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default) where T : class, IDocumentStore
+    {
+        return host.Services.PauseThenCatchUpOnMartenDaemonActivityAsync<T>(mode, timeout, cancellation);
+    }
+
+    /// <summary>
+    /// Force every Marten projection and subscription in an ancillary store running asynchronously under
+    /// Wolverine-managed event subscription distribution to catch up to the current high water mark, then
+    /// restore the daemons to the state named by <paramref name="mode"/>. See the non-generic <c>IHost</c>
+    /// overload for the full rationale.
+    /// </summary>
+    public static Task PauseThenCatchUpOnMartenDaemonActivityAsync<T>(this IServiceProvider services,
+        CatchUpMode mode = CatchUpMode.AndResumeNormally, TimeSpan? timeout = null,
+        CancellationToken cancellation = default) where T : class, IDocumentStore
+    {
+        var coordinator = services.GetRequiredService<IProjectionCoordinator<T>>();
+
+        return resumeAndWaitForNonStaleAsync(coordinator,
+            t => services.DocumentStore<T>().WaitForNonStaleProjectionDataAsync(t),
+            mode, timeout ?? CatchUpTimeout, $"the ancillary Marten store {typeof(T).NameInCode()}", cancellation);
+    }
+
+    // The whole of "force catch-up" under a Wolverine-managed coordinator: make sure the agents that own the
+    // shards are running, wait for every (database, tenant) shard to reach the current high water mark, then
+    // honor the caller's CatchUpMode. Same algorithm the tracked-session stage runs in
+    // catchUpThroughCoordinatorAsync below, minus the message-tracking bookkeeping that only makes sense
+    // inside a TrackedSession.
+    private static async Task resumeAndWaitForNonStaleAsync(
+        global::Marten.Events.Daemon.Coordination.IProjectionCoordinator coordinator,
+        Func<TimeSpan, Task> waitForNonStale,
+        CatchUpMode mode,
+        TimeSpan timeout,
+        string storeDescription,
+        CancellationToken cancellation)
+    {
+        await coordinator.ResumeAsync().ConfigureAwait(false);
+
+        try
+        {
+            await waitForNonStale(timeout).WaitAsync(cancellation).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Cancelled before the Marten projections for {storeDescription} caught up. The catch-up itself was allowed {timeout.TotalSeconds:N0} seconds.");
+        }
+        finally
+        {
+            if (mode == CatchUpMode.AndDoNothing)
+            {
+                await coordinator.PauseAsync().ConfigureAwait(false);
+            }
+        }
+    }
 
     // GH-3349 / Marten #4904: under Wolverine-managed event-subscription distribution the Marten store is
     // DaemonMode.ExternallyManaged, so Marten's ForceAllMartenDaemonActivityToCatchUpAsync no longer DRIVES
