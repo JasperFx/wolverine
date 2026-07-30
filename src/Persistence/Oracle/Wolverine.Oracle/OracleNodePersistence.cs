@@ -390,6 +390,22 @@ internal class OracleNodePersistence : DatabaseConstants, INodeAgentPersistence
         return list;
     }
 
+    // GH-3701: the row cap that bounds the node record table alongside the age sweep. Without this the
+    // store fell through to the interface's no-op default and only the age bound applied. Expressed as a
+    // floor id rather than a NOT IN over a FETCH FIRST subquery so the delete stays a primary-key range scan.
+    public async Task DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        if (retainCount <= 0) return;
+
+        await using var conn = await _dataSource.OpenConnectionAsync();
+        await using var cmd = conn.CreateCommand(
+            $"DELETE FROM {_settings.SchemaName}.{NodeRecordTableName} WHERE id < NVL((SELECT MIN(id) FROM (SELECT id FROM {_settings.SchemaName}.{NodeRecordTableName} ORDER BY id DESC FETCH FIRST :retain ROWS ONLY)), 0)");
+        cmd.With("retain", retainCount);
+
+        await cmd.ExecuteNonQueryAsync();
+        await conn.CloseAsync();
+    }
+
     public bool HasLeadershipLock()
     {
         return _database.AdvisoryLock.HasLock(_lockId);

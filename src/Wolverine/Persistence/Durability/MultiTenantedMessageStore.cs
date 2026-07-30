@@ -596,6 +596,15 @@ public partial class MultiTenantedMessageStore : IMessageStore, IMessageInbox, I
         return Main.Nodes.FetchRecentRecordsAsync(count);
     }
 
+    // GH-3701: node records are written to, and read back from, the Main store only -- see LogRecordsAsync
+    // and FetchRecentRecordsAsync above -- so the retention cap has to follow them there. Without this
+    // override a multi-tenanted store inherited the interface's no-op default and never trimmed at all,
+    // which is exactly the shape (one main store, hundreds of tenant databases) the 36M-row report came from.
+    Task INodeAgentPersistence.DeleteOldNodeRecordsAsync(int retainCount)
+    {
+        return Main.Nodes.DeleteOldNodeRecordsAsync(retainCount);
+    }
+
     bool INodeAgentPersistence.HasLeadershipLock()
     {
         return Main.Nodes.HasLeadershipLock();

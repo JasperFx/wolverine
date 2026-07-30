@@ -247,6 +247,30 @@ public class DurabilitySettings : IDescribeMyself
     public int StaleNodeEjectionThreshold { get; set; } = 2;
 
     /// <summary>
+    ///     GH-3701: a hard cap on the number of rows retained in the node record table
+    ///     (<c>wolverine_node_records</c>), the append-only diagnostic log written by
+    ///     <c>INodeAgentPersistence.LogRecordsAsync</c> and read back by <c>FetchRecentRecordsAsync</c>.
+    ///     <see cref="NodeEventRecordExpirationTime" /> bounds those rows by *age* only, which puts no ceiling on
+    ///     the table at all: a cluster churning assignments writes one <c>AssignmentChanged</c> row per agent per
+    ///     decision, so millions of rows a day fit comfortably inside the age window and turn an
+    ///     agent-assignment incident into a database capacity problem on top of it. This cap is applied on the
+    ///     same housekeeping pass as the age sweep, every <see cref="NodeRecordPruningPeriod" />, against the
+    ///     <c>Main</c> store only. Raise it on very large agent universes, where one assignment wave is already
+    ///     thousands of rows. Set to zero or a negative number to keep the age sweep as the only bound, which
+    ///     was the behavior before 6.24.1.
+    /// </summary>
+    public int NodeRecordRetention { get; set; } = 10_000;
+
+    /// <summary>
+    ///     GH-3701: how often the node record table is pruned, both by age
+    ///     (<see cref="NodeEventRecordExpirationTime" />) and down to <see cref="NodeRecordRetention" /> rows.
+    ///     Deliberately far slower than <see cref="ScheduledJobPollingTime" /> — this is a housekeeping scan
+    ///     over a table nothing on the hot path reads, and until 6.24.1 it was being appended to every
+    ///     five-second recovery batch instead.
+    /// </summary>
+    public TimeSpan NodeRecordPruningPeriod { get; set; } = 1.Hours();
+
+    /// <summary>
     ///     How often should Wolverine do a full check that all assigned agents are
     ///     really running and try to restart (or stop) any differences from the last
     ///     good set of assignments
@@ -463,6 +487,8 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(DeadLetterQueueExpirationEnabled), DeadLetterQueueExpirationEnabled);
         desc.AddValue(nameof(DeadLetterQueueExpiration), DeadLetterQueueExpiration);
         desc.AddValue(nameof(NodeEventRecordExpirationTime), NodeEventRecordExpirationTime);
+        desc.AddValue(nameof(NodeRecordRetention), NodeRecordRetention);
+        desc.AddValue(nameof(NodeRecordPruningPeriod), NodeRecordPruningPeriod);
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);
