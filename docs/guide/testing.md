@@ -207,6 +207,38 @@ await host.TrackActivity().Timeout(30.Seconds())
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L136-L198' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Forcing projection catch-up outside a tracked session
+
+Under `UseWolverineManagedEventSubscriptionDistribution` the Marten store runs in
+`DaemonMode.ExternallyManaged`, so Marten's own `IHost.ForceAllMartenDaemonActivityToCatchUpAsync()` is
+deliberately a **passive** read-only wait — it will not drive a paused daemon forward, and it leaves active
+catch-up to the external coordinator, which is Wolverine. Use Wolverine's own helper instead:
+
+```csharp
+// Drive every projection and subscription up to the current high water mark,
+// then leave the daemons running
+await host.PauseThenCatchUpOnMartenDaemonActivityAsync();
+
+// ...or leave them paused, so nothing races your assertions
+await host.PauseThenCatchUpOnMartenDaemonActivityAsync(CatchUpMode.AndDoNothing);
+
+// Ancillary stores take the store type
+await host.PauseThenCatchUpOnMartenDaemonActivityAsync<ILetterStore>();
+```
+
+This is the standalone equivalent of the `PauseThenCatchUpOnMartenDaemonActivity()` tracked-session stage
+shown above, for suites that are not driving the work through `TrackActivity()`. It covers every
+locally reachable daemon, including per-(database, tenant) shards.
+
+::: warning
+Do **not** hand-roll this by pausing the coordinator and then calling `IProjectionDaemon.CatchUpAsync()` on
+each daemon. That introduces a *second* writer of each projection's progression row alongside the shard's
+own agent, which is what produces intermittent `ProgressionProgressOutOfOrderException` ("multiple processes
+try to process the projection") and `23505: duplicate key value violates unique constraint
+"pk_mt_event_progression"` errors. Wolverine's helper never calls `CatchUpAsync` — it resumes the agents
+that already own those shards and waits for non-stale data, so there is only ever one writer.
+:::
+
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
 In accordance with the `MessageEventType` enum, you can access these properties on the `TrackedSession` object:
 
