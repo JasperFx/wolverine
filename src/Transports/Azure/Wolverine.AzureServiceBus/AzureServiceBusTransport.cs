@@ -22,7 +22,7 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
     private readonly Lazy<ServiceBusAdministrationClient> _managementClient;
 
     public readonly List<AzureServiceBusSubscription> Subscriptions = new();
-    private string _hostName = null!;
+    private string? _hostName;
     public const string DeadLetterQueueName = DeadLetterQueueConstants.DefaultQueueName;
 
     public AzureServiceBusTransport() : this(ProtocolName)
@@ -210,9 +210,14 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         }
     }
     
+    // GH-3740: both of these lazily *build a live Azure client* on first read. Diagnostic descriptions
+    // (JasperFx OptionsDescription, and through it Wolverine's ServiceCapabilities) reflect over every public
+    // property, so without this they would connect to Azure Service Bus as a side effect of describing the
+    // configuration -- and throw outright on any transport that has no connection information yet.
+    [IgnoreDescription]
     public ServiceBusClient BusClient => _busClient.Value;
 
-
+    [IgnoreDescription]
     public ServiceBusAdministrationClient ManagementClient => _managementClient.Value;
 
     public async ValueTask DisposeAsync()
@@ -271,24 +276,41 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
 
     internal AzureServiceBusQueue? RetryQueue { get; set; }
 
-    public string HostName
+    /// <summary>
+    /// The host name of the connected Azure Service Bus namespace, parsed from the <c>Endpoint</c> segment of
+    /// <see cref="ConnectionString"/> when there is one, and otherwise the configured
+    /// <see cref="FullyQualifiedNamespace"/> (which *is* the host name for credential-based connections).
+    /// Null only when this transport has no connection information at all.
+    /// </summary>
+    public string? HostName
     {
         get
         {
+            // GH-3740: this used to blow up with a NullReferenceException on `ConnectionString!` for every
+            // credential-based connection (FullyQualifiedNamespace + TokenCredential / NamedKeyCredential /
+            // SasCredential), where there is no connection string at all. Being a public getter, it was
+            // reached reflectively by JasperFx's OptionsDescription while building the Wolverine
+            // ServiceCapabilities snapshot, so a perfectly valid managed-identity setup could never complete
+            // a CritterWatch handshake.
             if (_hostName == null)
             {
-                var parts = ConnectionString!.Split(';');
-                foreach (var part in parts)
+                foreach (var part in ConnectionString?.Split(';') ?? [])
                 {
-                    var split = part.Split('=');
-                    if (split[0].EqualsIgnoreCase("Endpoint"))
+                    // Only split on the FIRST '=' -- SharedAccessKey values are base64 and routinely
+                    // carry trailing '=' padding.
+                    var split = part.Split('=', 2);
+                    if (split.Length == 2 && split[0].Trim().EqualsIgnoreCase("Endpoint") &&
+                        Uri.TryCreate(split[1].Trim(), UriKind.Absolute, out var uri))
                     {
-                        _hostName = new Uri(split[1]).Host;
+                        _hostName = uri.Host;
+                        break;
                     }
                 }
+
+                _hostName ??= FullyQualifiedNamespace;
             }
 
-            return _hostName!;
+            return _hostName;
         }
     }
 
