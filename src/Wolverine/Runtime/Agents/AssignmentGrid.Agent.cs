@@ -43,6 +43,29 @@ public partial class AssignmentGrid
         public Node? AssignedNode { get; internal set; }
 
         /// <summary>
+        ///     GH-3698. The node the leader has already dispatched a start to, but which has not yet been
+        ///     confirmed running it. Distinct from <see cref="OriginalNode" />, which is only ever populated
+        ///     from a node's <i>persisted</i> active agents and therefore lags a dispatch by however long the
+        ///     destination takes to start the agent and write its assignment row — many evaluation cycles for
+        ///     a node bringing up thousands of subscription agents.
+        ///
+        ///     <para>Without this, such an agent looks entirely unplaced to the grid, and moving it produced a
+        ///     bare <see cref="AssignAgent" /> to a second node with no stop for the copy already starting on
+        ///     the first: the same agent running twice. Populated by the leader from its pending-assignment
+        ///     ledger; see <c>NodeAgentController.applyPendingAssignments</c>.</para>
+        /// </summary>
+        internal Node? PendingNode { get; set; }
+
+        /// <summary>
+        ///     GH-3698. The dispatch to <see cref="PendingNode" /> is no longer outstanding — its lane has
+        ///     finished with the command, one way or the other — and the agent still has not shown up as
+        ///     running there, so the leader should drive the start again. The agent stays <i>recorded</i>
+        ///     against that node either way: a command that timed out on the wire may well still be starting
+        ///     agents at the other end, so re-driving it must never take the form of a bare start elsewhere.
+        /// </summary>
+        internal bool PendingRetryDue { get; set; }
+
+        /// <summary>
         /// Possible nodes that can support this agent. NOTE: this is only applied through
         /// MatchAgentsToNodesFor()
         /// </summary>
@@ -66,6 +89,44 @@ public partial class AssignmentGrid
 
             if (OriginalNode == null)
             {
+                // GH-3698: not running anywhere yet, but a start is already on its way to PendingNode. Every
+                // outcome here has to account for the copy that may be about to come up there -- a bare
+                // AssignAgent elsewhere, or silence, leaves it running unsupervised.
+                if (PendingNode != null)
+                {
+                    if (AssignedNode == null)
+                    {
+                        // Detached since we dispatched -- an operator pause, or the agent leaving the family.
+                        // Stop the pending copy. This lands in PendingNode's lane, so it is ordered behind the
+                        // start still queued there rather than racing it.
+                        command = new StopRemoteAgent(Uri, PendingNode.ToDestination());
+                        return true;
+                    }
+
+                    if (AssignedNode == PendingNode)
+                    {
+                        // Still going to the same place. Re-emitting while the dispatch is live would pile a
+                        // duplicate onto the control queue and a duplicate AssignmentChanged row behind it --
+                        // GH-3604/D6, from a node simply being slow. Once it has gone unconfirmed for long
+                        // enough, drive it again.
+                        if (!PendingRetryDue)
+                        {
+                            return false;
+                        }
+
+                        command = new AssignAgent(Uri, AssignedNode.ToDestination());
+                        return true;
+                    }
+
+                    // Being moved before the first start was confirmed. Stop-then-start, sequenced through
+                    // the pending node's lane, so whichever of the two nodes ends up with it, only one does.
+                    command = new ReassignAgent(Uri, PendingNode.ToDestination(), AssignedNode.ToDestination())
+                    {
+                        StopInSourceLane = true
+                    };
+                    return true;
+                }
+
                 // Do nothing if no assignment
                 if (AssignedNode == null)
                 {

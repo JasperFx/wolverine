@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using ImTools;
 using JasperFx.Core;
 using JasperFx.Descriptors;
@@ -20,6 +21,11 @@ public partial class WolverineRuntime : IAgentRuntime
     private bool _agentsAreDisabled;
     private Task? _healthCheckLoop;
     private Task? _heartbeatLoop;
+
+    // GH-3698: executes the commands the health-check/assignment loop produces, on a persistent lane per
+    // destination node, so neither a slow node nor a dead one can stop the leader from re-evaluating
+    // assignments or hold up the other nodes. See AgentCommandDispatcher.
+    private AgentCommandDispatcher? _dispatcher;
 
     private readonly CancellationTokenSource _agentCancellation;
 
@@ -186,13 +192,16 @@ public partial class WolverineRuntime : IAgentRuntime
     private Task<IReadOnlyList<Exception>> executeAgentCommandsAsync(AgentCommands commands,
         CancellationToken cancellationToken)
     {
-        // A MessageBus is not built to be shared across concurrent invocations, and the drain now runs one
-        // lane per destination node at the same time, so each command gets its own.
-        var drain = new AgentCommandDrain(
+        return buildDrain().DrainAsync(commands, cancellationToken);
+    }
+
+    private AgentCommandDrain buildDrain()
+    {
+        // A MessageBus is not built to be shared across concurrent invocations, and the drain runs one lane
+        // per destination node at the same time, so each command gets its own.
+        return new AgentCommandDrain(
             async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
             Logger);
-
-        return drain.DrainAsync(commands, cancellationToken);
     }
 
     public bool TryFindActiveAgent<T>(Uri agentUri, out T agent) where T : class
@@ -270,8 +279,20 @@ public partial class WolverineRuntime : IAgentRuntime
 
     private async Task startNodeAgentWorkflowAsync()
     {
+        // GH-3698: commands execute on the dispatcher's per-destination lanes, independently of the loop
+        // that produces them, so a long wave of slow agent starts can never stop assignments being
+        // re-evaluated and a lane wedged on a dead node cannot block a healthy one. Built before the loops
+        // start so the very first health check has somewhere to put its commands.
+        _dispatcher = new AgentCommandDispatcher(
+            async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
+            Logger, Cancellation);
+
         if (NodeController != null)
         {
+            // The dispatcher is the leader's "confirmed or failed" signal for a dispatched agent start; see
+            // NodeAgentController.PendingDispatches.
+            NodeController.PendingDispatches = _dispatcher.TryFindPendingDestination;
+
             var commands = await NodeController.StartLocalAgentProcessingAsync(Options);
             Replies.AssignedNodeNumber = Options.Durability.AssignedNodeNumber;
             
@@ -321,6 +342,17 @@ public partial class WolverineRuntime : IAgentRuntime
         }
     }
 
+    // GH-3698 (part 2): the health-check loop no longer executes the commands it produces. It used to await
+    // DoHealthChecksAsync() and then the whole agent-command drain in the same loop body, so for as long as
+    // a wave of agent starts was in flight, EvaluateAssignmentsAsync did not run at all -- and since the
+    // observer early-returns on an empty command list, the leader wrote ZERO AssignmentChanged records the
+    // entire time. That is why the reported cluster looked stalled and idle rather than merely slow: the
+    // assignments still landing were the ones the current, still-running wave was delivering node by node,
+    // while the evaluation that would have produced telemetry (and noticed a topology change) was parked
+    // behind it. Same defect as GH-3604/D1, which decoupled the heartbeat; this decouples the other half.
+    //
+    // Commands are now handed to an independent dispatcher (AgentCommandDispatcher) and this loop moves
+    // straight on to its next tick.
     private async Task executeHealthChecks()
     {
         await Task.Delay(Options.Durability.FirstHealthCheckExecution, Cancellation);
@@ -333,12 +365,12 @@ public partial class WolverineRuntime : IAgentRuntime
             {
                 try
                 {
-
                     var commands = await NodeController.DoHealthChecksAsync();
 
-                    // Failures are already logged per command, with their destination, inside the drain --
-                    // and this loop must keep ticking regardless, so there is nothing to do with them here.
-                    await executeAgentCommandsAsync(commands, Cancellation);
+                    foreach (var command in commands)
+                    {
+                        _dispatcher?.Enqueue(command);
+                    }
                 }
                 catch (OperationCanceledException)
                 {
@@ -357,6 +389,14 @@ public partial class WolverineRuntime : IAgentRuntime
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
 
+        if (_dispatcher != null)
+        {
+            await _dispatcher.DisposeAsync();
+            _dispatcher = null;
+        }
+
+        if (NodeController != null) NodeController.PendingDispatches = null;
+
         if (NodeController != null)
         {
             var bus = new MessageBus(this);
@@ -373,6 +413,14 @@ public partial class WolverineRuntime : IAgentRuntime
         _agentsAreDisabled = true;
         _heartbeatLoop?.SafeDispose();
         _healthCheckLoop?.SafeDispose();
+
+        if (_dispatcher != null)
+        {
+            await _dispatcher.DisposeAsync();
+            _dispatcher = null;
+        }
+
+        if (NodeController != null) NodeController.PendingDispatches = null;
 
         if (NodeController != null)
         {

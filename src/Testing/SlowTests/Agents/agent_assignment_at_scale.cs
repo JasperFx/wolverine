@@ -170,11 +170,23 @@ public class agent_assignment_at_scale : IAsyncLifetime
         // climbs above 10.
         _telemetry.PeakInFlight.ShouldBeGreaterThan(10);
 
-        // 900 agents x 1s, spread over 3 nodes x MaxAgentStartParallelism 10, is ~30s of start work.
-        // Funnelled through one node at a time it is ~90s. The budget below is generous for the former
-        // and unreachable for the latter.
+        // The coarsest of the three assertions, and deliberately generous. 900 agents x 1s over
+        // 3 nodes x MaxAgentStartParallelism 10 is ~30s of actual start work, but that is NOT the floor:
+        // one chunk is in flight per destination at a time, so each lane also pays a control-queue
+        // request/reply round-trip per chunk -- 6 chunks per node here, over the POLLED dbcontrol
+        // transport. Measured 71-77s against a ~52s work-only floor, so the remaining ~20s is round-trip
+        // latency rather than wasted work, and shrinks with a larger AgentStartBatchSize (which is exactly
+        // what the reporter of GH-3698 observed helping). The pre-fix behaviour was 125s, so this still
+        // catches the defect; the peak-concurrency and evaluation-gap assertions above are the precise
+        // ones.
         convergedAt.ShouldNotBeNull();
-        convergedAt.Value.ShouldBeLessThan(75.Seconds());
+        convergedAt.Value.ShouldBeLessThan(100.Seconds());
+
+        // The leader must keep re-evaluating assignments — and therefore keep writing AssignmentChanged —
+        // while starts are in flight. This is the symptom the report leads with: 40+ minutes of a healthy
+        // leader that had stopped saying anything. Before the drain was decoupled from the health-check
+        // loop this gap ran to the full length of the wave.
+        longestEvaluationGap.ShouldBeLessThan(20.Seconds());
 
         // Every node should be carrying a share of the universe.
         var final = samples.Last();

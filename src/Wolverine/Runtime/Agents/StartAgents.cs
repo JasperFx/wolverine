@@ -4,12 +4,72 @@ using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
 
+/// <summary>
+///     Value semantics for the <c>Uri[]</c> payload every batched agent command carries.
+///
+///     <para>GH-3698: the record default compares those arrays by <b>reference</b>, so two commands naming
+///     exactly the same agents were never equal — which is why <c>StartAgents</c> and <c>StopAgents</c> had
+///     hand-written <c>SequenceEqual</c> overrides in the first place. Those overrides were themselves
+///     broken: each left <c>GetHashCode</c> returning the array's reference hash, and a hash that disagrees
+///     with equality means the two values never land in the same bucket and are never compared at all.</para>
+///
+///     <para>Comparison is by the actual <see cref="Uri" /> values and is deliberately <b>order-independent</b>.
+///     Nothing about a batch depends on the order its URIs happen to be in, and two assignment waves can
+///     easily chunk the same set of agents in a different order — treating those as different commands would
+///     silently defeat every caller that relies on equality to recognise the same work twice.</para>
+/// </summary>
+internal static class AgentUriSet
+{
+    public static bool AreEquivalent(Uri[]? left, Uri[]? right)
+    {
+        if (ReferenceEquals(left, right)) return true;
+        if (left is null || right is null) return false;
+        if (left.Length != right.Length) return false;
+
+        // Multiset, not set: a repeated URI has to be matched by the same number of repeats on the other
+        // side rather than collapsing away.
+        var counts = new Dictionary<Uri, int>(left.Length);
+        foreach (var uri in left)
+        {
+            counts.TryGetValue(uri, out var count);
+            counts[uri] = count + 1;
+        }
+
+        foreach (var uri in right)
+        {
+            if (!counts.TryGetValue(uri, out var count) || count == 0) return false;
+            counts[uri] = count - 1;
+        }
+
+        return true;
+    }
+
+    public static int HashOf(Uri[]? uris)
+    {
+        if (uris is null) return 0;
+
+        // Summed rather than order-sensitively combined, so any ordering of the same agents hashes alike.
+        // Deliberately not XOR: that cancels a duplicated pair back out to zero.
+        unchecked
+        {
+            var hash = uris.Length;
+            foreach (var uri in uris) hash += uri.GetHashCode();
+            return hash;
+        }
+    }
+}
+
 internal record AgentsStarted(Uri[] AgentUris) : IAgentCommand, ISerializable
 {
     public Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         return Task.FromResult(AgentCommands.Empty);
     }
+
+    public virtual bool Equals(AgentsStarted? other)
+        => other is not null && AgentUriSet.AreEquivalent(AgentUris, other.AgentUris);
+
+    public override int GetHashCode() => AgentUriSet.HashOf(AgentUris);
 
     public byte[] Write()
     {
@@ -48,6 +108,13 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
 
         return AgentCommands.Empty;
     }
+
+    // See AgentUriSet: value equality over the agents, independent of their order.
+    public virtual bool Equals(AssignAgents? other)
+        => other is not null && Destination == other.Destination
+                             && AgentUriSet.AreEquivalent(AgentIds, other.AgentIds);
+
+    public override int GetHashCode() => HashCode.Combine(Destination, AgentUriSet.HashOf(AgentIds));
 }
 
 internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : IAgentCommand
@@ -62,6 +129,13 @@ internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : 
 
         return AgentCommands.Empty;
     }
+
+    // See AgentUriSet: value equality over the agents, independent of their order.
+    public virtual bool Equals(StopRemoteAgents? other)
+        => other is not null && Destination == other.Destination
+                             && AgentUriSet.AreEquivalent(AgentIds, other.AgentIds);
+
+    public override int GetHashCode() => HashCode.Combine(Destination, AgentUriSet.HashOf(AgentIds));
 }
 
 internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
@@ -98,19 +172,9 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 
     public virtual bool Equals(StartAgents? other)
-    {
-        if (ReferenceEquals(this, other))
-        {
-            return true;
-        }
+        => other is not null && AgentUriSet.AreEquivalent(AgentUris, other.AgentUris);
 
-        return AgentUris.SequenceEqual(other!.AgentUris);
-    }
-
-    public override int GetHashCode()
-    {
-        return AgentUris.GetHashCode();
-    }
+    public override int GetHashCode() => AgentUriSet.HashOf(AgentUris);
 
     public override string ToString()
     {
@@ -136,6 +200,11 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
     {
         return Task.FromResult(AgentCommands.Empty);
     }
+
+    public virtual bool Equals(AgentsStopped? other)
+        => other is not null && AgentUriSet.AreEquivalent(AgentUris, other.AgentUris);
+
+    public override int GetHashCode() => AgentUriSet.HashOf(AgentUris);
 
     public byte[] Write()
     {
@@ -173,24 +242,9 @@ internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 
     public virtual bool Equals(StopAgents? other)
-    {
-        if (ReferenceEquals(null, other))
-        {
-            return false;
-        }
+        => other is not null && AgentUriSet.AreEquivalent(AgentUris, other.AgentUris);
 
-        if (ReferenceEquals(this, other))
-        {
-            return true;
-        }
-
-        return AgentUris.SequenceEqual(other.AgentUris);
-    }
-
-    public override int GetHashCode()
-    {
-        return AgentUris.GetHashCode();
-    }
+    public override int GetHashCode() => AgentUriSet.HashOf(AgentUris);
 
     public override string ToString()
     {
