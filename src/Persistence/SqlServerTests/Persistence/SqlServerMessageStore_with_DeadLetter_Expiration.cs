@@ -19,11 +19,18 @@ public class SqlServerMessageStore_with_DeadLetter_Expiration : MessageStoreComp
 {
     public override async Task<IHost> BuildCleanHost()
     {
+        // Deliberately NOT "receiver2". DeadLetterQueueExpirationEnabled changes the *shape* of the dead
+        // letters table (it adds the `expires` column and its filtered index), and this suite used to share
+        // "receiver2" with SqlServerMessageStore_with_IdAndDestination_Identity, which drops and recreates
+        // that schema from a host that leaves the setting off. Whichever ran last won: once the table existed
+        // without `expires`, every test here that writes a dead letter failed with
+        // "Invalid column name 'expires'" — and because the schema outlives the process, it stayed broken for
+        // subsequent runs against the same database too. A schema of its own removes the ordering coupling.
         var host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver2");
-                
+                opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "receiver_dlq_expiration");
+
                 // This setting changes the internal message storage identity
                 opts.Durability.DeadLetterQueueExpirationEnabled = true;
             })
