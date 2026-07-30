@@ -2,6 +2,8 @@ namespace Wolverine.Runtime.Agents;
 
 internal record StopRemoteAgent(Uri AgentUri, NodeDestination Destination) : IAgentCommand
 {
+    public Guid? DestinationNodeId => Destination.NodeId;
+
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         if (Destination.NodeId == runtime.Options.UniqueNodeId)
