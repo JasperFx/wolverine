@@ -42,6 +42,18 @@ strict one-at-a-time ordering on that endpoint, which is the whole point — if 
 use `PartitionProcessingByGroupId` or sharded queues instead of a single serialized consumer.
 :::
 
+## Acknowledgements are per message
+
+Wolverine acks each delivery individually — `basic.ack` with `multiple: false`. It never uses a
+cumulative ack, which would tell the broker "and every lower delivery tag on this channel too".
+
+That matters as soon as completions can finish out of delivery order, which is the normal case
+with `ConsumerDispatchConcurrency` above 1: a cumulative ack on the message that happens to finish
+first would also acknowledge deliveries whose handlers are still running, and a crash at that
+moment loses them silently. Per-message acks cost nothing to make up for it — `basic.ack` is a
+fire-and-forget frame rather than an RPC, so there is no round trip to amortize, and batching them
+was measured at roughly **10% slower** and rejected (GH-3492).
+
 ## Choosing the endpoint mode
 
 - **Inline** (default): ack after successful handling. Safest, slowest per listener; scale with

@@ -121,6 +121,26 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
                 if (_workerQueue is ISupportDeadLetterQueue dlq)
                 {
                     await dlq.MoveToErrorsAsync(envelope, e);
+
+                    // GH-3706: settle it. This is the receiver's dead letter path -- the message has been
+                    // written to Wolverine's dead letter storage (or handed to a dead letter sender), so
+                    // Wolverine owns it now and the broker's copy has to go. Until acks became per-message
+                    // this delivery was left permanently unacked and only got reclaimed by the cumulative
+                    // sweep from some later BasicAckAsync(tag, multiple: true) on the same channel. Ack
+                    // rather than nack, for the same reason as RabbitMqInteropFriendlyCallback: a nack with
+                    // requeue: false would ALSO route the original through the queue's
+                    // x-dead-letter-exchange and leave two copies dead lettered.
+                    try
+                    {
+                        await Channel.BasicAckAsync(deliveryTag, multiple: false, _cancellation);
+                    }
+                    catch (Exception ackEx)
+                    {
+                        _logger.LogError(ackEx,
+                            "Failed to ack a dead lettered, un-mappable RabbitMQ message {MessageId}",
+                            properties.MessageId);
+                    }
+
                     return;
                 }
             }
