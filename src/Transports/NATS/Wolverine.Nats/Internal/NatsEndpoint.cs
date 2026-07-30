@@ -249,7 +249,7 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         if (!string.IsNullOrEmpty(DeadLetterSubject))
         {
             var dlqEndpoint = _transport.EndpointForSubject(DeadLetterSubject);
-            deadLetterSender = (ISender)runtime.Endpoints.GetOrBuildSendingAgent(dlqEndpoint.Uri);
+            deadLetterSender = resolveDeadLetterSender(runtime, dlqEndpoint);
         }
 
         var useJetStream = UseJetStream && _transport.Configuration.EnableJetStream;
@@ -295,6 +295,38 @@ public class NatsEndpoint : Endpoint, IBrokerEndpoint
         }
 
         return compound;
+    }
+
+    /// <summary>
+    /// Resolve the transport-level <see cref="ISender"/> for a dead-letter subject.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="IEndpointCollection.GetOrBuildSendingAgent"/> hands back an <see cref="ISendingAgent"/> —
+    /// a <c>BufferedSendingAgent</c>, <c>DurableSendingAgent</c> or <see cref="InlineSendingAgent"/> — and none
+    /// of those implement <see cref="ISender"/>. Casting the agent straight to <see cref="ISender"/> therefore
+    /// threw an <see cref="InvalidCastException"/> during listener startup for every listener with a configured
+    /// dead-letter subject (GH-3739). Reach through to the sender the agent wraps instead, the same way
+    /// <c>EndpointCollection</c> does when it resolves connection state.
+    /// </para>
+    /// <para>
+    /// The underlying sender is deliberately what we want here rather than the agent: <see cref="NatsListener.MoveToErrorsAsync"/>
+    /// publishes the poison message and only then terminates JetStream delivery, so the forward has to reach the
+    /// broker before the terminate. Enqueuing on a buffered agent would return before the message was on the wire
+    /// and a crash in between would lose it.
+    /// </para>
+    /// </remarks>
+    private ISender resolveDeadLetterSender(IWolverineRuntime runtime, NatsEndpoint dlqEndpoint)
+    {
+        var agent = runtime.Endpoints.GetOrBuildSendingAgent(dlqEndpoint.Uri);
+
+        return agent switch
+        {
+            SendingAgent sendingAgent => sendingAgent.Sender,
+            InlineSendingAgent inlineAgent => inlineAgent.Sender,
+            _ => throw new InvalidOperationException(
+                $"Unable to resolve an {nameof(ISender)} for the dead letter subject '{DeadLetterSubject}' of the NATS listener at '{Uri}'. The sending agent at '{dlqEndpoint.Uri}' was a {agent.GetType().FullName}.")
+        };
     }
 
     private async ValueTask<NatsListener> startListenerAsync(
