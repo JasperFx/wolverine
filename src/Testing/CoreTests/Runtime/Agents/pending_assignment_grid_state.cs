@@ -128,11 +128,10 @@ public class pending_assignment_grid_state
 
         var commands = await _controller.EvaluateAssignmentsAsync([_node1, _node2], restrictions);
 
-        // A reassignment normally runs in the lane of the node TAKING the agent. That is wrong here: the
+        // A reassignment runs in the lane of its SOURCE node (GH-3749). That matters doubly here: the
         // start it has to cancel is still sitting in node 1's queue, so a stop dispatched anywhere else
         // finds nothing to stop and node 1 brings the agent up moments later anyway.
         var reassign = commands.OfType<ReassignAgent>().ShouldHaveSingleItem();
-        reassign.StopInSourceLane.ShouldBeTrue();
         reassign.DestinationNodeId.ShouldBe(_node1.NodeId);
     }
 
