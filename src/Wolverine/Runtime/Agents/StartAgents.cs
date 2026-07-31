@@ -20,6 +20,35 @@ namespace Wolverine.Runtime.Agents;
 /// </summary>
 internal static class AgentUriSet
 {
+    // GH-3750: which of `requested` the other node did NOT confirm. Multiset semantics, matching
+    // AreEquivalent — a URI requested twice and confirmed once is still one short.
+    public static Uri[] Missing(Uri[] requested, Uri[] confirmed)
+    {
+        if (requested.Length == 0) return [];
+
+        var counts = new Dictionary<Uri, int>(confirmed.Length);
+        foreach (var uri in confirmed)
+        {
+            counts.TryGetValue(uri, out var count);
+            counts[uri] = count + 1;
+        }
+
+        var missing = new List<Uri>();
+        foreach (var uri in requested)
+        {
+            if (counts.TryGetValue(uri, out var count) && count > 0)
+            {
+                counts[uri] = count - 1;
+            }
+            else
+            {
+                missing.Add(uri);
+            }
+        }
+
+        return missing.ToArray();
+    }
+
     public static bool AreEquivalent(Uri[]? left, Uri[]? right)
     {
         if (ReferenceEquals(left, right)) return true;
@@ -164,7 +193,26 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
             return AgentCommands.Empty;
         }
 
-        runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
+        // GH-3750: the reply is the set of agents that actually reached a started state — StartAgents only
+        // bags an agent once StartLocallyAsync has returned — so a PARTIAL reply is the normal case whenever
+        // starts are slow (the blue/green side-effect gate's warm-up replay is the field example, measured at
+        // 27s p50 / 82s p95 per shard). This used to log the REQUESTED set as "Successfully started"
+        // unconditionally, so a chunk that half-started was indistinguishable in the logs from one that fully
+        // started, and the operator's only clue was the assignment never converging.
+        var confirmed = response.AgentUris ?? [];
+        var unconfirmed = AgentUriSet.Missing(AgentIds, confirmed);
+
+        if (unconfirmed.Length == 0)
+        {
+            runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
+        }
+        else
+        {
+            runtime.Logger.LogWarning(
+                "Node {NodeNumber} confirmed {ConfirmedCount} of {RequestedCount} requested agents; {UnconfirmedCount} did not report started within {Timeout} and remain unconfirmed: {UnconfirmedAgents}",
+                runtime.Options.Durability.AssignedNodeNumber, confirmed.Length, AgentIds.Length,
+                unconfirmed.Length, timeout, unconfirmed);
+        }
 
         return AgentCommands.Empty;
     }
