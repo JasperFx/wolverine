@@ -467,6 +467,37 @@ public static class HostBuilderExtensions
         return services;
     }
 
+    /// <summary>
+    /// Turn off everything in Wolverine except event subscription (projection) distribution. This node
+    /// still registers in the cluster, takes part in leader election and uses the control queue, and it
+    /// still advertises and runs event subscription agents — but it starts no listeners, runs no
+    /// in-memory scheduled jobs, and advertises neither durability agents nor any transport-owned
+    /// agents, so the leader never gives it message-handling work.
+    ///
+    /// Built for warming a read model before it serves traffic: when a projection version is bumped its
+    /// tables start empty and are rebuilt from the beginning of the event store, and a node running the
+    /// new version would serve incomplete read models until that finishes. Standing up a separate set
+    /// of nodes like this lets them build the new version off to one side while the existing nodes keep
+    /// serving, without the warming nodes also picking up messages and running handlers against
+    /// half-built state.
+    ///
+    /// Equivalent to setting <see cref="DurabilitySettings.MessagingEnabled" /> to false.
+    /// </summary>
+    public static IServiceCollection RunWolverineForEventSubscriptionDistributionOnly(
+        this IServiceCollection services)
+    {
+        services.AddSingleton<IWolverineExtension, DisableMessaging>();
+        return services;
+    }
+
+    internal class DisableMessaging : IWolverineExtension
+    {
+        public void Configure(WolverineOptions options)
+        {
+            options.Durability.MessagingEnabled = false;
+        }
+    }
+
     #region sample_disableexternaltransports
     internal class DisableExternalTransports : IWolverineExtension
     {

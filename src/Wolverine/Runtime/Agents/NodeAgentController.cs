@@ -83,7 +83,9 @@ public partial class NodeAgentController
             _agentFamilies[agentController.Scheme] = agentController;
         }
 
-        if (runtime.Options.Durability.Mode == DurabilityMode.Balanced)
+        // A node with messaging disabled runs event subscription agents and nothing else, so it
+        // advertises no listener agents. See DurabilitySettings.MessagingEnabled.
+        if (runtime.Options.Durability.Mode == DurabilityMode.Balanced && runtime.Options.Durability.MessagingEnabled)
         {
             _agentFamilies[ExclusiveListenerFamily.SchemeName] = new ExclusiveListenerFamily(runtime);
             _agentFamilies[LeaderPinnedListenerFamily.SchemeName] = new LeaderPinnedListenerFamily(runtime);
@@ -98,19 +100,28 @@ public partial class NodeAgentController
             }
         }
 
-        if (runtime.Options.Durability.DurabilityAgentEnabled)
+        if (runtime.Options.Durability.DurabilityAgentEnabled && runtime.Options.Durability.MessagingEnabled)
         {
             _agentFamilies[_runtime.Stores.Scheme] = _runtime.Stores;
         }
 
-        foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
+        if (runtime.Options.Durability.MessagingEnabled)
         {
-            _agentFamilies[family.Scheme] = family;
+            foreach (var family in runtime.Options.Transports.OfType<IAgentFamilySource>().SelectMany(x => x.BuildAgentFamilySources(runtime)))
+            {
+                _agentFamilies[family.Scheme] = family;
+            }
         }
 
         _cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         _logger = logger;
     }
+
+    /// <summary>
+    ///     Whether this node registered an agent family for <paramref name="scheme" />, and therefore
+    ///     advertises its agents. Test hook for the family wiring in the constructor.
+    /// </summary>
+    internal bool HasFamily(string scheme) => _agentFamilies.ContainsKey(scheme);
 
     public ConcurrentDictionary<Uri, IAgent> Agents { get; } = new();
 

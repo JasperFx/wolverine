@@ -240,13 +240,13 @@ public partial class WolverineRuntime : IAgentRuntime
         switch (Options.Durability.Mode)
         {
             case DurabilityMode.Balanced:
-                await startDurableScheduledJobs();
+                if (Options.Durability.MessagingEnabled) await startDurableScheduledJobs();
                 startNodeAgentController();
                 break;
 
 
             case DurabilityMode.Solo:
-                await startDurableScheduledJobs();
+                if (Options.Durability.MessagingEnabled) await startDurableScheduledJobs();
                 startNodeAgentController();
                 await NodeController!.StartSoloModeAsync();
                 break;

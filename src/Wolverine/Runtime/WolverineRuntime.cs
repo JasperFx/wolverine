@@ -266,8 +266,16 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     public void ScheduleLocalExecutionInMemory(DateTimeOffset executionTime, Envelope envelope)
     {
         if (ScheduledJobs == null)
+        {
+            if (!Options.Durability.MessagingEnabled)
+            {
+                throw new InvalidOperationException(
+                    $"This action is invalid when {nameof(WolverineOptions)}.{nameof(WolverineOptions.Durability)}.{nameof(DurabilitySettings.MessagingEnabled)} is false");
+            }
+
             throw new InvalidOperationException(
                 $"This action is invalid when {nameof(WolverineOptions)}.{nameof(WolverineOptions.Durability)}.{nameof(DurabilitySettings.Mode)} = {Options.Durability.Mode}");
+        }
 
         Logger.LogDebug("Scheduling envelope {EnvelopeId} ({MessageType}) for in-memory execution at {ExecutionTime}", envelope.Id, envelope.MessageType, executionTime);
         MessageTracking.Sent(envelope);

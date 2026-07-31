@@ -164,13 +164,13 @@ public partial class WolverineRuntime
                 case DurabilityMode.Balanced:
                     await loadAgentRestrictionsAsync();
                     await startMessagingTransportsAsync();
-                    startInMemoryScheduledJobs();
+                    if (Options.Durability.MessagingEnabled) startInMemoryScheduledJobs();
                     await startNodeAgentWorkflowAsync();
                     _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
                     break;
                 case DurabilityMode.Solo:
                     await startMessagingTransportsAsync();
-                    startInMemoryScheduledJobs();
+                    if (Options.Durability.MessagingEnabled) startInMemoryScheduledJobs();
                     _idleAgentCleanupLoop = Task.Run(executeIdleSendingAgentCleanup, Cancellation);
                     break;
 
@@ -542,7 +542,14 @@ public partial class WolverineRuntime
             }
         }
 
-        if (!Options.ExternalTransportsAreStubbed)
+        if (!Options.Durability.MessagingEnabled)
+        {
+            // This node exists to run event subscription agents only. See
+            // DurabilitySettings.MessagingEnabled.
+            Logger.LogInformation(
+                "All external endpoint listeners are disabled because Durability.MessagingEnabled is false. Local queues still run: agent commands ride on them.");
+        }
+        else if (!Options.ExternalTransportsAreStubbed)
         {
             await Endpoints.StartListenersAsync();
         }

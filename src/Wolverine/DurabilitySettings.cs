@@ -141,6 +141,25 @@ public class DurabilitySettings : IDescribeMyself
     public bool DurabilityAgentEnabled { get; set; } = true;
 
     /// <summary>
+    ///     When false, this node takes no part in message handling at all: it starts no listeners,
+    ///     runs no in-memory scheduled jobs, and advertises neither durability agents nor any
+    ///     transport-owned agents, so the leader never assigns it any. It stays a full member of the
+    ///     cluster otherwise - it registers, takes part in leader election, uses the control queue,
+    ///     and still advertises and runs event subscription (projection) agents.
+    ///
+    ///     The use case is warming a read model before it serves traffic. When a projection version
+    ///     is bumped its tables start empty and are rebuilt from the beginning of the event store,
+    ///     and until that finishes a node running the new version would serve incomplete read
+    ///     models. Standing up a separate set of nodes with MessagingEnabled = false lets them build
+    ///     the new version off to one side while the existing nodes keep serving, without those
+    ///     warming nodes also picking up messages and running handlers against half-built state.
+    ///
+    ///     A strictly stronger statement than <see cref="DurabilityAgentEnabled" />, which only
+    ///     covers the durability agents. The default is true.
+    /// </summary>
+    public bool MessagingEnabled { get; set; } = true;
+
+    /// <summary>
     /// When true, scheduled-for-later messages destined for non-durable
     /// <see cref="Transports.Local.BufferedLocalQueue"/> instances route to
     /// <c>IMessageStore.Inbox</c> instead of the in-process
@@ -473,6 +492,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(Mode), Mode);
         desc.AddValue(nameof(MessageIdentity), MessageIdentity);
         desc.AddValue(nameof(DurabilityAgentEnabled), DurabilityAgentEnabled);
+        desc.AddValue(nameof(MessagingEnabled), MessagingEnabled);
         desc.AddValue(nameof(RecoveryBatchSize), RecoveryBatchSize);
         desc.AddValue(nameof(KeepAfterMessageHandling), KeepAfterMessageHandling);
         desc.AddValue(nameof(NodeReassignmentPollingTime), NodeReassignmentPollingTime);
