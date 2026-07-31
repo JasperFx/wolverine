@@ -129,7 +129,20 @@ public class MqttTopic : Endpoint, ISender, ITopicEndpoint
             return tenantedSender;
         }
 
-        return this;
+        // Inline keeps the historical immediate/fire-and-forget path (this itself, via SendAsync
+        // below) so explicit inline usage is unaffected.
+        if (Mode == EndpointMode.Inline)
+        {
+            return this;
+        }
+
+        // Buffered and Durable both route through BatchedSender + MqttSenderProtocol so a send is
+        // only considered successful once the broker has actually acknowledged it - see
+        // MqttSenderProtocol for why that matters for UseDurableOutbox/UseDurableInbox backed by a
+        // persistent message store (e.g. PersistMessagesWithSqlite). This mirrors the pattern used by
+        // every other Wolverine transport with real broker acknowledgements (Pub/Sub, Rabbit, etc.).
+        return new BatchedSender(this, new MqttSenderProtocol(this, Parent.Client),
+            runtime.DurabilitySettings.Cancellation, runtime.LoggerFactory.CreateLogger<MqttSenderProtocol>());
     }
 
     bool ISender.SupportsNativeScheduledSend => false;

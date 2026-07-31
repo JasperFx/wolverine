@@ -44,6 +44,7 @@
         <Compile Include="..\Wolverine.MQTT\Usings.cs" Link="Usings.cs" />
         <Compile Include="..\Wolverine.MQTT\Internals\MqttHealthCheck.cs" Link="Internals\MqttHealthCheck.cs" />
         <Compile Include="..\Wolverine.MQTT\Internals\MqttTopicSender.cs" Link="Internals\MqttTopicSender.cs" />
+        <Compile Include="..\Wolverine.MQTT\Internals\MqttSenderProtocol.cs" Link="Internals\MqttSenderProtocol.cs" />
     </ItemGroup>
 
 </Project>
