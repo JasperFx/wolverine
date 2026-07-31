@@ -116,6 +116,17 @@ internal class CommitTenantedDbContextTransaction : AsyncFrame, IFlushesMessages
         writer.Write($"await scraper.{nameof(IDomainEventScraper.ScrapeEvents)}({_dbContext.Usage}, {_context.Usage}).ConfigureAwait(false);");
         writer.FinishBlock();
 
+        // GH-3744: this scrape runs as a postprocessor AFTER the SaveChangesAsync that
+        // EFCorePersistenceFrameProvider emits, and a durable route persists its envelope by adding an
+        // OutgoingMessage/IncomingMessage entity to the change tracker
+        // (EfCoreEnvelopeTransaction.PersistOutgoingAsync on a Wolverine-enabled DbContext). Committing
+        // straight after the scrape therefore committed the aggregate but dropped every envelope the
+        // scrape had just produced -- the domain event was still *published* in memory, so tracked-session
+        // assertions passed while the durable row was silently missing. Flush the tracker again so the
+        // envelopes land inside this transaction. A no-op when the scrape produced nothing.
+        writer.WriteComment("GH-3744: persist any envelopes the scrape just tracked, inside this transaction");
+        writer.Write($"await {_dbContext.Usage}.SaveChangesAsync({_cancellation.Usage}).ConfigureAwait(false);");
+
         writer.WriteComment(
             "Commit the EF Core transaction and flush outgoing messages before writing the response (GH-2917)");
         writer.Write($"await {_dbContext.Usage}.Database.CommitTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
