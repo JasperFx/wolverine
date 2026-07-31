@@ -19,15 +19,41 @@ public class AgentStartTelemetry
     private readonly ConcurrentDictionary<int, int> _startsPerNode = new();
     private int _inFlight;
     private int _peakInFlight;
+    private int _agentCount;
 
     public AgentStartTelemetry(int agentCount, TimeSpan startDelay)
     {
-        AgentCount = agentCount;
+        _agentCount = agentCount;
         StartDelay = startDelay;
     }
 
-    public int AgentCount { get; }
+    public int AgentCount => Volatile.Read(ref _agentCount);
     public TimeSpan StartDelay { get; }
+
+    /// <summary>
+    /// GH-3753: how long an agent takes to let go when stopped. Zero by default. A projection version
+    /// bump puts a stopping shard behind the same side-effect gate as a starting one, and #3749's lane
+    /// wedge only appears when the SOURCE of a reassignment answers its stops slowly — a fast-stopping
+    /// source drains thousands of reassignments without ever blocking anything. Mutable so a test can
+    /// turn slow stops on for its rebalance phase and back off for teardown.
+    /// </summary>
+    public TimeSpan StopDelay { get; set; } = TimeSpan.Zero;
+
+    /// <summary>
+    /// GH-3753: expands the known agent universe mid-test. Stands in for the arrival of a new
+    /// generation of agents — the projection-version-bump deploy shape, where freshly-placeable agents
+    /// and reassignments of the old ones are in flight at the same time. Every node's family shares
+    /// this one telemetry instance, so the whole cluster sees the new universe on its next evaluation.
+    /// </summary>
+    public void GrowUniverseTo(int agentCount)
+    {
+        if (agentCount < AgentCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(agentCount), "The universe only grows");
+        }
+
+        Volatile.Write(ref _agentCount, agentCount);
+    }
 
     /// <summary>
     /// The high-water mark of concurrent <see cref="SlowStartAgent.StartAsync" /> calls anywhere in the
@@ -76,8 +102,16 @@ public class AgentStartTelemetry
         _startsPerNode.AddOrUpdate(nodeNumber, 1, (_, count) => count + 1);
     }
 
-    internal void RecordStop(Uri uri)
+    internal async Task RecordStopAsync(Uri uri, CancellationToken token)
     {
+        var delay = StopDelay;
+        if (delay > TimeSpan.Zero)
+        {
+            // Stand-in for a stopping daemon shard that has to finish letting go of its work — slow for
+            // the same reason its start is slow during a version-bump deploy.
+            await Task.Delay(delay, token);
+        }
+
         _startedOn.TryRemove(uri, out _);
     }
 }
@@ -104,11 +138,10 @@ public class SlowStartAgent : IAgent
         Status = AgentStatus.Running;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
+        await _telemetry.RecordStopAsync(Uri, cancellationToken);
         Status = AgentStatus.Stopped;
-        _telemetry.RecordStop(Uri);
-        return Task.CompletedTask;
     }
 }
 

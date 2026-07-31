@@ -132,8 +132,9 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
     /// <summary>
     ///     The agents a command would START somewhere. Deliberately only the first-time placements: a
-    ///     <see cref="ReassignAgent" /> also stops the agent on its previous node, so suppressing one because
-    ///     a start is already pending would drop that stop, and the stop commands are not starts at all.
+    ///     <see cref="ReassignAgent" /> or <see cref="ReassignAgents" /> also stops the agents on their
+    ///     previous node, so suppressing one because a start is already pending would drop that stop, and
+    ///     the stop commands are not starts at all.
     /// </summary>
     internal static Uri[] StartedAgentsOf(IAgentCommand command) => command switch
     {
@@ -190,8 +191,8 @@ internal class AgentCommandDispatcher : IAsyncDisposable
                 if (cascaded != null)
                 {
                     // Route a cascade back through Enqueue rather than executing it here, so it lands in the
-                    // lane of the node it actually targets -- e.g. ReassignAgent runs in the new node's lane
-                    // and cascades an AssignAgent for that same node.
+                    // lane of the node it actually targets -- e.g. ReassignAgent runs in the source node's
+                    // lane (GH-3749) and cascades an AssignAgent that belongs in the destination's lane.
                     foreach (var next in cascaded) Enqueue(next);
                 }
             }

@@ -182,10 +182,11 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
     {
         var startAgents = new StartAgents(AgentIds);
 
-        // GH-3604 / D3: scale the reply timeout with the chunk size as a backstop. The receiving node starts
-        // the batch with bounded parallelism, so the reply normally arrives quickly, but a large chunk of
-        // slow daemon-agent starts must not be cut off by the default fixed request/reply window.
-        var timeout = 30.Seconds() + AgentIds.Length.Seconds();
+        // GH-3604 / D3, rescaled by GH-3748: scale the reply timeout with the chunk size as a backstop. The
+        // receiving node starts the batch with bounded parallelism, so the reply normally arrives quickly,
+        // but a large chunk of slow daemon-agent starts must not be cut off by the reply window. See
+        // AgentBatchTimeouts for why big chunks get a much larger per-agent allowance.
+        var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents, timeout);
 
         if (response == null)
@@ -233,7 +234,12 @@ internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : 
         CancellationToken cancellationToken)
     {
         var startAgents = new StopAgents(AgentIds);
-        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents);
+
+        // GH-3748: this used to ride the flat default reply window no matter how many agents were in the
+        // batch, and a stop can be as slow as a start (a projection shard mid-replay has to let go of its
+        // work). Same scaled backstop as AssignAgents.
+        var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
+        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents, timeout);
 
         return AgentCommands.Empty;
     }
