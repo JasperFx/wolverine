@@ -29,7 +29,7 @@ internal partial class OracleMessageStore
             return null;
         }
 
-        var deadLetterEnvelope = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, _cancellation);
+        var deadLetterEnvelope = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, _cancellation, Logger);
         await reader.CloseAsync();
         await conn.CloseAsync();
 
@@ -118,14 +118,14 @@ internal partial class OracleMessageStore
         var results = new DeadLetterEnvelopeResults { PageNumber = query.PageNumber };
         if (await reader.ReadAsync(token))
         {
-            var env = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token);
+            var env = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token, Logger);
             results.Envelopes.Add(env);
             results.TotalCount = Convert.ToInt32(await reader.GetFieldValueAsync<decimal>(10, token));
         }
 
         while (await reader.ReadAsync(token))
         {
-            var env = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token);
+            var env = await OracleEnvelopeReader.ReadDeadLetterAsync(reader, token, Logger);
             results.Envelopes.Add(env);
         }
 

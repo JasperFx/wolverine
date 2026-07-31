@@ -19,7 +19,7 @@ public abstract partial class MessageDatabase<T>
             return null;
         }
 
-        var deadLetterEnvelope = await DatabasePersistence.ReadDeadLetterAsync(reader, _cancellation);
+        var deadLetterEnvelope = await DatabasePersistence.ReadDeadLetterAsync(reader, _cancellation, Logger);
         await reader.CloseAsync();
 
         return deadLetterEnvelope;

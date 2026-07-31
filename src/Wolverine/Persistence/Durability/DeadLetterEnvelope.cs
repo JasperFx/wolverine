@@ -52,6 +52,14 @@ public class DeadLetterEnvelope
 
     internal void TryReadData(IWolverineRuntime runtime)
     {
+        // A row whose stored body could not be deserialized comes back as a PlaceHolder with no
+        // Destination (see DatabasePersistence.ReadDeadLetterBodyAsync). There is no data to read on
+        // such a row, and EndpointFor would be handed a null Uri.
+        if (Envelope.Destination is null)
+        {
+            return;
+        }
+
         if (runtime.Options.HandlerGraph.TryFindMessageType(MessageType, out var messageType))
         {
             var endpoint = runtime.Endpoints.EndpointFor(Envelope.Destination!);
