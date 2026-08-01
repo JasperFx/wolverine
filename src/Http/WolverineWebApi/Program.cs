@@ -374,6 +374,14 @@ public class Program
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
 
+            #region sample_UseProblemDetailsForConcurrencyExceptions
+            // Opt into responding with a 409 status code and a ProblemDetails
+            // body when a Marten concurrency exception is caught on any endpoint
+            // using the aggregate handler workflow or Marten transactional middleware
+            opts.UseProblemDetailsForConcurrencyExceptions();
+
+            #endregion
+
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
             #region sample_adding_custom_parameter_handling

@@ -1,3 +1,4 @@
+using Alba;
 using Marten;
 using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
@@ -38,16 +39,18 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
     }
 
     [Fact]
-    public async Task wrong_version_from_route_argument_returns_500()
+    public async Task wrong_version_from_route_argument_returns_409_problem_details()
     {
         var orderId = await CreateOrder();
 
-        // version 99 does not match - should fail
+        // version 99 does not match - should fail with the ProblemDetails response
+        // from UseProblemDetailsForConcurrencyExceptions() in Program.cs
         await Scenario(x =>
         {
             x.Post.Json(new ShipOrderWithExpectedVersion(orderId, 99))
                 .ToUrl($"/orders/{orderId}/ship-with-expected-version/99");
-            x.StatusCodeShouldBe(500);
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
         });
     }
 
@@ -70,7 +73,7 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
     }
 
     [Fact]
-    public async Task wrong_version_from_request_body_returns_500()
+    public async Task wrong_version_from_request_body_returns_409_problem_details()
     {
         var orderId = await CreateOrder();
 
@@ -78,7 +81,8 @@ public class using_version_source_override(AppFixture fixture) : IntegrationCont
         {
             x.Post.Json(new ShipOrderWithExpectedVersion(orderId, 99))
                 .ToUrl("/orders/ship-with-body-version");
-            x.StatusCodeShouldBe(500);
+            x.StatusCodeShouldBe(409);
+            x.ContentTypeShouldBe("application/problem+json");
         });
     }
 }

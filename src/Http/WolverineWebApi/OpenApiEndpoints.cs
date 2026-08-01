@@ -26,7 +26,9 @@ public class OpenApiEndpoints
         return "hello";
     }
 
-    [ExpectStatusCodes(200, 404)]
+    // 409 because the returned Reservation is a Saga, so this chain commits a Marten
+    // session and picks up UseProblemDetailsForConcurrencyExceptions() from Program.cs
+    [ExpectStatusCodes(200, 404, 409)]
     [ExpectProduces(200, typeof(Reservation), "application/json")]
     [WolverineGet("/openapi/json")]
     public Reservation GetJson()
