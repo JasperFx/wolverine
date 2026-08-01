@@ -513,7 +513,31 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             catch (Exception)
             {
                 SignalInboxUnavailable();
-                throw;
+
+                if (envelope.Listener == null)
+                {
+                    // Nothing to settle with the broker, so let the RetryBlock keep trying
+                    throw;
+                }
+
+                // GH-3767. RetryBlock exhaustion (3 attempts over ~400ms) must never be the
+                // terminal state for a broker delivery that has not been settled: discarding
+                // leaves the delivery unacked on a live consumer, and the broker will not
+                // redeliver it while the connection stays up. Settle by deferring back to the
+                // listener -- the same semantics the latched branch applies -- and let broker
+                // redelivery plus the paused listener's inbox-recovery restart carry the retry.
+                try
+                {
+                    await envelope.Listener.DeferAsync(envelope).ConfigureAwait(false);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e,
+                        "Error trying to defer message {MessageId} from {Listener} after an inbox persistence failure",
+                        envelope.Id, Uri);
+                }
+
+                return;
             }
         }
 
