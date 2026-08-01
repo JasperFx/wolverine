@@ -99,6 +99,19 @@ partial class Build
     bool runSupervised(string projectPath, string framework, Func<WorkerTest, bool> shardFilter,
         int workers, bool postgresDatabasePerLane)
     {
+        // The committed per-target count is tuned on a developer machine; the machine actually
+        // running decides what it can carry. A GitHub-hosted runner has 4 vCPUs and 16GB, and 4
+        // concurrent Marten test hosts beside Postgres got the runner itself killed with a
+        // shutdown signal — an oversubscribed fleet does not fail politely. An explicit
+        // --test-workers bypasses the clamp: measuring past the ceiling is a valid thing to ask.
+        var ceiling = Math.Max(1, Environment.ProcessorCount / 2);
+        if (TestWorkers is null && workers > ceiling)
+        {
+            Log.Information("Clamping {Asked} workers to {Ceiling} for this machine's {Cores} core(s)",
+                workers, ceiling, Environment.ProcessorCount);
+            workers = ceiling;
+        }
+
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
         var executable = testHostFor(projectPath, framework);
 
