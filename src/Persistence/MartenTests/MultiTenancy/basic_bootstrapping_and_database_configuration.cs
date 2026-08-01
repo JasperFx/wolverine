@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx;
 using JasperFx.Core.Reflection;
 using Npgsql;
@@ -29,7 +30,7 @@ public class basic_bootstrapping_and_database_configuration : MultiTenancyContex
         using var connection = Stores.Main.As<IMessageDatabase>().DataSource.CreateConnection();
 
         new NpgsqlConnectionStringBuilder(connection.ConnectionString)
-            .Database.ShouldBe("postgres");
+            .Database.ShouldBe(Servers.PostgresDatabaseName);
     }
 
     [Fact]

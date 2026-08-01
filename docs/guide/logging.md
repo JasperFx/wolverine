@@ -921,6 +921,15 @@ will be added back to Wolverine in 4.0.
 | wolverine-outbox-count       | Observable Gauge                                                                                          | Current number of persisted outgoing (outbox) messages. Tagged by `source` and `database`                                                                                                                                                                                              |
 | wolverine-scheduled-count    | Observable Gauge                                                                                          | Current number of persisted scheduled messages. Tagged by `source` and `database`                                                                                                                                                                                                      |
 
+::: tip System traffic is not counted <Badge type="tip" text="6.25" />
+Wolverine's own internal traffic — node agent commands on the control queues, acknowledgements, and
+CritterWatch monitoring messages — is excluded from all of the message-level instruments above, as is any
+endpoint marked with the `System` role or with `TelemetryEnabled = false`. An idle application therefore
+reports zero message volume even when Wolverine's node coordination or CritterWatch monitoring is busy
+underneath. Before 6.25 this internal chatter was counted, which could show up as a steady, phantom
+message rate (~150/minute was reported) on an otherwise quiet system.
+:::
+
 ### Standard Metrics Tags
 
 Every Wolverine metric instrument above is tagged with these dimensions so you can slice the series in your

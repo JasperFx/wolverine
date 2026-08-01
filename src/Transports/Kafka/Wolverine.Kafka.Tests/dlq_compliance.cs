@@ -20,7 +20,12 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
 
         await ReceiverIs(opts =>
         {
-            opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+            // Dead-letter onto this fixture's own topic rather than the shared default: suites like
+            // DeadLetterQueueTests and kafka_retry_topics read the first message off their DLQ topic,
+            // and this fixture's compliance failures landing on the shared default poisoned them.
+            opts.UseKafka(KafkaContainerFixture.ConnectionString)
+                .AutoProvision()
+                .DeadLetterQueueTopicName("buffered.dlq.dead-letter");
 
             opts.ListenToKafkaTopic(receiverTopic)
                 .Named("receiver")
@@ -42,11 +47,6 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
 
             opts.Services.AddResourceSetupOnStartup();
         });
-    }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 }
 

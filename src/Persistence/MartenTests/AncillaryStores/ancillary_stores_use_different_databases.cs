@@ -111,10 +111,11 @@ public class ancillary_stores_use_different_databases : IAsyncLifetime
     public async Task have_durability_agents_for_other_databases()
     {
         var uris = await theStores.AllKnownAgentsAsync();
-        uris.OrderBy(x => x.ToString()).ShouldBe([
+        uris.OrderBy(x => x.ToString()).ShouldBe([.. new[]
+        {
             new Uri("wolverinedb://postgresql/localhost/players/wolverine"),
-            new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"),
-            new Uri("wolverinedb://postgresql/localhost/things/wolverine"),
-        ]);
+            new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"),
+            new Uri("wolverinedb://postgresql/localhost/things/wolverine")
+        }.OrderBy(x => x.ToString())]);
     }
 }

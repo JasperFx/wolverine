@@ -26,10 +26,10 @@ public class nsb_dedicated_database_multitenancy : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _mainCs = await NsbMtDb.CreateDb("nsb_ded_main");
-        _t1Cs = await NsbMtDb.CreateDb("nsb_ded_t1");
-        _t2Cs = await NsbMtDb.CreateDb("nsb_ded_t2");
-        _dedicatedCs = await NsbMtDb.CreateDb("nsb_ded_shared");
+        _mainCs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_ded_main"));
+        _t1Cs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_ded_t1"));
+        _t2Cs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_ded_t2"));
+        _dedicatedCs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_ded_shared"));
 
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -113,8 +113,8 @@ public class nsb_default_database_multitenancy : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _mainCs = await NsbMtDb.CreateDb("nsb_def_main");
-        _t1Cs = await NsbMtDb.CreateDb("nsb_def_t1");
+        _mainCs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_def_main"));
+        _t1Cs = await NsbMtDb.CreateDb(LaneDatabases.Name("nsb_def_t1"));
 
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>

@@ -37,11 +37,6 @@ public class InlineNatsTransportFixture : TransportComplianceFixture, IAsyncLife
             opts.ListenToNatsSubject(receiverSubject).Named("receiver").ProcessInline();
         });
     }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 }
 
 [Collection("NATS Compliance")]
@@ -77,11 +72,6 @@ public class BufferedNatsTransportFixture : TransportComplianceFixture, IAsyncLi
             opts.UseNats(natsUrl).AutoProvision();
             opts.ListenToNatsSubject(receiverSubject).Named("receiver").BufferedInMemory();
         });
-    }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 }
 
@@ -131,11 +121,6 @@ public class JetStreamNatsTransportFixture : TransportComplianceFixture, IAsyncL
                 .Named("receiver")
                 .UseJetStream(streamName, $"receiver-consumer-{number}");
         });
-    }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 
 

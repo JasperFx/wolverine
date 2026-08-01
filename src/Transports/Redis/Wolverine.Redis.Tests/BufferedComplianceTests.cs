@@ -30,11 +30,6 @@ public class RedisBufferedComplianceFixture : TransportComplianceFixture, IAsync
             opts.PublishAllMessages().ToRedisStream(receiverStream).BufferedInMemory();
         });
     }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 }
 
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<RedisBufferedComplianceFixture>;
