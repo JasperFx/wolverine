@@ -133,7 +133,7 @@ partial class Build
             Log = message => Log.Information("  {Message}", message)
         };
 
-        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
+        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInWarmProcess());
 
         var results = supervisor.Run().GetAwaiter().GetResult();
 
@@ -141,20 +141,24 @@ partial class Build
     }
 
     /// <summary>
-    /// Parity with the old flaky-retry harness, which gave a failed test up to THREE attempts:
-    /// the suite pass, then RunTestWithRetry's two single-test `dotnet test` invocations — each
-    /// a fresh, quiet process, which is what the fresh-process disposition reproduces. The
-    /// budget above still caps it — a policy can never outspend the operator's ceiling — and a
-    /// pass on any retry is reported as flaky, never as clean.
+    /// The old flaky-retry harness gave a failed test up to THREE attempts (the suite pass, then
+    /// RunTestWithRetry's two single-test invocations), and the budget above keeps that ceiling.
+    /// The retry runs in the WARM lane process rather than a fresh one, deliberately trading the
+    /// old harness's fresh-process isolation for a bounded memory profile: the supervisor keeps
+    /// lane processes alive through the retry passes, so a fresh-process retry means workers+1
+    /// full test hosts resident at once — which is exactly what got a 16GB GitHub runner killed
+    /// with a shutdown signal, twice, both times during a retry. Never exceeding `workers` live
+    /// processes is what a 4-vCPU runner can actually carry. A pass on any retry is still
+    /// reported as flaky, never as clean.
     /// </summary>
-    class RetryFailuresInFreshProcess : IFailurePolicy
+    class RetryFailuresInWarmProcess : IFailurePolicy
     {
         public Disposition Decide(AttemptContext attempt)
         {
             if (attempt.Succeeded || !attempt.RetriesAvailable) return null;
 
-            return Disposition.RetryInFreshProcess(
-                "a failure is retried in a fresh process, within the budget, to separate flaky from broken");
+            return Disposition.RetryInProcess(
+                "a failure is retried in the warm worker, within the budget, to separate flaky from broken");
         }
     }
 
