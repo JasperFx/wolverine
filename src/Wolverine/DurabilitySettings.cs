@@ -304,6 +304,26 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxAgentStopParallelism { get; set; } = 10;
 
     /// <summary>
+    ///     GH-3748: once a batched agent command's initial reply window has elapsed without an answer,
+    ///     the leader stops waiting passively and starts asking the destination node which of the
+    ///     requested agents are actually running (or stopped) at this interval. Each poll is a cheap
+    ///     read of the node's in-memory agent registry, so the interval mostly decides how quickly the
+    ///     leader notices convergence. Default 10 seconds.
+    /// </summary>
+    public TimeSpan AgentProgressPollInterval { get; set; } = 10.Seconds();
+
+    /// <summary>
+    ///     GH-3748 / GH-3750: how long the leader tolerates ZERO observed progress on an in-flight
+    ///     agent batch before giving up on the unconfirmed remainder and letting the next assignment
+    ///     evaluation re-decide it. Any progress — one more agent confirmed running or stopped —
+    ///     resets this clock, so a node that is slow but converging gets unbounded time while a node
+    ///     that is wedged or gone costs a bounded wait. Sized to the slowest legitimate single agent
+    ///     start we know of: a Marten projection shard replaying behind a version bump under the
+    ///     daemon's bounded side-effect gate, which has a five-minute ceiling. Default 5 minutes.
+    /// </summary>
+    public TimeSpan AgentProgressStallTimeout { get; set; } = 5.Minutes();
+
+    /// <summary>
     ///     GH-3519: how many extra times this node immediately re-tries an agent that failed to start,
     ///     before giving up and leaving it to the next assignment reevaluation. A first-assignment start
     ///     races the subsystems the agent depends on — an event-subscription shard evaluated before its

@@ -87,6 +87,29 @@ public class agent_command_serialization
         other.AgentUris.ShouldBeEmpty();
     }
 
+    [Fact]
+    public void QueryAgentPresence()
+    {
+        var command = new QueryAgentPresence([new Uri("fake://one"), new Uri("fake://two")]);
+
+        roundTrip(command).AgentUris.ShouldBe(command.AgentUris);
+    }
+
+    [Fact]
+    public void AgentPresenceReport()
+    {
+        var command = new AgentPresenceReport([new Uri("fake://one"), new Uri("fake://two")]);
+
+        roundTrip(command).Running.ShouldBe(command.Running);
+    }
+
+    [Fact]
+    public void AgentPresenceReport_with_no_agents()
+    {
+        // The ordinary answer early in a batch of slow starts: nothing requested is running yet
+        roundTrip(new AgentPresenceReport([])).Running.ShouldBeEmpty();
+    }
+
     // GH-3733: a comma is a legal URI sub-delimiter (RFC 3986), permitted unescaped in a path segment, and
     // agent URIs embed operator- and tenant-supplied strings -- an event-subscription URI carries the
     // projection name and the tenant id. Joining on a comma shattered any such agent into fragments, and

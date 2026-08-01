@@ -187,20 +187,28 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
         // but a large chunk of slow daemon-agent starts must not be cut off by the reply window. See
         // AgentBatchTimeouts for why big chunks get a much larger per-agent allowance.
         var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
-        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents, timeout);
 
-        if (response == null)
+        // GH-3748 / GH-3750: the reply is raced against presence polling, so slow work is distinguished
+        // from a wedged or dead node by observed progress rather than by this window alone — and every
+        // agent stays held (dispatcher in-flight + pending-assignment ledger) for as long as this command
+        // is waiting, which is what keeps a mid-start agent from being re-placed onto another node.
+        var replyTask = invokeStartsAsync(runtime, startAgents, timeout);
+        var confirmed = await AgentWorkConfirmation.AwaitAsync(runtime, Destination, AgentIds, replyTask,
+            AgentPresenceDirection.Running, cancellationToken);
+
+        // GH-3750: refresh the pending-assignment ledger BEFORE the dispatcher's in-flight hold drops,
+        // so an evaluation running against a node-state snapshot that predates the last assignment rows
+        // can't re-decide an agent this command just confirmed.
+        if (runtime is WolverineRuntime wolverineRuntime)
         {
-            return AgentCommands.Empty;
+            wolverineRuntime.NodeController?.ConfirmDispatched(confirmed, Destination.NodeId);
         }
 
-        // GH-3750: the reply is the set of agents that actually reached a started state — StartAgents only
-        // bags an agent once StartLocallyAsync has returned — so a PARTIAL reply is the normal case whenever
-        // starts are slow (the blue/green side-effect gate's warm-up replay is the field example, measured at
-        // 27s p50 / 82s p95 per shard). This used to log the REQUESTED set as "Successfully started"
-        // unconditionally, so a chunk that half-started was indistinguishable in the logs from one that fully
-        // started, and the operator's only clue was the assignment never converging.
-        var confirmed = response.AgentUris ?? [];
+        // GH-3750: a PARTIAL confirmation is the normal case whenever starts are slow (the blue/green
+        // side-effect gate's warm-up replay is the field example, measured at 27s p50 / 82s p95 per
+        // shard). This used to log the REQUESTED set as "Successfully started" unconditionally, so a
+        // chunk that half-started was indistinguishable in the logs from one that fully started, and the
+        // operator's only clue was the assignment never converging.
         var unconfirmed = AgentUriSet.Missing(AgentIds, confirmed);
 
         if (unconfirmed.Length == 0)
@@ -210,12 +218,18 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
         else
         {
             runtime.Logger.LogWarning(
-                "Node {NodeNumber} confirmed {ConfirmedCount} of {RequestedCount} requested agents; {UnconfirmedCount} did not report started within {Timeout} and remain unconfirmed: {UnconfirmedAgents}",
+                "Node {NodeNumber} confirmed {ConfirmedCount} of {RequestedCount} requested agents; {UnconfirmedCount} did not report started and remain unconfirmed: {UnconfirmedAgents}",
                 runtime.Options.Durability.AssignedNodeNumber, confirmed.Length, AgentIds.Length,
-                unconfirmed.Length, timeout, unconfirmed);
+                unconfirmed.Length, unconfirmed);
         }
 
         return AgentCommands.Empty;
+    }
+
+    private async Task<Uri[]> invokeStartsAsync(IWolverineRuntime runtime, StartAgents startAgents, TimeSpan timeout)
+    {
+        var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents, timeout);
+        return response?.AgentUris ?? [];
     }
 
     // See AgentUriSet: value equality over the agents, independent of their order.
@@ -233,15 +247,32 @@ internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : 
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
-        var startAgents = new StopAgents(AgentIds);
+        var stopAgents = new StopAgents(AgentIds);
 
         // GH-3748: this used to ride the flat default reply window no matter how many agents were in the
         // batch, and a stop can be as slow as a start (a projection shard mid-replay has to let go of its
-        // work). Same scaled backstop as AssignAgents.
+        // work). Same scaled backstop as AssignAgents, and the same presence-polling race — an agent
+        // absent from the node is a confirmed stop.
         var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
-        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents, timeout);
+        var replyTask = invokeStopsAsync(runtime, stopAgents, timeout);
+        var confirmed = await AgentWorkConfirmation.AwaitAsync(runtime, Destination, AgentIds, replyTask,
+            AgentPresenceDirection.Gone, cancellationToken);
+
+        var unconfirmed = AgentUriSet.Missing(AgentIds, confirmed);
+        if (unconfirmed.Length > 0)
+        {
+            runtime.Logger.LogWarning(
+                "Node {NodeId} confirmed stopping {ConfirmedCount} of {RequestedCount} requested agents; {UnconfirmedCount} remain unconfirmed: {UnconfirmedAgents}",
+                Destination.NodeId, confirmed.Length, AgentIds.Length, unconfirmed.Length, unconfirmed);
+        }
 
         return AgentCommands.Empty;
+    }
+
+    private async Task<Uri[]> invokeStopsAsync(IWolverineRuntime runtime, StopAgents stopAgents, TimeSpan timeout)
+    {
+        var response = await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, stopAgents, timeout);
+        return response?.AgentUris ?? [];
     }
 
     // See AgentUriSet: value equality over the agents, independent of their order.
@@ -252,14 +283,32 @@ internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : 
     public override int GetHashCode() => HashCode.Combine(Destination, AgentUriSet.HashOf(AgentIds));
 }
 
-internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
+internal record StartAgents(Uri[] AgentUris) : IDeferredAgentWork, ISerializable
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
-        // GH-3604 / D3: start the batch with bounded parallelism instead of serially. Daemon-agent starts are
-        // I/O bound (database round-trips per shard), so a 50-agent chunk started one-at-a-time was seconds of
-        // dead wall-clock that blew the reply window; a bounded fan-out lets the whole chunk converge quickly
-        // without swamping the node.
+        var successful = await StartBatchAsync(runtime, AgentUris,
+            async uri =>
+            {
+                await runtime.Agents.StartLocallyAsync(uri);
+                return true;
+            }, cancellationToken);
+
+        return [new AgentsStarted(successful)];
+    }
+
+    // GH-3604 / D3: start the batch with bounded parallelism instead of serially. Daemon-agent starts are
+    // I/O bound (database round-trips per shard), so a 50-agent chunk started one-at-a-time was seconds of
+    // dead wall-clock that blew the reply window; a bounded fan-out lets the whole chunk converge quickly
+    // without swamping the node.
+    //
+    // The one-agent start is a delegate because the two callers guard differently: inline (local)
+    // execution starts directly, while DeferredAgentCommandRunner routes each start through the GH-3748
+    // stop-revocation guard. The delegate answers whether the agent is genuinely running here afterward —
+    // a start the guard skipped (or immediately reverted) must not be confirmed to the leader.
+    internal static async Task<Uri[]> StartBatchAsync(IWolverineRuntime runtime, Uri[] agentUris,
+        Func<Uri, Task<bool>> startAgent, CancellationToken cancellationToken)
+    {
         var successful = new System.Collections.Concurrent.ConcurrentBag<Uri>();
 
         var dop = Math.Max(1, runtime.Options.Durability.MaxAgentStartParallelism);
@@ -269,12 +318,14 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             CancellationToken = cancellationToken
         };
 
-        await Parallel.ForEachAsync(AgentUris, options, async (agentUri, token) =>
+        await Parallel.ForEachAsync(agentUris, options, async (agentUri, _) =>
         {
             try
             {
-                await runtime.Agents.StartLocallyAsync(agentUri);
-                successful.Add(agentUri);
+                if (await startAgent(agentUri))
+                {
+                    successful.Add(agentUri);
+                }
             }
             catch (Exception e)
             {
@@ -282,7 +333,7 @@ internal record StartAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
             }
         });
 
-        return [new AgentsStarted(successful.ToArray())];
+        return successful.ToArray();
     }
 
     public virtual bool Equals(StartAgents? other)
@@ -329,7 +380,7 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
     }
 }
 
-internal record StopAgents(Uri[] AgentUris) : IAgentCommand, ISerializable
+internal record StopAgents(Uri[] AgentUris) : IDeferredAgentWork, ISerializable
 {
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)

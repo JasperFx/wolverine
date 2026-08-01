@@ -114,6 +114,52 @@ public partial class NodeAgentController
 
     public ConcurrentDictionary<Uri, IAgent> Agents { get; } = new();
 
+    // GH-3748: background executor for remotely-received batched agent commands, created by
+    // WolverineRuntime for Balanced-mode nodes. See DeferredAgentCommandRunner.
+    internal DeferredAgentCommandRunner? DeferredWork { get; set; }
+
+    // GH-3748: the serial control lane used to guarantee that a stop command arriving after a batch of
+    // starts also EXECUTED after those starts. With batch execution deferred off the lane, that ordering
+    // is kept per agent instead: every stop stamps a monotonic sequence for its agent, and a deferred
+    // start skips (or immediately reverts) any agent whose stop is newer than the batch's acceptance.
+    private long _commandSequence;
+    private readonly ConcurrentDictionary<Uri, long> _stopRevocations = new();
+
+    internal long CurrentCommandSequence => Volatile.Read(ref _commandSequence);
+
+    private bool isRevokedSince(Uri agentUri, long sequence)
+        => _stopRevocations.TryGetValue(agentUri, out var revokedAt) && revokedAt > sequence;
+
+    /// <summary>
+    ///     GH-3748: start one agent from a deferred batch, honoring any stop command that arrived after
+    ///     the batch was accepted. Returns whether the agent is genuinely running here afterward.
+    /// </summary>
+    internal async Task<bool> StartAgentGuardedAsync(Uri agentUri, long asOfSequence)
+    {
+        if (isRevokedSince(agentUri, asOfSequence))
+        {
+            _logger.LogInformation(
+                "Skipping deferred start of agent {AgentUri} on node {NodeNumber}: a stop command arrived after the batch was accepted",
+                agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+            return false;
+        }
+
+        await StartAgentAsync(agentUri);
+
+        // A stop that landed while this start was in flight found nothing to stop — its no-op must not
+        // stand while the agent it aimed at comes up right behind it.
+        if (isRevokedSince(agentUri, asOfSequence))
+        {
+            _logger.LogInformation(
+                "Reverting deferred start of agent {AgentUri} on node {NodeNumber}: a stop command arrived while the start was in flight",
+                agentUri, _runtime.Options.Durability.AssignedNodeNumber);
+            await StopAgentAsync(agentUri);
+            return false;
+        }
+
+        return true;
+    }
+
     public bool HasStartedInSoloMode { get; private set; }
 
     internal void AddHandlers(WolverineRuntime runtime)
@@ -126,6 +172,8 @@ public partial class NodeAgentController
         handlers.RegisterMessageType(typeof(AgentsStopped));
         handlers.RegisterMessageType(typeof(StopAgent));
         handlers.RegisterMessageType(typeof(StopAgents));
+        handlers.RegisterMessageType(typeof(QueryAgentPresence));
+        handlers.RegisterMessageType(typeof(AgentPresenceReport));
     }
 
     public async Task StopAsync(IMessageBus messageBus)
@@ -352,6 +400,10 @@ public partial class NodeAgentController
 
     public async Task StopAgentAsync(Uri agentUri)
     {
+        // GH-3748: stamped before the attempt, so even a stop that finds nothing running revokes any
+        // deferred start still queued or in flight for this agent. See StartAgentGuardedAsync.
+        _stopRevocations[agentUri] = Interlocked.Increment(ref _commandSequence);
+
         if (Agents.TryGetValue(agentUri, out var agent))
         {
             try
