@@ -38,11 +38,6 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
     protected override Task AfterDisposeAsync()
     {
         return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
