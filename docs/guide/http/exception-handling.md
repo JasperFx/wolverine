@@ -2,7 +2,7 @@
 
 Wolverine supports an `OnException` / `OnExceptionAsync` naming convention for middleware methods that allows you to handle exceptions thrown during endpoint execution. This is the recommended approach for structured exception handling in Wolverine HTTP endpoints.
 
-For mapping Marten concurrency exceptions to a `409 Conflict` with a `ProblemDetails` body across every Marten-backed endpoint at once, see [Concurrency Exceptions](/guide/http/marten.html#concurrency-exceptions).
+For mapping Marten concurrency exceptions to a `409 Conflict` with a `ProblemDetails` body across the endpoints using the Marten aggregate handler workflow or transactional middleware, see [Concurrency Exceptions](/guide/http/marten.html#concurrency-exceptions).
 
 ## Handler-Level Exception Handling
 

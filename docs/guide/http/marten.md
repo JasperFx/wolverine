@@ -407,15 +407,25 @@ opts.UseProblemDetailsForConcurrencyExceptions();
 This policy only applies to endpoints that use the aggregate handler workflow (`[AggregateHandler]`,
 `[Aggregate]`, or `[WriteAggregate]`) or that commit a Marten session through Wolverine's transactional
 middleware. On each matching endpoint it catches `JasperFx.ConcurrencyException` — the base type of
-Marten's `EventStreamUnexpectedMaxEventIdException` and `DcbConcurrencyException` — and writes the
-`ProblemDetails` response with the configured status code. The response is also registered in the
-endpoint's OpenAPI metadata.
+Marten's `EventStreamUnexpectedMaxEventIdException` and `DcbConcurrencyException` — writes the
+`ProblemDetails` response with the configured status code, and logs the handled conflict at the
+`Information` level so operators keep a signal where the escaping exception used to leave an error log.
+The response is registered in the endpoint's OpenAPI metadata on aggregate workflow endpoints and on
+routes accepting verbs other than `GET`/`HEAD`, so read-only endpoints that merely commit an empty
+session don't advertise an unreachable conflict response to generated clients.
+
+On endpoints loading their aggregate with `ConcurrencyStyle.Exclusive`, the policy additionally catches
+`Marten.Exceptions.StreamLockedException`, which is thrown on the load path by
+`FetchForExclusiveWriting` and does *not* inherit from `ConcurrencyException`. A locked stream usually
+means another session merely held the lock at that moment, so clients should treat the resulting
+response as retryable.
 
 ::: warning
-The policy also catches `Marten.Exceptions.StreamLockedException`, which is thrown on the load path
-when using exclusive locking (`FetchForExclusiveWriting`) and does *not* inherit from
-`ConcurrencyException`. A locked stream usually means another session merely held the lock at that
-moment, so clients should treat the resulting response as retryable.
+Catch blocks are ordered most-specific-first, so once the policy is active a broader `OnException(Exception)`
+handler will no longer observe these exception types — the policy only steps aside for a user-defined
+handler of the *exact same* exception type. Also note that if the response has already started streaming
+when the exception surfaces, the policy rethrows so the failure still aborts the response rather than
+silently truncating a success status.
 :::
 
 If you need different behavior for a specific endpoint — or prefer to keep the mapping explicit without
