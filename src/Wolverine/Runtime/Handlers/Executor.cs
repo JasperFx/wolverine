@@ -57,6 +57,12 @@ internal class Executor : IExecutor
     private readonly IMessageTracker _tracker;
     private readonly IWolverineRuntime? _runtime;
 
+    /// <summary>
+    ///     The tracker this executor reports to. Exposed for tests asserting which traffic is
+    ///     metrics-silent (CritterWatch GH-907).
+    /// </summary>
+    internal IMessageTracker Tracker => _tracker;
+
     public Executor(ObjectPool<MessageContext> contextPool, IWolverineRuntime runtime, IMessageHandler handler,
         FailureRuleCollection rules, TimeSpan timeout)
         : this(contextPool, runtime.LoggerFactory.CreateLogger(handler.MessageType), handler, runtime.MessageTracking, rules, timeout)

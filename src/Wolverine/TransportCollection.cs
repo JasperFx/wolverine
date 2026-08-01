@@ -33,6 +33,13 @@ public class TransportCollection : IEnumerable<ITransport>, IAsyncDisposable
             if (value != null)
             {
                 value.IsListener = true;
+
+                // CritterWatch GH-907: whatever endpoint carries node control traffic is system
+                // traffic by definition. The database and shared-memory control endpoints are born
+                // with the System role, but a generic endpoint promoted to control duty (e.g.
+                // UseTcpForControlEndpoint) was not — leaving its agent-command traffic visible to
+                // metrics as apparent application volume.
+                value.Role = EndpointRole.System;
             }
 
             _nodeControlEndpoint = value;
