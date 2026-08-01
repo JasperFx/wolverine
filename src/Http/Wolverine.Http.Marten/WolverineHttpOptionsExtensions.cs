@@ -1,3 +1,8 @@
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+
 namespace Wolverine.Http.Marten;
 
 public static class WolverineHttpOptionsExtensions
@@ -13,15 +18,27 @@ public static class WolverineHttpOptionsExtensions
     }
 
     /// <summary>
-    /// Adds a <see cref="ConcurrencyExceptionPolicy"/> that responds with a ProblemDetails body and the
-    /// supplied status code (409 Conflict by default) when a Marten optimistic concurrency exception would
-    /// otherwise escape an HTTP endpoint using the aggregate handler workflow or Marten transactional middleware
+    /// Registers the <see cref="MartenConcurrencyExceptionHandler"/> (plus AddProblemDetails()) so the
+    /// ASP.NET Core exception handler middleware responds with a ProblemDetails body and the supplied
+    /// status code (409 Conflict by default) when a Marten concurrency exception escapes an HTTP
+    /// endpoint, and a <see cref="ConcurrencyExceptionPolicy"/> that registers the conflict response
+    /// in the OpenAPI metadata of the Wolverine endpoints where it is reachable. The application must
+    /// also call <c>app.UseExceptionHandler()</c> for the handler to run
     /// </summary>
-    /// <param name="options">Options to apply policy on</param>
+    /// <param name="services">The application's service collection</param>
     /// <param name="statusCode">The HTTP status code of the ProblemDetails response. Default is 409 (Conflict)</param>
-    public static void UseProblemDetailsForConcurrencyExceptions(this WolverineHttpOptions options,
+    public static IServiceCollection UseProblemDetailsForConcurrencyExceptions(this IServiceCollection services,
         int statusCode = 409)
     {
-        options.Policies.Add(new ConcurrencyExceptionPolicy(statusCode));
+        services.AddProblemDetails();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IExceptionHandler, MartenConcurrencyExceptionHandler>(
+            sp => new MartenConcurrencyExceptionHandler(statusCode,
+                sp.GetRequiredService<ILogger<MartenConcurrencyExceptionHandler>>())));
+
+        // IChainPolicy so it can be registered at service-registration time; Wolverine.Http applies
+        // core chain policies to the HTTP chains, and the policy no-ops for messaging chains
+        services.ConfigureWolverine(opts => opts.Policies.Add(new ConcurrencyExceptionPolicy(statusCode)));
+
+        return services;
     }
 }

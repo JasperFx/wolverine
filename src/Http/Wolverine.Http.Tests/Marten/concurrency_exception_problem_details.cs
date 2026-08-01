@@ -1,7 +1,6 @@
 using Alba;
 using IntegrationTests;
 using Marten;
-using Marten.Exceptions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Metadata;
 using Microsoft.AspNetCore.Mvc;
@@ -67,8 +66,9 @@ public class concurrency_exception_problem_details(AppFixture fixture) : Integra
             x.Post.Json(new MarkItemReady(id, "Socks", 1)).ToUrl("/orders/itemready/custom-handled");
         });
 
-        // The endpoint's own OnException(ConcurrencyException) is already in the catch
-        // block, so the policy must leave it alone rather than doubling the catch
+        // The endpoint's own OnException(ConcurrencyException) swallows the exception inside
+        // the chain, so it never reaches the exception handler middleware and the endpoint's
+        // response wins with no double handling
         var result = await Scenario(x =>
         {
             x.Post.Json(new MarkItemReady(id, "Shoes", 1)).ToUrl("/orders/itemready/custom-handled");
@@ -91,29 +91,12 @@ public class concurrency_exception_problem_details(AppFixture fixture) : Integra
     }
 
     [Fact]
-    public void no_catch_or_conflict_metadata_added_when_the_endpoint_handles_the_exception_itself()
+    public void no_conflict_metadata_advertised_when_the_endpoint_handles_the_exception_itself()
     {
-        var chain = HttpChains.ChainFor("POST", "/orders/itemready/custom-handled");
-        chain.ShouldNotBeNull();
-
-        // The single ConcurrencyException catch belongs to the endpoint's own OnException handler,
-        // and this optimistic chain gets no StreamLockedException catch either
-        var catchBlocks = chain.GetOrCreateTryCatchFinallyFrame().CatchBlocks;
-        catchBlocks.Single().ExceptionType.ShouldBe(typeof(JasperFx.ConcurrencyException));
-
-        // Since the policy added nothing here, it must not advertise the conflict status either
+        // The endpoint's own OnException(ConcurrencyException) means the exception can never
+        // reach the middleware, so advertising the conflict response would be a lie
         endpointFor("/orders/itemready/custom-handled").Metadata.OfType<IProducesResponseTypeMetadata>()
             .Any(x => x.StatusCode == 409).ShouldBeFalse();
-    }
-
-    [Fact]
-    public void stream_locked_catch_is_not_added_to_optimistic_chains()
-    {
-        var chain = HttpChains.ChainFor("POST", "/orders/itemready");
-        chain.ShouldNotBeNull();
-
-        chain.GetOrCreateTryCatchFinallyFrame().CatchBlocks
-            .Any(x => x.ExceptionType == typeof(StreamLockedException)).ShouldBeFalse();
     }
 
     private RouteEndpoint endpointFor(string route)
@@ -125,12 +108,12 @@ public class concurrency_exception_problem_details(AppFixture fixture) : Integra
     }
 }
 
-// The opt-in behavior itself needs hosts with different policy registrations than the shared
+// The opt-in behavior itself needs hosts with different registrations than the shared
 // WolverineWebApi application, so these tests bootstrap their own little applications against
 // the endpoints at the bottom of this file
 public class concurrency_exception_policy_opt_in
 {
-    private static async Task<IAlbaHost> buildHostAsync(Action<WolverineHttpOptions>? configure,
+    private static async Task<IAlbaHost> buildHostAsync(int? problemDetailsStatusCode,
         string? connectionString = null)
     {
         // WolverineWebApi runs in Development under Alba too; without the developer exception
@@ -159,7 +142,21 @@ public class concurrency_exception_policy_opt_in
 
         builder.Services.AddWolverineHttp();
 
-        return await AlbaHost.For(builder, app => app.MapWolverineEndpoints(opts => configure?.Invoke(opts)));
+        if (problemDetailsStatusCode.HasValue)
+        {
+            builder.Services.UseProblemDetailsForConcurrencyExceptions(problemDetailsStatusCode.Value);
+        }
+
+        return await AlbaHost.For(builder, app =>
+        {
+            if (problemDetailsStatusCode.HasValue)
+            {
+                // The concurrency mapping runs inside the exception handler middleware
+                app.UseExceptionHandler();
+            }
+
+            app.MapWolverineEndpoints();
+        });
     }
 
     private static async Task<Guid> startOrder(IAlbaHost host)
@@ -196,7 +193,7 @@ public class concurrency_exception_policy_opt_in
     [Fact]
     public async Task uses_a_non_default_status_code_in_both_response_and_metadata()
     {
-        await using var host = await buildHostAsync(opts => opts.UseProblemDetailsForConcurrencyExceptions(412));
+        await using var host = await buildHostAsync(412);
 
         var id = await startOrder(host);
 
@@ -228,17 +225,10 @@ public class concurrency_exception_policy_opt_in
         // Marten surfaces a contended FetchForExclusiveWriting as a StreamLockedException only
         // after the Npgsql command timeout, so keep that short to make this test quick -- but not
         // so short that first-touch schema migration under parallel suite load can trip it
-        await using var host = await buildHostAsync(opts => opts.UseProblemDetailsForConcurrencyExceptions(),
+        await using var host = await buildHostAsync(409,
             Servers.PostgresConnectionString + ";Command Timeout=5");
 
         var id = await startOrder(host);
-
-        // Chain-level pin: the StreamLockedException catch is only added to exclusive chains
-        var graph = host.Services.GetRequiredService<WolverineHttpOptions>().Endpoints!;
-        graph.ChainFor("POST", "/local/orders/ship-exclusive")!.GetOrCreateTryCatchFinallyFrame().CatchBlocks
-            .Any(x => x.ExceptionType == typeof(StreamLockedException)).ShouldBeTrue();
-        graph.ChainFor("POST", "/local/orders/itemready")!.GetOrCreateTryCatchFinallyFrame().CatchBlocks
-            .Any(x => x.ExceptionType == typeof(StreamLockedException)).ShouldBeFalse();
 
         // Hold the stream's exclusive lock from a competing session for the duration of the request
         var store = host.Services.GetRequiredService<IDocumentStore>();

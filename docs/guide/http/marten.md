@@ -391,53 +391,64 @@ Wolverine can't (yet) handle a signature with multiple event streams of the same
 The aggregate handler workflow leans on Marten's optimistic concurrency protections, so any endpoint
 using it can fail at commit time when the underlying stream has advanced past the expected version. By
 default that exception escapes the endpoint as a 500. If you would rather respond with a `409 Conflict`
-carrying a `ProblemDetails` body, opt in when mapping the Wolverine endpoints:
+carrying a `ProblemDetails` body, opt in at service registration time:
 
 <!-- snippet: sample_UseProblemDetailsForConcurrencyExceptions -->
 <a id='snippet-sample_UseProblemDetailsForConcurrencyExceptions'></a>
 ```cs
 // Opt into responding with a 409 status code and a ProblemDetails
-// body when a Marten concurrency exception is caught on any endpoint
-// using the aggregate handler workflow or Marten transactional middleware
-opts.UseProblemDetailsForConcurrencyExceptions();
+// body when a Marten concurrency exception escapes an HTTP endpoint.
+// The exception mapping is done by the ASP.NET Core exception handler
+// middleware, so the application also needs app.UseExceptionHandler()
+builder.Services.UseProblemDetailsForConcurrencyExceptions();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L377-L383' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_UseProblemDetailsForConcurrencyExceptions' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L126-L133' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_UseProblemDetailsForConcurrencyExceptions' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-This policy only applies to endpoints that use the aggregate handler workflow (`[AggregateHandler]`,
-`[Aggregate]`, or `[WriteAggregate]`) or that commit a Marten session through Wolverine's transactional
-middleware. On each matching endpoint it catches `JasperFx.ConcurrencyException` — the base type of
-Marten's `EventStreamUnexpectedMaxEventIdException` and `DcbConcurrencyException` — writes the
-`ProblemDetails` response with the configured status code, and logs the handled conflict at the
-`Information` level so operators keep a signal where the escaping exception used to leave an error log.
-The response is registered in the endpoint's OpenAPI metadata on aggregate workflow endpoints and on
-routes accepting verbs other than `GET`/`HEAD`, so read-only endpoints that merely commit an empty
-session don't advertise an unreachable conflict response to generated clients.
+The runtime mapping is done by a `MartenConcurrencyExceptionHandler`, a standard
+`Microsoft.AspNetCore.Diagnostics.IExceptionHandler` registered together with `AddProblemDetails()`,
+so the application **must also run the exception handler middleware** for the mapping to take effect:
 
-On endpoints loading their aggregate with `ConcurrencyStyle.Exclusive`, the policy additionally catches
+```csharp
+var app = builder.Build();
+
+// Required: the concurrency exception mapping runs inside this middleware
+app.UseExceptionHandler();
+
+app.MapWolverineEndpoints();
+```
+
+The handler maps `JasperFx.ConcurrencyException` — the base type of Marten's
+`EventStreamUnexpectedMaxEventIdException` and `DcbConcurrencyException` — to the `ProblemDetails`
+response with the configured status code, and logs the handled conflict at the `Information` level so
+operators keep a signal where the escaping exception used to leave an error log. It also maps
 `Marten.Exceptions.StreamLockedException`, which is thrown on the load path by
-`FetchForExclusiveWriting` and does *not* inherit from `ConcurrencyException`. A locked stream usually
-means another session merely held the lock at that moment, so clients should treat the resulting
-response as retryable.
+`FetchForExclusiveWriting` and does *not* inherit from `ConcurrencyException`; only exclusive fetches
+can throw it, so the unconditional mapping is safe. A locked stream usually means another session
+merely held the lock at that moment, so clients should treat the resulting response as retryable.
+
+The registration also adds a companion policy that registers the conflict response in the OpenAPI
+metadata of the Wolverine endpoints where it is actually reachable: endpoints using the aggregate
+handler workflow, and routes accepting verbs other than `GET`/`HEAD` that commit a Marten session
+through the transactional middleware. Read-only endpoints that merely commit an empty session, and
+endpoints whose own `OnException` handlers already cover the mapped exception types, don't advertise
+an unreachable conflict response to generated clients.
 
 ::: warning
-Catch blocks are ordered most-specific-first, so once the policy is active a broader `OnException(Exception)`
-handler will no longer observe these exception types — the policy only steps aside for a user-defined
-handler of the *exact same* exception type. Also note that if the response has already started streaming
-when the exception surfaces, the policy rethrows so the failure still aborts the response rather than
-silently truncating a success status.
+Standard exception handler middleware semantics apply: if the response has already started streaming
+when the exception surfaces, the middleware cannot rewrite the response and rethrows instead.
 :::
 
 If you need different behavior for a specific endpoint — or prefer to keep the mapping explicit without
-opting into the policy — the [OnException convention](/guide/http/exception-handling) gives you the
-same result by hand:
+opting in — the [OnException convention](/guide/http/exception-handling) gives you the same result by
+hand:
 
 <!-- snippet: sample_concurrency_exception_with_onexception -->
 <a id='snippet-sample_concurrency_exception_with_onexception'></a>
 ```cs
 // This endpoint handles the Marten concurrency failure itself with the OnException
-// convention, so the UseProblemDetailsForConcurrencyExceptions() policy leaves
-// its catch block completely alone
+// convention, so the exception never reaches the exception handler middleware and
+// the UseProblemDetailsForConcurrencyExceptions() mapping never comes into play
 public static class HandleConcurrencyExceptionYourselfEndpoint
 {
     [AggregateHandler]
@@ -461,8 +472,9 @@ public static class HandleConcurrencyExceptionYourselfEndpoint
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyExceptionEndpoint.cs#L8-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_concurrency_exception_with_onexception' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-An endpoint's own `OnException` handler for the exact same exception type always wins over the policy,
-which skips any exception type the endpoint already catches.
+An endpoint's own `OnException` handlers always win naturally: they swallow the exception inside the
+endpoint chain, so it never reaches the exception handler middleware. That also holds for broader
+handlers like `OnException(Exception)`.
 
 ## Overriding Version Discovery <Badge type="tip" text="5.17" />
 
@@ -613,7 +625,7 @@ Register it in `WolverineHttpOptions` like this:
 ```cs
 opts.UseMartenCompiledQueryResultPolicy();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L347-L350' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L361-L364' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.

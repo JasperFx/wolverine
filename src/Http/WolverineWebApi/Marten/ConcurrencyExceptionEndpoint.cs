@@ -8,8 +8,8 @@ namespace WolverineWebApi.Marten;
 #region sample_concurrency_exception_with_onexception
 
 // This endpoint handles the Marten concurrency failure itself with the OnException
-// convention, so the UseProblemDetailsForConcurrencyExceptions() policy leaves
-// its catch block completely alone
+// convention, so the exception never reaches the exception handler middleware and
+// the UseProblemDetailsForConcurrencyExceptions() mapping never comes into play
 public static class HandleConcurrencyExceptionYourselfEndpoint
 {
     [AggregateHandler]

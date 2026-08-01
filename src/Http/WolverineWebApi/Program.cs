@@ -123,6 +123,15 @@ public class Program
             opts.Events.UseIdentityMapForAggregates = true;
         }).IntegrateWithWolverine();
 
+        #region sample_UseProblemDetailsForConcurrencyExceptions
+        // Opt into responding with a 409 status code and a ProblemDetails
+        // body when a Marten concurrency exception escapes an HTTP endpoint.
+        // The exception mapping is done by the ASP.NET Core exception handler
+        // middleware, so the application also needs app.UseExceptionHandler()
+        builder.Services.UseProblemDetailsForConcurrencyExceptions();
+
+        #endregion
+
         builder.Services.AddMartenStore<IThingStore>(options =>
         {
             options.Connection(Servers.PostgresConnectionString);
@@ -222,6 +231,11 @@ public class Program
             .AddSupportedUICultures(supportedCultures);
 
         app.UseRequestLocalization(localizationOptions);
+
+        // Required for UseProblemDetailsForConcurrencyExceptions() above: the concurrency
+        // exception mapping runs inside this middleware. Added before the scoped /v1/orders/throws
+        // handler below so that branch stays innermost and keeps winning on its own path.
+        app.UseExceptionHandler();
 
         // Scoped UseExceptionHandler — only on the dedicated regression-test path. Pinning the
         // documented out-of-scope: 5xx responses produced by the global ASP.NET Core exception
@@ -373,14 +387,6 @@ public class Program
                 chain => chain.Method.HandlerType == typeof(MiddlewareExceptionEndpoints));
 
             opts.AddPolicy<StreamCollisionExceptionPolicy>();
-
-            #region sample_UseProblemDetailsForConcurrencyExceptions
-            // Opt into responding with a 409 status code and a ProblemDetails
-            // body when a Marten concurrency exception is caught on any endpoint
-            // using the aggregate handler workflow or Marten transactional middleware
-            opts.UseProblemDetailsForConcurrencyExceptions();
-
-            #endregion
 
             opts.AddPolicy<FrameRearrangeMiddleware.HttpPolicy>();
 
