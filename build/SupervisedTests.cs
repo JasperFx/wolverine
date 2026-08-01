@@ -129,11 +129,11 @@ partial class Build
             TestFilter = shardFilter is null ? NotFlaky : t => NotFlaky(t) && shardFilter(t),
             RetryBudget = DisableTestRetry
                 ? RetryBudget.None
-                : new RetryBudget { MaxAttemptsPerTest = 2, MaxRetriesPerRun = 25 },
+                : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = 25 },
             Log = message => Log.Information("  {Message}", message)
         };
 
-        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFirstFailureInFreshProcess());
+        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
 
         var results = supervisor.Run().GetAwaiter().GetResult();
 
@@ -141,19 +141,20 @@ partial class Build
     }
 
     /// <summary>
-    /// Parity with the old flaky-retry harness: any first failure gets one more attempt in a
-    /// fresh process (the old harness re-ran it via a new `dotnet test` invocation, which is a
-    /// fresh process too). The budget above still caps it — a policy can never outspend the
-    /// operator's ceiling — and pass-on-retry is reported as flaky, never as clean.
+    /// Parity with the old flaky-retry harness, which gave a failed test up to THREE attempts:
+    /// the suite pass, then RunTestWithRetry's two single-test `dotnet test` invocations — each
+    /// a fresh, quiet process, which is what the fresh-process disposition reproduces. The
+    /// budget above still caps it — a policy can never outspend the operator's ceiling — and a
+    /// pass on any retry is reported as flaky, never as clean.
     /// </summary>
-    class RetryFirstFailureInFreshProcess : IFailurePolicy
+    class RetryFailuresInFreshProcess : IFailurePolicy
     {
         public Disposition Decide(AttemptContext attempt)
         {
-            if (attempt.Succeeded || attempt.AttemptNumber > 1 || !attempt.RetriesAvailable) return null;
+            if (attempt.Succeeded || !attempt.RetriesAvailable) return null;
 
             return Disposition.RetryInFreshProcess(
-                "first failure is retried once in a fresh process to separate flaky from broken");
+                "a failure is retried in a fresh process, within the budget, to separate flaky from broken");
         }
     }
 
