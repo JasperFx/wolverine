@@ -130,10 +130,14 @@ partial class Build
             RetryBudget = DisableTestRetry
                 ? RetryBudget.None
                 : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = 25 },
+            // The policy below only ever asks for fresh-process retries, so idle lanes are
+            // released before they run: without this, workers+1 test hosts sit resident at once,
+            // which OOM-killed 16GB GitHub runners twice — both times during a retry.
+            ReleaseIdleLanes = true,
             Log = message => Log.Information("  {Message}", message)
         };
 
-        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInWarmProcess());
+        if (!DisableTestRetry) supervisor.AddFailurePolicy(new RetryFailuresInFreshProcess());
 
         var results = supervisor.Run().GetAwaiter().GetResult();
 
@@ -141,24 +145,23 @@ partial class Build
     }
 
     /// <summary>
-    /// The old flaky-retry harness gave a failed test up to THREE attempts (the suite pass, then
-    /// RunTestWithRetry's two single-test invocations), and the budget above keeps that ceiling.
-    /// The retry runs in the WARM lane process rather than a fresh one, deliberately trading the
-    /// old harness's fresh-process isolation for a bounded memory profile: the supervisor keeps
-    /// lane processes alive through the retry passes, so a fresh-process retry means workers+1
-    /// full test hosts resident at once — which is exactly what got a 16GB GitHub runner killed
-    /// with a shutdown signal, twice, both times during a retry. Never exceeding `workers` live
-    /// processes is what a 4-vCPU runner can actually carry. A pass on any retry is still
-    /// reported as flaky, never as clean.
+    /// Parity with the old flaky-retry harness, which gave a failed test up to THREE attempts:
+    /// the suite pass, then RunTestWithRetry's two single-test `dotnet test` invocations — each
+    /// a fresh, quiet process. Fresh-process isolation matters: a warm-process retry was tried
+    /// here and produced retries that could never succeed, because a failed first attempt leaves
+    /// node registrations and half-built state behind in the process (MySqlTests'
+    /// end_to_end_from_scratch cannot run "from scratch" in a process where scratch no longer
+    /// exists). ReleaseIdleLanes above keeps the memory profile bounded instead. A pass on any
+    /// retry is reported as flaky, never as clean.
     /// </summary>
-    class RetryFailuresInWarmProcess : IFailurePolicy
+    class RetryFailuresInFreshProcess : IFailurePolicy
     {
         public Disposition Decide(AttemptContext attempt)
         {
             if (attempt.Succeeded || !attempt.RetriesAvailable) return null;
 
-            return Disposition.RetryInProcess(
-                "a failure is retried in the warm worker, within the budget, to separate flaky from broken");
+            return Disposition.RetryInFreshProcess(
+                "a failure is retried in a fresh process, within the budget, to separate flaky from broken");
         }
     }
 
