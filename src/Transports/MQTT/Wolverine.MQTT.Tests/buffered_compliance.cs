@@ -52,7 +52,10 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
 
     public LocalMqttBroker Broker { get; private set; } = null!;
 
-    public new async ValueTask DisposeAsync()
+    // AfterDisposeAsync, not a `new DisposeAsync`: TransportCompliance<T> disposes the fixture through
+    // the statically-bound base method, so a hiding override never runs -- meaning this broker was never
+    // stopped and leaked its listening socket for the life of the test process. See #3763.
+    protected override async Task AfterDisposeAsync()
     {
         await Broker.StopAsync();
         await Broker.DisposeAsync();

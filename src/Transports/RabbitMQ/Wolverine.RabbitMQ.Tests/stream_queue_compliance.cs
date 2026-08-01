@@ -44,10 +44,6 @@ public class StreamQueueFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class stream_queue_compliance : TransportCompliance<StreamQueueFixture>

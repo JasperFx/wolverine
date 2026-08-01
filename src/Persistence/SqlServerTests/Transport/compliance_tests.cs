@@ -43,10 +43,6 @@ public class SqlTransportDurableFixture : TransportComplianceFixture, IAsyncLife
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class SqlServerTransport_Durable_Compliance : TransportCompliance<SqlTransportDurableFixture>;
@@ -90,10 +86,6 @@ public class SqlTransportBufferedFixture : TransportComplianceFixture, IAsyncLif
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class SqlServerTransport_Buffered_Compliance : TransportCompliance<SqlTransportBufferedFixture>

@@ -49,10 +49,6 @@ public class QuorumQueueFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class quorum_queue_compliance : TransportCompliance<QuorumQueueFixture>

@@ -45,10 +45,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await DisposeAsync();
-    }
 }
 
 [Collection("acceptance")]

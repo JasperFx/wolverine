@@ -34,10 +34,6 @@ public class InlineRabbitMqTransportFixture : TransportComplianceFixture, IAsync
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class InlineRabbitMqTransportComplianceTests : TransportCompliance<InlineRabbitMqTransportFixture>;

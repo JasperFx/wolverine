@@ -33,7 +33,13 @@ jobs:
           - CIEfCore
           - CIGrpc
           - CIKafka
+          # MartenTests is one Postgres project sharded three ways by namespace, each shard strictly
+          # sequential against a single database. CIMarten is the "everything else" shard, so a newly
+          # added namespace still runs somewhere. Replaces the worker-lane split that got the runner
+          # OOM-killed. See #3771, #3762, #3350.
           - CIMarten
+          - CIMartenWorkflow
+          - CIMartenSagas
           - CIMQTT
           - CIMQTT5
           - CIMySql
@@ -55,6 +61,19 @@ jobs:
           - CISqlServer
           - CICircuitBreaking
           - CIAotSmoke
+        include:
+          # CIMarten was twice killed outright by the runner ~15 minutes in ("The runner has received a
+          # shutdown signal"), on unrelated diffs, at almost exactly the same elapsed time on both
+          # attempts -- the signature of the VM running out of memory rather than of a test failure.
+          # The worker lanes that caused it are gone (the suite is sharded across these three jobs
+          # instead, one database at a time), so this sampler is now here to *confirm* the footprint
+          # actually dropped and to catch a recurrence with evidence rather than a guess. See #3771.
+          - target: CIMarten
+            memory_telemetry: true
+          - target: CIMartenWorkflow
+            memory_telemetry: true
+          - target: CIMartenSagas
+            memory_telemetry: true
 
     steps:
       - name: Checkout
@@ -68,7 +87,27 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Run Tests
-        run: ./build.sh ${{ matrix.target }} --framework net9.0
+        env:
+          MEMORY_TELEMETRY: ${{ matrix.memory_telemetry }}
+        run: |
+          # The sampler has to live inside this step: when the runner is killed, later steps are
+          # skipped, so only what has already been streamed to this step's log survives. See #3771.
+          if [ "${MEMORY_TELEMETRY:-}" = "true" ]; then
+            ./build/ci-memory-sampler.sh &
+            sampler_pid=$!
+            trap 'kill "${sampler_pid}" 2>/dev/null || true' EXIT
+          fi
+          ./build.sh ${{ matrix.target }} --framework net9.0
+
+      # Only reachable when the runner itself survived. If the OOM killer took a *test* process
+      # rather than the runner service, the kill is recorded here and nowhere else.
+      - name: Kernel OOM report
+        if: failure() && matrix.memory_telemetry == true
+        run: |
+          echo "::group::dmesg (OOM / kill events)"
+          sudo dmesg | grep -iE "out of memory|oom-kill|killed process" || echo "no OOM events in dmesg"
+          echo "::endgroup::"
+          free -m
 
       - name: Stop containers
         if: always()

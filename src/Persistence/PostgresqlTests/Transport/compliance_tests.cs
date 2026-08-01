@@ -40,10 +40,6 @@ public class PostgresqlTransportDurableFixture : TransportComplianceFixture, IAs
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 [Collection("marten")]
@@ -88,10 +84,6 @@ public class PostgresqlTransportBufferedFixture : TransportComplianceFixture, IA
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 [Collection("sqlserver")]

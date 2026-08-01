@@ -52,10 +52,6 @@ public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class process_inline_compliance : TransportCompliance<ProcessInlineFixture>

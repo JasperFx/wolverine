@@ -69,10 +69,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await DisposeAsync();
-    }
 }
 
 [Collection("acceptance")]

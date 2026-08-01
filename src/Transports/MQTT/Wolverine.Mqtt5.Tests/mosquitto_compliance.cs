@@ -46,10 +46,6 @@ public class MosquittoBufferedComplianceFixture : TransportComplianceFixture, IA
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        // Nothing extra to dispose; Mosquitto runs in Docker
-    }
 }
 
 [Collection("mosquitto")]
