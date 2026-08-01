@@ -258,6 +258,15 @@ public class KafkaTransport : BrokerTransport<KafkaTopic>
                 tierTopic.IsListener = true;
                 tierTopic.RetryTierDelay = delay;
                 tierTopic.Mode = EndpointMode.Inline;
+
+                // The LAST tier's exhaustion path is MoveToDeadLetterQueueAsync, and that decision is made
+                // against the TIER listener's endpoint — not the source topic the message originally
+                // arrived on. Without inheriting the source's native-DLQ enablement, an exhausted message
+                // never reached the Kafka dead letter topic at all: on a durable host it fell back to the
+                // database DLQ, and on a storeless host it was simply dropped. The test covering this
+                // passed vacuously for months by consuming another suite's residue off the shared default
+                // DLQ topic.
+                tierTopic.NativeDeadLetterQueueEnabled = Topics[source].NativeDeadLetterQueueEnabled;
                 // Stable group + earliest so a tier consumer never misses a just-produced retry record
                 // (a Latest consumer races the producer). Reads + commits its own retry-topic offsets.
                 tierTopic.ConsumerConfig = new ConsumerConfig
