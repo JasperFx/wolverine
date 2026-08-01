@@ -23,7 +23,14 @@ public class DeadLetterQueueTests : IAsyncLifetime
     {
         _output = output;
         _topicName = $"dlq-test-{Guid.NewGuid():N}";
-        _dlqTopicName = "wolverine-dead-letter-queue";
+
+        // A per-test DLQ topic, NOT the shared "wolverine-dead-letter-queue" default. Several suites in
+        // this assembly dead-letter onto the default topic (the DLQ compliance fixture, the retry-topic
+        // tests), and these tests consume the FIRST message a fresh earliest-offset consumer finds — so
+        // reading the shared topic returns whichever suite happened to dead-letter first, and the
+        // exception-header assertions fail deterministically against another test's residue. Same
+        // pattern BufferedDeadLetterQueueTests always used.
+        _dlqTopicName = $"dlq-test-verify-{Guid.NewGuid():N}";
     }
 
     public async ValueTask InitializeAsync()
@@ -33,6 +40,7 @@ public class DeadLetterQueueTests : IAsyncLifetime
             {
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
+                    .DeadLetterQueueTopicName(_dlqTopicName)
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
 
                 opts.ListenToKafkaTopic(_topicName)

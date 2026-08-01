@@ -13,16 +13,23 @@ public class kafka_retry_topics : IAsyncLifetime
 {
     private IHost _host = null!;
     private string _topic = null!;
+    private string _dlqTopic = null!;
 
     public async ValueTask InitializeAsync()
     {
         RetryState.Reset();
         _topic = $"retry-{Guid.NewGuid():N}";
 
+        // Per-test DLQ topic: the shared default topic collects dead letters from other suites in this
+        // assembly, and the assertion below reads the FIRST message it finds. See DeadLetterQueueTests.
+        _dlqTopic = $"retry-dlq-{Guid.NewGuid():N}";
+
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseKafka(KafkaContainerFixture.ConnectionString).AutoProvision();
+                opts.UseKafka(KafkaContainerFixture.ConnectionString)
+                    .AutoProvision()
+                    .DeadLetterQueueTopicName(_dlqTopic);
                 opts.PublishAllMessages().ToKafkaTopic(_topic).SendInline();
                 opts.ListenToKafkaTopic(_topic)
                     .ProcessInline()
@@ -78,7 +85,7 @@ public class kafka_retry_topics : IAsyncLifetime
             GroupId = Guid.NewGuid().ToString(),
             AutoOffsetReset = AutoOffsetReset.Earliest
         }).Build();
-        consumer.Subscribe("wolverine-dead-letter-queue");
+        consumer.Subscribe(_dlqTopic);
 
         var deadline = DateTime.UtcNow.AddSeconds(15);
         ConsumeResult<string, byte[]>? dlq = null;
