@@ -1,3 +1,4 @@
+using IntegrationTests;
 using System.Linq;
 using MartenTests.Distribution.Support;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,7 @@ public class find_agent_uri_for_registered_projection(ITestOutputHelper output) 
         var uri = await family.FindAgentUriAsync("Trip:All", null, TestContext.Current.CancellationToken);
 
         uri.ShouldNotBeNull();
-        uri!.AbsoluteUri.ShouldBe("event-subscriptions://marten/main/localhost.postgres/trip/all");
+        uri!.AbsoluteUri.ShouldBe($"event-subscriptions://marten/main/localhost.{Servers.PostgresDatabaseName}/trip/all");
     }
 
     [Fact]

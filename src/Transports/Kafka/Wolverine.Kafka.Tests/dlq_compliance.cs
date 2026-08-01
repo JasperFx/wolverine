@@ -48,11 +48,6 @@ public class BufferedComplianceWithDlqFixture : TransportComplianceFixture, IAsy
             opts.Services.AddResourceSetupOnStartup();
         });
     }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 }
 
 public class BufferedSendingAndReceivingWithDlqCompliance : TransportCompliance<BufferedComplianceWithDlqFixture>;

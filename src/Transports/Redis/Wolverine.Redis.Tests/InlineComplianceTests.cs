@@ -33,11 +33,6 @@ public class RedisInlineComplianceFixture : TransportComplianceFixture, IAsyncLi
 
 
     }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 }
 
 public class InlineSendingAndReceivingCompliance : TransportCompliance<RedisInlineComplianceFixture>;

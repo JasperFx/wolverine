@@ -578,11 +578,14 @@ public abstract class LeadershipElectionCompliance : IAsyncLifetime
         }
 
         var nodes = new[]{_originalHost, host2, host3, host4};
-        
-        // We purposely ignore messages to the control queues in the track activity, so boohoo,
-        // gotta do this
 
-        for (var i = 0; i < 10; i++)
+        // We purposely ignore messages to the control queues in the track activity, so boohoo,
+        // gotta do this. A DoOnAgent invoked against the wrong node is FORWARDED over the control
+        // queue, and that leg is outside the tracked session — the old 1-second ceiling here lost
+        // the race to any forwarding slower than a second (routinely, on a loaded broker emulator)
+        // and failed the First() below with "Sequence contains no matching element". Same early
+        // break, just an honest ceiling.
+        for (var i = 0; i < 200; i++)
         {
             if (DoOnAgentHandler.Handled.Count >= allAgents.Length) break;
 

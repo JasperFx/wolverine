@@ -43,11 +43,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
             opts.Services.AddResourceSetupOnStartup();
         });
     }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
 }
 
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>;
@@ -90,11 +85,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
 
             opts.Services.AddResourceSetupOnStartup();
         });
-    }
-
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 }
 

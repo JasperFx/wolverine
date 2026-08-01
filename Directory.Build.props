@@ -23,6 +23,15 @@
         <AddSyntheticProjectReferencesForSolutionDependencies>false</AddSyntheticProjectReferencesForSolutionDependencies>
     </PropertyGroup>
 
+    <!-- Every xUnit v3 test project doubles as a Microsoft.Testing.Platform host, so Bobcat's
+         supervisor (see build/SupervisedTests.cs) can drive it as a worker process. This changes
+         only the built executable's entry point: `dotnet test`, VSTest filters, TRX and coverlet
+         all keep working, and xUnit v2 projects ignore the property entirely. Set here rather
+         than per-job so a build can never silently produce a non-supervisable executable. -->
+    <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+        <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All"/>
     </ItemGroup>
