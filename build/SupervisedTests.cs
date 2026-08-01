@@ -54,9 +54,11 @@ partial class Build
     /// Runs one test project through the supervisor. See <see cref="RunTestProjects"/>.
     /// </summary>
     void RunTestProject(string projectPath, string frameworkOverride = null,
-        Func<WorkerTest, bool> testFilter = null, int workers = 1, bool postgresDatabasePerLane = false)
+        Func<WorkerTest, bool> testFilter = null, int workers = 1, bool postgresDatabasePerLane = false,
+        bool sqlServerDatabasePerLane = false)
     {
-        RunTestProjects([projectPath], frameworkOverride, testFilter, workers, postgresDatabasePerLane);
+        RunTestProjects([projectPath], frameworkOverride, testFilter, workers, postgresDatabasePerLane,
+            sqlServerDatabasePerLane);
     }
 
     /// <summary>
@@ -79,15 +81,23 @@ partial class Build
     /// server) and points each lane at its own via WOLVERINE_POSTGRES. Required before raising
     /// <paramref name="workers"/> on any Postgres-backed suite.
     /// </param>
+    /// <param name="sqlServerDatabasePerLane">
+    /// Same isolation story for SQL Server: one database per worker (wolverine_w0..N-1 on the
+    /// docker-compose server, port 1434), each lane pointed at its own via WOLVERINE_SQLSERVER.
+    /// One server, many databases — a fleet of SQL Server CONTAINERS is far past what a 4-vCPU/16GB
+    /// hosted runner can carry (see the worker-clamp note in runSupervised).
+    /// </param>
     void RunTestProjects(string[] projectPaths, string frameworkOverride = null,
-        Func<WorkerTest, bool> testFilter = null, int workers = 1, bool postgresDatabasePerLane = false)
+        Func<WorkerTest, bool> testFilter = null, int workers = 1, bool postgresDatabasePerLane = false,
+        bool sqlServerDatabasePerLane = false)
     {
         var failedProjects = new List<string>();
         foreach (var projectPath in projectPaths)
         {
             foreach (var framework in frameworksBuiltFor(projectPath, frameworkOverride))
             {
-                if (!runSupervised(projectPath, framework, testFilter, TestWorkers ?? workers, postgresDatabasePerLane))
+                if (!runSupervised(projectPath, framework, testFilter, TestWorkers ?? workers,
+                        postgresDatabasePerLane, sqlServerDatabasePerLane))
                     failedProjects.Add($"{projectPath} ({framework})");
             }
         }
@@ -97,7 +107,7 @@ partial class Build
     }
 
     bool runSupervised(string projectPath, string framework, Func<WorkerTest, bool> shardFilter,
-        int workers, bool postgresDatabasePerLane)
+        int workers, bool postgresDatabasePerLane, bool sqlServerDatabasePerLane = false)
     {
         // The committed per-target count is tuned on a developer machine; the machine actually
         // running decides what it can carry. A GitHub-hosted runner has 4 vCPUs and 16GB, and 4
@@ -120,7 +130,7 @@ partial class Build
 
         var factory = new MtpWorkerFactory(executable)
         {
-            EnvironmentFor = postgresDatabasePerLane ? postgresPerLane(workers) : null
+            EnvironmentFor = laneEnvironment(workers, postgresDatabasePerLane, sqlServerDatabasePerLane)
         };
 
         var supervisor = new Supervisor(factory)
@@ -257,6 +267,34 @@ partial class Build
     // ─── Per-lane environments ─────────────────────────────────────────
 
     /// <summary>
+    /// Composes the per-lane environment providers a target asked for. Null when none apply, so
+    /// the factory takes its default path.
+    /// </summary>
+    Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> laneEnvironment(
+        int workers, bool postgres, bool sqlServer)
+    {
+        if (!postgres && !sqlServer) return null;
+
+        var providers = new List<Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>>>();
+        if (postgres) providers.Add(postgresPerLane(workers));
+        if (sqlServer) providers.Add(sqlServerPerLane(workers));
+
+        if (providers.Count == 1) return providers[0];
+
+        return context =>
+        {
+            var merged = new Dictionary<string, string>();
+            foreach (var provider in providers)
+            foreach (var pair in provider(context))
+            {
+                merged[pair.Key] = pair.Value;
+            }
+
+            return merged;
+        };
+    }
+
+    /// <summary>
     /// One Postgres database per worker lane. Provisions wolverine_w0..N-1 on the docker-compose
     /// server up front, then points each lane's process at its own via WOLVERINE_POSTGRES.
     /// Discovery and isolated/recycled workers all report lane 0, so the databases provisioned
@@ -270,6 +308,43 @@ partial class Build
         {
             ["WOLVERINE_POSTGRES"] = postgresLaneConnectionString(context.Lane)
         };
+    }
+
+    /// <summary>
+    /// One SQL Server database per worker lane, same shape as <see cref="postgresPerLane"/>:
+    /// wolverine_w0..N-1 provisioned on the docker-compose server, each lane pointed at its own
+    /// catalog via WOLVERINE_SQLSERVER. Schema names are hard-coded throughout the suites, so two
+    /// processes sharing one catalog collide however the tests are partitioned — isolation has to
+    /// be the database.
+    /// </summary>
+    Func<WorkerLaunchContext, IReadOnlyDictionary<string, string>> sqlServerPerLane(int workers)
+    {
+        ensureSqlServerLaneDatabases(workers);
+
+        return context => new Dictionary<string, string>
+        {
+            ["WOLVERINE_SQLSERVER"] = sqlServerLaneConnectionString(context.Lane)
+        };
+    }
+
+    static string sqlServerLaneConnectionString(int lane)
+        => $"Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=wolverine_w{lane};Encrypt=False";
+
+    void ensureSqlServerLaneDatabases(int workers)
+    {
+        using var conn = new Microsoft.Data.SqlClient.SqlConnection(SqlServerConnectionString);
+        conn.Open();
+
+        for (var lane = 0; lane < workers; lane++)
+        {
+            var database = $"wolverine_w{lane}";
+
+            using var create = conn.CreateCommand();
+            // Identifier, not a value — cannot be parameterized. The name is generated above,
+            // never user input.
+            create.CommandText = $"if DB_ID('{database}') is null begin CREATE DATABASE {database} end";
+            create.ExecuteNonQuery();
+        }
     }
 
     static string postgresLaneConnectionString(int lane)

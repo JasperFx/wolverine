@@ -13,9 +13,22 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Starts specific docker compose services and waits for them to be ready.
+    /// Starts specific docker compose services and waits for them to be ready. Targets that have
+    /// real work to do between the two halves (compiling the test projects, typically) should call
+    /// <see cref="LaunchDockerServices"/> first and <see cref="AwaitDockerServices"/> after, so a
+    /// container's boot overlaps the compile instead of following it.
     /// </summary>
     void StartDockerServices(params string[] services)
+    {
+        LaunchDockerServices(services);
+        AwaitDockerServices(services);
+    }
+
+    /// <summary>
+    /// Fires `docker compose up -d` for the services and returns as soon as the containers are
+    /// launched — no readiness wait. Pair with <see cref="AwaitDockerServices"/>.
+    /// </summary>
+    void LaunchDockerServices(params string[] services)
     {
         bool IsToolAvailable(string toolName)
         {
@@ -38,7 +51,13 @@ partial class Build
             .StartProcess(toolName, args, logOutput: false, logInvocation: false)
             .AssertWaitForExit()
             .AssertZeroExitCode();
+    }
 
+    /// <summary>
+    /// Blocks until the given (already-launched) services answer their readiness probes.
+    /// </summary>
+    void AwaitDockerServices(params string[] services)
+    {
         // Wait for databases that were requested
         if (services.Contains("postgresql"))
             WaitForDatabaseToBeReady();
@@ -288,9 +307,16 @@ partial class Build
         {
             var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
 
+            // SQL Server's boot is one of the slower container starts; overlap it with the compile
+            // instead of paying the two serially.
+            LaunchDockerServices("sqlserver");
             BuildTestProjects(sqlServerTests);
-            StartDockerServices("sqlserver");
+            AwaitDockerServices("sqlserver");
 
+            // Still sequential: worker count is pending a class-duration profile
+            // (sum/largest-class rule) plus a shakeout of database-name-coupled assertions — the
+            // sqlServerDatabasePerLane mechanism is in place for exactly that change, but flipping
+            // it on at one worker would move the suite from master to wolverine_w0 for no benefit.
             RunTestProject(sqlServerTests);
         });
 
