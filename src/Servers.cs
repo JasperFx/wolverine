@@ -53,6 +53,19 @@ public class Servers
         From("WOLVERINE_SQLSERVER",
             "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=master;Encrypt=False");
 
+    /// <summary>
+    /// The catalog inside <see cref="SqlServerConnectionString"/> — "master" unless
+    /// WOLVERINE_SQLSERVER points somewhere else, as each worker lane does under parallelized CI.
+    /// Same contract as <see cref="PostgresDatabaseName"/>: derive database-identity assertions
+    /// and sibling-database names from this, never from the literal default.
+    /// </summary>
+    public static string SqlServerDatabaseName =>
+        SqlServerConnectionString.Split(';')
+            .Select(part => part.Split('=', 2))
+            .Where(kv => kv.Length == 2 && kv[0].Trim().Equals("Initial Catalog", StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv[1].Trim())
+            .LastOrDefault() ?? "master";
+
     public static readonly string MySqlConnectionString =
         From("WOLVERINE_MYSQL", "Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;");
 

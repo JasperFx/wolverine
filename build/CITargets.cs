@@ -313,11 +313,12 @@ partial class Build
             BuildTestProjects(sqlServerTests);
             AwaitDockerServices("sqlserver");
 
-            // Still sequential: worker count is pending a class-duration profile
-            // (sum/largest-class rule) plus a shakeout of database-name-coupled assertions — the
-            // sqlServerDatabasePerLane mechanism is in place for exactly that change, but flipping
-            // it on at one worker would move the suite from master to wolverine_w0 for no benefit.
-            RunTestProject(sqlServerTests);
+            // Profiled 2026-08-01 (TRX over the full suite, local M-series): 60 classes, 931s of
+            // test time, largest class 167s -> a 5.6x ceiling. Hosted runners clamp 4 workers to 2,
+            // where the LPT bound is ~470s of test wall clock against ~860s sequential. The sibling
+            // databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
+            // LaneDatabases.Name, so lanes cannot collide on them.
+            RunTestProject(sqlServerTests, workers: 4, sqlServerDatabasePerLane: true);
         });
 
     Target CIMarten => _ => _

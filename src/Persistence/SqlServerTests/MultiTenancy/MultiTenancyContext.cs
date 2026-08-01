@@ -20,9 +20,9 @@ public abstract class MultiTenancyContext : SqlServerContext, IAsyncLifetime
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync();
 
-        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, "db1");
-        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, "db2");
-        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, "db3");
+        tenant1ConnectionString = await CreateDatabaseIfNotExists(conn, LaneDatabases.Name("db1"));
+        tenant2ConnectionString = await CreateDatabaseIfNotExists(conn, LaneDatabases.Name("db2"));
+        tenant3ConnectionString = await CreateDatabaseIfNotExists(conn, LaneDatabases.Name("db3"));
 
         await cleanItems(tenant1ConnectionString);
         await cleanItems(tenant2ConnectionString);
