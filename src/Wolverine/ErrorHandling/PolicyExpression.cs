@@ -820,7 +820,7 @@ public class PolicyExpression : IFailureActions
     /// <returns>The PolicyBuilder instance, for fluent chaining.</returns>
     public PolicyExpression OrInner<TException>() where TException : Exception
     {
-        _match.Or(new InnerMatch(new TypeMatch<TException>()));
+        _match = _match.Or(new InnerMatch(new TypeMatch<TException>()));
         return this;
     }
 

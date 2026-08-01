@@ -167,11 +167,12 @@ public class FailureRuleCollectionTests
             .ShouldBeOfType<DiscardEnvelope>();
 
         theHandlers.Failures.DetermineExecutionContinuation(new Exception("bad", new CodeException { Code = 1 }),
-            theEnvelope);
+                theEnvelope)
+            .ShouldBeOfType<DiscardEnvelope>();
 
         theHandlers.Failures
             .DetermineExecutionContinuation(new Exception("worse", new CodeException { Code = 2 }), theEnvelope)
-            .ShouldBeOfType<RequeueContinuation>();
+            .ShouldBeOfType<DiscardEnvelope>();
 
         theHandlers.Failures.DetermineExecutionContinuation(new BadImageFormatException(), theEnvelope)
             .ShouldBeOfType<RequeueContinuation>();
@@ -190,7 +191,8 @@ public class FailureRuleCollectionTests
             .ShouldBeOfType<DiscardEnvelope>();
 
         theHandlers.Failures.DetermineExecutionContinuation(new Exception("bad", new CodeException { Code = 1 }),
-            theEnvelope);
+                theEnvelope)
+            .ShouldBeOfType<DiscardEnvelope>();
         theHandlers.Failures
             .DetermineExecutionContinuation(new Exception("worse", new CodeException { Code = 2 }), theEnvelope)
             .ShouldBeOfType<RequeueContinuation>();
