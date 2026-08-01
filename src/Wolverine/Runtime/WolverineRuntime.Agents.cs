@@ -275,6 +275,32 @@ public partial class WolverineRuntime : IAgentRuntime
             LoggerFactory.CreateLogger<NodeAgentController>(), _agentCancellation.Token);
 
         NodeController.AddHandlers(this);
+
+        // GH-3748: only a Balanced node receives batched agent commands over the wire; Solo executes
+        // everything locally and inline.
+        if (Options.Durability.Mode == DurabilityMode.Balanced)
+        {
+            NodeController.DeferredWork = new DeferredAgentCommandRunner(this, NodeController, _agentCancellation.Token);
+        }
+    }
+
+    /// <summary>
+    ///     GH-3748: send the typed reply for an agent command whose execution was deferred off the
+    ///     control lane, correlated to the original request so the requester's pending
+    ///     <c>InvokeAsync&lt;T&gt;</c> completes exactly as if the command had run inline. See
+    ///     <see cref="DeferredAgentCommandRunner" />.
+    /// </summary>
+    internal async Task SendAgentCommandReplyAsync(Uri replyUri, Guid conversationId, object reply)
+    {
+        var envelope = RoutingFor(reply.GetType()).RouteToDestination(reply, replyUri, null);
+
+        // What ReplyTracker.Complete matches on — see MessageContext.TrackEnvelopeCorrelation, which
+        // stamps the same thing for an inline cascaded reply.
+        envelope.ConversationId = conversationId;
+        envelope.IsResponse = true;
+        envelope.Source = Options.ServiceName;
+
+        await envelope.StoreAndForwardAsync();
     }
 
     private async Task startNodeAgentWorkflowAsync()
@@ -397,6 +423,14 @@ public partial class WolverineRuntime : IAgentRuntime
 
         if (NodeController != null) NodeController.PendingDispatches = null;
 
+        if (NodeController?.DeferredWork != null)
+        {
+            // Safe to await: _agentCancellation is cancelled before teardown, so an in-flight batch
+            // lets go at its next cancellation check rather than running to completion.
+            await NodeController.DeferredWork.DisposeAsync();
+            NodeController.DeferredWork = null;
+        }
+
         if (NodeController != null)
         {
             var bus = new MessageBus(this);
@@ -421,6 +455,12 @@ public partial class WolverineRuntime : IAgentRuntime
         }
 
         if (NodeController != null) NodeController.PendingDispatches = null;
+
+        if (NodeController?.DeferredWork != null)
+        {
+            await NodeController.DeferredWork.DisposeAsync();
+            NodeController.DeferredWork = null;
+        }
 
         if (NodeController != null)
         {

@@ -17,6 +17,31 @@ internal record ReassignAgent(Uri AgentUri, NodeDestination OriginalNode, NodeDe
 
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
+        // GH-3748: the stop acknowledgement is raced against presence polling — a stop slower than the
+        // acknowledgement window (a projection shard mid-replay letting go of its work) used to be
+        // indistinguishable from a dead node, so the reassignment was dropped and re-decided forever.
+        // The single-copy invariant holds either way: the start below is only cascaded once the agent is
+        // confirmed GONE from the source, by acknowledgement or by observation.
+        var confirmed = await AgentWorkConfirmation.AwaitAsync(runtime, OriginalNode, [AgentUri],
+            stopAtSourceAsync(runtime), AgentPresenceDirection.Gone, cancellationToken);
+
+        if (confirmed.Length == 0)
+        {
+            runtime.Logger.LogWarning(
+                "Unable to confirm that agent {AgentUri} stopped on node {CurrentNodeId}; its reassignment to {NewNodeId} will be re-evaluated",
+                AgentUri, OriginalNode.NodeId, ActiveNode.NodeId);
+            return AgentCommands.Empty;
+        }
+
+        runtime.Logger.LogInformation("Successfully stopped agent {Agent} on node {OriginalNode}", AgentUri,
+            OriginalNode.NodeId);
+
+        // Do this in separate steps
+        return [new AssignAgent(AgentUri, ActiveNode)];
+    }
+
+    private async Task<Uri[]> stopAtSourceAsync(IWolverineRuntime runtime)
+    {
         try
         {
             await runtime.Agents.InvokeAsync(OriginalNode, new StopAgent(AgentUri));
@@ -26,14 +51,10 @@ internal record ReassignAgent(Uri AgentUri, NodeDestination OriginalNode, NodeDe
             runtime.Logger.LogWarning(e,
                 "Error trying to reassign a running agent {AgentUri} from {CurrentNodeId} to {NewNodeId}", AgentUri,
                 OriginalNode, ActiveNode);
-            return AgentCommands.Empty;
+            return [];
         }
 
-        runtime.Logger.LogInformation("Successfully stopped agent {Agent} on node {OriginalNode}", AgentUri,
-            OriginalNode.NodeId);
-
-        // Do this in separate steps
-        return [new AssignAgent(AgentUri, ActiveNode)];
+        return [AgentUri];
     }
 }
 
@@ -55,15 +76,15 @@ internal record ReassignAgents(NodeDestination OriginalNode, NodeDestination Act
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime, CancellationToken cancellationToken)
     {
         var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentUris.Length);
-        var response =
-            await runtime.Agents.InvokeAsync<AgentsStopped>(OriginalNode, new StopAgents(AgentUris), timeout);
 
-        if (response == null)
-        {
-            return AgentCommands.Empty;
-        }
+        // GH-3748: raced against presence polling on the SOURCE — an agent absent from the source is a
+        // confirmed stop, whether the acknowledgement said so or a poll observed it. See
+        // AgentWorkConfirmation. The single-copy invariant below is unchanged: only confirmed-gone
+        // agents cascade into a start on the destination.
+        var replyTask = invokeStopsAsync(runtime, timeout);
+        var confirmed = await AgentWorkConfirmation.AwaitAsync(runtime, OriginalNode, AgentUris, replyTask,
+            AgentPresenceDirection.Gone, cancellationToken);
 
-        var confirmed = response.AgentUris ?? [];
         var unconfirmed = AgentUriSet.Missing(AgentUris, confirmed);
 
         if (unconfirmed.Length > 0)
@@ -83,6 +104,13 @@ internal record ReassignAgents(NodeDestination OriginalNode, NodeDestination Act
         }
 
         return [new AssignAgents(ActiveNode, confirmed)];
+    }
+
+    private async Task<Uri[]> invokeStopsAsync(IWolverineRuntime runtime, TimeSpan timeout)
+    {
+        var response =
+            await runtime.Agents.InvokeAsync<AgentsStopped>(OriginalNode, new StopAgents(AgentUris), timeout);
+        return response?.AgentUris ?? [];
     }
 
     // See AgentUriSet: value equality over the agents, independent of their order, so the dispatcher can

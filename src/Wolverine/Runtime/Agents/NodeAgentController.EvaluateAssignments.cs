@@ -20,9 +20,44 @@ public partial class NodeAgentController
     // The ledger is projected onto the grid as Agent.PendingNode so that placement decisions and the commands
     // built from them account for the in-flight copy directly, rather than being filtered afterwards. It is
     // leader-only and in-memory: a new leader starts empty and safely re-drives everything.
+    // Guards _pendingAssignments. The evaluation path is serialized by the health-check loop, but
+    // GH-3750's ConfirmDispatched is called from the dispatcher's lane threads as commands resolve.
+    private readonly object _pendingLock = new();
+
     private readonly Dictionary<Uri, PendingAssignment> _pendingAssignments = new();
 
     private readonly record struct PendingAssignment(Guid NodeId, DateTimeOffset SentAt);
+
+    /// <summary>
+    ///     GH-3750: refresh the pending-assignment ledger for agents a resolving batch command just
+    ///     confirmed. The dispatcher's in-flight hold ends the moment the command resolves, but the
+    ///     ledger entry still carries the SentAt from when the batch was DISPATCHED — for a batch of
+    ///     slow starts that is minutes ago, so the TTL is instantly expired and the next evaluation
+    ///     whose node-state snapshot predates the last assignment rows re-decides an agent that just
+    ///     confirmed, emitting a stop at the very node that started it. Stamping confirmation time here
+    ///     keeps the agent held on its node for the one snapshot cycle it takes the persisted row to
+    ///     become visible, after which reconcilePendingAssignments retires the entry normally.
+    /// </summary>
+    internal void ConfirmDispatched(Uri[] agentUris, Guid nodeId)
+    {
+        if (agentUris.Length == 0)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+
+        lock (_pendingLock)
+        {
+            foreach (var uri in agentUris)
+            {
+                if (_pendingAssignments.TryGetValue(uri, out var pending) && pending.NodeId == nodeId)
+                {
+                    _pendingAssignments[uri] = new PendingAssignment(nodeId, now);
+                }
+            }
+        }
+    }
 
     /// <summary>
     ///     GH-3698. Asks the command dispatcher whether a start for an agent is still queued or executing.
@@ -171,6 +206,14 @@ public partial class NodeAgentController
     // and fabricating one here would make every pending entry instantly self-confirming.
     private void applyPendingAssignments(AssignmentGrid grid)
     {
+        lock (_pendingLock)
+        {
+            applyPendingAssignmentsLocked(grid);
+        }
+    }
+
+    private void applyPendingAssignmentsLocked(AssignmentGrid grid)
+    {
         if (_pendingAssignments.Count == 0)
         {
             return;
@@ -238,6 +281,14 @@ public partial class NodeAgentController
     // Bring the pending-assignment ledger up to date with what this evaluation observed and decided. See
     // _pendingAssignments.
     private void reconcilePendingAssignments(AssignmentGrid grid, AgentCommands commands)
+    {
+        lock (_pendingLock)
+        {
+            reconcilePendingAssignmentsLocked(grid, commands);
+        }
+    }
+
+    private void reconcilePendingAssignmentsLocked(AssignmentGrid grid, AgentCommands commands)
     {
         var now = DateTimeOffset.UtcNow;
 

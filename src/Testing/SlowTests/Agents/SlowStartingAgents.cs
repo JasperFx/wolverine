@@ -31,6 +31,14 @@ public class AgentStartTelemetry
     public TimeSpan StartDelay { get; }
 
     /// <summary>
+    /// GH-3748/GH-3750: optional per-agent start cost, overriding <see cref="StartDelay" />. The field
+    /// shape is heterogeneous — a shard behind a projection-version bump replays for minutes while its
+    /// neighbors start in seconds — and re-placement churn only shows when nodes finish their chunks at
+    /// different times, so a symmetric universe can hide it.
+    /// </summary>
+    public Func<Uri, TimeSpan>? DelayOverride { get; set; }
+
+    /// <summary>
     /// GH-3753: how long an agent takes to let go when stopped. Zero by default. A projection version
     /// bump puts a stopping shard behind the same side-effect gate as a starting one, and #3749's lane
     /// wedge only appears when the SOURCE of a reassignment answers its stops slowly — a fast-stopping
@@ -91,7 +99,7 @@ public class AgentStartTelemetry
             // Stand-in for a Marten subscription agent's start: a daemon shard spin-up with database
             // round-trips, made much worse by a projection version bump that gates the new version's
             // side effects behind a replay of the prior version's progression.
-            await Task.Delay(StartDelay, token);
+            await Task.Delay(DelayOverride?.Invoke(uri) ?? StartDelay, token);
         }
         finally
         {
