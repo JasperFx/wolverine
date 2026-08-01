@@ -332,5 +332,23 @@ public partial class NodeAgentController
 
             commands.Add(stopAgents);
         }
+
+        // GH-3749: reassignment was the one command type never batched, so a rebalance moving thousands of
+        // agents emitted thousands of individual ReassignAgent commands -- each a serial StopAgent round
+        // trip against the source inside one lane, with AgentStartBatchSize having no effect on any of them.
+        // Chunked like the starts: one chunk's stops per round trip, and the confirmed remainder cascades as
+        // a single AssignAgents into the destination's lane.
+        foreach (var group in commands.OfType<ReassignAgent>()
+                     .GroupBy(x => (x.OriginalNode, x.ActiveNode))
+                     .Where(x => x.Count() > 1)
+                     .ToArray())
+        {
+            foreach (var message in group) commands.Remove(message);
+
+            foreach (var chunk in group.Select(x => x.AgentUri).Chunk(batchSize))
+            {
+                commands.Add(new ReassignAgents(group.Key.OriginalNode, group.Key.ActiveNode, chunk));
+            }
+        }
     }
 }

@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using Marten;
 using MartenTests.Distribution.Support;
@@ -53,11 +54,12 @@ public class basic_agent_mechanics_single_tenant(ITestOutputHelper output)
 
     private async static Task AssertAgentUrisAsync(IHost host)
     {
+        var db = Servers.PostgresDatabaseName;
         var uris = await GetAgentUrisAsync(host);
         uris.ShouldBe([
-            "event-subscriptions://marten/main/localhost.postgres/day/all",
-            "event-subscriptions://marten/main/localhost.postgres/distance/all",
-            "event-subscriptions://marten/main/localhost.postgres/trip/all",
+            $"event-subscriptions://marten/main/localhost.{db}/day/all",
+            $"event-subscriptions://marten/main/localhost.{db}/distance/all",
+            $"event-subscriptions://marten/main/localhost.{db}/trip/all",
         ], ignoreOrder: true);
     }
 }

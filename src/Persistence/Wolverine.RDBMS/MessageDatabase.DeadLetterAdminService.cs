@@ -108,14 +108,14 @@ public abstract partial class MessageDatabase<T>
         var results = new DeadLetterEnvelopeResults{PageNumber = query.PageNumber};
         if (await reader.ReadAsync(token))
         {
-            var env = await DatabasePersistence.ReadDeadLetterAsync(reader, token);
+            var env = await DatabasePersistence.ReadDeadLetterAsync(reader, token, Logger);
             results.Envelopes.Add(env);
             results.TotalCount = await reader.GetFieldValueAsync<int>(10, token);
         }
 
         while (await reader.ReadAsync(token))
         {
-            var env = await DatabasePersistence.ReadDeadLetterAsync(reader, token);
+            var env = await DatabasePersistence.ReadDeadLetterAsync(reader, token, Logger);
             results.Envelopes.Add(env);
         }
 

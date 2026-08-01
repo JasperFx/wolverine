@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -56,21 +57,31 @@ internal static class OracleEnvelopeReader
         return envelope;
     }
 
-    public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader, CancellationToken cancellation = default)
+    public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader,
+        CancellationToken cancellation = default, ILogger? logger = null)
     {
         var id = ReadGuid(reader, 0);
         var executionTime = await reader.IsDBNullAsync(1, cancellation).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
-        var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
+
+        // Scalars first, body last — a body we cannot deserialize still yields a self-describing row.
         var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
-        var receivedAt = await reader.GetFieldValueAsync<string>(4, cancellation);
+        // GH-3166: received_at is NULL for any envelope that dead-lettered without a Destination. The
+        // shared RDBMS reader was guarded at the time; this Oracle copy was not, so a single
+        // destination-less row still aborted the whole Oracle DLQ read.
+        var receivedAt = await reader.IsDBNullAsync(4, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(4, cancellation);
         var source = await reader.IsDBNullAsync(5, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(5, cancellation);
-        var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
-        var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);
+        var exceptionType = await reader.IsDBNullAsync(6, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(6, cancellation);
+        var exceptionMessage = await reader.IsDBNullAsync(7, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(7, cancellation);
         var sentAt = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
 
         // Oracle stores bool as NUMBER(1) - read as decimal and convert
         var replayableValue = reader.GetValue(9);
         var replayable = Convert.ToInt32(replayableValue) != 0;
+
+        // Shared with the RDBMS reader so this copy cannot drift back into aborting the whole query on
+        // one unreadable body.
+        var envelope = await DatabasePersistence
+            .ReadDeadLetterBodyAsync(reader, id, messageType, receivedAt, cancellation, logger);
 
         return new DeadLetterEnvelope(
             id,

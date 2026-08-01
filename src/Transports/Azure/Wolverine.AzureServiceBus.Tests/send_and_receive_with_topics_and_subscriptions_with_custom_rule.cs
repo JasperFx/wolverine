@@ -39,11 +39,6 @@ public class TopicsWithCustomRuleComplianceFixture
         });
     }
 
-    public new ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
-    }
-
     protected override Task AfterDisposeAsync()
     {
         return AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();

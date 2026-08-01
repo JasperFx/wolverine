@@ -120,10 +120,9 @@ public partial class AssignmentGrid
 
                     // Being moved before the first start was confirmed. Stop-then-start, sequenced through
                     // the pending node's lane, so whichever of the two nodes ends up with it, only one does.
-                    command = new ReassignAgent(Uri, PendingNode.ToDestination(), AssignedNode.ToDestination())
-                    {
-                        StopInSourceLane = true
-                    };
+                    // ReassignAgent always runs in its source's lane (GH-3749), which is exactly the ordering
+                    // this case needs: the stop queues behind the start it is cancelling.
+                    command = new ReassignAgent(Uri, PendingNode.ToDestination(), AssignedNode.ToDestination());
                     return true;
                 }
 

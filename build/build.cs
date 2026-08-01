@@ -32,6 +32,9 @@ partial class Build : NukeBuild
     [Parameter]readonly string Framework;
     [Parameter] readonly string PostgresConnectionString ="Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres";
 
+    [Parameter] readonly string SqlServerConnectionString =
+        "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;Initial Catalog=master;Encrypt=False";
+
     Target Init => _ => _
         .Executes(Clean);
 

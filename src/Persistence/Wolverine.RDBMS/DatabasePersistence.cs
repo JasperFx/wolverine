@@ -116,11 +116,14 @@ public static class DatabasePersistence
         return envelope;
     }
 
-    public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader, CancellationToken cancellation = default)
+    public static async Task<DeadLetterEnvelope> ReadDeadLetterAsync(DbDataReader reader,
+        CancellationToken cancellation = default, ILogger? logger = null)
     {
         var id = await reader.GetFieldValueAsync<Guid>(0, cancellation);
         var executionTime = await reader.IsDBNullAsync(1, cancellation).ConfigureAwait(false) ? null : await reader.GetFieldValueAsync<DateTimeOffset?>(1, cancellation);
-        var envelope = EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
+
+        // Read every scalar column BEFORE deserializing the body, so that a body we cannot read still
+        // yields a row describing itself. See the placeholder note below.
         var messageType = await reader.GetFieldValueAsync<string>(3, cancellation);
         // GH-3166: received_at is written as envelope.Destination?.ToString() (DatabasePersistence's dead
         // letter insert), so it is NULL for any envelope that dead-lettered without a destination (e.g. a
@@ -129,10 +132,12 @@ public static class DatabasePersistence
         // DLQ "Query Messages" fetch and surfaced as "No messages loaded".
         var receivedAt = await reader.IsDBNullAsync(4, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(4, cancellation);
         var source = await reader.IsDBNullAsync(5, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(5, cancellation);
-        var exceptionType = await reader.GetFieldValueAsync<string>(6, cancellation);
-        var exceptionMessage = await reader.GetFieldValueAsync<string>(7, cancellation);
+        var exceptionType = await reader.IsDBNullAsync(6, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(6, cancellation);
+        var exceptionMessage = await reader.IsDBNullAsync(7, cancellation) ? string.Empty : await reader.GetFieldValueAsync<string>(7, cancellation);
         var sentAt = await reader.GetFieldValueAsync<DateTimeOffset>(8, cancellation);
         var replayable = await reader.GetFieldValueAsync<bool>(9, cancellation);
+
+        var envelope = await ReadDeadLetterBodyAsync(reader, id, messageType, receivedAt, cancellation, logger);
 
         return new DeadLetterEnvelope(
             id,
@@ -146,6 +151,55 @@ public static class DatabasePersistence
             sentAt,
             replayable
         );
+    }
+
+    // GH-3166 hardened the per-column reads; this hardens the body itself. A single unreadable `body`
+    // — a row written by something other than EnvelopeSerializer (hand-seeded raw JSON is the observed
+    // case), or one serialized by an incompatible Wolverine version — used to throw straight out of the
+    // per-row read and abort the enclosing DeadLetterEnvelopeQuery for the WHOLE database. The console
+    // then showed "No dead letter queue entries found", hiding every other, perfectly readable dead
+    // letter in that store. One bad row must cost you that row, not the queue.
+    // Public so the Oracle reader — which has to duplicate the surrounding column reads for RAW(16) Guids
+    // and NUMBER(1) bools — shares this guard rather than re-growing its own copy of the bug.
+    public static async Task<Envelope> ReadDeadLetterBodyAsync(DbDataReader reader, Guid id, string messageType,
+        string receivedAt, CancellationToken cancellation, ILogger? logger = null)
+    {
+        try
+        {
+            if (await reader.IsDBNullAsync(2, cancellation))
+            {
+                return BuildUnreadableDeadLetterEnvelope(id, messageType, receivedAt);
+            }
+
+            return EnvelopeSerializer.Deserialize(await reader.GetFieldValueAsync<byte[]>(2, cancellation));
+        }
+        catch (Exception e)
+        {
+            logger?.LogError(e,
+                "Unable to deserialize the stored body of dead letter envelope {Id} of message type {MessageType}. Returning a placeholder so the rest of the dead letter queue stays readable",
+                id, messageType);
+
+            return BuildUnreadableDeadLetterEnvelope(id, messageType, receivedAt);
+        }
+    }
+
+    private static Envelope BuildUnreadableDeadLetterEnvelope(Guid id, string messageType, string receivedAt)
+    {
+        var envelope = new Envelope
+        {
+            Id = id,
+            MessageType = messageType,
+            Message = new PlaceHolder()
+        };
+
+        // received_at IS the destination Uri string (see the GH-3166 note above), so we can usually still
+        // tell the operator which endpoint the poison row belongs to.
+        if (receivedAt.IsNotEmpty() && Uri.TryCreate(receivedAt, UriKind.Absolute, out var destination))
+        {
+            envelope.Destination = destination;
+        }
+
+        return envelope;
     }
 
     public static void ConfigureDeadLetterCommands(DurabilitySettings durability, Envelope envelope,

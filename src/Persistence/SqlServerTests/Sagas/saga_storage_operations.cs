@@ -131,10 +131,12 @@ public class saga_storage_operations : SqlServerContext
     {
         await using var conn = new SqlConnection(Servers.SqlServerConnectionString);
         await conn.OpenAsync(TestContext.Current.CancellationToken);
-        
-        await conn.CreateCommand("delete from lightweight_sagas.lightweightsaga_saga")
-            .ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
-        
+
+        // No raw table cleanup here: the saga uses a fresh Guid so residue cannot affect the
+        // assertions, and a raw `delete from` was the one statement in this class that bypassed the
+        // schema API's ensure-storage — on a fresh catalog (each worker lane under parallelized CI)
+        // it failed with "Invalid object name" whenever this test ran before any sibling that
+        // auto-created the table. Test-ordering luck, not a real dependency.
         await using var db = await conn.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var saga = new LightweightSaga

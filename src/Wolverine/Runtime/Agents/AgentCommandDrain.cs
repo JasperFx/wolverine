@@ -46,8 +46,8 @@ internal class AgentCommandDrain
             // Cascaded commands are deferred to the next round rather than appended to the lane that
             // produced them. That keeps the "a cascade runs after its producer" ordering the serial drain
             // had, and re-partitions them against the destinations of the round they actually belong to --
-            // e.g. ReassignAgent runs in the new node's lane and cascades an AssignAgent that is then
-            // re-keyed onto that same lane next round.
+            // e.g. ReassignAgent runs in the source node's lane (GH-3749) and cascades an AssignAgent that
+            // is keyed onto the destination's lane next round.
             var round = commands.ToArray();
             commands.Clear();
 

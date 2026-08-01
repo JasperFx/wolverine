@@ -213,20 +213,28 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         var agents = await theFamily.AllKnownAgentsAsync();
 
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
     }
 
+    // "default" resolves to the configured database inside the test body rather than in the
+    // theory data. The data must NOT depend on WOLVERINE_POSTGRES: a supervised run discovers
+    // tests in one worker process and executes them in another with a different per-lane
+    // database, and a theory argument computed from the environment gives the same test a
+    // different identity in each process — the executing worker then "finishes without
+    // reporting a result" for an identity it never had.
     [Theory]
-    [InlineData("wolverinedb://postgresql/localhost/postgres/wolverine")]
+    [InlineData("default")]
     [InlineData("wolverinedb://postgresql/localhost/tenant2/wolverine")]
     [InlineData("wolverinedb://postgresql/localhost/tenant1/wolverine")]
     [InlineData("wolverinedb://postgresql/localhost/tenant3/wolverine")]
     public async Task build_each_agent_smoke_test(string uriString)
     {
-        var uri = uriString.ToUri();
+        var uri = uriString == "default"
+            ? new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine")
+            : uriString.ToUri();
         var agent = await theFamily.BuildAgentAsync(uri, theHost.GetRuntime());
         agent.ShouldNotBeNull();
 

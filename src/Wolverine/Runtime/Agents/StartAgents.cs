@@ -20,6 +20,35 @@ namespace Wolverine.Runtime.Agents;
 /// </summary>
 internal static class AgentUriSet
 {
+    // GH-3750: which of `requested` the other node did NOT confirm. Multiset semantics, matching
+    // AreEquivalent — a URI requested twice and confirmed once is still one short.
+    public static Uri[] Missing(Uri[] requested, Uri[] confirmed)
+    {
+        if (requested.Length == 0) return [];
+
+        var counts = new Dictionary<Uri, int>(confirmed.Length);
+        foreach (var uri in confirmed)
+        {
+            counts.TryGetValue(uri, out var count);
+            counts[uri] = count + 1;
+        }
+
+        var missing = new List<Uri>();
+        foreach (var uri in requested)
+        {
+            if (counts.TryGetValue(uri, out var count) && count > 0)
+            {
+                counts[uri] = count - 1;
+            }
+            else
+            {
+                missing.Add(uri);
+            }
+        }
+
+        return missing.ToArray();
+    }
+
     public static bool AreEquivalent(Uri[]? left, Uri[]? right)
     {
         if (ReferenceEquals(left, right)) return true;
@@ -153,10 +182,11 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
     {
         var startAgents = new StartAgents(AgentIds);
 
-        // GH-3604 / D3: scale the reply timeout with the chunk size as a backstop. The receiving node starts
-        // the batch with bounded parallelism, so the reply normally arrives quickly, but a large chunk of
-        // slow daemon-agent starts must not be cut off by the default fixed request/reply window.
-        var timeout = 30.Seconds() + AgentIds.Length.Seconds();
+        // GH-3604 / D3, rescaled by GH-3748: scale the reply timeout with the chunk size as a backstop. The
+        // receiving node starts the batch with bounded parallelism, so the reply normally arrives quickly,
+        // but a large chunk of slow daemon-agent starts must not be cut off by the reply window. See
+        // AgentBatchTimeouts for why big chunks get a much larger per-agent allowance.
+        var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
         var response = await runtime.Agents.InvokeAsync<AgentsStarted>(Destination, startAgents, timeout);
 
         if (response == null)
@@ -164,7 +194,26 @@ internal record AssignAgents(NodeDestination Destination, Uri[] AgentIds) : IAge
             return AgentCommands.Empty;
         }
 
-        runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
+        // GH-3750: the reply is the set of agents that actually reached a started state — StartAgents only
+        // bags an agent once StartLocallyAsync has returned — so a PARTIAL reply is the normal case whenever
+        // starts are slow (the blue/green side-effect gate's warm-up replay is the field example, measured at
+        // 27s p50 / 82s p95 per shard). This used to log the REQUESTED set as "Successfully started"
+        // unconditionally, so a chunk that half-started was indistinguishable in the logs from one that fully
+        // started, and the operator's only clue was the assignment never converging.
+        var confirmed = response.AgentUris ?? [];
+        var unconfirmed = AgentUriSet.Missing(AgentIds, confirmed);
+
+        if (unconfirmed.Length == 0)
+        {
+            runtime.Logger.LogInformation("Successfully started agents {Agents} on node {NodeNumber}", AgentIds, runtime.Options.Durability.AssignedNodeNumber);
+        }
+        else
+        {
+            runtime.Logger.LogWarning(
+                "Node {NodeNumber} confirmed {ConfirmedCount} of {RequestedCount} requested agents; {UnconfirmedCount} did not report started within {Timeout} and remain unconfirmed: {UnconfirmedAgents}",
+                runtime.Options.Durability.AssignedNodeNumber, confirmed.Length, AgentIds.Length,
+                unconfirmed.Length, timeout, unconfirmed);
+        }
 
         return AgentCommands.Empty;
     }
@@ -185,7 +234,12 @@ internal record StopRemoteAgents(NodeDestination Destination, Uri[] AgentIds) : 
         CancellationToken cancellationToken)
     {
         var startAgents = new StopAgents(AgentIds);
-        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents);
+
+        // GH-3748: this used to ride the flat default reply window no matter how many agents were in the
+        // batch, and a stop can be as slow as a start (a projection shard mid-replay has to let go of its
+        // work). Same scaled backstop as AssignAgents.
+        var timeout = AgentBatchTimeouts.ReplyWindowFor(AgentIds.Length);
+        await runtime.Agents.InvokeAsync<AgentsStopped>(Destination, startAgents, timeout);
 
         return AgentCommands.Empty;
     }

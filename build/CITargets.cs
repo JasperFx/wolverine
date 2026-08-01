@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Bobcat.Supervisor;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tooling;
@@ -12,9 +13,22 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
 partial class Build
 {
     /// <summary>
-    /// Starts specific docker compose services and waits for them to be ready.
+    /// Starts specific docker compose services and waits for them to be ready. Targets that have
+    /// real work to do between the two halves (compiling the test projects, typically) should call
+    /// <see cref="LaunchDockerServices"/> first and <see cref="AwaitDockerServices"/> after, so a
+    /// container's boot overlaps the compile instead of following it.
     /// </summary>
     void StartDockerServices(params string[] services)
+    {
+        LaunchDockerServices(services);
+        AwaitDockerServices(services);
+    }
+
+    /// <summary>
+    /// Fires `docker compose up -d` for the services and returns as soon as the containers are
+    /// launched — no readiness wait. Pair with <see cref="AwaitDockerServices"/>.
+    /// </summary>
+    void LaunchDockerServices(params string[] services)
     {
         bool IsToolAvailable(string toolName)
         {
@@ -37,7 +51,13 @@ partial class Build
             .StartProcess(toolName, args, logOutput: false, logInvocation: false)
             .AssertWaitForExit()
             .AssertZeroExitCode();
+    }
 
+    /// <summary>
+    /// Blocks until the given (already-launched) services answer their readiness probes.
+    /// </summary>
+    void AwaitDockerServices(params string[] services)
+    {
         // Wait for databases that were requested
         if (services.Contains("postgresql"))
             WaitForDatabaseToBeReady();
@@ -287,10 +307,18 @@ partial class Build
         {
             var sqlServerTests = RootDirectory / "src" / "Persistence" / "SqlServerTests" / "SqlServerTests.csproj";
 
+            // SQL Server's boot is one of the slower container starts; overlap it with the compile
+            // instead of paying the two serially.
+            LaunchDockerServices("sqlserver");
             BuildTestProjects(sqlServerTests);
-            StartDockerServices("sqlserver");
+            AwaitDockerServices("sqlserver");
 
-            RunTestProject(sqlServerTests);
+            // Profiled 2026-08-01 (TRX over the full suite, local M-series): 60 classes, 931s of
+            // test time, largest class 167s -> a 5.6x ceiling. Hosted runners clamp 4 workers to 2,
+            // where the LPT bound is ~470s of test wall clock against ~860s sequential. The sibling
+            // databases the multi-tenancy and NSB dedicated-db suites create are lane-scoped via
+            // LaneDatabases.Name, so lanes cannot collide on them.
+            RunTestProject(sqlServerTests, workers: 4, sqlServerDatabasePerLane: true);
         });
 
     Target CIMarten => _ => _
@@ -303,7 +331,11 @@ partial class Build
             BuildTestProjects(martenTests, martenSubscriptionTests);
             StartDockerServices("postgresql");
 
-            RunTestProjects([martenTests, martenSubscriptionTests]);
+            // The 18m long pole of the 28-job matrix (#3752). Four workers, each pointed at its
+            // own database via WOLVERINE_POSTGRES — schema names are hard-coded throughout, so
+            // two processes sharing one database collide however the tests are partitioned.
+            RunTestProjects([martenTests, martenSubscriptionTests],
+                workers: 4, postgresDatabasePerLane: true);
         });
 
     Target CIMySql => _ => _
@@ -365,13 +397,13 @@ partial class Build
 
     // The four batteries are named Buffered/Inline/Durable/PrefixedSendingAndReceivingCompliance, so a single
     // substring selects (and its negation excludes) all of them.
-    const string ComplianceBatteries = "FullyQualifiedName~SendingAndReceivingCompliance";
-    const string NotComplianceBatteries = "FullyQualifiedName!~SendingAndReceivingCompliance";
+    static bool ComplianceBatteries(WorkerTest t) => t.DisplayName.Contains("SendingAndReceivingCompliance");
+    static bool NotComplianceBatteries(WorkerTest t) => !ComplianceBatteries(t);
 
     AbsolutePath AmazonSqsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSqs.Tests" / "Wolverine.AmazonSqs.Tests.csproj";
     AbsolutePath AmazonSnsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
 
-    void runAwsShard(AbsolutePath project, string testFilter = null)
+    void runAwsShard(AbsolutePath project, Func<WorkerTest, bool> testFilter = null)
     {
         BuildTestProjects(project);
         StartDockerServices("localstack", "postgresql");
@@ -700,17 +732,17 @@ partial class Build
     ];
 
     // A trailing '.' keeps "PolecatTests.Sagas" from also matching a future "PolecatTests.SagasSomethingElse".
-    static string includeNamespaces(params string[] namespaces)
+    static Func<WorkerTest, bool> includeNamespaces(params string[] namespaces)
     {
-        return string.Join("|", namespaces.Select(n => $"FullyQualifiedName~{n}."));
+        return t => namespaces.Any(n => t.DisplayName.StartsWith(n + "."));
     }
 
-    static string excludeNamespaces(params string[] namespaces)
+    static Func<WorkerTest, bool> excludeNamespaces(params string[] namespaces)
     {
-        return string.Join("&", namespaces.Select(n => $"FullyQualifiedName!~{n}."));
+        return t => !namespaces.Any(n => t.DisplayName.StartsWith(n + "."));
     }
 
-    void runPolecatShard(string testFilter)
+    void runPolecatShard(Func<WorkerTest, bool> testFilter)
     {
         BuildTestProjectsWithFramework("net10.0", PolecatTests);
         StartDockerServices("sqlserver");
