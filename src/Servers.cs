@@ -31,6 +31,24 @@ public class Servers
     public static readonly string PostgresConnectionString =
         From("WOLVERINE_POSTGRES", "Host=localhost;Port=5433;Database=postgres;Username=postgres;password=postgres");
 
+    /// <summary>
+    /// The database name inside <see cref="PostgresConnectionString"/> — "postgres" unless
+    /// WOLVERINE_POSTGRES points somewhere else, as each worker lane does under parallelized CI.
+    /// Assertions about database identity (durability agent URIs, subscription URIs, tenant
+    /// master checks) must build on this rather than the literal "postgres", or they fail against
+    /// any overridden database while testing nothing extra against the default one.
+    /// </summary>
+    /// <remarks>
+    /// Parsed by hand because this file is linked into every test project, including ones that
+    /// do not reference Npgsql.
+    /// </remarks>
+    public static string PostgresDatabaseName =>
+        PostgresConnectionString.Split(';')
+            .Select(part => part.Split('=', 2))
+            .Where(kv => kv.Length == 2 && kv[0].Trim().Equals("Database", StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv[1].Trim())
+            .LastOrDefault() ?? "postgres";
+
     public static readonly string SqlServerConnectionString =
         From("WOLVERINE_SQLSERVER",
             "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;MultipleActiveResultSets=True;Initial Catalog=master;Encrypt=False");

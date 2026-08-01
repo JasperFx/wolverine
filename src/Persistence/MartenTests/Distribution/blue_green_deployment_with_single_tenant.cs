@@ -1,3 +1,4 @@
+using IntegrationTests;
 using JasperFx.Core;
 using MartenTests.Distribution.Support;
 using Shouldly;
@@ -22,19 +23,20 @@ public class blue_green_deployment_with_single_tenant(ITestOutputHelper output)
             w.ExpectRunningAgents(greenHost, 3);
         }, 30.Seconds());
 
+        var db = Servers.PostgresDatabaseName;
         var originalUris = await GetAgentUrisAsync(theOriginalHost);
         originalUris.ShouldBe([
-            "event-subscriptions://marten/main/localhost.postgres/day/all",
-            "event-subscriptions://marten/main/localhost.postgres/distance/all",
-            "event-subscriptions://marten/main/localhost.postgres/trip/all"
+            $"event-subscriptions://marten/main/localhost.{db}/day/all",
+            $"event-subscriptions://marten/main/localhost.{db}/distance/all",
+            $"event-subscriptions://marten/main/localhost.{db}/trip/all"
         ], ignoreOrder: true);
         var greenUris = await GetAgentUrisAsync(greenHost);
         greenUris.ShouldBe([
-            "event-subscriptions://marten/main/localhost.postgres/day/all",
-            "event-subscriptions://marten/main/localhost.postgres/distance/all",
-            "event-subscriptions://marten/main/localhost.postgres/ending/all",
-            "event-subscriptions://marten/main/localhost.postgres/starting/all",
-            "event-subscriptions://marten/main/localhost.postgres/trip/all/v2"
+            $"event-subscriptions://marten/main/localhost.{db}/day/all",
+            $"event-subscriptions://marten/main/localhost.{db}/distance/all",
+            $"event-subscriptions://marten/main/localhost.{db}/ending/all",
+            $"event-subscriptions://marten/main/localhost.{db}/starting/all",
+            $"event-subscriptions://marten/main/localhost.{db}/trip/all/v2"
         ], ignoreOrder: true);
     }
 }

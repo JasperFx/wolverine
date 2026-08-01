@@ -148,14 +148,15 @@ public class with_ancillary_stores(ITestOutputHelper output) : IAsyncLifetime
         var agentsFamily = host.Services.GetServices<IAgentFamily>()
             .OfType<EventSubscriptionAgentFamily>().Single();
         var agents = await agentsFamily.AllKnownAgentsAsync();
+        var db = Servers.PostgresDatabaseName;
         var uris = agents.Select(x => x.AbsoluteUri);
         uris.ShouldBe([
-            "event-subscriptions://marten/itripstore/localhost.postgres/day/all",
-            "event-subscriptions://marten/itripstore/localhost.postgres/distance/all",
-            "event-subscriptions://marten/itripstore/localhost.postgres/trip/all",
-            "event-subscriptions://marten/main/localhost.postgres/day/all",
-            "event-subscriptions://marten/main/localhost.postgres/distance/all",
-            "event-subscriptions://marten/main/localhost.postgres/trip/all"
+            $"event-subscriptions://marten/itripstore/localhost.{db}/day/all",
+            $"event-subscriptions://marten/itripstore/localhost.{db}/distance/all",
+            $"event-subscriptions://marten/itripstore/localhost.{db}/trip/all",
+            $"event-subscriptions://marten/main/localhost.{db}/day/all",
+            $"event-subscriptions://marten/main/localhost.{db}/distance/all",
+            $"event-subscriptions://marten/main/localhost.{db}/trip/all"
         ], ignoreOrder: true);
     }
 }

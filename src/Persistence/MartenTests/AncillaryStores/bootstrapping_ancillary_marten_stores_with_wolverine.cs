@@ -213,17 +213,24 @@ public class bootstrapping_ancillary_marten_stores_with_wolverine : IAsyncLifeti
     {
         var agents = await theFamily.AllKnownAgentsAsync();
 
-        agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/postgres/wolverine"));
+        agents.ShouldContain(new Uri($"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant3/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant2/wolverine"));
         agents.ShouldContain(new Uri("wolverinedb://postgresql/localhost/tenant1/wolverine"));
     }
 
+    // The default store's segment is the *configured* database, which WOLVERINE_POSTGRES can
+    // point at a per-worker database — so this cannot be InlineData.
+    public static IEnumerable<object[]> AgentUris =>
+    [
+        [$"wolverinedb://postgresql/localhost/{Servers.PostgresDatabaseName}/wolverine"],
+        ["wolverinedb://postgresql/localhost/tenant2/wolverine"],
+        ["wolverinedb://postgresql/localhost/tenant1/wolverine"],
+        ["wolverinedb://postgresql/localhost/tenant3/wolverine"]
+    ];
+
     [Theory]
-    [InlineData("wolverinedb://postgresql/localhost/postgres/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant2/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant1/wolverine")]
-    [InlineData("wolverinedb://postgresql/localhost/tenant3/wolverine")]
+    [MemberData(nameof(AgentUris))]
     public async Task build_each_agent_smoke_test(string uriString)
     {
         var uri = uriString.ToUri();
