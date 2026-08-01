@@ -11,14 +11,6 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <!-- Until the referenced Bobcat.Supervisor version is on nuget.org, restore it from a local
-         pack of the bobcat repo: export BOBCAT_LOCAL_FEED=~/code/bobcat/artifacts/local-feed
-         (produced by `dotnet pack src/Bobcat src/Bobcat.Supervisor -c Release -o artifacts/local-feed`).
-         Inert when the variable is unset, so CI restores purely from nuget.org. -->
-    <RestoreAdditionalProjectSources Condition="'$(BOBCAT_LOCAL_FEED)' != ''">$(BOBCAT_LOCAL_FEED)</RestoreAdditionalProjectSources>
-  </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Bobcat.Supervisor" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
