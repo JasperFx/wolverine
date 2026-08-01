@@ -148,7 +148,7 @@ public static OrderShipped Ship(ShipOrder2 command, [Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L146-L160' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L148-L162' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Using this version of the "aggregate workflow", you no longer have to supply a command in the request body, so you could
@@ -167,7 +167,7 @@ public static OrderShipped Ship3([Aggregate] Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L162-L173' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L164-L175' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_aggregate_attribute_2' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A couple other notes: 
@@ -260,7 +260,7 @@ public class Order
     public bool IsShipped() => Shipped.HasValue;
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L18-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L20-L91' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_aggregate_for_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 To append a single event to an event stream from an HTTP endpoint, you can use a return value like so:
@@ -279,7 +279,7 @@ public static OrderShipped Ship(ShipOrder command, Order order)
     return new OrderShipped();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L122-L134' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L124-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_emptyresponse' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Or potentially append multiple events using the `Events` type as a return value like this sample:
@@ -315,7 +315,7 @@ public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
     return (new OrderStatus(order.Id, order.IsReadyToShip()), events);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L236-L265' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L238-L267' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_multiple_events_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ### Responding with the Updated Aggregate
@@ -341,7 +341,7 @@ public static (UpdatedAggregate, Events) ConfirmDifferent(ConfirmOrder command, 
     );
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L293-L306' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L299-L312' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_returning_updated_aggregate_as_response_from_http_endpoint' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you should happen to have a message handler or HTTP endpoint signature that uses multiple event streams,
@@ -385,6 +385,74 @@ public static class MakePurchaseHandler
 Wolverine can't (yet) handle a signature with multiple event streams of the same aggregate type and
 `UpdatedAggregate`. 
 :::
+
+## Concurrency Exceptions <Badge type="tip" text="6.25" />
+
+The aggregate handler workflow leans on Marten's optimistic concurrency protections, so any endpoint
+using it can fail at commit time when the underlying stream has advanced past the expected version. By
+default that exception escapes the endpoint as a 500. If you would rather respond with a `409 Conflict`
+carrying a `ProblemDetails` body, opt in when mapping the Wolverine endpoints:
+
+<!-- snippet: sample_UseProblemDetailsForConcurrencyExceptions -->
+<a id='snippet-sample_UseProblemDetailsForConcurrencyExceptions'></a>
+```cs
+// Opt into responding with a 409 status code and a ProblemDetails
+// body when a Marten concurrency exception is caught on any endpoint
+// using the aggregate handler workflow or Marten transactional middleware
+opts.UseProblemDetailsForConcurrencyExceptions();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L377-L383' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_UseProblemDetailsForConcurrencyExceptions' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+This policy only applies to endpoints that use the aggregate handler workflow (`[AggregateHandler]`,
+`[Aggregate]`, or `[WriteAggregate]`) or that commit a Marten session through Wolverine's transactional
+middleware. On each matching endpoint it catches `JasperFx.ConcurrencyException` — the base type of
+Marten's `EventStreamUnexpectedMaxEventIdException` and `DcbConcurrencyException` — and writes the
+`ProblemDetails` response with the configured status code. The response is also registered in the
+endpoint's OpenAPI metadata.
+
+::: warning
+The policy also catches `Marten.Exceptions.StreamLockedException`, which is thrown on the load path
+when using exclusive locking (`FetchForExclusiveWriting`) and does *not* inherit from
+`ConcurrencyException`. A locked stream usually means another session merely held the lock at that
+moment, so clients should treat the resulting response as retryable.
+:::
+
+If you need different behavior for a specific endpoint — or prefer to keep the mapping explicit without
+opting into the policy — the [OnException convention](/guide/http/exception-handling) gives you the
+same result by hand:
+
+<!-- snippet: sample_concurrency_exception_with_onexception -->
+<a id='snippet-sample_concurrency_exception_with_onexception'></a>
+```cs
+// This endpoint handles the Marten concurrency failure itself with the OnException
+// convention, so the UseProblemDetailsForConcurrencyExceptions() policy leaves
+// its catch block completely alone
+public static class HandleConcurrencyExceptionYourselfEndpoint
+{
+    [AggregateHandler]
+    [WolverinePost("/orders/itemready/custom-handled")]
+    public static (OrderStatus, Events) Post(MarkItemReady command, Order order)
+    {
+        return (new OrderStatus(order.Id, order.IsReadyToShip()), [new ItemReady(command.ItemName)]);
+    }
+
+    public static ProblemDetails OnException(ConcurrencyException ex)
+    {
+        return new ProblemDetails
+        {
+            Status = 400,
+            Title = "Somebody else got there first",
+            Detail = ex.Message
+        };
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/ConcurrencyExceptionEndpoint.cs#L8-L33' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_concurrency_exception_with_onexception' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+An endpoint's own `OnException` handler for the exact same exception type always wins over the policy,
+which skips any exception type the endpoint already catches.
 
 ## Overriding Version Discovery <Badge type="tip" text="5.17" />
 
@@ -515,7 +583,7 @@ an HTTP endpoint method, use the `[ReadAggregate]` attribute like this:
 [WolverineGet("/orders/latest/{id}")]
 public static Order GetLatest(Guid id, [ReadAggregate] Order order) => order;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L320-L324' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Orders.cs#L326-L330' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_readaggregate_in_http' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If the aggregate doesn't exist, the HTTP request will stop with a 404 status code. 
@@ -535,7 +603,7 @@ Register it in `WolverineHttpOptions` like this:
 ```cs
 opts.UseMartenCompiledQueryResultPolicy();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L343-L346' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L347-L350' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_user_marten_compiled_query_policy' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If you now return a compiled query from an Endpoint the result will get directly streamed to the client as JSON. Short circuiting JSON deserialization.
@@ -562,7 +630,7 @@ public class ApprovedInvoicedCompiledQuery : ICompiledListQuery<Invoice>
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L106-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/Documents.cs#L117-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_compiled_query_return_query' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Streaming JSON Responses <Badge type="tip" text="5.32" />

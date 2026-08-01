@@ -2,6 +2,8 @@
 
 Wolverine supports an `OnException` / `OnExceptionAsync` naming convention for middleware methods that allows you to handle exceptions thrown during endpoint execution. This is the recommended approach for structured exception handling in Wolverine HTTP endpoints.
 
+For mapping Marten concurrency exceptions to a `409 Conflict` with a `ProblemDetails` body across every Marten-backed endpoint at once, see [Concurrency Exceptions](/guide/http/marten.html#concurrency-exceptions).
+
 ## Handler-Level Exception Handling
 
 The simplest approach is to add `OnException` methods directly on your endpoint class. The first parameter must be the exception type to catch:
@@ -32,7 +34,7 @@ public static class OnExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L21-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_handler_level' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L22-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_handler_level' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Key behaviors:
@@ -87,7 +89,7 @@ public static class MultipleExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L47-L88' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_specific' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L48-L89' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_specific' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Async Exception Handlers
@@ -120,7 +122,7 @@ public static class AsyncExceptionEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L90-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_async' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L91-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_async' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Combining with Finally
@@ -161,7 +163,7 @@ public static class ExceptionWithFinallyEndpoints
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L116-L148' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_with_finally' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/OnExceptionEndpoints.cs#L117-L149' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_on_exception_with_finally' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The execution order is: Handler (throws) -> OnException -> Finally
