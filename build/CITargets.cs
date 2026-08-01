@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Bobcat.Supervisor;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tooling;
@@ -303,7 +304,11 @@ partial class Build
             BuildTestProjects(martenTests, martenSubscriptionTests);
             StartDockerServices("postgresql");
 
-            RunTestProjects([martenTests, martenSubscriptionTests]);
+            // The 18m long pole of the 28-job matrix (#3752). Four workers, each pointed at its
+            // own database via WOLVERINE_POSTGRES — schema names are hard-coded throughout, so
+            // two processes sharing one database collide however the tests are partitioned.
+            RunTestProjects([martenTests, martenSubscriptionTests],
+                workers: 4, postgresDatabasePerLane: true);
         });
 
     Target CIMySql => _ => _
@@ -365,13 +370,13 @@ partial class Build
 
     // The four batteries are named Buffered/Inline/Durable/PrefixedSendingAndReceivingCompliance, so a single
     // substring selects (and its negation excludes) all of them.
-    const string ComplianceBatteries = "FullyQualifiedName~SendingAndReceivingCompliance";
-    const string NotComplianceBatteries = "FullyQualifiedName!~SendingAndReceivingCompliance";
+    static bool ComplianceBatteries(WorkerTest t) => t.DisplayName.Contains("SendingAndReceivingCompliance");
+    static bool NotComplianceBatteries(WorkerTest t) => !ComplianceBatteries(t);
 
     AbsolutePath AmazonSqsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSqs.Tests" / "Wolverine.AmazonSqs.Tests.csproj";
     AbsolutePath AmazonSnsTests => RootDirectory / "src" / "Transports" / "AWS" / "Wolverine.AmazonSns.Tests" / "Wolverine.AmazonSns.Tests.csproj";
 
-    void runAwsShard(AbsolutePath project, string testFilter = null)
+    void runAwsShard(AbsolutePath project, Func<WorkerTest, bool> testFilter = null)
     {
         BuildTestProjects(project);
         StartDockerServices("localstack", "postgresql");
@@ -700,17 +705,17 @@ partial class Build
     ];
 
     // A trailing '.' keeps "PolecatTests.Sagas" from also matching a future "PolecatTests.SagasSomethingElse".
-    static string includeNamespaces(params string[] namespaces)
+    static Func<WorkerTest, bool> includeNamespaces(params string[] namespaces)
     {
-        return string.Join("|", namespaces.Select(n => $"FullyQualifiedName~{n}."));
+        return t => namespaces.Any(n => t.DisplayName.StartsWith(n + "."));
     }
 
-    static string excludeNamespaces(params string[] namespaces)
+    static Func<WorkerTest, bool> excludeNamespaces(params string[] namespaces)
     {
-        return string.Join("&", namespaces.Select(n => $"FullyQualifiedName!~{n}."));
+        return t => !namespaces.Any(n => t.DisplayName.StartsWith(n + "."));
     }
 
-    void runPolecatShard(string testFilter)
+    void runPolecatShard(Func<WorkerTest, bool> testFilter)
     {
         BuildTestProjectsWithFramework("net10.0", PolecatTests);
         StartDockerServices("sqlserver");
