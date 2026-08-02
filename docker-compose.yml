@@ -146,8 +146,15 @@ services:
     volumes:
       - ./docker/oracle:/container-entrypoint-initdb.d
 
+  # These two were on :latest, which is how CI changed behaviour with no commit behind it:
+  # servicebus-emulator:latest moved 2.0.0 -> 2.0.1, 2.0.1 takes longer to warm its management api, and
+  # CIAzureServiceBus started failing a whole test class on every run (retried green, so nobody saw it).
+  # It was also unreproducible locally, because a developer machine keeps whatever it pulled months ago
+  # while CI pulls fresh every run. Pinned so the version moves only when someone moves it.
+  # azure-sql-edge publishes no concrete tag matching its :latest manifest, hence the digest -- it is
+  # byte-for-byte what CI has been running.
   asb-sql:
-    image: "mcr.microsoft.com/azure-sql-edge:latest"
+    image: "mcr.microsoft.com/azure-sql-edge@sha256:902628a8be89e35dfb7895ca31d602974c7bafde4d583a0d0873844feb1c42cf"
     environment:
       - "ACCEPT_EULA=Y"
       - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"
@@ -155,7 +162,7 @@ services:
       sb-emulator:
 
   asb-emulator:
-    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:latest"
+    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1"
     volumes:
       - ./docker/asb/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
     ports:
@@ -172,7 +179,7 @@ services:
       sb-emulator:
 
   asb-sql-2:
-    image: "mcr.microsoft.com/azure-sql-edge:latest"
+    image: "mcr.microsoft.com/azure-sql-edge@sha256:902628a8be89e35dfb7895ca31d602974c7bafde4d583a0d0873844feb1c42cf"
     environment:
       - "ACCEPT_EULA=Y"
       - "MSSQL_SA_PASSWORD=Strong_Passw0rd#2025"
@@ -180,7 +187,7 @@ services:
       sb-emulator-2:
 
   asb-emulator-2:
-    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:latest"
+    image: "mcr.microsoft.com/azure-messaging/servicebus-emulator:2.0.1"
     volumes:
       - ./docker/asb/Config.json:/ServiceBus_Emulator/ConfigFiles/Config.json
     ports:

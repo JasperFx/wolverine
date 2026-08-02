@@ -227,28 +227,70 @@ partial class Build
         Log.Warning("LocalStack did not become ready after 60 seconds");
     }
 
+    /// <summary>
+    /// Waits for the Azure Service Bus emulator to be ready for <b>provisioning</b>, not merely accepting
+    /// sockets.
+    ///
+    /// <para>The emulator binds its AMQP listener on 5673 as soon as Kestrel starts, but its MANAGEMENT api
+    /// on 5300 — the one <c>ServiceBusAdministrationClient</c> uses to create queues and topics — answers
+    /// <c>503 "Service is warming up. Please try after some time."</c> for a good while after that. This
+    /// gate used to be a bare TCP connect to 5673, so it announced "up and ready!" while every provisioning
+    /// call still failed. The first test class to provision anything (<c>InlineComplianceFixture</c>) threw
+    /// out of <c>InitializeAsync</c>, which fails every test in its class — all 22 of them — and the
+    /// standing retry policy then reran each one alone in a fresh process, by which time the emulator was
+    /// warm. So the job reported GREEN while burning 22 of its 25-retry budget on every single run, and
+    /// those 22 were 85% of all retries in the entire repository.</para>
+    ///
+    /// <para>It went unnoticed for so long partly because it does not reproduce locally: docker-compose
+    /// pinned these images to <c>:latest</c>, and <c>servicebus-emulator:latest</c> moved from 2.0.0 to
+    /// 2.0.1, which warms up more slowly. CI pulls fresh every run and gets 2.0.1; a developer machine
+    /// keeps whatever it pulled months ago. The images are pinned now for exactly that reason.</para>
+    /// </summary>
     void WaitForAzureServiceBusEmulatorToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 30)
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+        // Any management request will do. While warming, the emulator answers 503 to all of them; once warm
+        // it answers something else (200/400/401 depending on auth and api-version), so readiness does not
+        // depend on getting the ATOM api-version right here.
+        const string managementProbe = "http://localhost:5300/$Resources/topics";
+
+        var deadline = DateTime.UtcNow.AddMinutes(3);
+        var lastReason = "no attempt completed";
+
+        while (DateTime.UtcNow < deadline)
         {
             try
             {
-                using var tcpClient = new System.Net.Sockets.TcpClient();
-                tcpClient.Connect("localhost", 5673);
-                Log.Information("Azure Service Bus emulator is up and ready!");
-                return;
+                using (var tcpClient = new System.Net.Sockets.TcpClient())
+                {
+                    tcpClient.Connect("localhost", 5673);
+                }
+
+                var response = http.GetAsync(managementProbe).GetAwaiter().GetResult();
+                if (response.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable)
+                {
+                    Log.Information(
+                        "Azure Service Bus emulator is up and ready for provisioning (management api answered {StatusCode})",
+                        (int)response.StatusCode);
+                    return;
+                }
+
+                lastReason = "the management api on 5300 is still warming up (503)";
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // ignore connection errors
+                lastReason = e.Message;
             }
 
             Thread.Sleep(2000);
-            attempt++;
         }
 
-        Log.Warning("Azure Service Bus emulator did not become ready after 60 seconds");
+        // Deliberately fatal. This used to log a warning and carry on, so an emulator that never came up at
+        // all still fed the entire suite into a broker that could not serve it — and the resulting failures
+        // read as flaky tests rather than as infrastructure that never started.
+        throw new InvalidOperationException(
+            $"The Azure Service Bus emulator was not ready for provisioning after 3 minutes. Last attempt: {lastReason}");
     }
 
     /// <summary>
