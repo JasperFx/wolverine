@@ -45,6 +45,9 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Run Tests
+        # Names this run in the retry ledger written to the job summary (build/RetryLedger.cs).
+        env:
+          CI_JOB_NAME: CISlowTests
         run: ./build.sh CISlowTests --framework net9.0
 
       - name: Stop containers
