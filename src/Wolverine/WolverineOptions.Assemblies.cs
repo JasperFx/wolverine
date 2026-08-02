@@ -114,14 +114,19 @@ public sealed partial class WolverineOptions
         if (assemblyName.IsNotEmpty())
         {
             ApplicationAssembly ??= Assembly.Load(assemblyName);
+            AsmProbe.Write($"establish: BY-NAME '{assemblyName}' -> {AsmProbe.Name(ApplicationAssembly)}");
         }
         else if (RememberedApplicationAssembly != null)
         {
             ApplicationAssembly = RememberedApplicationAssembly;
+            AsmProbe.Write($"establish: REUSED-REMEMBERED {AsmProbe.Name(RememberedApplicationAssembly)} " +
+                           $"(registered-from {AsmProbe.Name(RegistrationCallingAssembly)})");
         }
         else
         {
             RememberedApplicationAssembly = ApplicationAssembly = determineCallingAssembly();
+            AsmProbe.Write($"establish: FIRST-PIN {AsmProbe.Name(RememberedApplicationAssembly)} " +
+                           $"(registered-from {AsmProbe.Name(RegistrationCallingAssembly)}) stack: {AsmProbe.CallerStack()}");
         }
 
         if (ApplicationAssembly == null)

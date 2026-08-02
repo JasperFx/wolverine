@@ -698,6 +698,11 @@ public sealed partial class WolverineOptions
     {
         ServiceName ??= jasperfx.ServiceName;
         
+        AsmProbe.Write($"ReadJasperFxOptions: _applicationAssembly={AsmProbe.Name(_applicationAssembly)} " +
+                       $"jasperfx.ApplicationAssembly={AsmProbe.Name(jasperfx.ApplicationAssembly)} " +
+                       $"remembered={AsmProbe.Name(RememberedApplicationAssembly)} " +
+                       $"registeredFrom={AsmProbe.Name(RegistrationCallingAssembly)}");
+
         if (_applicationAssembly == null)
         {
             ApplicationAssembly = jasperfx.ApplicationAssembly;

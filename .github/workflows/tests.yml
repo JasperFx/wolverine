@@ -38,6 +38,12 @@ jobs:
       - name: Run Tests
         run: ./build.sh ${{ matrix.target }} --framework net9.0
 
+      - name: Dump assembly probe
+        if: always()
+        run: |
+          echo "=== wolverine-asm-probe.log ==="
+          cat "${TMPDIR:-/tmp}/wolverine-asm-probe.log" || echo "(no probe file)"
+
       - name: Stop containers
         if: always()
         run: docker compose down

@@ -107,6 +107,12 @@ public partial class WolverineRuntime
             // Build up the message handlers
             Handlers.Compile(Options, _container);
 
+            AsmProbe.Write(
+                $"host-start: adopted={AsmProbe.Name(Options.ApplicationAssembly)} " +
+                $"scanned=[{string.Join(",", Options.Assemblies.Select(AsmProbe.Name))}] " +
+                $"chains={Handlers.Chains.Length} " +
+                $"warning={(Options.ApplicationAssemblyReuseWarning is null ? "none" : "YES")}");
+
             // Under MultipleHandlerBehavior.Separated, a message type may have BOTH a direct
             // Handle(T) handler AND a BatchMessagesOf<T>() batch handler. By default the batch
             // local queue is the element type's convention queue — the SAME queue the direct
