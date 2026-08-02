@@ -106,6 +106,13 @@ fi
 # end, so a cap-killed job reports not even a partial count. That silence is itself a finding, and
 # without this it would read as "no flakiness".
 
+#
+# Jobs that legitimately produce nothing are listed here rather than reported every run: a section
+# that cries wolf on every single run is how a signal channel gets ignored, which is the failure
+# this whole report exists to undo. CIAotSmoke builds and RUNS two AOT smoke apps -- it invokes no
+# test project at all, so it has no retry budget to spend.
+NO_LEDGER_EXPECTED="CIAotSmoke"
+
 missing=""
 # gh api prints the error BODY to stdout on a failed request, so the exit code has to gate this —
 # otherwise a 404 lands in the report as the name of a job that "reported no ledger".
@@ -114,6 +121,9 @@ if gh api "repos/${repo}/actions/runs/${GITHUB_RUN_ID:-0}/jobs?per_page=100" --p
      > "${output_dir}/jobs.txt" 2>/dev/null
 then
   missing=$(sort -u "${output_dir}/jobs.txt" | while read -r job; do
+    # [[ ]] rather than case: bash 3.2 (what macOS ships) mis-parses a case pattern's ")" as the
+    # end of the enclosing $( ) substitution.
+    if [[ " ${NO_LEDGER_EXPECTED} " == *" ${job} "* ]]; then continue; fi
     if [ "$(jq --arg j "${job}" '[.[] | select(.job == $j)] | length' "${output_dir}/aggregate.json")" = "0" ]; then
       echo "${job}"
     fi
@@ -154,7 +164,8 @@ delta_for() {
   echo
 
   if [ -n "${missing}" ]; then
-    echo "> **Reported no ledger at all:** $(echo "${missing}" | paste -sd', ' -)"
+    # `paste -sd', '` would cycle the two delimiters and yield "a,b c,d" -- one delimiter, then sed.
+    echo "> **Reported no ledger at all:** $(echo "${missing}" | paste -sd, - | sed 's/,/, /g')"
     echo ">"
     echo "> Bobcat prints its summary only at the end, so a job killed by the 20-minute cap reports"
     echo "> nothing — not even a partial count. Treat this as unmeasured, not as clean."
