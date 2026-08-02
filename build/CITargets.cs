@@ -334,19 +334,33 @@ partial class Build
     // sibling databases some suites create beside the primary (tenant1-3, players, things) are fixed names,
     // and with a single lane per job they have a single owner again, so no lane-scoping sweep is needed.
     //
-    // Balanced by test-CLASS count, not test count: as measured on PolecatTests, most of the wall clock is
-    // per-class fixture cost (Wolverine + Marten host bootstrap and schema application), not test bodies.
-    // Counts below are from an actual `MartenTests --list-tests` (159 classes / 545 tests), so the split is
-    // known to be disjoint and exhaustive — but they are *counts*, not measured durations, so re-check the
-    // balance against the first real CI run. The two named shards are the heavy thematic clusters; a few
-    // small namespaces ride along as ballast.
+    // Balanced by MEASURED per-namespace duration, from `MartenTests --output Detailed` over the full suite
+    // (533 tests, 880s, zero failures). This matters: the first cut of this split was balanced by test-CLASS
+    // count on the PolecatTests precedent, and class count turned out to be very nearly an *inverted*
+    // predictor of cost here. The expensive namespaces are the ones with few, slow tests:
     //
-    //   CIMartenWorkflow    AggregateHandlerWorkflow, Bugs, ScheduledJobs,
-    //                       Requirements                                        54 classes / 162 tests
-    //   CIMartenSagas       Saga, Persistence (incl. Persistence.Sagas),
-    //                       Distribution, MultiTenancy, AncillaryStores, Dcb    60 classes / 205 tests
-    //   CIMarten            everything else (root namespace, TestHelpers,
-    //                       Sample, ...) + MartenSubscriptionTests              46 classes / 190 tests
+    //     Distribution     192.6s / 49 tests    (multi-node agent distribution, real leader election)
+    //     MultiTenancy     148.4s / 53 tests    (creates tenant databases)
+    //     Bugs             126.5s / 53 tests
+    //     AggregateHandlerWorkflow  73.4s / 90 tests   <- most tests, a third of Distribution's cost
+    //
+    // Distribution and MultiTenancy alone are 39% of the suite, and the class-count split had put BOTH in
+    // the same shard — which is why that shard came in at 7m56s against 4m22s and 4m39s for the other two.
+    // The split below is the best of all 3-way assignments, found by brute force over the measured totals:
+    //
+    //   CIMartenDistribution  Distribution, AggregateHandlerWorkflow,
+    //                         AncillaryStores, Requirements, Sample              293.6s
+    //   CIMartenTenancy       MultiTenancy, TestHelpers, ScheduledJobs,
+    //                         Persistence (incl. Persistence.Sagas), Dcb         293.4s
+    //   CIMarten              everything else (root namespace, Bugs, Saga)
+    //                         + MartenSubscriptionTests                          293.5s
+    //
+    // A 0.2s spread on the measured numbers. Local timings on an M-series machine, so CI's absolute values
+    // differ, but the relative costs are what the split keys off.
+    //
+    // The shards are named for what dominates them. Note that `MartenTests.Saga` lands in the catch-all
+    // while `MartenTests.Persistence.Sagas` lands in CIMartenTenancy — the balance does not respect theme,
+    // which is exactly why the names track the dominant namespace rather than pretending otherwise.
     //
     // Defined ONCE below: the two named shards list their namespaces and CIMarten is the *negation* of both,
     // so a brand new namespace lands in CIMarten automatically instead of being silently dropped from CI.
@@ -359,23 +373,23 @@ partial class Build
     AbsolutePath MartenSubscriptionTests =>
         RootDirectory / "src" / "Persistence" / "MartenSubscriptionTests" / "MartenSubscriptionTests.csproj";
 
-    static readonly string[] MartenWorkflowNamespaces =
+    static readonly string[] MartenDistributionNamespaces =
     [
+        "MartenTests.Distribution",
         "MartenTests.AggregateHandlerWorkflow",
-        "MartenTests.Bugs",
-        "MartenTests.ScheduledJobs",
-        "MartenTests.Requirements"
+        "MartenTests.AncillaryStores",
+        "MartenTests.Requirements",
+        "MartenTests.Sample"
     ];
 
     // "MartenTests.Persistence" also claims MartenTests.Persistence.Sagas, which is where most of that
     // subtree's tests live — the prefix match is on "MartenTests.Persistence." so both are covered.
-    static readonly string[] MartenSagaNamespaces =
+    static readonly string[] MartenTenancyNamespaces =
     [
-        "MartenTests.Saga",
-        "MartenTests.Persistence",
-        "MartenTests.Distribution",
         "MartenTests.MultiTenancy",
-        "MartenTests.AncillaryStores",
+        "MartenTests.TestHelpers",
+        "MartenTests.ScheduledJobs",
+        "MartenTests.Persistence",
         "MartenTests.Dcb"
     ];
 
@@ -399,27 +413,30 @@ partial class Build
     }
 
     /// <summary>
-    /// Marten shard 1: the aggregate handler workflow tests and the Bugs regressions.
+    /// Marten shard 1: multi-node agent distribution — the single most expensive namespace in the suite —
+    /// plus the aggregate handler workflow tests and ancillary stores.
     /// </summary>
-    Target CIMartenWorkflow => _ => _
+    Target CIMartenDistribution => _ => _
         .ProceedAfterFailure()
-        .Executes(() => runMartenShard(includeNamespaces(MartenWorkflowNamespaces)));
+        .Executes(() => runMartenShard(includeNamespaces(MartenDistributionNamespaces)));
 
     /// <summary>
-    /// Marten shard 2: sagas, multi-node distribution, multi-tenancy, ancillary stores and DCB.
+    /// Marten shard 2: multi-tenancy (the second most expensive namespace, since it provisions tenant
+    /// databases), the test helpers, scheduled jobs, saga persistence and DCB.
     /// </summary>
-    Target CIMartenSagas => _ => _
+    Target CIMartenTenancy => _ => _
         .ProceedAfterFailure()
-        .Executes(() => runMartenShard(includeNamespaces(MartenSagaNamespaces)));
+        .Executes(() => runMartenShard(includeNamespaces(MartenTenancyNamespaces)));
 
     /// <summary>
-    /// Marten shard 3: everything not claimed by CIMartenWorkflow or CIMartenSagas — including any newly
-    /// added namespace, which lands here by default — plus MartenSubscriptionTests.
+    /// Marten shard 3: everything not claimed by CIMartenDistribution or CIMartenTenancy — the root
+    /// namespace, Bugs, Saga, and any newly added namespace, which lands here by default — plus
+    /// MartenSubscriptionTests.
     /// </summary>
     Target CIMarten => _ => _
         .ProceedAfterFailure()
         .Executes(() => runMartenShard(
-            excludeNamespaces([..MartenWorkflowNamespaces, ..MartenSagaNamespaces]),
+            excludeNamespaces([..MartenDistributionNamespaces, ..MartenTenancyNamespaces]),
             alsoSubscriptions: true));
 
     Target CIMySql => _ => _

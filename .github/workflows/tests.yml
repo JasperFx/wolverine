@@ -34,12 +34,12 @@ jobs:
           - CIGrpc
           - CIKafka
           # MartenTests is one Postgres project sharded three ways by namespace, each shard strictly
-          # sequential against a single database. CIMarten is the "everything else" shard, so a newly
-          # added namespace still runs somewhere. Replaces the worker-lane split that got the runner
-          # OOM-killed. See #3771, #3762, #3350.
+          # sequential against a single database, balanced on MEASURED per-namespace durations. CIMarten
+          # is the "everything else" shard, so a newly added namespace still runs somewhere. Replaces the
+          # worker-lane split that got the runner OOM-killed. See #3771, #3762, #3350.
           - CIMarten
-          - CIMartenWorkflow
-          - CIMartenSagas
+          - CIMartenDistribution
+          - CIMartenTenancy
           - CIMQTT
           - CIMQTT5
           - CIMySql
@@ -70,9 +70,9 @@ jobs:
           # actually dropped and to catch a recurrence with evidence rather than a guess. See #3771.
           - target: CIMarten
             memory_telemetry: true
-          - target: CIMartenWorkflow
+          - target: CIMartenDistribution
             memory_telemetry: true
-          - target: CIMartenSagas
+          - target: CIMartenTenancy
             memory_telemetry: true
 
     steps:
