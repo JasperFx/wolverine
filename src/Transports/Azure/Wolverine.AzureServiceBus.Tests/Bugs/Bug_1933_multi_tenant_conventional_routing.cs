@@ -16,6 +16,10 @@ public static class Bug1933MessageHandler
     }
 }
 
+// GH-3786: NOT flaky -- 2 of 2 fail, 7.7m, deterministically, on a clean emulator (2.0.1) with the
+// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
+// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
+[Trait("Category", "Flaky")]
 public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 {
     public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;

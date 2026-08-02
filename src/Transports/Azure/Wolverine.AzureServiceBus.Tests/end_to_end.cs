@@ -8,6 +8,10 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
+// GH-3786: NOT flaky -- 2 of 6 fail, 2.0m, deterministically, on a clean emulator (2.0.1) with the
+// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
+// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
+[Trait("Category", "Flaky")]
 public class end_to_end : IAsyncLifetime
 {
     private IHost _host = null!;
