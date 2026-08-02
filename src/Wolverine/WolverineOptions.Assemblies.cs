@@ -98,7 +98,8 @@ public sealed partial class WolverineOptions
                 continue;
             }
 
-            if (assemblyName.StartsWith("System") || assemblyName.StartsWith("Microsoft"))
+            if (assemblyName.StartsWith("System") || assemblyName.StartsWith("Microsoft") ||
+                IsTestRunnerAssembly(assemblyName))
             {
                 continue;
             }
@@ -107,6 +108,24 @@ public sealed partial class WolverineOptions
         }
 
         return Assembly.GetEntryAssembly();
+    }
+
+    // GH-3776: a test-runner assembly is never the application assembly. determineCallingAssembly walks
+    // the stack for the first frame outside Wolverine that isn't System*/Microsoft*, and under an async
+    // test fixture the frames between Wolverine and the test class belong to the runner, not the test
+    // assembly — so xUnit v3's own 'xunit.v3.core' was being adopted for handler discovery and every
+    // handler defined in the test assembly went missing ("Could not determine any valid subscribers or
+    // local handlers"). Skipping the runner lets the walk continue out to the test assembly, and if
+    // nothing else matches the Assembly.GetEntryAssembly() fallback is the test assembly anyway.
+    internal static bool IsTestRunnerAssembly(string assemblyName)
+    {
+        return assemblyName.StartsWith("xunit", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("nunit", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("TUnit", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("MSTest", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("testhost", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("ReSharperTestRunner", StringComparison.OrdinalIgnoreCase)
+               || assemblyName.StartsWith("JetBrains.", StringComparison.OrdinalIgnoreCase);
     }
 
     private void establishApplicationAssembly(string? assemblyName)

@@ -705,7 +705,17 @@ public sealed partial class WolverineOptions
 
         if (_applicationAssembly == null)
         {
-            ApplicationAssembly = jasperfx.ApplicationAssembly;
+            // GH-3776: JasperFx resolves its own application assembly with the same stack walk, and it has
+            // no xUnit exclusion — so in a test process it can hand us the test RUNNER assembly. Adopting
+            // that silently points handler discovery at an assembly with no handlers in it. Ignore it and
+            // resolve locally, where IsTestRunnerAssembly keeps the walk honest.
+            var fromJasperFx = jasperfx.ApplicationAssembly;
+            if (fromJasperFx?.GetName().Name is { } candidate && IsTestRunnerAssembly(candidate))
+            {
+                fromJasperFx = null;
+            }
+
+            ApplicationAssembly = fromJasperFx;
 
             if (ApplicationAssembly == null)
             {
