@@ -1,5 +1,6 @@
 using JasperFx.Core.Reflection;
 using Wolverine.Persistence.Durability;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Serialization;
 
 namespace Wolverine.RavenDb.Internals;
@@ -43,7 +44,35 @@ public class DeadLetterMessage
 
     public DeadLetterEnvelope ToEnvelope()
     {
-        var envelope = EnvelopeSerializer.Deserialize(Body);
-        return new DeadLetterEnvelope(EnvelopeId, ScheduledTime, envelope, MessageType, ReceivedAt.ToString(), Source, ExceptionType, ExceptionMessage, SentAt!.Value, Replayable);
+        return new DeadLetterEnvelope(EnvelopeId, ScheduledTime, readBody(), MessageType,
+            ReceivedAt?.ToString() ?? string.Empty, Source, ExceptionType, ExceptionMessage,
+            SentAt ?? default, Replayable);
+    }
+
+    // Same placeholder contract as DatabasePersistence.ReadDeadLetterBodyAsync (CritterWatch#902,
+    // GH-3773): a document whose stored body was never written by EnvelopeSerializer — hand-seeded
+    // raw JSON, or an incompatible serialization version — must cost the operator that row, not the
+    // whole queue read. The scalar fields on this document still describe the poison row.
+    private Envelope readBody()
+    {
+        if (Body is { Length: > 0 })
+        {
+            try
+            {
+                return EnvelopeSerializer.Deserialize(Body);
+            }
+            catch (Exception)
+            {
+                // fall through to the placeholder
+            }
+        }
+
+        return new Envelope
+        {
+            Id = EnvelopeId,
+            MessageType = MessageType,
+            Message = new PlaceHolder(),
+            Destination = ReceivedAt
+        };
     }
 }
