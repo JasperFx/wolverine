@@ -6,7 +6,6 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
-[Trait("Category", "Flaky")]
 public class Bug_2283_purge_session_subscription : IAsyncLifetime
 {
     private IHost _host = null!;

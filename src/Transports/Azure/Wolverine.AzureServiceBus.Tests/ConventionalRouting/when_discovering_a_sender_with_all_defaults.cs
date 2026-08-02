@@ -7,7 +7,6 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
 public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingContext
 {
     private MessageRoute theRoute = null!;

@@ -8,7 +8,6 @@ using Wolverine.Tracking;
 using Xunit;
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
-[Trait("Category", "Flaky")]
 public class Bug_1684_separated_handlers_and_conventional_routing(ITestOutputHelper Output) : IAsyncLifetime
 {
     public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
