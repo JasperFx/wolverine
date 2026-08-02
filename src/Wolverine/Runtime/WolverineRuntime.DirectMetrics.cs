@@ -96,16 +96,22 @@ public partial class WolverineRuntime
 
         public void MessageSucceeded(Envelope envelope)
         {
-            var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            if (envelope.SentAt != default)
+            {
+                var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+                _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            }
 
             _runtime.ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
         }
 
         public void MessageFailed(Envelope envelope, Exception ex)
         {
-            var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            if (envelope.SentAt != default)
+            {
+                var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+                _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            }
             // Deliberately NOT posting RecordDeadLetter here (CritterWatch GH-721):
             // MessageFailed fires on failure paths that never write a dead-letter row
             // (cascading post-processing failures, batch item failures), and the real

@@ -224,6 +224,10 @@ internal class Executor : IExecutor
 
     public async Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
+        // Completion continuations report through the tracker this executor resolved — see
+        // CompletionTrackerExtensions (CritterWatch GH-907 / wolverine#3774).
+        context.Tracker = _tracker;
+
         var envelope = context.Envelope;
         _tracker.ExecutionStarted(envelope!);
         _executionStarted(_logger, envelope!.CorrelationId!, _messageTypeName, envelope.Id, null);
