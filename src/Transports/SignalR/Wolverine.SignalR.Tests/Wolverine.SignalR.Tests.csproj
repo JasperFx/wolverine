@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <!-- GH-3702: xUnit1051 reinstated for this project -->
         <OutputType>Exe</OutputType>
         <!--
           Deliberately TargetFrameworks (plural) even though there is only one TFM, matching
