@@ -46,6 +46,18 @@ public abstract class TransportComplianceFixture : IDisposable, IAsyncDisposable
     /// </summary>
     public DurabilityMode Mode { get; set; } = DurabilityMode.Solo;
 
+    /// <summary>
+    /// Tears down the sender and receiver hosts, then hands off to <see cref="AfterDisposeAsync"/>.
+    /// </summary>
+    /// <remarks>
+    /// Do NOT hide this with a <c>public new DisposeAsync()</c> in a derived fixture. It reads like an
+    /// override and is not one: <see cref="TransportCompliance{T}"/> disposes the fixture through a
+    /// <c>T</c>-typed reference, which binds statically to *this* method, so the hiding member is simply
+    /// never called. Thirty-four fixtures had one; seven of those carried real cleanup — a SQLite database,
+    /// shared-memory queues, and four local MQTT brokers — that had never once executed, and four more were
+    /// infinitely self-recursive dead code. Put transport-specific cleanup in <see cref="AfterDisposeAsync"/>,
+    /// which is virtual and actually runs. See #3763.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         if (Sender == null)
@@ -459,9 +471,21 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .DoNotAssertOnExceptionsDetected()
             .SendMessageAndWaitAsync(theMessage);
 
-        return _session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(x =>
-            x.MessageEventType == MessageEventType.MessageSucceeded ||
-            x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
+        return endingRecordFor(_session)!;
+    }
+
+    /// <summary>
+    /// The last ending record for *the message this test sent*. Scoping by message type alone picks up
+    /// stragglers: broker queues are shared across the test methods in a compliance class, and a
+    /// redelivery still in flight when the previous test's session completed lands in this one's.
+    /// </summary>
+    private EnvelopeRecord? endingRecordFor(ITrackedSession session)
+    {
+        return session.AllRecordsInOrder()
+            .Where(x => x.Envelope?.Message is ErrorCausingMessage m && m.Id == theMessage.Id)
+            .LastOrDefault(x =>
+                x.MessageEventType == MessageEventType.MessageSucceeded ||
+                x.MessageEventType == MessageEventType.MovedToErrorQueue);
     }
 
     protected async Task shouldSucceedOnAttempt(int attempt)
@@ -475,10 +499,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
         session.AssertCondition("Expected ending activity was not detected", () =>
         {
-            var record = session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(
-                x =>
-                    x.MessageEventType == MessageEventType.MessageSucceeded ||
-                    x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
+            var record = endingRecordFor(session);
 
             if (record is null) return false;
 
@@ -500,10 +521,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
             .Timeout(30.Seconds())
             .SendMessageAndWaitAsync(theMessage);
 
-        var record = session.AllRecordsInOrder().Where(x => x.Envelope!.Message is ErrorCausingMessage).LastOrDefault(
-            x =>
-                x.MessageEventType == MessageEventType.MessageSucceeded ||
-                x.MessageEventType == MessageEventType.MovedToErrorQueue)!;
+        var record = endingRecordFor(session);
 
         if (record == null)
         {

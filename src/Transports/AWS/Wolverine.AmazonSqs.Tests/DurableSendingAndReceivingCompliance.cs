@@ -67,10 +67,6 @@ public class DurableComplianceFixture : TransportComplianceFixture, IAsyncLifeti
         await Receiver.RebuildAllEnvelopeStorageAsync();
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 
     public class DurableSendingAndReceivingCompliance : TransportCompliance<DurableComplianceFixture>
     {

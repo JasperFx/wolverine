@@ -300,9 +300,10 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
     /// routinely lands *after* the exclusive listener has already restarted somewhere else. A listener that
     /// swept once at startup would have already looked, seen nothing dormant, and never looked again.
     ///
-    /// Reproduced here without killing a node: the rows start out owned by a node number that is not in the
-    /// cluster (exactly what a dead node's rows look like), so the listener's startup sweep finds nothing,
-    /// and only later are they released to <c>owner_id = 0</c>.
+    /// Reproduced here without killing a node: the rows start out owned by <i>another live node</i>, so the
+    /// listener's startup sweep finds nothing dormant, and only later are they released to <c>owner_id = 0</c>.
+    /// A live owner rather than a fabricated "departed" node number is load-bearing — see GH-3729 and the
+    /// comment in the body.
     /// </summary>
     [Fact]
     public async Task rows_released_after_the_listener_is_already_running_are_still_recovered()
@@ -316,24 +317,35 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         (await leader.WaitUntilAssumesLeadershipAsync(30.Seconds()))
             .ShouldBeTrue("The first host never assumed leadership");
 
-        var (listener, _) = await waitForSeparatedAgentsAsync(leader, 60.Seconds());
+        var (listener, agentHost) = await waitForSeparatedAgentsAsync(leader, 60.Seconds());
         var listenerNode = nodeNumberOf(listener);
 
         var store = listener.Services.GetRequiredService<IMessageStore>();
 
-        // Owned by a node that is not part of this cluster -- the state a dead node's in-flight batch is in
-        // before the durability agent gets around to releasing it.
+        // Owned by ANOTHER LIVE NODE in this cluster -- not, as this test used to do, by a made-up node number
+        // standing in for a departed one.
         //
-        // GH-3729: these have to be seeded owned by the departed node, not stored as claimable and reassigned
-        // a round-trip later. The listener's recovery loop polls every ScheduledJobPollingTime (250ms here), so
-        // a sweep landing in that window claimed the rows perfectly correctly -- and then the assertion below,
-        // which exists to prove the listener leaves other nodes' rows alone, failed on the test's own setup
-        // rather than on any product behaviour. That was roughly 40% of runs.
-        const int departedNode = 987654;
-        var seeded = await seedDormantMessagesAsync(listener, 5, departedNode);
+        // GH-3729, second cause. A made-up owner is by definition an orphan, and releasing orphans is a job the
+        // product does on purpose: ReleaseOrphanedMessagesOperation runs
+        //
+        //     update wolverine_incoming_envelopes set owner_id = 0
+        //     where owner_id != 0 and owner_id not in (select node_number from wolverine_nodes)
+        //
+        // on the durability agent's schedule. So the rows stopped being "owned by another node" all by
+        // themselves, the listener's 250ms recovery poll then claimed them perfectly correctly, and the
+        // assertion below failed -- on intended behaviour, roughly 40% of runs. Instrumenting the window shows
+        // it directly: globallyOwned flips 0 -> 5 first, and only then does tracked go to 5.
+        //
+        // A live node's rows are not orphans, so nothing is entitled to free them and the assertion becomes a
+        // real statement about the listener. (InboxStaleTime, the other thing that bumps owned rows, is null
+        // unless explicitly configured, and this test does not set it.)
+        var otherLiveNode = nodeNumberOf(agentHost);
+        otherLiveNode.ShouldNotBe(listenerNode);
+
+        var seeded = await seedDormantMessagesAsync(listener, 5, otherLiveNode);
 
         (await store.LoadPageOfGloballyOwnedIncomingAsync(queueUri(), 100))
-            .ShouldBeEmpty("Nothing should be dormant yet -- the rows are still owned by the departed node");
+            .ShouldBeEmpty($"Nothing should be dormant yet -- the rows are still owned by live node {otherLiveNode}");
 
         // Several recovery sweeps go by with nothing to find. This is the window a one-shot recovery would
         // have spent its single look in.
@@ -342,7 +354,9 @@ public class multi_node_exclusive_listener_recovery : IAsyncLifetime
         tracking.Count.ShouldBe(0,
             "The listener must not touch inbox rows that are still owned by another node");
 
-        // Now the durability agent releases the departed node's rows, long after the listener started.
+        // Now the durability agent releases the other node's rows, long after the listener started. This is the
+        // hand-off that really happens when a node dies: whichever node holds the durability agent frees the
+        // rows back to owner_id = 0, routinely well after the exclusive listener has restarted elsewhere.
         await store.ReassignIncomingAsync(TransportConstants.AnyNode, seeded);
 
         var expected = seeded.Select(x => x.Id).ToArray();

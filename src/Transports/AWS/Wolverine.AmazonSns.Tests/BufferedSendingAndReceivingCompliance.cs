@@ -42,10 +42,6 @@ public class BufferedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class BufferedSendingAndReceivingCompliance : TransportCompliance<BufferedComplianceFixture>

@@ -321,22 +321,123 @@ partial class Build
             RunTestProject(sqlServerTests, workers: 4, sqlServerDatabasePerLane: true);
         });
 
+    // MartenTests was the 18m long pole of the matrix (#3752). It was first attacked with worker lanes —
+    // four processes, each on its own database via WOLVERINE_POSTGRES — and that halved the wall clock but
+    // did not hold up: the runner itself was killed outright ("The runner has received a shutdown signal")
+    // twice in a row at ~15 minutes on an unrelated diff (#3771), which is the OOM signature, not a test
+    // failure. Several Marten test hosts plus Postgres does not fit a 4-vCPU/16GB hosted runner, and a lane
+    // count that dies to the OOM killer on a busy day is not a stable halving.
+    //
+    // So the wall clock is bought the way CIPolecat buys it (#3350): SEGMENT the suite across parallel CI
+    // JOBS, each running strictly sequentially against exactly ONE database. Concurrency moves off the
+    // runner VM and onto the matrix, where every shard gets its own 16GB. This also closes #3762 — the
+    // sibling databases some suites create beside the primary (tenant1-3, players, things) are fixed names,
+    // and with a single lane per job they have a single owner again, so no lane-scoping sweep is needed.
+    //
+    // Balanced by MEASURED per-namespace duration, from `MartenTests --output Detailed` over the full suite
+    // (533 tests, 880s, zero failures). This matters: the first cut of this split was balanced by test-CLASS
+    // count on the PolecatTests precedent, and class count turned out to be very nearly an *inverted*
+    // predictor of cost here. The expensive namespaces are the ones with few, slow tests:
+    //
+    //     Distribution     192.6s / 49 tests    (multi-node agent distribution, real leader election)
+    //     MultiTenancy     148.4s / 53 tests    (creates tenant databases)
+    //     Bugs             126.5s / 53 tests
+    //     AggregateHandlerWorkflow  73.4s / 90 tests   <- most tests, a third of Distribution's cost
+    //
+    // Distribution and MultiTenancy alone are 39% of the suite, and the class-count split had put BOTH in
+    // the same shard — which is why that shard came in at 7m56s against 4m22s and 4m39s for the other two.
+    // The split below is the best of all 3-way assignments, found by brute force over the measured totals:
+    //
+    //   CIMartenDistribution  Distribution, AggregateHandlerWorkflow,
+    //                         AncillaryStores, Requirements, Sample              293.6s
+    //   CIMartenTenancy       MultiTenancy, TestHelpers, ScheduledJobs,
+    //                         Persistence (incl. Persistence.Sagas), Dcb         293.4s
+    //   CIMarten              everything else (root namespace, Bugs, Saga)
+    //                         + MartenSubscriptionTests                          293.5s
+    //
+    // A 0.2s spread on the measured numbers. Local timings on an M-series machine, so CI's absolute values
+    // differ, but the relative costs are what the split keys off.
+    //
+    // The shards are named for what dominates them. Note that `MartenTests.Saga` lands in the catch-all
+    // while `MartenTests.Persistence.Sagas` lands in CIMartenTenancy — the balance does not respect theme,
+    // which is exactly why the names track the dominant namespace rather than pretending otherwise.
+    //
+    // Defined ONCE below: the two named shards list their namespaces and CIMarten is the *negation* of both,
+    // so a brand new namespace lands in CIMarten automatically instead of being silently dropped from CI.
+    //
+    // Note the root namespace `MartenTests` cannot be an *include* list entry — every shard's display names
+    // start with it — which is precisely why the catch-all has to be the negation.
+
+    AbsolutePath MartenTests => RootDirectory / "src" / "Persistence" / "MartenTests" / "MartenTests.csproj";
+
+    AbsolutePath MartenSubscriptionTests =>
+        RootDirectory / "src" / "Persistence" / "MartenSubscriptionTests" / "MartenSubscriptionTests.csproj";
+
+    static readonly string[] MartenDistributionNamespaces =
+    [
+        "MartenTests.Distribution",
+        "MartenTests.AggregateHandlerWorkflow",
+        "MartenTests.AncillaryStores",
+        "MartenTests.Requirements",
+        "MartenTests.Sample"
+    ];
+
+    // "MartenTests.Persistence" also claims MartenTests.Persistence.Sagas, which is where most of that
+    // subtree's tests live — the prefix match is on "MartenTests.Persistence." so both are covered.
+    static readonly string[] MartenTenancyNamespaces =
+    [
+        "MartenTests.MultiTenancy",
+        "MartenTests.TestHelpers",
+        "MartenTests.ScheduledJobs",
+        "MartenTests.Persistence",
+        "MartenTests.Dcb"
+    ];
+
+    /// <param name="testFilter">Which slice of MartenTests this shard owns.</param>
+    /// <param name="alsoSubscriptions">
+    /// MartenSubscriptionTests is a single 12-test class, too small to shard and too small to justify a job
+    /// of its own, so it rides along with the catch-all shard.
+    /// </param>
+    void runMartenShard(Func<WorkerTest, bool> testFilter, bool alsoSubscriptions = false)
+    {
+        AbsolutePath[] projects = alsoSubscriptions
+            ? [MartenTests, MartenSubscriptionTests]
+            : [MartenTests];
+
+        BuildTestProjects(projects);
+        StartDockerServices("postgresql");
+
+        // workers: 1 and no postgresDatabasePerLane, deliberately. One database is active at a time —
+        // that is the whole point of segmenting rather than lane-splitting. See the note above.
+        RunTestProjects(projects.Select(x => x.ToString()).ToArray(), testFilter: testFilter);
+    }
+
+    /// <summary>
+    /// Marten shard 1: multi-node agent distribution — the single most expensive namespace in the suite —
+    /// plus the aggregate handler workflow tests and ancillary stores.
+    /// </summary>
+    Target CIMartenDistribution => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runMartenShard(includeNamespaces(MartenDistributionNamespaces)));
+
+    /// <summary>
+    /// Marten shard 2: multi-tenancy (the second most expensive namespace, since it provisions tenant
+    /// databases), the test helpers, scheduled jobs, saga persistence and DCB.
+    /// </summary>
+    Target CIMartenTenancy => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runMartenShard(includeNamespaces(MartenTenancyNamespaces)));
+
+    /// <summary>
+    /// Marten shard 3: everything not claimed by CIMartenDistribution or CIMartenTenancy — the root
+    /// namespace, Bugs, Saga, and any newly added namespace, which lands here by default — plus
+    /// MartenSubscriptionTests.
+    /// </summary>
     Target CIMarten => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var martenTests = RootDirectory / "src" / "Persistence" / "MartenTests" / "MartenTests.csproj";
-            var martenSubscriptionTests = RootDirectory / "src" / "Persistence" / "MartenSubscriptionTests" / "MartenSubscriptionTests.csproj";
-
-            BuildTestProjects(martenTests, martenSubscriptionTests);
-            StartDockerServices("postgresql");
-
-            // The 18m long pole of the 28-job matrix (#3752). Four workers, each pointed at its
-            // own database via WOLVERINE_POSTGRES — schema names are hard-coded throughout, so
-            // two processes sharing one database collide however the tests are partitioned.
-            RunTestProjects([martenTests, martenSubscriptionTests],
-                workers: 4, postgresDatabasePerLane: true);
-        });
+        .Executes(() => runMartenShard(
+            excludeNamespaces([..MartenDistributionNamespaces, ..MartenTenancyNamespaces]),
+            alsoSubscriptions: true));
 
     Target CIMySql => _ => _
         .ProceedAfterFailure()

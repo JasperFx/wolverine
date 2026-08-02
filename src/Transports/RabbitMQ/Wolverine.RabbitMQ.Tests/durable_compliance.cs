@@ -61,10 +61,6 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class durable_compliance : TransportCompliance<RabbitMqTransportFixture>;

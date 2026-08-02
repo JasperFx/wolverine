@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <!-- GH-3702: xUnit1051 reinstated for this project -->
-        <XUnitCancellationTokenEnforced>true</XUnitCancellationTokenEnforced>
         <OutputType>Exe</OutputType>
         <TargetFrameworks>net10.0</TargetFrameworks>
         <IsPackable>false</IsPackable>

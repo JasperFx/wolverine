@@ -21,10 +21,6 @@ public class LocalPostgresqlBackedFixture : TransportComplianceFixture, IAsyncLi
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 [Collection("marten")]

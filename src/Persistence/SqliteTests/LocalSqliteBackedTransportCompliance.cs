@@ -25,10 +25,12 @@ public class LocalSqliteBackedFixture : TransportComplianceFixture, IAsyncLifeti
         });
     }
 
-    public new async ValueTask DisposeAsync()
+    // AfterDisposeAsync, not a `new DisposeAsync`: TransportCompliance<T> disposes the fixture through
+    // the statically-bound base method, so a hiding override never runs and this database leaked. See #3763.
+    protected override Task AfterDisposeAsync()
     {
-        await base.DisposeAsync();
         _database.Dispose();
+        return Task.CompletedTask;
     }
 }
 

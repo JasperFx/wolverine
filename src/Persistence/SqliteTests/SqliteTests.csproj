@@ -2,7 +2,6 @@
 
     <PropertyGroup>
         <!-- GH-3702: xUnit1051 reinstated for this project -->
-        <XUnitCancellationTokenEnforced>true</XUnitCancellationTokenEnforced>
         <IsPackable>false</IsPackable>
         <OutputType>Exe</OutputType>
     </PropertyGroup>

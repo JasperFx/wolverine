@@ -49,10 +49,6 @@ public class InlineComplianceFixture : TransportComplianceFixture, IAsyncLifetim
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await DisposeAsync();
-    }
 }
 
 [Collection("acceptance")]

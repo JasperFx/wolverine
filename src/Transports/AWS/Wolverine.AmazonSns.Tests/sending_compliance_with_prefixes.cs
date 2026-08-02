@@ -55,10 +55,6 @@ public class PrefixedComplianceFixture : TransportComplianceFixture, IAsyncLifet
         });
     }
 
-    public new async ValueTask DisposeAsync()
-    {
-        await base.DisposeAsync();
-    }
 }
 
 public class PrefixedSendingAndReceivingCompliance : TransportCompliance<PrefixedComplianceFixture>
