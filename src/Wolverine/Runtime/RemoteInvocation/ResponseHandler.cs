@@ -38,6 +38,16 @@ internal class ReplyTracker : IReplyTracker
     {
         envelope.DeliverWithin = timeout; // Make the message expire so it doesn't cruft up the receivers
         var listener = new ReplyListener<T>(envelope, this, timeout, cancellationToken, _resultTypes);
+
+        // GH-3781: an already-cancelled token completes the listener inside its constructor, before it was
+        // ever in this dictionary for Unregister to remove. Registering it anyway would leave an entry
+        // nothing will ever take out again.
+        if (listener.Task.IsCompleted)
+        {
+            listener.SafeDispose();
+            return listener.Task;
+        }
+
         _listeners.AddOrUpdate(envelope.Id, listener, (_, _) => listener);
 
         _logger.LogDebug("Registering a reply listener for message type {MessageType} and conversation id {ConversationId} on Node {NodeNumber}", typeof(T).ToMessageTypeName(), envelope.ConversationId, AssignedNodeNumber);

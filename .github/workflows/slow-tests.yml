@@ -1,0 +1,52 @@
+name: slow tests
+
+# Manual only, on purpose.
+#
+# `SlowTests` holds the only real-host reproductions of the GH-3753 agent assignment chain --
+# three multi-node classes driving a 480-agent universe across real Postgres-backed hosts -- plus
+# the TCP and shared-memory transport compliance batteries. Those tests are wall-clock bound by
+# design: they wait out health checks, assignment evaluations and agent starts, so unlike every
+# other suite there is no amount of sharding or parallelism that makes them cheap. The first CI
+# run of the whole project was still going when the standard 20 minute cap killed it.
+#
+# So it does not belong in the PR path, where it would add ~20+ minutes to every push for a suite
+# whose subject barely changes. It belongs HERE, run deliberately: before a release, after anything
+# that touches agent assignment / node lifecycle / durability, and when triaging a report like
+# #3753 or #3781.
+#
+# Run it from the Actions tab, or: gh workflow run "slow tests" --ref <branch>
+on:
+  workflow_dispatch:
+
+env:
+  config: Release
+  disable_test_parallelization: true
+
+jobs:
+  slow-tests:
+    name: CISlowTests
+    runs-on: ubuntu-latest
+    # Deliberately past the 20 minute cap that tests.yml enforces. That cap is a real signal for the
+    # PR matrix -- a job that needs longer is a job that needs splitting -- but it is the wrong tool
+    # here: this suite is slow because the behaviour it reproduces is slow, and it is not gating a
+    # pull request. Still bounded, so a genuine wedge (see #3781) fails the job instead of burning a
+    # runner for six hours.
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Run Tests
+        run: ./build.sh CISlowTests --framework net9.0
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down

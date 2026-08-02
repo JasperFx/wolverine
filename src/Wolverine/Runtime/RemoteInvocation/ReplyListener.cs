@@ -16,15 +16,23 @@ internal class ReplyListener<T> : IReplyListener
         RequestId = envelope.Id;
         RequestType = envelope.MessageType;
         Parent = parent ?? throw new ArgumentNullException(nameof(parent));
-        cancellationToken.Register(onCancellation);
 
+        // GH-3781: every field onCancellation touches has to be set BEFORE either token is registered.
+        // CancellationTokenRegistration invokes the callback SYNCHRONOUSLY when the token is already
+        // cancelled, so registering the caller's token first meant onCancellation ran against a null
+        // _completion and its `_completion?.TrySetException(...)` silently did nothing -- the listener
+        // then sat out its whole reply window instead of failing fast. Callers pass an already-cancelled
+        // token on every shutdown path, and for a batched agent command that window is
+        // AgentBatchTimeouts.ReplyWindowFor(chunk) -- 25.5 minutes at the shipped AgentStartBatchSize of
+        // 50, paid inside IHost.StopAsync.
         _completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _cancellation = new CancellationTokenSource(timeout);
-
-        _cancellation.Token.Register(onCancellation);
-
         _timeout = timeout;
         _resultTypes = resultTypes;
+
+        _cancellation = new CancellationTokenSource(timeout);
+        _cancellation.Token.Register(onCancellation);
+
+        cancellationToken.Register(onCancellation);
     }
 
     public string? RequestType { get; set; }

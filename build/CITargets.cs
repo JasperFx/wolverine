@@ -750,6 +750,36 @@ partial class Build
             RunTestProject(tests);
         });
 
+    /// <summary>
+    /// GH-3779 / GH-3781. <c>SlowTests</c> has never run in <b>any</b> CI workflow — no job, no Nuke
+    /// target — even though it holds the only real-host reproductions of the GH-3753 agent
+    /// assignment chain (<c>SlowTests/Agents</c>: three multi-node classes over a 480-agent universe).
+    /// A reproduction nothing runs is a reproduction that rots, and GH-3781 is exactly what it caught
+    /// the moment anyone did run it: a Balanced-mode host that would not finish <c>StopAsync</c>.
+    ///
+    /// <para>Postgres is the only infrastructure the project needs — the SqlServer and Kafka project
+    /// references are transitive, and nothing here opens either.</para>
+    ///
+    /// <para>This is deliberately one unsharded job to begin with: the point is to <i>measure</i> what
+    /// the suite costs on a hosted runner, against the same 20 minute cap every other job answers to.
+    /// If it does not fit, the answer is to shard it the way CIMarten and CIPolecat were sharded (see
+    /// #3350), balanced on the measured per-class durations this job prints — not to raise the cap.</para>
+    /// </summary>
+    Target CISlowTests => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var slowTests = RootDirectory / "src" / "Testing" / "SlowTests" / "SlowTests.csproj";
+
+            // The agent scale classes are wall-clock bound, so overlap the container boot with the
+            // compile rather than paying them serially.
+            LaunchDockerServices("postgresql");
+            BuildTestProjects(slowTests);
+            AwaitDockerServices("postgresql");
+
+            RunTestProject(slowTests);
+        });
+
     // ─── AOT Smoke ──────────────────────────────────────────────────────
     //
     // Builds the Wolverine.AotSmoke project, which sets IsAotCompatible=true +
