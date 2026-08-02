@@ -8,7 +8,6 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-[Trait("Category", "Flaky")]
 public class RabbitMqBrokerHealthProbe_tests
 {
     [Fact]

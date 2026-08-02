@@ -23,7 +23,6 @@ public class EndpointHealthConnectionStateHandler
 // GH-3231: EndpointHealthSnapshot must surface the underlying transport channel/agent connection state so external
 // monitors (CritterWatch) can see a dead-but-"Accepting" listener (or a disconnected sender) directly rather than
 // inferring it from staleness.
-[Trait("Category", "Flaky")]
 public class endpoint_health_connection_state_3231
 {
     private static string nextQueue() => "conn_state_" + Guid.NewGuid().ToString("N");
