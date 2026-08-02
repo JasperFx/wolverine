@@ -145,11 +145,20 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void MessageSucceeded(Envelope envelope)
     {
-        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
         var tags = metricTags(envelope);
-        _effectiveTime.Record(time, tags);
-
         _successCounter.Add(1, tags);
+
+        // An unset SentAt makes now - SentAt a ~56-year garbage figure; skip the effective-time
+        // recording rather than publish it (CritterWatch#880's arithmetic half)
+        if (envelope.SentAt == default)
+        {
+            ActiveSession?.Record(MessageEventType.MessageSucceeded, envelope, _serviceName, _uniqueNodeId);
+            fireWireTapSuccess(envelope);
+            return;
+        }
+
+        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        _effectiveTime.Record(time, tags);
 
         if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
             && envelope.MessageType.IsNotEmpty()
@@ -166,11 +175,19 @@ public sealed partial class WolverineRuntime : IMessageTracker
 
     public void MessageFailed(Envelope envelope, Exception ex)
     {
-        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
         var tags = metricTags(envelope);
-        _effectiveTime.Record(time, tags);
-
         _deadLetterQueueCounter.Add(1, tags);
+
+        // Same unset-SentAt guard as MessageSucceeded (CritterWatch#880's arithmetic half)
+        if (envelope.SentAt == default)
+        {
+            ActiveSession?.Record(MessageEventType.Sent, envelope, _serviceName, _uniqueNodeId, ex);
+            fireWireTapFailure(envelope, ex);
+            return;
+        }
+
+        var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+        _effectiveTime.Record(time, tags);
 
         if (Options.Metrics.Mode != WolverineMetricsMode.SystemDiagnosticsMeter
             && envelope.MessageType.IsNotEmpty()

@@ -61,7 +61,7 @@ public partial class WolverineRuntime : IExecutorFactory
         var tracker = trackerFor(messageType, endpoint);
 
         var executor = handler == null
-            ? new NoHandlerExecutor(messageType, this)
+            ? new NoHandlerExecutor(messageType, this, tracker)
             : Executor.Build(this, ExecutionPool, Handlers, handler, tracker);
 
         return executor;

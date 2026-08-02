@@ -1,6 +1,7 @@
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
+using Wolverine.Logging;
 using Wolverine.Runtime.Routing;
 
 namespace Wolverine.Runtime.Handlers;
@@ -10,11 +11,13 @@ internal class NoHandlerExecutor : IExecutor
     private readonly IContinuation _continuation;
     private readonly Type _messageType;
     private readonly WolverineRuntime _runtime;
+    private readonly IMessageTracker? _tracker;
 
-    public NoHandlerExecutor(Type messageType, WolverineRuntime runtime)
+    public NoHandlerExecutor(Type messageType, WolverineRuntime runtime, IMessageTracker? tracker = null)
     {
         _messageType = messageType;
         _runtime = runtime;
+        _tracker = tracker;
         var handlers = runtime.MissingHandlers();
         _continuation = new NoHandlerContinuation(handlers, runtime);
     }
@@ -23,6 +26,9 @@ internal class NoHandlerExecutor : IExecutor
 
     public Task<IContinuation> ExecuteAsync(MessageContext context, CancellationToken cancellation)
     {
+        // Lets NoHandlerContinuation honor a metrics-silent selection for unhandled
+        // system messages (GH-907 / #3774)
+        context.Tracker = _tracker;
         return Task.FromResult(_continuation);
     }
 

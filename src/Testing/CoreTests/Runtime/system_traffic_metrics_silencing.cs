@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using CoreTests.Transports;
+using Wolverine.ErrorHandling;
 using JasperFx.Core;
 using Microsoft.Extensions.Hosting;
 using Shouldly;
@@ -181,6 +182,89 @@ public class system_traffic_metrics_silencing : IAsyncLifetime
         _runtime.MessageTracking.Sent(envelope);
 
         _counts.ContainsKey(MetricsConstants.MessagesSent).ShouldBeTrue();
+    }
+
+    /*** COMPLETION CONTINUATIONS — the tracker stamped by the executor is honored (#3774) ***/
+
+    private MessageContext contextFor(Envelope envelope)
+    {
+        var context = new MessageContext(_runtime);
+        context.ReadEnvelope(envelope, InvocationCallback.Instance);
+        return context;
+    }
+
+    [Fact]
+    public async Task success_continuation_honors_the_metrics_silent_tracker()
+    {
+        // Pre-#3774, MessageSucceededContinuation reported through runtime.MessageTracking no
+        // matter what the executor resolved, so a system message's completion still recorded
+        // wolverine-messages-succeeded + wolverine-effective-time.
+        _counts.Clear();
+        var envelope = envelopeFor(new CheckAgentHealth());
+        envelope.SentAt = DateTimeOffset.UtcNow;
+
+        var context = contextFor(envelope);
+        context.Tracker = _runtime.MessageTrackingFor(systemEndpoint());
+
+        await MessageSucceededContinuation.Instance.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, null);
+
+        _listener.RecordObservableInstruments();
+        _counts.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task success_continuation_still_records_for_application_traffic()
+    {
+        // The diversion is only for the metrics-silent tracker — an application message's
+        // completion keeps the historical runtime-global reporting.
+        _counts.Clear();
+        var envelope = envelopeFor(new SilencingProbeMessage());
+        envelope.SentAt = DateTimeOffset.UtcNow;
+
+        var context = contextFor(envelope);
+        context.Tracker = _runtime.MessageTracking;
+
+        await MessageSucceededContinuation.Instance.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, null);
+
+        _counts.ContainsKey(MetricsConstants.MessagesSucceeded).ShouldBeTrue();
+        _counts.ContainsKey(MetricsConstants.EffectiveMessageTime).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task no_handler_continuation_honors_the_metrics_silent_tracker()
+    {
+        _counts.Clear();
+        var envelope = envelopeFor(new CheckAgentHealth());
+        envelope.SentAt = DateTimeOffset.UtcNow;
+
+        var context = contextFor(envelope);
+        context.Tracker = _runtime.MessageTrackingFor(systemEndpoint());
+
+        var continuation = new NoHandlerContinuation([], _runtime);
+        await continuation.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, null);
+
+        _listener.RecordObservableInstruments();
+        _counts.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task unset_sent_at_still_counts_success_but_skips_effective_time()
+    {
+        // CritterWatch#880's arithmetic half: now - default(SentAt) is a ~56-year garbage figure.
+        // The success count stays; the effective-time histogram is skipped.
+        _counts.Clear();
+        var envelope = envelopeFor(new SilencingProbeMessage());
+        // Envelope.SentAt auto-initializes to UtcNow; the unset case arrives via wire
+        // deserialization when the header is absent
+        envelope.SentAt = default;
+
+        var context = contextFor(envelope);
+        context.Tracker = _runtime.MessageTracking;
+
+        await MessageSucceededContinuation.Instance.ExecuteAsync(context, _runtime, DateTimeOffset.UtcNow, null);
+
+        _counts.ContainsKey(MetricsConstants.MessagesSucceeded).ShouldBeTrue();
+        _counts.ContainsKey(MetricsConstants.EffectiveMessageTime).ShouldBeFalse();
     }
 }
 

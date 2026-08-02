@@ -64,16 +64,22 @@ public partial class WolverineRuntime
 
         public void MessageSucceeded(Envelope envelope)
         {
-            var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
-            
+            if (envelope.SentAt != default)
+            {
+                var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+                _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            }
+
             _runtime.MessageSucceeded(envelope);
         }
 
         public void MessageFailed(Envelope envelope, Exception ex)
         {
-            var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
-            _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            if (envelope.SentAt != default)
+            {
+                var time = DateTimeOffset.UtcNow.Subtract(envelope.SentAt.ToUniversalTime()).TotalMilliseconds;
+                _sink.Post(new RecordEffectiveTime(time, envelope.TenantId!));
+            }
             // Deliberately NOT posting RecordDeadLetter here — see the identical
             // note in WolverineRuntime.DirectMetrics.MessageFailed (CritterWatch
             // GH-721): only MovedToErrorQueue marks a real dead letter.
