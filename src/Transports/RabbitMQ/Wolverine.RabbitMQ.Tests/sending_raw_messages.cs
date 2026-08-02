@@ -17,7 +17,6 @@ namespace Wolverine.RabbitMQ.Tests;
 // to re-declare it without one. Skipping in CI via the Flaky filter; the real
 // fix is to stop sharing fixed queue names like 'messages1' across tests
 // (use Guid-suffixed names) or to delete-then-redeclare in setup. See #2618.
-[Trait("Category", "Flaky")]
 public class sending_raw_messages
 {
     [Fact]

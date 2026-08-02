@@ -144,6 +144,19 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
     }
 }
 
+// GH-3763: kept tagged, but this is NOT flakiness and the tag should not be read as "sometimes fails".
+// `send_message_to_a_specific_tenant` is DETERMINISTIC in both directions, measured on 2026-08-02:
+//
+//   this class alone                                    7/7 pass, 3 runs
+//   this class alongside the other Rabbit suites        fails every time, 3 runs
+//
+// It fails in ~100ms — far short of its own 15s tracked-session timeout — so nothing is timing out;
+// the send is rejected or misrouted immediately. That is cross-class state on a shared broker, which is
+// the #1 shape called out in #3763, and it needs the interfering suite identified rather than another
+// retry budget. Untagging it would put a guaranteed red in CIRabbitMQ.
+//
+// The other eight Rabbit classes that carried this tag were untagged in the same pass: 5 consecutive
+// clean runs, 41 tests, zero failures.
 [Trait("Category", "Flaky")]
 public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRabbitFixture>
 {

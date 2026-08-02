@@ -36,6 +36,15 @@ public static class RabbitTesting
     }
 }
 
+// GH-3763: stays tagged, and the ledger entry now has numbers behind it. Measured 2026-08-02, this class
+// alone against a fresh broker, three consecutive runs: 18/20 pass every time and TWO fail every time.
+//
+//   send_message_to_and_receive_through_rabbitmq_with_routing_key   fails 3 of 3  (deterministic)
+//   use_direct_exchange_with_binding_key / use_fan_out_exchange     one or the other, every run
+//
+// So this is one hard failure plus a genuine flake, not one flaky class. Both fail in under 500ms, which
+// is the exchange/binding-declaration race described in #2618 rather than anything timing out. Needs the
+// deterministic binding-readiness gate that issue calls for before it can come off the list.
 [Trait("Category", "Flaky")]
 public class end_to_end
 {

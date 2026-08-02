@@ -9,6 +9,13 @@ builder.Services.AddOpenApi();
 
 builder.Host.UseWolverine(opts =>
 {
+    // GH-3763: this app is booted by Wolverine.Kafka.Tests through AlbaHost.For<Program>, and without this
+    // pin Wolverine resolves the application assembly to the *test* assembly instead of this one. Handler
+    // discovery then never sees TestMessagesHandler, so BatchMessagesOf<TestMessage>() below has no
+    // TestMessage[] handler to bind to and every batch fails at runtime with "there is no known handler for
+    // TestMessage[]". Same pin, for the same reason, as WolverineWebApi's Program. See GH-3521.
+    opts.ApplicationAssembly = typeof(Program).Assembly;
+
     opts.UseKafka("localhost:9092")
         .AutoProvision()
         .AutoPurgeOnStartup()
@@ -35,8 +42,6 @@ app.MapPost("/test", async (IMessageBus bus) =>
         var message = new TestMessage();
         await bus.PublishAsync(message);
         await bus.PublishAsync(message);
-        // results in:
-        // No known handler for TestMessage#08dced0c-3834-b4c6-54d7-e075bf020000 from kafka://topic/topic_0
     });
 
 return await app.RunJasperFxCommands(args);

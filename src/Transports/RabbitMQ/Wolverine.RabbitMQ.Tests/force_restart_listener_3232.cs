@@ -20,7 +20,6 @@ public class ForceRestartMessageHandler
 // GH-3232: an operator/monitor must be able to force-recover a listener that reports Accepting but isn't actually
 // consuming (a stuck transport channel the framework can't self-heal) without a process bounce. Bare StartAsync()
 // is a no-op when Status == Accepting; RestartAsync(force: true) tears down and rebuilds regardless.
-[Trait("Category", "Flaky")]
 public class force_restart_listener_3232
 {
     private static string nextQueue() => "force_restart_" + Guid.NewGuid().ToString("N");

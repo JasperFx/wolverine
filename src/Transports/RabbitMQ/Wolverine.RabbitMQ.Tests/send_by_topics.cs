@@ -22,7 +22,6 @@ namespace Wolverine.RabbitMQ.Tests;
 // races-with-broker-state flake. Skipping in CI via the Flaky filter; revisit
 // once the topic-binding setup is rewritten with a deterministic readiness gate.
 // See #2618.
-[Trait("Category", "Flaky")]
 public class send_by_topics : IAsyncLifetime
 {
     private IHost theGreenReceiver = null!;
@@ -289,7 +288,6 @@ public class send_by_topics : IAsyncLifetime
 // reliably miss the second receiver in CI when this class runs in the full suite.
 // Skip via the same Flaky filter the non-durable sibling uses, pending the
 // deterministic topic-binding readiness gate described in #2618.
-[Trait("Category", "Flaky")]
 public class send_by_topics_durable : IAsyncLifetime
 {
     private IHost theGreenReceiver = null!;

@@ -191,7 +191,7 @@ public class cluster_endpoints
         tenant.Transport.AmqpTcpEndpoints.Count.ShouldBe(2);
     }
 
-    [Fact, Trait("Category", "Flaky")]
+    [Fact]
     public async Task can_publish_and_receive_through_cluster_code_path()
     {
         var queueName = RabbitTesting.NextQueueName();

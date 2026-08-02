@@ -5,7 +5,6 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
-[Trait("Category", "Flaky")]
 public class batch_processing_with_kafka
 {
     [Fact]
@@ -26,7 +25,14 @@ public class batch_processing_with_kafka
             .Timeout(60.Seconds())
             .ExecuteAndWaitAsync(execute);
 
-        tracked.FindSingleTrackedMessageOfType<TestMessage[]>()
-            .Length.ShouldBe(2);
+        // Both published messages must arrive at the handler in batch (TestMessage[]) form. Deliberately
+        // NOT asserting a single batch of two: BatchingOptions triggers on a full batch OR on TriggerTime
+        // (250ms by default), so whether two messages published back-to-back land in one batch or in two
+        // depends on how the Kafka consumer happens to slice its polls. Asserting the grouping asserts a
+        // race — the contract that actually matters is that every message was delivered, batched.
+        var batched = tracked.Received.MessagesOf<TestMessage[]>().ToArray();
+
+        batched.ShouldNotBeEmpty();
+        batched.Sum(x => x.Length).ShouldBe(2);
     }
 }
