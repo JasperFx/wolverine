@@ -309,9 +309,15 @@ public partial class WolverineRuntime : IAgentRuntime
         // that produces them, so a long wave of slow agent starts can never stop assignments being
         // re-evaluated and a lane wedged on a dead node cannot block a healthy one. Built before the loops
         // start so the very first health check has somewhere to put its commands.
+        // GH-3781: the AGENT cancellation, not the runtime-wide one -- matching NodeAgentController and
+        // DeferredAgentCommandRunner above. StopAsync cancels _agentCancellation first and only calls
+        // DurabilitySettings.Cancel() after teardownAgentsAsync has returned, so a dispatcher holding
+        // Cancellation had a live token at exactly the moment teardown was awaiting its lanes: nothing
+        // unwedged a lane mid-command against a peer that had already gone, and IHost.StopAsync sat there
+        // for a full agent-batch reply window per queued command.
         _dispatcher = new AgentCommandDispatcher(
             async (command, token) => await new MessageBus(this).InvokeAsync<AgentCommands>(command, token),
-            Logger, Cancellation);
+            Logger, _agentCancellation.Token);
 
         if (NodeController != null)
         {

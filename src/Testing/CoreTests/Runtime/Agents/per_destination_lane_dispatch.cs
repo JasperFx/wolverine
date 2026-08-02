@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shouldly;
@@ -276,6 +277,100 @@ public class per_destination_lane_dispatch
         dispatcher.Enqueue(new AssignAgent(agent("one"), destination(NodeA)));
         await Task.Delay(200, TestContext.Current.CancellationToken);
         attempts.ShouldBe(2);
+    }
+
+    /// <summary>
+    /// GH-3781. Completing a channel writer does not throw away what is already buffered, so the old
+    /// DisposeAsync executed every command still queued for a node the cluster was leaving -- each costing
+    /// its own AgentBatchTimeouts reply window (25.5 minutes at AgentStartBatchSize = 50) inside
+    /// IHost.StopAsync.
+    /// </summary>
+    [Fact]
+    public async Task disposal_abandons_the_commands_still_queued()
+    {
+        var log = new ConcurrentQueue<string>();
+        var running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            running.TrySetResult();
+            return await execute(command, token);
+        });
+
+        // Both aimed at the same node, so the second sits in the lane behind the first.
+        dispatcher.Enqueue(new GatedCommand("first", NodeA, gate.Task, log));
+        dispatcher.Enqueue(new GatedCommand("second", NodeA, Task.CompletedTask, log));
+
+        await running.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // DisposeAsync latches and empties the lane queues synchronously, before its first await, so
+        // releasing the gate afterwards is deterministic rather than a race. Ordered this way the
+        // unfixed code fails this test on the assertion below instead of deadlocking the runner --
+        // which matters for a regression test whose subject is a shutdown that never returns.
+        var disposal = withLaneShutdownTimeout(500.Milliseconds(),
+            async () => await dispatcher.DisposeAsync());
+        gate.SetResult();
+        await disposal.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        // Generous, deliberately: the point is that "second" never runs, not that it is merely late.
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        log.ShouldContain("exit:first");
+        log.ShouldNotContain("enter:second");
+
+        // And nothing is left claimed, or a later leader would suppress re-issuing this work.
+        dispatcher.InFlightAgents.ShouldBeEmpty();
+    }
+
+    /// <summary>
+    /// GH-3781, the backstop. The wedge was one lane parked on a reply from a node that had already gone,
+    /// with teardownAgentsAsync -- and so the node's own deregistration -- queued behind it. Disposal has to
+    /// give up on a lane rather than hold IHost.StopAsync() with it, however that lane came to be stuck.
+    /// </summary>
+    [Fact]
+    public async Task disposal_gives_up_on_a_lane_that_ignores_cancellation()
+    {
+        var log = new ConcurrentQueue<string>();
+        var running = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var never = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var dispatcher = dispatcherFor(async (command, token) =>
+        {
+            running.TrySetResult();
+            // Deliberately not token-aware -- this is the shape of an InvokeAsync sitting out a reply window.
+            await never.Task;
+            return AgentCommands.Empty;
+        });
+
+        dispatcher.Enqueue(new GatedCommand("wedged", NodeA, Task.CompletedTask, log));
+        await running.Task.WaitAsync(10.Seconds(), TestContext.Current.CancellationToken);
+
+        var stopwatch = Stopwatch.StartNew();
+
+        // The outer WaitAsync is what keeps the UNFIXED code from wedging this runner the way it wedges
+        // IHost.StopAsync -- it turns the defect into a failed assertion instead of a hung CI job.
+        await withLaneShutdownTimeout(500.Milliseconds(),
+            async () => await dispatcher.DisposeAsync().AsTask()
+                .WaitAsync(10.Seconds(), TestContext.Current.CancellationToken));
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.ShouldBeLessThan(5.Seconds());
+
+        never.SetResult();
+    }
+
+    private static async Task withLaneShutdownTimeout(TimeSpan timeout, Func<Task> action)
+    {
+        var previous = AgentCommandDispatcher.LaneShutdownTimeout;
+        AgentCommandDispatcher.LaneShutdownTimeout = timeout;
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            AgentCommandDispatcher.LaneShutdownTimeout = previous;
+        }
     }
 
     [Fact]

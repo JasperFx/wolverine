@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using JasperFx.Core;
 using Microsoft.Extensions.Logging;
 
 namespace Wolverine.Runtime.Agents;
@@ -50,6 +51,19 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     // out. Same semantics as NodeAgentController's pending-assignment ledger.
     private readonly ConcurrentDictionary<Uri, Guid> _inFlight = new();
 
+    // GH-3781: latched by DisposeAsync so a lane stops picking work up. Completing a channel writer does
+    // NOT discard what is already buffered -- ReadAsync keeps handing it out -- so without this, shutdown
+    // executed every command still queued for a node that had already gone, one reply window at a time.
+    private volatile bool _disposing;
+
+    /// <summary>
+    ///     How long <see cref="DisposeAsync" /> will wait on a single lane before giving up on it. A lane
+    ///     that honours the cancellation token unwinds in microseconds; this only exists so that a future
+    ///     non-cancellable await inside a command can never again wedge <c>IHost.StopAsync()</c>. Settable
+    ///     for tests.
+    /// </summary>
+    internal static TimeSpan LaneShutdownTimeout { get; set; } = 5.Seconds();
+
     internal AgentCommandDispatcher(
         Func<IAgentCommand, CancellationToken, Task<AgentCommands?>> executor,
         ILogger logger,
@@ -86,7 +100,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     /// </summary>
     public void Enqueue(IAgentCommand command)
     {
-        if (_cancellation.IsCancellationRequested) return;
+        if (_cancellation.IsCancellationRequested || _disposing) return;
 
         var destination = command.DestinationNodeId ?? SharedLane;
 
@@ -169,7 +183,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
     private async Task runLaneAsync(Lane lane, Guid destination)
     {
-        while (!_cancellation.IsCancellationRequested)
+        while (!_cancellation.IsCancellationRequested && !_disposing)
         {
             IAgentCommand command;
             try
@@ -182,6 +196,15 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             }
             catch (ChannelClosedException)
             {
+                return;
+            }
+
+            // GH-3781: completing the writer wakes this read with whatever is still buffered, so the
+            // shutdown latch has to be re-checked HERE and not only in the loop condition. Anything
+            // still queued when the node is going down is work for a cluster this node is leaving.
+            if (_disposing)
+            {
+                release(command, destination);
                 return;
             }
 
@@ -217,17 +240,36 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var lane in _lanes.Values)
+        _disposing = true;
+
+        foreach (var pair in _lanes)
         {
-            lane.Queue.Writer.TryComplete();
+            pair.Value.Queue.Writer.TryComplete();
+
+            // Abandon whatever is still buffered rather than executing it on the way out. Each of these
+            // would otherwise cost its own reply window -- AgentBatchTimeouts.ReplyWindowFor(50) is 25.5
+            // minutes -- and they are aimed at a cluster this node is in the middle of leaving.
+            while (pair.Value.Queue.Reader.TryRead(out var abandoned))
+            {
+                release(abandoned, pair.Key);
+            }
         }
 
-        foreach (var lane in _lanes.Values)
+        foreach (var pair in _lanes)
         {
             try
             {
-                var worker = lane.Worker;
-                if (worker != null) await worker;
+                var worker = pair.Value.Worker;
+                if (worker != null) await worker.WaitAsync(LaneShutdownTimeout);
+            }
+            catch (TimeoutException)
+            {
+                // GH-3781: a lane still holding on past the budget must not hold IHost.StopAsync() with it.
+                // The whole wedge was one lane parked on a reply from a node that had already gone, with
+                // teardownAgentsAsync -- and therefore the node's own deregistration -- queued behind it.
+                _logger.LogWarning(
+                    "Agent command lane for node {NodeId} did not finish within {Timeout} during shutdown; abandoning it",
+                    pair.Key == SharedLane ? null : pair.Key, LaneShutdownTimeout);
             }
             catch (Exception)
             {
