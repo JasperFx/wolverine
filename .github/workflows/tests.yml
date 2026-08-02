@@ -60,6 +60,9 @@ jobs:
           - CISqlite
           - CISqlServer
           - CICircuitBreaking
+          # SlowTests had never run in ANY workflow, which is how the Balanced-mode shutdown wedge
+          # (#3781) sat undetected in the only real-host reproduction of the GH-3753 chain. See #3779.
+          - CISlowTests
           - CIAotSmoke
         include:
           # CIMarten was twice killed outright by the runner ~15 minutes in ("The runner has received a
