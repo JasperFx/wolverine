@@ -1,0 +1,68 @@
+name: asb probe
+
+# TEMPORARY diagnostic branch workflow. Delete with the branch.
+#
+# CIAzureServiceBus reports green while burning 22 of its 25-retry budget, every run, on exactly one
+# class: InlineSendingAndReceivingCompliance. That is not flakiness -- 22/22 identical across four
+# consecutive main runs -- and it started in a three-commit window on 2026-08-01. It does not
+# reproduce locally (239 passed, 0 retries, retries off, on an M-series Mac), so the failure text
+# only exists on a hosted runner.
+#
+# Two jobs, same base, one variable between them:
+#   baseline        -- main as-is, retries OFF so the real failure surfaces instead of being retried away
+#   without-gh-3774 -- the same, with 7e8f8ba86 reverted
+#
+# 7e8f8ba86 is the only commit in the window that touches the message completion path
+# (MessageSucceededContinuation / MessageContext / Executor / WolverineRuntime.Tracking); the other
+# two are a version bump and a RavenDb/CosmosDb-only change. If the revert comes back clean and the
+# baseline does not, that is the answer.
+on:
+  push:
+    branches: [ gh-3774-asb-probe ]
+  workflow_dispatch:
+
+env:
+  config: Release
+  disable_test_parallelization: true
+
+jobs:
+  probe:
+    name: asb-${{ matrix.arm }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        arm:
+          - baseline
+          - without-gh-3774
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # The revert below needs the parent commit present, so no shallow clone.
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Revert GH-3774
+        if: matrix.arm == 'without-gh-3774'
+        run: |
+          git config user.email "probe@example.com"
+          git config user.name "asb probe"
+          git revert --no-commit 7e8f8ba86
+          git status --short
+
+      # Retries OFF is the whole point: the standing policy retries a failure alone in a fresh
+      # process, which is exactly the condition under which this class passes, so the failure text
+      # never reaches the log.
+      - name: Run ASB with retries off
+        run: ./build.sh CIAzureServiceBus --framework net9.0 --disable-test-retry
+
+      - name: Stop containers
+        if: always()
+        run: docker compose down
