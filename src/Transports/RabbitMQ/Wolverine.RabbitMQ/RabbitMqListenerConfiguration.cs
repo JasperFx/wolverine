@@ -132,14 +132,12 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
     }
 
     /// <summary>
-    /// When enabled, listener shutdown will wait for all prefetched messages in the RabbitMQ
-    /// client's internal dispatch buffer to be fully delivered before closing the channel.
-    /// Prevents silent redeliveries of prefetched-but-unprocessed messages. Default is false.
+    /// When enabled, listener shutdown waits for prefetched messages in the RabbitMQ client's dispatch
+    /// buffer to be delivered before closing the channel, preventing silent redeliveries of
+    /// prefetched-but-unprocessed messages. Default is false.
     ///
-    /// Only a guarantee at a <c>ConsumerDispatchConcurrency</c> of 1 (the default). At higher
-    /// dispatch concurrency the client processes deliveries and the broker's cancel-ok in parallel,
-    /// so it degrades to best-effort -- some prefetched messages may still be redelivered -- but
-    /// remains better than not waiting at all.
+    /// Only a hard guarantee at <c>ConsumerDispatchConcurrency</c> of 1 (the default); at higher
+    /// concurrency it degrades to best-effort as deliveries and cancel-ok are handled in parallel.
     /// </summary>
     public RabbitMqListenerConfiguration DrainWaitForPrefetch()
     {

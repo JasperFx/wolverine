@@ -78,10 +78,9 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     }
 
     /// <summary>
-    /// Wait until the broker has replied cancel-ok for <paramref name="count"/> cancelled consumer
-    /// tags. Each cancel-ok is dispatched by the client only after every prefetched delivery ahead of
-    /// it in the FIFO dispatcher queue has been processed, so once all are in the prefetch backlog has
-    /// drained (to the batching channel, in durable micro-batching mode).
+    /// Wait for the broker's cancel-ok on <paramref name="count"/> cancelled consumer tags. The client
+    /// dispatches each cancel-ok only after every prefetched delivery ahead of it in FIFO order, so once
+    /// all arrive the prefetch backlog has drained (to the batching channel, in micro-batching mode).
     /// </summary>
     internal async Task WaitForCancelOksAsync(int count, CancellationToken token)
     {
@@ -92,9 +91,9 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     }
 
     /// <summary>
-    /// Flush batched-but-undelivered envelopes to the receiver and await that flush. In durable
-    /// micro-batching mode basic.cancel-ok only guarantees deliveries reached the batching channel,
-    /// so a drain must await this or the receiver latches first and the batch is redelivered.
+    /// Flush any batched-but-undelivered envelopes to the receiver and await that flush. cancel-ok only
+    /// guarantees deliveries reached the batching channel, so without this the receiver latches first and
+    /// the batch is redelivered.
     /// </summary>
     internal async Task DrainBatchedDeliveriesAsync()
     {

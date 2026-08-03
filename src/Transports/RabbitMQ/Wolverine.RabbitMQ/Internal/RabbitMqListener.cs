@@ -152,8 +152,8 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         {
             if (!Queue.DrainWaitForPrefetch)
             {
-                // nowait cancel: the broker sends no cancel-ok, and any still-prefetched deliveries
-                // are left for the broker to requeue on channel close.
+                // nowait cancel: no cancel-ok, and still-prefetched deliveries are requeued by the
+                // broker on channel close.
                 foreach (var consumerTag in consumer.ConsumerTags)
                 {
                     await channel.BasicCancelAsync(consumerTag, true, default);
@@ -162,15 +162,12 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
                 return;
             }
 
-            // Cancel WITHOUT the nowait bit so the broker replies cancel-ok; the consumer dispatcher
-            // raises that callback (HandleBasicCancelOkAsync) only after every prefetched delivery ahead
-            // of it in FIFO order has been dispatched. In durable micro-batching mode "dispatched" only
-            // means the delivery reached the batching channel, so also drain that batch to the receiver
-            // before returning -- otherwise the caller latches the receiver first and the batch is
-            // deferred back to the broker (redelivered). Bound the whole wait on the same graceful-drain
-            // budget as the rest of shutdown and log-and-continue on timeout or broker error so an
-            // unreachable broker can't abort the caller's stop-and-drain, which still has to drain the
-            // receiver and dispose this listener.
+            // Cancel WITHOUT nowait so the broker replies cancel-ok, which the client dispatches only
+            // after every prefetched delivery ahead of it in FIFO order. In durable micro-batching mode
+            // that only means the deliveries reached the batching channel, so drain that batch too --
+            // otherwise the caller latches the receiver first and the batch is redelivered. Bound the
+            // wait on the shared drain budget and log-and-continue so an unreachable broker can't abort
+            // the caller's stop-and-drain.
             using var cts = new CancellationTokenSource(_runtime.DurabilitySettings.DrainTimeout);
             try
             {

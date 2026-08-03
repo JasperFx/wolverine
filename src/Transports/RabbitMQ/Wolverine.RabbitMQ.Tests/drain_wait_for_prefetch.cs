@@ -18,18 +18,12 @@ using Xunit;
 
 namespace Wolverine.RabbitMQ.Tests;
 
-// Coverage for RabbitMqListenerConfiguration.DrainWaitForPrefetch(): with the flag on, listener
-// StopAsync sends basic.cancel WITHOUT nowait and awaits cancel-ok (plus a batch flush for durable
-// micro-batching) before returning, so prefetched-but-unprocessed deliveries are handed to the
-// receiver and durably persisted to the inbox instead of being abandoned to broker redelivery.
-// Without the flag, StopAsync sends a nowait cancel and returns immediately, and the listener is
-// disposed (tearing down the channel) right behind it -- any delivery still sitting in the
-// RabbitMQ client's own dispatch buffer at that instant is simply lost and left for the broker to
-// requeue. Note this is about persistence, not synchronous handling: once the receiver latches
-// mid-drain, any delivery that hasn't yet reached the handler pipeline is persisted and deferred
-// for the durability agent to recover rather than executed inline (pre-existing DurableReceiver
-// shutdown behavior) -- so the assertion here is "every prefetched delivery survives durably",
-// not "every prefetched delivery's handler ran before stop returned".
+// With DrainWaitForPrefetch on, StopAsync cancels WITHOUT nowait and awaits cancel-ok (plus a batch
+// flush in durable micro-batching mode), so prefetched deliveries land in the inbox instead of being
+// abandoned to broker redelivery. This asserts durable survival, not synchronous handling: the
+// receiver latches mid-drain and defers late arrivals to the durability agent (existing
+// DurableReceiver behavior), so the guarantee is "every prefetched delivery persists", not "every
+// handler ran before stop returned".
 public class drain_wait_for_prefetch : IAsyncLifetime
 {
     private IHost _host = null!;
@@ -61,10 +55,9 @@ public class drain_wait_for_prefetch : IAsyncLifetime
 
                 opts.PublishMessage<DrainPrefetchMessage>().ToRabbitQueue(_queueName);
 
-                // Durable + the default MaximumMessagesToReceive (100) is exactly the combination
-                // that turns on WorkerQueueMessageConsumer's micro-batching channel, so this
-                // exercises RabbitMqListener.StopAsync's DrainBatchedDeliveriesAsync call, not just
-                // the CancelOkReceived wait.
+                // Durable + the default MaximumMessagesToReceive (100) turns on the micro-batching
+                // channel, so this exercises StopAsync's DrainBatchedDeliveriesAsync path, not just
+                // the cancel-ok wait.
                 opts.ListenToRabbitQueue(_queueName)
                     .UseDurableInbox()
                     .DrainWaitForPrefetch()
@@ -88,13 +81,10 @@ public class drain_wait_for_prefetch : IAsyncLifetime
         _host.Dispose();
     }
 
-    // This is the test that would fail if StopAsync reverted to a fire-and-forget nowait cancel:
-    // the gated mapper guarantees 24 of the 25 published messages are still undispatched in the
-    // RabbitMQ client at the instant StopAndDrainAsync is called. Reverted to fire-and-forget, the
-    // channel tears down behind the nowait cancel before the client ever hands those 24 to
-    // HandleBasicDeliverAsync, so they'd never even reach the inbox -- durably persisting all 25
-    // (rather than only however many happened to race ahead of the cancel) is only possible
-    // because StopAsync waited for cancel-ok and drained the batching channel first.
+    // Reverted to a fire-and-forget nowait cancel, this fails: the gated mapper keeps 24 of the 25
+    // messages undispatched in the client, and the channel would tear down before they reached
+    // HandleBasicDeliverAsync. Persisting all 25 is only possible because StopAsync awaited cancel-ok
+    // and drained the batching channel first.
     [Fact]
     public async Task prefetched_durable_batch_is_drained_through_on_stop()
     {
@@ -106,11 +96,9 @@ public class drain_wait_for_prefetch : IAsyncLifetime
             await bus.PublishAsync(new DrainPrefetchMessage(Guid.NewGuid()));
         }
 
-        // Wait until the FIRST delivery is blocking the client's single dispatch thread (default
-        // ConsumerDispatchConcurrency is 1) -- this guarantees no delivery has been dispatched
-        // past it yet. The broker still routes and pushes the other 24 onto the wire while that
-        // first delivery sits blocked, so give that a moment to land before stopping -- otherwise
-        // some of the 24 may still be in flight from the broker rather than already prefetched.
+        // Block on the first delivery in the client's single dispatch thread (ConsumerDispatchConcurrency
+        // 1), so nothing dispatches past it. The broker still pushes the other 24 onto the wire while it
+        // sits blocked; give them a moment to land so they're prefetched, not still in flight.
         _mapper.Entered.WaitOne(10.Seconds())
             .ShouldBeTrue("the first prefetched delivery never reached the gated mapper");
         await Task.Delay(1.Seconds(), TestContext.Current.CancellationToken);
@@ -125,19 +113,16 @@ public class drain_wait_for_prefetch : IAsyncLifetime
 
         await stopTask.WaitAsync(30.Seconds(), TestContext.Current.CancellationToken);
 
-        // The durable guarantee this feature makes: every prefetched delivery is captured in the
-        // inbox, so none of them silently vanish and rely on the broker to redeliver them. (A
-        // handful may still be sitting as "Incoming" rather than "Handled" -- the receiver latches
-        // partway through the drain and defers anything that arrives after that point to the
-        // durability recovery sweep instead of running it inline; that's pre-existing shutdown
-        // behavior, not something this feature changes.)
+        // Every prefetched delivery is captured in the inbox rather than left to broker redelivery.
+        // Some may still be "Incoming" rather than "Handled": the receiver latches partway through the
+        // drain and defers later arrivals to the recovery sweep (pre-existing shutdown behavior).
         var incoming = await runtime.Storage.Admin.AllIncomingAsync();
         var persistedCount = incoming.Count(x => x.MessageType == typeof(DrainPrefetchMessage).ToMessageTypeName());
 
         persistedCount.ShouldBe(messageCount);
 
-        // And the ones that beat the receiver's shutdown latch ran through the actual handler,
-        // proving the drained deliveries reach the pipeline and not just the inbox table.
+        // And the ones that beat the shutdown latch ran through the handler, proving drained
+        // deliveries reach the pipeline, not just the inbox table.
         _tracker.Handled.Count.ShouldBeGreaterThan(0);
     }
 }
@@ -158,11 +143,9 @@ public static class DrainPrefetchMessageHandler
 }
 
 /// <summary>
-/// Wraps the default mapper and blocks the FIRST incoming delivery's envelope mapping until
-/// released. Mapping happens synchronously inside WorkerQueueMessageConsumer.HandleBasicDeliverAsync,
-/// so with the default ConsumerDispatchConcurrency of 1 this blocks the RabbitMQ client's single
-/// dispatch thread, guaranteeing every other already-prefetched delivery is still sitting
-/// undispatched in the client.
+/// Blocks the first incoming delivery's envelope mapping until released. Mapping runs synchronously in
+/// HandleBasicDeliverAsync, so at the default ConsumerDispatchConcurrency of 1 this blocks the client's
+/// single dispatch thread, keeping every other prefetched delivery undispatched.
 /// </summary>
 internal class GateFirstDeliveryMapper : IRabbitMqEnvelopeMapper
 {
@@ -200,8 +183,8 @@ internal class GateFirstDeliveryMapper : IRabbitMqEnvelopeMapper
     }
 }
 
-// Cheap parity check: a listener that never opts in keeps the old fire-and-forget behavior and
-// stops promptly, rather than picking up any waiting behavior by accident.
+// Parity check: a listener that never opts in keeps the old fire-and-forget behavior and stops
+// promptly.
 public class drain_wait_for_prefetch_default_off
 {
     [Fact]
