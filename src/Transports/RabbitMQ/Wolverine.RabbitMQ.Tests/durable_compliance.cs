@@ -20,7 +20,7 @@ public class RabbitMqTransportFixture : TransportComplianceFixture, IAsyncLifeti
 
         await SenderIs(opts =>
         {
-            var listener = $"listener{RabbitTesting.Number}";
+            var listener = RabbitTesting.NextListenerName();
 
             opts.Durability.Mode = DurabilityMode.Solo;
 

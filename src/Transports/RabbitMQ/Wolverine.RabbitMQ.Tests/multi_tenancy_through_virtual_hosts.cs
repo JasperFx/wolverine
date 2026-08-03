@@ -78,7 +78,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "one";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh1").DisableDeadLetterQueueing();
+                opts.UseRabbitMq(f => f.VirtualHost = "vh1").AutoPurgeOnStartup().DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -91,7 +91,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "two";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh2").DisableDeadLetterQueueing();
+                opts.UseRabbitMq(f => f.VirtualHost = "vh2").AutoPurgeOnStartup().DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -102,7 +102,7 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
             {
                 opts.Policies.DisableConventionalLocalRouting();
                 opts.ServiceName = "three";
-                opts.UseRabbitMq(f => f.VirtualHost = "vh3").DisableDeadLetterQueueing();
+                opts.UseRabbitMq(f => f.VirtualHost = "vh3").AutoPurgeOnStartup().DisableDeadLetterQueueing();
                 opts.ListenToRabbitQueue("multi_incoming");
                 
                 opts.Services.AddResourceSetupOnStartup();
@@ -144,20 +144,26 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
     }
 }
 
-// GH-3763: kept tagged, but this is NOT flakiness and the tag should not be read as "sometimes fails".
-// `send_message_to_a_specific_tenant` is DETERMINISTIC in both directions, measured on 2026-08-02:
+// GH-3763: untagged 2026-08-03, but NOT yet clean -- read this before assuming it is.
 //
-//   this class alone                                    7/7 pass, 3 runs
-//   this class alongside the other Rabbit suites        fails every time, 3 runs
+// The previous note said untagging "would put a guaranteed red in CIRabbitMQ". That is no longer true:
+// measured twice, CIRabbitMQ is GREEN at 472 passed with send_message_to_a_specific_tenant failing its
+// first attempt and passing on the supervisor's retry. So it is now visible debt in the retry ledger
+// (GH-3787) rather than 7 tests running nowhere, which is the trade this file is making on purpose.
 //
-// It fails in ~100ms — far short of its own 15s tracked-session timeout — so nothing is timing out;
-// the send is rejected or misrouted immediately. That is cross-class state on a shared broker, which is
-// the #1 shape called out in #3763, and it needs the interfering suite identified rather than another
-// retry budget. Untagging it would put a guaranteed red in CIRabbitMQ.
+// Two collisions were found and fixed in this pass, and neither was sufficient:
+//   - RabbitTesting handed out queue and exchange names from a static counter that restarts at zero in
+//     every worker PROCESS, so classes in different processes declared and bound the same names. See
+//     the note on RabbitTesting in end_to_end.cs.
+//   - Main purged on startup but the three tenant hosts did not, so a MultiTenantMessage left in
+//     multi_incoming on vh1/vh2/vh3 by an earlier run could be received alongside the new one and make
+//     SingleRecord throw.
 //
-// The other eight Rabbit classes that carried this tag were untagged in the same pass: 5 consecutive
-// clean runs, 41 tests, zero failures.
-[Trait("Category", "Flaky")]
+// What remains: the class still passes 7/7 alone and still costs exactly one retry in-suite, every run.
+// The remaining interference is unidentified. Next step is to dump the tracked session on the FIRST
+// attempt rather than infer from the assertion -- the fixture's queues (Queue1, multi_response,
+// global_response, multi_incoming) are fixed names in the shared default vhost and are the first
+// suspects.
 public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRabbitFixture>
 {
     private readonly MultiTenantedRabbitFixture _fixture;
