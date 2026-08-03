@@ -30,7 +30,11 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
     private const uint PreviousVersion = 2;
     private const uint BumpedVersion = 3;
 
-    private readonly List<string> _tenants = ["bgtenant1", "bgtenant2", "bgtenant3"];
+    // Our shape, and the one that makes a group big enough to matter: several tenants share a shard
+    // database, and events are tenant-partitioned, so the daemon runs an agent per
+    // (database, tenant, projection version) rather than one per (database, version).
+    private static readonly string[] _databases = ["bgshard1", "bgshard2", "bgshard3"];
+    private static readonly string[] _tenantsPerDatabase = ["alpha", "beta", "gamma"];
 
     private DocumentStore _blue = null!;
     private DocumentStore _green = null!;
@@ -43,9 +47,9 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
         await conn.OpenAsync(TestContext.Current.CancellationToken);
 
         var connectionStrings = new List<string>();
-        foreach (var tenant in _tenants)
+        foreach (var database in _databases)
         {
-            connectionStrings.Add(await CreateDatabaseIfNotExists(conn, tenant));
+            connectionStrings.Add(await CreateDatabaseIfNotExists(conn, database));
         }
 
         await conn.CloseAsync();
@@ -66,8 +70,18 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
     [Fact]
     public async Task the_two_fleets_advertise_the_bumped_projection_under_disjoint_identities()
     {
-        _blueAgents.ShouldNotBeEmpty();
-        _greenAgents.ShouldNotBeEmpty();
+        // Guard the shape this test exists for: agents are per (database, tenant, projection), so each
+        // shard database's group is tenants x projections deep. Without this, a change that stopped
+        // distributing per tenant would silently shrink every group to one agent per projection and this
+        // whole file would go on passing while testing something much weaker.
+        foreach (var database in _blueAgents.GroupBy(DatabaseKeyOf))
+        {
+            database.Count().ShouldBe(_tenantsPerDatabase.Length * 2,
+                $"{database.Key} must carry an agent per tenant for each of the two projections");
+        }
+
+        _blueAgents.Count.ShouldBe(_databases.Length * _tenantsPerDatabase.Length * 2);
+        _greenAgents.Count.ShouldBe(_blueAgents.Count);
 
         var blueBumped = AgentsFor(_blueAgents, "Trip");
         var greenBumped = AgentsFor(_greenAgents, "Trip");
@@ -161,13 +175,25 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
             // Nothing here writes or projects; the test only asks the store what it would advertise.
             opts.AutoCreateSchemaObjects = AutoCreate.None;
 
+            // Sharded shape: every database holds several tenants, and the event tables are partitioned
+            // per tenant, which is what turns IEventStore.DistributesAgentsPerTenant on and produces the
+            // per-(database, tenant) agents a real shard database's group is made of.
+            opts.Events.TenancyStyle = JasperFx.MultiTenancy.TenancyStyle.Conjoined;
+            opts.Events.UseTenantPartitionedEvents = true;
+            opts.Events.UseArchivedStreamPartitioning = false;
+
             opts.MultiTenantedDatabases(tenancy =>
             {
                 for (var i = 0; i < connectionStrings.Count; i++)
                 {
-                    tenancy.AddSingleTenantDatabase(connectionStrings[i], $"bgtenant{i + 1}");
+                    tenancy.AddMultipleTenantDatabase(connectionStrings[i], _databases[i])
+                        .ForTenants(_tenantsPerDatabase.Select(t => $"{_databases[i]}-{t}").ToArray());
                 }
             });
+
+            // Conjoined events require conjoined read models.
+            opts.Schema.For<BlueGreenTrip>().MultiTenanted();
+            opts.Schema.For<BlueGreenPassengerCount>().MultiTenanted();
 
             opts.Projections.Add(new TripProjection { Version = tripVersion }, ProjectionLifecycle.Async);
             opts.Projections.Add(new PassengerProjection(), ProjectionLifecycle.Async);
