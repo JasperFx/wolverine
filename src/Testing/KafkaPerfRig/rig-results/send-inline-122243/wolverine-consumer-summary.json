@@ -1,0 +1,68 @@
+{
+  "scenario": {
+    "harness": "wolverine",
+    "mode": "buffered",
+    "send": "inline",
+    "batchSize": 10,
+    "batchTimeoutMs": 10,
+    "sequencing": "semaphore",
+    "handlerMs": 9,
+    "maxParallel": 0,
+    "partitions": 12
+  },
+  "samples": 1204,
+  "small": {
+    "count": 961,
+    "transit_ms": {
+      "p50": 8.428,
+      "p95": 9.093,
+      "p99": 11.459,
+      "max": 23.849
+    },
+    "dwell_ms": {
+      "p50": 0.116,
+      "p95": 0.149,
+      "p99": 0.185,
+      "max": 14.557
+    },
+    "handler_ms": {
+      "p50": 11.055,
+      "p95": 11.088,
+      "p99": 11.838,
+      "max": 20.928
+    },
+    "total_ms": {
+      "p50": 19.366,
+      "p95": 20.257,
+      "p99": 23.87,
+      "max": 35.098
+    }
+  },
+  "large": {
+    "count": 72,
+    "transit_ms": {
+      "p50": 11.859,
+      "p95": 14.338,
+      "p99": 17.214,
+      "max": 17.214
+    },
+    "dwell_ms": {
+      "p50": 0.165,
+      "p95": 0.258,
+      "p99": 0.365,
+      "max": 0.365
+    },
+    "handler_ms": {
+      "p50": 11.052,
+      "p95": 11.13,
+      "p99": 18.434,
+      "max": 18.434
+    },
+    "total_ms": {
+      "p50": 22.865,
+      "p95": 25.693,
+      "p99": 31.652,
+      "max": 31.652
+    }
+  }
+}

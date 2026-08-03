@@ -54,6 +54,25 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
 
     internal bool IsFifoQueue => QueueName.EndsWith(".fifo", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    ///     The <c>MessageDeduplicationId</c> to send for this envelope, or null for none. A FIFO queue
+    ///     without <c>ContentBasedDeduplication</c> rejects any send that carries no
+    ///     <c>MessageDeduplicationId</c> at all, and Wolverine's own circuit-resume ping never has one --
+    ///     so a latched sender could never probe its way back on such a queue. Fall back to the envelope
+    ///     id for pings, which is unique per probe and is exactly the semantic we want (two pings must
+    ///     never dedupe against each other, which content-based deduplication would happily do since every
+    ///     ping body is identical). See GH-3793.
+    /// </summary>
+    internal static string? DetermineDeduplicationId(Envelope envelope)
+    {
+        if (envelope.DeduplicationId.IsNotEmpty())
+        {
+            return envelope.DeduplicationId;
+        }
+
+        return envelope.IsPing() ? envelope.Id.ToString() : null;
+    }
+
     // Set by the AmazonSqsTransport parent
     internal string? QueueUrl { get; private set; }
 
@@ -253,9 +272,10 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
                 request.MessageGroupId = envelope.GroupId;
             }
 
-            if (envelope.DeduplicationId.IsNotEmpty())
+            var deduplicationId = DetermineDeduplicationId(envelope);
+            if (deduplicationId.IsNotEmpty())
             {
-                request.MessageDeduplicationId = envelope.DeduplicationId;
+                request.MessageDeduplicationId = deduplicationId;
             }
         }
 

@@ -1,0 +1,71 @@
+{
+  "scenario": {
+    "harness": "wolverine",
+    "mode": "buffered",
+    "send": "batched",
+    "batchSize": 100,
+    "batchTimeoutMs": 250,
+    "sequencing": "semaphore",
+    "handlerMs": 9,
+    "maxParallel": 0,
+    "partitions": 12
+  },
+  "samples": 1204,
+  "small": {
+    "count": 1120,
+    "consumed_per_sec": 8,
+    "measured_count": 961,
+    "transit_ms": {
+      "p50": 136.495,
+      "p95": 261.402,
+      "p99": 262.317,
+      "max": 274.494
+    },
+    "dwell_ms": {
+      "p50": 0.084,
+      "p95": 0.199,
+      "p99": 0.229,
+      "max": 14.376
+    },
+    "handler_ms": {
+      "p50": 10.032,
+      "p95": 11.32,
+      "p99": 11.51,
+      "max": 11.802
+    },
+    "total_ms": {
+      "p50": 146.692,
+      "p95": 271.472,
+      "p99": 272.536,
+      "max": 283.787
+    }
+  },
+  "large": {
+    "count": 84,
+    "measured_count": 72,
+    "transit_ms": {
+      "p50": 264.409,
+      "p95": 266.279,
+      "p99": 266.832,
+      "max": 266.832
+    },
+    "dwell_ms": {
+      "p50": 0.196,
+      "p95": 0.283,
+      "p99": 0.312,
+      "max": 0.312
+    },
+    "handler_ms": {
+      "p50": 10.766,
+      "p95": 11.107,
+      "p99": 12.426,
+      "max": 12.426
+    },
+    "total_ms": {
+      "p50": 274.921,
+      "p95": 277.031,
+      "p99": 278.112,
+      "max": 278.112
+    }
+  }
+}
