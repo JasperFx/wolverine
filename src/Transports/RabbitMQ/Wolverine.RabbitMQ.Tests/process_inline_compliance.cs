@@ -23,7 +23,7 @@ public class ProcessInlineFixture : TransportComplianceFixture, IAsyncLifetime
 
         await SenderIs(opts =>
         {
-            var listener = $"listener{RabbitTesting.Number}";
+            var listener = RabbitTesting.NextListenerName();
 
             opts.Durability.Mode = DurabilityMode.Solo;
 

@@ -23,28 +23,60 @@ namespace Wolverine.RabbitMQ.Tests;
 
 public static class RabbitTesting
 {
-    public static int Number;
+    /// <summary>
+    /// Unique per process. A bare counter is not: it restarts at zero in every process, and Bobcat
+    /// partitions this project across several worker PROCESSES by class. Two tests in different
+    /// processes therefore declared and bound the SAME queue and exchange names against the one
+    /// shared broker and consumed each other's messages -- and because xUnit does not fix the order
+    /// of tests within a class, which pair collided moved from run to run. That is why
+    /// use_direct_exchange_with_binding_key and use_fan_out_exchange failed "one or the other,
+    /// every run" while each passes alone.
+    ///
+    /// It also repeated across runs on a persistent broker, so a queue could inherit a binding from
+    /// a previous run, and it could collide with the literal "exchange1"/"exchange3" used by
+    /// auto_declaration_of_rabbit_resources and when_adding_bindings. GH-3763.
+    /// </summary>
+    private static readonly string Token = Guid.NewGuid().ToString("N")[..8];
+
+    private static int _number;
 
     public static string NextQueueName()
     {
-        return $"messages{++Number}";
+        return $"messages-{Token}-{Interlocked.Increment(ref _number)}";
     }
 
     public static string NextExchangeName()
     {
-        return $"exchange{++Number}";
+        return $"exchange-{Token}-{Interlocked.Increment(ref _number)}";
+    }
+
+    /// <summary>
+    /// The three compliance fixtures used to build "listener{RabbitTesting.Number}" by READING the
+    /// counter without advancing it, so all three asked for the same queue -- "listener0" in a
+    /// fresh process -- and collided with each other and with every other worker process.
+    /// </summary>
+    public static string NextListenerName()
+    {
+        return $"listener-{Token}-{Interlocked.Increment(ref _number)}";
     }
 }
 
-// GH-3763: stays tagged, and the ledger entry now has numbers behind it. Measured 2026-08-02, this class
-// alone against a fresh broker, three consecutive runs: 18/20 pass every time and TWO fail every time.
+// GH-3763: stays tagged, but the earlier triage on this class was wrong in two ways and is replaced.
 //
-//   send_message_to_and_receive_through_rabbitmq_with_routing_key   fails 3 of 3  (deterministic)
-//   use_direct_exchange_with_binding_key / use_fan_out_exchange     one or the other, every run
+// It cited "the exchange/binding-declaration race described in #2618" -- #2618 is a closed CI-stabilisation
+// tracer PR that describes nothing of the sort -- and it recorded
+// send_message_to_and_receive_through_rabbitmq_with_routing_key as failing 3 of 3. That test passes now.
 //
-// So this is one hard failure plus a genuine flake, not one flaky class. Both fail in under 500ms, which
-// is the exchange/binding-declaration race described in #2618 rather than anything timing out. Needs the
-// deterministic binding-readiness gate that issue calls for before it can come off the list.
+// What is actually true, measured 2026-08-03: use_fan_out_exchange and use_direct_exchange_with_binding_key
+// each pass ALONE (3 consecutive runs) and fail inside the class. They fail in ~500ms, nowhere near their
+// 30s tracked-session timeout, on a null ColorHistory -- which is possible because
+// WaitForMessageToBeReceivedAt is satisfied by MessageFailed as well as MessageSucceeded, so a message that
+// arrives and then fails completes the session and the test falls through to the assertion.
+//
+// Two real causes were found and fixed in this pass (see RabbitTesting above, and the GH-3521 pins on the
+// receiver hosts), and they are not enough on their own: both tests still fail in-class. What remains is
+// unidentified cross-test state, and the next step is to dump the tracked session on failure rather than
+// infer from the assertion.
 [Trait("Category", "Flaky")]
 public class end_to_end
 {
@@ -561,7 +593,7 @@ public class end_to_end
     [Fact]
     public async Task use_fan_out_exchange()
     {
-        var exchangeName = "fanout1";
+        var exchangeName = RabbitTesting.NextExchangeName();
         var queueName1 = RabbitTesting.NextQueueName() + "e23";
         var queueName2 = RabbitTesting.NextQueueName() + "e23";
         var queueName3 = RabbitTesting.NextQueueName() + "e23";
@@ -579,6 +611,14 @@ public class end_to_end
 
         var receiver1 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName1);
@@ -587,6 +627,14 @@ public class end_to_end
 
         var receiver2 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName2);
@@ -595,6 +643,14 @@ public class end_to_end
 
         var receiver3 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName3);
@@ -644,6 +700,14 @@ public class end_to_end
 
         var receiver = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName);
@@ -697,6 +761,14 @@ public class end_to_end
 
         using var receiver1 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName1);
@@ -705,6 +777,14 @@ public class end_to_end
 
         using var receiver2 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName2);
@@ -713,6 +793,14 @@ public class end_to_end
 
         using var receiver3 = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName3);
@@ -750,6 +838,14 @@ public class end_to_end
 
         using var receiver = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName);
@@ -790,6 +886,14 @@ public class end_to_end
 
         using var receiver = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName);
@@ -828,6 +932,14 @@ public class end_to_end
 
         using var receiver = await WolverineHost.ForAsync(opts =>
         {
+            // GH-3521: the application assembly is a process-wide value pinned by whichever host
+            // started FIRST in the process. Without this, these receivers discovered NO handlers
+            // ("Wolverine found no handlers" in the log), ColorChosen failed for want of a handler,
+            // and WaitForMessageToBeReceivedAt completed anyway -- it is satisfied by MessageFailed
+            // as well as MessageSucceeded -- so the test fell through to a null ColorHistory in
+            // ~500ms rather than timing out. GH-3763.
+            opts.ApplicationAssembly = GetType().Assembly;
+
             opts.UseRabbitMq();
 
             opts.ListenToRabbitQueue(queueName);
