@@ -31,13 +31,13 @@ public abstract class ConventionalRoutingContext : IAsyncLifetime
     /// a test's own IncludeTypes call and make conventional_listener_discovery.include_types pass
     /// whether the include filter works or not.
     /// </summary>
-    private static void narrowToTypesUnderTest(AzureServiceBusMessageRoutingConvention convention)
+    internal static void NarrowToTypesUnderTest(AzureServiceBusMessageRoutingConvention convention)
         => convention.ExcludeTypes(isNotUnderTest);
 
     internal async Task<IWolverineRuntime> theRuntime()
     {
         _host ??= await WolverineHost.ForAsync(opts =>
-            opts.UseAzureServiceBusTesting().UseConventionalRouting(narrowToTypesUnderTest).AutoProvision()
+            opts.UseAzureServiceBusTesting().UseConventionalRouting(NarrowToTypesUnderTest).AutoProvision()
                 .AutoPurgeOnStartup());
 
         return _host.Services.GetRequiredService<IWolverineRuntime>();
@@ -62,7 +62,7 @@ public abstract class ConventionalRoutingContext : IAsyncLifetime
             {
                 opts.UseAzureServiceBusTesting().UseConventionalRouting(convention =>
                 {
-                    narrowToTypesUnderTest(convention);
+                    NarrowToTypesUnderTest(convention);
                     configure(convention);
                 }).AutoProvision().AutoPurgeOnStartup();
             }).StartAsync();
