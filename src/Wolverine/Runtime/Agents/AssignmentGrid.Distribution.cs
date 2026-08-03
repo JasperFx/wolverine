@@ -330,6 +330,110 @@ public partial class AssignmentGrid
     private static string capabilityKey(Agent agent) =>
         string.Join(",", agent.CandidateNodes.Select(n => n.AssignedId).OrderBy(id => id));
 
+    /// <summary>
+    ///     Distribute agents of a scheme evenly across the nodes — except that any agent for which
+    ///     <paramref name="preferredNodeFor" /> names a node is placed on that node regardless of the even
+    ///     spread. Built for cross-family database affinity (GH-3785): a shard database's durability agent
+    ///     should live on whichever node already owns that database's event-subscription agents, so the
+    ///     database attracts ONE node's connection pool instead of two. Preferred placements are deliberately
+    ///     not ceiling-bounded — they piggyback on the other family's own balanced distribution, and the whole
+    ///     point is to co-locate with it even when that costs strict evenness here. The remaining agents (no
+    ///     preference) are spread evenly over the nodes counting only themselves toward the fill, with the
+    ///     same minimal-disruption behavior as <see cref="DistributeEvenly(string)" />.
+    /// </summary>
+    public void DistributeEvenlyWithAffinity(string scheme, Func<Uri, Node?> preferredNodeFor)
+    {
+        if (_nodes.Count == 0)
+        {
+            throw new InvalidOperationException("There are no active nodes");
+        }
+
+        var agents = AvailableAgentsForScheme(scheme);
+        if (agents.Count == 0)
+        {
+            return;
+        }
+
+        if (_nodes.Count == 1)
+        {
+            var only = _nodes[0];
+            foreach (var agent in agents)
+            {
+                only.Assign(agent);
+            }
+
+            return;
+        }
+
+        var remainder = new List<Agent>();
+        foreach (var agent in agents)
+        {
+            var preferred = preferredNodeFor(agent.Uri);
+            if (preferred == null)
+            {
+                remainder.Add(agent);
+                continue;
+            }
+
+            // Node.Assign detaches from any current node first, so an agent running away from its
+            // preferred node is MOVED (surfacing as a ReassignAgent command) — that one-time migration
+            // is what converges an existing cluster onto the per-database co-location. An agent already
+            // in place is left untouched, so the settled state is a fixed point.
+            if (!ReferenceEquals(agent.AssignedNode, preferred))
+            {
+                preferred.Assign(agent);
+            }
+        }
+
+        // The remainder — agents of databases with no other family's agents to follow — spreads evenly,
+        // counting only the remainder itself toward each node's fill. Counting the preferred placements
+        // too would push every no-affinity agent onto whichever nodes hold no projections, which is
+        // exactly backwards: those nodes have no pool open to ANY shard database yet.
+        var spread = (double)remainder.Count / _nodes.Count;
+        var minimum = (int)Math.Floor(spread);
+        var maximum = (int)Math.Ceiling(spread);
+
+        foreach (var node in _nodes)
+        {
+            var extras = node.ForCurrentlyAssigned(remainder).Skip(maximum).ToArray();
+            foreach (var agent in extras)
+            {
+                agent.Detach();
+            }
+        }
+
+        var missing = new Queue<Agent>(remainder.Where(x => x.AssignedNode == null));
+
+        foreach (var node in _nodes)
+        {
+            if (missing.Count == 0)
+            {
+                break;
+            }
+
+            var count = node.ForCurrentlyAssigned(remainder).Count();
+
+            for (var i = 0; i < minimum - count; i++)
+            {
+                if (missing.Count == 0)
+                {
+                    break;
+                }
+
+                node.Assign(missing.Dequeue());
+            }
+        }
+
+        while (missing.Count != 0)
+        {
+            var agent = missing.Dequeue();
+
+            var node = _nodes.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
+                       ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
+            node.Assign(agent);
+        }
+    }
+
     public bool AllNodesHaveSameCapabilities(string scheme)
     {
         return AllNodesHaveSameCapabilities(scheme, _ => true);

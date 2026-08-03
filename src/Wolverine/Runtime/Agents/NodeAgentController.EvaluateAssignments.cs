@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -111,7 +112,14 @@ public partial class NodeAgentController
             grid.WithNode(node);
         }
 
-        foreach (var agentFamily in _agentFamilies.Values)
+        // GH-3785: the durability family places each database's agent next to that database's
+        // event-subscription agents, which it can only see if those were assigned first — so it must
+        // evaluate last. Everything else keeps its registration order (OrderBy is stable), which
+        // previously put the durability family last only by Dictionary insertion-order accident.
+        var families = _agentFamilies.Values
+            .OrderBy(x => x.Scheme == PersistenceConstants.AgentScheme ? 1 : 0);
+
+        foreach (var agentFamily in families)
         {
             try
             {
