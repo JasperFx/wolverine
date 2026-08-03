@@ -345,21 +345,9 @@ partial class Build : NukeBuild
     Target DockerUp => _ => _
         .Executes(() =>
         {
-            bool IsToolAvailable(string toolName)
-            {
-                try
-                { ToolPathResolver.GetPathExecutable(toolName);
-                  return true; }
-                catch (ArgumentException)
-                { return false; }
-            }
-
-            string toolName = new List<string> { "docker", "podman" }
-                                  .FirstOrDefault(IsToolAvailable) ?? "docker";
-            ProcessTasks
-                .StartProcess(toolName, "compose up -d", logOutput: false)
-                .AssertWaitForExit()
-                .AssertZeroExitCode();
+            // Shares ComposeUp with the CI targets so this path gets the same registry-timeout
+            // retry — it pulls every image in the compose file, so it is the most exposed of all.
+            ComposeUp("compose up -d", "all services");
             WaitForDatabaseToBeReady();
         });
 
