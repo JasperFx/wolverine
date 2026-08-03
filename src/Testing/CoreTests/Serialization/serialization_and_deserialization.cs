@@ -231,6 +231,18 @@ public class serialization_and_deserialization_of_single_message
         incoming.GroupId.ShouldBe(outgoing.GroupId);
     }
     
+    /// <summary>
+    ///     GH-3793. Without this the durable outbox round-trip silently dropped the
+    ///     MessageDeduplicationId, and every recovered envelope was rejected outright by
+    ///     an SNS/SQS FIFO destination that doesn't have ContentBasedDeduplication turned on.
+    /// </summary>
+    [Fact]
+    public void deduplication_id()
+    {
+        outgoing.DeduplicationId = Guid.NewGuid().ToString();
+        incoming.DeduplicationId.ShouldBe(outgoing.DeduplicationId);
+    }
+
     [Fact]
     public void partition_key()
     {

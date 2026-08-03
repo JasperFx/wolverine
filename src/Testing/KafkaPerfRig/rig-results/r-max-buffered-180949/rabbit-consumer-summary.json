@@ -1,0 +1,43 @@
+{
+  "scenario": {
+    "harness": "wolverine-rabbit",
+    "mode": "buffered",
+    "send": "default",
+    "batchSize": 10,
+    "batchTimeoutMs": 10,
+    "sequencing": "none",
+    "handlerMs": 0,
+    "maxParallel": 0,
+    "listenerCount": 0
+  },
+  "samples": 1221864,
+  "small": {
+    "count": 1221864,
+    "consumed_per_sec": 15329.5,
+    "measured_count": 391792,
+    "transit_ms": {
+      "p50": 51781.995,
+      "p95": 55120.09,
+      "p99": 55420.494,
+      "max": 55494.65
+    },
+    "dwell_ms": {
+      "p50": 0.006,
+      "p95": 0.027,
+      "p99": 0.104,
+      "max": 3.705
+    },
+    "handler_ms": {
+      "p50": 0,
+      "p95": 0,
+      "p99": 0,
+      "max": 0.699
+    },
+    "total_ms": {
+      "p50": 51782.001,
+      "p95": 55120.098,
+      "p99": 55420.499,
+      "max": 55494.658
+    }
+  }
+}

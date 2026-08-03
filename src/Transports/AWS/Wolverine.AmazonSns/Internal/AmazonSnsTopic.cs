@@ -67,6 +67,29 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
     
     public string TopicName { get; }
     public string TopicArn { get; set; }
+
+    // AWS requires FIFO topics to carry the ".fifo" suffix, so the name is the only thing
+    // we need to tell the two topic types apart. Mirrors AmazonSqsQueue.IsFifoQueue.
+    internal bool IsFifoTopic => TopicName.EndsWith(".fifo", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    ///     The <c>MessageDeduplicationId</c> to publish for this envelope, or null for none. A FIFO topic
+    ///     without <c>ContentBasedDeduplication</c> rejects any publish that carries no
+    ///     <c>MessageDeduplicationId</c> at all, and Wolverine's own circuit-resume ping never has one --
+    ///     so a latched sender could never probe its way back on such a topic. Fall back to the envelope
+    ///     id for pings, which is unique per probe and is exactly the semantic we want (two pings must
+    ///     never dedupe against each other, which content-based deduplication would happily do since every
+    ///     ping body is identical). See GH-3793.
+    /// </summary>
+    internal static string? DetermineDeduplicationId(Envelope envelope)
+    {
+        if (envelope.DeduplicationId.IsNotEmpty())
+        {
+            return envelope.DeduplicationId;
+        }
+
+        return envelope.IsPing() ? envelope.Id.ToString() : null;
+    }
     
     [ChildDescription]
     public CreateTopicRequest Configuration { get; }
@@ -136,9 +159,16 @@ public class AmazonSnsTopic : Endpoint, IBrokerQueue
             request.MessageGroupId = envelope.GroupId;
         }
 
-        if (envelope.DeduplicationId.IsNotEmpty())
+        // SNS rejects MessageDeduplicationId outright on a standard topic ("the request includes
+        // MessageDeduplicationId parameter that is not valid for this topic type"), so this has to be
+        // gated the same way AmazonSqsQueue gates it. See GH-3793.
+        if (IsFifoTopic)
         {
-            request.MessageDeduplicationId = envelope.DeduplicationId;
+            var deduplicationId = DetermineDeduplicationId(envelope);
+            if (deduplicationId.IsNotEmpty())
+            {
+                request.MessageDeduplicationId = deduplicationId;
+            }
         }
 
         foreach (var attribute in Mapper!.ToAttributes(envelope))

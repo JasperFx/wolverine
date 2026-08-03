@@ -1,0 +1,14 @@
+{
+  "scenario": {
+    "harness": "wolverine",
+    "mode": "durable",
+    "send": "batched",
+    "batchSize": 100,
+    "batchTimeoutMs": 250,
+    "sequencing": "none",
+    "handlerMs": 0,
+    "maxParallel": 0,
+    "partitions": 12
+  },
+  "samples": 107968
+}

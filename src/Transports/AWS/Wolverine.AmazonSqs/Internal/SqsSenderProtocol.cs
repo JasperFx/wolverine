@@ -65,9 +65,10 @@ internal class OutgoingSqsBatch
                     {
                         entry.MessageGroupId = envelope.GroupId;
                     }
-                    if (envelope.DeduplicationId.IsNotEmpty())
+                    var deduplicationId = AmazonSqsQueue.DetermineDeduplicationId(envelope);
+                    if (deduplicationId.IsNotEmpty())
                     {
-                        entry.MessageDeduplicationId = envelope.DeduplicationId;
+                        entry.MessageDeduplicationId = deduplicationId;
                     }
                 }
 
