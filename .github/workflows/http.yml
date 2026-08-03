@@ -35,11 +35,17 @@ jobs:
       - name: Exercise the openapi command
         run: ./build.sh OpenApiCommand --framework net9.0
 
+      # CI_JOB_NAME names each run in the retry ledger written to the job summary
+      # (build/RetryLedger.cs).
       - name: Run HTTP Tests
+        env:
+          CI_JOB_NAME: CIHttp
         run: ./build.sh CIHttp --framework net9.0
 
       # Asp.Versioning tests are pinned to net10.0
       - name: Run HTTP Asp.Versioning Tests
+        env:
+          CI_JOB_NAME: CIHttpAspVersioning
         run: ./build.sh CIHttpAspVersioning
 
       - name: Stop containers

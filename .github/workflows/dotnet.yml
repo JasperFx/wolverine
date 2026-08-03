@@ -36,6 +36,9 @@ jobs:
           echo "### Version: $version" >> $GITHUB_STEP_SUMMARY
 
       - name: Test
+        # Names this run in the retry ledger written to the job summary (build/RetryLedger.cs).
+        env:
+          CI_JOB_NAME: dotnet-ci
         run: ./build.sh ci
 
       # The CI target now also runs MessageRoutingTests, which boots a real

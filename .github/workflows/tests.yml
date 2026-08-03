@@ -91,6 +91,9 @@ jobs:
       - name: Run Tests
         env:
           MEMORY_TELEMETRY: ${{ matrix.memory_telemetry }}
+          # Names this job in the retry ledger (build/RetryLedger.cs). GITHUB_JOB is the matrix's
+          # job id -- the same string, "test", for all thirty of these -- so it cannot be used.
+          CI_JOB_NAME: ${{ matrix.target }}
         run: |
           # The sampler has to live inside this step: when the runner is killed, later steps are
           # skipped, so only what has already been streamed to this step's log survives. See #3771.
@@ -111,6 +114,65 @@ jobs:
           echo "::endgroup::"
           free -m
 
+      # The per-job half of GH-3787. `if: always()` because a job that FAILED is exactly the one
+      # whose retry count is worth having -- and a job killed by the 20-minute cap uploads nothing
+      # at all, which the roll-up below reports as unmeasured rather than as clean.
+      - name: Upload retry ledger
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-ledger-${{ matrix.target }}
+          path: artifacts/test-ledger/
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Stop containers
         if: always()
         run: docker compose down
+
+  # The run-level half of GH-3787. Aggregates every job's ledger into one table on the run summary
+  # and diffs it against the last `main` run that published one.
+  #
+  # This exists because the absolute retry count was never the signal: CIAzureServiceBus sat at 22 of
+  # 25 retries for four consecutive GREEN main runs, and the step from 1 to 22 between two adjacent
+  # runs was the thing worth seeing. Nowhere had that number ever been written down to compare
+  # against. Informational only -- it never fails the run.
+  flakiness:
+    name: Flakiness roll-up
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # Fails when nothing matches, which is a legitimate state: every test job can have died before
+      # it wrote a ledger. The roll-up reports that as unmeasured, so it must survive to run.
+      - name: Download retry ledgers
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-ledger-*
+          path: ledgers
+          merge-multiple: false
+
+      - name: Roll up
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./build/flakiness-report.sh ledgers rollup
+
+      # This run's aggregate becomes the next run's baseline. Only from `main`: a PR's numbers are
+      # measured against main, never the other way round, or one noisy branch would move the bar.
+      - name: Publish this run's baseline
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-ledger-run
+          path: rollup/aggregate.json
+          if-no-files-found: warn
+          retention-days: 90

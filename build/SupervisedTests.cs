@@ -44,6 +44,13 @@ partial class Build
     [Parameter] readonly bool DisableTestRetry;
 
     /// <summary>
+    /// Retries a whole project run may spend before every remaining failure is reported as failed
+    /// WITHOUT being retried at all. Read the retry ledger (see RetryLedger.cs) against this number:
+    /// a run at the cap is not "N flaky tests", it is N flaky tests plus an unknown tail.
+    /// </summary>
+    const int MaxRetriesPerRun = 25;
+
+    /// <summary>
     /// The standing exclusion every CI target applies: tests tagged [Trait("Category", "Flaky")]
     /// do not run. Same semantics as the old vstest `Category!=Flaky` filter.
     /// </summary>
@@ -139,7 +146,7 @@ partial class Build
             TestFilter = shardFilter is null ? NotFlaky : t => NotFlaky(t) && shardFilter(t),
             RetryBudget = DisableTestRetry
                 ? RetryBudget.None
-                : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = 25 },
+                : new RetryBudget { MaxAttemptsPerTest = 3, MaxRetriesPerRun = MaxRetriesPerRun },
             // The policy below only ever asks for fresh-process retries, so idle lanes are
             // released before they run: without this, workers+1 test hosts sit resident at once,
             // which OOM-killed 16GB GitHub runners twice — both times during a retry.
@@ -151,7 +158,7 @@ partial class Build
 
         var results = supervisor.Run().GetAwaiter().GetResult();
 
-        return report(projectName, results, shardFilter is not null);
+        return report(projectName, framework, results, shardFilter is not null);
     }
 
     /// <summary>
@@ -175,8 +182,10 @@ partial class Build
         }
     }
 
-    bool report(string projectName, SupervisorResults results, bool hadShardFilter)
+    bool report(string projectName, string framework, SupervisorResults results, bool hadShardFilter)
     {
+        recordLedger(projectName, framework, results);
+
         if (results.AbortReason is not null)
         {
             Log.Error("=== {Project}: run ABORTED — {Reason} ===", projectName, results.AbortReason);
