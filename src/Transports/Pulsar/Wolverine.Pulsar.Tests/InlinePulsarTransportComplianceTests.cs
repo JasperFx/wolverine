@@ -40,5 +40,22 @@ public class InlinePulsarTransportFixture : TransportComplianceFixture, IAsyncLi
 }
 
 [Collection("acceptance")]
-[Trait("Category", "Flaky")]
-public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>;
+public class InlinePulsarTransportComplianceTests : TransportCompliance<InlinePulsarTransportFixture>
+{
+    // GH-3763. These four are not flaky -- they fail deterministically, every run, in all three Pulsar
+    // compliance fixtures, with "No ending activity detected" / "Expected ending activity was not
+    // detected". They are the requeue, retry-scheduling and dead-letter behaviours the transport has not
+    // implemented. Skipping just these restores the other 55 tests in this file's three fixtures, which
+    // pass; the whole classes used to be excluded for them. See GH-3797.
+    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
+    public override Task will_requeue_and_increment_attempts() => Task.CompletedTask;
+
+    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
+    public override Task can_schedule_retry() => Task.CompletedTask;
+
+    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
+    public override Task will_move_to_dead_letter_queue_with_exception_match() => Task.CompletedTask;
+
+    [Fact(Skip = "Pulsar does not implement this compliance behaviour yet -- see GH-3797. Skipped rather than tagged Flaky: it fails deterministically, on every run, alone or in a suite.")]
+    public override Task will_move_to_dead_letter_queue_without_any_exception_match() => Task.CompletedTask;
+}
