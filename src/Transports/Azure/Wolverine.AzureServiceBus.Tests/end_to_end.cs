@@ -8,9 +8,13 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-// GH-3786: NOT flaky -- 2 of 6 fail, 2.0m, deterministically, on a clean emulator (2.0.1) with the
-// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
-// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
+// NOT flaky, and NOT GH-3786: re-measured 2026-08-02 after the entity-name sanitizing fix, on a
+// freshly recreated emulator (2.0.1). Still 2 of 6, still deterministic, but 2.1m for the class and
+// no broker-initialization timeout anywhere in it -- the two failures are
+// send_and_receive_multiple_messages_to_queue_with_session_identifier and
+// split_messages_with_different_sessionids_into_separate_batches, i.e. SESSION handling, which
+// conventional routing never touched. The other 4 pass. Needs its own issue; do not fold it back
+// into GH-3786.
 [Trait("Category", "Flaky")]
 public class end_to_end : IAsyncLifetime
 {

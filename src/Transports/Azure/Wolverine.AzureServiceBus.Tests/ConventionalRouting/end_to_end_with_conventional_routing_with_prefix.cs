@@ -7,10 +7,6 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-// GH-3786: NOT flaky -- 1 of 1 fails, 2.8m, deterministically, on a clean emulator (2.0.1) with the
-// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
-// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
-[Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
 {
     private IHost _receiver = null!;
@@ -22,7 +18,8 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x => x.ExcludeTypes(t => t != typeof(RoutedMessage)))
+                .AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
@@ -31,7 +28,8 @@ public class end_to_end_with_conventional_routing_with_prefix : IAsyncLifetime
         {
             opts.UseAzureServiceBusTesting()
                 .PrefixIdentifiers("shazaam")
-                .UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                .UseConventionalRouting(x => x.ExcludeTypes(t => t != typeof(RoutedMessage)))
+                .AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }

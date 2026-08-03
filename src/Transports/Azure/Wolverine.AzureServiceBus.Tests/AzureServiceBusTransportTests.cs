@@ -112,4 +112,46 @@ public class AzureServiceBusTransportTests
         endpoints.ShouldContain(x => x.QueueName == "two");
         endpoints.ShouldContain(x => x.QueueName == "three");
     }
+
+    // GH-3786. Azure Service Bus rejects an entity name containing anything outside letters, numbers,
+    // '.', '-' and '_' with a 400 at PROVISIONING time, which BrokerTransport then retries twenty
+    // times over two minutes before reporting only "Unable to initialize the Broker asb in time".
+    // Conventional routing derives its names from the message type, so a handler taking an array --
+    // Handle(BatchedItem[] items) -- produced "...batcheditem[]" and took down broker startup for
+    // every conventionally-routed host in the assembly.
+    [Theory]
+    // The array type that actually caused it
+    [InlineData("Wolverine.Bugs.BatchedItem[]", "wolverine.bugs.batcheditem__")]
+    // Generic and nested message types have the same shape
+    [InlineData("Wolverine.Envelope`1[System.String]", "wolverine.envelope_1_system.string_")]
+    [InlineData("Outer+Inner", "outer_inner")]
+    [InlineData("has spaces", "has_spaces")]
+    public void sanitize_illegal_entity_characters(string identifier, string expected)
+    {
+        new AzureServiceBusTransport().SanitizeIdentifier(identifier).ShouldBe(expected);
+    }
+
+    // Substituting rather than stripping is what keeps distinct type names distinct.
+    [Fact]
+    public void sanitizing_does_not_collide_an_array_type_with_its_element_type()
+    {
+        var transport = new AzureServiceBusTransport();
+
+        transport.SanitizeIdentifier("BatchedItem[]")
+            .ShouldNotBe(transport.SanitizeIdentifier("BatchedItem"));
+    }
+
+    // No name that works today may change: a name containing an illegal character could never have
+    // been provisioned in the first place, so this must stay a pure no-op for legal names.
+    [Theory]
+    [InlineData("Wolverine.Bugs.BatchedItem", "wolverine.bugs.batcheditem")]
+    [InlineData("two-dead-letter-queue", "two-dead-letter-queue")]
+    [InlineData("wolverine.retries.MyService", "wolverine.retries.myservice")]
+    // '/' is kept: Azure Service Bus allows hierarchical entity paths, and an application already
+    // addressing "orders/priority" has to keep addressing the same entity.
+    [InlineData("orders/priority", "orders/priority")]
+    public void legal_identifiers_are_only_lowercased(string identifier, string expected)
+    {
+        new AzureServiceBusTransport().SanitizeIdentifier(identifier).ShouldBe(expected);
+    }
 }

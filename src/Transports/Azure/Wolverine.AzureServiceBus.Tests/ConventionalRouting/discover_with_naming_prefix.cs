@@ -5,29 +5,35 @@ using Wolverine.Runtime;
 using Xunit;
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-// GH-3786: NOT flaky -- 1 of 1 fails, 2.4m, deterministically, on a clean emulator (2.0.1) with the
-// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
-// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
-[Trait("Category", "Flaky")]
-public class discover_with_naming_prefix : IDisposable
+public class discover_with_naming_prefix : IAsyncLifetime
 {
-    private readonly IHost _host;
-    private readonly ITestOutputHelper _output;
+    private IHost _host = null!;
 
-    public discover_with_naming_prefix(ITestOutputHelper output)
+    public async ValueTask InitializeAsync()
     {
-        _output = output;
-        _host = Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAzureServiceBusTesting().PrefixIdentifiers("zztop").UseConventionalRouting().AutoProvision()
+                opts.UseAzureServiceBusTesting().PrefixIdentifiers("zztop")
+                    // Only the two types this test asserts on. Unrestricted conventional routing asks
+                    // for 28 queues and the emulator caps a namespace at 50 -- see the note on
+                    // ConventionalRoutingContext.isNotUnderTest. GH-3786.
+                    .UseConventionalRouting(x =>
+                        x.ExcludeTypes(t => t != typeof(RoutedMessage) && t != typeof(AsbMessage1)))
+                    .AutoProvision()
                     .AutoPurgeOnStartup();
-            }).Start();
+            }).StartAsync();
     }
 
-    public void Dispose()
+    // This class provisions PREFIXED queues, so its entities collide with no other test's names and
+    // every one of them counts separately against the emulator's namespace cap. It previously only
+    // disposed the host and left all of them behind, which is what pushed the classes running after
+    // it past 50 queues -- reported as a broker-initialization timeout with no mention of a cap.
+    public async ValueTask DisposeAsync()
     {
-        _host.Dispose();
+        if (_host != null) await _host.StopAsync();
+        _host?.Dispose();
+        await AzureServiceBusTesting.DeleteAllEmulatorObjectsAsync();
     }
 
     [Fact]

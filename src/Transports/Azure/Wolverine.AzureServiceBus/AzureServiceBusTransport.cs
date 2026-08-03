@@ -80,10 +80,43 @@ public partial class AzureServiceBusTransport : BrokerTransport<AzureServiceBusE
         }
     }
 
+    /// <summary>
+    /// Azure Service Bus accepts only letters, numbers, periods, hyphens and underscores in an entity
+    /// name segment (plus '/' as the segment separator for hierarchical paths). Anything else comes
+    /// back from the management API as a 400 with SubCode=40000 at provisioning time, which
+    /// <see cref="BrokerTransport{TEndpoint}.InitializeAsync"/> then retries twenty times over two
+    /// minutes before reporting only "Unable to initialize the Broker asb in time".
+    ///
+    /// That is what GH-3786 was: conventional routing derives its queue name from the message type,
+    /// and a handler taking an ARRAY -- <c>Handle(BatchedItem[] items)</c> -- yields
+    /// "…bugs.batcheditem[]". One such handler anywhere in the assembly took down broker startup for
+    /// every conventionally-routed host in it. Generic and nested message types ('&lt;', '&gt;', ',', '+')
+    /// have the same shape.
+    ///
+    /// Substituting rather than stripping keeps distinct type names distinct: <c>Foo[]</c> becomes
+    /// "foo__" and stays separable from <c>Foo</c>. No name that works today changes -- a name
+    /// containing an illegal character could never have been provisioned in the first place.
+    /// </summary>
     public override string SanitizeIdentifier(string identifier)
     {
-        return identifier.ToLowerInvariant();
+        var lowered = identifier.ToLowerInvariant();
+
+        char[]? corrected = null;
+        for (var i = 0; i < lowered.Length; i++)
+        {
+            if (isLegalEntityCharacter(lowered[i])) continue;
+
+            corrected ??= lowered.ToCharArray();
+            corrected[i] = '_';
+        }
+
+        return corrected is null ? lowered : new string(corrected);
     }
+
+    // '/' is kept because Azure Service Bus allows hierarchical entity PATHS, and an application
+    // already running against a name like "orders/priority" must keep addressing the same entity.
+    private static bool isLegalEntityCharacter(char c)
+        => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_' or '/';
 
     internal LightweightCache<string, AzureServiceBusTenant> Tenants { get; } = new(key => new AzureServiceBusTenant(key));
 

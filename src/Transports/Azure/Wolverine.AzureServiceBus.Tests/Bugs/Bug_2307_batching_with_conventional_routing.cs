@@ -10,9 +10,16 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.Bugs;
 
-// GH-3786: NOT flaky -- 1 of 1 fails, 0.1m -- NOT the 2m broker timeout, may differ, deterministically, on a clean emulator (2.0.1) with the
-// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
-// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
+// NOT flaky. Re-measured 2026-08-02 after the entity-name sanitizing fix: 1 of 1 still fails, but in
+// 5 SECONDS on a plain assertion instead of the 2-minute broker timeout, so the real defect is now
+// readable:
+//
+//   Expected a listener endpoint for queue 'wolverine.azureservicebus.tests.bugs.batcheditem'
+//   but found only: Wolverine.AzureServiceBus.Tests.Bugs.BatchedItem, AzureServiceBusResponses, ...
+//
+// The listener IS created for the batch element type (that much of GH-2307 works) -- its
+// EndpointName is just the raw type name rather than the sanitized queue name. A naming bug in the
+// GH-2307 fix, not a routing or provisioning failure. Needs its own issue.
 [Trait("Category", "Flaky")]
 public class Bug_2307_batching_with_conventional_routing : IAsyncLifetime
 {

@@ -8,10 +8,6 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests.ConventionalRouting;
 
-// GH-3786: NOT flaky -- 1 of 1 fails, 2.7m, deterministically, on a clean emulator (2.0.1) with the
-// GH-3783 readiness gate. BrokerInitializationException "Unable to initialize the Broker asb in
-// time". Re-tagged with the numbers rather than left bare; untag when GH-3786 is fixed.
-[Trait("Category", "Flaky")]
 public class end_to_end_with_conventional_routing : IAsyncLifetime
 {
     private IHost _receiver = null!;
@@ -22,7 +18,9 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
         _sender = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                opts.UseAzureServiceBusTesting()
+                    .UseConventionalRouting(x => x.ExcludeTypes(t => t != typeof(RoutedMessage)))
+                    .AutoProvision().AutoPurgeOnStartup();
                 opts.DisableConventionalDiscovery();
                 opts.ServiceName = "Sender";
 
@@ -32,7 +30,9 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime
         _receiver = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAzureServiceBusTesting().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+                opts.UseAzureServiceBusTesting()
+                    .UseConventionalRouting(x => x.ExcludeTypes(t => t != typeof(RoutedMessage)))
+                    .AutoProvision().AutoPurgeOnStartup();
                 opts.ServiceName = "Receiver";
                 
                 opts.Services.AddResourceSetupOnStartup();
