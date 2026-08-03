@@ -163,22 +163,25 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
             }
 
             // Cancel WITHOUT the nowait bit so the broker replies cancel-ok; the consumer dispatcher
-            // raises that callback (CancelOkReceived) only after every prefetched delivery ahead of it
-            // in FIFO order has been dispatched. In durable micro-batching mode "dispatched" only means
-            // the delivery reached the batching channel, so also drain that batch to the receiver before
-            // returning -- otherwise the caller latches the receiver first and the batch is deferred back
-            // to the broker (redelivered). Bound the whole wait and log-and-continue on timeout or broker
-            // error so an unreachable broker can't abort the caller's stop-and-drain, which still has to
-            // drain the receiver and dispose this listener.
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            // raises that callback (HandleBasicCancelOkAsync) only after every prefetched delivery ahead
+            // of it in FIFO order has been dispatched. In durable micro-batching mode "dispatched" only
+            // means the delivery reached the batching channel, so also drain that batch to the receiver
+            // before returning -- otherwise the caller latches the receiver first and the batch is
+            // deferred back to the broker (redelivered). Bound the whole wait on the same graceful-drain
+            // budget as the rest of shutdown and log-and-continue on timeout or broker error so an
+            // unreachable broker can't abort the caller's stop-and-drain, which still has to drain the
+            // receiver and dispose this listener.
+            using var cts = new CancellationTokenSource(_runtime.DurabilitySettings.DrainTimeout);
             try
             {
+                var cancelled = 0;
                 foreach (var consumerTag in consumer.ConsumerTags)
                 {
                     await channel.BasicCancelAsync(consumerTag, false, cts.Token);
+                    cancelled++;
                 }
 
-                await consumer.CancelOkReceived.WaitAsync(cts.Token);
+                await consumer.WaitForCancelOksAsync(cancelled, cts.Token);
                 await consumer.DrainBatchedDeliveriesAsync().WaitAsync(cts.Token);
             }
             catch (Exception e)

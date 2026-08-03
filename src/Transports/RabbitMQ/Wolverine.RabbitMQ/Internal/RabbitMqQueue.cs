@@ -104,6 +104,12 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     /// internal dispatch buffer to be delivered to the consumer before closing the channel. This
     /// prevents silent redeliveries of messages that were prefetched but not yet handed to the
     /// handler pipeline. Default is false.
+    ///
+    /// This is only a guarantee at <c>ConsumerDispatchConcurrency</c> of 1 (the default), where the
+    /// broker's cancel-ok reliably orders after every in-flight delivery. At higher dispatch
+    /// concurrency the client processes deliveries and the cancel-ok in parallel, so it degrades to
+    /// best-effort -- some prefetched messages may still be redelivered -- but remains better than
+    /// not waiting at all.
     /// </summary>
     public bool DrainWaitForPrefetch { get; set; }
 

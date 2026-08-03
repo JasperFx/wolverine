@@ -15,7 +15,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
-    private readonly TaskCompletionSource _cancelOkReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly SemaphoreSlim _cancelOks = new(0);
 
     // GH-3492: durable endpoints coalesce prefetched deliveries into Envelope[] batches so the
     // inbox persists them with one multi-VALUES insert instead of gating on one INSERT round
@@ -75,14 +75,21 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         // Push any accumulated-but-unflushed deliveries onward; anything genuinely in flight
         // is unacked and will be redelivered by the broker (and deduplicated by the inbox).
         _batching?.TriggerBatch();
-        _cancelOkReceived.TrySetResult();
     }
 
     /// <summary>
-    /// Completes when the broker's basic.cancel-ok has been dispatched by the client, meaning
-    /// all prefetched deliveries ahead of it in the FIFO dispatcher queue have been processed.
+    /// Wait until the broker has replied cancel-ok for <paramref name="count"/> cancelled consumer
+    /// tags. Each cancel-ok is dispatched by the client only after every prefetched delivery ahead of
+    /// it in the FIFO dispatcher queue has been processed, so once all are in the prefetch backlog has
+    /// drained (to the batching channel, in durable micro-batching mode).
     /// </summary>
-    internal Task CancelOkReceived => _cancelOkReceived.Task;
+    internal async Task WaitForCancelOksAsync(int count, CancellationToken token)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            await _cancelOks.WaitAsync(token);
+        }
+    }
 
     /// <summary>
     /// Flush batched-but-undelivered envelopes to the receiver and await that flush. In durable
@@ -103,7 +110,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
 
     public override Task HandleBasicCancelOkAsync(string consumerTag, CancellationToken cancellationToken = default)
     {
-        _cancelOkReceived.TrySetResult();
+        _cancelOks.Release();
         return base.HandleBasicCancelOkAsync(consumerTag, cancellationToken);
     }
 
