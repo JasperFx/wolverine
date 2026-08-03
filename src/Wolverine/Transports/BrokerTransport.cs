@@ -86,9 +86,12 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         await InitializeEndpointsAsync(runtime);
 
-        #pragma warning disable CS0219
-        var attempts = 1;
-        #pragma warning restore CS0219
+        // Whatever actually went wrong, kept so the exception thrown after the last attempt can carry
+        // it. Without this the only thing a caller ever sees is "Unable to initialize the Broker asb
+        // in time", and the cause survives nowhere but a log line inside a two-minute retry loop.
+        // GH-3786 was a flat 400 Bad Request on an illegal entity name -- never going to succeed on
+        // attempt 20 either -- and it read as a timeout for four months.
+        Exception? lastFailure = null;
 
         for (int i = 0; i < 20; i++)
         {
@@ -99,6 +102,7 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
             }
             catch (Exception e)
             {
+                lastFailure = e;
                 runtime.Logger.LogError(e, "Error trying to start message broker {Broker} on Attempt {Attempt} of 20", Protocol, i + 1);
                 if (i < 19)
                 {
@@ -108,7 +112,7 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
             }
         }
 
-        throw new BrokerInitializationException(this);
+        throw new BrokerInitializationException(this, lastFailure);
 
     }
 
@@ -161,8 +165,19 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
 public class BrokerInitializationException : Exception
 {
-    public BrokerInitializationException(IBrokerTransport transport) : base($"Unable to initialize the Broker {transport.Protocol} in time")
+    public BrokerInitializationException(IBrokerTransport transport) : this(transport, null)
     {
-        
+
+    }
+
+    /// <param name="innerException">
+    /// The failure from the LAST startup attempt. Always pass it when there was one: the message here
+    /// says only that the broker did not come up in time, which reads as a timing problem even when
+    /// the cause was a flat rejection that all twenty attempts were guaranteed to reproduce.
+    /// </param>
+    public BrokerInitializationException(IBrokerTransport transport, Exception? innerException)
+        : base($"Unable to initialize the Broker {transport.Protocol} in time", innerException)
+    {
+
     }
 }

@@ -16,7 +16,15 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
     {
         var topic = transport.Topics[identifier];
 
-        var subscriptionName = _subscriptionNameSource == null ? identifier : _subscriptionNameSource(messageType);
+        // `identifier` arrived already sanitized -- MessageRoutingConvention runs every listener
+        // identifier through transport.MaybeCorrectName. A caller-supplied _subscriptionNameSource
+        // does not go through that path, so it has to be sanitized here or an illegal character
+        // reaches the management API as a 400 that reads only as a broker-init timeout. GH-3786:
+        // SubscriptionNameForListener(t => t.Name.ToLowerInvariant()) over a Handle(BatchedItem[])
+        // handler produced the subscription name "batcheditem[]" against a correctly-named topic.
+        var subscriptionName = _subscriptionNameSource == null
+            ? identifier
+            : transport.SanitizeIdentifier(_subscriptionNameSource(messageType));
 
         var subscription =
             transport.Subscriptions.FirstOrDefault(x =>
@@ -36,7 +44,11 @@ public class AzureServiceBusTopicBroadcastingRoutingConvention : MessageRoutingC
     {
         var topic = transport.Topics[topicName];
         
-        var subscriptionName = _subscriptionNameSource == null ? transport.MaybeCorrectName(handlerType.FullName!) : _subscriptionNameSource(handlerType);
+        // Same reasoning as FindOrCreateListenerForIdentifier above: MaybeCorrectName already
+        // sanitizes the default, the caller-supplied source does not sanitize itself.
+        var subscriptionName = _subscriptionNameSource == null
+            ? transport.MaybeCorrectName(handlerType.FullName!)
+            : transport.SanitizeIdentifier(_subscriptionNameSource(handlerType));
 
         var subscription =
             transport.Subscriptions.FirstOrDefault(x =>
