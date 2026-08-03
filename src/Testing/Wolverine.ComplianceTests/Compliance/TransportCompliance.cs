@@ -578,7 +578,7 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
     }
 
     [Fact]
-    public async Task can_schedule_retry()
+    public virtual async Task can_schedule_retry()
     {
         throwOnAttempt<BadImageFormatException>(1);
 
