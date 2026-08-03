@@ -270,6 +270,151 @@ public class distribute_by_group_affinity
     }
 
     [Fact]
+    public void a_settled_blue_green_split_does_not_churn_on_the_next_evaluation()
+    {
+        // GH-3785 counted ~45,000 ReassignAgent decisions in six minutes during a rollout ramp. Whatever
+        // else contributes to that, the placement itself must be a fixed point: re-evaluating the settled
+        // split state — same fleet, same capabilities, everything running exactly where the previous
+        // evaluation put it — must move nothing. The partition incumbent rule (members[0].AssignedNode,
+        // all members on one node) is subtle enough to regress silently, so pin it.
+        var databases = new[] { "db1", "db2", "db3", "db4" };
+        var tenants = new[] { "t1", "t2" };
+
+        Uri Unchanged(string db, string tenant) =>
+            new($"event-subscriptions://marten/main/{db}/Other/All/v7/{tenant}");
+
+        Uri[] Across(Func<string, string, Uri> agent) =>
+            databases.SelectMany(db => tenants.Select(t => agent(db, t))).ToArray();
+
+        var previous = Across((db, t) => VersionedAgent(db, 22, t));
+        var bumped = Across((db, t) => VersionedAgent(db, 23, t));
+        var unchanged = Across(Unchanged);
+
+        var ids = Enumerable.Range(0, 4).Select(_ => Guid.NewGuid()).ToArray();
+
+        AssignmentGrid BuildGrid(out Dictionary<Guid, AssignmentGrid.Node> byId)
+        {
+            var grid = new AssignmentGrid();
+            var blues = new[] { grid.WithNode(1, ids[0]), grid.WithNode(2, ids[1]) };
+            var greens = new[] { grid.WithNode(3, ids[2]), grid.WithNode(4, ids[3]) };
+            foreach (var blue in blues) blue.HasCapabilities(previous.Concat(unchanged));
+            foreach (var green in greens) green.HasCapabilities(bumped.Concat(unchanged));
+            byId = blues.Concat(greens).ToDictionary(n => n.NodeId);
+            return grid;
+        }
+
+        var first = BuildGrid(out _);
+        first.WithAgents(previous.Concat(bumped).Concat(unchanged).ToArray());
+        first.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        var placement = first.AllAgents.ToDictionary(a => a.Uri, a => a.AssignedNode!.NodeId);
+
+        // Second evaluation: the first one's outcome is now reality — every agent RUNNING where it landed.
+        var second = BuildGrid(out var nodesById);
+        foreach (var byNode in placement.GroupBy(kv => kv.Value))
+        {
+            nodesById[byNode.Key].Running(byNode.Select(kv => kv.Key).ToArray());
+        }
+
+        second.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        var moved = second.AllAgents
+            .Where(a => a.AssignedNode!.NodeId != placement[a.Uri])
+            .Select(a => a.Uri.ToString())
+            .ToList();
+
+        moved.ShouldBeEmpty("a settled split state must be a fixed point of the placement, not churn");
+    }
+
+    [Fact]
+    public void a_rolling_restart_keeps_every_database_on_at_most_two_hosts()
+    {
+        // The partition key is the EXACT set of declaring node ids — stricter than "a common capable node
+        // exists", and flagged in the PR as a deliberate judgement call. This pins the invariant that makes
+        // the strictness safe to keep (or later relax): in a rolling restart, where capability sets overlap
+        // but are NOT equal — node 1 still on the old build and running everything, nodes 2 and 3 already
+        // restarted onto the new one — a database still lands on at most two hosts, so the strict key costs
+        // no extra connection pools. Anyone coarsening the key can refactor against this safely.
+        var databases = new[] { "db1", "db2", "db3" };
+        var tenants = new[] { "t1", "t2" };
+
+        Uri Unchanged(string db, string tenant) =>
+            new($"event-subscriptions://marten/main/{db}/Other/All/v7/{tenant}");
+
+        Uri[] Across(Func<string, string, Uri> agent) =>
+            databases.SelectMany(db => tenants.Select(t => agent(db, t))).ToArray();
+
+        var previous = Across((db, t) => VersionedAgent(db, 22, t));
+        var bumped = Across((db, t) => VersionedAgent(db, 23, t));
+        var unchanged = Across(Unchanged);
+
+        var grid = new AssignmentGrid();
+        var old = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(previous.Concat(unchanged));
+        old.Running(previous.Concat(unchanged).ToArray()); // was the whole cluster before the roll began
+        grid.WithNode(2, Guid.NewGuid()).HasCapabilities(bumped.Concat(unchanged));
+        grid.WithNode(3, Guid.NewGuid()).HasCapabilities(bumped.Concat(unchanged));
+
+        grid.WithAgents(previous.Concat(bumped).Concat(unchanged).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
+
+        foreach (var db in databases)
+        {
+            var hosts = tenants
+                .SelectMany(t => new[] { VersionedAgent(db, 22, t), VersionedAgent(db, 23, t), Unchanged(db, t) })
+                .Select(uri => grid.AgentFor(uri).AssignedNode)
+                .Distinct()
+                .ToList();
+
+            hosts.Count.ShouldBeLessThanOrEqualTo(2,
+                $"{db} landed on {hosts.Count} hosts — a rolling restart must not cost a third pool set per database");
+        }
+    }
+
+    [Fact]
+    public void asymmetric_fleets_strand_nothing_and_load_every_capable_node()
+    {
+        // A brand-new green fleet that declares ONLY the bumped agents (it has not been anything else yet)
+        // joins a blue fleet running everything. The per-node ceiling is computed over ALL nodes — including
+        // the ones incapable of most of the work — so this shape is where ceiling arithmetic would go wrong
+        // first: nothing may be left unassigned, every bumped agent must land green, and neither green node
+        // may sit idle while its twin takes the whole new version.
+        var databases = Enumerable.Range(1, 8).Select(i => $"db{i}").ToArray();
+        var tenants = new[] { "t1", "t2", "t3" };
+
+        Uri[] Across(uint version) =>
+            databases.SelectMany(db => tenants.Select(t => VersionedAgent(db, version, t))).ToArray();
+
+        var previous = Across(22);
+        var bumped = Across(23);
+
+        var grid = new AssignmentGrid();
+        var blues = new[] { grid.WithNode(1, Guid.NewGuid()), grid.WithNode(2, Guid.NewGuid()) };
+        var greens = new[] { grid.WithNode(3, Guid.NewGuid()), grid.WithNode(4, Guid.NewGuid()) };
+        foreach (var blue in blues) blue.HasCapabilities(previous);
+        blues[0].Running(previous.Take(previous.Length / 2).ToArray());
+        blues[1].Running(previous.Skip(previous.Length / 2).ToArray());
+        foreach (var green in greens) green.HasCapabilities(bumped);
+
+        grid.WithAgents(previous.Concat(bumped).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
+
+        foreach (var uri in bumped)
+        {
+            greens.ShouldContain(grid.AgentFor(uri).AssignedNode!,
+                $"{uri} may only run on the fleet that declares it");
+        }
+
+        greens.Select(g => g.ForScheme("event-subscriptions").Count())
+            .ShouldAllBe(count => count > 0, "no green node may sit idle while its twin hosts the whole new version");
+    }
+
+    [Fact]
     public void a_split_group_costs_only_as_many_nodes_as_the_capability_split_forces()
     {
         // The same version bump, now with the projections whose version did NOT change also in the group.
