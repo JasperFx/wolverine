@@ -26,7 +26,6 @@ namespace Wolverine.Kafka.Tests;
 /// It does NOT exercise the batch-insert path -- that is covered by the
 /// MessageStoreCompliance tests for each RDBMS backend.
 /// </summary>
-[Trait("Category", "Flaky")]
 public class duplicate_message_handling_with_postgres_inbox : IAsyncLifetime
 {
     private IHost _host = null!;
