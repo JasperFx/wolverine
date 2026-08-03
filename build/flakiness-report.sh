@@ -52,6 +52,9 @@ if [ "$(jq 'length' "${output_dir}/entries.json")" != "0" ]; then
   fi
 fi
 
+# flakyFailures carries the first-attempt failure reason alongside the name. The `// []` matters:
+# ledgers written before that field existed do not have it, and the baseline is downloaded from an
+# EARLIER run's artifact, so without the default one older baseline nulls the whole roll-up.
 jq '[group_by(.Job)[] | {
       job:           .[0].Job,
       tests:         (map(.Tests)            | add),
@@ -59,7 +62,8 @@ jq '[group_by(.Job)[] | {
       passedOnRetry: (map(.PassedOnRetry)    | add),
       failed:        (map(.Failed)           | add),
       indeterminate: (map(.Indeterminate)    | add),
-      flakyTests:    (map(.FlakyTests[])     | unique)
+      flakyTests:    (map(.FlakyTests[])     | unique),
+      flakyFailures: (map(.FlakyFailures // [] | .[]) | unique)
     }] | sort_by(-.retries, .job)' \
   "${output_dir}/entries.json" > "${output_dir}/aggregate.json"
 
@@ -194,7 +198,18 @@ delta_for() {
   if [ "${total_retries}" != "0" ]; then
     echo "<details><summary>Tests that only passed on a retry</summary>"
     echo
-    jq -r '.[] | select(.retries > 0) | "- **\(.job)**", (.flakyTests[] | "  - `\(.)`")' \
+    # Each test is followed by why its first attempt failed, when the ledger recorded one. A name
+    # alone says which test to look at; the reason is what makes it possible to act without
+    # reproducing the whole job.
+    jq -r '
+      def reason_for($t): [.flakyFailures[]? | select(.Test == $t)] | first;
+      .[] | select(.retries > 0)
+      | "- **\(.job)**",
+        (.flakyTests[] as $t
+         | "  - `\($t)`",
+           (reason_for($t)
+            | select(. != null and ((.ErrorType // .Reason) != null))
+            | "    - attempt \(.Attempt): \(.ErrorType // "")\(if .Reason then " — \(.Reason)" else "" end)"))' \
       "${output_dir}/aggregate.json"
     echo
     echo "</details>"
