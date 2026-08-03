@@ -46,12 +46,32 @@ public class Bug_2518_concurrent_migration_advisory_lock : PostgresqlContext
         }
     }
 
+    /// <summary>
+    /// A lock id belonging to this test alone, deliberately <b>not</b>
+    /// <see cref="DatabaseSettings.MigrationLockId"/>.
+    ///
+    /// <para>GH-3763. The advisory lock namespace is global to the Postgres server, and 4006 is the id
+    /// every Wolverine migration takes (<c>MessageDatabase.Admin</c>) — while Bobcat runs
+    /// PostgresqlTests across <b>three worker processes</b> against this one server. Any host
+    /// bootstrapping in a sibling process holds 4006 for the length of its DDL, so the assertions
+    /// below were racing every migration in a 470-test suite: the holder could fail to acquire, or
+    /// another session could take the lock in the window after the release. That is the entirety of
+    /// this test's flakiness — it cost CIPersistence its only retry of main run 30847233633.</para>
+    ///
+    /// <para>Nothing is lost by moving off 4006: what is under test is the mutual exclusion of the
+    /// primitive, not the numeric value of the constant, and the constant is never asserted on.
+    /// GH-2518's actual subject — that concurrent <c>MigrateAsync</c> calls serialize on the real
+    /// lock id — is covered by <see cref="concurrent_migrate_async_calls_do_not_race_on_create_schema"/>,
+    /// which still exercises the production path end to end.</para>
+    /// </summary>
+    private const int TestLockId = 25180001;
+
     [Fact]
-    public async Task migration_lock_id_is_actually_held_during_migration()
+    public async Task global_advisory_lock_is_exclusive_while_held()
     {
         // Verify the migration lock primitive itself works: while one connection holds
-        // the configured MigrationLockId, another cannot acquire it.
-        var lockId = new DatabaseSettings().MigrationLockId;
+        // a lock id, another cannot acquire it.
+        var lockId = TestLockId;
 
         await using var holder = new NpgsqlConnection(Servers.PostgresConnectionString);
         await holder.OpenAsync(TestContext.Current.CancellationToken);
