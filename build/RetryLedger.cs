@@ -115,8 +115,39 @@ partial class Build
             ErrorType = string.IsNullOrWhiteSpace(outcome?.ErrorType) ? null : outcome.ErrorType,
             // One line and bounded: this is a lead to open the log with, not a copy of it. A
             // multi-line reason would also break the ::warning workflow command downstream.
-            Reason = condense(outcome?.ErrorMessage)
+            Reason = condense(outcome?.ErrorMessage),
+            Stack = topFrames(outcome?.StackTrace)
         };
+    }
+
+    /// <summary>
+    /// The top frames of the failing attempt's stack, for the ledger JSON only.
+    ///
+    /// <para>The message says what went wrong; the stack is what says <i>where</i>, and for a whole
+    /// class of flake that is the only thing that distinguishes the candidates. The MQTT
+    /// <c>Broken pipe</c> flake is the worked example: the message alone is equally consistent with a
+    /// teardown ordering bug, a port collision between worker processes, and a keep-alive drop under
+    /// CI load. Three local experiments eliminated the first two and the third needs a call site, so
+    /// the investigation stalls on precisely this field.</para>
+    ///
+    /// <para>Deliberately kept out of the step summary, the annotation and the roll-up — all three are
+    /// glanceable surfaces and a stack would drown them. The JSON ledger is already a downloadable
+    /// artifact, which is the right place for something you go looking for on purpose.</para>
+    /// </summary>
+    static string[] topFrames(string stackTrace)
+    {
+        if (string.IsNullOrWhiteSpace(stackTrace)) return [];
+
+        // Enough to cross a teardown/dispatch boundary and name the caller, not so much that the
+        // ledger becomes a copy of the log.
+        const int maxFrames = 12;
+
+        return stackTrace
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0)
+            .Take(maxFrames)
+            .ToArray();
     }
 
     /// <summary>
@@ -290,5 +321,11 @@ partial class Build
 
         /// <summary>The failing attempt's own error message, flattened to one bounded line.</summary>
         public string Reason { get; init; }
+
+        /// <summary>
+        /// Top frames of the failing attempt's stack. Ledger JSON only — see <see cref="topFrames"/>
+        /// for why it is not rendered on the summary surfaces.
+        /// </summary>
+        public string[] Stack { get; init; } = [];
     }
 }
