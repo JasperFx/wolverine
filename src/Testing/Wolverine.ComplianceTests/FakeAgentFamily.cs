@@ -37,6 +37,16 @@ public class FakeAgentFamily : IStaticAgentFamily
         AgentNames = Enumerable.Range(0, agentCount).Select(i => $"agent-{i:D5}").ToArray();
     }
 
+    /// <summary>
+    ///     A family over explicit agent names — names may carry path segments (e.g. <c>db01/v22/t1</c>) so a
+    ///     test can model grouped, versioned agents the way <c>EventSubscriptionAgentFamily</c> URIs do.
+    /// </summary>
+    public FakeAgentFamily(string scheme, IReadOnlyList<string> agentNames)
+    {
+        Scheme = scheme;
+        AgentNames = agentNames;
+    }
+
     public string Scheme { get; } = "fake";
 
     public static string[] Names =
@@ -71,9 +81,25 @@ public class FakeAgentFamily : IStaticAgentFamily
 
     public LightweightCache<Uri, FakeAgent> Agents { get; } = new(x => new FakeAgent(x));
 
+    /// <summary>
+    ///     Override how this family distributes its agents over the grid. Defaults to the capability-blind
+    ///     <see cref="AssignmentGrid.DistributeEvenly(string)" />; a test simulating a sharded store sets this to
+    ///     <see cref="AssignmentGrid.DistributeByGroupAffinity(string, Func{Uri, string})" /> the way
+    ///     <c>EventSubscriptionAgentFamily</c> does for a multi-database store.
+    /// </summary>
+    public Action<AssignmentGrid>? Distribution { get; set; }
+
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
-        assignments.DistributeEvenly(Scheme);
+        if (Distribution != null)
+        {
+            Distribution(assignments);
+        }
+        else
+        {
+            assignments.DistributeEvenly(Scheme);
+        }
+
         return new ValueTask();
     }
 

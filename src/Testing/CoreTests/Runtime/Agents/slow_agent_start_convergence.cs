@@ -195,6 +195,88 @@ public class slow_agent_start_convergence
     }
 
     /// <summary>
+    /// GH-3753 is not about slow starts in general — production converges fine without a version bump. It is
+    /// about a deploy that CONTAINS one, which means slow starts and a blue/green capability split at the same
+    /// time. Until GH-3792 those two conditions were each covered by tests that passed while their
+    /// intersection failed, so this drives the field's actual deploy shape end to end: a sharded store's
+    /// grouped agents (DistributeByGroupAffinity, as EventSubscriptionAgentFamily uses for a multi-database
+    /// store), a green fleet that alone declares the bumped version, a blue leader whose own family cannot even
+    /// enumerate the green agents — and the long-tailed start costs on top.
+    /// </summary>
+    [Fact]
+    public async Task a_version_bump_converges_with_slow_starts_and_no_cross_fleet_placement()
+    {
+        var databases = Enumerable.Range(1, 12).Select(i => $"db{i:D2}").ToArray();
+        var tenants = new[] { "t1", "t2", "t3" };
+
+        string[] Names(string kind) =>
+            databases.SelectMany(db => tenants.Select(t => $"{db}/{kind}/{t}")).ToArray();
+
+        var previous = Names("v22");   // built only by the blue fleet
+        var bumped = Names("v23");     // built only by the green fleet
+        var unchanged = Names("same"); // the projections whose version did not change — built by everyone
+
+        Uri[] Uris(IEnumerable<string> names) => names.Select(x => new Uri($"fake://{x}")).ToArray();
+
+        // The leader is blue: exactly as in production, its own family enumerates only what its store
+        // registers, so the green agents reach the grid solely through the green nodes' capabilities.
+        var family = new FakeAgentFamily("fake", previous.Concat(unchanged).ToArray())
+        {
+            // What EventSubscriptionAgentFamily.EvaluateAssignmentsAsync does for a multi-database store:
+            // group affinity keyed on the database segment.
+            Distribution = grid => grid.DistributeByGroupAffinity("fake", uri => uri.Host)
+        };
+
+        var blueCapabilities = Uris(previous.Concat(unchanged));
+        var greenCapabilities = Uris(bumped.Concat(unchanged));
+
+        // Nodes 0-1 blue (node 0 is the leader), nodes 2-3 green.
+        var cluster = new SlowStartCluster(nodeCount: 4, family, seed: 3753,
+            capabilitiesFor: i => i < 2 ? blueCapabilities : greenCapabilities);
+        cluster.StartCost = fieldStartCost(3753, cluster.AllAgents);
+
+        var rounds = await cluster.RunUntilConvergedAsync(maxRounds: 60);
+
+        // Every agent of BOTH fleets is running — the bug behind GH-3792 made this impossible: the bumped
+        // agents were assigned to blue nodes that cannot build them and the new version never started.
+        cluster.RunningAgents.Count.ShouldBe(cluster.AllAgents.Length);
+        rounds.ShouldBeLessThan(60);
+
+        // No agent ever landed on a fleet that cannot build it, at any point during the wave.
+        var blues = new[] { cluster.NodeIdAt(0), cluster.NodeIdAt(1) };
+        var greens = new[] { cluster.NodeIdAt(2), cluster.NodeIdAt(3) };
+
+        foreach (var uri in Uris(previous))
+        {
+            blues.ShouldContain(cluster.RunningAssignments[uri], $"{uri} is the blue fleet's version");
+        }
+
+        foreach (var uri in Uris(bumped))
+        {
+            greens.ShouldContain(cluster.RunningAssignments[uri], $"{uri} is the green fleet's version");
+        }
+
+        // The slow wave generated no churn: nothing was stopped or re-decided while starts were in flight.
+        cluster.DoubleStartReports.ShouldBeEmpty();
+        cluster.StopsEmitted.ShouldBe(0);
+        cluster.ReassignmentsEmitted.ShouldBe(0);
+
+        // And the connection-pool bound that group affinity exists for held through the whole rollout shape:
+        // a database's agents sit on at most two nodes — one per version — not one per agent.
+        foreach (var db in databases)
+        {
+            var hosts = tenants
+                .SelectMany(t => new[] { $"{db}/v22/{t}", $"{db}/v23/{t}", $"{db}/same/{t}" })
+                .Select(name => cluster.RunningAssignments[new Uri($"fake://{name}")])
+                .Distinct()
+                .ToList();
+
+            hosts.Count.ShouldBeLessThanOrEqualTo(2,
+                $"{db} is hosted by {hosts.Count} nodes — a version bump must cost one owner per version, not a pool set per partition");
+        }
+    }
+
+    /// <summary>
     /// A simulated multi-node cluster driving the leader's real assignment evaluation. One <see cref="RunRoundAsync" />
     /// is one health-check tick: in-flight starts advance, the leader evaluates, and the commands it emits are
     /// applied to the cluster's state the way the corresponding agent commands would apply them for real.
@@ -222,6 +304,19 @@ public class slow_agent_start_convergence
         private record struct InFlightStart(Guid NodeId, int RoundsRemaining);
 
         public SlowStartCluster(int nodeCount, int agentCount, int seed)
+            : this(nodeCount, new FakeAgentFamily("fake", agentCount), seed)
+        {
+        }
+
+        /// <summary>
+        ///     The seams a blue/green scenario needs: the leader's own <paramref name="family" /> (which, as in
+        ///     production, may enumerate only its OWN fleet's agents), and per-node capability sets via
+        ///     <paramref name="capabilitiesFor" /> (node index -> declared agents). The other fleet's agents
+        ///     reach the leader's grid exactly the way they do for real — through the capability union
+        ///     (NodeAgentController.EvaluateAssignmentsAsync seeds the grid from every node's capabilities).
+        /// </summary>
+        public SlowStartCluster(int nodeCount, FakeAgentFamily family, int seed,
+            Func<int, Uri[]>? capabilitiesFor = null)
         {
             Options = new WolverineOptions { ApplicationAssembly = GetType().Assembly };
             Options.Transports.NodeControlEndpoint = new FakeEndpoint("fake://self".ToUri(), EndpointRole.System);
@@ -232,8 +327,10 @@ public class slow_agent_start_convergence
             _runtime.DurabilitySettings.Returns(Options.Durability);
             _runtime.Observer.Returns(Substitute.For<IWolverineObserver>());
 
-            _family = new FakeAgentFamily("fake", agentCount);
-            AllAgents = _family.AllAgentUris();
+            _family = family;
+            AllAgents = capabilitiesFor is null
+                ? _family.AllAgentUris()
+                : Enumerable.Range(0, nodeCount).SelectMany(capabilitiesFor).Distinct().ToArray();
 
             _controller = new NodeAgentController(_runtime, Substitute.For<INodeAgentPersistence>(), [_family],
                 NullLogger<NodeAgentController>.Instance, CancellationToken.None);
@@ -263,7 +360,7 @@ public class slow_agent_start_convergence
                     ControlUri = new Uri($"fake://node{i}")
                 };
 
-                node.Capabilities.AddRange(AllAgents);
+                node.Capabilities.AddRange(capabilitiesFor?.Invoke(i) ?? AllAgents);
                 _nodes.Add(node);
             }
 
@@ -285,6 +382,11 @@ public class slow_agent_start_convergence
         public int ReassignmentsEmitted { get; private set; }
 
         public IReadOnlyList<Uri> RunningAgents => _running.Keys.ToList();
+
+        /// <summary>Ground truth of where each agent is actually running, for placement assertions.</summary>
+        public IReadOnlyDictionary<Uri, Guid> RunningAssignments => _running;
+
+        public Guid NodeIdAt(int index) => _nodes[index].NodeId;
 
         public int[] RunningCountsByNode
             => _nodes.Select(node => _running.Count(x => x.Value == node.NodeId)).ToArray();
