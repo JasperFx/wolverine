@@ -317,10 +317,14 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 
     public ValueTask EvaluateAssignmentsAsync(AssignmentGrid assignments)
     {
-        assignments.DistributeEvenly(Scheme);
+        // GH-3785: a shard database's durability agent follows that database's event-subscription agents,
+        // so the database attracts one node's connection pool instead of two. Depends on
+        // NodeAgentController evaluating this family AFTER the event-subscription family. A database with
+        // no projection agents in the grid falls back to the even spread.
+        assignments.DistributeEvenlyWithAffinity(Scheme, DurabilityProjectionAffinity.BuildPreference(assignments));
         return ValueTask.CompletedTask;
     }
-    
+
     internal async Task<IAgent> StartScheduledJobProcessing(IWolverineRuntime runtime)
     {
         // First, find all unique message stores
