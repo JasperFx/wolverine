@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -25,10 +25,41 @@ partial class Build
     }
 
     /// <summary>
+    /// How many times <see cref="ComposeUp"/> will try `docker compose up -d` before giving up.
+    /// </summary>
+    const int DockerComposeAttempts = 3;
+
+    /// <summary>
     /// Fires `docker compose up -d` for the services and returns as soon as the containers are
     /// launched — no readiness wait. Pair with <see cref="AwaitDockerServices"/>.
     /// </summary>
     void LaunchDockerServices(params string[] services)
+    {
+        var serviceList = string.Join(" ", services);
+        Log.Information("Starting docker services: {Services}", serviceList);
+
+        // Pass each service as a separate argument to avoid quoting issues
+        ComposeUp("compose up -d " + serviceList, serviceList);
+    }
+
+    /// <summary>
+    /// Runs a `docker compose up` invocation, retrying a failed attempt.
+    ///
+    /// <para>`docker compose up` contacts the registry for any image not already cached, and GitHub's
+    /// runners time out against Docker Hub often enough to redden main on their own. On 2026-08-03,
+    /// three of the four red main runs were exactly this and nothing else — CIOtel twice and CIMQTT5
+    /// once, each dying in under a minute on
+    /// `Get "https://registry-1.docker.io/v2/": context deadline exceeded` before a single test ran.
+    /// A pull timeout is transient and says nothing about the commit that triggered it, so it should
+    /// cost a retry rather than a red build.</para>
+    ///
+    /// <para>Every failure is retried, not just registry-shaped ones: matching on the message text
+    /// would be guessing at a moving target, and a genuinely broken compose file still fails — it
+    /// just takes <see cref="DockerComposeAttempts"/> tries to get there, and the exception it throws
+    /// carries the real reason either way. Each failed attempt logs the tool's own output, so the
+    /// job log always says which it was instead of leaving the reader to infer it.</para>
+    /// </summary>
+    void ComposeUp(string args, string serviceList)
     {
         bool IsToolAvailable(string toolName)
         {
@@ -42,15 +73,40 @@ partial class Build
         string toolName = new List<string> { "docker", "podman" }
                               .FirstOrDefault(IsToolAvailable) ?? "docker";
 
-        var serviceList = string.Join(" ", services);
-        Log.Information("Starting docker services: {Services}", serviceList);
+        for (var attempt = 1;; attempt++)
+        {
+            var process = ProcessTasks
+                .StartProcess(toolName, args, logOutput: false, logInvocation: false)
+                .AssertWaitForExit();
 
-        // Pass each service as a separate argument to avoid quoting issues
-        var args = "compose up -d " + serviceList;
-        ProcessTasks
-            .StartProcess(toolName, args, logOutput: false, logInvocation: false)
-            .AssertWaitForExit()
-            .AssertZeroExitCode();
+            if (process.ExitCode == 0)
+            {
+                if (attempt > 1)
+                {
+                    Log.Information("docker compose up succeeded for {Services} on attempt {Attempt}",
+                        serviceList, attempt);
+                }
+
+                return;
+            }
+
+            var output = string.Join(Environment.NewLine, process.Output.Select(x => x.Text));
+
+            // Out of attempts: let AssertZeroExitCode throw with the tool's own message.
+            if (attempt >= DockerComposeAttempts)
+            {
+                Log.Error("docker compose up failed for {Services} after {Attempts} attempts:{NewLine}{Output}",
+                    serviceList, DockerComposeAttempts, Environment.NewLine, output);
+                process.AssertZeroExitCode();
+                return;
+            }
+
+            var delay = TimeSpan.FromSeconds(5 * attempt);
+            Log.Warning(
+                "docker compose up failed for {Services} (attempt {Attempt} of {Attempts}), retrying in {Delay}s:{NewLine}{Output}",
+                serviceList, attempt, DockerComposeAttempts, delay.TotalSeconds, Environment.NewLine, output);
+            Thread.Sleep(delay);
+        }
     }
 
     /// <summary>
