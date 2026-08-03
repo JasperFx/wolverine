@@ -235,5 +235,38 @@ public class distribute_by_group_affinity
         grid.AgentFor(g2).AssignedNode.ShouldBe(node2, "an under-ceiling incumbent keeps its group");
         grid.AgentFor(g3).AssignedNode.ShouldBe(node3, "only the over-ceiling group moves, to the empty node");
     }
+
+    // event-subscriptions://{type}/{name}/{databaseId}/{projection}/{shardKey}/v{version}/{tenant}
+    // — the real EventSubscriptionAgentFamily.UriFor grammar, so the version sits in its own segment.
+    private static Uri VersionedAgent(string db, uint version, string tenant) =>
+        new($"event-subscriptions://marten/main/{db}/Proj/All/v{version}/{tenant}");
+
+    [Fact]
+    public void a_version_bump_splits_a_group_between_the_old_and_new_version_nodes()
+    {
+        // A projection version bump on a sharded store: one shard database's group spans the previous
+        // version's agent — declared by, and RUNNING on, the blue node — and the new version's agent,
+        // declared only by the green node. No node is capable of the whole group, so the members must
+        // fall back individually: the old version stays on blue, the new version goes to green.
+        //
+        // This is the intersection of the two cases above, and it is what a blue/green deployment of a
+        // sharded store looks like at every evaluation for the whole rollout, not just transiently.
+        var previous = VersionedAgent("db1", 22, "t1");
+        var bumped = VersionedAgent("db1", 23, "t1");
+
+        var grid = new AssignmentGrid();
+        var blue = grid.WithNode(1, Guid.NewGuid()).HasCapabilities(new[] { previous });
+        blue.Running(previous);
+        var green = grid.WithNode(2, Guid.NewGuid()).HasCapabilities(new[] { bumped });
+
+        grid.WithAgents(previous, bumped);
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        grid.AgentFor(previous).AssignedNode.ShouldBe(blue,
+            "the previous version keeps running where it is");
+        grid.AgentFor(bumped).AssignedNode.ShouldBe(green,
+            "the new version's agent may only run on the node that declares it — the blue node cannot build it");
+    }
 }
 

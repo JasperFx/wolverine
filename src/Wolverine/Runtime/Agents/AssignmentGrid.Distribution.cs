@@ -170,15 +170,28 @@ public partial class AssignmentGrid
         // node whole — groups are indivisible by design.
         var maximum = (int)Math.Ceiling((double)agents.Count / nodes.Count);
 
+        // A group is one placement unit — except under mixed capabilities, where members that are declared
+        // by disjoint sets of nodes cannot share a host at all. That is what a blue/green rollout of a
+        // multi-database store looks like: one shard database's group spans the previous version's agents
+        // (only the blue nodes can build them) and the new version's (only the green nodes can), so no node
+        // is capable of the whole group. Sub-partitioning by capability set keeps affinity inside a version
+        // — a database still has one owner per version, not one per agent — while letting the versions land
+        // on their own nodes. With homogeneous capabilities there is exactly one partition per group, so
+        // this is a no-op on the common path.
         var groups = agents
             .GroupBy(a => groupKey(a.Uri))
-            .OrderByDescending(g => g.Count())
-            .ThenBy(g => g.Key, StringComparer.Ordinal)
+            .SelectMany(group => sameCapabilities
+                ? [(Key: group.Key, Members: group.ToList())]
+                : group
+                    .GroupBy(CapabilityKey)
+                    .Select(partition => (Key: $"{group.Key}|{partition.Key}", Members: partition.ToList())))
+            .OrderByDescending(unit => unit.Members.Count)
+            .ThenBy(unit => unit.Key, StringComparer.Ordinal)
             .ToList();
 
         foreach (var group in groups)
         {
-            var members = group.ToList();
+            var members = group.Members;
 
             // Candidate nodes for the whole group: nodes capable of running every member (all nodes when
             // capabilities are homogeneous) — plus any node that was already running part of the group
@@ -274,6 +287,16 @@ public partial class AssignmentGrid
             load[node] += members.Count;
         }
     }
+
+    /// <summary>
+    /// Stable identity of the set of nodes that declare an agent as a capability, used to sub-partition a
+    /// group in <see cref="DistributeByGroupAffinity(string, Func{Uri, string}, Func{Uri, bool})" />. Agents
+    /// with the same key can share a host; agents with different keys generally cannot, which is exactly the
+    /// blue/green split. An agent no node declares gets the empty key, so those stay together and keep the
+    /// GH-3341 whole-group rescue.
+    /// </summary>
+    private static string CapabilityKey(Agent agent) =>
+        string.Join(",", agent.CandidateNodes.Select(n => n.AssignedId).OrderBy(id => id));
 
     public bool AllNodesHaveSameCapabilities(string scheme)
     {
