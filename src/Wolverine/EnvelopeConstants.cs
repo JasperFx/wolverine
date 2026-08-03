@@ -23,6 +23,7 @@ public static class EnvelopeConstants
     public const string IsResponseKey = "is-response";
     public const string TenantIdKey = "tenant-id";
     public const string GroupIdKey = "group-id";
+    public const string DeduplicationIdKey = "deduplication-id";
     public const string PartitionKey = "partition-key";
     public const string TopicNameKey = "topic-name";
     public const string KeepUntilKey = "keep-until";

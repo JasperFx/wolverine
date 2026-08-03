@@ -64,9 +64,13 @@ internal class OutgoingSnsBatch
                 {
                     entry.MessageGroupId = envelope.GroupId;
                 }
-                if (envelope.DeduplicationId.IsNotEmpty())
+                if (topic.IsFifoTopic)
                 {
-                    entry.MessageDeduplicationId = envelope.DeduplicationId;
+                    var deduplicationId = AmazonSnsTopic.DetermineDeduplicationId(envelope);
+                    if (deduplicationId.IsNotEmpty())
+                    {
+                        entry.MessageDeduplicationId = deduplicationId;
+                    }
                 }
 
                 foreach (var attribute in topic.Mapper.ToAttributes(envelope))
