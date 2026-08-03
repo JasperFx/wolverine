@@ -150,15 +150,38 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         var channel = Channel;
         if (channel != null)
         {
-            var noWait = !Queue.DrainWaitForPrefetch;
-            foreach (var consumerTag in consumer.ConsumerTags)
+            if (!Queue.DrainWaitForPrefetch)
             {
-                await channel.BasicCancelAsync(consumerTag, noWait, default);
+                // nowait cancel: the broker sends no cancel-ok, and any still-prefetched deliveries
+                // are left for the broker to requeue on channel close.
+                foreach (var consumerTag in consumer.ConsumerTags)
+                {
+                    await channel.BasicCancelAsync(consumerTag, true, default);
+                }
+
+                return;
             }
 
-            if (!noWait)
+            // Cancel WITHOUT the nowait bit so the broker replies cancel-ok; the consumer dispatcher
+            // raises that callback (CancelOkReceived) only after every prefetched delivery ahead of it
+            // in FIFO order has reached the receiver. Bound the whole wait and log-and-continue on
+            // timeout or broker error so an unreachable broker can't abort the caller's stop-and-drain,
+            // which still has to drain the receiver and dispose this listener.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
             {
-                await consumer.CancelOkReceived.WaitAsync(TimeSpan.FromSeconds(30));
+                foreach (var consumerTag in consumer.ConsumerTags)
+                {
+                    await channel.BasicCancelAsync(consumerTag, false, cts.Token);
+                }
+
+                await consumer.CancelOkReceived.WaitAsync(cts.Token);
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning(e,
+                    "Timed out or errored waiting for prefetched messages to drain at {Uri} during listener stop; continuing shutdown",
+                    Address);
             }
         }
     }
