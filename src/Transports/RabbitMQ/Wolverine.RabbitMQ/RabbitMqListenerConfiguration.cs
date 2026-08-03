@@ -112,6 +112,7 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
         return this;
     }
 
+    /// <summary>
     ///     Override the RabbitMQ client's consumer dispatch concurrency for just this endpoint's
     ///     listening channels. This governs how many deliveries the client hands to the consumer
     ///     at once: at the default of 1, an <c>Inline</c> listener runs strictly one message at a

@@ -164,9 +164,12 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
             // Cancel WITHOUT the nowait bit so the broker replies cancel-ok; the consumer dispatcher
             // raises that callback (CancelOkReceived) only after every prefetched delivery ahead of it
-            // in FIFO order has reached the receiver. Bound the whole wait and log-and-continue on
-            // timeout or broker error so an unreachable broker can't abort the caller's stop-and-drain,
-            // which still has to drain the receiver and dispose this listener.
+            // in FIFO order has been dispatched. In durable micro-batching mode "dispatched" only means
+            // the delivery reached the batching channel, so also drain that batch to the receiver before
+            // returning -- otherwise the caller latches the receiver first and the batch is deferred back
+            // to the broker (redelivered). Bound the whole wait and log-and-continue on timeout or broker
+            // error so an unreachable broker can't abort the caller's stop-and-drain, which still has to
+            // drain the receiver and dispose this listener.
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             try
             {
@@ -176,6 +179,7 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
                 }
 
                 await consumer.CancelOkReceived.WaitAsync(cts.Token);
+                await consumer.DrainBatchedDeliveriesAsync().WaitAsync(cts.Token);
             }
             catch (Exception e)
             {

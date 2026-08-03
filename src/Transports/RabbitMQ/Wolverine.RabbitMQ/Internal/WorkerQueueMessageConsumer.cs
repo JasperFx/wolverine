@@ -84,6 +84,23 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     /// </summary>
     internal Task CancelOkReceived => _cancelOkReceived.Task;
 
+    /// <summary>
+    /// Flush batched-but-undelivered envelopes to the receiver and await that flush. In durable
+    /// micro-batching mode basic.cancel-ok only guarantees deliveries reached the batching channel,
+    /// so a drain must await this or the receiver latches first and the batch is redelivered.
+    /// </summary>
+    internal async Task DrainBatchedDeliveriesAsync()
+    {
+        if (_batching == null)
+        {
+            return;
+        }
+
+        _batching.TriggerBatch();
+        _batching.Complete();
+        await _batching.WaitForCompletionAsync();
+    }
+
     public override Task HandleBasicCancelOkAsync(string consumerTag, CancellationToken cancellationToken = default)
     {
         _cancelOkReceived.TrySetResult();
