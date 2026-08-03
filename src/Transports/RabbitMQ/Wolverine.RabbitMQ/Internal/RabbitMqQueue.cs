@@ -100,6 +100,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     }
 
     /// <summary>
+    /// When true, listener shutdown will wait for all prefetched messages in the RabbitMQ client's
+    /// internal dispatch buffer to be delivered to the consumer before closing the channel. This
+    /// prevents silent redeliveries of messages that were prefetched but not yet handed to the
+    /// handler pipeline. Default is false.
+    /// </summary>
+    public bool DrainWaitForPrefetch { get; set; }
+
+    /// <summary>
     ///     Use to override the dead letter queue for this queue
     /// </summary>
     public DeadLetterQueue? DeadLetterQueue { get; set; }

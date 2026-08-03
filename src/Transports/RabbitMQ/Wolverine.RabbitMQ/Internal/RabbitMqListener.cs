@@ -150,9 +150,15 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         var channel = Channel;
         if (channel != null)
         {
+            var noWait = !Queue.DrainWaitForPrefetch;
             foreach (var consumerTag in consumer.ConsumerTags)
             {
-                await channel.BasicCancelAsync(consumerTag, true, default);
+                await channel.BasicCancelAsync(consumerTag, noWait, default);
+            }
+
+            if (!noWait)
+            {
+                await consumer.CancelOkReceived.WaitAsync(TimeSpan.FromSeconds(30));
             }
         }
     }

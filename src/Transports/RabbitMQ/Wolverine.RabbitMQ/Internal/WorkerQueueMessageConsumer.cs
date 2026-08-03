@@ -15,6 +15,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
+    private readonly TaskCompletionSource _cancelOkReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // GH-3492: durable endpoints coalesce prefetched deliveries into Envelope[] batches so the
     // inbox persists them with one multi-VALUES insert instead of gating on one INSERT round
@@ -74,6 +75,19 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         // Push any accumulated-but-unflushed deliveries onward; anything genuinely in flight
         // is unacked and will be redelivered by the broker (and deduplicated by the inbox).
         _batching?.TriggerBatch();
+        _cancelOkReceived.TrySetResult();
+    }
+
+    /// <summary>
+    /// Completes when the broker's basic.cancel-ok has been dispatched by the client, meaning
+    /// all prefetched deliveries ahead of it in the FIFO dispatcher queue have been processed.
+    /// </summary>
+    internal Task CancelOkReceived => _cancelOkReceived.Task;
+
+    public override Task HandleBasicCancelOkAsync(string consumerTag, CancellationToken cancellationToken = default)
+    {
+        _cancelOkReceived.TrySetResult();
+        return base.HandleBasicCancelOkAsync(consumerTag, cancellationToken);
     }
 
     //TODO do something with the token passed in here

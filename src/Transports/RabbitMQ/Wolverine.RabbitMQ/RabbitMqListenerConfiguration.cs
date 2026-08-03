@@ -112,7 +112,6 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
         return this;
     }
 
-    /// <summary>
     ///     Override the RabbitMQ client's consumer dispatch concurrency for just this endpoint's
     ///     listening channels. This governs how many deliveries the client hands to the consumer
     ///     at once: at the default of 1, an <c>Inline</c> listener runs strictly one message at a
@@ -128,6 +127,17 @@ public class RabbitMqListenerConfiguration : InteroperableListenerConfiguration<
         }
 
         add(e => e.ConsumerDispatchConcurrency = concurrency);
+        return this;
+    }
+
+    /// <summary>
+    /// When enabled, listener shutdown will wait for all prefetched messages in the RabbitMQ
+    /// client's internal dispatch buffer to be fully delivered before closing the channel.
+    /// Prevents silent redeliveries of prefetched-but-unprocessed messages. Default is false.
+    /// </summary>
+    public RabbitMqListenerConfiguration DrainWaitForPrefetch()
+    {
+        add(e => e.DrainWaitForPrefetch = true);
         return this;
     }
 
