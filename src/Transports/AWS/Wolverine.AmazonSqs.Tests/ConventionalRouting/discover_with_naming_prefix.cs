@@ -5,25 +5,24 @@ using Wolverine.Runtime;
 using Xunit;
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
-public class discover_with_naming_prefix : IDisposable
+public class discover_with_naming_prefix : IAsyncLifetime
 {
-    private readonly IHost _host;
-    private readonly ITestOutputHelper _output;
+    private IHost _host = null!;
 
-    public discover_with_naming_prefix(ITestOutputHelper output)
+    public async ValueTask InitializeAsync()
     {
-        _output = output;
-        _host = Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransport().PrefixIdentifiers("zztop").UseConventionalRouting().AutoProvision()
+                opts.UseAmazonSqsTransportLocally().PrefixIdentifiers("zztop").UseConventionalRouting().AutoProvision()
                     .AutoPurgeOnStartup();
-            }).Start();
+            }).StartAsync();
     }
 
-    public void Dispose()
+    // StopAsync, not just Dispose -- see the note in ConventionalRoutingContext (GH-3763).
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 

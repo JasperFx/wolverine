@@ -12,7 +12,6 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.AmazonSqs.Tests.Samples;
 
-[Trait("Category", "Flaky")]
 public class Bootstrapping
 {
     private async Task use_named_brokers()
@@ -355,8 +354,10 @@ public class Bootstrapping
         #endregion
     }
 
-    [Fact]
-    public async Task customize_mappers()
+    // Compile-checked only, like every other sample in this file. The snippet is documentation, so
+    // it shows the real `UseAmazonSqsTransport()` a reader would write — which means running it
+    // would talk to a real AWS account, and CI has no credentials.
+    private async Task customize_mappers()
     {
         #region sample_apply_custom_sqs_mapping
         using var host = await Host.CreateDefaultBuilder()

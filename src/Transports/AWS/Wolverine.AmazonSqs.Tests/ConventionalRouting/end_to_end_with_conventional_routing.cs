@@ -6,8 +6,7 @@ using Wolverine.Tracking;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
-public class end_to_end_with_conventional_routing : IAsyncLifetime, IDisposable
+public class end_to_end_with_conventional_routing : IAsyncLifetime
 {
     private IHost _receiver = null!;
     private IHost _sender = null!;
@@ -16,24 +15,28 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime, IDisposable
     {
         _sender = await WolverineHost.ForAsync(opts =>
         {
-            opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseAmazonSqsTransportLocally().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.DisableConventionalDiscovery();
             opts.ServiceName = "Sender";
         });
 
         _receiver = await WolverineHost.ForAsync(opts =>
         {
-            opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
+            opts.UseAmazonSqsTransportLocally().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup();
             opts.ServiceName = "Receiver";
         });
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
-
-    public void Dispose()
+    // StopAsync, not just Dispose: IHost.Dispose() tears down the container without ever running
+    // IHostedService.StopAsync, so the SQS listeners keep polling and steal messages from the next
+    // class in this namespace. See GH-3763.
+    public async ValueTask DisposeAsync()
     {
-        _sender?.Dispose();
-        _receiver?.Dispose();
+        await _sender.StopAsync();
+        _sender.Dispose();
+
+        await _receiver.StopAsync();
+        _receiver.Dispose();
     }
 
     [Fact]
@@ -43,11 +46,11 @@ public class end_to_end_with_conventional_routing : IAsyncLifetime, IDisposable
             .AlsoTrack(_receiver)
             .IncludeExternalTransports()
             .Timeout(30.Seconds())
-            .SendMessageAndWaitAsync(new RoutedMessage());
+            .SendMessageAndWaitAsync(new EndToEndRoutedMessage());
 
         var received = session
             .AllRecordsInOrder()
-            .Where(x => x.Envelope!.Message!.GetType() == typeof(RoutedMessage))
+            .Where(x => x.Envelope!.Message!.GetType() == typeof(EndToEndRoutedMessage))
             .Single(x => x.MessageEventType == MessageEventType.Received);
 
         received

@@ -4,13 +4,12 @@ using Wolverine.AmazonSqs.Internal;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
-public class when_discovering_a_listening_endpoint_with_overridden_queue_naming : ConventionalRoutingContext, IAsyncLifetime
+public class when_discovering_a_listening_endpoint_with_overridden_queue_naming : ConventionalRoutingContext
 {
     private readonly Uri theExpectedUri = "sqs://routedmessage2".ToUri();
     private AmazonSqsQueue theQueue = null!;
 
-    public async ValueTask InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         await ConfigureConventions(c => c.QueueNameForListener(t => t.Name.ToLower() + "2"));
 
@@ -18,8 +17,6 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
         var theRuntimeEndpoints = runtime.Endpoints.ActiveListeners().ToArray();
         theQueue = runtime.Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsQueue>();
     }
-
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()
