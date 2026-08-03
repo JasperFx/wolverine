@@ -170,121 +170,153 @@ public partial class AssignmentGrid
         // node whole — groups are indivisible by design.
         var maximum = (int)Math.Ceiling((double)agents.Count / nodes.Count);
 
-        // A group is one placement unit — except under mixed capabilities, where members that are declared
-        // by disjoint sets of nodes cannot share a host at all. That is what a blue/green rollout of a
-        // multi-database store looks like: one shard database's group spans the previous version's agents
-        // (only the blue nodes can build them) and the new version's (only the green nodes can), so no node
-        // is capable of the whole group. Sub-partitioning by capability set keeps affinity inside a version
-        // — a database still has one owner per version, not one per agent — while letting the versions land
-        // on their own nodes. With homogeneous capabilities there is exactly one partition per group, so
-        // this is a no-op on the common path.
         var groups = agents
             .GroupBy(a => groupKey(a.Uri))
-            .SelectMany(group => sameCapabilities
-                ? [(Key: group.Key, Members: group.ToList())]
-                : group
-                    .GroupBy(CapabilityKey)
-                    .Select(partition => (Key: $"{group.Key}|{partition.Key}", Members: partition.ToList())))
-            .OrderByDescending(unit => unit.Members.Count)
-            .ThenBy(unit => unit.Key, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
             .ToList();
 
         foreach (var group in groups)
         {
-            var members = group.Members;
+            // A group is one placement unit — except under mixed capabilities, where members declared by
+            // different sets of nodes cannot share a host at all. That is what a blue/green rollout of a
+            // multi-database store looks like: one shard database's group spans the previous version's
+            // agents (only the blue nodes can build them) and the new version's (only the green nodes can),
+            // so no node is capable of the whole group and the group has to split. Partitioning by
+            // capability set keeps affinity inside a version — a database still has one owner per version,
+            // not one per agent. With homogeneous capabilities there is exactly one partition, so the
+            // common path is unchanged.
+            var partitions = sameCapabilities
+                ? [group.ToList()]
+                : group
+                    .GroupBy(CapabilityKey)
+                    .OrderByDescending(partition => partition.Count())
+                    .ThenBy(partition => partition.Key, StringComparer.Ordinal)
+                    .Select(partition => partition.ToList())
+                    .ToList();
 
-            // Candidate nodes for the whole group: nodes capable of running every member (all nodes when
-            // capabilities are homogeneous) — plus any node that was already running part of the group
-            // when the grid was assembled. The grandfathering mirrors the even paths, which leave running
-            // agents in place regardless of declared capabilities: a node's capability snapshot is
-            // persisted once at node startup, so a node that started before (say) a tenant database was
-            // provisioned never declares that database's agents even though it is happily running them.
-            var candidates = sameCapabilities
-                ? nodes
-                : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))
-                                   || members.Any(m => m.OriginalNode == n)).ToList();
+            // Partitions of one group prefer to land on the same node as their siblings: what a database
+            // costs in connection pools is the number of DISTINCT nodes hosting any of its agents, so a
+            // split group should still occupy as few nodes as its capability split forces — two during a
+            // version bump (one per version), not one per partition.
+            var siblingHosts = new List<Node>();
 
-            if (candidates.Count == 0)
+            foreach (var members in partitions)
             {
-                // GH-3341: a whole group whose members are all unassigned AND declared by no node is a
-                // stale-snapshot artifact, not a genuine blue/green gap. A node captures its
-                // event-subscription capabilities once at startup (StartLocalAgentProcessingAsync), so a
-                // shard database provisioned after every surviving node started is absent from all their
-                // snapshots even though every node can run it — the agents are still enumerated as
-                // supported by AllKnownAgentsAsync. When such a group's incumbent was a departed node, the
-                // OriginalNode grandfathering above cannot rescue it, and the per-member fallback below
-                // would park every member: the shard silently stops projecting with no running agent, no
-                // log, and no self-heal until a restart refreshes the snapshots. Treat the whole group as
-                // assignable to any node so it always has a home, kept together to preserve the
-                // connection-pool affinity this method exists to provide.
-                if (members.All(m => m.AssignedNode == null && m.CandidateNodes.Count == 0))
-                {
-                    candidates = nodes;
-                }
-                else
-                {
-                    // Mixed capabilities (genuine blue/green): an already-running member stays where it is
-                    // (minimal disruption), an unassigned member with a capable node goes to its
-                    // least-loaded one, and an unassigned member no node declares falls back to the
-                    // least-loaded node overall rather than being silently stranded (GH-3341).
-                    foreach (var member in members)
-                    {
-                        if (member.AssignedNode != null)
-                        {
-                            load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
-                            continue;
-                        }
+                // Candidate nodes for the whole partition: nodes capable of running every member (all nodes
+                // when capabilities are homogeneous) — plus any node that was already running part of it
+                // when the grid was assembled. The grandfathering mirrors the even paths, which leave
+                // running agents in place regardless of declared capabilities: a node's capability snapshot
+                // is persisted once at node startup, so a node that started before (say) a tenant database
+                // was provisioned never declares that database's agents even though it is happily running
+                // them.
+                var candidates = sameCapabilities
+                    ? nodes
+                    : nodes.Where(n => members.All(m => m.CandidateNodes.Contains(n))
+                                       || members.Any(m => m.OriginalNode == n)).ToList();
 
-                        var candidate = member.CandidateNodes
-                            .OrderBy(n => load.GetValueOrDefault(n))
-                            .ThenBy(n => n.IsLeader)
-                            .ThenBy(n => n.AssignedId)
-                            .FirstOrDefault()
-                            ?? nodes
+                if (candidates.Count == 0)
+                {
+                    // GH-3341: a whole group whose members are all unassigned AND declared by no node is a
+                    // stale-snapshot artifact, not a genuine blue/green gap. A node captures its
+                    // event-subscription capabilities once at startup (StartLocalAgentProcessingAsync), so a
+                    // shard database provisioned after every surviving node started is absent from all their
+                    // snapshots even though every node can run it — the agents are still enumerated as
+                    // supported by AllKnownAgentsAsync. When such a group's incumbent was a departed node,
+                    // the OriginalNode grandfathering above cannot rescue it, and the per-member fallback
+                    // below would park every member: the shard silently stops projecting with no running
+                    // agent, no log, and no self-heal until a restart refreshes the snapshots. Treat the
+                    // whole group as assignable to any node so it always has a home, kept together to
+                    // preserve the connection-pool affinity this method exists to provide.
+                    if (members.All(m => m.AssignedNode == null && m.CandidateNodes.Count == 0))
+                    {
+                        candidates = nodes;
+                    }
+                    else
+                    {
+                        // An already-running member stays where it is (minimal disruption), an unassigned
+                        // member with a capable node goes to its least-loaded one, and an unassigned member
+                        // no node declares falls back to the least-loaded node overall rather than being
+                        // silently stranded (GH-3341).
+                        foreach (var member in members)
+                        {
+                            if (member.AssignedNode != null)
+                            {
+                                load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
+                                Remember(siblingHosts, member.AssignedNode);
+                                continue;
+                            }
+
+                            var candidate = member.CandidateNodes
                                 .OrderBy(n => load.GetValueOrDefault(n))
                                 .ThenBy(n => n.IsLeader)
                                 .ThenBy(n => n.AssignedId)
-                                .First();
+                                .FirstOrDefault()
+                                ?? nodes
+                                    .OrderBy(n => load.GetValueOrDefault(n))
+                                    .ThenBy(n => n.IsLeader)
+                                    .ThenBy(n => n.AssignedId)
+                                    .First();
 
-                        candidate.Assign(member);
-                        load[candidate] += 1;
+                            candidate.Assign(member);
+                            load[candidate] += 1;
+                            Remember(siblingHosts, candidate);
+                        }
+
+                        continue;
                     }
+                }
 
+                // Minimal disruption, mirroring DistributeEvenly: the node already running the WHOLE
+                // partition keeps it as long as that doesn't push the node past the ceiling. Without this,
+                // every evaluation reshuffles groups from scratch and a node whose stale capability snapshot
+                // keeps it out of the capability candidates can be starved permanently across evaluations.
+                var incumbent = members[0].AssignedNode;
+                if (incumbent != null && members.Any(m => m.AssignedNode != incumbent))
+                {
+                    incumbent = null;
+                }
+
+                if (incumbent != null && candidates.Contains(incumbent) &&
+                    load[incumbent] + members.Count <= maximum)
+                {
+                    load[incumbent] += members.Count;
+                    Remember(siblingHosts, incumbent);
                     continue;
                 }
-            }
 
-            // Minimal disruption, mirroring DistributeEvenly: the node already running the WHOLE group
-            // keeps it as long as that doesn't push the node past the ceiling. Without this, every
-            // evaluation reshuffles groups from scratch and a node whose stale capability snapshot keeps
-            // it out of the capability candidates can be starved permanently across evaluations.
-            var incumbent = members[0].AssignedNode;
-            if (incumbent != null && members.Any(m => m.AssignedNode != incumbent))
+                // Otherwise the least-loaded candidate hosts the whole partition — preferring a node that
+                // already hosts a sibling partition of this same group, so a split group still costs as few
+                // connection pools per database as its capability split allows (tie-breaks: non-leader
+                // first, then node id).
+                var node = candidates
+                    .Where(n => siblingHosts.Contains(n) && load[n] + members.Count <= maximum)
+                    .OrderBy(n => load[n])
+                    .ThenBy(n => n.IsLeader)
+                    .ThenBy(n => n.AssignedId)
+                    .FirstOrDefault()
+                    ?? candidates
+                        .OrderBy(n => load[n])
+                        .ThenBy(n => n.IsLeader)
+                        .ThenBy(n => n.AssignedId)
+                        .First();
+
+                foreach (var agent in members)
+                {
+                    node.Assign(agent);
+                }
+
+                load[node] += members.Count;
+                Remember(siblingHosts, node);
+            }
+        }
+
+        static void Remember(List<Node> hosts, Node node)
+        {
+            if (!hosts.Contains(node))
             {
-                incumbent = null;
+                hosts.Add(node);
             }
-
-            if (incumbent != null && candidates.Contains(incumbent) &&
-                load[incumbent] + members.Count <= maximum)
-            {
-                load[incumbent] += members.Count;
-                continue;
-            }
-
-            // Otherwise the least-loaded candidate hosts the whole group (tie-breaks: non-leader first,
-            // then node id).
-            var node = candidates
-                .OrderBy(n => load[n])
-                .ThenBy(n => n.IsLeader)
-                .ThenBy(n => n.AssignedId)
-                .First();
-
-            foreach (var agent in members)
-            {
-                node.Assign(agent);
-            }
-
-            load[node] += members.Count;
         }
     }
 

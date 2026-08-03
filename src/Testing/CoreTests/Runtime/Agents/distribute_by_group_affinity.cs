@@ -268,5 +268,52 @@ public class distribute_by_group_affinity
         grid.AgentFor(bumped).AssignedNode.ShouldBe(green,
             "the new version's agent may only run on the node that declares it — the blue node cannot build it");
     }
+
+    [Fact]
+    public void a_split_group_costs_only_as_many_nodes_as_the_capability_split_forces()
+    {
+        // The same version bump, now with the projections whose version did NOT change also in the group.
+        // Every node declares those, so nothing stops them landing on a third node — and what a shard
+        // database costs in connection pools is the number of DISTINCT nodes holding any of its agents, so
+        // a third host is a third pool set on that database. A split group must still occupy only as many
+        // nodes as the capability split forces: one per version.
+        var databases = new[] { "db1", "db2", "db3", "db4" };
+        var tenants = new[] { "t1", "t2" };
+
+        Uri Unchanged(string db, string tenant) =>
+            new($"event-subscriptions://marten/main/{db}/Other/All/v7/{tenant}");
+
+        Uri[] Across(Func<string, string, Uri> agent) =>
+            databases.SelectMany(db => tenants.Select(t => agent(db, t))).ToArray();
+
+        var previous = Across((db, t) => VersionedAgent(db, 22, t));
+        var bumped = Across((db, t) => VersionedAgent(db, 23, t));
+        var unchanged = Across(Unchanged);
+
+        var grid = new AssignmentGrid();
+        var blues = new[] { grid.WithNode(1, Guid.NewGuid()), grid.WithNode(2, Guid.NewGuid()) };
+        var greens = new[] { grid.WithNode(3, Guid.NewGuid()), grid.WithNode(4, Guid.NewGuid()) };
+
+        foreach (var blue in blues) blue.HasCapabilities(previous.Concat(unchanged));
+        foreach (var green in greens) green.HasCapabilities(bumped.Concat(unchanged));
+
+        grid.WithAgents(previous.Concat(bumped).Concat(unchanged).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+
+        foreach (var db in databases)
+        {
+            var hosts = tenants
+                .SelectMany(t => new[] { VersionedAgent(db, 22, t), VersionedAgent(db, 23, t), Unchanged(db, t) })
+                .Select(uri => grid.AgentFor(uri).AssignedNode)
+                .Distinct()
+                .ToList();
+
+            hosts.Count.ShouldBe(2,
+                $"{db} must sit on exactly two nodes — one per version — so it attracts two pool sets, not three");
+            hosts.ShouldContain(host => blues.Contains(host!), $"{db}'s previous version must be on a blue node");
+            hosts.ShouldContain(host => greens.Contains(host!), $"{db}'s new version must be on a green node");
+        }
+    }
 }
 
