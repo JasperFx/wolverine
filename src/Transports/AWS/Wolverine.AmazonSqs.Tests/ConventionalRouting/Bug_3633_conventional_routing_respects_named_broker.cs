@@ -7,14 +7,14 @@ using Xunit;
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
 // https://github.com/JasperFx/wolverine/issues/3633
-public class Bug_3633_conventional_routing_respects_named_broker : IDisposable
+public class Bug_3633_conventional_routing_respects_named_broker : IAsyncLifetime
 {
     private static readonly BrokerName theBrokerName = new("other");
-    private readonly IHost _host;
+    private IHost _host = null!;
 
-    public Bug_3633_conventional_routing_respects_named_broker()
+    public async ValueTask InitializeAsync()
     {
-        _host = Host.CreateDefaultBuilder()
+        _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
                 // A default, unnamed broker is also registered so that conventional
@@ -25,11 +25,13 @@ public class Bug_3633_conventional_routing_respects_named_broker : IDisposable
                     .UseConventionalRouting(x => x.IncludeTypes(t => t == typeof(RoutedMessage)))
                     .AutoProvision()
                     .AutoPurgeOnStartup();
-            }).Start();
+            }).StartAsync();
     }
 
-    public void Dispose()
+    // StopAsync, not just Dispose -- see the note in ConventionalRoutingContext (GH-3763).
+    public async ValueTask DisposeAsync()
     {
+        await _host.StopAsync();
         _host.Dispose();
     }
 

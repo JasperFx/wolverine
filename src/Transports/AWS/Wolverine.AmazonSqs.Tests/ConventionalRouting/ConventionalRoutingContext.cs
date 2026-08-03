@@ -7,21 +7,53 @@ using Wolverine.Runtime.Routing;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-public abstract class ConventionalRoutingContext : IDisposable
+/// <summary>
+/// Every class in this namespace listens to the same small set of LocalStack queues -- most of them
+/// to <c>sqs://routed</c>. A host that is disposed but never stopped keeps long-polling that queue,
+/// so it steals messages from whichever class runs next and the theft looks like flakiness. See
+/// GH-3763.
+///
+/// This type owns disposal for that reason: derived classes override <see cref="InitializeAsync"/>
+/// rather than re-declaring <see cref="IAsyncLifetime"/> themselves. Re-declaring it is what let a
+/// no-op <c>DisposeAsync</c> shadow the real one here and in the Azure Service Bus fixtures
+/// (GH-3758) -- an explicit interface implementation on a derived class silently wins.
+/// </summary>
+public abstract class ConventionalRoutingContext : IAsyncLifetime
 {
     private IHost _host = null!;
+
+    public virtual ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
     internal async Task<IWolverineRuntime> theRuntime()
     {
         _host ??= await WolverineHost.ForAsync(opts =>
-            opts.UseAmazonSqsTransport().UseConventionalRouting().AutoProvision().AutoPurgeOnStartup());
+            opts.UseAmazonSqsTransportLocally().UseConventionalRouting(leaveTheEndToEndQueueAlone).AutoProvision()
+                .AutoPurgeOnStartup());
 
         return _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    public void Dispose()
+    /// <summary>
+    /// These classes only assert on configuration, but they still stand up real listeners for every
+    /// handler in the assembly -- which would include the queue end_to_end_with_conventional_routing
+    /// is trying to receive on, in a different worker process. An ExcludeTypes rather than an
+    /// IncludeTypes: excludes are ANDed and includes are ORed, so an include would silently widen a
+    /// test's own filter in ConfigureConventions. See GH-3763.
+    /// </summary>
+    private static void leaveTheEndToEndQueueAlone(AmazonSqsMessageRoutingConvention convention)
     {
-        _host?.Dispose();
+        convention.ExcludeTypes(t => t == typeof(EndToEndRoutedMessage));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_host == null) return;
+
+        // StopAsync, not just Dispose: IHost.Dispose() tears down the container without ever
+        // running IHostedService.StopAsync, which leaves the SQS listeners polling.
+        await _host.StopAsync();
+        _host.Dispose();
+        _host = null!;
     }
 
     internal async Task ConfigureConventions(Action<AmazonSqsMessageRoutingConvention> configure)
@@ -29,7 +61,11 @@ public abstract class ConventionalRoutingContext : IDisposable
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.UseAmazonSqsTransport().UseConventionalRouting(configure).AutoProvision()
+                opts.UseAmazonSqsTransportLocally().UseConventionalRouting(c =>
+                    {
+                        leaveTheEndToEndQueueAlone(c);
+                        configure(c);
+                    }).AutoProvision()
                     .AutoPurgeOnStartup();
             }).StartAsync();
     }

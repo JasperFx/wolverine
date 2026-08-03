@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
@@ -135,23 +137,79 @@ public class AmazonSqsTransport : BrokerTransport<AmazonSqsQueue>, IAsyncDisposa
     /// </summary>
     public bool SystemQueuesEnabled { get; set; }
 
+    /// <summary>
+    /// The hard limit Amazon SQS puts on a queue name. The <c>.fifo</c> suffix counts against it.
+    /// </summary>
+    public const int MaximumQueueNameLength = 80;
+
+    /// <summary>
+    /// Coerce an identifier into something Amazon SQS will actually accept: "Can only include
+    /// alphanumeric characters, hyphens, or underscores. 1 to 80 in length".
+    ///
+    /// Conventional routing derives queue names from message type names, so the raw input can carry
+    /// characters SQS rejects (<c>Handle(Item[])</c>, generics, nested types) or simply run past 80
+    /// characters once a prefix is applied. Either one fails <c>CreateQueue</c> with a 400, and
+    /// because broker initialization provisions every queue together, one bad name takes down
+    /// startup for every conventionally-routed host in the assembly. See GH-3763, and GH-3786 for
+    /// the same defect on Azure Service Bus.
+    ///
+    /// This is a no-op for every name that works today: a name SQS rejects could never have been
+    /// provisioned in the first place.
+    /// </summary>
     public static string SanitizeSqsName(string identifier)
     {
         //AWS requires FIFO queues to have a `.fifo` suffix
         var suffixIndex = identifier.LastIndexOf(".fifo", StringComparison.OrdinalIgnoreCase);
 
+        var suffix = string.Empty;
+        var name = identifier;
+
         if (suffixIndex != -1) // ".fifo" suffix found
         {
-            var prefix = identifier[..suffixIndex];
-            var suffix = identifier[suffixIndex..];
-
-            prefix = prefix.Replace('.', Separator);
-
-            return prefix + suffix;
+            suffix = identifier[suffixIndex..];
+            name = identifier[..suffixIndex];
         }
 
-        // ".fifo" suffix not found
-        return identifier.Replace('.', Separator);
+        return truncateToLimit(substituteIllegalCharacters(name), suffix);
+    }
+
+    private static string substituteIllegalCharacters(string name)
+    {
+        var characters = new char[name.Length];
+
+        for (var i = 0; i < name.Length; i++)
+        {
+            var c = name[i];
+
+            // '.' has always mapped to the identifier separator, and plenty of existing queue names
+            // depend on that exact spelling. Everything else illegal becomes '_' -- substituting
+            // rather than stripping is what keeps Item[] separable from Item.
+            characters[i] = c switch
+            {
+                '.' => Separator,
+                '-' or '_' => c,
+                _ => char.IsAsciiLetterOrDigit(c) ? c : '_'
+            };
+        }
+
+        return new string(characters);
+    }
+
+    private static string truncateToLimit(string name, string suffix)
+    {
+        if (name.Length + suffix.Length <= MaximumQueueNameLength)
+        {
+            return name + suffix;
+        }
+
+        // Truncation alone would collide two long names that share a prefix, and conventionally
+        // routed names are namespace-qualified type names, which very often do. Append a stable
+        // digest of the full name so the result stays unique -- and stays the SAME across processes
+        // and machines, which rules out string.GetHashCode() (randomized per process on .NET Core).
+        var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name))).ToLowerInvariant()[..8];
+        var budget = MaximumQueueNameLength - suffix.Length - digest.Length - 1;
+
+        return string.Concat(name.AsSpan(0, budget), Separator.ToString(), digest, suffix);
     }
 
     public override string SanitizeIdentifier(string identifier)

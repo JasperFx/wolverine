@@ -5,18 +5,15 @@ using Wolverine.Configuration;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
-public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext, IAsyncLifetime
+public class when_discovering_a_listening_endpoint_with_all_defaults : ConventionalRoutingContext
 {
     private readonly Uri theExpectedUri = "sqs://routed".ToUri();
     private AmazonSqsQueue theQueue = null!;
 
-    public async ValueTask InitializeAsync()
+    public override async ValueTask InitializeAsync()
     {
         theQueue = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<AmazonSqsQueue>();
     }
-
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
 
     [Fact]
     public void endpoint_should_be_a_listener()

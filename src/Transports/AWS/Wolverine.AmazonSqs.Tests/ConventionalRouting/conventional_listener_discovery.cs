@@ -9,7 +9,6 @@ using Wolverine.Util;
 
 namespace Wolverine.AmazonSqs.Tests.ConventionalRouting;
 
-[Trait("Category", "Flaky")]
 public class conventional_listener_discovery : ConventionalRoutingContext
 {
     [Fact]
