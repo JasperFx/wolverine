@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -68,12 +68,70 @@ partial class Build
             AbortReason = results.AbortReason,
             // Bounded by the budget itself: the point of the list is to name the suspects, not to
             // reproduce the log.
-            FlakyTests = results.PassedOnRetry.Select(x => x.DisplayName).Take(MaxRetriesPerRun).ToArray()
+            FlakyTests = results.PassedOnRetry.Select(x => x.DisplayName).Take(MaxRetriesPerRun).ToArray(),
+            FlakyFailures = results.PassedOnRetry.Take(MaxRetriesPerRun).Select(firstFailure).ToArray()
         };
 
         writeLedgerFile(entry);
         appendStepSummary(entry);
         annotate(entry);
+    }
+
+    /// <summary>
+    /// Why a retried test failed the first time.
+    ///
+    /// <para>The ledger named the flaky test but threw away the reason, and Bobcat's own log keeps
+    /// only the <c>[FLAKY] ... passed on attempt 2</c> line for a test that eventually passed — the
+    /// first attempt's failure appears nowhere at all. That is the difference between a lead and a
+    /// name. Two of the four flaky tests standing on 2026-08-03 were undiagnosable for exactly this
+    /// reason, and the note left on <c>multi_tenancy_through_virtual_hosts</c> records its next step
+    /// as "dump the tracked session on the FIRST attempt rather than infer from the assertion" —
+    /// which is this. GH-3763, GH-3787.</para>
+    ///
+    /// <para>Takes the earliest attempt that did not succeed rather than <c>Attempts[0]</c>: the
+    /// ordering of the collection is Bobcat's business, and <c>AttemptNumber</c> is the field that
+    /// actually states it.</para>
+    ///
+    /// <para>The reason comes from the attempt's <c>Outcome</c> — the test's own error — and
+    /// deliberately <b>not</b> from <c>Disposition.Reason</c>, which is the supervisor's rationale
+    /// for retrying ("a failure is retried in a fresh process, within the budget, to separate flaky
+    /// from broken") and is the same sentence for every retry in the repository. That distinction is
+    /// the whole point of this field: one of them identifies the test's problem, the other only
+    /// restates the retry policy.</para>
+    /// </summary>
+    static FlakyFailure firstFailure(TestReport report)
+    {
+        var failed = report.Attempts?
+            .Where(x => !x.Succeeded)
+            .OrderBy(x => x.AttemptNumber)
+            .FirstOrDefault();
+
+        var outcome = failed?.Outcome;
+
+        return new FlakyFailure
+        {
+            Test = report.DisplayName,
+            Attempt = failed?.AttemptNumber ?? 0,
+            ErrorType = string.IsNullOrWhiteSpace(outcome?.ErrorType) ? null : outcome.ErrorType,
+            // One line and bounded: this is a lead to open the log with, not a copy of it. A
+            // multi-line reason would also break the ::warning workflow command downstream.
+            Reason = condense(outcome?.ErrorMessage)
+        };
+    }
+
+    /// <summary>
+    /// Collapses a failure reason to a single bounded line, or null when there is nothing to say.
+    /// </summary>
+    static string condense(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason)) return null;
+
+        var flattened = string.Join(" ", reason.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.Trim())
+            .Where(x => x.Length > 0));
+
+        const int limit = 400;
+        return flattened.Length <= limit ? flattened : flattened[..limit] + "…";
     }
 
     static void writeLedgerFile(LedgerEntry entry)
@@ -133,7 +191,22 @@ partial class Build
                 builder.AppendLine();
                 builder.AppendLine("<details><summary>Tests that only passed on a retry</summary>");
                 builder.AppendLine();
-                foreach (var test in entry.FlakyTests) builder.AppendLine($"- `{test}`");
+
+                // Keyed off FlakyFailures where it has something to add, so the reason sits with the
+                // name rather than in a log nobody opens.
+                var reasons = entry.FlakyFailures.ToDictionary(x => x.Test, x => x);
+                foreach (var test in entry.FlakyTests)
+                {
+                    builder.AppendLine($"- `{test}`");
+
+                    if (!reasons.TryGetValue(test, out var failure)) continue;
+                    if (failure.ErrorType is null && failure.Reason is null) continue;
+
+                    var label = failure.ErrorType is null ? "" : $"**{failure.ErrorType}**";
+                    var detail = failure.Reason is null ? "" : $" — {failure.Reason}";
+                    builder.AppendLine($"  - attempt {failure.Attempt}: {label}{detail}");
+                }
+
                 builder.AppendLine();
                 builder.AppendLine("</details>");
             }
@@ -194,5 +267,28 @@ partial class Build
         public int WorkerFaults { get; init; }
         public string AbortReason { get; init; }
         public string[] FlakyTests { get; init; } = [];
+
+        /// <summary>
+        /// The same tests as <see cref="FlakyTests"/>, each with the reason its first attempt failed.
+        /// Additive on purpose: <see cref="FlakyTests"/> stays a plain string array because
+        /// build/flakiness-report.sh flattens it with <c>map(.FlakyTests[])</c>, and that jq must keep
+        /// working against ledgers written by older runs.
+        /// </summary>
+        public FlakyFailure[] FlakyFailures { get; init; } = [];
+    }
+
+    /// <summary>
+    /// One retried test and why it failed before it passed. See <see cref="firstFailure"/>.
+    /// </summary>
+    class FlakyFailure
+    {
+        public string Test { get; init; }
+        public int Attempt { get; init; }
+
+        /// <summary>Exception type name from the failing attempt, e.g. ShouldAssertException.</summary>
+        public string ErrorType { get; init; }
+
+        /// <summary>The failing attempt's own error message, flattened to one bounded line.</summary>
+        public string Reason { get; init; }
     }
 }
