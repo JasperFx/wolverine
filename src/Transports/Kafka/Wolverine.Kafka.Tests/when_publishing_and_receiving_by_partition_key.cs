@@ -9,7 +9,6 @@ using Wolverine.Tracking;
 
 namespace Wolverine.Kafka.Tests;
 
-[Trait("Category", "Flaky")]
 public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
 {
     #region sample_publish_to_kafka_by_partition_key
@@ -92,11 +91,10 @@ public class when_publishing_and_receiving_by_partition_key : IAsyncLifetime
         singleEnvelope.Offset.ShouldBeGreaterThan(0);
     }
 
-    [Fact]
-    public async Task receive_message_with_group_id()
-    {
-
-    }
+    // receive_message_with_group_id used to live here with an empty body -- an always-green test
+    // that asserted nothing. Envelope.GroupId is really covered by
+    // configure_consumers_and_publishers.can_receive_the_group_id_for_the_consumer_on_the_envelope
+    // and by broadcast_to_topic_rules.route_by_derived_topics_1. GH-3763.
 
     [Fact]
     public async Task received_message_has_partition_id()

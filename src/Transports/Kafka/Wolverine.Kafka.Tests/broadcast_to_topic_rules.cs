@@ -31,13 +31,29 @@ public class broadcast_to_topic_rules : IAsyncLifetime
                 opts.UseKafka(KafkaContainerFixture.ConnectionString)
                     .AutoProvision()
                     .ConfigureConsumers(c => c.AutoOffsetReset = AutoOffsetReset.Earliest);
-                opts.ListenToKafkaTopic("red").ConfigureConsumer(c =>
-                {
-                    c.GroupId = "crimson";
-                });
-                opts.ListenToKafkaTopic("green");
-                opts.ListenToKafkaTopic("blue");
-                opts.ListenToKafkaTopic("purple");
+                // Dedicated topics and consumer groups. RedMessage/GreenMessage and the topics
+                // "red"/"green"/"blue" are also used by configure_consumers_and_publishers, and
+                // "green"/"blue" fell into the DEFAULT group ("Wolverine.Kafka.Tests") that every
+                // other class in this assembly shares. Bobcat runs this project across worker
+                // PROCESSES partitioned by class, so those two classes consume the same topics in
+                // the same group concurrently and rebalance each other out mid-test. That is what
+                // "Flaky in CI due to Kafka consumer group timing issues" was half of.
+                //
+                // The other half: ExtendConsumerConfiguration, NOT ConfigureConsumer.
+                // ConfigureConsumer builds a new ConsumerConfig and replaces the parent's outright
+                // -- documented, but it meant the ConfigureConsumers(AutoOffsetReset.Earliest)
+                // above was silently discarded for any topic that set a GroupId. A brand-new
+                // consumer group then defaulted to Latest, so on a fresh broker the message was
+                // published before the group finished joining and was never delivered at all.
+                // GH-3763.
+                opts.ListenToKafkaTopic(BroadcastRulesTopics.Red)
+                    .ExtendConsumerConfiguration(c => c.GroupId = "crimson");
+                opts.ListenToKafkaTopic(BroadcastRulesTopics.Green)
+                    .ExtendConsumerConfiguration(c => c.GroupId = "broadcast-rules-green");
+                opts.ListenToKafkaTopic(BroadcastRulesTopics.Blue)
+                    .ExtendConsumerConfiguration(c => c.GroupId = "broadcast-rules-blue");
+                opts.ListenToKafkaTopic(BroadcastRulesTopics.Purple)
+                    .ExtendConsumerConfiguration(c => c.GroupId = "broadcast-rules-purple");
 
                 opts.ServiceName = "receiver";
 
@@ -64,35 +80,35 @@ public class broadcast_to_topic_rules : IAsyncLifetime
             }).StartAsync();
     }
 
-    [Fact(Skip = "Flaky in CI due to Kafka consumer group timing issues")]
+    [Fact]
     public async Task route_by_derived_topics_1()
     {
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
             .Timeout(60.Seconds())
-            .WaitForMessageToBeReceivedAt<RedMessage>(_receiver)
-            .PublishMessageAndWaitAsync(new RedMessage("one"));
+            .WaitForMessageToBeReceivedAt<BroadcastRedMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new BroadcastRedMessage("one"));
 
-        var singleEnvelope = session.Received.SingleEnvelope<RedMessage>();
+        var singleEnvelope = session.Received.SingleEnvelope<BroadcastRedMessage>();
         singleEnvelope
-            .Destination.ShouldBe(new Uri("kafka://topic/red"));
+            .Destination.ShouldBe(new Uri($"kafka://topic/{BroadcastRulesTopics.Red}"));
 
         singleEnvelope.GroupId.ShouldBe("crimson");
     }
 
-    [Fact(Skip = "Flaky in CI due to Kafka consumer group timing issues")]
+    [Fact]
     public async Task route_by_derived_topics_2()
     {
         var session = await _sender
             .TrackActivity()
             .AlsoTrack(_receiver)
             .Timeout(60.Seconds())
-            .WaitForMessageToBeReceivedAt<GreenMessage>(_receiver)
-            .PublishMessageAndWaitAsync(new GreenMessage("one"));
+            .WaitForMessageToBeReceivedAt<BroadcastGreenMessage>(_receiver)
+            .PublishMessageAndWaitAsync(new BroadcastGreenMessage("one"));
 
-        session.Received.SingleEnvelope<GreenMessage>()
-            .Destination.ShouldBe(new Uri("kafka://topic/green"));
+        session.Received.SingleEnvelope<BroadcastGreenMessage>()
+            .Destination.ShouldBe(new Uri($"kafka://topic/{BroadcastRulesTopics.Green}"));
     }
 
     public async ValueTask DisposeAsync()
@@ -104,6 +120,24 @@ public class broadcast_to_topic_rules : IAsyncLifetime
     }
 }
 
+/// <summary>
+/// Topic names owned by broadcast_to_topic_rules alone, so nothing else in this assembly
+/// publishes to them or joins a consumer group on them. See GH-3763.
+/// </summary>
+public static class BroadcastRulesTopics
+{
+    public const string Red = "broadcast-rules-red";
+    public const string Green = "broadcast-rules-green";
+    public const string Blue = "broadcast-rules-blue";
+    public const string Purple = "broadcast-rules-purple";
+}
+
+[Topic(BroadcastRulesTopics.Red)]
+public record BroadcastRedMessage(string Name);
+
+[Topic(BroadcastRulesTopics.Green)]
+public record BroadcastGreenMessage(string Name);
+
 [Topic("red")]
 public record RedMessage(string Name);
 
@@ -114,4 +148,6 @@ public static class ColoredMessageHandler
 {
     public static void Handle(RedMessage m) => Debug.WriteLine("Got red " + m.Name);
     public static void Handle(GreenMessage m) => Debug.WriteLine("Got green " + m.Name);
+    public static void Handle(BroadcastRedMessage m) => Debug.WriteLine("Got red " + m.Name);
+    public static void Handle(BroadcastGreenMessage m) => Debug.WriteLine("Got green " + m.Name);
 }

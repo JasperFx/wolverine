@@ -7,7 +7,6 @@ using Wolverine.Tracking;
 using Xunit;
 namespace Wolverine.Kafka.Tests;
 
-[Trait("Category", "Flaky")]
 public class broadcast_to_topic_async : IAsyncLifetime
 {
     private readonly ITestOutputHelper _output;
