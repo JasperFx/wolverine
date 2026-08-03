@@ -189,7 +189,7 @@ public partial class AssignmentGrid
             var partitions = sameCapabilities
                 ? [group.ToList()]
                 : group
-                    .GroupBy(CapabilityKey)
+                    .GroupBy(capabilityKey)
                     .OrderByDescending(partition => partition.Count())
                     .ThenBy(partition => partition.Key, StringComparer.Ordinal)
                     .Select(partition => partition.ToList())
@@ -243,7 +243,7 @@ public partial class AssignmentGrid
                             if (member.AssignedNode != null)
                             {
                                 load[member.AssignedNode] = load.GetValueOrDefault(member.AssignedNode) + 1;
-                                Remember(siblingHosts, member.AssignedNode);
+                                remember(siblingHosts, member.AssignedNode);
                                 continue;
                             }
 
@@ -260,7 +260,7 @@ public partial class AssignmentGrid
 
                             candidate.Assign(member);
                             load[candidate] += 1;
-                            Remember(siblingHosts, candidate);
+                            remember(siblingHosts, candidate);
                         }
 
                         continue;
@@ -281,7 +281,7 @@ public partial class AssignmentGrid
                     load[incumbent] + members.Count <= maximum)
                 {
                     load[incumbent] += members.Count;
-                    Remember(siblingHosts, incumbent);
+                    remember(siblingHosts, incumbent);
                     continue;
                 }
 
@@ -307,11 +307,11 @@ public partial class AssignmentGrid
                 }
 
                 load[node] += members.Count;
-                Remember(siblingHosts, node);
+                remember(siblingHosts, node);
             }
         }
 
-        static void Remember(List<Node> hosts, Node node)
+        static void remember(List<Node> hosts, Node node)
         {
             if (!hosts.Contains(node))
             {
@@ -327,7 +327,7 @@ public partial class AssignmentGrid
     /// blue/green split. An agent no node declares gets the empty key, so those stay together and keep the
     /// GH-3341 whole-group rescue.
     /// </summary>
-    private static string CapabilityKey(Agent agent) =>
+    private static string capabilityKey(Agent agent) =>
         string.Join(",", agent.CandidateNodes.Select(n => n.AssignedId).OrderBy(id => id));
 
     public bool AllNodesHaveSameCapabilities(string scheme)
