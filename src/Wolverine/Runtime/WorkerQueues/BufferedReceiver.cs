@@ -59,9 +59,24 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             (env, _) => env.Listener is { } l ? l.CompleteAsync(env).AsTask() : Task.CompletedTask, runtime.Logger,
             runtime.Cancellation);
 
-        _receivingBlock = endpoint.GroupShardingSlotNumber == null
-            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, executeAsync)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, boundedCapacity, executeAsync).DeserializeFirst(pipeline, runtime, this);
+        if (endpoint.GroupShardingSlotNumber == null)
+        {
+            _receivingBlock = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, executeAsync);
+        }
+        else
+        {
+            var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
+                runtime.Options.MessagePartitioning, boundedCapacity, executeAsync);
+            sharded.OnError = onBlockError;
+            _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, this);
+        }
+
+        // Route block-level failures (an exception escaping the execution machinery itself, or the
+        // block faulting terminally per jasperfx#506) through real logging. The JasperFx default sink
+        // is stderr, which reads as a silent stall in any structured-logging deployment — and a
+        // faulted block freezes QueueCount, which permanently latches a back-pressured listener
+        // (GH CritterWatch#922).
+        _receivingBlock.OnError = onBlockError;
 
         if (endpoint.TryBuildDeadLetterSender(runtime, out var dlq))
         {
@@ -70,6 +85,22 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
             _moveToErrors = new RetryBlock<Envelope>(
                 async (envelope, _) => { await _deadLetterSender!.SendAsync(envelope).ConfigureAwait(false); }, _logger,
                 _settings.Cancellation);
+        }
+    }
+
+    private void onBlockError(Envelope? envelope, Exception ex)
+    {
+        // A terminal block fault (jasperfx#506) reports with a null item
+        if (envelope == null)
+        {
+            _logger.LogCritical(ex,
+                "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
+                Uri);
+        }
+        else
+        {
+            _logger.LogError(ex, "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
+                envelope.Id, envelope.MessageType, Uri);
         }
     }
 
