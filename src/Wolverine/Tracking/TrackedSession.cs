@@ -594,17 +594,20 @@ internal partial class TrackedSession : ITrackedSession
     {
         if (!_executionComplete) return false;
 
-        if (_conditions.Any(x => x.IsCompleted()))
+        if (_conditions.Any())
         {
-            return true;
+            // ALL of the conditions, not ANY. This used to short-circuit on the first satisfied
+            // condition, which made the final All(...) check below unreachable and silently broke
+            // every session that registers more than one condition -- e.g. three chained
+            // WaitForMessageToBeReceivedAt calls for a fan-out exchange returned as soon as the
+            // FIRST receiver handled the message, so assertions against the other two receivers'
+            // state raced the handlers that were still running. With a single condition ANY and ALL
+            // are the same, which is why this survived: almost every session registers just one.
+            // GH-3824.
+            return _conditions.All(x => x.IsCompleted());
         }
 
-        if (!_envelopes.All(x => x.IsComplete()))
-        {
-            return false;
-        }
-
-        return !_conditions.Any() || _conditions.All(x => x.IsCompleted());
+        return _envelopes.All(x => x.IsComplete());
     }
 
     public void LogException(Exception exception, string? serviceName)

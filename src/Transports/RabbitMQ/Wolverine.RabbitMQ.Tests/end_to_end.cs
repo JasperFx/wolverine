@@ -61,23 +61,25 @@ public static class RabbitTesting
     }
 }
 
-// GH-3763: stays tagged, but the earlier triage on this class was wrong in two ways and is replaced.
+// GH-3824: UNTAGGED. The last remaining failures in this class were a Wolverine bug, not flakiness.
 //
-// It cited "the exchange/binding-declaration race described in #2618" -- #2618 is a closed CI-stabilisation
-// tracer PR that describes nothing of the sort -- and it recorded
-// send_message_to_and_receive_through_rabbitmq_with_routing_key as failing 3 of 3. That test passes now.
+// The previous triage got as far as "use_fan_out_exchange and use_direct_exchange_with_binding_key each
+// pass ALONE and fail inside the class, in ~500ms on a null ColorHistory" -- all correct -- and then
+// inferred the cause: that WaitForMessageToBeReceivedAt is satisfied by MessageFailed as well as
+// MessageSucceeded, so a message that arrived and then failed ended the session early. That inference was
+// wrong. Dumping the session instead of inferring from the assertion (which is exactly what that triage
+// said to do next) showed status=Completed, ZERO exceptions, and the message marked successful -- but at
+// only ONE of the three receivers.
 //
-// What is actually true, measured 2026-08-03: use_fan_out_exchange and use_direct_exchange_with_binding_key
-// each pass ALONE (3 consecutive runs) and fail inside the class. They fail in ~500ms, nowhere near their
-// 30s tracked-session timeout, on a null ColorHistory -- which is possible because
-// WaitForMessageToBeReceivedAt is satisfied by MessageFailed as well as MessageSucceeded, so a message that
-// arrives and then fails completes the session and the test falls through to the assertion.
+// The real cause was in TrackedSession.IsCompleted(): it short-circuited on the first satisfied condition
+// (Any) rather than requiring all of them, which made the All(...) check on its own last line unreachable.
+// Both of these tests chain three WaitForMessageToBeReceivedAt calls for a fan-out, so the session returned
+// as soon as the FIRST receiver handled the message and the assertions raced the other two handlers. Alone
+// on an idle machine all three finish inside the same millisecond, which is why it only failed in-class.
 //
-// Two real causes were found and fixed in this pass (see RabbitTesting above, and the GH-3521 pins on the
-// receiver hosts), and they are not enough on their own: both tests still fail in-class. What remains is
-// unidentified cross-test state, and the next step is to dump the tracked session on failure rather than
-// infer from the assertion.
-[Trait("Category", "Flaky")]
+// Two further real causes were found and fixed earlier and were prerequisites, not red herrings: the
+// process-unique naming in RabbitTesting above, and the GH-3521 ApplicationAssembly pins on the receiver
+// hosts.
 public class end_to_end
 {
     private readonly ITestOutputHelper _output;
