@@ -217,12 +217,11 @@ public class blue_green_version_bump_assignment : IAsyncLifetime
         agents.Where(uri => uri.Segments.Any(segment =>
             segment.Trim('/').Equals(projectionName, StringComparison.OrdinalIgnoreCase))).ToList();
 
-    // The (type, name, databaseId) prefix of an agent URI, mirroring the internal
-    // EventSubscriptionAgentFamily.DatabaseKeyOf that group affinity keys on.
-    private static string DatabaseKeyOf(Uri uri) =>
-        uri.Segments.Length >= 3
-            ? $"{uri.Host}/{uri.Segments[1].Trim('/')}/{uri.Segments[2].Trim('/')}"
-            : uri.AbsoluteUri;
+    // Calls the real EventSubscriptionAgentFamily.DatabaseKeyOf rather than a local copy of it (GH-3819).
+    // This used to reimplement the URI grammar verbatim, which is exactly the drift risk that made the
+    // method public: a copy asserting co-location can quietly stop matching the key the distribution
+    // really groups on, and the test would keep passing while proving nothing.
+    private static string DatabaseKeyOf(Uri uri) => EventSubscriptionAgentFamily.DatabaseKeyOf(uri);
 }
 
 public record TripStarted(Guid Id, string Description);
