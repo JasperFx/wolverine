@@ -133,154 +133,162 @@ partial class Build
             WaitForPubsubEmulatorToBeReady();
     }
 
-    void WaitForPubsubEmulatorToBeReady()
+    /// <summary>
+    /// Polls until a service reports itself ready, and <b>throws</b> when the budget runs out.
+    ///
+    /// <para>Every gate in this file used to log a warning and carry on. That is how
+    /// <c>CIAzureServiceBus</c> spent 22 of its 25-retry budget on four consecutive <i>green</i> main
+    /// runs: the gate declared the emulator ready in under a second, provisioning ran against an api
+    /// still answering 503, a class fixture threw, and 22 tests failed together — as flaky tests, not
+    /// as infrastructure that never came up. It was found by accident. GH-3783 made that one gate
+    /// fatal; this makes the rest of them fatal through a single shared path, so a gate added later
+    /// cannot quietly reintroduce the warn-and-continue shape.</para>
+    ///
+    /// <para>A container that never starts should fail its job in seconds with a message naming the
+    /// service, not hand the whole suite to a broker that cannot serve it.</para>
+    /// </summary>
+    /// <param name="probe">
+    /// Returns null when the service is ready, or a short reason why it is not. Exceptions are
+    /// treated as "not ready" and their message becomes the reason, so the final error carries the
+    /// last real failure rather than a generic timeout.
+    /// </param>
+    void awaitService(string name, TimeSpan budget, Func<string> probe)
     {
-        var attempt = 0;
-        while (attempt < 30)
+        var deadline = DateTime.UtcNow.Add(budget);
+        var lastReason = "no attempt completed";
+        var attempts = 0;
+
+        while (true)
         {
+            attempts++;
+
             try
             {
-                using var tcpClient = new System.Net.Sockets.TcpClient();
-                tcpClient.Connect("localhost", 8085);
-                Log.Information("GCP Pub/Sub emulator is up and ready!");
-                return;
+                var reason = probe();
+                if (reason is null)
+                {
+                    Log.Information("{Service} is up and ready (attempt {Attempts})", name, attempts);
+                    return;
+                }
+
+                lastReason = reason;
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                // ignore connection errors
+                lastReason = e.Message;
             }
+
+            if (DateTime.UtcNow >= deadline) break;
 
             Thread.Sleep(2000);
-            attempt++;
         }
 
-        Log.Warning("GCP Pub/Sub emulator did not become ready after 60 seconds");
+        throw new InvalidOperationException(
+            $"{name} was not ready after {budget.TotalSeconds:n0}s ({attempts} attempts). " +
+            $"Last attempt: {lastReason}");
+    }
+
+    /// <summary>
+    /// Opens a TCP connection, returning null when it succeeds. The weakest probe shape available —
+    /// a listening socket is not the same claim as a broker that will serve a request — so prefer a
+    /// real protocol call wherever the client library is already referenced here.
+    /// </summary>
+    static string tcpProbe(string host, int port)
+    {
+        using var tcpClient = new System.Net.Sockets.TcpClient();
+        tcpClient.Connect(host, port);
+        return null;
+    }
+
+    void WaitForPubsubEmulatorToBeReady()
+    {
+        // The emulator answers HTTP on its main port, so this asks it a question rather than only
+        // checking that something is listening — the distinction the ASB gate was built on.
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
+        awaitService("GCP Pub/Sub emulator", TimeSpan.FromSeconds(60), () =>
+        {
+            var response = http.GetAsync("http://localhost:8085/").GetAwaiter().GetResult();
+
+            // Any HTTP answer means the emulator is serving. Deliberately not asserting 200: the
+            // lesson from GH-3783 is that pinning a gate to one status code is how it hangs when the
+            // service legitimately answers a different one.
+            return response is null ? "no response" : null;
+        });
     }
 
     void WaitForKafkaToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 30)
-        {
-            try
-            {
-                using var tcpClient = new System.Net.Sockets.TcpClient();
-                tcpClient.Connect("localhost", 9092);
-                Log.Information("Kafka is up and ready!");
-                return;
-            }
-            catch (Exception)
-            {
-                // ignore connection errors
-            }
-
-            Thread.Sleep(2000);
-            attempt++;
-        }
-
-        Log.Warning("Kafka did not become ready after 60 seconds");
+        // Still TCP-only, and knowingly the weakest gate here: a Kafka broker accepts connections
+        // before it will serve metadata or allow topic creation, so this can pass while the broker
+        // is not yet usable. Fixing it properly means a metadata request through an AdminClient, and
+        // Confluent.Kafka is not referenced by this build project (nor centrally versioned), so that
+        // is a change with its own risk rather than a line here. Tracked separately; making the gate
+        // fatal is the part that matters today.
+        awaitService("Kafka", TimeSpan.FromSeconds(60), () => tcpProbe("localhost", 9092));
     }
 
     void WaitForSqlServerToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 30)
+        // Budget is now wall-clock rather than an attempt count. The old "60 seconds" in the warning
+        // was never true: each failed attempt could burn the connection's own 5s timeout before the
+        // 2s sleep, so 30 attempts was anywhere from 60s to 210s depending on how the failure came
+        // back. A deadline says what it means.
+        awaitService("SQL Server", TimeSpan.FromMinutes(2), () =>
         {
-            try
-            {
-                using var conn = new Microsoft.Data.SqlClient.SqlConnection("Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=False");
-                conn.Open();
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT 1";
-                cmd.ExecuteNonQuery();
-                Log.Information("SQL Server is up and ready!");
-                return;
-            }
-            catch (Exception)
-            {
-                Thread.Sleep(2000);
-                attempt++;
-            }
-        }
-
-        Log.Warning("SQL Server did not become ready after 60 seconds");
+            using var conn = new Microsoft.Data.SqlClient.SqlConnection(
+                "Server=localhost,1434;User Id=sa;Password=P@55w0rd;Timeout=5;Encrypt=False");
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1";
+            cmd.ExecuteNonQuery();
+            return null;
+        });
     }
 
     void WaitForMySqlToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 30)
+        awaitService("MySQL", TimeSpan.FromMinutes(2), () =>
         {
-            try
-            {
-                using var conn = new MySqlConnector.MySqlConnection("Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;");
-                conn.Open();
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT 1";
-                cmd.ExecuteNonQuery();
-                Log.Information("MySQL is up and ready!");
-                return;
-            }
-            catch (Exception)
-            {
-                Thread.Sleep(2000);
-                attempt++;
-            }
-        }
-
-        Log.Warning("MySQL did not become ready after 60 seconds");
+            using var conn = new MySqlConnector.MySqlConnection(
+                "Server=localhost;Port=3306;Database=wolverine;User=root;Password=P@55w0rd;");
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1";
+            cmd.ExecuteNonQuery();
+            return null;
+        });
     }
 
     void WaitForOracleToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 60)
+        // Oracle is the slowest image in the compose file to reach a usable state, hence the roomiest
+        // budget. Connecting as the application user against FREEPDB1 (rather than pinging the
+        // listener) is deliberate: the listener answers well before the pluggable database will
+        // accept an application login.
+        awaitService("Oracle", TimeSpan.FromMinutes(3), () =>
         {
-            try
-            {
-                using var conn = new Oracle.ManagedDataAccess.Client.OracleConnection("User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1");
-                conn.Open();
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT 1 FROM DUAL";
-                cmd.ExecuteNonQuery();
-                Log.Information("Oracle is up and ready!");
-                return;
-            }
-            catch (Exception)
-            {
-                Thread.Sleep(2000);
-                attempt++;
-            }
-        }
-
-        Log.Warning("Oracle did not become ready after 120 seconds");
+            using var conn = new Oracle.ManagedDataAccess.Client.OracleConnection(
+                "User Id=wolverine;Password=wolverine;Data Source=localhost:1521/FREEPDB1");
+            conn.Open();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM DUAL";
+            cmd.ExecuteNonQuery();
+            return null;
+        });
     }
 
     void WaitForLocalStackToBeReady()
     {
-        var attempt = 0;
         using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        while (attempt < 30)
+
+        awaitService("LocalStack", TimeSpan.FromMinutes(2), () =>
         {
-            try
-            {
-                var response = httpClient.GetAsync("http://localhost:4566/_localstack/health").GetAwaiter().GetResult();
-                if (response.IsSuccessStatusCode)
-                {
-                    Log.Information("LocalStack is up and ready!");
-                    return;
-                }
-            }
-            catch (Exception)
-            {
-                // ignore connection errors
-            }
+            var response = httpClient.GetAsync("http://localhost:4566/_localstack/health")
+                .GetAwaiter().GetResult();
 
-            Thread.Sleep(2000);
-            attempt++;
-        }
-
-        Log.Warning("LocalStack did not become ready after 60 seconds");
+            return response.IsSuccessStatusCode ? null : $"health endpoint answered {(int)response.StatusCode}";
+        });
     }
 
     /// <summary>
@@ -311,42 +319,26 @@ partial class Build
         // depend on getting the ATOM api-version right here.
         const string managementProbe = "http://localhost:5300/$Resources/topics";
 
-        var deadline = DateTime.UtcNow.AddMinutes(3);
-        var lastReason = "no attempt completed";
-
-        while (DateTime.UtcNow < deadline)
+        // Deliberately fatal, via the same shared path as every other gate. This used to log a warning
+        // and carry on, so an emulator that never came up at all still fed the entire suite into a
+        // broker that could not serve it — and the resulting failures read as flaky tests rather than
+        // as infrastructure that never started.
+        awaitService("Azure Service Bus emulator", TimeSpan.FromMinutes(3), () =>
         {
-            try
+            using (var tcpClient = new System.Net.Sockets.TcpClient())
             {
-                using (var tcpClient = new System.Net.Sockets.TcpClient())
-                {
-                    tcpClient.Connect("localhost", 5673);
-                }
-
-                var response = http.GetAsync(managementProbe).GetAwaiter().GetResult();
-                if (response.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable)
-                {
-                    Log.Information(
-                        "Azure Service Bus emulator is up and ready for provisioning (management api answered {StatusCode})",
-                        (int)response.StatusCode);
-                    return;
-                }
-
-                lastReason = "the management api on 5300 is still warming up (503)";
-            }
-            catch (Exception e)
-            {
-                lastReason = e.Message;
+                tcpClient.Connect("localhost", 5673);
             }
 
-            Thread.Sleep(2000);
-        }
+            var response = http.GetAsync(managementProbe).GetAwaiter().GetResult();
 
-        // Deliberately fatal. This used to log a warning and carry on, so an emulator that never came up at
-        // all still fed the entire suite into a broker that could not serve it — and the resulting failures
-        // read as flaky tests rather than as infrastructure that never started.
-        throw new InvalidOperationException(
-            $"The Azure Service Bus emulator was not ready for provisioning after 3 minutes. Last attempt: {lastReason}");
+            // Keyed on "not 503", NOT on "== 200". CI answers 400 here and a developer machine
+            // answers 200; asserting 200 would hang for the whole budget and then fail the job. This
+            // distinction cost a day to find — do not tighten it.
+            return response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
+                ? "the management api on 5300 is still warming up (503)"
+                : null;
+        });
     }
 
     /// <summary>

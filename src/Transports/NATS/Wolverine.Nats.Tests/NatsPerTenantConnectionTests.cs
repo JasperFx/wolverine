@@ -54,7 +54,7 @@ public class NatsPerTenantConnectionTests : IAsyncLifetime
 
         // Server B is a second, independent broker so "used the tenant's own connection" is provable: the
         // message can only appear on B if the dedicated connection carried it there.
-        _serverB = new NatsBuilder().WithImage("nats:latest").Build();
+        _serverB = new NatsBuilder().WithImage(NatsContainerFixture.NatsImage).Build();
         await _serverB.StartAsync();
         _serverBUrl = _serverB.GetConnectionString();
 

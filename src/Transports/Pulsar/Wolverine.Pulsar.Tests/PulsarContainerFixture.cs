@@ -6,6 +6,17 @@ namespace Wolverine.Pulsar.Tests;
 
 public static class PulsarContainerFixture
 {
+    /// <summary>
+    /// GH-3799. Pinned, and shared by every Pulsar container in this project.
+    ///
+    /// <para>4.2.4 is exactly what <c>apachepulsar/pulsar:latest</c> resolved to when this was
+    /// pinned — and <c>:latest</c> had moved to it that same day, so CI's Pulsar was changing under
+    /// the suite with nothing in the repository recording it. docker-compose.yml is set to the same
+    /// version; it previously said 4.0.3, which meant a developer and CI were running different
+    /// brokers for the same tests.</para>
+    /// </summary>
+    public const string PulsarImage = "apachepulsar/pulsar:4.2.4";
+
     private static PulsarContainer? _container;
 
     public static Uri ServiceUrl { get; private set; } = new("pulsar://localhost:6650");
@@ -35,7 +46,7 @@ public static class PulsarContainerFixture
         // Console.Out. The banner lands in the raw protocol channel and the whole assembly dies
         // with "Test process did not return valid JSON", running no tests at all.
         _container = new PulsarBuilder()
-            .WithImage("apachepulsar/pulsar:latest")
+            .WithImage(PulsarImage)
             .WithLogger(NullLogger.Instance)
             .Build();
 

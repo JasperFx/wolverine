@@ -56,7 +56,9 @@ services:
   # GCS emulator used by the WolverineFx.ClaimCheck.GoogleCloudStorage backend tests.
   # Serves plain HTTP on 4443; tests point the client at it via STORAGE_EMULATOR_HOST.
   fake-gcs-server:
-    image: "fsouza/fake-gcs-server:latest"
+    # Pinned: :latest resolved to exactly this tag when it was pinned, so this is byte-for-byte what
+    # CI had been running. See the note on asb-emulator below for why a rolling tag is a trap here.
+    image: "fsouza/fake-gcs-server:1.55.1"
     ports:
       - "4443:4443"
     command: ["-scheme", "http", "-host", "0.0.0.0", "-port", "4443", "-public-host", "localhost:4443"]
@@ -73,7 +75,11 @@ services:
   # If you're working locally on ARM and don't need Polecat tests, you can override this service 
   # using `docker-compose -f docker-compose.yml -f docker-compose.azure-sql-edge.yml up -d`
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2025-latest
+    # 2025-latest is a rolling tag: it moves on every cumulative update, CI pulls it fresh every run,
+    # and a developer machine keeps whatever it pulled months ago. Pinned by digest rather than tag
+    # because no concrete 2025-CU* tag matches the 2025-latest manifest -- the same reason
+    # azure-sql-edge below is pinned by digest. This is byte-for-byte what CI was already running.
+    image: mcr.microsoft.com/mssql/server@sha256:aff82a722378e1e30125d566dae40d4678e66ec3f7814fbe26cb1746b150b910
     ports:
       - "1434:1433"
     environment:
@@ -83,7 +89,9 @@ services:
       - "MSSQL_PID=Developer"
 
   pulsar:
-    image: "apachepulsar/pulsar:4.0.3"
+    # Kept in step with PulsarContainerFixture, which is what CI actually runs against (Testcontainers).
+    # This said 4.0.3 while the fixture said :latest -- two different Pulsars for the same test suite.
+    image: "apachepulsar/pulsar:4.2.4"
     ports:
       - "6650:6650"
       - "8080:8080"
