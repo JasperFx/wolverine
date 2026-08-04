@@ -904,18 +904,99 @@ partial class Build
             DotNet($"run --project {staticSmoke} --no-build --configuration {Configuration} --framework net9.0");
         });
 
+    // ─── Azure Service Bus CI Targets ──────────────────────────────────
+    //
+    // GH-3790. Wolverine.AzureServiceBus.Tests was the tests.yml wall-clock pole and sat at 84% of the
+    // hard 20 minute job cap (1012s of 1200s, stable over six runs), with no headroom for the next
+    // batch of ASB tests. It is now sharded three ways.
+    //
+    // Sharding was deliberately abandoned once before, and correctly: at the time 57 of the suite's 68
+    // minutes were broker timeouts, so splitting would have spread a real defect across three jobs and
+    // hidden it a second time. GH-3789 removed those timeouts, so what is left is genuine capacity.
+    //
+    // Measured, not guessed (Release, net9.0, serial, freshly recreated emulator in docker):
+    // 300 tests, 806s of test-body time across 42 classes, 14m36s wall clock. Two properties of that
+    // measurement shaped the split:
+    //
+    //   - Unlike PolecatTests, per-class fixture cost does NOT dominate here: the test bodies account
+    //     for 806s of the 876s wall clock, so balancing on measured test time translates almost
+    //     directly into balanced jobs.
+    //   - The distribution is extremely top-heavy. 21 of the 42 classes are pure unit tests costing
+    //     ~0s, while leader_election alone is 212s — 26% of the entire suite.
+    //
+    // Namespaces could not carry this split (264 of 306 tests live in the root namespace), so the
+    // shards are keyed on class prefixes. includeNamespaces/excludeNamespaces are prefix matchers and
+    // work unchanged for that — see the note on them.
+    //
+    // Resulting balance, and the reason the catch-all is deliberately the SMALLEST of the three:
+    // new tests land in the catch-all, so it is the shard that must have room to grow.
+    //
+    //   Leader   280.3s   21 tests   34.8%
+    //   Routing  277.6s   27 tests   34.4%
+    //   catch-all 248.1s 252 tests   30.8%
+    //
+    // Each shard is its own matrix job on its own runner, so each gets its own emulator container.
+    // That also makes the emulator's 50-queue-per-namespace cap (SubCode=40300, reported as a
+    // broker-initialization timeout that never mentions a cap) strictly less likely than before,
+    // because each shard now declares a fraction of the queues the single job used to.
+    //
+    // A couple of members sit outside what their shard's name suggests — StatefulResourceSmokeTests
+    // with leader election, using_native_scheduling with conventional routing. That is balance
+    // talking, not taxonomy, and it is why the numbers above are recorded here.
+
+    /// <summary>
+    /// ASB shard 1: the two most expensive classes in the suite, 34.8% of its measured time in
+    /// 21 tests.
+    /// </summary>
+    static readonly string[] AsbLeaderShard =
+    [
+        "Wolverine.AzureServiceBus.Tests.leader_election",            // 212.3s / 15 tests — 26% of the suite
+        "Wolverine.AzureServiceBus.Tests.StatefulResourceSmokeTests"  //  68.0s /  6 tests
+    ];
+
+    /// <summary>
+    /// ASB shard 2: the whole ConventionalRouting namespace, plus native scheduling to balance it.
+    /// </summary>
+    static readonly string[] AsbRoutingShard =
+    [
+        "Wolverine.AzureServiceBus.Tests.ConventionalRouting",        // 221.6s / 22 tests — a real namespace
+        "Wolverine.AzureServiceBus.Tests.using_native_scheduling"     //  55.9s /  5 tests
+    ];
+
+    void runAzureServiceBusShard(Func<WorkerTest, bool> testFilter)
+    {
+        var tests = RootDirectory / "src" / "Transports" / "Azure" / "Wolverine.AzureServiceBus.Tests" / "Wolverine.AzureServiceBus.Tests.csproj";
+
+        BuildTestProjects(tests);
+        // Postgres is needed for leader election tests. Started for every shard rather than only the
+        // one holding leader_election: durability-backed tests are spread across all three, and the
+        // container is cheap next to the emulator's warm-up.
+        StartDockerServices("asb-emulator", "postgresql");
+
+        RunTestProject(tests, testFilter: testFilter);
+    }
+
+    /// <summary>
+    /// ASB shard 1 — leader election and stateful resources.
+    /// </summary>
+    Target CIAzureServiceBusLeader => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runAzureServiceBusShard(includeNamespaces(AsbLeaderShard)));
+
+    /// <summary>
+    /// ASB shard 2 — conventional routing and native scheduling.
+    /// </summary>
+    Target CIAzureServiceBusRouting => _ => _
+        .ProceedAfterFailure()
+        .Executes(() => runAzureServiceBusShard(includeNamespaces(AsbRoutingShard)));
+
+    /// <summary>
+    /// ASB shard 3 — everything else, so a newly added class always runs somewhere.
+    /// </summary>
     Target CIAzureServiceBus => _ => _
         .ProceedAfterFailure()
-        .Executes(() =>
-        {
-            var tests = RootDirectory / "src" / "Transports" / "Azure" / "Wolverine.AzureServiceBus.Tests" / "Wolverine.AzureServiceBus.Tests.csproj";
-
-            BuildTestProjects(tests);
-            // Postgres is needed for leader election tests
-            StartDockerServices("asb-emulator", "postgresql");
-
-            RunTestProject(tests);
-        });
+        .Executes(() => runAzureServiceBusShard(
+            excludeNamespaces([..AsbLeaderShard, ..AsbRoutingShard])));
 
     // ─── Polecat CI Targets ────────────────────────────────────────────
     //
@@ -953,6 +1034,12 @@ partial class Build
     ];
 
     // A trailing '.' keeps "PolecatTests.Sagas" from also matching a future "PolecatTests.SagasSomethingElse".
+    /// <summary>
+    /// Shard filter over test-name prefixes. A prefix is usually a namespace, but since a test's
+    /// DisplayName is <c>Namespace.Class.Method</c> the same match works for a fully-qualified CLASS
+    /// name — which is what the Azure Service Bus shards use, because 264 of that project's 306 tests
+    /// live in the root namespace and namespaces cannot split it (GH-3790).
+    /// </summary>
     static Func<WorkerTest, bool> includeNamespaces(params string[] namespaces)
     {
         return t => namespaces.Any(n => t.DisplayName.StartsWith(n + "."));
