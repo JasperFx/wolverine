@@ -6,6 +6,11 @@ using Wolverine.Util;
 using Xunit;
 namespace Wolverine.MQTT.Tests;
 
+// GH-3763: route_by_derived_topics_2 costs one retry in CIMQTT5, accepted on purpose and deliberately
+// NOT tagged Category=Flaky. It fails with the same
+// `MqttCommunicationException : Broken pipe` as listen_with_topic_wildcards.broadcast, in the same
+// run -- see the note on that class for the three candidates already eliminated and where the next
+// evidence will come from. Two classes, one symptom: treat them as one investigation, not two.
 [Collection("acceptance")]
 public class broadcast_to_topic_by_user_logic: IAsyncLifetime
 {
