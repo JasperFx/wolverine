@@ -321,10 +321,17 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
         return DatabaseId.TryParse(uri.Segments[2].Trim('/'), out var id) ? id : null;
     }
 
-    // Agent URIs are event-subscriptions://{type}/{name}/{databaseId}/{shard...} (see UriFor); the
-    // (type, name, databaseId) prefix identifies the shard database an agent belongs to, so grouping on it
-    // co-locates every tenant/projection agent for one database on the same node.
-    internal static string DatabaseKeyOf(Uri uri)
+    /// <summary>
+    /// The (type, name, databaseId) prefix of an event-subscription agent URI — the key group affinity
+    /// distributes on, so every tenant/projection agent belonging to one shard database is co-located on
+    /// the same node. Agent URIs are <c>event-subscriptions://{type}/{name}/{databaseId}/{shard...}</c>
+    /// (see <see cref="UriFor"/>).
+    ///
+    /// <para>Public so that callers reasoning about agent placement per database — an admin view, a
+    /// readiness probe, a test asserting co-location — can use the same key the distribution actually
+    /// uses instead of re-implementing the URI grammar and silently drifting from it. See GH-3819.</para>
+    /// </summary>
+    public static string DatabaseKeyOf(Uri uri)
         => uri.Segments.Length >= 3
             ? $"{uri.Host}/{uri.Segments[1].Trim('/')}/{uri.Segments[2].Trim('/')}"
             : uri.AbsoluteUri;
@@ -348,7 +355,7 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
     /// else is a tenant. Returns null for a URI that doesn't parse as this scheme's grammar — such an
     /// agent is never treated as superseded.
     /// </summary>
-    internal static string? TenantNeutralKeyOf(Uri uri)
+    public static string? TenantNeutralKeyOf(Uri uri)
     {
         // Segments: "/", {storeName}, {databaseId}, {projectionName}, {shardKey}, [v{n} | tenant], [tenant]
         var segments = uri.Segments.Skip(1).Select(x => x.Trim('/')).Where(x => x.Length > 0).ToArray();
