@@ -18,7 +18,6 @@ namespace Wolverine.AzureServiceBus.Tests.Bugs;
 /// short-circuit on <c>endpoint.Subscriptions.Any() == false</c> and never upgrade
 /// the endpoint mode to Durable.
 /// </summary>
-[Trait("Category", "Flaky")]
 public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAsyncLifetime
 {
     private IHost _host = null!;
@@ -74,7 +73,6 @@ public class Bug_2588_durable_outbox_with_handler_and_conventional_routing : IAs
 /// queue-based one. Both inherit from <c>MessageRoutingConvention&lt;,,,&gt;</c>
 /// and share the same fix path.
 /// </summary>
-[Trait("Category", "Flaky")]
 public class Bug_2588_durable_outbox_with_handler_and_topic_broadcasting_routing : IAsyncLifetime
 {
     private IHost _host = null!;

@@ -11,7 +11,6 @@ namespace Wolverine.AzureServiceBus.Tests;
 // GH-3533: pinning a session-enabled listener to specific session identifiers turns the session id
 // into a broker-enforced routing key on a shared queue, so a listener pinned to "A" never sees the
 // messages meant for "B".
-[Trait("Category", "Flaky")]
 public class session_id_pinning : IAsyncLifetime
 {
     private IHost _host = null!;

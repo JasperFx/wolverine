@@ -11,11 +11,12 @@ namespace OracleTests.LeaderElection;
 // the OracleControlTransport / NodeControlEndpoint when running in Balanced
 // durability mode, otherwise leadership election cannot start.
 //
-// Marked Flaky so CI does not run them by default. The compliance suite spins up
-// 3-4 hosts per test and depends on TM/DML lock release between runs against a
-// single Oracle instance — fine to run locally one-at-a-time, but unstable
-// against the shared CI Oracle container. See #2618 (CI stabilization).
-[Trait("Category", "Flaky")]
+// Previously excluded from CI as Flaky because the compliance suite spins up 3-4 hosts per test
+// and depends on TM/DML lock release between runs against a single Oracle instance (#2618). The
+// beforeBuildingHost() teardown below has since grown the DDL_LOCK_TIMEOUT + per-table ORA-00054
+// retry that the exclusion was standing in for. Re-measured 2026-08-04: 15/15 green on four
+// consecutive runs, 1m44s each. Watch CIOracle -- the shared-container contention this was
+// hedging against cannot be reproduced on a dev box.
 public class leader_election : LeadershipElectionCompliance
 {
     public const string SchemaName = "WOLVERINE";

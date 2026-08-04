@@ -17,7 +17,6 @@ using Wolverine.Tracking;
 
 namespace PolecatTests.Subscriptions;
 
-[Trait("Category", "Flaky")]
 public class subscriptions_end_to_end
 {
     /// <summary>
@@ -233,7 +232,7 @@ public class subscriptions_end_to_end
         PcTotalsHandler.Handled.ShouldBe(['a', 'b', 'a', 'a', 'a', 'a', 'b', 'b']);
     }
 
-    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions - same failure in MartenSubscriptionTests")]
+    [Fact]
     public async Task use_unfiltered_publishing_subscription()
     {
         const string schema = "pc_subscriptions_pub";
@@ -276,8 +275,16 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // The daemon flushes the subscription's staged outbox AFTER it commits the page and its
+        // progress, so WaitForNonStaleData() returning does NOT mean the messages have been
+        // published. Without explicit waiters the session ends on the activity lull and the
+        // stragglers are never recorded. Same fix as the MartenSubscriptionTests twin.
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<PcAEvent>>(6)
+            .WaitForExecutionOf<PcBEvent>(7)
+            .WaitForExecutionOf<IEvent<PcDEvent>>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<PcAEvent>>().Count().ShouldBe(6);
@@ -285,7 +292,7 @@ public class subscriptions_end_to_end
         tracked.Executed.MessagesOf<IEvent<PcDEvent>>().Count().ShouldBe(6);
     }
 
-    [Fact(Skip = "Known TrackActivity race condition with publishing subscriptions - same failure in MartenSubscriptionTests")]
+    [Fact]
     public async Task use_filtered_publishing_subscription()
     {
         const string schema = "pc_subscriptions_pub_filt";
@@ -332,8 +339,12 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(30.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiters are needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<PcAEvent>>(6)
+            .WaitForExecutionOf<IEvent<PcDEvent>>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<PcAEvent>>().Count().ShouldBe(6);
@@ -391,8 +402,12 @@ public class subscriptions_end_to_end
             await daemon.WaitForNonStaleData(60.Seconds());
         };
 
+        // See use_unfiltered_publishing_subscription for why the explicit waiters are needed
         var tracked = await host
             .TrackActivity()
+            .Timeout(60.Seconds())
+            .WaitForExecutionOf<IEvent<PcAEvent>>(6)
+            .WaitForExecutionOf<PcTransformedMessage>(6)
             .ExecuteAndWaitAsync(writeEvents);
 
         tracked.Executed.MessagesOf<IEvent<PcAEvent>>().Count().ShouldBe(6);
