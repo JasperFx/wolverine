@@ -3,6 +3,7 @@ using JasperFx.Core;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Shouldly;
+using Wolverine.Runtime.Serialization;
 using Wolverine.Transports;
 using Wolverine.Transports.Sending;
 using Wolverine.Transports.Tcp;
@@ -118,4 +119,97 @@ public class BatchedSenderTests
     {
         new TcpEndpoint(2257).MessageBatchTimeout.ShouldBe(250.Milliseconds());
     }
+
+    // GH-3825: the serializing stage upstream of the batching block ran at
+    // Environment.ProcessorCount, so envelopes reached the outgoing batch in
+    // serialization-completion order instead of enqueue order. That silently broke the FIFO
+    // guarantee behind Azure Service Bus sessions, SQS FIFO message groups, and global
+    // partitioning. The uneven serializer below is what makes a parallel stage reorder every time.
+    [Fact]
+    public async Task preserves_enqueue_order_through_to_the_outgoing_batch()
+    {
+        var endpoint = new TcpEndpoint(2258)
+        {
+            MessageBatchSize = 100,
+            MessageBatchTimeout = 250.Milliseconds()
+        };
+
+        var batches = new List<OutgoingMessageBatch>();
+        var protocol = Substitute.For<ISenderProtocol>();
+        protocol.SendBatchAsync(Arg.Any<ISenderCallback>(), Arg.Any<OutgoingMessageBatch>())
+            .Returns(call =>
+            {
+                lock (batches)
+                {
+                    batches.Add(call.Arg<OutgoingMessageBatch>());
+                }
+
+                return Task.CompletedTask;
+            });
+
+        using var sender = new BatchedSender(endpoint, protocol, CancellationToken.None, NullLogger.Instance);
+        sender.RegisterCallback(Substitute.For<ISenderCallback>());
+
+        // Descending delays: under any parallelism the last envelope serializes first
+        var count = 8;
+        var expected = new List<string>();
+        for (var i = 0; i < count; i++)
+        {
+            var name = $"message-{i}";
+            expected.Add(name);
+
+            var envelope = new Envelope
+            {
+                Id = Guid.NewGuid(),
+                Destination = sender.Destination,
+                Message = name,
+                GroupId = name,
+                ContentType = "application/staggered",
+                Serializer = new StaggeredSerializer((count - i) * 20)
+            };
+
+            await sender.SendAsync(envelope);
+        }
+
+        var deadline = DateTimeOffset.UtcNow.Add(10.Seconds());
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            lock (batches)
+            {
+                if (batches.SelectMany(x => x.Messages).Count() >= count) break;
+            }
+
+            await Task.Delay(50.Milliseconds(), TestContext.Current.CancellationToken);
+        }
+
+        List<string> actual;
+        lock (batches)
+        {
+            actual = batches.SelectMany(x => x.Messages).Select(x => x.GroupId!).ToList();
+        }
+
+        actual.ShouldBe(expected);
+    }
+}
+
+internal class StaggeredSerializer : IMessageSerializer
+{
+    private readonly int _delayInMilliseconds;
+
+    public StaggeredSerializer(int delayInMilliseconds)
+    {
+        _delayInMilliseconds = delayInMilliseconds;
+    }
+
+    public string ContentType => "application/staggered";
+
+    public byte[] Write(Envelope envelope)
+    {
+        Thread.Sleep(_delayInMilliseconds);
+        return [1, 2, 3];
+    }
+
+    public object ReadFromData(Type messageType, Envelope envelope) => throw new NotSupportedException();
+    public object ReadFromData(byte[] data) => throw new NotSupportedException();
+    public byte[] WriteMessage(object message) => throw new NotSupportedException();
 }

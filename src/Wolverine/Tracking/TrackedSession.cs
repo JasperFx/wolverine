@@ -191,9 +191,14 @@ internal partial class TrackedSession : ITrackedSession
             .ToArray();
     }
 
+    // GH-3825: order by EnvelopeRecord.Sequence, not SessionTime. SessionTime is whole
+    // milliseconds, so an entire receive batch shares one value and OrderBy falls back to the
+    // enumeration order of _envelopes -- a Guid-keyed cache with no relationship to the order the
+    // activity actually happened in. Every ordering assertion written against Received/Sent was
+    // silently at the mercy of that.
     public EnvelopeRecord[] AllRecordsInOrder()
     {
-        return _envelopes.SelectMany(x => x.Records).Concat(statusesSnapshot()).OrderBy(x => x.SessionTime).ToArray();
+        return _envelopes.SelectMany(x => x.Records).Concat(statusesSnapshot()).OrderBy(x => x.Sequence).ToArray();
     }
 
     public EnvelopeRecord[] AllRecordsInOrder(MessageEventType eventType)
@@ -202,7 +207,7 @@ internal partial class TrackedSession : ITrackedSession
             .SelectMany(x => x.Records)
             .Concat(statusesSnapshot())
             .Where(x => x.MessageEventType == eventType)
-            .OrderBy(x => x.SessionTime)
+            .OrderBy(x => x.Sequence)
             .ToArray();
     }
 
