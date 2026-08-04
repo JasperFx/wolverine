@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Shouldly;
 using Weasel.Core;
 using Wolverine;
@@ -13,6 +14,7 @@ using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 using Wolverine.RDBMS.Polling;
+using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.WorkerQueues;
 using Wolverine.SqlServer;
@@ -172,7 +174,12 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
 
         var durabilitySettings = theHost.Services.GetRequiredService<DurabilitySettings>();
 
-        var runtime = theHost.GetRuntime();
+        // Use a substituted runtime rather than the live one. PollForScheduledMessagesAsync
+        // reassigns ownership AND hands the envelope straight to the execution pipeline via
+        // IWolverineRuntime.EnqueueDirectlyAsync. With the real runtime the envelope is picked
+        // up off local://replies and marked Handled within ~250ms, so asserting on the row's
+        // status is a race the test only usually wins -- it lost twice on CI. See GH-3821.
+        var runtime = Substitute.For<IWolverineRuntime>();
 
         await thePersistence.As<IMessageDatabase>().PollForScheduledMessagesAsync(runtime, NullLogger.Instance, durabilitySettings, TestContext.Current.CancellationToken);
 
@@ -180,6 +187,9 @@ public class SqlServerMessageStoreTests : MessageStoreCompliance
 
         stored.OwnerId.ShouldBe(durabilitySettings.AssignedNodeNumber);
         stored.Status.ShouldBe(EnvelopeStatus.Incoming);
+
+        // and the poll really did hand the envelope off to be executed
+        await runtime.Received().EnqueueDirectlyAsync(Arg.Is<IReadOnlyList<Envelope>>(x => x.Count == 1));
     }
     
         [Fact]

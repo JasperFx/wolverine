@@ -190,18 +190,30 @@ public class marten_durability_end_to_end : IAsyncLifetime
     protected async Task WaitForMessagesToBeProcessed(int count)
     {
         await using var session = _receiverStore.QuerySession();
+
+        var actual = 0L;
+        long envelopeCount = 0;
+        long outgoingCount = 0;
+
         for (var i = 0; i < 480; i++)
         {
-            var actual = await session.Query<TraceDoc>().CountAsync();
-            var envelopeCount = await PersistedIncomingCount();
+            actual = await session.Query<TraceDoc>().CountAsync();
+            envelopeCount = await PersistedIncomingCount();
 
-            if (actual == count && envelopeCount == 0)
+            // The sender deletes its outgoing rows through a RetryBlock that is POSTED to
+            // rather than awaited (DurableSendingAgent.MarkSuccessfulAsync), so the sender's
+            // outbox can still be draining after the receiver has processed everything. Wait
+            // for it here rather than letting the callers' assertions race the drain. GH-3821.
+            outgoingCount = await PersistedOutgoingCount();
+
+            if (actual == count && envelopeCount == 0 && outgoingCount == 0)
                 return;
 
             await Task.Delay(250);
         }
 
-        throw new Exception("All messages were not received");
+        throw new Exception(
+            $"All messages were not received. Expected {count} trace docs with 0 incoming and 0 outgoing envelopes, but last saw {actual} trace docs, {envelopeCount} incoming and {outgoingCount} outgoing.");
     }
 
     protected async Task<long> PersistedIncomingCount()
