@@ -13,7 +13,7 @@ namespace Wolverine.AzureServiceBus.Tests;
 // no broker-initialization timeout anywhere in it -- the two failures are
 // send_and_receive_multiple_messages_to_queue_with_session_identifier and
 // split_messages_with_different_sessionids_into_separate_batches, i.e. SESSION handling, which
-// conventional routing never touched. The other 4 pass. Needs its own issue; do not fold it back
+// conventional routing never touched. The other 4 pass. Tracked as GH-3825; do not fold it back
 // into GH-3786.
 [Trait("Category", "Flaky")]
 public class end_to_end : IAsyncLifetime

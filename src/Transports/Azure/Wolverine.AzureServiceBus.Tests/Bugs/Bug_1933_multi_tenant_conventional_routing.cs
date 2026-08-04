@@ -20,7 +20,7 @@ public static class Bug1933MessageHandler
 // 2, and 5.5m for the class. The broker starts fine now; the survivor is
 // should_receive_message_when_published_without_tenant_id, which fails as a TrackedSession timeout
 // after 4m28s -- the message is Sent and never Received. That is real multi-tenant routing
-// behaviour, not provisioning. Needs its own issue.
+// behaviour, not provisioning. Tracked as GH-3826.
 [Trait("Category", "Flaky")]
 public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 {

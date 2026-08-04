@@ -19,7 +19,7 @@ namespace Wolverine.AzureServiceBus.Tests.Bugs;
 //
 // The listener IS created for the batch element type (that much of GH-2307 works) -- its
 // EndpointName is just the raw type name rather than the sanitized queue name. A naming bug in the
-// GH-2307 fix, not a routing or provisioning failure. Needs its own issue.
+// GH-2307 fix, not a routing or provisioning failure. Tracked as GH-3827.
 [Trait("Category", "Flaky")]
 public class Bug_2307_batching_with_conventional_routing : IAsyncLifetime
 {
