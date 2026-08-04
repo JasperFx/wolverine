@@ -46,7 +46,16 @@ public class OracleTransport : BrokerTransport<OracleQueue>
 
     protected override OracleQueue findEndpointByUri(Uri uri)
     {
-        var queueName = uri.Host;
+        // GH-3820. Unlike the Postgres and SQL Server transports this was copied from, Oracle
+        // upper-cases identifiers (see SanitizeIdentifier) while System.Uri normalises the
+        // authority to lower case. A bare Queues[uri.Host] therefore never matches the key the
+        // queue was registered under, and LightweightCache quietly mints a *second* OracleQueue
+        // over the same physical tables. Correcting the name here is safe and idempotent: the
+        // host segment already went through SanitizeIdentifier when the Uri was built, so the
+        // only thing left to undo is Uri's lower-casing. Note SanitizeIdentifier rather than
+        // MaybeCorrectName -- the host already carries any IdentifierPrefix, which
+        // MaybeCorrectName would prepend a second time.
+        var queueName = SanitizeIdentifier(uri.Host);
         return Queues[queueName];
     }
 

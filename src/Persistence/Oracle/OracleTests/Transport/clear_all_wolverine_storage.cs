@@ -1,5 +1,4 @@
 using IntegrationTests;
-using JasperFx.Core;
 using Oracle.ManagedDataAccess.Client;
 using Weasel.Oracle;
 using Wolverine;
@@ -77,17 +76,21 @@ public class clear_all_wolverine_storage : ClearAllWolverineStorageCompliance
     /// 30835978599) and burned this class's two retries in the run after it. Left alone the count
     /// climbs monotonically — a local repro reached 3.</para>
     ///
-    /// <para>Now that the DROP resolves a table that actually exists, ORA-00054 becomes reachable
-    /// for the first time: this class is the only provider in the suite that attaches a listener,
-    /// and a polling listener holds a TM lock on the queue table (see the matching retry in
-    /// <c>OracleQueue.TeardownAsync</c>). Hence 942 = done, 54 = wait and retry, anything else
-    /// throws. Exhausting the retries throws too, rather than returning quietly: "could not drop the
-    /// queue table" is a far better failure than a count assertion two calls later that names
-    /// neither the lock nor the leftover rows.</para>
+    /// <para>Once the DROP started resolving a table that actually exists, ORA-00054 became
+    /// reachable for the first time, because this class was then the only provider in the suite
+    /// attaching a listener and a polling listener holds a TM lock on the queue table (see the
+    /// matching retry in <c>OracleQueue.TeardownAsync</c>). GH-3820 removed that listener — the
+    /// casing bug that forced it is fixed — so the contention should be gone rather than merely
+    /// retried around. The retry stays as a belt-and-braces guard: a host from a prior class in
+    /// this collection can still be tearing its connections down. Hence 942 = done, 54 = wait and
+    /// retry, anything else throws. Exhausting the retries throws too, rather than returning
+    /// quietly: "could not drop the queue table" is a far better failure than a count assertion two
+    /// calls later that names neither the lock nor the leftover rows.</para>
     /// </summary>
     private static async Task dropTableWithRetryAsync(OracleConnection conn, string table)
     {
         const int maxAttempts = 5;
+        OracleException? lastBusy = null;
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             try
@@ -102,16 +105,26 @@ public class clear_all_wolverine_storage : ClearAllWolverineStorageCompliance
                 // ORA-00942: table or view does not exist — nothing to drop, which is the goal.
                 return;
             }
-            catch (OracleException e) when (e.Number == 54 && attempt < maxAttempts)
+            catch (OracleException e) when (e.Number == 54)
             {
                 // ORA-00054: resource busy. The prior host's connections are still tearing down.
-                await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+                //
+                // Deliberately NOT guarded by `attempt < maxAttempts`. Folding the loop counter into
+                // the `when` clause meant that on the final attempt the guard was false, the raw
+                // OracleException escaped the loop, and the descriptive throw below was unreachable
+                // dead code -- it never ran once. GH-3820.
+                lastBusy = e;
+                if (attempt < maxAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(2 * attempt));
+                }
             }
         }
 
         throw new InvalidOperationException(
             $"Could not drop {TransportSchemaName}.{table} after {maxAttempts} attempts — it is still locked by " +
-            "another session. The test would otherwise start against a table holding a previous test's rows.");
+            "another session. The test would otherwise start against a table holding a previous test's rows.",
+            lastBusy);
     }
 
     protected override void ConfigureStorage(WolverineOptions options)
@@ -119,12 +132,17 @@ public class clear_all_wolverine_storage : ClearAllWolverineStorageCompliance
         options.PersistMessagesWithOracle(Servers.OracleConnectionString, SchemaName)
             .EnableMessageTransport(t => t.TransportSchemaName(TransportSchemaName));
 
-        // Registered through the listener rather than as a subscriber, unlike the other
-        // providers: Oracle uppercases queue identifiers, but Uri.Host lowercases, so the
-        // publishing.To(queue.Uri) inside ToOracleQueue() resolves a *second* endpoint over the
-        // same physical tables. The polling interval keeps the listener from draining the queue
-        // out from under the assertions.
-        options.ListenToOracleQueue(QueueName).PollingInterval(1.Hours());
+        // Subscriber only -- no listener, so nothing drains the queue out from under the
+        // assertions before the reset runs.
+        //
+        // This class used to attach a listener instead, because the publishing.To(queue.Uri)
+        // inside ToOracleQueue() resolved a *second* endpoint over the same physical tables:
+        // Oracle uppercases queue identifiers but Uri.Host lowercases, and
+        // OracleTransport.findEndpointByUri looked the name up without correcting it. That was a
+        // product bug, not a test quirk, and it is fixed in GH-3820 -- so this can now match every
+        // other provider in the suite. The listener was also the only thing holding a TM lock on
+        // the queue table, which is what made the ORA-00054 in beforeHostAsync reachable at all.
+        options.PublishAllMessages().ToOracleQueue(QueueName);
     }
 
     protected override ValueTask sendToQueueAsync(Envelope envelope)
