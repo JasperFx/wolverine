@@ -44,7 +44,7 @@ public class PulsarPerTenantConnectionTests : IAsyncLifetime
 
         try
         {
-            _clusterB = new PulsarBuilder().WithImage("apachepulsar/pulsar:latest").Build();
+            _clusterB = new PulsarBuilder().WithImage(PulsarContainerFixture.PulsarImage).Build();
             await _clusterB.StartAsync();
             _clusterBServiceUrl = new Uri(_clusterB.GetBrokerAddress());
 

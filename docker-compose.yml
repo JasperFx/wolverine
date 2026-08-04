@@ -56,7 +56,9 @@ services:
   # GCS emulator used by the WolverineFx.ClaimCheck.GoogleCloudStorage backend tests.
   # Serves plain HTTP on 4443; tests point the client at it via STORAGE_EMULATOR_HOST.
   fake-gcs-server:
-    image: "fsouza/fake-gcs-server:latest"
+    # Pinned: :latest resolved to exactly this tag when it was pinned, so this is byte-for-byte what
+    # CI had been running. See the note on asb-emulator below for why a rolling tag is a trap here.
+    image: "fsouza/fake-gcs-server:1.55.1"
     ports:
       - "4443:4443"
     command: ["-scheme", "http", "-host", "0.0.0.0", "-port", "4443", "-public-host", "localhost:4443"]
@@ -73,7 +75,17 @@ services:
   # If you're working locally on ARM and don't need Polecat tests, you can override this service 
   # using `docker-compose -f docker-compose.yml -f docker-compose.azure-sql-edge.yml up -d`
   sqlserver:
-    image: mcr.microsoft.com/mssql/server:2025-latest
+    # 2025-latest is a rolling tag: it moves on every cumulative update, CI pulls it fresh every run,
+    # and a developer machine keeps whatever it pulled months ago. Pinned by digest rather than tag
+    # because no concrete 2025-CU* tag matches the 2025-latest manifest -- the same reason
+    # azure-sql-edge below is pinned by digest. This is byte-for-byte what CI was already running.
+    #
+    # Resolve this digest with `docker buildx imagetools inspect <image>:<tag>`, never with a curl of
+    # the registry's manifest endpoint. A HEAD with an Accept for a manifest LIST returns MCR a
+    # digest for a representation that does not exist as a pullable manifest here -- this tag is a
+    # single-platform manifest -- and the resulting pin fails every job that needs SQL Server with
+    # "manifest unknown". Ask the tool that will do the pulling.
+    image: mcr.microsoft.com/mssql/server@sha256:86cc6144ef39bb0fbed2329e1ad79b13ee82e7b2e4739213a0db0800e668a74a
     ports:
       - "1434:1433"
     environment:
@@ -83,7 +95,9 @@ services:
       - "MSSQL_PID=Developer"
 
   pulsar:
-    image: "apachepulsar/pulsar:4.0.3"
+    # Kept in step with PulsarContainerFixture, which is what CI actually runs against (Testcontainers).
+    # This said 4.0.3 while the fixture said :latest -- two different Pulsars for the same test suite.
+    image: "apachepulsar/pulsar:4.2.4"
     ports:
       - "6650:6650"
       - "8080:8080"
@@ -121,7 +135,9 @@ services:
       - "6379:6379"
 
   nats:
-    image: "nats:2"
+    # Kept in step with NatsContainerFixture.NatsImage, which is what the NATS tests actually run
+    # against (Testcontainers). "nats:2" is a floating minor; it happens to equal 2.14.4 today.
+    image: "nats:2.14.4"
     ports:
       - "4222:4222"
       - "8222:8222"

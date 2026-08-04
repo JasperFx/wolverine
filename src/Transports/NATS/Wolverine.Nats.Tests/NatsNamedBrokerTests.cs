@@ -102,7 +102,7 @@ public class NatsNamedBrokerTests : IAsyncLifetime
             return;
         }
 
-        _serverB = new NatsBuilder().WithImage("nats:latest").Build();
+        _serverB = new NatsBuilder().WithImage(NatsContainerFixture.NatsImage).Build();
         await _serverB.StartAsync();
         _serverBUrl = _serverB.GetConnectionString();
 

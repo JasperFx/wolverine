@@ -405,30 +405,29 @@ partial class Build : NukeBuild
         return output.Any(line => line.Contains(toolName, StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// Postgres readiness. This was the thinnest gate in the build by a wide margin: ten attempts
+    /// separated by 250ms is a <b>2.5 second</b> budget for a container start, after which it logged
+    /// an error and let the suite run anyway.
+    ///
+    /// <para>It was already running out of room in production. In CIMQTT5 on main run 30847233633 it
+    /// spent four of its ten attempts before Postgres answered — roughly 1.1s of a 2.5s allowance —
+    /// so a slower runner would have sailed past the end and started the tests against a database
+    /// that was not up. Every failure after that would have looked like a test problem.</para>
+    /// </summary>
     private void WaitForDatabaseToBeReady()
     {
-        var attempt = 0;
-        while (attempt < 10)
-            try
-            {
-                using var conn = new Npgsql.NpgsqlConnection(PostgresConnectionString + ";Pooling=false");
-                conn.Open();
+        awaitService("PostgreSQL", TimeSpan.FromMinutes(2), () =>
+        {
+            using var conn = new Npgsql.NpgsqlConnection(PostgresConnectionString + ";Pooling=false");
+            conn.Open();
 
-                var cmd = conn.CreateCommand();
-                cmd.CommandText = "select 1";
-                cmd.ExecuteNonQuery();
+            var cmd = conn.CreateCommand();
+            cmd.CommandText = "select 1";
+            cmd.ExecuteNonQuery();
 
-                Log.Information("Postgresql is up and ready!");
-                return;
-            }
-            catch (Exception ex)
-            {
-                Log.Information("Database is not ready ({Error})", ex.Message);
-                Thread.Sleep(250);
-                attempt++;
-            }
-
-        Log.Error("Database is not ready after all attempts.");
+            return null;
+        });
     }
 
     private Dictionary<string, string[]> ReferencedProjects = new()
