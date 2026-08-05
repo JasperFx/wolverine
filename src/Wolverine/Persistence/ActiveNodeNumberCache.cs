@@ -43,6 +43,7 @@ public class ActiveNodeNumberCache
     private readonly SemaphoreSlim _gate = new(1, 1);
     private IReadOnlyList<int>? _numbers;
     private DateTimeOffset _staleAt = DateTimeOffset.MinValue;
+    private int _highWaterMark;
 
     internal ActiveNodeNumberCache(IWolverineRuntime runtime)
     {
@@ -50,10 +51,39 @@ public class ActiveNodeNumberCache
     }
 
     /// <summary>
+    /// The highest node number this cache has <i>ever</i> observed — monotonic across fetches, not
+    /// recomputed from the current list.
+    /// </summary>
+    /// <remarks>
+    /// GH-3850. A cached list cannot describe a node that registered after it was taken, and the
+    /// release of orphaned messages is not symmetric about that: a list still naming a dead node
+    /// merely delays recovery by one interval, but a list missing a <i>live</i> node resets that
+    /// node's in-flight rows to <c>owner_id = 0</c> and lets another node claim work it is already
+    /// doing. Node numbers are database-generated and monotonic (<c>SERIAL</c> on Postgres,
+    /// <c>AutoNumber()</c> on SQL Server), so anything above this mark registered after the cache
+    /// was taken and must not be judged against it.
+    ///
+    /// <para>Deliberately <b>not</b> <c>max(active)</c>, which looks equivalent and is not: when the
+    /// highest-numbered node dies its number leaves the active list, the max drops below it, and its
+    /// orphaned messages become permanently unreclaimable. Keeping the mark monotonic means a node
+    /// that was ever seen stays reclaimable after it departs, while one never seen stays protected.</para>
+    ///
+    /// <para>The remaining gap is a node that both registers and departs between two fetches: never
+    /// observed, so its rows stay owned until the mark rises. That parks messages rather than
+    /// double-processing them — the safe direction — and the next registration clears it.</para>
+    /// </remarks>
+    public int HighWaterMark => _highWaterMark;
+
+    /// <summary>
     /// The active node numbers, fetched at most once per
     /// <see cref="DurabilitySettings.ScheduledJobPollingTime" /> for the whole node. Exceptions are
     /// deliberately not swallowed here: the caller decides what a failed lookup means, and a failure
     /// leaves the previous value in place rather than caching an empty one.
+    ///
+    /// <para>Note that the gate serializes every database's timer callback behind one fetch, so a
+    /// <i>hung</i> <c>LoadAllNodesAsync</c> parks them all rather than letting each fail on its own
+    /// timeout. That is the intended trade — one slow query beats one per database, which is the
+    /// pool exhaustion this class exists to prevent — but it is worth knowing when reading a stall.</para>
     /// </summary>
     public async ValueTask<IReadOnlyList<int>> FetchAsync(CancellationToken token)
     {
@@ -70,6 +100,14 @@ public class ActiveNodeNumberCache
             var numbers = nodes.Select(x => x.AssignedNodeNumber).ToList();
 
             _numbers = numbers;
+
+            // Monotonic on purpose -- see HighWaterMark. Raised, never lowered, so a departed node
+            // stays reclaimable while a node newer than this cache stays protected.
+            foreach (var number in numbers)
+            {
+                if (number > _highWaterMark) _highWaterMark = number;
+            }
+
             _staleAt = DateTimeOffset.UtcNow.Add(_runtime.DurabilitySettings.ScheduledJobPollingTime);
 
             return numbers;
