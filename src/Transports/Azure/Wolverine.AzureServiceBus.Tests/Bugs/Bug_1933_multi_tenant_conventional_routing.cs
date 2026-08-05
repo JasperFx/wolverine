@@ -16,12 +16,6 @@ public static class Bug1933MessageHandler
     }
 }
 
-// NOT flaky. Re-measured 2026-08-02 after the entity-name sanitizing fix: now 1 of 2, down from 2 of
-// 2, and 5.5m for the class. The broker starts fine now; the survivor is
-// should_receive_message_when_published_without_tenant_id, which fails as a TrackedSession timeout
-// after 4m28s -- the message is Sent and never Received. That is real multi-tenant routing
-// behaviour, not provisioning. Tracked as GH-3826.
-[Trait("Category", "Flaky")]
 public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
 {
     public async ValueTask InitializeAsync() =>await  ValueTask.CompletedTask;
@@ -55,10 +49,13 @@ public class Bug_1933_multi_tenant_conventional_routing : IAsyncLifetime
                     .AddTenantByConnectionString("test", Servers.AzureServiceBusConnectionString)
                     .UseConventionalRouting();
 
-                // Set the tenant's management connection string for the emulator
+                // Set the tenant's management connection string for the emulator. This has to be the
+                // *management* endpoint -- pointing it at the AMQP endpoint made every tenant
+                // provisioning call hang until its own timeout, which is where this test's old
+                // 4m+ runtime came from.
                 var transport = opts.Transports.GetOrCreate<AzureServiceBusTransport>();
                 transport.Tenants["test"].Transport.ManagementConnectionString =
-                    Servers.AzureServiceBusConnectionString;
+                    Servers.AzureServiceBusManagementConnectionString;
             }).StartAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         var message = new Bug1933Message("Hello from default namespace");

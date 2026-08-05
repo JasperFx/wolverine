@@ -10,23 +10,20 @@ public partial class AzureServiceBusTransport
 {
     internal ISender CreateSender(IWolverineRuntime runtime, AzureServiceBusTopic topic)
     {
-        var mapper = topic.BuildMapper(runtime);
-
-        var defaultSender = buildSenderForTopic(runtime, topic, mapper);
-
+        // GH-3826: when tenants are in play, every sender underneath the TenantedSender -- the
+        // default fallback included -- has to be the fire-and-forget inline sender. TenantedSender
+        // deliberately does not implement ISenderRequiresCallback (GH-2361), so EndpointCollection
+        // never calls RegisterCallback on the senders beneath it, and a BatchedSender there throws
+        // "This sender has not been registered." on every single batch. Same reasoning and same
+        // shape as Redis, MQTT, and Pub/Sub.
         if (Tenants.Any() && topic.TenancyBehavior == TenancyBehavior.TenantAware)
         {
-            var tenantedSender = new TenantedSender(topic.Uri, TenantedIdBehavior, defaultSender);
-            foreach (var tenant in Tenants)
-            {
-                var sender = tenant.Transport.buildSenderForTopic(runtime, topic, mapper);
-                tenantedSender.RegisterSender(tenant.TenantId, sender);
-            }
-
-            return tenantedSender;
+            return BuildInlineSenderForTopic(runtime, topic);
         }
 
-        return defaultSender;
+        var mapper = topic.BuildMapper(runtime);
+
+        return buildSenderForTopic(runtime, topic, mapper);
     }
 
     private ISender buildSenderForTopic(IWolverineRuntime runtime, AzureServiceBusTopic topic,
@@ -106,22 +103,16 @@ public partial class AzureServiceBusTransport
 
     internal ISender BuildSenderForQueue(IWolverineRuntime runtime, AzureServiceBusQueue queue)
     {
-        var mapper = queue.BuildMapper(runtime);
-        var defaultSender = buildSenderForQueue(runtime, queue, mapper);
-
+        // GH-3826: see CreateSender(topic) -- a BatchedSender underneath a TenantedSender never
+        // receives its ISenderCallback and fails every batch, so the tenanted path is inline only.
         if (Tenants.Any() && queue.TenancyBehavior == TenancyBehavior.TenantAware)
         {
-            var tenantedSender = new TenantedSender(queue.Uri, TenantedIdBehavior, defaultSender);
-            foreach (var tenant in Tenants)
-            {
-                var sender = tenant.Transport.buildSenderForQueue(runtime, queue, mapper);
-                tenantedSender.RegisterSender(tenant.TenantId, sender);
-            }
-
-            return tenantedSender;
+            return BuildInlineSenderForQueue(runtime, queue);
         }
-        
-        return defaultSender;
+
+        var mapper = queue.BuildMapper(runtime);
+
+        return buildSenderForQueue(runtime, queue, mapper);
     }
 
     private ISender buildSenderForQueue(IWolverineRuntime runtime, AzureServiceBusQueue queue,

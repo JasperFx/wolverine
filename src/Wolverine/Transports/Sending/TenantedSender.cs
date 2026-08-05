@@ -82,6 +82,20 @@ public class TenantedSender : ISender, IDisposable, IAsyncDisposable, ICondition
         _senders = _senders.AddOrUpdate(tenantId, sender);
     }
 
+    /// <summary>
+    /// The sender used for the untenanted pathway, and for unknown tenant ids when the
+    /// TenantedIdBehavior is FallbackToDefault
+    /// </summary>
+    public ISender DefaultSender => _defaultSender;
+
+    /// <summary>
+    /// All the registered tenant id / sender pairs. Diagnostic only.
+    /// </summary>
+    public IEnumerable<KeyValuePair<string, ISender>> TenantSenders()
+    {
+        return _senders.Enumerate().Select(x => new KeyValuePair<string, ISender>(x.Key, x.Value));
+    }
+
     public bool SupportsNativeScheduledSend => _defaultSender.SupportsNativeScheduledSend;
 
     bool IConditionalNativeScheduling.CanScheduleNatively(Envelope envelope, DateTimeOffset utcNow)
