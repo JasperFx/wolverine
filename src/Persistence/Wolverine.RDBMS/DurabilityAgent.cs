@@ -99,8 +99,11 @@ internal class DurabilityAgent : IAgent
             {
                 try
                 {
-                    var nodes = await _runtime.Storage.Nodes.LoadAllNodesAsync(_runtime.Cancellation);
-                    activeNodeNumbers = nodes.Select(n => n.AssignedNodeNumber).ToList();
+                    // Node-wide, not per-database: LoadAllNodesAsync also selects the whole assignment
+                    // table to populate ActiveAgents, which this caller never reads, and there is one
+                    // durability agent per message database. See ActiveNodeNumberCache.
+                    activeNodeNumbers = await ActiveNodeNumberCache.For(_runtime)
+                        .FetchAsync(_runtime.Cancellation);
                 }
                 catch (Exception e)
                 {
