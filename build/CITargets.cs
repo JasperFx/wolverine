@@ -132,6 +132,8 @@ partial class Build
             WaitForKafkaToBeReady();
         if (services.Contains("gcp-pubsub"))
             WaitForPubsubEmulatorToBeReady();
+        if (services.Contains("pulsar"))
+            WaitForPulsarToBeReady();
     }
 
     /// <summary>
@@ -215,6 +217,34 @@ partial class Build
             // lesson from GH-3783 is that pinning a gate to one status code is how it hangs when the
             // service legitimately answers a different one.
             return response is null ? "no response" : null;
+        });
+    }
+
+    /// <summary>
+    /// GH-3799. Pulsar standalone takes tens of seconds to come up and its broker port accepts long
+    /// before it will serve, so this asks the admin api a real question instead of checking the
+    /// socket — the same distinction that made the Kafka gate below worth rewriting.
+    ///
+    /// <para>The budget is deliberately generous. This gate is also the thing that turns a Docker
+    /// memory shortage into a named failure: previously the suite started its own container per
+    /// worker process, and when Docker could not satisfy that the run simply sat at "224 test(s):
+    /// 224 batched" forever with nothing pointing at Docker. Timing out here says which service
+    /// never came up, in the job that owns it.</para>
+    /// </summary>
+    void WaitForPulsarToBeReady()
+    {
+        using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+
+        awaitService("Pulsar", TimeSpan.FromMinutes(3), () =>
+        {
+            // /admin/v2/brokers/health is the broker's own readiness answer, not merely "something
+            // is listening on 8080" — it stays unavailable while the standalone cluster boots.
+            var response = http.GetAsync("http://localhost:8080/admin/v2/brokers/health")
+                .GetAwaiter().GetResult();
+
+            return response.IsSuccessStatusCode
+                ? null
+                : $"admin api answered {(int)response.StatusCode} {response.StatusCode}";
         });
     }
 
@@ -730,9 +760,21 @@ partial class Build
             var tests = RootDirectory / "src" / "Transports" / "Pulsar" / "Wolverine.Pulsar.Tests" / "Wolverine.Pulsar.Tests.csproj";
 
             BuildTestProjects(tests);
+
             // The global partitioning topology forces durable mode on every slot, so that suite
-            // needs a real message store. Pulsar itself runs in Testcontainers. See #3467.
-            StartDockerServices("postgresql");
+            // needs a real message store. See #3467.
+            //
+            // GH-3799: Pulsar now comes from docker-compose rather than Testcontainers. The fixture's
+            // [ModuleInitializer] starts a container per *process*, and the supervisor partitions this
+            // project across worker processes (2-24 observed, plus a fresh process per retried test) —
+            // so one job could ask Docker for that many concurrent Pulsar standalone brokers, an image
+            // that is not small. One compose broker, started once and shared, is the whole fix.
+            StartDockerServices("pulsar", "postgresql");
+
+            // The fixture already honours these ("an already-running Pulsar wins") and they were set
+            // nowhere. With them set, no worker process starts a container at all.
+            Environment.SetEnvironmentVariable("WOLVERINE_PULSAR", "pulsar://localhost:6650");
+            Environment.SetEnvironmentVariable("WOLVERINE_PULSAR_HTTP", "http://localhost:8080");
 
             RunTestProject(tests);
         });
