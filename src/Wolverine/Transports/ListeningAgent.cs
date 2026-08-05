@@ -446,9 +446,10 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _circuitBreaker?.Reset();
 
-        // GH-3832 — a deliberate pause is not the same state as merely stopped: it must be
-        // distinguishable from a back-pressure TooBusy latch (which self-resumes) by every
-        // state reader, and BackPressureAgent must never restart it.
+        // GH-3832 — a deliberate pause is not the same state as merely stopped, and not the same
+        // as a back-pressure TooBusy latch. Both recover on their own, but on different triggers:
+        // this one on the Restarter installed below, TooBusy only once the queue drains. Keeping
+        // them distinct is what lets BackPressureAgent leave a paused listener alone.
         Status = ListeningStatus.Paused;
 
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);

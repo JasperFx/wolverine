@@ -96,8 +96,9 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
         Latched = true;
-        // GH-3832 — remember that this latch is a deliberate pause so Status reports Paused
-        // rather than the self-recovering TooBusy that a back-pressure latch reports.
+        // GH-3832 — remember that this latch is a timed pause so Status reports Paused rather than
+        // the TooBusy that a back-pressure latch reports. This one is released by the Restarter
+        // installed at the end of this method; TooBusy is released by the queue draining.
         _paused = true;
 
         if (_receiver != null)
@@ -148,7 +149,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
 
     private bool _paused;
 
-    // GH-3832 — a deliberately paused queue must not read as the self-recovering TooBusy;
+    // GH-3832 — a timed pause must not read as the back-pressure TooBusy latch;
     // LatchReceiver() (agent-restriction latch) deliberately keeps the TooBusy mapping for now.
     ListeningStatus IListenerCircuit.Status => _paused
         ? ListeningStatus.Paused

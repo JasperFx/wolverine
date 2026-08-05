@@ -126,7 +126,9 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         var agent = theListener.GetRuntime().Endpoints.FindListeningAgent("one")!;
         await agent.PauseAsync(3.Seconds());
 
-        agent.Status.ShouldBe(ListeningStatus.Stopped);
+        // GH-3832 — a timed pause reports Paused, not a bare Stopped. It still resumes on its own
+        // when the interval elapses, which is what the wait below proves.
+        agent.Status.ShouldBe(ListeningStatus.Paused);
 
         await theListener.GetRuntime().Tracker.WaitForListenerStatusAsync(
             "one", ListeningStatus.Accepting, 30.Seconds());
@@ -140,7 +142,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         await agent.PauseAsync(1.Seconds());
         await agent.PauseAsync(3.Seconds());
 
-        agent.Status.ShouldBe(ListeningStatus.Stopped);
+        agent.Status.ShouldBe(ListeningStatus.Paused);
 
         await theListener.GetRuntime().Tracker.WaitForListenerStatusAsync(
             "one", ListeningStatus.Accepting, 30.Seconds());
@@ -159,7 +161,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         var runtime = theListener.GetRuntime();
 
         var stopWaiter = runtime.Tracker.WaitForListenerStatusAsync(
-            "one", ListeningStatus.Stopped, 1.Minutes());
+            "one", ListeningStatus.Paused, 1.Minutes());
 
         await sender
             .TrackActivity()
@@ -170,7 +172,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         await stopWaiter;
 
         var agent = runtime.Endpoints.FindListeningAgent("one")!;
-        agent.Status.ShouldBe(ListeningStatus.Stopped);
+        agent.Status.ShouldBe(ListeningStatus.Paused);
 
         await runtime.Tracker.WaitForListenerStatusAsync(
             "one", ListeningStatus.Accepting, 30.Seconds());
@@ -182,7 +184,7 @@ public class stopping_and_starting_listeners : IAsyncLifetime
         var runtime = theListener.GetRuntime();
 
         var stopWaiter = runtime.Tracker.WaitForListenerStatusAsync(
-            "local", ListeningStatus.Stopped, 1.Minutes());
+            "local", ListeningStatus.Paused, 1.Minutes());
 
         var session = await theListener
             .TrackActivity()
@@ -192,8 +194,10 @@ public class stopping_and_starting_listeners : IAsyncLifetime
 
         await stopWaiter;
 
+        // GH-3832 — this is the payoff. The PauseListener error policy latched this queue, and it
+        // used to be indistinguishable from a back-pressure TooBusy latch; now it says which one.
         var agent = (IListenerCircuit)runtime.Endpoints.AgentForLocalQueue("one");
-        agent.Status.ShouldBe(ListeningStatus.TooBusy);
+        agent.Status.ShouldBe(ListeningStatus.Paused);
 
         session.Executed.MessagesOf<CanCauseErrorMessage>().Count().ShouldBe(1);
 

@@ -15,9 +15,14 @@ namespace CoreTests.Transports;
 
 /// <summary>
 /// GH-3832 — a deliberate pause must report the distinct <see cref="ListeningStatus.Paused"/>,
-/// never the self-recovering <see cref="ListeningStatus.TooBusy"/> (and never linger as a bare
-/// Stopped). Before this, a guard written against "paused" had nothing to check for, and
-/// monitoring products could not tell operator intent from transient back pressure.
+/// never <see cref="ListeningStatus.TooBusy"/> (and never linger as a bare Stopped). Before this,
+/// a guard written against "paused" had nothing to check for, and monitoring products could not
+/// tell a timed pause from transient back pressure.
+///
+/// Both states do recover on their own; what differs is the trigger. A paused listener resumes
+/// when its interval elapses, a TooBusy one only once the queue drains below the restart
+/// threshold — so these tests pause for five minutes and restart explicitly rather than waiting
+/// out a timer.
 /// </summary>
 public class PausedListeningStatusTests : IAsyncLifetime
 {
@@ -79,8 +84,8 @@ public class PausedListeningStatusTests : IAsyncLifetime
 
         await circuit.PauseAsync(5.Minutes());
 
-        // The whole point of GH-3832: an administrative pause is not the self-recovering
-        // back-pressure latch, and must not read as one.
+        // The whole point of GH-3832: a timed pause is not the back-pressure latch, and must not
+        // read as one -- they recover on different triggers and only one is about load.
         circuit.Status.ShouldBe(ListeningStatus.Paused);
 
         await circuit.StartAsync();
