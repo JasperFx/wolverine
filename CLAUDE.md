@@ -79,8 +79,16 @@ npm install && npm run docs
 > is clean across Wolverine. **Build `wolverine.slnx` before pushing**:
 >
 > ```bash
-> dotnet build wolverine.slnx -c Release
+> dotnet build wolverine.slnx -c Release -f net9.0
 > ```
+>
+> ⚠️ **Pass `-f net9.0`.** `.nuke/parameters.json` pins `"Framework": "net9.0"`, so the `Compile`
+> target builds the solution *pinned to a single framework*. A bare
+> `dotnet build wolverine.slnx` builds each project for its own `TargetFrameworks` instead, which
+> is a **weaker** check — a net10.0-only project passes locally and then fails CI with
+> `NETSDK1005: Assets file ... doesn't have a target for 'net9.0'`. That is not hypothetical; it
+> is what made GH-3839's first push red after a clean local build. Build the unpinned form too if
+> you like, but the pinned one is the gate.
 
 ## Key Entry Points
 
