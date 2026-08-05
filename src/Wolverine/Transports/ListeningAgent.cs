@@ -250,7 +250,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // the active one again.
         stopInboxRecovery();
 
-        if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)
+        if (Status is ListeningStatus.Stopped or ListeningStatus.GloballyLatched or ListeningStatus.Paused)
         {
             return;
         }
@@ -446,8 +446,13 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _circuitBreaker?.Reset();
 
+        // GH-3832 — a deliberate pause is not the same state as merely stopped: it must be
+        // distinguishable from a back-pressure TooBusy latch (which self-resumes) by every
+        // state reader, and BackPressureAgent must never restart it.
+        Status = ListeningStatus.Paused;
+
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
-        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Paused));
         _restarter = new Restarter(this, pauseTime);
     }
 

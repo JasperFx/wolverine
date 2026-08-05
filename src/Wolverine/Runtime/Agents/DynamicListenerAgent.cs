@@ -86,6 +86,8 @@ internal sealed class DynamicListenerAgent : IAgent
         {
             ListeningStatus.TooBusy => HealthCheckResult.Degraded(
                 $"Dynamic listener {_listenerUri} is too busy"),
+            ListeningStatus.Paused => HealthCheckResult.Degraded(
+                $"Dynamic listener {_listenerUri} is administratively paused and will not self-resume"),
             ListeningStatus.GloballyLatched => HealthCheckResult.Unhealthy(
                 $"Dynamic listener {_listenerUri} is globally latched"),
             _ => HealthCheckResult.Healthy()

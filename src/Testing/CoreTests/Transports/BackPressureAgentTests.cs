@@ -108,6 +108,20 @@ public class BackPressureAgentTests
     }
 
     [Fact]
+    public async Task never_restart_a_paused_listener_even_when_fully_drained()
+    {
+        // GH-3832 — Paused is operator intent (or a circuit-breaker trip with its own Restarter).
+        // Back pressure relief must NOT resume it, no matter how empty the queue is.
+        theListeningAgent.Status.Returns(ListeningStatus.Paused);
+        theListeningAgent.QueueCount.Returns(0);
+
+        await theBackPressureAgent.CheckNowAsync();
+
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+        await theListeningAgent.DidNotReceive().StartAsync();
+    }
+
+    [Fact]
     public async Task restart_when_too_busy_but_below_the_restart_threshold()
     {
         theListeningAgent.Status.Returns(ListeningStatus.TooBusy);

@@ -67,6 +67,7 @@ internal class ExclusiveListenerAgent : IAgent
         return Task.FromResult(listeningAgent.Status switch
         {
             ListeningStatus.TooBusy => HealthCheckResult.Degraded($"Listener {_endpoint.EndpointName} is too busy"),
+            ListeningStatus.Paused => HealthCheckResult.Degraded($"Listener {_endpoint.EndpointName} is administratively paused and will not self-resume"),
             ListeningStatus.GloballyLatched => HealthCheckResult.Unhealthy($"Listener {_endpoint.EndpointName} is globally latched"),
             _ => HealthCheckResult.Healthy()
         });
