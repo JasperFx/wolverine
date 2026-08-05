@@ -44,12 +44,8 @@
     <Project Path="src/Http/OpenApiDemonstrator/OpenApiDemonstrator.csproj" />
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
-    <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj">
-      <Build Project="false" />
-    </Project>
-    <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj" />
+    <Project Path="src/Http/Wolverine.Http.AspVersioning/Wolverine.Http.AspVersioning.csproj" />
     <Project Path="src/Http/Wolverine.Http.FluentValidation/Wolverine.Http.FluentValidation.csproj" />
     <Project Path="src/Http/Wolverine.Http.Marten/Wolverine.Http.Marten.csproj" />
     <Project Path="src/Http/Wolverine.Http.Tests.DifferentAssembly/Wolverine.Http.Tests.DifferentAssembly.csproj" />
@@ -117,12 +113,8 @@
   </Folder>
   <Folder Name="/Persistence/Polecat/">
     <Project Path="src/Http/Wolverine.Http.Polecat/Wolverine.Http.Polecat.csproj" />
-    <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj">
-      <Build Project="false" />
-    </Project>
-    <Project Path="src/Persistence/Polecat/PolecatIncidentService/PolecatIncidentService.csproj">
-      <Build Project="false" />
-    </Project>
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj" />
+    <Project Path="src/Persistence/Polecat/PolecatIncidentService/PolecatIncidentService.csproj" />
     <Project Path="src/Persistence/PolecatTests/PolecatTests.csproj" />
     <Project Path="src/Persistence/Wolverine.Polecat/Wolverine.Polecat.csproj" />
   </Folder>
@@ -325,6 +317,18 @@
     <Project Path="src/Transports/SignalR/Wolverine.SignalR.Tests/Wolverine.SignalR.Tests.csproj" />
     <Project Path="src/Transports/SignalR/Wolverine.SignalR/Wolverine.SignalR.csproj" />
   </Folder>
+  <!-- The only project that should carry Build=false. The Nuke build project is the thing that
+       *drives* the build; it is not part of the product, and it is compiled by build.sh on its own.
+
+       GH-3839/GH-3841: every other exclusion has been removed. A Build=false project is invisible to
+       the solution build, which is the gate CI's Compile target runs and the one CLAUDE.md tells
+       contributors to run before pushing — so nothing checks it at all. That is not theoretical:
+       PolecatIncidentService.Tests did not compile for four months and no gate noticed, and
+       Wolverine.Http.AspVersioning is a published package (WolverineFx.Http.AspVersioning) that
+       compiled only during Pack, where a break would first surface as a failed release.
+
+       If a project genuinely has to be excluded, say why right here. An unexplained Build=false is
+       indistinguishable from an accident. -->
   <Project Path="build/build.csproj">
     <Build Project="false" />
   </Project>

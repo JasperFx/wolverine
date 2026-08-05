@@ -23,7 +23,7 @@ public class when_getting_an_incident : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         var result = await Scenario(x =>
         {
@@ -31,7 +31,7 @@ public class when_getting_an_incident : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var incident = result.ReadAsJson<Incident>();
+        var incident = await result.ReadAsJsonAsync<Incident>();
         incident.ShouldNotBeNull();
         incident!.Status.ShouldBe(IncidentStatus.Pending);
     }

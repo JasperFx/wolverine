@@ -42,11 +42,11 @@ public class when_logging_an_incident : IntegrationContext
         });
 
         // Read the response body by deserialization
-        var response = initial.ReadAsJson<CreationResponse<Guid>>();
+        var response = await initial.ReadAsJsonAsync<CreationResponse<Guid>>();
 
         // Reaching into Polecat to build the current state of the new Incident
         await using var session = Store.LightweightSession();
-        var incident = await session.Events.FetchLatest<Incident>(response.Value);
+        var incident = await session.Events.FetchLatest<Incident>(response.Value, TestContext.Current.CancellationToken);
 
         incident!.Status.ShouldBe(IncidentStatus.Pending);
     }

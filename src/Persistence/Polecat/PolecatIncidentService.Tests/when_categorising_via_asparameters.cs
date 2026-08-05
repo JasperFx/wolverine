@@ -27,7 +27,7 @@ public class when_categorising_via_asparameters : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         var payload = new CategoriseIncidentPayload(IncidentCategory.Network, Guid.NewGuid());
 
@@ -37,12 +37,12 @@ public class when_categorising_via_asparameters : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var response = result.ReadAsJson<IncidentCategorisedResponse>();
+        var response = await result.ReadAsJsonAsync<IncidentCategorisedResponse>();
         response.IncidentId.ShouldBe(incidentId);
         response.Category.ShouldBe(IncidentCategory.Network);
 
         await using var session = Store.LightweightSession();
-        var incident = await session.Events.FetchLatest<Incident>(incidentId);
+        var incident = await session.Events.FetchLatest<Incident>(incidentId, TestContext.Current.CancellationToken);
         incident.ShouldNotBeNull();
         incident!.Category.ShouldBe(IncidentCategory.Network);
     }
