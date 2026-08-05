@@ -321,9 +321,19 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         // so the database attracts one node's connection pool instead of two. Depends on
         // NodeAgentController evaluating this family AFTER the event-subscription family. A database with
         // no projection agents in the grid falls back to the even spread.
-        assignments.DistributeEvenlyWithAffinity(Scheme, DurabilityProjectionAffinity.BuildPreference(assignments));
+        var preference = DurabilityProjectionAffinity.BuildPreference(assignments);
+        assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor);
+
+        // The fallback is silent by design, so say out loud how much of it engaged -- see
+        // DurabilityAffinityPreference. Logged only when the numbers move.
+        _affinityLogger ??= _runtime.LoggerFactory.CreateLogger<MessageStoreCollection>();
+        preference.ReportTo(_affinityLogger, ref _lastAffinityReport);
+
         return ValueTask.CompletedTask;
     }
+
+    private ILogger? _affinityLogger;
+    private (int Known, int Considered, int Matched) _lastAffinityReport;
 
     internal async Task<IAgent> StartScheduledJobProcessing(IWolverineRuntime runtime)
     {

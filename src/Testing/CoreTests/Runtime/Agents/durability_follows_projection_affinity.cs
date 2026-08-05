@@ -1,7 +1,9 @@
 using JasperFx.Descriptors;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Wolverine.ComplianceTests;
+using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Xunit;
@@ -136,6 +138,177 @@ public class durability_follows_projection_affinity
             .ShouldAllBe(count => count == 3, "with no affinity available the spread stays even");
     }
 
+    // GH-3785 diagnostics. The join falls back silently whenever it cannot match, which is the correct
+    // runtime behavior and an unusable diagnostic story: a join that never fires because the two families
+    // spell the same database differently looks exactly like the feature working. These pin the counters
+    // that tell an operator which one they got.
+
+    [Fact]
+    public void the_affinity_report_counts_what_actually_joined()
+    {
+        var databases = new[] { "tenant1", "tenant2", "tenant3" };
+        var projections = databases.Select(db => Projection("localhost", db, "t1")).ToArray();
+        var durability = databases.Select(db => Durability("localhost", db)).ToArray();
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(projections.Concat(durability).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        preference.KnownDatabases.ShouldBe(3);
+        preference.Considered.ShouldBe(3);
+        preference.Matched.ShouldBe(3);
+    }
+
+    [Fact]
+    public void a_spelling_divergence_between_the_two_pipelines_reports_zero_matches()
+    {
+        // THE failure this diagnostic exists for. Both families describe the same three physical databases,
+        // but through descriptor pipelines that disagree about the name — so nothing joins, every durability
+        // agent silently falls back to the even spread, and the cluster keeps paying the two-pools-per-shard
+        // cost with no outward sign. Known and Considered are both non-zero while Matched is zero, which is
+        // the shape that has to be distinguishable from "this app simply has no projections".
+        var projections = new[] { "tenant1", "tenant2", "tenant3" }
+            .Select(db => Projection("localhost", db, "t1")).ToArray();
+        var durability = new[] { "tenant_1", "tenant_2", "tenant_3" }
+            .Select(db => Durability("localhost", db)).ToArray();
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(projections.Concat(durability).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        preference.KnownDatabases.ShouldBe(3);
+        preference.Considered.ShouldBe(3);
+        preference.Matched.ShouldBe(0);
+
+        // ...and the fallback still placed everything. A miss is never wrong, only not-better.
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
+    }
+
+    [Fact]
+    public void a_durability_uri_that_names_no_database_is_not_counted_as_a_miss()
+    {
+        // The null store and the multi-tenanted composite marker are not databases. Counting them as
+        // considered-but-unmatched would show a permanent shortfall on a healthy cluster and train an
+        // operator to ignore the number.
+        var projections = new[] { Projection("localhost", "tenant1", "t1") };
+        var durability = new[] { Durability("localhost", "tenant1"), new Uri("wolverinedb://nullstore") };
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(projections.Concat(durability).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        preference.Considered.ShouldBe(1, "only the URI that actually names a database is eligible");
+        preference.Matched.ShouldBe(1);
+        grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
+    }
+
+    [Fact]
+    public void an_application_with_no_projections_reports_nothing_to_follow()
+    {
+        // Distinguishable from the divergence case above by KnownDatabases == 0: there was never anything
+        // to co-locate with, so there is nothing to warn about.
+        var durability = Enumerable.Range(1, 4).Select(i => Durability("localhost", $"plain{i}")).ToArray();
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(durability);
+
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        preference.KnownDatabases.ShouldBe(0);
+        preference.Matched.ShouldBe(0);
+    }
+
+    [Fact]
+    public void the_report_is_written_once_and_then_stays_quiet_until_it_changes()
+    {
+        // Assignment is re-evaluated on every health check. A settled cluster reports the same numbers
+        // forever, and an unconditional log line at that cadence is noise an operator learns to filter —
+        // which defeats the point of having it at all.
+        var databases = new[] { "tenant1", "tenant2" };
+        var projections = databases.Select(db => Projection("localhost", db, "t1")).ToArray();
+        var durability = databases.Select(db => Durability("localhost", db)).ToArray();
+
+        var logger = new RecordingLogger();
+        (int Known, int Considered, int Matched) last = default;
+
+        for (var i = 0; i < 5; i++)
+        {
+            var grid = new AssignmentGrid();
+            grid.WithNode(1, Guid.NewGuid());
+            grid.WithNode(2, Guid.NewGuid());
+            grid.WithAgents(projections.Concat(durability).ToArray());
+
+            grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+            var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+            grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+            preference.ReportTo(logger, ref last);
+        }
+
+        logger.Messages.Count.ShouldBe(1, "five identical evaluations are one event, not five");
+        logger.Messages.Single().Level.ShouldBe(LogLevel.Information);
+    }
+
+    [Fact]
+    public void the_fail_silent_case_is_logged_as_a_warning()
+    {
+        var projections = new[] { Projection("localhost", "tenant1", "t1") };
+        var durability = new[] { Durability("localhost", "tenant_1") };
+
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(projections.Concat(durability).ToArray());
+
+        grid.DistributeByGroupAffinity("event-subscriptions", DatabaseKey);
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        var logger = new RecordingLogger();
+        (int Known, int Considered, int Matched) last = default;
+        preference.ReportTo(logger, ref last);
+
+        var message = logger.Messages.ShouldHaveSingleItem();
+        message.Level.ShouldBe(LogLevel.Warning);
+        message.Text.ShouldContain("GH-3785");
+    }
+
+    [Fact]
+    public void an_application_with_no_projections_logs_nothing_at_all()
+    {
+        var grid = new AssignmentGrid();
+        grid.WithNode(1, Guid.NewGuid());
+        grid.WithNode(2, Guid.NewGuid());
+        grid.WithAgents(Durability("localhost", "plain1"), Durability("localhost", "plain2"));
+
+        var preference = DurabilityProjectionAffinityAccess.BuildPreferenceReport(grid);
+        grid.DistributeEvenlyWithAffinity("wolverinedb", preference.NodeFor);
+
+        var logger = new RecordingLogger();
+        (int Known, int Considered, int Matched) last = default;
+        preference.ReportTo(logger, ref last);
+
+        logger.Messages.ShouldBeEmpty("nothing to co-locate with is not a finding");
+    }
+
     [Fact]
     public void the_same_database_name_on_two_servers_is_disambiguated_by_server()
     {
@@ -267,6 +440,20 @@ public class durability_follows_projection_affinity
             "the durability family must evaluate after every other family so cross-family affinity can see their assignments");
         calls.Count.ShouldBe(3);
     }
+
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<(LogLevel Level, string Text)> Messages { get; } = new();
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add((logLevel, formatter(state, exception)));
+        }
+    }
 }
 
 // DurabilityProjectionAffinity is internal to Wolverine; CoreTests has InternalsVisibleTo, and this alias
@@ -274,5 +461,8 @@ public class durability_follows_projection_affinity
 internal static class DurabilityProjectionAffinityAccess
 {
     internal static Func<Uri, AssignmentGrid.Node?> BuildPreference(AssignmentGrid grid)
+        => Wolverine.Persistence.DurabilityProjectionAffinity.BuildPreference(grid).NodeFor;
+
+    internal static DurabilityAffinityPreference BuildPreferenceReport(AssignmentGrid grid)
         => Wolverine.Persistence.DurabilityProjectionAffinity.BuildPreference(grid);
 }

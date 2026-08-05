@@ -122,8 +122,16 @@ public class durability_projection_affinity_real_stores : IAsyncLifetime
         // The two passes in the order NodeAgentController guarantees, both over real URIs.
         grid.DistributeByGroupAffinity(EventSubscriptionAgentFamily.SchemeName,
             EventSubscriptionAgentFamily.DatabaseKeyOf);
-        grid.DistributeEvenlyWithAffinity(PersistenceConstants.AgentScheme,
-            DurabilityProjectionAffinity.BuildPreference(grid));
+        var preference = DurabilityProjectionAffinity.BuildPreference(grid);
+        grid.DistributeEvenlyWithAffinity(PersistenceConstants.AgentScheme, preference.NodeFor);
+
+        // GH-3785: the join is fail-silent at runtime, so the integration test that proves the two URI
+        // pipelines actually agree is exactly the place to pin the diagnostic that reports it. Every one
+        // of these real databases must have matched -- a miss here is the spelling divergence this whole
+        // test exists to catch, and it would otherwise look identical to success.
+        preference.KnownDatabases.ShouldBe(_databases.Length);
+        preference.Considered.ShouldBe(_messageStores.Count);
+        preference.Matched.ShouldBe(_messageStores.Count);
 
         grid.AllAgents.ShouldAllBe(a => a.AssignedNode != null);
 
