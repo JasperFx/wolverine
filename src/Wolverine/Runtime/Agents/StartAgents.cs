@@ -382,11 +382,28 @@ internal record AgentsStopped(Uri[] AgentUris) : IAgentCommand, ISerializable
 
 internal record StopAgents(Uri[] AgentUris) : IDeferredAgentWork, ISerializable
 {
+    // GH-3852: bounded parallelism, mirroring StartBatchAsync above. Stops are the same shape as starts --
+    // I/O bound, one round trip per agent -- but only the start side got the GH-3604/D3 fan-out, so a chunk
+    // of stops ran strictly one at a time. At AgentStartBatchSize = 50 against a source whose shards are
+    // slow to let go (a projection mid-replay), that is the whole chunk's stop cost in series before
+    // ReassignAgents can cascade a single start, and every agent in the chunk is down for the duration.
+    //
+    // That was survivable only because the leader used to re-decide the same move every evaluation cycle,
+    // trickling agents onto the destination through individual ReassignAgent commands alongside the batch.
+    // Removing that churn (the point of GH-3852) is what exposed the serial stop as the real cost.
     public async Task<AgentCommands> ExecuteAsync(IWolverineRuntime runtime,
         CancellationToken cancellationToken)
     {
-        var successful = new List<Uri>(AgentUris.Length);
-        foreach (var agentUri in AgentUris)
+        var successful = new System.Collections.Concurrent.ConcurrentBag<Uri>();
+
+        var dop = Math.Max(1, runtime.Options.Durability.MaxAgentStartParallelism);
+        var options = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = dop,
+            CancellationToken = cancellationToken
+        };
+
+        await Parallel.ForEachAsync(AgentUris, options, async (agentUri, _) =>
         {
             try
             {
@@ -395,9 +412,9 @@ internal record StopAgents(Uri[] AgentUris) : IDeferredAgentWork, ISerializable
             }
             catch (Exception e)
             {
-                runtime.Logger.LogError(e, "Failed to start requested agent {AgentUri}", agentUri);
+                runtime.Logger.LogError(e, "Failed to stop requested agent {AgentUri}", agentUri);
             }
-        }
+        });
 
         return [new AgentsStopped(successful.ToArray())];
     }
