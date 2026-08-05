@@ -53,6 +53,11 @@ public partial class AssignmentGrid
         ///     bare <see cref="AssignAgent" /> to a second node with no stop for the copy already starting on
         ///     the first: the same agent running twice. Populated by the leader from its pending-assignment
         ///     ledger; see <c>NodeAgentController.applyPendingAssignments</c>.</para>
+        ///
+        ///     <para>GH-3852: also set for an agent that IS running somewhere and is being moved off it, where
+        ///     <see cref="OriginalNode" /> is the source the agent has not been observed leaving yet. That case
+        ///     needs no stop synthesised — <see cref="ReassignAgent" /> already carries one — so what this
+        ///     buys there is purely that the leader stops re-deciding a move it has already dispatched.</para>
         /// </summary>
         internal Node? PendingNode { get; set; }
 
@@ -145,6 +150,18 @@ public partial class AssignmentGrid
             }
 
             if (AssignedNode == OriginalNode)
+            {
+                return false;
+            }
+
+            // GH-3852: this move is one the leader already dispatched and which is still live. Re-emitting it
+            // costs an AssignmentChanged row per agent per evaluation cycle -- 3,468 of them per cycle on a
+            // 512-database cluster mid-ramp -- and, once the dispatcher's in-flight hold on the previous copy
+            // has been released, a redundant StopAgents round trip against a source that already let go.
+            // The agent stays where the ledger put it either way; only the command is suppressed. Once the
+            // dispatch stops being outstanding without the agent turning up there, PendingRetryDue re-drives
+            // it as a fresh reassignment from wherever it is actually running now.
+            if (AssignedNode == PendingNode && !PendingRetryDue)
             {
                 return false;
             }
