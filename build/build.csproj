@@ -13,6 +13,9 @@
 
   <ItemGroup>
     <PackageReference Include="Bobcat.Supervisor" />
+    <!-- Used only by WaitForKafkaToBeReady's metadata probe (GH-3814). A TCP connect answers a
+         weaker question than the suite depends on, and only an AdminClient can ask the real one. -->
+    <PackageReference Include="Confluent.Kafka" />
     <PackageReference Include="Microsoft.Data.SqlClient" />
     <PackageReference Include="MySqlConnector" />
     <PackageReference Include="Npgsql" />
