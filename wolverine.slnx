@@ -44,6 +44,10 @@
     <Project Path="src/Http/OpenApiDemonstrator/OpenApiDemonstrator.csproj" />
     <Project Path="src/Http/StaticCodeGenDemonstrator/StaticCodeGenDemonstrator.csproj" />
     <Project Path="src/Http/Wolverine.AdminApi/Wolverine.AdminApi.csproj" />
+    <!-- net10.0-only, and the Compile target builds wolverine.slnx pinned to net9.0
+         (.nuke/parameters.json), so including these makes the solution build fail NETSDK1005.
+         Gated by the CIHttpAspVersioning target instead, which builds and tests them at net10.0.
+         GH-3841: the reason, which no flag here previously carried. -->
     <Project Path="src/Http/Wolverine.Http.AspVersioning.Tests/Wolverine.Http.AspVersioning.Tests.csproj">
       <Build Project="false" />
     </Project>
@@ -117,6 +121,10 @@
   </Folder>
   <Folder Name="/Persistence/Polecat/">
     <Project Path="src/Http/Wolverine.Http.Polecat/Wolverine.Http.Polecat.csproj" />
+    <!-- net10.0-only; same net9.0-pinned Compile constraint as the AspVersioning pair above.
+         Gated by the CIPolecat target, which builds and runs PolecatIncidentService.Tests at
+         net10.0 (GH-3839 — before that it ran nowhere at all, which is how it sat un-compilable
+         for four months). -->
     <Project Path="src/Persistence/Polecat/PolecatIncidentService.Tests/PolecatIncidentService.Tests.csproj">
       <Build Project="false" />
     </Project>
@@ -325,6 +333,14 @@
     <Project Path="src/Transports/SignalR/Wolverine.SignalR.Tests/Wolverine.SignalR.Tests.csproj" />
     <Project Path="src/Transports/SignalR/Wolverine.SignalR/Wolverine.SignalR.csproj" />
   </Folder>
+  <!-- The Nuke build project drives the build rather than being part of the product, and build.sh
+       compiles it on its own.
+
+       GH-3841: every Build=false in this file now states its reason. An unexplained one is
+       indistinguishable from an accident — which is exactly how PolecatIncidentService.Tests sat
+       un-compilable for four months (GH-3839) behind a flag nobody could evaluate. The reason
+       matters more than the flag: a project excluded here is invisible to the solution build, so
+       it needs a gate somewhere else, and the comment is where you say which one. -->
   <Project Path="build/build.csproj">
     <Build Project="false" />
   </Project>

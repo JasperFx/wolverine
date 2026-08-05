@@ -1155,6 +1155,21 @@ partial class Build
     /// </summary>
     Target CIPolecat => _ => _
         .ProceedAfterFailure()
-        .Executes(() => runPolecatShard(
-            excludeNamespaces([..PolecatWorkflowNamespaces, ..PolecatSagaNamespaces])));
+        .Executes(() =>
+        {
+            runPolecatShard(excludeNamespaces([..PolecatWorkflowNamespaces, ..PolecatSagaNamespaces]));
+
+            // GH-3839. This ran in no CI target at all, which is half of why it sat un-compilable
+            // for four months. Re-enabling it in wolverine.slnx makes the solution build catch a
+            // *compile* break; only running it catches a behavioural one, and the sample is the
+            // worked example a reader follows.
+            //
+            // Lives on this shard because it is the catch-all and because runPolecatShard has
+            // already started the SQL Server the sample connects to. ~9s against a 338s job.
+            BuildTestProjectsWithFramework("net10.0", PolecatIncidentServiceTests);
+            RunTestProject(PolecatIncidentServiceTests, frameworkOverride: "net10.0");
+        });
+
+    AbsolutePath PolecatIncidentServiceTests => RootDirectory / "src" / "Persistence" / "Polecat" /
+                                                "PolecatIncidentService.Tests" / "PolecatIncidentService.Tests.csproj";
 }

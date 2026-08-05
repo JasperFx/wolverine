@@ -25,7 +25,7 @@ public class when_categorising_an_incident : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         // Now categorise it
         var categorise = new CategoriseIncident(IncidentCategory.Network, Guid.NewGuid(), 1);
@@ -38,7 +38,7 @@ public class when_categorising_an_incident : IntegrationContext
 
         // Verify the category was applied
         await using var session = Store.LightweightSession();
-        var incident = await session.Events.FetchLatest<Incident>(incidentId);
+        var incident = await session.Events.FetchLatest<Incident>(incidentId, TestContext.Current.CancellationToken);
         incident.ShouldNotBeNull();
         incident!.Category.ShouldBe(IncidentCategory.Network);
     }
@@ -56,7 +56,7 @@ public class when_categorising_an_incident : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         // Close it
         var close = new CloseIncident(Guid.NewGuid(), 1);

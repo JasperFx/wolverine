@@ -24,7 +24,7 @@ public class when_closing_an_incident : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         var close = new CloseIncident(Guid.NewGuid(), 1);
         var (tracked, result) = await TrackedHttpCall(x =>
@@ -33,7 +33,7 @@ public class when_closing_an_incident : IntegrationContext
             x.StatusCodeShouldBe(200);
         });
 
-        var incident = result.ReadAsJson<Incident>();
+        var incident = await result.ReadAsJsonAsync<Incident>();
         incident.ShouldNotBeNull();
         incident!.Status.ShouldBe(IncidentStatus.Closed);
 
@@ -54,7 +54,7 @@ public class when_closing_an_incident : IntegrationContext
             x.StatusCodeShouldBe(201);
         });
 
-        var incidentId = initial.ReadAsJson<CreationResponse<Guid>>().Value;
+        var incidentId = (await initial.ReadAsJsonAsync<CreationResponse<Guid>>()).Value;
 
         // Close once
         var close = new CloseIncident(Guid.NewGuid(), 1);
