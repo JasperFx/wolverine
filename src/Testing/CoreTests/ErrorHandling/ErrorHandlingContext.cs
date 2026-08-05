@@ -33,7 +33,7 @@ public class ErrorHandlingContext : IDisposable
 
     protected void throwOnAttempt<T>(int attempt) where T : Exception, new()
     {
-        theMessage.Errors.Add(attempt, new T());
+        theMessage.ThrowOnAttempt<T>(attempt);
     }
 
     protected async Task<EnvelopeRecord> afterProcessingIsComplete()
