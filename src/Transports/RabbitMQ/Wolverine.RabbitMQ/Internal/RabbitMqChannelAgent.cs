@@ -34,6 +34,13 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
 
     internal IChannel? Channel { get; set; }
 
+    /// <summary>
+    /// True once DisposeAsync has run. Callers of <see cref="EnsureInitiated"/> need this to tell the two
+    /// ways it can return without a channel apart: disposal is a legitimate outcome that should be handled
+    /// quietly, whereas a swallowed channel-creation failure is not.
+    /// </summary>
+    internal bool IsDisposed => _disposed;
+
     public virtual async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -49,6 +56,13 @@ internal abstract class RabbitMqChannelAgent : IAsyncDisposable, IReportConnecti
         // SemaphoreSlim finalizer. See #3132.
     }
 
+    /// <summary>
+    /// Best-effort: brings <see cref="Channel"/> up if it is missing or dead. This method deliberately does
+    /// NOT guarantee a channel on return -- it returns without one when the agent has been disposed, and it
+    /// logs-and-swallows a failure to open one. Callers must therefore null-check <see cref="Channel"/>
+    /// rather than assume success; see GH-3842, where a `Channel!` in RabbitMqListener.CreateAsync turned
+    /// both of those outcomes into a bare NullReferenceException six frames away in queue declaration.
+    /// </summary>
     internal async Task EnsureInitiated()
     {
         if (_disposed)
