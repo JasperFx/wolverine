@@ -225,20 +225,42 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     {
         await EnsureInitiated();
 
+        // EnsureInitiated is best-effort and can return without a channel two different ways, so the
+        // channel is captured once and checked rather than dereferenced through `Channel!` (GH-3842).
+        // Reading the property repeatedly would also race a concurrent rebuild replacing it mid-method.
+        var channel = Channel;
+        if (channel is null)
+        {
+            // Disposal during startup is legitimate -- a host that stops while its listeners are still
+            // coming up hits this routinely, and there is nothing left to build against.
+            if (IsDisposed)
+            {
+                Logger.LogDebug(
+                    "Rabbit MQ listener at {Uri} was disposed while starting up; abandoning listener creation.",
+                    Address);
+                return;
+            }
+
+            // Otherwise EnsureInitiated logged and swallowed a channel-creation failure. Say so here,
+            // instead of letting the null surface as a NullReferenceException inside queue declaration.
+            throw new InvalidOperationException(
+                $"Unable to open a Rabbit MQ channel for listener {Address} (queue '{Queue.QueueName}'). The underlying failure was logged by the channel agent.");
+        }
+
         if (Queue.AutoDelete || _transport.AutoProvision)
         {
-            await Queue.DeclareAsync(Channel!, Logger);
+            await Queue.DeclareAsync(channel, Logger);
 
             if (Queue.DeadLetterQueue != null && Queue.DeadLetterQueue.Mode != DeadLetterQueueMode.WolverineStorage)
             {
                 var dlq = _transport.Queues[Queue.DeadLetterQueue.QueueName];
-                await dlq.DeclareAsync(Channel!, Logger);
+                await dlq.DeclareAsync(channel, Logger);
             }
         }
 
         try
         {
-            var result = await Channel!.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
+            var result = await channel.QueueDeclarePassiveAsync(Queue.QueueName, _cancellation);
             if (Queue.Role == EndpointRole.Application)
             {
                 Logger.LogInformation("{Count} messages in queue {QueueName} at listening start up time",
@@ -252,10 +274,10 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
 
         var mapper = Queue.BuildMapper(_runtime);
 
-        _consumer = new WorkerQueueMessageConsumer(Channel!, _receiver, Logger, this, mapper, Address, _cancellation);
+        _consumer = new WorkerQueueMessageConsumer(channel, _receiver, Logger, this, mapper, Address, _cancellation);
 
-        await Channel!.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
-        await Channel.BasicConsumeAsync(Queue.QueueName, false,
+        await channel.BasicQosAsync(0, Queue.PreFetchCount, false, _cancellation);
+        await channel.BasicConsumeAsync(Queue.QueueName, false,
             _transport.ConnectionFactory?.ClientProvidedName ?? _runtime.Options.ServiceName, Queue.ConsumerArguments, _consumer,
             _runtime.Cancellation);
 
