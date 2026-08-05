@@ -8,14 +8,6 @@ using Xunit;
 
 namespace Wolverine.AzureServiceBus.Tests;
 
-// NOT flaky, and NOT GH-3786: re-measured 2026-08-02 after the entity-name sanitizing fix, on a
-// freshly recreated emulator (2.0.1). Still 2 of 6, still deterministic, but 2.1m for the class and
-// no broker-initialization timeout anywhere in it -- the two failures are
-// send_and_receive_multiple_messages_to_queue_with_session_identifier and
-// split_messages_with_different_sessionids_into_separate_batches, i.e. SESSION handling, which
-// conventional routing never touched. The other 4 pass. Tracked as GH-3825; do not fold it back
-// into GH-3786.
-[Trait("Category", "Flaky")]
 public class end_to_end : IAsyncLifetime
 {
     private IHost _host = null!;
