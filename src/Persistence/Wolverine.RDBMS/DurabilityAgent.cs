@@ -95,6 +95,7 @@ internal class DurabilityAgent : IAgent
         _recoveryTimer = new Timer(async _ =>
         {
             IReadOnlyList<int>? activeNodeNumbers = null;
+            var nodeNumberHighWaterMark = 0;
             if (_settings.Mode != DurabilityMode.Solo && _database.Settings.Role != MessageStoreRole.Main)
             {
                 try
@@ -102,8 +103,12 @@ internal class DurabilityAgent : IAgent
                     // Node-wide, not per-database: LoadAllNodesAsync also selects the whole assignment
                     // table to populate ActiveAgents, which this caller never reads, and there is one
                     // durability agent per message database. See ActiveNodeNumberCache.
-                    activeNodeNumbers = await ActiveNodeNumberCache.For(_runtime)
-                        .FetchAsync(_runtime.Cancellation);
+                    var cache = ActiveNodeNumberCache.For(_runtime);
+                    activeNodeNumbers = await cache.FetchAsync(_runtime.Cancellation);
+
+                    // GH-3850: the list is up to one polling interval old, so it cannot speak for a
+                    // node that registered after it was taken. The mark bounds who it may judge.
+                    nodeNumberHighWaterMark = cache.HighWaterMark;
                 }
                 catch (Exception e)
                 {
@@ -111,7 +116,7 @@ internal class DurabilityAgent : IAgent
                 }
             }
 
-            var operations = buildOperationBatch(activeNodeNumbers);
+            var operations = buildOperationBatch(activeNodeNumbers, nodeNumberHighWaterMark);
 
             var batch = new DatabaseOperationBatch(_database, operations);
             _runningBlock.Post(batch);
@@ -243,7 +248,8 @@ internal class DurabilityAgent : IAgent
         }
     }
 
-    internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null)
+    internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null,
+        int nodeNumberHighWaterMark = 0)
     {
         var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
@@ -265,7 +271,8 @@ internal class DurabilityAgent : IAgent
             }
             else if (activeNodeNumbers is { Count: > 0 })
             {
-                ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers));
+                ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers,
+                    nodeNumberHighWaterMark));
             }
         }
 

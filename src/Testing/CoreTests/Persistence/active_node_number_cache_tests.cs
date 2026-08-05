@@ -94,4 +94,63 @@ public class active_node_number_cache_tests
         ActiveNodeNumberCache.For(new MockWolverineRuntime())
             .ShouldNotBeSameAs(ActiveNodeNumberCache.For(theRuntime));
     }
+
+    // ─── GH-3850: the staleness window, stated rather than implied ───────────────────────────
+
+    [Fact]
+    public async Task the_high_water_mark_is_the_highest_number_seen()
+    {
+        var cache = theCache;
+        await cache.FetchAsync(CancellationToken.None);
+
+        cache.HighWaterMark.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task the_high_water_mark_does_not_drop_when_the_highest_node_departs()
+    {
+        var cache = theCache;
+        await cache.FetchAsync(CancellationToken.None);
+
+        // node 3 -- the highest -- dies
+        nodesAre(1, 2);
+        await Task.Delay(theRuntime.DurabilitySettings.ScheduledJobPollingTime + 100.Milliseconds(),
+            TestContext.Current.CancellationToken);
+        await cache.FetchAsync(CancellationToken.None);
+
+        // max(active) would now be 2, which would put node 3's orphaned messages permanently out of
+        // reach of the release. The mark is monotonic precisely so that cannot happen.
+        cache.HighWaterMark.ShouldBe(3);
+    }
+
+    [Fact]
+    public async Task the_high_water_mark_rises_for_a_node_that_joins()
+    {
+        var cache = theCache;
+        await cache.FetchAsync(CancellationToken.None);
+
+        nodesAre(1, 2, 3, 9);
+        await Task.Delay(theRuntime.DurabilitySettings.ScheduledJobPollingTime + 100.Milliseconds(),
+            TestContext.Current.CancellationToken);
+        await cache.FetchAsync(CancellationToken.None);
+
+        cache.HighWaterMark.ShouldBe(9);
+    }
+
+    [Fact]
+    public async Task a_node_that_joins_mid_interval_is_above_the_mark_and_so_is_not_judged()
+    {
+        var cache = theCache;
+        await cache.FetchAsync(CancellationToken.None);
+
+        // Node 4 registers after the fetch. It is absent from the cached list, so the release would
+        // reset its in-flight rows to owner 0 and let another node claim work it is already doing --
+        // the one direction of staleness that is not benign. Its number is above the mark, which is
+        // what keeps the release away from it until the next fetch sees it.
+        const int joinedAfterTheFetch = 4;
+
+        var numbers = await cache.FetchAsync(CancellationToken.None);
+        numbers.ShouldNotContain(joinedAfterTheFetch);
+        joinedAfterTheFetch.ShouldBeGreaterThan(cache.HighWaterMark);
+    }
 }
