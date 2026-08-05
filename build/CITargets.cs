@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using Bobcat.Supervisor;
+using Confluent.Kafka;
 using Nuke.Common;
 using Nuke.Common.IO;
 using Nuke.Common.Tooling;
@@ -219,13 +220,46 @@ partial class Build
 
     void WaitForKafkaToBeReady()
     {
-        // Still TCP-only, and knowingly the weakest gate here: a Kafka broker accepts connections
-        // before it will serve metadata or allow topic creation, so this can pass while the broker
-        // is not yet usable. Fixing it properly means a metadata request through an AdminClient, and
-        // Confluent.Kafka is not referenced by this build project (nor centrally versioned), so that
-        // is a change with its own risk rather than a line here. Tracked separately; making the gate
-        // fatal is the part that matters today.
-        awaitService("Kafka", TimeSpan.FromSeconds(60), () => tcpProbe("localhost", 9092));
+        // GH-3814: this was TCP-only, which is a far weaker claim than the suite depends on -- and
+        // measurably useless. Racing both probes against a cold broker three times, the TCP connect
+        // succeeded at 0.0s every time (Docker's port proxy accepts as soon as the container is
+        // created, before the broker is listening inside it) while metadata was not served until
+        // 2.4-3.0s. So the old gate passed instantly and unconditionally, then handed a ~3s window
+        // to a suite that immediately creates topics: "Leader not available", "Not enough replicas"
+        // and topic-creation errors, all reading as flaky tests rather than a broker that was not up.
+        // Same defect class as the ASB emulator gate in GH-3783, which cost 22 retries per run
+        // across four green main runs before anyone noticed.
+        //
+        // A metadata request is the real question: it round-trips the Kafka protocol and does not
+        // answer until the broker will serve.
+        var config = new AdminClientConfig
+        {
+            BootstrapServers = "localhost:9092",
+            SocketTimeoutMs = 5000,
+
+            // Without this the client spends the full default timeout on its own internal retries
+            // before surfacing anything, which would blur the gate's own attempt/budget accounting.
+            ApiVersionRequestTimeoutMs = 5000
+        };
+
+        // librdkafka writes connection failures straight to stderr while the broker is coming up.
+        // awaitService already reports every attempt and carries the last real failure into the
+        // final error, so silence the duplicate stream rather than print a scary log for what is
+        // simply "not up yet".
+        using var admin = new AdminClientBuilder(config)
+            .SetLogHandler((_, _) => { })
+            .SetErrorHandler((_, _) => { })
+            .Build();
+
+        awaitService("Kafka", TimeSpan.FromSeconds(60), () =>
+        {
+            // Throws until the broker will actually serve; awaitService turns that into the reason.
+            var metadata = admin.GetMetadata(TimeSpan.FromSeconds(5));
+
+            // A broker mid-startup can answer with an empty cluster view, which is still not a
+            // broker that will accept a topic creation.
+            return metadata.Brokers.Count == 0 ? "metadata returned no brokers" : null;
+        });
     }
 
     void WaitForSqlServerToBeReady()
