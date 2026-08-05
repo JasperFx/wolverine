@@ -51,6 +51,18 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     // out. Same semantics as NodeAgentController's pending-assignment ledger.
     private readonly ConcurrentDictionary<Uri, Guid> _inFlight = new();
 
+    // GH-3852: the agents a reassignment is MOVING, and the node each is moving to. Deliberately separate
+    // from _inFlight, because Enqueue must never consult this one: a reassignment carries a stop for the
+    // agent's current node, and dropping it because a start is already pending is exactly the two-copies bug
+    // StartedAgentsOf's comment guards against. This exists only so the leader's pending-assignment ledger
+    // can tell that a move it already dispatched is still executing.
+    //
+    // Without it a pending reassignment falls back to the ledger's TTL backstop -- 2 x CheckAssignmentPeriod,
+    // 60s by default -- which a batch's own reply window trivially outlives (AgentBatchTimeouts.ReplyWindowFor
+    // is over 50 minutes at 100 agents), so the leader would resume re-deciding the move long before the
+    // command it is waiting on had any chance to finish.
+    private readonly ConcurrentDictionary<Uri, Guid> _moving = new();
+
     // GH-3781: latched by DisposeAsync so a lane stops picking work up. Completing a channel writer does
     // NOT discard what is already buffered -- ReadAsync keeps handing it out -- so without this, shutdown
     // executed every command still queued for a node that had already gone, one reply window at a time.
@@ -92,7 +104,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
     ///     than for a fixed TTL that a wave of slow starts trivially outlives.
     /// </summary>
     public bool TryFindPendingDestination(Uri agentUri, out Guid nodeId)
-        => _inFlight.TryGetValue(agentUri, out nodeId);
+        => _inFlight.TryGetValue(agentUri, out nodeId) || _moving.TryGetValue(agentUri, out nodeId);
 
     /// <summary>
     ///     Queue a command for its destination's lane, unless equivalent work is already queued or running.
@@ -135,6 +147,14 @@ internal class AgentCommandDispatcher : IAsyncDisposable
 
         foreach (var uri in StartedAgentsOf(command)) _inFlight[uri] = destination;
 
+        // Keyed on the node the agents are moving TO, which for a reassignment is not this command's lane --
+        // the lane is the SOURCE (see ReassignAgent.DestinationNodeId).
+        var moving = MovedAgentsOf(command);
+        if (moving != null)
+        {
+            foreach (var uri in moving.Value.Agents) _moving[uri] = moving.Value.Destination;
+        }
+
         var lane = laneFor(destination);
         if (!lane.Queue.Writer.TryWrite(command))
         {
@@ -157,6 +177,18 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         _ => []
     };
 
+    /// <summary>
+    ///     GH-3852: the agents a command is MOVING and the node they are moving to, or null for anything that
+    ///     is not a reassignment. Feeds <see cref="_moving" /> only — never <see cref="Enqueue" />'s
+    ///     suppression, for the reason given on <see cref="StartedAgentsOf" />.
+    /// </summary>
+    internal static (Uri[] Agents, Guid Destination)? MovedAgentsOf(IAgentCommand command) => command switch
+    {
+        ReassignAgent reassign => ([reassign.AgentUri], reassign.ActiveNode.NodeId),
+        ReassignAgents batch => (batch.AgentUris, batch.ActiveNode.NodeId),
+        _ => null
+    };
+
     private void release(IAgentCommand command, Guid destination)
     {
         _queued.TryRemove(command, out _);
@@ -168,6 +200,20 @@ internal class AgentCommandDispatcher : IAsyncDisposable
             if (_inFlight.TryGetValue(uri, out var owner) && owner == destination)
             {
                 _inFlight.TryRemove(uri, out _);
+            }
+        }
+
+        // Same "only clear what this command still owns" rule, against the move's own destination rather
+        // than the lane key.
+        var moving = MovedAgentsOf(command);
+        if (moving != null)
+        {
+            foreach (var uri in moving.Value.Agents)
+            {
+                if (_moving.TryGetValue(uri, out var owner) && owner == moving.Value.Destination)
+                {
+                    _moving.TryRemove(uri, out _);
+                }
             }
         }
     }
@@ -283,6 +329,7 @@ internal class AgentCommandDispatcher : IAsyncDisposable
         // TryFindPendingDestination claim a start is still on its way for the rest of the process.
         _queued.Clear();
         _inFlight.Clear();
+        _moving.Clear();
     }
 
     private class Lane

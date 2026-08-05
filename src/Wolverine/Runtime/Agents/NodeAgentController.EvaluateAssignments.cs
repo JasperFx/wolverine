@@ -239,11 +239,18 @@ public partial class NodeAgentController
 
         foreach (var agent in grid.AllAgents)
         {
-            // Already running somewhere: not a pending placement. reconcilePendingAssignments clears the
-            // ledger entry below if this is the node we were waiting on.
-            if (agent.OriginalNode != null) continue;
-
             if (!_pendingAssignments.TryGetValue(agent.Uri, out var pending)) continue;
+
+            // Observed running on the very node we dispatched to: the wait is over, not a pending placement.
+            // reconcilePendingAssignments clears the ledger entry below.
+            //
+            // GH-3852: this used to skip EVERY agent with an OriginalNode, which silently excluded the whole
+            // reassignment case -- an agent being moved is still listed in its source node's persisted
+            // ActiveAgents, so OriginalNode is set and PendingNode was never populated. The ledger armed on a
+            // ReassignAgent (see reconcilePendingAssignmentsLocked) but could never apply one, so the leader
+            // re-decided the same move from scratch on every evaluation until the source's assignment row
+            // finally disappeared. Now only a MATCHING node ends the wait.
+            if (agent.OriginalNode != null && agent.OriginalNode.NodeId == pending.NodeId) continue;
 
             if (!nodes.TryGetValue(pending.NodeId, out var node))
             {
