@@ -78,6 +78,22 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public override uint Count => (uint)_slots.Sum(x => x.Count);
 
+    /// <summary>
+    /// Propagates to every slot block. Without this, a slot's escaping exception falls to the
+    /// JasperFx Block default sink (stderr) — invisible to anyone reading structured logs.
+    /// </summary>
+    public override Action<Envelope, Exception> OnError
+    {
+        get => _slots[0].OnError;
+        set
+        {
+            foreach (var slot in _slots)
+            {
+                slot.OnError = value;
+            }
+        }
+    }
+
     public override ValueTask PostAsync(Envelope item)
     {
         // This first uses new "message grouping rules" to determine a GroupId

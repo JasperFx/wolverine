@@ -1,4 +1,5 @@
 using System.Timers;
+using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Agents;
 using Timer = System.Timers.Timer;
@@ -7,16 +8,22 @@ namespace Wolverine.Transports;
 
 internal class BackPressureAgent : IDisposable
 {
+    // At the 2 second polling interval, this logs roughly once a minute while latched
+    internal const int LatchedChecksPerReminder = 30;
+
     private readonly IListeningAgent _agent;
     private readonly Endpoint _endpoint;
     private readonly IWolverineObserver _observer;
+    private readonly ILogger _logger;
     private Timer? _timer;
+    private int _latchedChecks;
 
-    public BackPressureAgent(IListeningAgent agent, Endpoint endpoint, IWolverineObserver observer)
+    public BackPressureAgent(IListeningAgent agent, Endpoint endpoint, IWolverineObserver observer, ILogger logger)
     {
         _agent = agent;
         _endpoint = endpoint;
         _observer = observer;
+        _logger = logger;
     }
 
     public void Dispose()
@@ -36,11 +43,24 @@ internal class BackPressureAgent : IDisposable
 
     private void TimerOnElapsed(object? sender, ElapsedEventArgs e)
     {
-#pragma warning disable CS4014
-#pragma warning disable VSTHRD110
-        CheckNowAsync();
-#pragma warning restore VSTHRD110
-#pragma warning restore CS4014
+        _ = checkSafelyAsync();
+    }
+
+    private async Task checkSafelyAsync()
+    {
+        // An exception escaping CheckNowAsync from the timer used to be an unobserved ValueTask
+        // fault — a listener whose restart kept throwing simply never resumed, with nothing in the
+        // logs (GH CritterWatch#922). The timer keeps firing, so log and let the next interval retry.
+        try
+        {
+            await CheckNowAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Back pressure check failed for listener at {Uri} (status {Status}, local count {Count}). Will retry on the next interval",
+                _endpoint.Uri, _agent.Status, _agent.QueueCount);
+        }
     }
 
     public async ValueTask CheckNowAsync()
@@ -53,6 +73,8 @@ internal class BackPressureAgent : IDisposable
 
         if (_agent.Status is ListeningStatus.Accepting or ListeningStatus.Unknown)
         {
+            _latchedChecks = 0;
+
             if (_agent.QueueCount > _endpoint.BufferingLimits.Maximum)
             {
                 await _observer.BackPressureTriggered(_endpoint, _agent);
@@ -63,9 +85,24 @@ internal class BackPressureAgent : IDisposable
         {
             if (_agent.QueueCount <= _endpoint.BufferingLimits.Restart)
             {
+                _latchedChecks = 0;
                 await _agent.StartAsync();
                 await _observer.BackPressureLifted(_endpoint);
             }
+            else if (++_latchedChecks % LatchedChecksPerReminder == 0)
+            {
+                // A latched listener used to log exactly one line at the moment it stopped and then
+                // nothing forever — operators watching a queue grow for 40 minutes had no way to tell
+                // "still draining" from "wedged" (GH CritterWatch#922). Say so, with the numbers the
+                // resume decision is actually made from.
+                _logger.LogWarning(
+                    "Listener at {Uri} is still latched by back pressure after {Seconds:N0}s: local count {Count} has not dropped to the restart threshold {Restart}. If the count is not falling, the local queue is not draining",
+                    _endpoint.Uri, _latchedChecks * 2, _agent.QueueCount, _endpoint.BufferingLimits.Restart);
+            }
+        }
+        else
+        {
+            _latchedChecks = 0;
         }
     }
 }

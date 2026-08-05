@@ -53,6 +53,23 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         Pipeline = pipeline;
 
+        void onBlockError(Envelope? envelope, Exception ex)
+        {
+            // A terminal block fault (jasperfx#506) reports with a null item
+            if (envelope == null)
+            {
+                _logger.LogCritical(ex,
+                    "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
+                    Uri);
+            }
+            else
+            {
+                _logger.LogError(ex,
+                    "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
+                    envelope.Id, envelope.MessageType, Uri);
+            }
+        }
+
         Func<Envelope, CancellationToken, Task> execute = async (envelope, _) =>
         {
             if (_latched)
@@ -78,9 +95,24 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         };
         
-        _receiver = endpoint.GroupShardingSlotNumber == null 
-            ? new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute)
-            : new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber, runtime.Options.MessagePartitioning, execute).DeserializeFirst(pipeline, runtime, this);
+        if (endpoint.GroupShardingSlotNumber == null)
+        {
+            _receiver = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute);
+        }
+        else
+        {
+            var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
+                runtime.Options.MessagePartitioning, execute);
+            sharded.OnError = onBlockError;
+            _receiver = sharded.DeserializeFirst(pipeline, runtime, this);
+        }
+
+        // Route block-level failures (an exception escaping the execution machinery itself, or the
+        // block faulting terminally per jasperfx#506) through real logging. The JasperFx default sink
+        // is stderr, which reads as a silent stall in any structured-logging deployment — and a
+        // faulted block freezes QueueCount, which permanently latches a back-pressured listener
+        // (GH CritterWatch#922).
+        _receiver.OnError = onBlockError;
         
         _deferBlock = new RetryBlock<Envelope>((env, _) => env.Listener!.DeferAsync(env).AsTask(), runtime.Logger,
             runtime.Cancellation);
