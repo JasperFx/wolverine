@@ -41,7 +41,7 @@ internal static class DurabilityProjectionAffinity
     ///     one owner per version; the durability agent follows the larger side, tie-broken by node id for
     ///     determinism).
     /// </summary>
-    internal static Func<Uri, AssignmentGrid.Node?> BuildPreference(AssignmentGrid assignments)
+    internal static DurabilityAffinityPreference BuildPreference(AssignmentGrid assignments)
     {
         // (DatabaseId, node) -> how many of that database's event-subscription agents the node holds
         var owners = new Dictionary<DatabaseId, Dictionary<AssignmentGrid.Node, int>>();
@@ -69,7 +69,7 @@ internal static class DurabilityProjectionAffinity
 
         if (owners.Count == 0)
         {
-            return _ => null;
+            return new DurabilityAffinityPreference(_ => null, 0);
         }
 
         var ownerOf = owners.ToDictionary(
@@ -89,7 +89,7 @@ internal static class DurabilityProjectionAffinity
             .GroupBy(pair => pair.Key.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
-        return uri =>
+        return new DurabilityAffinityPreference(uri =>
         {
             var database = DatabaseOf(uri);
             if (database == null)
@@ -113,7 +113,7 @@ internal static class DurabilityProjectionAffinity
                 .ToList();
 
             return matching.Count == 1 ? matching[0].Value : null;
-        };
+        }, owners.Count);
     }
 
     // The durability URI's server segment is descriptor.ServerName.Split(',')[0] while DatabaseId.Server
