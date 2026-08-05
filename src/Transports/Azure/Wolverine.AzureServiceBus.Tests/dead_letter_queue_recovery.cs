@@ -20,7 +20,6 @@ namespace Wolverine.AzureServiceBus.Tests;
 /// set). The background recovery listener drains the sub-queue and the dead letter ends up queryable
 /// in Wolverine's durable storage.
 /// </summary>
-[Trait("Category", "Flaky")]
 public class dead_letter_queue_recovery : IAsyncLifetime
 {
     private readonly string _queueName = $"dlqrecovery{Guid.NewGuid():N}";
