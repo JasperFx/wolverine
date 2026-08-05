@@ -250,7 +250,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         // the active one again.
         stopInboxRecovery();
 
-        if (Status == ListeningStatus.Stopped || Status == ListeningStatus.GloballyLatched)
+        if (Status is ListeningStatus.Stopped or ListeningStatus.GloballyLatched or ListeningStatus.Paused)
         {
             return;
         }
@@ -446,8 +446,14 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
 
         _circuitBreaker?.Reset();
 
+        // GH-3832 — a deliberate pause is not the same state as merely stopped, and not the same
+        // as a back-pressure TooBusy latch. Both recover on their own, but on different triggers:
+        // this one on the Restarter installed below, TooBusy only once the queue drains. Keeping
+        // them distinct is what lets BackPressureAgent leave a paused listener alone.
+        Status = ListeningStatus.Paused;
+
         _logger.LogInformation("Pausing message listening at {Uri}", Uri);
-        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
+        _runtime.Tracker.Publish(new ListenerState(Uri, Endpoint.EndpointName, ListeningStatus.Paused));
         _restarter = new Restarter(this, pauseTime);
     }
 

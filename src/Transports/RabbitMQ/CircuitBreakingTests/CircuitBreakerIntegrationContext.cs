@@ -163,7 +163,9 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
 
         await messageWaiter;
 
-        _observer.RecordedStates.ShouldNotContain(ListeningStatus.Stopped);
+        // GH-3832: a trip now publishes Paused, not Stopped. This assertion has to follow it --
+        // left on Stopped it would pass no matter how many times the breaker tripped.
+        _observer.RecordedStates.ShouldNotContain(ListeningStatus.Paused);
     }
 
     // virtual so a single variant can be skipped without taking the other variants with it --
@@ -197,8 +199,9 @@ public abstract class CircuitBreakerIntegrationContext(ITestOutputHelper output)
 
         await messageWaiter;
 
-        // It tripped at least once...
-        _observer.RecordedStates.ShouldContain(ListeningStatus.Stopped);
+        // It tripped at least once... (GH-3832: a circuit breaker trip is a timed pause, so it
+        // reports Paused rather than Stopped)
+        _observer.RecordedStates.ShouldContain(ListeningStatus.Paused);
 
         // ...and it recovers. Wait for the actual restart rather than asserting RecordedStates.Last()
         // at the instant messages finish — that snapshot races the Restarter's post-pause Accepting

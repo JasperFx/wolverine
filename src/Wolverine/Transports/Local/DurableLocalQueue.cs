@@ -96,6 +96,10 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     public async ValueTask PauseAsync(TimeSpan pauseTime)
     {
         Latched = true;
+        // GH-3832 — remember that this latch is a timed pause so Status reports Paused rather than
+        // the TooBusy that a back-pressure latch reports. This one is released by the Restarter
+        // installed at the end of this method; TooBusy is released by the queue draining.
+        _paused = true;
 
         if (_receiver != null)
         {
@@ -115,7 +119,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         CircuitBreaker?.Reset();
 
         _runtime.Tracker.Publish(
-            new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Stopped));
+            new ListenerState(Endpoint.Uri, Endpoint.EndpointName, ListeningStatus.Paused));
 
         _logger.LogInformation("Pausing message listening at {Uri}", Endpoint.Uri);
 
@@ -135,6 +139,7 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
     {
         _receiver = new DurableReceiver(Endpoint, _runtime, Pipeline);
         Latched = false;
+        _paused = false;
         _runtime.Tracker.Publish(new ListenerState(_receiver.Uri, Endpoint.EndpointName,
             ListeningStatus.Accepting));
         _restarter?.Dispose();
@@ -142,7 +147,13 @@ internal class DurableLocalQueue : ISendingAgent, IListenerCircuit, ILocalQueue
         return ValueTask.CompletedTask;
     }
 
-    ListeningStatus IListenerCircuit.Status => Latched ? ListeningStatus.TooBusy : ListeningStatus.Accepting;
+    private bool _paused;
+
+    // GH-3832 — a timed pause must not read as the back-pressure TooBusy latch;
+    // LatchReceiver() (agent-restriction latch) deliberately keeps the TooBusy mapping for now.
+    ListeningStatus IListenerCircuit.Status => _paused
+        ? ListeningStatus.Paused
+        : Latched ? ListeningStatus.TooBusy : ListeningStatus.Accepting;
 
     public Uri Uri { get; }
 
