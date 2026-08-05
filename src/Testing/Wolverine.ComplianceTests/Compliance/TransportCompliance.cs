@@ -460,7 +460,9 @@ public abstract class TransportCompliance<T> : IAsyncLifetime where T : Transpor
 
     protected void throwOnAttempt<TException>(int attempt) where TException : Exception, new()
     {
-        theMessage.Errors.Add(attempt, new TException());
+        // GH-3800: records the type NAME, not an instance -- an Exception does not round-trip
+        // through System.Text.Json, and this battery runs under serializers that use it.
+        theMessage.ThrowOnAttempt<TException>(attempt);
     }
 
     protected async Task<EnvelopeRecord> afterProcessingIsComplete()
