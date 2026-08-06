@@ -235,6 +235,15 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     public ListenerScope ListenerScope { get; set; } = ListenerScope.CompetingConsumers;
 
     /// <summary>
+    /// GH-3590. Is this endpoint's listener only ever active on ONE node of the cluster? Inbox recovery for
+    /// such an endpoint is owned by the node hosting the listener (<see cref="ListenerInboxRecovery"/>) rather
+    /// than by the per-database durability agent, which is assigned per database and routinely lands on a
+    /// different node. Every guard that implements that hand-off asks *this* question, so that the two sides
+    /// can never disagree and strand messages in between.
+    /// </summary>
+    internal virtual bool IsSingleNodeListener => ListenerScope != ListenerScope.CompetingConsumers;
+
+    /// <summary>
     /// Is OpenTelemetry enabled for this endpoint?
     /// </summary>
     public bool TelemetryEnabled { get; set; } = true;

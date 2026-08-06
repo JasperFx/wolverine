@@ -18,6 +18,16 @@ public class LocalQueue : Endpoint
     internal List<Type> HandledMessageTypes { get; } = new();
     public int MessageCount => Agent?.As<ILocalQueue>().QueueCount ?? 0;
 
+    /// <summary>
+    /// GH-3856. A local queue is NEVER a single node listener regardless of its <see cref="ListenerScope"/>.
+    /// It exists on every node, it never gets a <see cref="ListeningAgent"/> (BuildListenerAsync throws), and
+    /// EndpointCollection.ExclusiveListeners() excludes it, so nothing ever starts the
+    /// ListenerInboxRecoveryLoop that would otherwise own its inbox recovery. The per-database durability
+    /// agent is the only recovery path a local queue has, and it is a perfectly good owner precisely because
+    /// the queue lives on whichever node that agent happens to run on.
+    /// </summary>
+    internal override bool IsSingleNodeListener => false;
+
     public override bool ShouldEnforceBackPressure()
     {
         return false;

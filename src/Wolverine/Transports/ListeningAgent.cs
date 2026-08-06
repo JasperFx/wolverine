@@ -403,7 +403,7 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
     private void startInboxRecoveryIfNecessary()
     {
         if (Endpoint.Mode != EndpointMode.Durable) return;
-        if (Endpoint.ListenerScope == ListenerScope.CompetingConsumers) return;
+        if (!Endpoint.IsSingleNodeListener) return;
         if (!_runtime.Options.Durability.DurabilityAgentEnabled) return;
         if (_runtime.Storage is NullMessageStore) return;
 
