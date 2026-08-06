@@ -37,6 +37,13 @@ public sealed partial class WolverineRuntime : IWolverineRuntime, IWolverineRunt
     private bool _hasStopped;
 
     private readonly Lazy<MessageStoreCollection> _stores;
+
+    /// <summary>
+    /// CritterWatch#942 — per-listener-address count of member envelopes pending inside message
+    /// batching pipelines, folded into ListeningAgent.QueueCount so back-pressure sees the depth
+    /// of the (unbounded, GH-3287) batch execution queues.
+    /// </summary>
+    public Batching.BatchingPendingCounts BatchingPendingCounts { get; } = new();
     private readonly Lazy<MetricsAccumulator> _accumulator;
     private readonly Lazy<ISagaStoreDiagnostics> _sagaStorage;
 

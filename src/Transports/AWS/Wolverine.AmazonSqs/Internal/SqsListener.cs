@@ -243,6 +243,14 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         var attributes = message.MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
         _mapper.ReadEnvelopeData(envelope, message.Body, attributes);
 
+        // CritterWatch#942 — the Body string (base64, UTF-16, ~2.7× the wire payload size) is fully
+        // mapped into the envelope now, and every later use of SqsMessage — single delete, batched
+        // delete, requeue-then-delete — reads only ReceiptHandle. The envelope pins SqsMessage for
+        // its whole time in flight (which, for buffered endpoints feeding a batching pipeline, can
+        // be a long, deep queue), so release the one big thing on it. The mapping-failure path above
+        // (raw forward to the dead-letter queue) still has Body because it never reaches here.
+        message.Body = null;
+
         return envelope;
     }
 

@@ -133,6 +133,13 @@ public partial class Envelope
     
     [JsonIgnore]
     internal Envelope[]? Batch { get; set; }
+
+    /// <summary>
+    /// CritterWatch#942 — set once when <see cref="Runtime.Batching.BatchingPendingCounts"/> settles
+    /// this grouped batch envelope's members at its terminal, so a repeated CompleteAsync can't
+    /// drive the pending count negative.
+    /// </summary>
+    internal bool BatchPendingSettled { get; set; }
     
     [JsonIgnore]
     internal bool HasBeenAcked { get; set; }

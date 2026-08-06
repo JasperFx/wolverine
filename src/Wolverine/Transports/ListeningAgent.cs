@@ -55,6 +55,15 @@ public interface IListeningAgent : IListenerCircuit
     ValueTask MarkAsTooBusyAndStopReceivingAsync();
 
     ValueTask LatchPermanently();
+
+    /// <summary>
+    /// CritterWatch#942 — true when this listener's receiver execution block has faulted terminally
+    /// (jasperfx#506). A faulted receiver can never make progress: its QueueCount freezes and every
+    /// post from the receive loop throws, so the listener looks alive while dropping everything it
+    /// receives. BackPressureAgent forces a full rebuild when it sees this; health checks should
+    /// treat it as unhealthy. Default false for implementations that don't track it.
+    /// </summary>
+    bool ReceiverHasFaulted => false;
 }
 
 public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
@@ -144,7 +153,18 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
         _semaphore.Dispose();
     }
 
-    public int QueueCount => _receiver is ILocalQueue q ? q.QueueCount : 0;
+    // CritterWatch#942 — the receive block's own depth PLUS the members this listener has fed into
+    // message-batching pipelines that haven't reached a batch terminal yet. Without the second term,
+    // BatchMessagesOf drains the (bounded, watched) receive block into an unbounded local execution
+    // queue and back-pressure never fires while memory grows without bound.
+    /// <summary>
+    /// CritterWatch#942 — see <see cref="IListeningAgent.ReceiverHasFaulted"/>. True when the
+    /// current receiver's execution block has faulted terminally (jasperfx#506).
+    /// </summary>
+    public bool ReceiverHasFaulted => _receiver is IFaultTrackingReceiver { HasFaulted: true };
+
+    public int QueueCount => (_receiver is ILocalQueue q ? q.QueueCount : 0)
+                             + _runtime.BatchingPendingCounts.PendingFor(Endpoint.Uri);
 
     /// <summary>
     /// Approximate timestamp of the last time a message was received on this listener,
@@ -349,6 +369,33 @@ public class ListeningAgent : IAsyncDisposable, IDisposable, IListeningAgent
             _logger.LogInformation(
                 "Listener at {Uri} is not being started because of an existing agent restriction", Uri);
             return;
+        }
+
+        // CritterWatch#942 — never re-attach a listener to a terminally faulted receiver. A faulted
+        // block (jasperfx#506) rejects every post and its QueueCount freezes, so reusing it turns a
+        // restart into a zombie: the receive loop polls, fails to enqueue, and (for brokers that
+        // settle at receipt) drops messages, forever. Rebuild instead.
+        if (_receiver is IFaultTrackingReceiver { HasFaulted: true } faulted)
+        {
+            _logger.LogWarning(
+                "The receiver for {Uri} had terminally faulted and is being rebuilt before the listener restarts",
+                Uri);
+            _receiver = null;
+            try
+            {
+                if (faulted is IAsyncDisposable disposable)
+                {
+                    await disposable.DisposeAsync();
+                }
+                else
+                {
+                    ((IDisposable)faulted).Dispose();
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogInformation(e, "Error disposing the faulted receiver for {Uri}", Uri);
+            }
         }
 
         _receiver ??= Endpoint.MaybeWrapReceiver(await buildReceiverAsync());

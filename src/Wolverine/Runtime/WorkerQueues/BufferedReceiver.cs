@@ -12,7 +12,8 @@ using Wolverine.Transports.Sending;
 
 namespace Wolverine.Runtime.WorkerQueues;
 
-internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue
+internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
+    IFaultTrackingReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
 
@@ -88,19 +89,42 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         }
     }
 
+    /// <summary>CritterWatch#942 — set when the receiving block faults terminally (jasperfx#506).</summary>
+    public bool HasFaulted { get; private set; }
+
     private void onBlockError(Envelope? envelope, Exception ex)
     {
-        // A terminal block fault (jasperfx#506) reports with a null item
+        // A terminal block fault (jasperfx#506) reports with a null item. Record the fault FIRST —
+        // the flag is what lets ListeningAgent/BackPressureAgent rebuild this receiver — and only
+        // then attempt to log: under the memory pressure that typically causes the fault
+        // (CritterWatch#942), the logging call itself can throw.
         if (envelope == null)
         {
-            _logger.LogCritical(ex,
-                "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
-                Uri);
+            HasFaulted = true;
+            try
+            {
+                _logger.LogCritical(ex,
+                    "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
+                    Uri);
+            }
+            catch
+            {
+                // Logging failed (e.g. OOM at the GC ceiling). The flag is already set; recovery
+                // does not depend on this line landing.
+            }
         }
         else
         {
-            _logger.LogError(ex, "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
-                envelope.Id, envelope.MessageType, Uri);
+            try
+            {
+                _logger.LogError(ex, "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
+                    envelope.Id, envelope.MessageType, Uri);
+            }
+            catch
+            {
+                // Swallow: an exception escaping this handler would fault the block terminally
+                // (Block's onError rung), converting one failed message into a dead listener.
+            }
         }
     }
 
@@ -124,7 +148,17 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         catch (Exception? e)
         {
             // This *should* never happen, but of course it will
-            _logger.LogError(e, "Unexpected error in Pipeline invocation");
+            try
+            {
+                _logger.LogError(e, "Unexpected error in Pipeline invocation");
+            }
+            catch
+            {
+                // CritterWatch#942 — if the log call itself throws (an OOM at the GC hard limit is
+                // the observed case), letting it escape here faults the receiving block terminally
+                // via Block's error rung, and a faulted block never recovers. Swallowing is the
+                // lesser evil: the message fails, the listener survives.
+            }
         }
     }
 
@@ -138,6 +172,15 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         if (envelope.Listener is LocalQueueRecoveryListener recovery)
         {
             return recovery.CompleteAsync(envelope);
+        }
+
+        // CritterWatch#942 — a grouped batch envelope reaching its terminal on a buffered local
+        // queue settles its members' pending-count against their originating listeners, so the
+        // listeners' back-pressure accounting sees the batching pipeline drain. All terminals
+        // (success, dead-letter move, discard) funnel through this channel callback.
+        if (envelope.Batch != null && _runtime is WolverineRuntime runtime)
+        {
+            runtime.BatchingPendingCounts.SettleBatch(envelope);
         }
 
         return ValueTask.CompletedTask;
