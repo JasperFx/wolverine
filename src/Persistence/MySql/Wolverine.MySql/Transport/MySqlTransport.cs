@@ -46,7 +46,11 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
 
     protected override MySqlQueue findEndpointByUri(Uri uri)
     {
-        var queueName = uri.Host;
+        // Same correction as the SQL Server / Postgresql / Oracle (GH-3820) transports: a queue
+        // reached only by Uri bypasses the fluent API's MaybeCorrectName, and a dash in the raw
+        // name reaches the wolverine_queue_* table DDL. SanitizeIdentifier (idempotent), not
+        // MaybeCorrectName (would double-apply an IdentifierPrefix).
+        var queueName = SanitizeIdentifier(uri.Host);
         return Queues[queueName];
     }
 
