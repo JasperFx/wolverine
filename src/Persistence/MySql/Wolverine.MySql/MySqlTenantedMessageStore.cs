@@ -60,6 +60,22 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
         return store;
     }
 
+    /// <summary>
+    /// GH-3860. A MySQL schema IS a database, so the single configured envelope storage schema name that
+    /// works for PostgreSQL and SQL Server — where a schema is a namespace *inside* the database named by
+    /// the connection string — discards the tenant's own database entirely and collapses every tenant onto
+    /// one physical set of tables. A tenant's database is therefore its schema. Falls back to the configured
+    /// name only when the connection string names no database at all, which cannot address a tenant anyway.
+    /// </summary>
+    private string schemaNameFor(string? connectionString)
+    {
+        if (connectionString.IsEmpty()) return _persistence.EnvelopeStorageSchemaName;
+
+        var database = new MySqlConnectionStringBuilder(connectionString).Database;
+
+        return database.IsEmpty() ? _persistence.EnvelopeStorageSchemaName : database;
+    }
+
     private MySqlMessageStore buildTenantStoreForConnectionString(string connectionString)
     {
         var dataSource = MySqlDataSourceFactory.Create(connectionString);
@@ -70,7 +86,7 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
             ConnectionString = connectionString,
             Role = MessageStoreRole.Tenant,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
-            SchemaName = _persistence.EnvelopeStorageSchemaName
+            SchemaName = schemaNameFor(connectionString)
         };
 
         var store = new MySqlMessageStore(settings, _runtime.Options.Durability, dataSource,
@@ -87,7 +103,7 @@ internal class MySqlTenantedMessageStore : ITenantedMessageSource
             DataSource = source,
             Role = MessageStoreRole.Tenant,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
-            SchemaName = _persistence.EnvelopeStorageSchemaName
+            SchemaName = schemaNameFor(source.ConnectionString)
         };
 
         var store = new MySqlMessageStore(settings, _runtime.Options.Durability, source,
