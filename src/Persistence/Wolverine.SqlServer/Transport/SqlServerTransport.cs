@@ -78,7 +78,16 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
 
     protected override SqlServerQueue findEndpointByUri(Uri uri)
     {
-        var queueName = uri.Host;
+        // The fluent API (ListenToSqlServerQueue / ToSqlServerQueue) runs queue names through
+        // MaybeCorrectName, but a queue reached ONLY by Uri (e.g. ListenForMessagesFrom on
+        // "sqlserver://my-service-control") used to land here raw — and the queue name is
+        // interpolated into the wolverine_queue_* table names, so a dash produced invalid,
+        // unbracketed DDL. Correct the name at lookup exactly like the Oracle transport does
+        // (GH-3820): SanitizeIdentifier rather than MaybeCorrectName, because a Uri built from
+        // an already-corrected name carries any IdentifierPrefix and MaybeCorrectName would
+        // prepend it a second time. SanitizeIdentifier is idempotent, so fluent-registered
+        // queues resolve to the same endpoint they always did.
+        var queueName = SanitizeIdentifier(uri.Host);
         return Queues[queueName];
     }
 

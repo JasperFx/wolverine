@@ -102,7 +102,14 @@ public class PostgresqlTransport : BrokerTransport<PostgresqlQueue>, ITransportC
 
     protected override PostgresqlQueue findEndpointByUri(Uri uri)
     {
-        var queueName = uri.Host;
+        // A queue reached ONLY by Uri (e.g. ListenForMessagesFrom on "postgresql://my-queue-name")
+        // bypasses the fluent API's MaybeCorrectName, and the raw name is interpolated into the
+        // wolverine_queue_* table names — a dash produced invalid, unquoted DDL. Correct the name
+        // at lookup like the Oracle transport does (GH-3820): SanitizeIdentifier, NOT
+        // MaybeCorrectName, which would prepend an IdentifierPrefix a second time on a Uri built
+        // from an already-corrected name. SanitizeIdentifier is idempotent for fluent-registered
+        // queues.
+        var queueName = SanitizeIdentifier(uri.Host);
         return Queues[queueName];
     }
 
