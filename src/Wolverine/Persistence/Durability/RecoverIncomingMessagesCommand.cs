@@ -110,7 +110,10 @@ public class RecoverIncomingMessagesCommand : IAgentCommand
 
         // GH-3590 defense in depth. Inbox recovery for single node listeners (Exclusive / PinnedToLeader) is
         // owned by the node that is actually hosting the listener, never by the per-database durability agent.
-        if (listener.Endpoint.ListenerScope != ListenerScope.CompetingConsumers)
+        // GH-3856: this MUST ask the same question as IEndpointCollection.IsSingleNodeListener(). Testing the
+        // raw ListenerScope here meant a local queue carrying ListenerScope.Exclusive got a recovery command
+        // issued and then silently recovered nothing, forever.
+        if (listener.Endpoint.IsSingleNodeListener)
         {
             return 0;
         }

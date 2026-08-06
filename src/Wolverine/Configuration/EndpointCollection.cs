@@ -57,7 +57,7 @@ public interface IEndpointCollection : IAsyncDisposable
     /// </summary>
     bool IsSingleNodeListener(Uri address)
     {
-        return EndpointFor(address) is { ListenerScope: not ListenerScope.CompetingConsumers };
+        return EndpointFor(address) is { IsSingleNodeListener: true };
     }
 }
 
@@ -381,7 +381,7 @@ public class EndpointCollection : IEndpointCollection
             return isSingleNode;
         }
 
-        isSingleNode = EndpointFor(address) is { ListenerScope: not ListenerScope.CompetingConsumers };
+        isSingleNode = EndpointFor(address) is { IsSingleNodeListener: true };
         _singleNodeListeners = _singleNodeListeners.AddOrUpdate(address, isSingleNode);
 
         return isSingleNode;
