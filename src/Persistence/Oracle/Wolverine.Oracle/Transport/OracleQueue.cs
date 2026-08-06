@@ -137,19 +137,26 @@ public class OracleQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         return _sender!.SendAsync(envelope);
     }
 
+    /// <summary>
+    /// GH-3815. These two sources overlap: <c>MultiTenantedMessageStore.ActiveDatabases()</c> yields
+    /// <c>Main</c> first, and <see cref="OracleTransport.Databases"/> is only ever assigned alongside
+    /// <c>Store = mt.Main</c>. Visiting both therefore hit the main database twice — doubling
+    /// <see cref="CountAsync"/>/<see cref="ScheduledCountAsync"/>, which <see cref="GetAttributesAsync"/>
+    /// reports as user visible queue depth, and running every schema check against it twice. The
+    /// SqlServer and Sqlite queues already branch this way.
+    /// </summary>
     private async ValueTask forEveryDatabase(Func<OracleDataSource, string, Task> action)
     {
-        if (Parent?.Store?.OracleDataSource != null)
-        {
-            await action(Parent.Store.OracleDataSource, Parent.Store.Name);
-        }
-
         if (Parent?.Databases != null)
         {
             foreach (var database in Parent.Databases.ActiveDatabases().OfType<OracleMessageStore>())
             {
                 await action(database.OracleDataSource, database.Name);
             }
+        }
+        else if (Parent?.Store?.OracleDataSource != null)
+        {
+            await action(Parent.Store.OracleDataSource, Parent.Store.Name);
         }
     }
 

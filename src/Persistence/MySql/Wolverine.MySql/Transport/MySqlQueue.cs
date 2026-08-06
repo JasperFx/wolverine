@@ -137,19 +137,26 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         return _sender!.SendAsync(envelope);
     }
 
+    /// <summary>
+    /// GH-3815. These two sources overlap: <c>MultiTenantedMessageStore.ActiveDatabases()</c> yields
+    /// <c>Main</c> first, and <see cref="MySqlTransport.Databases"/> is only ever assigned alongside
+    /// <c>Store = mt.Main</c>. Visiting both therefore hit the main database twice — doubling
+    /// <see cref="CountAsync"/>/<see cref="ScheduledCountAsync"/>, which <see cref="GetAttributesAsync"/>
+    /// reports as user visible queue depth, and running every schema check against it twice. The
+    /// SqlServer and Sqlite queues already branch this way.
+    /// </summary>
     private async ValueTask forEveryDatabase(Func<MySqlDataSource, string, Task> action)
     {
-        if (Parent?.Store?.MySqlDataSource != null)
-        {
-            await action(Parent.Store.MySqlDataSource, Parent.Store.Identifier);
-        }
-
         if (Parent?.Databases != null)
         {
             foreach (var database in Parent.Databases.ActiveDatabases().OfType<MySqlMessageStore>())
             {
                 await action(database.MySqlDataSource, database.Identifier);
             }
+        }
+        else if (Parent?.Store?.MySqlDataSource != null)
+        {
+            await action(Parent.Store.MySqlDataSource, Parent.Store.Identifier);
         }
     }
 
