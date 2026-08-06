@@ -43,8 +43,10 @@ internal class MySqlQueueListener : IListener
 
         _sender = new MySqlQueueSender(queue, _dataSource, databaseName);
 
-        _queueTableName = _queue.QueueTable.Identifier.QualifiedName;
-        _scheduledTableName = _queue.ScheduledTable.Identifier.QualifiedName;
+        // GH-3859: resolved against this listener's own data source -- on a multi-tenanted host each
+        // tenant's queue tables live in that tenant's database.
+        _queueTableName = _queue.QueueTableFor(dataSource).Identifier.QualifiedName;
+        _scheduledTableName = _queue.ScheduledTableFor(dataSource).Identifier.QualifiedName;
         _schemaName = _queue.Parent.MessageStorageSchemaName;
 
         // MySQL doesn't have CTID, so we use a different approach:
@@ -424,7 +426,7 @@ AND {DatabaseConstants.KeepUntil} <= UTC_TIMESTAMP(6)")
                 .ExecuteNonQueryAsync(cancellationToken);
 
             await conn.CreateCommand($@"
-DELETE FROM {_queue.ScheduledTable.Identifier}
+DELETE FROM {_scheduledTableName}
 WHERE {DatabaseConstants.KeepUntil} IS NOT NULL
 AND {DatabaseConstants.KeepUntil} <= UTC_TIMESTAMP(6)")
                 .ExecuteNonQueryAsync(cancellationToken);

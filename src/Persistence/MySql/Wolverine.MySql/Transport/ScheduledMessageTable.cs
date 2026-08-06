@@ -6,8 +6,13 @@ namespace Wolverine.MySql.Transport;
 
 internal class ScheduledMessageTable : Table
 {
-    public ScheduledMessageTable(MySqlTransport settings, string tableName) : base(
-        new DbObjectName(settings.TransportSchemaName, tableName))
+    public ScheduledMessageTable(MySqlTransport settings, string tableName)
+        : this(settings.TransportSchemaName, tableName)
+    {
+    }
+
+    // GH-3859: see the matching comment on QueueTable.
+    public ScheduledMessageTable(string schemaName, string tableName) : base(new DbObjectName(schemaName, tableName))
     {
         AddColumn<Guid>(DatabaseConstants.Id).AsPrimaryKey();
         AddColumn(DatabaseConstants.Body, "LONGBLOB").NotNull();
