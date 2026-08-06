@@ -23,6 +23,10 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     private bool _hasInitialized;
     private IMySqlQueueSender? _sender;
     private ImHashMap<string, bool> _checkedDatabases = ImHashMap<string, bool>.Empty;
+    private ImHashMap<string, QueueTable> _queueTables = ImHashMap<string, QueueTable>.Empty;
+    private ImHashMap<string, ScheduledMessageTable> _scheduledTables = ImHashMap<string, ScheduledMessageTable>.Empty;
+    private readonly string _queueTableName;
+    private readonly string _scheduledTableName;
     private readonly Lazy<QueueTable> _queueTable;
     private readonly Lazy<ScheduledMessageTable> _scheduledMessageTable;
 
@@ -31,17 +35,17 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         base(ToUri(name, databaseName), role)
     {
         Parent = parent;
-        var queueTableName = $"wolverine_queue_{name}";
-        var scheduledTableName = $"wolverine_queue_{name}_scheduled";
+        _queueTableName = $"wolverine_queue_{name}";
+        _scheduledTableName = $"wolverine_queue_{name}_scheduled";
 
         Mode = EndpointMode.Durable;
         Name = name;
         EndpointName = name;
         BrokerRole = "queue";
 
-        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, queueTableName));
+        _queueTable = new Lazy<QueueTable>(() => new QueueTable(Parent, _queueTableName));
         _scheduledMessageTable =
-            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, scheduledTableName));
+            new Lazy<ScheduledMessageTable>(() => new ScheduledMessageTable(Parent, _scheduledTableName));
     }
 
     public string Name { get; }
@@ -51,6 +55,44 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     internal Table QueueTable => _queueTable.Value;
 
     internal Table ScheduledTable => _scheduledMessageTable.Value;
+
+    /// <summary>
+    /// GH-3859. MySQL has no schema-inside-database nesting — a schema IS a database — so the single
+    /// <see cref="MySqlTransport.TransportSchemaName"/> that works for the other providers resolves to one
+    /// physical database for every tenant, and all tenants end up sharing one queue table. On a
+    /// multi-tenanted host each data source therefore has to resolve its queue tables inside its *own*
+    /// database. Single database hosts are unaffected and keep using TransportSchemaName.
+    /// </summary>
+    internal string SchemaFor(MySqlDataSource source)
+    {
+        if (Parent.Databases == null) return Parent.TransportSchemaName;
+
+        var database = new MySqlConnectionStringBuilder(source.ConnectionString).Database;
+
+        return database.IsEmpty() ? Parent.TransportSchemaName : database;
+    }
+
+    internal QueueTable QueueTableFor(MySqlDataSource source)
+    {
+        var schema = SchemaFor(source);
+        if (_queueTables.TryFind(schema, out var table)) return table;
+
+        table = new QueueTable(schema, _queueTableName);
+        _queueTables = _queueTables.AddOrUpdate(schema, table);
+
+        return table;
+    }
+
+    internal ScheduledMessageTable ScheduledTableFor(MySqlDataSource source)
+    {
+        var schema = SchemaFor(source);
+        if (_scheduledTables.TryFind(schema, out var table)) return table;
+
+        table = new ScheduledMessageTable(schema, _scheduledTableName);
+        _scheduledTables = _scheduledTables.AddOrUpdate(schema, table);
+
+        return table;
+    }
 
     protected override bool supportsMode(EndpointMode mode)
     {
@@ -168,11 +210,11 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             try
             {
                 await using var cmd1 = conn.CreateCommand();
-                cmd1.CommandText = $"DELETE FROM {QueueTable.Identifier.QualifiedName}";
+                cmd1.CommandText = $"DELETE FROM {QueueTableFor(source).Identifier.QualifiedName}";
                 await cmd1.ExecuteNonQueryAsync();
 
                 await using var cmd2 = conn.CreateCommand();
-                cmd2.CommandText = $"DELETE FROM {ScheduledTable.Identifier.QualifiedName}";
+                cmd2.CommandText = $"DELETE FROM {ScheduledTableFor(source).Identifier.QualifiedName}";
                 await cmd2.ExecuteNonQueryAsync();
             }
             finally
@@ -199,14 +241,14 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             await using var conn = await source.OpenConnectionAsync();
             try
             {
-                var queueDelta = await QueueTable.FindDeltaAsync(conn);
+                var queueDelta = await QueueTableFor(source).FindDeltaAsync(conn);
                 if (queueDelta.HasChanges())
                 {
                     returnValue = false;
                     return;
                 }
 
-                var scheduledDelta = await ScheduledTable.FindDeltaAsync(conn);
+                var scheduledDelta = await ScheduledTableFor(source).FindDeltaAsync(conn);
 
                 returnValue = returnValue && !scheduledDelta.HasChanges();
             }
@@ -225,8 +267,8 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
         {
             await using var conn = await source.OpenConnectionAsync();
 
-            await QueueTable.DropAsync(conn);
-            await ScheduledTable.DropAsync(conn);
+            await QueueTableFor(source).DropAsync(conn);
+            await ScheduledTableFor(source).DropAsync(conn);
 
             await conn.CloseAsync();
         });
@@ -252,8 +294,8 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
     {
         await using (var conn = await source.OpenConnectionAsync())
         {
-            await QueueTable.ApplyChangesAsync(conn);
-            await ScheduledTable.ApplyChangesAsync(conn);
+            await QueueTableFor(source).ApplyChangesAsync(conn);
+            await ScheduledTableFor(source).ApplyChangesAsync(conn);
 
             await conn.CloseAsync();
         }
@@ -271,7 +313,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             try
             {
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"SELECT COUNT(*) FROM {QueueTable.Identifier.QualifiedName}";
+                cmd.CommandText = $"SELECT COUNT(*) FROM {QueueTableFor(source).Identifier.QualifiedName}";
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
             finally
@@ -292,7 +334,7 @@ public class MySqlQueue : Endpoint, IBrokerQueue, IDatabaseBackedEndpoint
             try
             {
                 await using var cmd = conn.CreateCommand();
-                cmd.CommandText = $"SELECT COUNT(*) FROM {ScheduledTable.Identifier.QualifiedName}";
+                cmd.CommandText = $"SELECT COUNT(*) FROM {ScheduledTableFor(source).Identifier.QualifiedName}";
                 count += Convert.ToInt64(await cmd.ExecuteScalarAsync());
             }
             finally

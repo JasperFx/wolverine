@@ -75,8 +75,15 @@ public class MySqlTransport : BrokerTransport<MySqlQueue>
 
         foreach (var queue in Queues)
         {
-            Store.AddTable(queue.QueueTable);
-            Store.AddTable(queue.ScheduledTable);
+            // GH-3859: on a multi-tenanted host the queue tables live in each database rather than in
+            // one transport-wide schema, and SetupAsync()/EnsureSchemaExists() provision them per data
+            // source. Registering a single set with the main store here would only ever provision one
+            // that nothing uses.
+            if (Databases == null)
+            {
+                Store.AddTable(queue.QueueTableFor(Store.MySqlDataSource));
+                Store.AddTable(queue.ScheduledTableFor(Store.MySqlDataSource));
+            }
         }
 
         MessageStorageSchemaName = Store.SchemaName;

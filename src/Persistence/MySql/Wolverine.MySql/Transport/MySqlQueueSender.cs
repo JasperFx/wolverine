@@ -31,9 +31,15 @@ internal class MySqlQueueSender : IMySqlQueueSender
 
         Destination = MySqlQueue.ToUri(queue.Name, databaseName);
 
-        _schemaName = queue.Parent.TransportSchemaName;
+        // GH-3859: on a multi-tenanted host the queue tables live in each tenant's OWN database, so
+        // every one of the statements below has to be built against THIS sender's data source rather
+        // than the transport-wide schema name.
+        var queueTable = queue.QueueTableFor(dataSource).Identifier;
+        var scheduledTable = queue.ScheduledTableFor(dataSource).Identifier;
+
+        _schemaName = queue.SchemaFor(dataSource);
         _moveFromOutgoingToQueueSql = $@"
-INSERT INTO {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil})
+INSERT INTO {queueTable} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil})
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy}
 FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable}
 WHERE {DatabaseConstants.Id} = @id;
@@ -41,7 +47,7 @@ DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingT
 ";
 
         _moveFromOutgoingToScheduledSql = $@"
-INSERT INTO {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil})
+INSERT INTO {scheduledTable} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime}, {DatabaseConstants.KeepUntil})
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, @time, {DatabaseConstants.DeliverBy}
 FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingTable}
 WHERE {DatabaseConstants.Id} = @id;
@@ -49,10 +55,10 @@ DELETE FROM {queue.Parent.MessageStorageSchemaName}.{DatabaseConstants.OutgoingT
 ";
 
         _writeDirectlyToQueueTableSql =
-            $@"INSERT INTO {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) VALUES (@id, @body, @type, @expires)";
+            $@"INSERT INTO {queueTable} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}) VALUES (@id, @body, @type, @expires)";
 
         _writeDirectlyToTheScheduledTable = $@"
-INSERT INTO {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime})
+INSERT INTO {scheduledTable} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil}, {DatabaseConstants.ExecutionTime})
 VALUES (@id, @body, @type, @expires, @time)
 ON DUPLICATE KEY UPDATE {DatabaseConstants.Body} = @body, {DatabaseConstants.MessageType} = @type, {DatabaseConstants.KeepUntil} = @expires, {DatabaseConstants.ExecutionTime} = @time
 ".Trim();
