@@ -71,6 +71,21 @@ internal class BackPressureAgent : IDisposable
             la.UpdateQueueCountObservation();
         }
 
+        // CritterWatch#942 — a terminally faulted receiver (jasperfx#506) can never make progress:
+        // its QueueCount is frozen (so a latched listener never resumes) and every post from the
+        // receive loop throws (so an Accepting listener receives and drops messages forever). This
+        // periodic check is the one reliable place to notice and force the full teardown/rebuild
+        // that RestartAsync(force) already knows how to do.
+        if (_agent.ReceiverHasFaulted)
+        {
+            _logger.LogCritical(
+                "The receiver for the listener at {Uri} has terminally faulted; forcing a full listener rebuild",
+                _endpoint.Uri);
+            _latchedChecks = 0;
+            await _agent.RestartAsync(force: true);
+            return;
+        }
+
         if (_agent.Status is ListeningStatus.Accepting or ListeningStatus.Unknown)
         {
             _latchedChecks = 0;

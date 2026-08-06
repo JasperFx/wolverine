@@ -13,7 +13,7 @@ using Wolverine.Transports.Sending;
 namespace Wolverine.Runtime.WorkerQueues;
 
 public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeScheduling, ISupportDeadLetterQueue,
-    IAsyncDisposable
+    IAsyncDisposable, IFaultTrackingReceiver
 {
     private readonly RetryBlock<Envelope> _completeBlock;
 
@@ -55,18 +55,34 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         void onBlockError(Envelope? envelope, Exception ex)
         {
-            // A terminal block fault (jasperfx#506) reports with a null item
+            // A terminal block fault (jasperfx#506) reports with a null item. Record the fault
+            // FIRST, then log defensively — see BufferedReceiver.onBlockError (CritterWatch#942).
             if (envelope == null)
             {
-                _logger.LogCritical(ex,
-                    "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
-                    Uri);
+                HasFaulted = true;
+                try
+                {
+                    _logger.LogCritical(ex,
+                        "The local worker queue for {Uri} has faulted and stopped processing. Messages buffered locally will not be executed",
+                        Uri);
+                }
+                catch
+                {
+                    // Logging failed; the flag is already set and recovery does not depend on it.
+                }
             }
             else
             {
-                _logger.LogError(ex,
-                    "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
-                    envelope.Id, envelope.MessageType, Uri);
+                try
+                {
+                    _logger.LogError(ex,
+                        "Error processing envelope {EnvelopeId} ({MessageType}) in the local worker queue for {Uri}",
+                        envelope.Id, envelope.MessageType, Uri);
+                }
+                catch
+                {
+                    // Swallow: an escape here would fault the block terminally.
+                }
             }
         }
 
@@ -85,13 +101,25 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
             catch (Exception? e)
             {
-                if (_receiver != null)
+                // CritterWatch#942 — everything in this recovery path must be exception-safe: an
+                // escape here faults the execution block terminally (jasperfx#506) and a faulted
+                // block never recovers. Both the requeue and the log call can throw under the same
+                // memory pressure that caused the original failure.
+                try
                 {
-                    await _receiver.PostAsync(envelope).ConfigureAwait(false);
-                }
+                    if (_receiver != null)
+                    {
+                        await _receiver.PostAsync(envelope).ConfigureAwait(false);
+                    }
 
-                // This *should* never happen, but of course it will
-                _logger.LogError(e, "Unexpected pipeline invocation error");
+                    // This *should* never happen, but of course it will
+                    _logger.LogError(e, "Unexpected pipeline invocation error");
+                }
+                catch
+                {
+                    // The message is lost to this attempt, but durable inbox recovery re-offers it;
+                    // the listener survives.
+                }
             }
         };
         
@@ -234,6 +262,13 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
 
         if (envelope.Batch != null)
         {
+            // CritterWatch#942 — same settlement as BufferedReceiver: the members' pending-count
+            // against their originating listeners drains with the batch's terminal.
+            if (_runtime is WolverineRuntime runtime)
+            {
+                runtime.BatchingPendingCounts.SettleBatch(envelope);
+            }
+
             foreach (var child in envelope.Batch)
             {
                 child.InBatch = false;
@@ -272,6 +307,9 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     public IHandlerPipeline Pipeline { get; } = null!;
 
     public Uri Uri { get; set; }
+
+    /// <summary>CritterWatch#942 — set when the execution block faults terminally (jasperfx#506).</summary>
+    public bool HasFaulted { get; private set; }
 
     public int QueueCount => (int)_receiver.Count;
 

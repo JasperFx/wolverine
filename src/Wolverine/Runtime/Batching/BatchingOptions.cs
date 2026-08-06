@@ -134,7 +134,7 @@ public class BatchingOptions : IAsyncDisposable
             var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName!);
 
             return new BatchingProcessor<T>(parentChain, batcher, options, localQueue,
-                runtime.DurabilitySettings);
+                runtime.DurabilitySettings, runtime.BatchingPendingCounts);
         }
     }
 

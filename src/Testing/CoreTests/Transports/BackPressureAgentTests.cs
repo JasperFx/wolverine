@@ -165,4 +165,50 @@ public class BackPressureAgentTests
         await theListeningAgent.Received().StartAsync();
         theLogger.Entries.Count.ShouldBe(2);
     }
+
+    [Fact]
+    public async Task forces_a_full_rebuild_when_the_receiver_has_terminally_faulted()
+    {
+        // CritterWatch#942 — a faulted receiver's QueueCount is frozen, so neither the latch nor the
+        // resume branch can ever act on it. The periodic check must notice the fault itself and force
+        // the teardown/rebuild, regardless of the listener's reported status.
+        theListeningAgent.Status.Returns(ListeningStatus.TooBusy);
+        theListeningAgent.QueueCount.Returns(theEndpoint.BufferingLimits.Restart + 100);
+        theListeningAgent.ReceiverHasFaulted.Returns(true);
+
+        await theBackPressureAgent.CheckNowAsync();
+
+        await theListeningAgent.Received(1).RestartAsync(true);
+
+        var critical = theLogger.Entries.ShouldHaveSingleItem();
+        critical.Level.ShouldBe(LogLevel.Critical);
+        critical.Message.ShouldContain("terminally faulted");
+    }
+
+    [Fact]
+    public async Task faulted_receiver_recovery_fires_even_while_accepting()
+    {
+        // The Accepting-status zombie: receive loop still polling, every post failing. Nothing about
+        // QueueCount thresholds applies — the fault check must run before the latch decision.
+        theListeningAgent.Status.Returns(ListeningStatus.Accepting);
+        theListeningAgent.QueueCount.Returns(0);
+        theListeningAgent.ReceiverHasFaulted.Returns(true);
+
+        await theBackPressureAgent.CheckNowAsync();
+
+        await theListeningAgent.Received(1).RestartAsync(true);
+        await theListeningAgent.DidNotReceive().MarkAsTooBusyAndStopReceivingAsync();
+    }
+
+    [Fact]
+    public async Task no_rebuild_when_the_receiver_is_healthy()
+    {
+        theListeningAgent.Status.Returns(ListeningStatus.Accepting);
+        theListeningAgent.QueueCount.Returns(0);
+        theListeningAgent.ReceiverHasFaulted.Returns(false);
+
+        await theBackPressureAgent.CheckNowAsync();
+
+        await theListeningAgent.DidNotReceive().RestartAsync(Arg.Any<bool>());
+    }
 }

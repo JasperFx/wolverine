@@ -10,9 +10,12 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
     private readonly BatchingOptions _options;
     private readonly Block<Envelope[]> _processingBlock;
 
+    private readonly BatchingPendingCounts? _pendingCounts;
+
     public BatchingProcessor(HandlerChain chain, IMessageBatcher batcher, BatchingOptions options, ILocalQueue queue,
-        DurabilitySettings settings)
+        DurabilitySettings settings, BatchingPendingCounts? pendingCounts = null)
     {
+        _pendingCounts = pendingCounts;
         Chain = chain ?? throw new ArgumentOutOfRangeException(nameof(chain));
 
         _options = options;
@@ -33,10 +36,27 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         await _batchingBlock.DisposeAsync();
     }
 
-    public override Task HandleAsync(MessageContext context, CancellationToken cancellation)
+    public override async Task HandleAsync(MessageContext context, CancellationToken cancellation)
     {
-        context.Envelope!.InBatch = true;
-        return _batchingBlock.PostAsync(context.Envelope).AsTask();
+        var envelope = context.Envelope!;
+        envelope.InBatch = true;
+
+        // CritterWatch#942 — count this member as pending against its originating listener so the
+        // listener's QueueCount (and therefore back-pressure) sees the batching pipeline's depth.
+        // Envelopes with no listener are local sends/cascades and are deliberately not counted —
+        // back-pressure can only ever pause an external listener. Settlement happens once per
+        // grouped batch envelope at its terminal (BatchingPendingCounts.SettleBatch).
+        _pendingCounts?.Increment(envelope.Listener?.Address);
+
+        try
+        {
+            await _batchingBlock.PostAsync(envelope).ConfigureAwait(false);
+        }
+        catch
+        {
+            _pendingCounts?.Decrement(envelope.Listener?.Address);
+            throw;
+        }
     }
 
     private async Task processEnvelopes(Envelope[] envelopes, CancellationToken _)
