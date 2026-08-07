@@ -900,6 +900,19 @@ public class MessageContext : MessageBus, IMessageContext, IHasTenantId, IEnvelo
     {
         Envelope = originalEnvelope ?? throw new ArgumentNullException(nameof(originalEnvelope));
 
+        // The receiver has already decided which store owns this envelope's inbox row (see
+        // DurableReceiver/DurableLocalQueue.assignAncillaryStoreIfNeeded). Point the context at that
+        // same store so marking the message handled -- and any outbox work the handler does -- lands
+        // in the database that actually holds the row. Without this the context keeps the main store
+        // and EfCoreEnvelopeTransaction marks handled against the wrong database, updating zero rows
+        // and leaving the envelope Incoming forever. The [MartenStore] path already got this from the
+        // outbox frame's OverrideStorage call; a handler that just injects an enrolled DbContext has
+        // no such frame. See GH-3870.
+        if (originalEnvelope.Store != null)
+        {
+            Storage = originalEnvelope.Store;
+        }
+
         originalEnvelope.MaybeCorrectReplyUri();
 
         CorrelationId = originalEnvelope.CorrelationId;

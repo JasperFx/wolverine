@@ -508,6 +508,17 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         return _ancillaryStores.Contains(applicationType);
     }
 
+    /// <summary>
+    /// Every marker type that identifies an ancillary store -- a Marten or Polecat store interface,
+    /// or an EF Core DbContext enrolled with Enroll&lt;T&gt;(). Used to associate a handler with an
+    /// ancillary store when it takes one of these as a dependency instead of naming it with an
+    /// attribute. See GH-3870.
+    /// </summary>
+    internal IEnumerable<Type> AncillaryMarkerTypes()
+    {
+        return _ancillaryStores.Enumerate().Select(x => x.Key);
+    }
+
     private ImHashMap<string, IMessageStore> _messageTypeToAncillaryStore = ImHashMap<string, IMessageStore>.Empty;
 
     /// <summary>

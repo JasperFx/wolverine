@@ -11,6 +11,7 @@ using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
+using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
@@ -494,10 +495,15 @@ public partial class WolverineRuntime
         // store. See https://github.com/JasperFx/wolverine/issues/2576.
         if (Stores != null && Stores.HasAnyAncillaryStores())
         {
-            foreach (var chain in Handlers.AllChains().Where(c => c.AncillaryStoreType != null))
+            var markerTypes = Stores.AncillaryMarkerTypes().ToArray();
+
+            foreach (var chain in Handlers.AllChains())
             {
+                var storeType = chain.AncillaryStoreType ?? inferAncillaryStoreType(chain, markerTypes);
+                if (storeType == null) continue;
+
                 var messageTypeName = chain.MessageType.ToMessageTypeName();
-                Stores.MapMessageTypeToAncillaryStore(messageTypeName, chain.AncillaryStoreType!);
+                Stores.MapMessageTypeToAncillaryStore(messageTypeName, storeType);
             }
         }
 
@@ -558,6 +564,30 @@ public partial class WolverineRuntime
         {
             Logger.LogInformation("All external endpoint listeners are disabled because of configuration");
         }
+    }
+
+    /// <summary>
+    /// Associate a handler chain with an ancillary store it never names with an attribute. A handler
+    /// that takes an enrolled EF Core DbContext as a dependency targets that store's database just as
+    /// surely as one marked with [Storage], but carries nothing for StorageAttributeEagerPolicy to
+    /// find -- so its inbox envelope landed in the main store while the handler committed to the
+    /// ancillary one, leaving the envelope permanently Incoming and outside the handler's
+    /// transaction. See https://github.com/JasperFx/wolverine/issues/3870.
+    ///
+    /// ServiceDependencies() is the same view of the chain that EF Core's DetermineDbContextType()
+    /// uses to pick the transactional DbContext, so this inference agrees with whichever DbContext
+    /// the transactional middleware chose. Ambiguity is not resolved by guessing: a chain that
+    /// depends on two ancillary markers has no single owning transaction, so it is left to the main
+    /// store exactly as before.
+    /// </summary>
+    private Type? inferAncillaryStoreType(HandlerChain chain, Type[] markerTypes)
+    {
+        if (markerTypes.Length == 0) return null;
+
+        var dependencies = chain.ServiceDependencies(_container, Type.EmptyTypes).ToArray();
+        var matches = markerTypes.Where(dependencies.Contains).ToArray();
+
+        return matches.Length == 1 ? matches[0] : null;
     }
 
     private async Task executeIdleSendingAgentCleanup()
