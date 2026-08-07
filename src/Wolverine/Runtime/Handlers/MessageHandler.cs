@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration.Capabilities;
@@ -35,10 +34,6 @@ public interface IMessageHandler
 
 public abstract class MessageHandler : IMessageHandler
 {
-    // Thread-safe set of known causation pairs: "IncomingType->OutgoingType"
-    // Static per concrete handler type via the dictionary keyed by handler type
-    private static readonly ConcurrentDictionary<string, byte> _knownCausation = new();
-
     public HandlerChain? Chain { get; set; }
 
     public abstract Task HandleAsync(MessageContext context, CancellationToken cancellation);
@@ -85,10 +80,9 @@ public abstract class MessageHandler : IMessageHandler
             var outgoingType = outgoingMessageType.FullName;
             if (string.IsNullOrEmpty(outgoingType)) continue;
 
-            var key = $"{incomingType}->{outgoingType}@{handlerType}";
-
-            // Latch: only report each unique causation pair once
-            if (!_knownCausation.TryAdd(key, 0)) continue;
+            // Latch: only report each unique causation pair once. The store is shared with
+            // EndpointCausation so an edge is reported once no matter which path first sees it.
+            if (!CausationLatch.ShouldReport(incomingType, outgoingType!, handlerType)) continue;
 
             observer.MessageCausedBy(incomingType, outgoingType, handlerType, endpointUri);
         }

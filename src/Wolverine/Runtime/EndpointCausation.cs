@@ -32,7 +32,14 @@ public static class EndpointCausation
 
             // endpointOrigin (e.g. "POST /orders" or "Orders.Ship") stands in for the incoming
             // message type; the lifecycle assembler renders it on the trigger lane.
-            observer.MessageCausedBy(endpointOrigin, outgoingType!, handlerType ?? endpointOrigin, null);
+            var handler = handlerType ?? endpointOrigin;
+
+            // Latch on the shared store, exactly as MessageHandler.RecordCauseAndEffect does. Without
+            // this an endpoint that publishes on every request re-reports the same edge forever, and
+            // an observer cannot assume the call is cheap. See GH-3869.
+            if (!CausationLatch.ShouldReport(endpointOrigin, outgoingType!, handler)) continue;
+
+            observer.MessageCausedBy(endpointOrigin, outgoingType!, handler, null);
         }
     }
 }
