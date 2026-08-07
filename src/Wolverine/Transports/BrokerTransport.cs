@@ -128,6 +128,16 @@ public abstract class BrokerTransport<TEndpoint> : TransportBase<TEndpoint>, IBr
 
         tryBuildSystemEndpoints(runtime);
 
+        // The system endpoints just built -- dead letter queues especially -- have never had the
+        // endpoint policies applied to them, and BrokerResource.Setup() declares whatever it finds
+        // here without compiling anything. Leaving them uncompiled means resource setup declares a
+        // dead letter queue with pre-policy settings and the runtime start up later redeclares the
+        // same queue with the policy applied, which the broker rejects. See GH-3871.
+        foreach (var endpoint in endpoints())
+        {
+            endpoint.Compile(runtime);
+        }
+
         return ValueTask.CompletedTask;
     }
 
