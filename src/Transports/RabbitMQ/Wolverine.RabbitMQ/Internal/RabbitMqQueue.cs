@@ -355,7 +355,14 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
         {
             if (e.Message.Contains("inequivalent arg"))
             {
-                logger.LogDebug("Queue {Queue} exists with different configuration", QueueName);
+                // Rabbit MQ answers a mismatched declaration with a channel level 406, so this channel
+                // is closed and unusable even though Wolverine is choosing to tolerate the mismatch.
+                // Whatever the caller does with it next -- BasicQosAsync, for a listener -- throws an
+                // ObjectDisposedException that says nothing about what the broker actually objected to.
+                // Log the broker's own complaint here at a level someone will see. See GH-3871.
+                logger.LogWarning(e,
+                    "Rabbit MQ rejected the declaration of queue '{Queue}' because it already exists with a different configuration. Wolverine will use the existing queue, but the broker has closed this channel.",
+                    QueueName);
                 return;
             }
 
