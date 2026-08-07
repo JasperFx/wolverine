@@ -9,6 +9,7 @@ public class GlobalPartitionedMessageTopology
 {
     private readonly WolverineOptions _options;
     private readonly List<Subscription> _subscriptions = new();
+    private readonly List<Type> _exclusions = new();
     private readonly HashSet<string> _messageTypeNames = new(StringComparer.OrdinalIgnoreCase);
     private PartitionedMessageTopology? _externalTopology;
     private LocalPartitionedMessageTopology? _localTopology;
@@ -81,7 +82,14 @@ public class GlobalPartitionedMessageTopology
     public void Message(Type type)
     {
         _subscriptions.Add(Subscription.ForType(type));
-        _messageTypeNames.Add(type.ToMessageTypeName());
+
+        // Exclusions win regardless of declaration order, so don't seed the name cache that
+        // MatchesByMessageTypeName reads (the pre-deserialization path) for an excluded type.
+        // Except() performs the mirror-image removal for the other ordering.
+        if (!_exclusions.Any(x => x.IsAssignableFrom(type)))
+        {
+            _messageTypeNames.Add(type.ToMessageTypeName());
+        }
     }
 
     /// <summary>
@@ -163,8 +171,50 @@ public class GlobalPartitionedMessageTopology
         }
     }
 
+    /// <summary>
+    /// Exclude a message type — or everything assignable to <typeparamref name="T"/>, so an
+    /// interface or base class excludes its whole family — from this topology, even when a
+    /// broader rule such as <see cref="MessagesImplementing{T}"/> would otherwise match it.
+    /// Exclusions always win.
+    /// </summary>
+    /// <remarks>
+    /// <para>The case this exists for: a message type that legitimately belongs to the topology on
+    /// the way IN, but that the receiving application also re-publishes on its way somewhere else.
+    /// Because both sides configure their own topology, excluding it on the <em>receiving</em> side
+    /// keeps inbound partitioning intact while stopping that application's own re-publish from
+    /// re-entering the topology and coming straight back to the handler that published it — an
+    /// infinite loop that is invisible in configuration and shows up only as amplified load.</para>
+    ///
+    /// <para>Excluding a type does not stop this application <em>listening</em> for it on the
+    /// topology's slots: the companion-queue bridge is wired per endpoint, not per message type. It
+    /// only removes the type from this topology's publishing rules.</para>
+    /// </remarks>
+    public void Except<T>()
+    {
+        Except(typeof(T));
+    }
+
+    /// <summary>
+    /// Exclude a message type — or everything assignable to <paramref name="type"/> — from this
+    /// topology. See <see cref="Except{T}"/>.
+    /// </summary>
+    public void Except(Type type)
+    {
+        if (type == null) throw new ArgumentNullException(nameof(type));
+
+        _exclusions.Add(type);
+        _messageTypeNames.Remove(type.ToMessageTypeName());
+    }
+
     internal bool Matches(Type messageType)
     {
+        // Exclusions are checked first and win outright, so an Except<T>() cannot be defeated by
+        // the order in which rules were declared.
+        if (_exclusions.Any(x => x.IsAssignableFrom(messageType)))
+        {
+            return false;
+        }
+
         return _subscriptions.Any(x => x.Matches(messageType));
     }
 
