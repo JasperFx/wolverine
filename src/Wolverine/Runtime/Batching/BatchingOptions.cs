@@ -62,6 +62,27 @@ public class BatchingOptions : IAsyncDisposable
         Batcher = new CoalescingMessageBatcher<T, TKey>(keySelector);
     }
 
+    /// <summary>
+    /// Batch the messages by their <see cref="Envelope.GroupId"/> (and tenant) rather than by tenant
+    /// alone, and stamp that group id onto each batch envelope. Use this when the batched handler has
+    /// to participate in the same partitioned sequential ordering as the unbatched handlers for the
+    /// same entity — for example when several message types all write to one event stream and the
+    /// batched one must not race the others.
+    /// </summary>
+    /// <remarks>
+    /// Without this, a batch envelope carries no group id, and an envelope with no group id is
+    /// assigned a <b>random</b> partition slot rather than being left unpartitioned — so a batched
+    /// handler silently opts out of the sequential guarantee its unbatched siblings have.
+    /// </remarks>
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "GroupIdMessageBatcher<> closed over runtime ElementType; AOT consumers register batchers explicitly. See AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "GroupIdMessageBatcher<> closed over runtime ElementType; AOT consumers register batchers explicitly. See AOT guide.")]
+    public void GroupByGroupId()
+    {
+        Batcher = typeof(GroupIdMessageBatcher<>).CloseAndBuildAs<IMessageBatcher>(ElementType);
+    }
+
     internal int? ProbeIndividuallyAfterAttempts { get; private set; }
 
     /// <summary>
@@ -129,6 +150,14 @@ public class BatchingOptions : IAsyncDisposable
             {
                 throw new InvalidOperationException(
                     $"This Wolverine application has a configuration for batching messages of type {typeof(T).FullNameInCode()}, but there is no known handler for {typeof(T).FullNameInCode()}[]");
+            }
+
+            // A batcher that groups by group id needs the application's partitioning rules to
+            // resolve a group id for any envelope that does not already carry one. The runtime is
+            // not available when BatchingOptions is configured, so it is supplied here.
+            if (batcher is IRequirePartitioningRules needsRules)
+            {
+                needsRules.Rules = runtime.Options.MessagePartitioning;
             }
 
             var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName!);
