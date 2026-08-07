@@ -286,6 +286,115 @@ member message still rides on the batch, so the transactional inbox/outbox track
 exactly as they do for a normal (non-coalesced) batch. If you drop from 1,000 messages to 40 distinct keys,
 the handler runs once over 40 items, but all 1,000 member messages are settled with that batch.
 
+## Batching by group id with `GroupByGroupId` <Badge type="tip" text="6.25" />
+
+The default batcher groups only by tenant id, so one batch envelope can span many
+[message group ids](/guide/messaging/partitioning) -- and therefore carries none of its own. That is fine until
+batching has to coexist with [partitioned sequential processing](/guide/messaging/partitioning), because an
+envelope with no group id is **not** treated as "unpartitioned". It is assigned a *randomly chosen* slot:
+
+```csharp
+// PartitionedMessagingExtensions.SlotForProcessing
+var groupId = rules.DetermineGroupId(envelope);
+
+// Pick one at random, and has to be zero based
+if (groupId == null) return Random.Shared.Next(1, numberOfSlots) - 1;
+```
+
+So a batched handler on a partitioned endpoint silently draws a different slot on every trigger, and successive
+batches for the *same* entity can run concurrently. There is no configuration error and nothing in the logs.
+
+`GroupByGroupId()` opts into a batcher that groups by `(tenant id, group id)` and stamps that group id onto every
+batch envelope it produces, so the batch itself is a member of exactly one group:
+
+```csharp
+opts.MessagePartitioning
+    .ByMessage<ScoreEvent>(x => x.AggregateId);
+
+opts.BatchMessagesOf<ScoreEvent>(batching =>
+{
+    batching.BatchSize = 500;
+    batching.TriggerTime = 1.Seconds();
+
+    // Group the batches by the message group id, and stamp that group id
+    // onto the batch envelope
+    batching.GroupByGroupId();
+})
+    // BatchMessagesOf() returns the local queue configuration for the batched
+    // messages, and that queue is a listening endpoint like any other -- so the
+    // stamped group id can be used to shard its execution
+    .PartitionProcessingByGroupId(PartitionSlots.Five);
+```
+
+The group id is resolved from the envelope first (a listener already using `PartitionProcessingByGroupId` has
+stamped it upstream), falling back to your `MessagePartitioning` rules. A few deliberate behaviors:
+
+- **The key is `(tenant, group)`, never the group id alone.** Wolverine settles a batch's members against the batch
+  envelope, so merging tenants into one batch would lose the tenant each member arrived under. Two tenants sharing
+  a group id still produce two batches.
+- **Envelopes with no determinable group id are batched together and left ungrouped.** The batcher does not invent
+  an identity for them, so they behave exactly as they do under the default batcher.
+- Like `CoalesceBy`, this only changes how the batch is *assembled and slotted* -- every original member message
+  still rides on the batch, so inbox/outbox tracking and dead-lettering are unaffected.
+
+## Batching inside a partitioned topology <Badge type="tip" text="6.25" />
+
+The section above stamps a group id onto the batch. The other half of the problem is *where the batch runs*.
+
+If the batched element type already belongs to a [`GlobalPartitioned`](/guide/messaging/partitioning#global-partitioning)
+or [`PublishToPartitionedLocalMessaging`](/guide/messaging/partitioning#partitioned-publishing-locally) topology, then
+the **unbatched** handlers for a given group id are being sequenced onto one slot of that topology, while the assembled
+batch used to be enqueued to the batch's own dedicated local queue -- a different execution block. The batched handler
+therefore raced the very handlers the topology had just sequenced.
+
+Wolverine now picks the batch's queue from the batch's own group id, so it lands on the same slot as everything else in
+that group. **This is automatic**; there is nothing to configure:
+
+```csharp
+opts.MessagePartitioning
+    .ByMessage<IOrderCommand>(x => x.OrderId)
+    .GlobalPartitioned(topology =>
+    {
+        topology.MessagesImplementing<IOrderCommand>();
+        // ... external transport slots ...
+    });
+
+// OrderPlaced is part of that topology, so its batches execute on the topology slot
+// for each batch's group id -- sequenced against the unbatched IOrderCommand handlers
+// for the same OrderId, cluster-wide.
+opts.BatchMessagesOf<OrderPlaced>(batching =>
+{
+    batching.TriggerTime = 1.Seconds();
+});
+```
+
+Two consequences of this being automatic:
+
+- **The batcher is swapped for you.** Slotting a batch only makes sense if the batch belongs to exactly one group, so
+  when a partitioned topology is in play and you have not supplied your own `IMessageBatcher`, Wolverine installs the
+  `GroupByGroupId()` batcher. A batcher you registered yourself is left alone; any batch it produces without a group id
+  falls back to the dedicated queue rather than drawing a random slot.
+- **Naming a queue opts out.** Setting `LocalExecutionQueueName` is read as a deliberate choice of where batches run,
+  and so is `ExecuteOnDedicatedLocalQueue()`:
+
+  ```csharp
+  opts.BatchMessagesOf<OrderPlaced>(batching =>
+  {
+      // Run the batches on their own queue, concurrently with the unbatched
+      // handlers for the same group id
+      batching.ExecuteOnDedicatedLocalQueue();
+  });
+  ```
+
+::: warning
+This covers the configurations where the unbatched handlers run on a **local queue** -- `GlobalPartitioned` and
+`PublishToPartitionedLocalMessaging`. It does not cover a plain external listener that only has
+`PartitionProcessingByGroupId` applied to it: there the unbatched handlers execute inside the listener's own execution
+block, which is not a queue and cannot be enqueued to. For that case, use one of the two topologies above if you need
+the batched and unbatched handlers for a group id to be sequenced against each other. See
+[GH-3867](https://github.com/JasperFx/wolverine/issues/3867).
+:::
+
 ## Batch identity with `IBatchContext`
 
 A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing —

@@ -123,14 +123,21 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
             }
         };
         
+        // GH-3867: an endpoint that executes assembled message batches is its own cascade target,
+        // and a bounded block closes a deadlock cycle through the batching channel. See
+        // Endpoint.HostsBatchExecution.
+        var boundedCapacity = endpoint.HostsBatchExecution
+            ? Block<Envelope>.Unbounded
+            : Block<Envelope>.DefaultBoundedCapacity;
+
         if (endpoint.GroupShardingSlotNumber == null)
         {
-            _receiver = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, execute);
+            _receiver = new Block<Envelope>(endpoint.MaxDegreeOfParallelism, boundedCapacity, execute);
         }
         else
         {
             var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
-                runtime.Options.MessagePartitioning, execute);
+                runtime.Options.MessagePartitioning, boundedCapacity, execute);
             sharded.OnError = onBlockError;
             _receiver = sharded.DeserializeFirst(pipeline, runtime, this);
         }

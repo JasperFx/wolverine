@@ -190,7 +190,11 @@ internal static class BatchReplay
         {
             Destination = destination,
             MessageType = batchEnvelope.MessageType,
-            TenantId = batchEnvelope.TenantId
+            TenantId = batchEnvelope.TenantId,
+
+            // GH-3867 — carry the group id, or the reduced batch draws a RANDOM partition slot on the
+            // way back in and a poison probe scatters the original batch's items across slots.
+            GroupId = batchEnvelope.GroupId
         };
 
         await queue.EnqueueAsync(reduced).ConfigureAwait(false);

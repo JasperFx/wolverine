@@ -12,8 +12,16 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
 
     private readonly BatchingPendingCounts? _pendingCounts;
 
+    private readonly IBatchExecutionQueues _queues;
+
     public BatchingProcessor(HandlerChain chain, IMessageBatcher batcher, BatchingOptions options, ILocalQueue queue,
         DurabilitySettings settings, BatchingPendingCounts? pendingCounts = null)
+        : this(chain, batcher, options, queue, new SingleBatchExecutionQueue(queue), settings, pendingCounts)
+    {
+    }
+
+    internal BatchingProcessor(HandlerChain chain, IMessageBatcher batcher, BatchingOptions options, ILocalQueue queue,
+        IBatchExecutionQueues queues, DurabilitySettings settings, BatchingPendingCounts? pendingCounts = null)
     {
         _pendingCounts = pendingCounts;
         Chain = chain ?? throw new ArgumentOutOfRangeException(nameof(chain));
@@ -21,6 +29,7 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
         _options = options;
         Batcher = batcher ?? throw new ArgumentNullException(nameof(batcher));
         Queue = queue;
+        _queues = queues ?? throw new ArgumentNullException(nameof(queues));
 
         _processingBlock = new Block<Envelope[]>(processEnvelopes);
         _batchingBlock = new BatchingChannel<Envelope>(_options.TriggerTime, _processingBlock, _options.BatchSize);
@@ -28,6 +37,12 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
 
 
     public IMessageBatcher Batcher { get; }
+
+    /// <summary>
+    /// The batch's dedicated local queue. Note that an individual batch does not necessarily execute
+    /// here — when the element type belongs to a partitioned topology, each batch runs on the slot
+    /// for its own group id. See GH-3867.
+    /// </summary>
     public ILocalQueue Queue { get; }
 
     public async ValueTask DisposeAsync()
@@ -63,11 +78,16 @@ public class BatchingProcessor<T> : MessageHandler, IAsyncDisposable
     {
         foreach (var grouped in Batcher.Group(envelopes))
         {
-            grouped.Destination = Queue.Uri;
+            // GH-3867 — the destination is per batch, not per processor: a batch that carries a group
+            // id lands on that group's partition slot, so it is sequenced against the unbatched
+            // handlers for the same group rather than racing them from a queue of its own.
+            var queue = _queues.SelectQueue(grouped);
+
+            grouped.Destination = queue.Uri;
             grouped.MessageType = Chain!.TypeName;
             grouped.SentAt = DateTimeOffset.UtcNow;
 
-            await Queue.EnqueueAsync(grouped);
+            await queue.EnqueueAsync(grouped);
         }
     }
 }

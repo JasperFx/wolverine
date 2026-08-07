@@ -594,6 +594,17 @@ public abstract class Endpoint : ICircuitParameters, IDescribesProperties
     /// </summary>
     internal Uri? GlobalPartitionLocalQueueUri { get; set; }
 
+    /// <summary>
+    /// GH-3867. Set when a <c>BatchMessagesOf</c> definition executes its assembled batches on this
+    /// endpoint. Such a queue is its own cascade target: the messages it executes are absorbed into
+    /// a batching channel and the resulting batch is enqueued right back onto it. With a bounded
+    /// execution block that closes a cycle through the batching channel's own bounded buffers and
+    /// can wedge, so these endpoints get an unbounded one — the same trade GH-3287 made for local
+    /// queues. Back-pressure is preserved by <see cref="Runtime.Batching.BatchingPendingCounts" />,
+    /// which counts pending members against the originating external listener.
+    /// </summary>
+    internal bool HostsBatchExecution { get; set; }
+
     public virtual bool AutoStartSendingAgent()
     {
         return UsedInShardedTopology || Subscriptions.Any();
