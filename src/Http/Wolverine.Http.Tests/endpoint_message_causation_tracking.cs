@@ -137,6 +137,10 @@ public class endpoint_message_causation_tracking
     [Fact]
     public async Task observer_is_notified_of_endpoint_originated_publish_at_runtime()
     {
+        // The latch is static for the life of the process, so an edge already reported by another
+        // test in this assembly would leave nothing to observe here.
+        CausationLatch.Clear();
+
         await using var host = await buildHostAsync(trackingEnabled: true);
 
         var observer = new CapturingObserver();
@@ -151,5 +155,32 @@ public class endpoint_message_causation_tracking
         var pair = observer.Pairs.SingleOrDefault(p => p.Outgoing.Contains(nameof(CausePing)));
         pair.ShouldNotBeNull();
         pair!.Incoming.ShouldBe("POST /cause/publish");
+    }
+
+    // GH-3869. The causation edge set is topology, not telemetry -- it only grows when a code path
+    // first executes. MessageHandler.RecordCauseAndEffect has always latched; the endpoint path did
+    // not, so a service that publishes one message per request re-reported the same edge on every
+    // request forever. Observers cannot assume MessageCausedBy is cheap: CritterWatch pays a
+    // FetchForWriting against a contended per-service event stream for each one.
+    [Fact]
+    public async Task endpoint_originated_causation_edge_is_only_reported_once()
+    {
+        CausationLatch.Clear();
+
+        await using var host = await buildHostAsync(trackingEnabled: true);
+
+        var observer = new CapturingObserver();
+        host.Services.GetRequiredService<IWolverineRuntime>().Observer = observer;
+
+        for (var i = 0; i < 3; i++)
+        {
+            await host.Scenario(x =>
+            {
+                x.Post.Url("/cause/publish");
+                x.StatusCodeShouldBe(204);
+            });
+        }
+
+        observer.Pairs.Count(p => p.Outgoing.Contains(nameof(CausePing))).ShouldBe(1);
     }
 }
