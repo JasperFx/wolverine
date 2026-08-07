@@ -1,35 +1,36 @@
-# Handoff — GH-3867: `BatchMessagesOf()` cannot compose with partitioned sequential processing
+# GH-3867: `BatchMessagesOf()` composing with partitioned sequential processing
 
 **Written 2026-08-07.** Issue: [wolverine#3867](https://github.com/JasperFx/wolverine/issues/3867).
 Driver: [CritterWatch#949](https://github.com/JasperFx/CritterWatch/issues/949).
 
 **Branch: `cw949-group-id-batching`** (off `main` @ `1131eac79`, the 6.24.10 tag commit).
-One commit: `8bc8ded8a` — **part 1 only**. Part 2 is unstarted and is the real gap.
+**Both parts are now implemented.** This note records why, what was deliberate, and what is still
+not covered.
 
 ---
 
 ## TL;DR
 
-A batched handler cannot participate in `PartitionProcessingByGroupId` sequential ordering. Two
+A batched handler could not participate in `PartitionProcessingByGroupId` sequential ordering. Two
 independent causes:
 
-1. **The batch envelope carries no group id** — and a null group id means *a random slot*, not "no
-   partitioning". **Fixed on this branch.**
-2. **The batch envelope is never routed** — `BatchingProcessor` hardcodes its destination, so the
-   batch always executes on one dedicated local queue no matter what partitioning is configured.
-   **Not fixed. This is the work.**
+1. **The batch envelope carried no group id** — and a null group id means *a random slot*, not "no
+   partitioning". **Fixed** (`GroupByGroupId()`).
+2. **The batch envelope was never routed** — `BatchingProcessor` hardcoded its destination, so the
+   batch always executed on one dedicated local queue no matter what partitioning was configured.
+   **Fixed** (shape 3, below).
 
-Consequence worth stating plainly, because it surprised two separate reviewers:
-**`GlobalPartitioned` does not give you a single writer per group id if any participating message
-type is batched.**
+Consequence worth stating plainly, because it surprised two separate reviewers and was true until
+part 2: **`GlobalPartitioned` did not give you a single writer per group id if any participating
+message type was batched.**
 
 ---
 
-## Part 1 — done, on the branch
+## Part 1 — `BatchingOptions.GroupByGroupId()`
 
-`BatchingOptions.GroupByGroupId()` (`src/Wolverine/Runtime/Batching/BatchingOptions.cs:81`) opts into
-`GroupIdMessageBatcher<T>` (`src/Wolverine/Runtime/Batching/GroupIdMessageBatcher.cs`), which groups
-by `(TenantId, GroupId)` and stamps the group id onto each produced batch envelope.
+`BatchingOptions.GroupByGroupId()` opts into `GroupIdMessageBatcher<T>`
+(`src/Wolverine/Runtime/Batching/GroupIdMessageBatcher.cs`), which groups by `(TenantId, GroupId)`
+and stamps the group id onto each produced batch envelope.
 
 Why it is needed, precisely — `PartitionedMessagingExtensions.SlotForProcessing:51`:
 
@@ -40,7 +41,7 @@ if (groupId == null) return Random.Shared.Next(1, numberOfSlots) - 1;   // <-- r
 
 `DefaultMessageBatcher<T>` groups only by `TenantId`, so a batch spans group ids and has none of its
 own; `DetermineGroupId` then falls through to the rules, which cannot find an identity on a `T[]`.
-So today a batched handler on a sharded endpoint silently draws a different slot every trigger. No
+So a batched handler on a sharded endpoint silently drew a different slot every trigger. No
 configuration error, nothing in the logs.
 
 Design points that were deliberate, please preserve them:
@@ -50,135 +51,149 @@ Design points that were deliberate, please preserve them:
   tenants would lose the tenant each member arrived under. This narrows `DefaultMessageBatcher`'s
   behaviour rather than replacing it.
 - **Ungroupable envelopes batch together and stay ungrouped.** The batcher does not invent an
-  identity. That leaves them exactly where they are today rather than making them worse.
+  identity.
 - **Rules are injected, not resolved.** `MessagePartitioningRules` is not available when
   `BatchingOptions` is configured, so `ProcessorBuilder.Build` sets it through the internal
-  `IRequirePartitioningRules` (`BatchingOptions.cs:158`). `DetermineGroupId` prefers an already-set
-  `Envelope.GroupId` and writes the resolved value back, so on a listener already using
-  `PartitionProcessingByGroupId` the id is present before the batching processor ever sees it.
+  `IRequirePartitioningRules`. `DetermineGroupId` prefers an already-set `Envelope.GroupId` and
+  writes the resolved value back, so on a listener already using `PartitionProcessingByGroupId` the
+  id is present before the batching processor ever sees it.
 
-Tests: `src/Testing/CoreTests/Acceptance/group_id_message_batcher.cs`, 5 tests, green on net9.0 and
-net10.0.
-
-```bash
-dotnet test src/Testing/CoreTests/CoreTests.csproj --filter "FullyQualifiedName~GroupIdMessageBatcherTests"
-```
-
-**Not yet done for part 1:** no docs page update (`docs/guide/messaging/partitioning.md` and the
-batching guide both describe the composition as if it works), and no sample. Worth adding once part
-2 settles, since the two together are what a user needs.
+Tests: `src/Testing/CoreTests/Acceptance/group_id_message_batcher.cs`, 5 tests.
 
 ---
 
-## Part 2 — the actual gap
+## Part 2 — shape 3, as preferred
 
-`BatchingProcessor.processEnvelopes` (`src/Wolverine/Runtime/Batching/BatchingProcessor.cs:62`):
-
-```csharp
-foreach (var grouped in Batcher.Group(envelopes))
-{
-    grouped.Destination = Queue.Uri;      // <-- the single LocalExecutionQueueName
-    grouped.MessageType = Chain!.TypeName;
-    grouped.SentAt = DateTimeOffset.UtcNow;
-    await Queue.EnqueueAsync(grouped);
-}
-```
-
-`Queue` comes from `BatchingOptions.LocalExecutionQueueName`, resolved once in
-`ProcessorBuilder.Build`. The batch never goes through routing, so nothing downstream can act on the
-group id part 1 now stamps.
-
-Meanwhile the **unbatched** handlers for the same entity execute somewhere else entirely:
-
-- On a plain external listener: on the listener's receiver. When `PartitionProcessingByGroupId` is
-  applied, `BufferedReceiver.cs:63-69` / `DurableReceiver.cs:126-132` build a
-  `ShardedExecutionBlock`, whose slots are `new Block<Envelope>(1, …)`
-  (`ShardedExecutionBlock.cs:26`) — strictly ordered per slot.
-- Under `GlobalPartitioned`: on a companion local queue, via `GlobalPartitionedReceiverBridge`
-  installed at `ListeningAgent.cs:404-411` when `Endpoint.GlobalPartitionLocalQueueUri` is set.
-
-Either way that is a **different execution block from the batching queue**. Batched and unbatched
-handlers for the same group id run concurrently.
-
-Useful thing already verified so you do not have to: **`LocalQueueConfiguration` extends
-`ListenerConfiguration<…>`** (`src/Wolverine/Transports/Local/LocalQueueConfiguration.cs:6`), so
-`PartitionProcessingByGroupId` *is* available on a local queue, and `BufferedLocalQueue` /
-`DurableLocalQueue` both go through the receivers that honour `GroupShardingSlotNumber`. So
-group-sharding the batching queue itself works today — it just does not help on its own, because the
-other writers are on a different queue.
-
-### The requirement, stated plainly (Jeremy, 2026-08-07)
-
-> **A batched message must execute on the same local, partitioned queue that an unbatched message
-> of the same group id would execute on.**
+> **The requirement:** a batched message must execute on the same local, partitioned queue that an
+> unbatched message of the same group id would execute on.
 
 For a message type participating in a partitioned topology, the batch envelope for group `G` goes to
 slot `hash(G) % N` — `global-{base}{slot}` under global partitioning, `{base}{slot}` under
-`PublishToPartitionedLocalMessaging`. No partitioned topology covering the type → today's
-single-queue behaviour, unchanged. The property being bought is **one writer per group id**,
-batched and unbatched alike, cluster-wide.
+`PublishToPartitionedLocalMessaging`. No partitioned topology covering the type → the previous
+single-queue behaviour, unchanged.
 
-**Two implementation notes, both verified against the source:**
+### How it is wired
 
-- **No self-deadlock.** The obvious worry — enqueueing the batch back onto the same
-  single-parallelism slot whose handler produced it — does not apply. `HandleAsync` runs on the slot
-  block but only posts into `_batchingBlock`; `processEnvelopes` runs on a separate
-  `_processingBlock` (`BatchingProcessor.cs:24-25`), so the enqueue happens off the slot block.
-- **Head-of-line blocking is the real hazard.** `_processingBlock` is shared across all groups, so a
-  blocking `EnqueueAsync` into one saturated slot would stall batch dispatch for *every* group.
-  Either post non-blocking with a fallback, or document the coupling. Test this first.
+- **`WolverineRuntime.resolveBatchExecutionTopologies()`** runs at bootstrap, right after
+  `applyBatchProbePolicies()` and well before the transports start. For each `BatchDefinition` whose
+  element type matches a `GlobalPartitioned` (companion local queues) or
+  `PublishToPartitionedLocalMessaging` topology, it records the slot endpoints on
+  `BatchingOptions.ExecutionSlots`.
+- **`IBatchExecutionQueues`** (`src/Wolverine/Runtime/Batching/BatchExecutionQueues.cs`) selects the
+  queue per assembled batch, so `ProcessorBuilder.Build`'s single `ILocalQueue` resolve becomes N.
+  `PartitionedBatchExecutionQueues` uses **`SlotForSending`** — the same hash
+  `GlobalPartitionedRoute` and `PartitionedMessageTopology.SelectSlot` use, so the batch agrees with
+  where the unbatched messages for that group went. (`SlotForSending` and `SlotForProcessing`
+  deliberately use *different* hashes; the topology layer is the former. Getting this wrong would
+  silently reintroduce the race, so there is a test pinning it.)
+- **The batcher is auto-swapped** to `GroupIdMessageBatcher<T>` when it is still the built-in
+  default, since slotting requires a batch to belong to exactly one group. An application-supplied
+  batcher is left alone, and any batch it emits without a group id falls back to the dedicated queue
+  rather than drawing a random slot.
+- **Opting out:** `ExecuteOnDedicatedLocalQueue()`, or setting `LocalExecutionQueueName` — naming a
+  queue is read as meaning it. Wolverine's own default assignment goes through the internal
+  `SetDefaultLocalExecutionQueueName` so it does not read as a user choice.
 
-Also confirm the batch chain resolves on the companion queues (the processor only sets
-`MessageType` + `Destination`), and that `BatchingPendingCounts.SettleBatch` still fires once per
-batch when the batch lands somewhere other than the configured execution queue.
+Automatic rather than opt-in because `GlobalPartitionLocalQueueUri` is `internal`: users cannot wire
+this themselves, and an application that declared `GlobalPartitioned` for a message type has already
+stated the intent that the batch was silently exempting itself from.
 
-### Three shapes — updated, shape 3 preferred
+### On the deadlock question
 
-1. **Honour a `Destination` the batcher set** instead of unconditionally overwriting it. Smallest
-   change, but it pushes slot selection into batcher implementations, which then have to know slot
-   counts and queue naming. That is the framework's job, not a batcher's.
-2. **Route the grouped envelope** through the normal routing path so it flows into a partitioned
-   local topology like any other message. Attractive, but it has to reproduce what
-   `processEnvelopes` does by hand: `MessageType`, `SentAt`, `BatchingPendingCounts.SettleBatch`,
-   and in particular the CritterWatch#942 back-pressure accounting at `BatchingProcessor.cs:48`
-   that counts members against the originating listener. That accounting exists because of a real
-   production incident; do not let routing re-derive it by accident.
-3. **Let `BatchingOptions` take a partitioned local topology** rather than a single
-   `LocalExecutionQueueName`, and pick the slot from the batch's group id. **Preferred.** It is the
-   only shape that makes a batched handler a first-class participant in global partitioning rather
-   than an exception to it: the batch lands on the same companion local queue as its group's other
-   messages, giving a genuine single writer per group id, cluster-wide. Largest API surface, but the
-   concrete change is small — `ProcessorBuilder.Build` currently resolves exactly one `ILocalQueue`
-   (`BatchingOptions.cs:163`); that becomes N, or a deferred per-batch resolve.
+The earlier note here was right that there is **no direct self-deadlock**: `HandleAsync` runs on the
+slot block but only posts into `_batchingBlock`, while `processEnvelopes` runs on a separate
+`_processingBlock`, so the enqueue happens off the slot block.
 
-The only hard constraint: a batch that has a group id must be able to land on that group's slot.
+The head-of-line hazard flagged alongside it is real, though, and it is worse than a stall — it
+closes a cycle across three bounded buffers:
 
-### The field data point that decided the preference
+```
+slot block (bounded, DOP 1) → BatchingProcessor.HandleAsync
+  → BatchingChannel._inner (bounded) → addItem → _processingBlock (bounded)
+  → processEnvelopes → queue.EnqueueAsync → back into the same slot block
+```
 
-I originally recorded that the affected CritterWatch console had clustering off (single replica).
-**That was wrong.** The shipped console wires `GlobalPartitioned` *unconditionally* — one
-`AddCritterWatchServices` call supplying `configureClusterShardedTopology` with 5 sharded slots
-across RabbitMQ, SQS and Azure Service Bus.
+Saturate all three and every worker in the ring is blocked on the next. This did not exist before,
+because the batch's dedicated local queue is unbounded (GH-3287).
 
-So the failing deployment already has the strongest partitioning Wolverine offers and still sees
-~20 stream-concurrency exceptions/min. Global partitioning correctly sequences every participating
-message type **except the batched one**, and the batched one accounts for 59% of the failures. That
-is the clearest available statement of what part 2 is for.
+The fix is `Endpoint.HostsBatchExecution`, set on every slot endpoint a batch targets;
+`DurableReceiver` gives those an unbounded execution block. `EnqueueAsync` into an unbounded slot
+never blocks, so `_processingBlock` never stalls and the cycle cannot close — which also removes the
+cross-group head-of-line coupling, without the drop risk of a non-blocking `Post`. Back-pressure is
+not lost: `BatchingPendingCounts` counts members against the originating external listener, which is
+what `ListeningAgent.QueueCount` watches. `BufferedReceiver` already passes unbounded for local
+queues, so only the durable path needed the change.
 
-### Things to check before choosing
+### The two other checks that were asked for, and their answers
 
-- `ProcessorBuilder.Build` resolves exactly one `ILocalQueue` up front
-  (`BatchingOptions.cs:163`). Shapes 2 and 3 need N, or need resolution deferred per batch.
-- Retry/dead-letter: `ProbeIndividuallyAfter` re-runs members as size-1 batches. Confirm a re-probed
-  batch keeps its group id, or a poison probe will scatter across slots.
-- `BatchingPendingCounts` settles once per grouped batch envelope. Confirm per-slot fan-out does not
-  double-count or lose a settle.
+- **Does the batch chain resolve on the companion queues?** Yes. `ExecutorFor(T[], slot)` falls
+  through to the default chain; and for the Separated-mode case with sticky `Handle(T[])` handlers,
+  `HandlerGraph.HandlerFor` already special-cases a local queue with `UsedInShardedTopology` and
+  builds a fanout. Covered end to end by the acceptance test below.
+- **Does `BatchingPendingCounts.SettleBatch` still fire once per batch?** Yes, by construction. Both
+  `DurableReceiver.CompleteAsync` and `BufferedReceiver`'s channel callback settle on
+  `envelope.Batch != null`, keyed off the batch envelope itself and independent of which queue it
+  landed on. Each grouped envelope still goes to exactly **one** queue — this is slot selection, not
+  fan-out — so there is no double-count and no lost settle.
+
+### Also fixed
+
+`BatchReplay.EnqueueReducedBatchAsync` copied `Destination`, `MessageType` and `TenantId` but **not
+`GroupId`**, so a `ProbeIndividuallyAfter` or `ApplyItemException` probe lost the batch's identity
+and scattered the survivors across slots. That was already wrong with part 1 alone.
+
+---
+
+## What is still NOT covered
+
+Shape 3 only reaches configurations where the unbatched handlers execute on an *addressable local
+queue*:
+
+| Configuration | Unbatched handlers run on | Covered? |
+|---|---|---|
+| `GlobalPartitioned` | companion local queue `global-{base}{slot}` | **yes** |
+| `PublishToPartitionedLocalMessaging` | local queue `{base}{slot}` | **yes** |
+| Plain listener + `PartitionProcessingByGroupId` | the listener receiver's own `ShardedExecutionBlock` | **no** |
+
+The third row is not a queue and cannot be enqueued to. The most a batched handler gets there is
+part 1 plus group-sharding the batching queue, which sequences the batches against each other but
+not against the unbatched handlers. The answer today is to move to one of the two topologies;
+closing it properly would mean making a listener's sharded block addressable, which is a much larger
+change.
+
+One more edge, noted rather than solved: under `MultipleHandlerBehavior.Separated` with **multiple**
+sticky `Handle(T[])` handlers, the batch fans out from the slot queue to each sticky handler's own
+queue, so those handlers execute off-slot and the sequencing guarantee does not extend to them.
 
 ---
 
 ## Reproduction and verification
 
-The downstream effect reproduces reliably in CritterWatch's soak harness (`src/IngestSoakTests` in
+**The pure-Wolverine acceptance test now exists and needs no broker:**
+`src/Testing/CoreTests/Acceptance/batching_with_partitioned_processing.cs`. `ExplicitRouting` already
+sends a batched element type to its topology slots, so a `PublishToPartitionedLocalMessaging`
+topology reproduces the whole thing in memory. One batched and one unbatched message type share a
+group id; the test asserts no intra-group overlap while still observing cross-group parallelism (so
+a fix that merely serialized everything would not pass).
+
+**It fails on `main`** — 12 violations of exactly the shape described above.
+
+```bash
+dotnet test src/Testing/CoreTests/CoreTests.csproj -f net9.0 \
+  --filter "FullyQualifiedName~batching_with_partitioned_processing"
+```
+
+Also `batch_execution_topology_resolution.cs` (bootstrap resolution and the opt-outs),
+`BatchExecutionQueuesTests` (slot selection, including agreement with `SlotForSending`), and
+`BatchReplayTests` (group id survives a probe).
+
+Full CoreTests on net9.0: 2,315 passed / 0 failed. `dotnet build wolverine.slnx -c Release -f net9.0`
+clean.
+
+**Not yet run:** the broker-backed `global_partitioned_sharded_processing` suites (RabbitMQ, Kafka,
+SQS, Postgres, SqlServer), which need `docker compose up -d`.
+
+The downstream effect also reproduces in CritterWatch's soak harness (`src/IngestSoakTests` in
 `~/code/CritterWatch`, target `./build.sh IngestSoak`), where a batched `ServiceUpdates` handler and
 ~10 unbatched handlers all append to one Marten event stream:
 
@@ -187,25 +202,27 @@ The downstream effect reproduces reliably in CritterWatch's soak harness (`src/I
 | 4 hosts / 1 service / 60 min, unbatched writers active | **4,275** `EventStreamUnexpectedMaxEventIdException` (71/min), across 7 handler types, batched one = 59% |
 | same batched volume, unbatched writers off | **0** |
 
-`CW_SOAK_DISCOVERY_CHURN=0` is the negative control. That harness is the acceptance test for part 2:
-with the fix in, the churn-on run should go to zero conflicts while keeping cross-service
-parallelism (compare the `many_services_many_nodes` topology before and after).
+`CW_SOAK_DISCOVERY_CHURN=0` is the negative control. That harness is the field acceptance test: with
+this in, the churn-on run should go to zero conflicts while keeping cross-service parallelism
+(compare the `many_services_many_nodes` topology before and after). **It has not been re-run.**
 
-A pure-Wolverine equivalent would be better for this repo — a batched handler and an unbatched
-handler for the same group id, both writing to a shared in-memory structure through a partitioned
-endpoint, asserting no interleaving. That test does not exist yet and would be worth writing first,
-since it fails today and is the tightest statement of the bug.
+The field data point that decided the shape: the affected CritterWatch console wires
+`GlobalPartitioned` *unconditionally* — one `AddCritterWatchServices` call supplying
+`configureClusterShardedTopology` with 5 sharded slots across RabbitMQ, SQS and Azure Service Bus.
+So the failing deployment already had the strongest partitioning Wolverine offers and still saw ~20
+stream-concurrency exceptions/min, because global partitioning sequenced every participating message
+type *except* the batched one.
 
 ---
 
-## Hazards
+## Hazards for whoever touches this next
 
 - `MessagePartitioningRules.DetermineGroupId` is `internal` and **mutates the envelope** (writes the
   resolved id back). Fine inside the assembly; do not expose it casually.
 - `GlobalPartitionLocalQueueUri` is `internal` — an outside assembly cannot bridge a listener to a
-  chosen local queue. Anything that expects users to wire this themselves is a non-starter.
+  chosen local queue.
 - The `else if` at `ListeningAgent.cs:412` intercepts matching messages on *non-paired* endpoints
-  when global topologies exist. I did not trace that path; if part 2 touches routing, read it.
-- CritterWatch currently carries its own `ServiceUpdatesBatcher` (uncommitted, in
-  `src/CritterWatch.Services/`) that duplicates part 1. It should be deleted in favour of
-  `GroupByGroupId()` once this ships — do not treat it as a second implementation to keep in sync.
+  when global topologies exist. Still untraced.
+- CritterWatch carries its own `ServiceUpdatesBatcher` (uncommitted, in `src/CritterWatch.Services/`)
+  that duplicates part 1. It should be deleted — with this branch, `ServiceUpdates` needs no batcher
+  configuration at all, since the topology match does both the grouping and the slotting.

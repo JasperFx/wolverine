@@ -56,7 +56,10 @@ public sealed partial class WolverineOptions
 
         var options = new BatchingOptions(elementType);
         var localQueue = Transports.GetOrCreate<LocalTransport>().FindQueueForMessageType(elementType);
-        options.LocalExecutionQueueName = localQueue.EndpointName;
+
+        // Deliberately NOT through the public setter: this is Wolverine's default, and the setter
+        // records an explicit user choice that opts the batch out of partitioned execution (GH-3867).
+        options.SetDefaultLocalExecutionQueueName(localQueue.EndpointName);
 
         configure?.Invoke(options);
 

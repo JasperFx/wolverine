@@ -369,24 +369,44 @@ builder.UseWolverine(opts =>
 ## Partitioned Processing with Batched Handlers <Badge type="tip" text="6.25" />
 
 ::: warning
-A [batched handler](/guide/handlers/batching) does **not** participate in partitioned sequential processing by
-default, and the failure is silent. The default batcher groups only by tenant id, so the assembled batch envelope
+A [batched handler](/guide/handlers/batching) needs help to participate in partitioned sequential processing, and
+without it the failure is silent. The default batcher groups only by tenant id, so the assembled batch envelope
 carries no group id -- and as `SlotForProcessing` above shows, a missing group id means *a randomly chosen slot*,
 not "leave this unpartitioned". Successive batches for the same entity land on different slots and run
 concurrently.
 :::
 
-Opt the batcher into group id grouping so the batch envelope is stamped with a group id and can be sharded like
-any other message:
+**When the batched message type belongs to a partitioned topology, this is handled for you.** If the element type
+matches a `PublishToPartitionedLocalMessaging` or [`GlobalPartitioned`](#global-partitioning) topology, Wolverine
+groups the batches by group id and runs each batch on that group's topology slot -- the same slot the unbatched
+messages for that group are being sequenced onto, so the batched handler is one more writer in the same queue rather
+than a concurrent one beside it:
 
 ```csharp
 opts.MessagePartitioning
-    .ByMessage<IOrderCommand>(x => x.OrderId);
+    .ByMessage<IOrderCommand>(x => x.OrderId)
+    .PublishToPartitionedLocalMessaging("orders", 4, topology =>
+    {
+        topology.MessagesImplementing<IOrderCommand>();
+    });
 
+// OrderPlaced is an IOrderCommand, so its batches land on the "orders{n}" slot for
+// each batch's OrderId -- sequenced against the unbatched IOrderCommand handlers
+// for that same OrderId.
+opts.BatchMessagesOf<OrderPlaced>(batching => batching.TriggerTime = 1.Seconds());
+```
+
+Setting `LocalExecutionQueueName`, or calling `ExecuteOnDedicatedLocalQueue()`, opts back out and runs the batches
+on their own queue.
+
+Outside a topology -- a plain listener with only `PartitionProcessingByGroupId` applied -- there is no queue to
+place the batch on, because the unbatched handlers execute inside the listener's own execution block. The most you
+can get there is sequencing the batches for a group id against *each other*, by stamping the group id and sharding
+the batching queue:
+
+```csharp
 opts.BatchMessagesOf<OrderPlaced>(batching =>
 {
-    batching.TriggerTime = 1.Seconds();
-
     // Group by the message group id, and stamp it onto the batch envelope
     batching.GroupByGroupId();
 })
@@ -395,10 +415,7 @@ opts.BatchMessagesOf<OrderPlaced>(batching =>
     .PartitionProcessingByGroupId(PartitionSlots.Five);
 ```
 
-Note that this serializes the batches for a group id against *each other*. It does not yet serialize the batched
-handler against **unbatched** handlers for the same group id, because the assembled batch is enqueued straight to
-the batching local queue instead of being routed into the partitioned topology. See
-[Batching by group id](/guide/handlers/batching#batching-by-group-id-with-groupbygroupid) and
+See [Batching inside a partitioned topology](/guide/handlers/batching#batching-inside-a-partitioned-topology) and
 [GH-3867](https://github.com/JasperFx/wolverine/issues/3867) for the details.
 
 ## Partitioned Publishing to External Transports

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
+using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 using Wolverine.Runtime.WorkerQueues;
 
@@ -120,7 +121,55 @@ public class BatchingOptions : IAsyncDisposable
     /// The name of the local queue where the batch messages will be executed. Note
     /// that the default is the local queue for the batch element message type
     /// </summary>
-    public string? LocalExecutionQueueName { get; set; }
+    /// <remarks>
+    /// Setting this explicitly also opts the batch out of the partitioned execution described on
+    /// <see cref="ExecuteOnDedicatedLocalQueue" /> — naming a queue is taken as meaning it.
+    /// </remarks>
+    public string? LocalExecutionQueueName
+    {
+        get => _localExecutionQueueName;
+        set
+        {
+            _localExecutionQueueName = value;
+            IsLocalQueueExplicit = true;
+        }
+    }
+
+    private string? _localExecutionQueueName;
+
+    /// <summary>
+    /// Wolverine's own default assignment of the execution queue, which must not read as a user
+    /// choice. Used by <c>WolverineOptions.BatchMessagesOf</c> and by the Separated-mode queue
+    /// reassignment at startup.
+    /// </summary>
+    internal void SetDefaultLocalExecutionQueueName(string queueName)
+    {
+        _localExecutionQueueName = queueName;
+    }
+
+    /// <summary>True when the application named the execution queue rather than Wolverine defaulting it.</summary>
+    internal bool IsLocalQueueExplicit { get; private set; }
+
+    internal bool ForcesDedicatedQueue { get; private set; }
+
+    /// <summary>
+    /// Always run the assembled batches on this batch's own dedicated local queue, even when the
+    /// element type belongs to a partitioned message topology. By default a batched element type
+    /// that participates in <c>GlobalPartitioned</c> or <c>PublishToPartitionedLocalMessaging</c>
+    /// executes its batches on the topology slot for the batch's group id, so that the batched
+    /// handler is sequenced against the unbatched handlers for that same group. Call this to opt
+    /// out and accept that the batch runs concurrently with them. See GH-3867.
+    /// </summary>
+    public void ExecuteOnDedicatedLocalQueue()
+    {
+        ForcesDedicatedQueue = true;
+    }
+
+    /// <summary>
+    /// The partitioned topology slots that assembled batches are distributed across by group id,
+    /// resolved at startup. Null when this batch executes on a single dedicated local queue.
+    /// </summary>
+    internal IReadOnlyList<Endpoint>? ExecutionSlots { get; set; }
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "ProcessorBuilder<> closed over runtime ElementType; AOT consumers register batchers explicitly. See AOT guide.")]
@@ -162,8 +211,39 @@ public class BatchingOptions : IAsyncDisposable
 
             var localQueue = (ILocalQueue)runtime.Endpoints.AgentForLocalQueue(options.LocalExecutionQueueName!);
 
-            return new BatchingProcessor<T>(parentChain, batcher, options, localQueue,
+            var queues = buildExecutionQueues(runtime, options, localQueue);
+
+            return new BatchingProcessor<T>(parentChain, batcher, options, localQueue, queues,
                 runtime.DurabilitySettings, runtime.BatchingPendingCounts);
+        }
+
+        /// <summary>
+        /// GH-3867. When startup found a partitioned topology for the element type, assembled batches
+        /// are distributed across that topology's local queues by group id instead of all landing on
+        /// the one dedicated queue.
+        /// </summary>
+        private static IBatchExecutionQueues buildExecutionQueues(WolverineRuntime runtime,
+            BatchingOptions options, ILocalQueue dedicatedQueue)
+        {
+            if (options.ExecutionSlots is not { Count: > 0 } slots)
+            {
+                return new SingleBatchExecutionQueue(dedicatedQueue);
+            }
+
+            var slotQueues = new ILocalQueue[slots.Count];
+            for (var i = 0; i < slots.Count; i++)
+            {
+                if (runtime.Endpoints.AgentForLocalQueue(slots[i].Uri) is not ILocalQueue queue)
+                {
+                    throw new InvalidOperationException(
+                        $"Unable to resolve local queue '{slots[i].Uri}' as an execution slot for batches of {options.ElementType.FullNameInCode()}");
+                }
+
+                slotQueues[i] = queue;
+            }
+
+            return new PartitionedBatchExecutionQueues(slotQueues, runtime.Options.MessagePartitioning,
+                dedicatedQueue);
         }
     }
 

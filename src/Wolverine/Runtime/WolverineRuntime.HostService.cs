@@ -10,6 +10,7 @@ using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime.Agents;
+using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Scheduled;
 using Wolverine.Runtime.Serialization;
 using Wolverine.Runtime.WorkerQueues;
@@ -124,6 +125,13 @@ public partial class WolverineRuntime
             // Apply BatchMessagesOf<T>(b => b.ProbeIndividuallyAfter(N)) as a failure rule on the batch
             // handler chain. GH-3289.
             applyBatchProbePolicies();
+
+            // Point each batch at the partitioned topology its element type already belongs to, so
+            // the assembled batch is sequenced against the unbatched handlers for its group id
+            // rather than racing them on a separate queue. GH-3867. Must run before the transports
+            // start so the chosen slot endpoints can still be flagged for an unbounded execution
+            // block.
+            resolveBatchExecutionTopologies();
 
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
@@ -619,7 +627,9 @@ public partial class WolverineRuntime
             var batchQueueName = directQueue.EndpointName + BatchQueueSuffix;
             var batchQueue = local.QueueFor(batchQueueName);
             batchQueue.Mode = directQueue.Mode;
-            batch.LocalExecutionQueueName = batchQueue.EndpointName;
+
+            // Wolverine's own reassignment, not a user choice — see SetDefaultLocalExecutionQueueName.
+            batch.SetDefaultLocalExecutionQueueName(batchQueue.EndpointName);
         }
     }
 
@@ -665,6 +675,81 @@ public partial class WolverineRuntime
 
             Logger.LogWarning(message);
         }
+    }
+
+    /// <summary>
+    /// GH-3867. When a batched element type already belongs to a partitioned message topology, the
+    /// unbatched handlers for a given group id are being sequenced onto one topology slot while the
+    /// assembled batch goes to its own dedicated local queue — a different execution block, so the
+    /// batch races the very handlers the topology just sequenced. Point the batch at the same
+    /// topology so its slot is chosen from the batch's group id.
+    /// </summary>
+    private void resolveBatchExecutionTopologies()
+    {
+        if (Options.BatchDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var batch in Options.BatchDefinitions)
+        {
+            // Naming a queue, or asking for a dedicated one outright, is an explicit choice to run
+            // the batches somewhere of your own choosing. Respect it.
+            if (batch.IsLocalQueueExplicit || batch.ForcesDedicatedQueue)
+            {
+                continue;
+            }
+
+            var slots = findPartitionedExecutionSlots(batch.ElementType);
+            if (slots == null)
+            {
+                continue;
+            }
+
+            batch.ExecutionSlots = slots;
+
+            foreach (var slot in slots)
+            {
+                // These queues now receive the batches produced by the very messages they execute,
+                // which closes a cycle through the batching channel's bounded buffers. Same
+                // reasoning as GH-3287's unbounded local queues; see Endpoint.HostsBatchExecution.
+                slot.HostsBatchExecution = true;
+            }
+
+            // Slotting a batch requires the batch to belong to exactly one group, which the default
+            // tenant-only batcher cannot promise. Swap it for the group-id batcher — but leave a
+            // batcher the application supplied alone, since it may stamp group ids itself.
+            var batcherType = batch.Batcher.GetType();
+            if (batcherType.IsGenericType && batcherType.GetGenericTypeDefinition() == typeof(DefaultMessageBatcher<>))
+            {
+                batch.GroupByGroupId();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The local queues an element type's partitioned topology executes on, or null when it does not
+    /// belong to one. A global topology's companion local queues win over a purely local sharded
+    /// topology because global partitioning is the stronger guarantee of the two.
+    /// </summary>
+    private IReadOnlyList<Endpoint>? findPartitionedExecutionSlots(Type elementType)
+    {
+        var partitioning = Options.MessagePartitioning;
+
+        if (partitioning.TryFindGlobalTopology(elementType, out var global) && global!.LocalTopology != null)
+        {
+            return global.LocalTopology.Slots;
+        }
+
+        if (partitioning.TryFindTopology(elementType, out var topology) &&
+            topology is Partitioning.LocalPartitionedMessageTopology local)
+        {
+            return local.Slots;
+        }
+
+        // A sharded topology over an EXTERNAL transport has no local queue to enqueue a batch onto —
+        // its unbatched handlers execute inside the listener's own sharded block. Nothing to target.
+        return null;
     }
 
     private void applyBatchProbePolicies()
