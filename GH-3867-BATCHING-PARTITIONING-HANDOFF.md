@@ -107,6 +107,31 @@ Useful thing already verified so you do not have to: **`LocalQueueConfiguration`
 group-sharding the batching queue itself works today — it just does not help on its own, because the
 other writers are on a different queue.
 
+### The requirement, stated plainly (Jeremy, 2026-08-07)
+
+> **A batched message must execute on the same local, partitioned queue that an unbatched message
+> of the same group id would execute on.**
+
+For a message type participating in a partitioned topology, the batch envelope for group `G` goes to
+slot `hash(G) % N` — `global-{base}{slot}` under global partitioning, `{base}{slot}` under
+`PublishToPartitionedLocalMessaging`. No partitioned topology covering the type → today's
+single-queue behaviour, unchanged. The property being bought is **one writer per group id**,
+batched and unbatched alike, cluster-wide.
+
+**Two implementation notes, both verified against the source:**
+
+- **No self-deadlock.** The obvious worry — enqueueing the batch back onto the same
+  single-parallelism slot whose handler produced it — does not apply. `HandleAsync` runs on the slot
+  block but only posts into `_batchingBlock`; `processEnvelopes` runs on a separate
+  `_processingBlock` (`BatchingProcessor.cs:24-25`), so the enqueue happens off the slot block.
+- **Head-of-line blocking is the real hazard.** `_processingBlock` is shared across all groups, so a
+  blocking `EnqueueAsync` into one saturated slot would stall batch dispatch for *every* group.
+  Either post non-blocking with a fallback, or document the coupling. Test this first.
+
+Also confirm the batch chain resolves on the companion queues (the processor only sets
+`MessageType` + `Destination`), and that `BatchingPendingCounts.SettleBatch` still fires once per
+batch when the batch lands somewhere other than the configured execution queue.
+
 ### Three shapes — updated, shape 3 preferred
 
 1. **Honour a `Destination` the batcher set** instead of unconditionally overwriting it. Smallest
