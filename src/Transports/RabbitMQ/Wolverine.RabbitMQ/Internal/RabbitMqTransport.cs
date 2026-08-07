@@ -345,6 +345,16 @@ public partial class RabbitMqTransport : BrokerTransport<RabbitMqEndpoint>, IAsy
             deadLetterQueue.ConfigureExchange?.Invoke(dlqExchange);
 
             dlq.BindExchange(dlqExchange.Name, deadLetterQueue.BindingName);
+
+            // These two were created after the caller's Compile() loop had already run, so they are
+            // the only endpoints in the transport that would otherwise never have the endpoint
+            // policies applied to them. Resource setup declares whatever it finds here without
+            // compiling anything, so leaving them uncompiled means UseQuorumQueues() (which targets
+            // every Application role queue, and the lazily created DLQ is one) does not reach the
+            // dead letter queue until start up redeclares it -- and Rabbit MQ rejects a second
+            // declaration that changes a queue's type. See GH-3871.
+            dlq.Compile(runtime);
+            dlqExchange.Compile(runtime);
         }
     }
 
