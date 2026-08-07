@@ -619,6 +619,46 @@ using var host = await Host.CreateDefaultBuilder()
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/Samples.cs#L718-L744' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_global_partitioned_with_rabbit_mq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+### Excluding Message Types <Badge type="tip" text="6.25" />
+
+`Except<T>()` carves a message type -- or a whole family, when given an interface or base class --
+out of a topology, even when a broader rule like `MessagesImplementing<T>()` would otherwise match it.
+Exclusions are checked first and win outright, so the result never depends on the order in which the
+rules were declared.
+
+```csharp
+opts.MessagePartitioning
+    .UseInferredMessageGrouping()
+    .GlobalPartitioned(topology =>
+    {
+        topology.UseShardedRabbitQueues("sequenced", 5);
+        topology.MessagesImplementing<IOrderCommand>();
+
+        // ...but this one message type is re-published by this application
+        // and must not re-enter the topology
+        topology.Except<OrderStatusChanged>();
+    });
+```
+
+The case this exists for is a message type that legitimately belongs to the topology *on the way in*,
+but that the receiving application also re-publishes on its way somewhere else. Because each side
+configures its own topology, excluding it on the **receiving** side keeps inbound partitioning intact
+while stopping that application's own re-publish from re-entering the topology and arriving right back
+at the handler that published it.
+
+That loop is worth calling out, because it is invisible in configuration and shows up only as amplified
+load. A handler ends with `bus.PublishAsync(message)` to forward the message to a UI over SignalR; the
+message implements an interface that extends the marker the topology matches, so the re-publish draws
+**two** routes -- the intended SignalR one, and the topology one that comes straight back to the same
+handler. Note that Wolverine's route de-duplication does not catch this: it only removes explicit routes
+to sticky-handler local queues.
+
+::: tip
+Excluding a type does **not** stop the application from *listening* for it on the topology's slots --
+the companion-queue bridge is wired per endpoint, not per message type -- so inbound partitioning is
+unaffected. That asymmetry is the whole point of the feature.
+:::
+
 ### Validation
 
 Wolverine validates global partitioning configuration at startup. It will throw an `InvalidOperationException` if:
