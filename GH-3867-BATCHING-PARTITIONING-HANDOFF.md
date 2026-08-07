@@ -107,20 +107,38 @@ Useful thing already verified so you do not have to: **`LocalQueueConfiguration`
 group-sharding the batching queue itself works today — it just does not help on its own, because the
 other writers are on a different queue.
 
-### Three shapes, no strong preference from me
+### Three shapes — updated, shape 3 preferred
 
 1. **Honour a `Destination` the batcher set** instead of unconditionally overwriting it. Smallest
-   change; pushes slot selection into batcher implementations, which then need topology knowledge.
+   change, but it pushes slot selection into batcher implementations, which then have to know slot
+   counts and queue naming. That is the framework's job, not a batcher's.
 2. **Route the grouped envelope** through the normal routing path so it flows into a partitioned
-   local topology like any other message. Most consistent, but `MessageType`/`Destination`/`SentAt`
-   are currently set by hand here for a reason — check what routing would and would not reproduce
-   (notably `BatchingPendingCounts.SettleBatch`, and the CritterWatch#942 back-pressure accounting
-   at `BatchingProcessor.cs:48`, which counts members against the originating listener).
+   local topology like any other message. Attractive, but it has to reproduce what
+   `processEnvelopes` does by hand: `MessageType`, `SentAt`, `BatchingPendingCounts.SettleBatch`,
+   and in particular the CritterWatch#942 back-pressure accounting at `BatchingProcessor.cs:48`
+   that counts members against the originating listener. That accounting exists because of a real
+   production incident; do not let routing re-derive it by accident.
 3. **Let `BatchingOptions` take a partitioned local topology** rather than a single
-   `LocalExecutionQueueName`, and pick the slot from the batch's group id. Most explicit; largest
-   API surface.
+   `LocalExecutionQueueName`, and pick the slot from the batch's group id. **Preferred.** It is the
+   only shape that makes a batched handler a first-class participant in global partitioning rather
+   than an exception to it: the batch lands on the same companion local queue as its group's other
+   messages, giving a genuine single writer per group id, cluster-wide. Largest API surface, but the
+   concrete change is small — `ProcessorBuilder.Build` currently resolves exactly one `ILocalQueue`
+   (`BatchingOptions.cs:163`); that becomes N, or a deferred per-batch resolve.
 
 The only hard constraint: a batch that has a group id must be able to land on that group's slot.
+
+### The field data point that decided the preference
+
+I originally recorded that the affected CritterWatch console had clustering off (single replica).
+**That was wrong.** The shipped console wires `GlobalPartitioned` *unconditionally* — one
+`AddCritterWatchServices` call supplying `configureClusterShardedTopology` with 5 sharded slots
+across RabbitMQ, SQS and Azure Service Bus.
+
+So the failing deployment already has the strongest partitioning Wolverine offers and still sees
+~20 stream-concurrency exceptions/min. Global partitioning correctly sequences every participating
+message type **except the batched one**, and the batched one accounts for 59% of the failures. That
+is the clearest available statement of what part 2 is for.
 
 ### Things to check before choosing
 
