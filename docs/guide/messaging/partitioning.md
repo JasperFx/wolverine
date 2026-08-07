@@ -366,6 +366,41 @@ builder.UseWolverine(opts =>
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L14-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_partitioned_processing_on_any_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Partitioned Processing with Batched Handlers <Badge type="tip" text="6.25" />
+
+::: warning
+A [batched handler](/guide/handlers/batching) does **not** participate in partitioned sequential processing by
+default, and the failure is silent. The default batcher groups only by tenant id, so the assembled batch envelope
+carries no group id -- and as `SlotForProcessing` above shows, a missing group id means *a randomly chosen slot*,
+not "leave this unpartitioned". Successive batches for the same entity land on different slots and run
+concurrently.
+:::
+
+Opt the batcher into group id grouping so the batch envelope is stamped with a group id and can be sharded like
+any other message:
+
+```csharp
+opts.MessagePartitioning
+    .ByMessage<IOrderCommand>(x => x.OrderId);
+
+opts.BatchMessagesOf<OrderPlaced>(batching =>
+{
+    batching.TriggerTime = 1.Seconds();
+
+    // Group by the message group id, and stamp it onto the batch envelope
+    batching.GroupByGroupId();
+})
+    // The local queue that runs the batched handler is a listening endpoint
+    // like any other
+    .PartitionProcessingByGroupId(PartitionSlots.Five);
+```
+
+Note that this serializes the batches for a group id against *each other*. It does not yet serialize the batched
+handler against **unbatched** handlers for the same group id, because the assembled batch is enqueued straight to
+the batching local queue instead of being routed into the partitioned topology. See
+[Batching by group id](/guide/handlers/batching#batching-by-group-id-with-groupbygroupid) and
+[GH-3867](https://github.com/JasperFx/wolverine/issues/3867) for the details.
+
 ## Partitioned Publishing to External Transports
 
 ::: info

@@ -286,6 +286,66 @@ member message still rides on the batch, so the transactional inbox/outbox track
 exactly as they do for a normal (non-coalesced) batch. If you drop from 1,000 messages to 40 distinct keys,
 the handler runs once over 40 items, but all 1,000 member messages are settled with that batch.
 
+## Batching by group id with `GroupByGroupId` <Badge type="tip" text="6.25" />
+
+The default batcher groups only by tenant id, so one batch envelope can span many
+[message group ids](/guide/messaging/partitioning) -- and therefore carries none of its own. That is fine until
+batching has to coexist with [partitioned sequential processing](/guide/messaging/partitioning), because an
+envelope with no group id is **not** treated as "unpartitioned". It is assigned a *randomly chosen* slot:
+
+```csharp
+// PartitionedMessagingExtensions.SlotForProcessing
+var groupId = rules.DetermineGroupId(envelope);
+
+// Pick one at random, and has to be zero based
+if (groupId == null) return Random.Shared.Next(1, numberOfSlots) - 1;
+```
+
+So a batched handler on a partitioned endpoint silently draws a different slot on every trigger, and successive
+batches for the *same* entity can run concurrently. There is no configuration error and nothing in the logs.
+
+`GroupByGroupId()` opts into a batcher that groups by `(tenant id, group id)` and stamps that group id onto every
+batch envelope it produces, so the batch itself is a member of exactly one group:
+
+```csharp
+opts.MessagePartitioning
+    .ByMessage<ScoreEvent>(x => x.AggregateId);
+
+opts.BatchMessagesOf<ScoreEvent>(batching =>
+{
+    batching.BatchSize = 500;
+    batching.TriggerTime = 1.Seconds();
+
+    // Group the batches by the message group id, and stamp that group id
+    // onto the batch envelope
+    batching.GroupByGroupId();
+})
+    // BatchMessagesOf() returns the local queue configuration for the batched
+    // messages, and that queue is a listening endpoint like any other -- so the
+    // stamped group id can be used to shard its execution
+    .PartitionProcessingByGroupId(PartitionSlots.Five);
+```
+
+The group id is resolved from the envelope first (a listener already using `PartitionProcessingByGroupId` has
+stamped it upstream), falling back to your `MessagePartitioning` rules. A few deliberate behaviors:
+
+- **The key is `(tenant, group)`, never the group id alone.** Wolverine settles a batch's members against the batch
+  envelope, so merging tenants into one batch would lose the tenant each member arrived under. Two tenants sharing
+  a group id still produce two batches.
+- **Envelopes with no determinable group id are batched together and left ungrouped.** The batcher does not invent
+  an identity for them, so they behave exactly as they do under the default batcher.
+- Like `CoalesceBy`, this only changes how the batch is *assembled and slotted* -- every original member message
+  still rides on the batch, so inbox/outbox tracking and dead-lettering are unaffected.
+
+::: warning
+This gives you sequential processing **among the batches** for a group id. It does *not* yet serialize a batched
+handler against the **unbatched** handlers for that same group id: the assembled batch is enqueued directly to the
+batching local queue rather than routed, so it executes on a different block than a partitioned external listener
+or a `GlobalPartitioned` topology uses. If several message types write to one event stream and only some of them
+are batched, you can still see concurrent writers. Tracked as
+[GH-3867](https://github.com/JasperFx/wolverine/issues/3867).
+:::
+
 ## Batch identity with `IBatchContext`
 
 A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing —
