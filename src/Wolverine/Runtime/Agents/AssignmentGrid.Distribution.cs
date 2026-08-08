@@ -56,6 +56,24 @@ public partial class AssignmentGrid
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread); // this is helpful to reduce the number of assignments
 
+        // GH-3877: every family distributes its own scheme in its own pass, so countOn() above is blind
+        // to everything else a node is already carrying. A node holding two GlobalPartitioned slot
+        // listeners looks exactly as empty as an idle node to the next family that distributes, and the
+        // insertion-ordered passes below would happily stack more work onto it while the idle node sits
+        // out. Order the nodes by the load they carry from *other* passes so the placements this pass is
+        // free to make land on the least loaded nodes first.
+        //
+        // This is strictly a tie-break. The per-node count of *this* pass's agents is still floor/ceiling
+        // balanced, and neither pass below moves an already-assigned agent — pass one only sheds above the
+        // ceiling, passes two and three only place agents that are currently unassigned. So a steady grid
+        // still produces zero commands and this cannot induce reassignment churn. The ordering is a
+        // snapshot taken before any assignment, which keeps a single pass filling nodes in blocks rather
+        // than round-robining, and AssignedId keeps it deterministic when the foreign load ties.
+        var ordered = _nodes
+            .OrderBy(x => x.Agents.Count(a => !agentSet.Contains(a)))
+            .ThenBy(x => x.AssignedId)
+            .ToList();
+
         // First, pair down number of running agents if necessary. Might have to steal some later
         foreach (var node in _nodes)
         {
@@ -69,7 +87,7 @@ public partial class AssignmentGrid
         var missing = new Queue<Agent>(agents.Where(x => x.AssignedNode == null));
 
         // 2nd pass
-        foreach (var node in _nodes)
+        foreach (var node in ordered)
         {
             if (missing.Count == 0)
             {
@@ -95,7 +113,7 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = _nodes.FirstOrDefault(x => !x.IsLeader && countOn(x) < maximum) ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
+            var node = ordered.FirstOrDefault(x => !x.IsLeader && countOn(x) < maximum) ?? ordered.FirstOrDefault(x => !x.IsLeader) ?? ordered.First();
             node.Assign(agent);
         }
     }
