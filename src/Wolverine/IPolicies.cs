@@ -23,17 +23,24 @@ public interface IPolicies : IEnumerable<IWolverinePolicy>, IWithFailurePolicies
     void Add(IWolverinePolicy policy);
 
     /// <summary>
-    ///     Set all non local listening endpoints to be enrolled into durable inbox
+    ///     Set all non local listening endpoints to be enrolled into durable inbox.
+    ///     <para>Endpoints with <see cref="EndpointRole.System" /> are skipped: they are infrastructure that
+    ///     Wolverine or one of its extensions configures for itself, are often high volume, and are
+    ///     deliberately cheap and droppable. See <see cref="AllListeners" />.</para>
     /// </summary>
     void UseDurableInboxOnAllListeners();
 
     /// <summary>
-    ///     Set all local queues to be enrolled into durability
+    ///     Set all local queues to be enrolled into durability.
+    ///     <para>Wolverine's own <see cref="EndpointRole.System" /> queues (the agent queue, for example) are
+    ///     skipped. See <see cref="AllLocalQueues" />.</para>
     /// </summary>
     void UseDurableLocalQueues();
 
     /// <summary>
-    ///     Set all outgoing, external endpoints to be enrolled into durable outbox sending
+    ///     Set all outgoing, external endpoints to be enrolled into durable outbox sending.
+    ///     <para>Endpoints with <see cref="EndpointRole.System" /> are skipped for the same reasons as
+    ///     <see cref="UseDurableInboxOnAllListeners" />. See <see cref="AllSenders" />.</para>
     /// </summary>
     void UseDurableOutboxOnAllSendingEndpoints();
 
