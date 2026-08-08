@@ -15,6 +15,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
+    private readonly SemaphoreSlim _cancelOks = new(0);
 
     // GH-3492: durable endpoints coalesce prefetched deliveries into Envelope[] batches so the
     // inbox persists them with one multi-VALUES insert instead of gating on one INSERT round
@@ -74,6 +75,42 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
         // Push any accumulated-but-unflushed deliveries onward; anything genuinely in flight
         // is unacked and will be redelivered by the broker (and deduplicated by the inbox).
         _batching?.TriggerBatch();
+    }
+
+    /// <summary>
+    /// Wait for the broker's cancel-ok on <paramref name="count"/> cancelled consumer tags. The client
+    /// dispatches each cancel-ok only after every prefetched delivery ahead of it in FIFO order, so once
+    /// all arrive the prefetch backlog has drained (to the batching channel, in micro-batching mode).
+    /// </summary>
+    internal async Task WaitForCancelOksAsync(int count, CancellationToken token)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            await _cancelOks.WaitAsync(token);
+        }
+    }
+
+    /// <summary>
+    /// Flush any batched-but-undelivered envelopes to the receiver and await that flush. cancel-ok only
+    /// guarantees deliveries reached the batching channel, so without this the receiver latches first and
+    /// the batch is redelivered.
+    /// </summary>
+    internal async Task DrainBatchedDeliveriesAsync()
+    {
+        if (_batching == null)
+        {
+            return;
+        }
+
+        _batching.TriggerBatch();
+        _batching.Complete();
+        await _batching.WaitForCompletionAsync();
+    }
+
+    public override Task HandleBasicCancelOkAsync(string consumerTag, CancellationToken cancellationToken = default)
+    {
+        _cancelOks.Release();
+        return base.HandleBasicCancelOkAsync(consumerTag, cancellationToken);
     }
 
     //TODO do something with the token passed in here

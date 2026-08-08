@@ -150,9 +150,42 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
         var channel = Channel;
         if (channel != null)
         {
-            foreach (var consumerTag in consumer.ConsumerTags)
+            if (!Queue.DrainWaitForPrefetch)
             {
-                await channel.BasicCancelAsync(consumerTag, true, default);
+                // nowait cancel: no cancel-ok, and still-prefetched deliveries are requeued by the
+                // broker on channel close.
+                foreach (var consumerTag in consumer.ConsumerTags)
+                {
+                    await channel.BasicCancelAsync(consumerTag, true, default);
+                }
+
+                return;
+            }
+
+            // Cancel WITHOUT nowait so the broker replies cancel-ok, which the client dispatches only
+            // after every prefetched delivery ahead of it in FIFO order. In durable micro-batching mode
+            // that only means the deliveries reached the batching channel, so drain that batch too --
+            // otherwise the caller latches the receiver first and the batch is redelivered. Bound the
+            // wait on the shared drain budget and log-and-continue so an unreachable broker can't abort
+            // the caller's stop-and-drain.
+            using var cts = new CancellationTokenSource(_runtime.DurabilitySettings.DrainTimeout);
+            try
+            {
+                var cancelled = 0;
+                foreach (var consumerTag in consumer.ConsumerTags)
+                {
+                    await channel.BasicCancelAsync(consumerTag, false, cts.Token);
+                    cancelled++;
+                }
+
+                await consumer.WaitForCancelOksAsync(cancelled, cts.Token);
+                await consumer.DrainBatchedDeliveriesAsync().WaitAsync(cts.Token);
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning(e,
+                    "Timed out or errored waiting for prefetched messages to drain at {Uri} during listener stop; continuing shutdown",
+                    Address);
             }
         }
     }
