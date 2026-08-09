@@ -346,7 +346,7 @@ For whatever reason, the source generator for OpenAPI tries to start the entire 
 
 Chances are good that one of the things preventing a successful startup is that Marten and Wolverine will, by default, begin performing their usual tasks immediately  upon startup. This entails connecting to the database, as well as to any external messaging providers you may be using. Since those connections are probably not going to be possible in your build environment, they will need to be disabled while the OpenApi generation is being done.
 
-Microsoft's recomendation for detecting whether the application is running for the purpose of document generation is to use this code:
+Microsoft's recommendation for detecting whether the application is running for the purpose of document generation is to use this code:
 ```cs
 var generatingOpenApi = Assembly.GetEntryAssembly()?.GetName().Name == "GetDocument.Insider"
 ```
