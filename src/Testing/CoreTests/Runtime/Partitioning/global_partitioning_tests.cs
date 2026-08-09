@@ -87,6 +87,95 @@ public class GlobalPartitionedMessageTopologyTests
     }
 
     [Fact]
+    public void mode_buffered_before_external_topology_applies_to_external_and_companion_slots()
+    {
+        // GH-3882: the Buffered opt-in must survive SetExternalTopology's stamp, which runs
+        // after the user's configure callback.
+        var topology = CreateTopology();
+        topology.Mode(EndpointMode.BufferedInMemory);
+
+        var external = CreateLocalTopology("ext", 3);
+        topology.SetExternalTopology(external, "test");
+
+        foreach (var slot in external.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+
+        foreach (var slot in topology.LocalTopology!.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+    }
+
+    [Fact]
+    public void mode_buffered_after_external_topology_applies_retroactively()
+    {
+        // GH-3882: order-independent — UseSharded*Queues() runs SetExternalTopology eagerly, so a
+        // Mode() call later in the same configure lambda has to reach back into the built slots.
+        var topology = CreateTopology();
+        var external = CreateLocalTopology("ext", 3);
+        topology.SetExternalTopology(external, "test");
+
+        topology.Mode(EndpointMode.BufferedInMemory);
+
+        foreach (var slot in external.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+
+        foreach (var slot in topology.LocalTopology!.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+    }
+
+    [Fact]
+    public void mode_applies_to_local_queues_declared_after_the_mode_call()
+    {
+        var topology = CreateTopology();
+        topology.Mode(EndpointMode.BufferedInMemory);
+
+        topology.LocalQueues("mine", 4);
+
+        foreach (var slot in topology.LocalTopology!.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.BufferedInMemory);
+        }
+    }
+
+    [Fact]
+    public void mode_can_opt_back_into_durable()
+    {
+        var topology = CreateTopology();
+        var external = CreateLocalTopology("ext", 3);
+        topology.SetExternalTopology(external, "test");
+
+        topology.Mode(EndpointMode.BufferedInMemory);
+        topology.Mode(EndpointMode.Durable);
+
+        foreach (var slot in external.Slots)
+        {
+            slot.Mode.ShouldBe(EndpointMode.Durable);
+        }
+    }
+
+    [Fact]
+    public void mode_rejects_inline()
+    {
+        var topology = CreateTopology();
+
+        Should.Throw<ArgumentOutOfRangeException>(() => topology.Mode(EndpointMode.Inline));
+    }
+
+    [Fact]
+    public void mode_is_fluent()
+    {
+        var topology = CreateTopology();
+        topology.Mode(EndpointMode.BufferedInMemory).ShouldBeSameAs(topology);
+    }
+
+    [Fact]
     public void set_external_topology_tags_external_endpoints_with_companion_local_queue_uris()
     {
         var topology = CreateTopology();

@@ -13,6 +13,7 @@ public class GlobalPartitionedMessageTopology
     private readonly HashSet<string> _messageTypeNames = new(StringComparer.OrdinalIgnoreCase);
     private PartitionedMessageTopology? _externalTopology;
     private LocalPartitionedMessageTopology? _localTopology;
+    private EndpointMode _mode = EndpointMode.Durable;
 
     public GlobalPartitionedMessageTopology(WolverineOptions options)
     {
@@ -22,9 +23,54 @@ public class GlobalPartitionedMessageTopology
     internal PartitionedMessageTopology? ExternalTopology => _externalTopology;
     internal LocalPartitionedMessageTopology? LocalTopology => _localTopology;
 
+    /// <summary>
+    /// Opt the partitioned slots — the external endpoints AND their companion local queues — out of
+    /// the default <see cref="EndpointMode.Durable"/>. Use <see cref="EndpointMode.BufferedInMemory"/>
+    /// for lossy, re-reported traffic (telemetry, metrics) where at-most-once delivery with
+    /// sender-side FIFO ordering is sufficient and store-and-forwarding every envelope through the
+    /// application's message store is the wrong trade (GH-3882). The default remains Durable.
+    /// Order-independent: may be called before or after the external topology is configured.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <see cref="EndpointMode.Inline"/> is not valid here — partitioned slots depend on queueing
+    /// (the external listener bridges into the companion local queue) that inline endpoints bypass.
+    /// </exception>
+    public GlobalPartitionedMessageTopology Mode(EndpointMode mode)
+    {
+        if (mode == EndpointMode.Inline)
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode),
+                "EndpointMode.Inline is not supported for global partitioned topologies. Partitioned slots depend on queueing (the external listener bridges into the companion local queue), which inline endpoints bypass. Use Durable (default) or BufferedInMemory.");
+        }
+
+        _mode = mode;
+        applyMode();
+        return this;
+    }
+
+    private void applyMode()
+    {
+        if (_externalTopology != null)
+        {
+            foreach (var slot in _externalTopology.Slots)
+            {
+                slot.Mode = _mode;
+            }
+        }
+
+        if (_localTopology != null)
+        {
+            foreach (var slot in _localTopology.Slots)
+            {
+                slot.Mode = _mode;
+            }
+        }
+    }
+
     public void LocalQueues(string baseQueueName, int numberOfEndpoints)
     {
         _localTopology = new LocalPartitionedMessageTopology(_options, baseQueueName, numberOfEndpoints);
+        applyMode();
     }
 
     internal void SetExternalTopology(Func<WolverineOptions, PartitionedMessageTopology> factory, string baseName)
@@ -43,17 +89,12 @@ public class GlobalPartitionedMessageTopology
             _localTopology = new LocalPartitionedMessageTopology(_options, localBaseName, topology.Slots.Count);
         }
 
-        // Force durable mode on all external endpoints
-        foreach (var slot in topology.Slots)
-        {
-            slot.Mode = EndpointMode.Durable;
-        }
-
-        // Force durable mode on all local endpoints
-        foreach (var slot in _localTopology.Slots)
-        {
-            slot.Mode = EndpointMode.Durable;
-        }
+        // Stamp the topology's mode — Durable unless the user opted the slots into
+        // BufferedInMemory via Mode() (GH-3882) — on every external endpoint and companion local
+        // queue. Runs after the user's configure callback, which is why the opt-out lives on this
+        // class rather than on the individual slots: a per-slot Mode set in the callback would be
+        // overwritten here.
+        applyMode();
 
         // Tag each external slot endpoint with its companion local queue URI
         // Only tag if slot counts match; mismatches will be caught by AssertValidity()
