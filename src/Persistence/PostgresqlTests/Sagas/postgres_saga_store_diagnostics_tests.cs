@@ -1,11 +1,14 @@
 using IntegrationTests;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Shouldly;
 using Wolverine;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Postgresql;
+using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.Tracking;
 using Xunit;
 
@@ -30,7 +33,24 @@ public class postgres_saga_store_diagnostics_tests : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<PgDiagSaga>();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<PgDiagSaga>()
+                    .IncludeType<UnprovisionedPgDiagSaga>();
+
+                // Registering the saga type is what puts its table into the
+                // message store's schema build, so the table exists as soon
+                // as the host starts. Without this, pgdiagsaga_saga only came
+                // into being when a sibling test persisted an instance first -
+                // an inter-test order dependency that turned
+                // read_saga_returns_null_for_missing_instance red on fresh
+                // infrastructure (GH-3887).
+                opts.AddSagaType<PgDiagSaga>();
+
+                // UnprovisionedPgDiagSaga is deliberately NOT registered via
+                // AddSagaType and never started: it pins the diagnostics
+                // API's graceful handling of a declared-but-never-provisioned
+                // saga (no table yet) below.
+
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, "saga_diag_pg");
                 opts.PublishAllMessages().Locally();
             })
@@ -105,9 +125,58 @@ public class postgres_saga_store_diagnostics_tests : IAsyncLifetime
         read.ShouldBeNull();
         list.ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task declared_but_never_provisioned_saga_reads_as_empty_instead_of_42P01()
+    {
+        // AddSagaType is optional, so a correctly configured application can
+        // have a known saga type whose table does not exist until the first
+        // instance is persisted. The diagnostics surface must treat that
+        // state as "no instances", not surface a raw undefined-table error
+        // (GH-3887). UnprovisionedPgDiagSaga is in the handler graph but is
+        // never registered via AddSagaType and never started - and to keep
+        // this deterministic on any infrastructure state, drop its table if
+        // some earlier run left one behind.
+        var tableName = new SagaTableDefinition(typeof(UnprovisionedPgDiagSaga), null).TableName;
+        await using (var conn = new NpgsqlConnection(Servers.PostgresConnectionString))
+        {
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"drop table if exists saga_diag_pg.{tableName}";
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+
+        var read = await diagnostics.ReadSagaAsync(
+            typeof(UnprovisionedPgDiagSaga).FullName!, Guid.NewGuid().ToString("N"), CancellationToken.None);
+        var list = await diagnostics.ListSagaInstancesAsync(
+            typeof(UnprovisionedPgDiagSaga).FullName!, 10, CancellationToken.None);
+
+        read.ShouldBeNull();
+        list.ShouldBeEmpty();
+    }
 }
 
 public record StartPgDiagSaga(string Id, string Note);
+
+public record StartUnprovisionedPgDiagSaga(string Id);
+
+/// <summary>
+/// Deliberately never registered with <c>AddSagaType</c> and never started
+/// by any test: its table must not exist, pinning the graceful "declared
+/// but never provisioned" path in the saga diagnostics (GH-3887).
+/// </summary>
+public class UnprovisionedPgDiagSaga : Saga
+{
+    [SagaIdentity]
+    public string? Id { get; set; }
+
+    public static UnprovisionedPgDiagSaga Start(StartUnprovisionedPgDiagSaga cmd)
+    {
+        return new UnprovisionedPgDiagSaga { Id = cmd.Id };
+    }
+}
 
 public class PgDiagSaga : Saga
 {

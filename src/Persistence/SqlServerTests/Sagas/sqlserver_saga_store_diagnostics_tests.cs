@@ -1,9 +1,12 @@
 using IntegrationTests;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shouldly;
 using Wolverine;
 using Wolverine.Persistence.Sagas;
+using Wolverine.RDBMS;
+using Wolverine.RDBMS.Sagas;
 using Wolverine.SqlServer;
 using Wolverine.Tracking;
 using Xunit;
@@ -29,7 +32,20 @@ public class sqlserver_saga_store_diagnostics_tests : IAsyncLifetime
         _host = await Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
             {
-                opts.Discovery.DisableConventionalDiscovery().IncludeType<MsSqlDiagSaga>();
+                opts.Discovery.DisableConventionalDiscovery()
+                    .IncludeType<MsSqlDiagSaga>()
+                    .IncludeType<UnprovisionedMsSqlDiagSaga>();
+
+                // Same fix as the Postgres twin (GH-3887): registering the
+                // saga type puts its table into the message store's schema
+                // build so it exists deterministically at host start, rather
+                // than only after a sibling test persists an instance.
+                opts.AddSagaType<MsSqlDiagSaga>();
+
+                // UnprovisionedMsSqlDiagSaga is deliberately NOT registered
+                // via AddSagaType and never started - see the
+                // declared-but-never-provisioned test below.
+
                 opts.PersistMessagesWithSqlServer(Servers.SqlServerConnectionString, "saga_diag_mssql");
                 opts.PublishAllMessages().Locally();
             })
@@ -93,9 +109,67 @@ public class sqlserver_saga_store_diagnostics_tests : IAsyncLifetime
         read.ShouldBeNull();
         list.ShouldBeEmpty();
     }
+
+    [Fact]
+    public async Task read_saga_returns_null_for_missing_instance()
+    {
+        // Parity with the Postgres twin: reads a known saga type without
+        // persisting an instance first. Only safe on fresh infrastructure
+        // because the fixture now calls AddSagaType (GH-3887).
+        var diagnostics = _host.GetRuntime().SagaStorage;
+        var state = await diagnostics.ReadSagaAsync(
+            typeof(MsSqlDiagSaga).FullName!, Guid.NewGuid().ToString("N"), CancellationToken.None);
+        state.ShouldBeNull();
+    }
+
+    [Fact]
+    public async Task declared_but_never_provisioned_saga_reads_as_empty_instead_of_invalid_object_name()
+    {
+        // The SQL Server flavor of the GH-3887 product half: a known saga
+        // type with no table yet (AddSagaType omitted, nothing persisted)
+        // must read as "no instances" rather than surfacing error 208
+        // "Invalid object name". Drop the table first so the precondition
+        // holds on any infrastructure state.
+        var tableName = new SagaTableDefinition(typeof(UnprovisionedMsSqlDiagSaga), null).TableName;
+        await using (var conn = new SqlConnection(Servers.SqlServerConnectionString))
+        {
+            await conn.OpenAsync(TestContext.Current.CancellationToken);
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $"drop table if exists saga_diag_mssql.{tableName}";
+            await cmd.ExecuteNonQueryAsync(TestContext.Current.CancellationToken);
+        }
+
+        var diagnostics = _host.GetRuntime().SagaStorage;
+
+        var read = await diagnostics.ReadSagaAsync(
+            typeof(UnprovisionedMsSqlDiagSaga).FullName!, Guid.NewGuid().ToString("N"), CancellationToken.None);
+        var list = await diagnostics.ListSagaInstancesAsync(
+            typeof(UnprovisionedMsSqlDiagSaga).FullName!, 10, CancellationToken.None);
+
+        read.ShouldBeNull();
+        list.ShouldBeEmpty();
+    }
 }
 
 public record StartMsSqlDiagSaga(string Id, string Note);
+
+public record StartUnprovisionedMsSqlDiagSaga(string Id);
+
+/// <summary>
+/// Deliberately never registered with <c>AddSagaType</c> and never started
+/// by any test: its table must not exist, pinning the graceful "declared
+/// but never provisioned" path in the saga diagnostics (GH-3887).
+/// </summary>
+public class UnprovisionedMsSqlDiagSaga : Saga
+{
+    [SagaIdentity]
+    public string? Id { get; set; }
+
+    public static UnprovisionedMsSqlDiagSaga Start(StartUnprovisionedMsSqlDiagSaga cmd)
+    {
+        return new UnprovisionedMsSqlDiagSaga { Id = cmd.Id };
+    }
+}
 
 public class MsSqlDiagSaga : Saga
 {
