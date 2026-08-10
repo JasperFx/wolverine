@@ -16,7 +16,13 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
     // Health check stall tracking
     private long _lastKnownSequence;
-    private DateTimeOffset _lastAdvancedAt = DateTimeOffset.UtcNow;
+    private DateTimeOffset _lastAdvancedAt;
+
+    /// <summary>
+    /// Clock used by the stall detector. Defaults to the system clock; tests substitute it so the
+    /// auto-restart path can be exercised without waiting out StallTimeout three times over.
+    /// </summary>
+    public TimeProvider TimeProvider { get; set; } = TimeProvider.System;
     private int _consecutiveStallCount;
 
     // Configurable thresholds (loaded from progression table, with defaults)
@@ -237,15 +243,23 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         }
 
         // Check for stalled projection
+        if (_lastAdvancedAt == default)
+        {
+            // First observation. Anchored here rather than in the constructor so a substituted
+            // TimeProvider is the one that sets it -- otherwise the baseline comes from the system
+            // clock and every later comparison against a test clock reads as stalled since year one.
+            _lastAdvancedAt = TimeProvider.GetUtcNow();
+        }
+
         if (currentSequence != _lastKnownSequence)
         {
             // Sequence has advanced, reset stall tracking
             _lastKnownSequence = currentSequence;
-            _lastAdvancedAt = DateTimeOffset.UtcNow;
+            _lastAdvancedAt = TimeProvider.GetUtcNow();
             _consecutiveStallCount = 0;
         }
         else if (currentSequence < highWaterMark &&
-                 DateTimeOffset.UtcNow - _lastAdvancedAt > StallTimeout)
+                 TimeProvider.GetUtcNow() - _lastAdvancedAt > StallTimeout)
         {
             // Sequence hasn't changed, there are events ahead, and it's been stalled
             _consecutiveStallCount++;
@@ -290,7 +304,7 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
             await StartAsync(cancellationToken);
 
             _consecutiveStallCount = 0;
-            _lastAdvancedAt = DateTimeOffset.UtcNow;
+            _lastAdvancedAt = TimeProvider.GetUtcNow();
 
             _logger.LogInformation("Projection {Uri} auto-restart completed successfully", Uri);
 
@@ -299,7 +313,7 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
                 OnRestarted?.Invoke(
                     Uri.ToString(),
                     $"Auto-restarted after {MaxConsecutiveStallsBeforeRestart} consecutive stalled health checks",
-                    DateTimeOffset.UtcNow);
+                    TimeProvider.GetUtcNow());
             }
             catch (Exception callbackEx)
             {
