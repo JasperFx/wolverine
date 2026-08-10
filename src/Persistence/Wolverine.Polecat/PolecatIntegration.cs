@@ -15,6 +15,7 @@ using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Routing;
+using Wolverine.SqlServer.Transport;
 using Wolverine.Util;
 using System.Diagnostics.CodeAnalysis;
 
@@ -66,7 +67,32 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
-        // SQL Server transport will be configured when the message store is built
+        // GH-3884 (the mirror image of GH-3883 on the Marten side): only stamp the SQL Server
+        // transport with schema names the caller actually asked for on this integration. This
+        // Configure() runs at host build — AFTER an inline UseSqlServerPersistenceAndTransport(...)
+        // in the same options lambda — so an explicit assignment here is authoritative over the
+        // transport's own configuration, while leaving the property alone leaves the transport
+        // untouched (its default, or an explicit
+        // UseSqlServerPersistenceAndTransport(..., transportSchema: ...)). Unlike the Marten twin,
+        // this does NOT create the transport when none is registered: SqlServerTransport requires
+        // connection settings at construction, and with no SQL Server-backed queue endpoints there
+        // are no transport tables to place.
+        foreach (var transport in options.Transports.OfType<SqlServerTransport>())
+        {
+            if (_transportSchemaNameIsExplicit)
+            {
+                transport.TransportSchemaName = TransportSchemaName;
+            }
+
+            if (MessageStorageSchemaName.IsNotEmpty())
+            {
+                // Keep the transport's envelope-table references (its dequeue/send SQL targets
+                // wolverine_incoming_envelopes / wolverine_outgoing_envelopes by schema) aligned
+                // with where this integration actually places the message storage. Mirrors
+                // MartenIntegration.Configure().
+                transport.MessageStorageSchemaName = MessageStorageSchemaName;
+            }
+        }
 
         options.Policies.Add<PolecatOpPolicy>();
 
@@ -91,14 +117,25 @@ public class PolecatIntegration : IWolverineExtension, IEventForwarding
     internal PolecatEventRouter EventRouter { get; } = new();
 
     private string _transportSchemaName = "wolverine_queues";
+    private bool _transportSchemaNameIsExplicit;
 
     /// <summary>
-    /// The database schema to place SQL Server-backed queues. The default is "wolverine_queues"
+    /// The database schema to place SQL Server-backed queues.
     /// </summary>
+    /// <remarks>
+    /// GH-3884: setting this is authoritative — it overwrites whatever the SQL Server transport was
+    /// configured with, because this integration applies at host build. Leaving it alone leaves the
+    /// transport's own configuration (its default, or an explicit
+    /// <c>UseSqlServerPersistenceAndTransport(..., transportSchema: ...)</c>) untouched.
+    /// </remarks>
     public string TransportSchemaName
     {
         get => _transportSchemaName;
-        set => _transportSchemaName = value.ToLowerInvariant();
+        set
+        {
+            _transportSchemaName = value.ToLowerInvariant();
+            _transportSchemaNameIsExplicit = true;
+        }
     }
 
     private string? _messageStorageSchemaName;

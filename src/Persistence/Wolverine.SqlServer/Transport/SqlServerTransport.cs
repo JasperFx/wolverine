@@ -44,12 +44,19 @@ public class SqlServerTransport : BrokerTransport<SqlServerQueue>
     /// <summary>
     /// Schema name for the queue and scheduled message tables
     /// </summary>
-    public string TransportSchemaName { get; private set; } = "dbo";
+    /// <remarks>
+    /// GH-3884: settable post-construction (mirroring <c>PostgresqlTransport</c>) so the
+    /// Wolverine.Polecat integration can stamp an explicitly configured
+    /// <c>PolecatIntegration.TransportSchemaName</c> onto the transport at host build time.
+    /// The queue/scheduled tables are built lazily per queue, so reassignment before the
+    /// runtime initializes the transport is safe.
+    /// </remarks>
+    public string TransportSchemaName { get; set; } = "dbo";
 
     /// <summary>
     /// Schema name for the message storage tables
     /// </summary>
-    public string MessageStorageSchemaName { get; private set; } = "dbo";
+    public string MessageStorageSchemaName { get; set; } = "dbo";
 
     /// <summary>
     /// Opt into the higher-throughput queue table storage layout: queue and scheduled tables are
