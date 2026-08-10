@@ -214,7 +214,7 @@ public class BatchingOptions : IAsyncDisposable
             var queues = buildExecutionQueues(runtime, options, localQueue);
 
             return new BatchingProcessor<T>(parentChain, batcher, options, localQueue, queues,
-                runtime.DurabilitySettings, runtime.BatchingPendingCounts);
+                runtime.DurabilitySettings, runtime.BatchingPendingCounts, runtime.Logger);
         }
 
         /// <summary>
