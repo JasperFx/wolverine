@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JasperFx.Core.Reflection;
@@ -77,6 +78,16 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             var body = readBody(reader, 0);
             return buildInstance(definition, identity!, body);
         }
+        catch (DbException e) when (isMissingTableException(e))
+        {
+            // AddSagaType is explicitly optional, so a correctly configured
+            // application can have a saga type whose table has not been
+            // provisioned yet (the runtime creates it lazily on first
+            // persist). To a diagnostic caller that state is
+            // indistinguishable from "no instances", so report null rather
+            // than surfacing the provider's undefined-table error (GH-3887).
+            return null;
+        }
         finally
         {
             await conn.CloseAsync().ConfigureAwait(false);
@@ -109,10 +120,50 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
             }
             return list;
         }
+        catch (DbException e) when (isMissingTableException(e))
+        {
+            // Same contract as ReadSagaAsync: a declared-but-never-persisted
+            // saga has no table yet, which reads as "no instances" (GH-3887).
+            return Array.Empty<SagaInstanceState>();
+        }
         finally
         {
             await conn.CloseAsync().ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// True when the exception is the backing database's flavor of
+    /// "relation / table does not exist". Kept dialect-agnostic - same
+    /// rationale as <see cref="renderTopNQuery"/>: this class works
+    /// against every RDBMS message store without referencing the
+    /// dialect packages, so it recognises each provider's shape rather
+    /// than catching a provider-specific exception type.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Best-effort probe of the provider exception's 'Number' property (SqlClient 208, " +
+                        "MySqlConnector 1146, Oracle 942). Provider exception types survive trimming in " +
+                        "practice; if the property were removed the check falls through to the " +
+                        "SqlState / message checks and, at worst, the exception propagates exactly as " +
+                        "it did before this handling existed.")]
+    private static bool isMissingTableException(DbException ex)
+    {
+        // Postgres: 42P01 undefined_table. MySQL: ER_NO_SUCH_TABLE surfaces
+        // the ODBC-standard 42S02 ("base table or view not found").
+        if (ex.SqlState is "42P01" or "42S02") return true;
+
+        // SQL Server (208 "Invalid object name"), MySQL (1146), and Oracle
+        // (ORA-00942) expose the provider error number on a 'Number'
+        // property, but there is no shared base member for it.
+        if (ex.GetType().GetProperty("Number")?.GetValue(ex) is int number &&
+            number is 208 or 1146 or 942)
+        {
+            return true;
+        }
+
+        // SQLite only reports the generic error code 1 (SQLITE_ERROR) for a
+        // missing table; its (non-localised) message is the discriminator.
+        return ex.Message.Contains("no such table", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
