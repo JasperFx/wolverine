@@ -11,6 +11,8 @@ public class MessagePartitioningRules
 {
     private readonly WolverineOptions _options;
     private readonly List<IGroupingRule> _rules = new();
+    private readonly List<Func<Type, bool>> _processingExemptions = new();
+    private ImHashMap<Type, bool> _processingExemptionCache = ImHashMap<Type, bool>.Empty;
     private bool _useInferredGrouping;
 
     public MessagePartitioningRules(WolverineOptions options)
@@ -73,6 +75,59 @@ public class MessagePartitioningRules
     {
         topology = GlobalPartitionedTopologies.FirstOrDefault(x => x.Matches(messageType));
         return topology != null;
+    }
+
+    /// <summary>
+    /// Exempt any message type that can be cast to <typeparamref name="T"/> (including marker
+    /// interfaces and base classes) from partitioned, GroupId-keyed *processing* on listening
+    /// endpoints configured with <c>PartitionProcessingByGroupId()</c> (including the listening side
+    /// of partitioned/global partitioned topologies). Exempted message types execute on the
+    /// endpoint's normal parallel execution lane (its <c>MaxDegreeOfParallelism</c>) instead of a
+    /// sequential GroupId slot. Use this for high-volume message types that need no ordering
+    /// guarantees so a single dominant GroupId cannot collapse the whole listener to sequential
+    /// processing.
+    ///
+    /// This changes only the in-process execution lane — durable inbox/outbox handling, message
+    /// routing, sender-side queue sharding, and GroupId stamping are all unaffected. An exempted
+    /// message may execute concurrently with a non-exempted message carrying the same GroupId, so
+    /// only exempt types that truly require no ordering relative to the partitioned types.
+    /// </summary>
+    public MessagePartitioningRules ExemptFromPartitionedProcessing<T>()
+    {
+        return ExemptFromPartitionedProcessing(type => type.CanBeCastTo<T>());
+    }
+
+    /// <summary>
+    /// Exempt any message type matching the supplied filter from partitioned, GroupId-keyed
+    /// *processing* on listening endpoints configured with <c>PartitionProcessingByGroupId()</c>.
+    /// See <see cref="ExemptFromPartitionedProcessing{T}"/> for the semantics and caveats.
+    /// </summary>
+    /// <param name="filter">Evaluated once per concrete message type (results are cached)</param>
+    public MessagePartitioningRules ExemptFromPartitionedProcessing(Func<Type, bool> filter)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        _processingExemptions.Add(filter);
+        _processingExemptionCache = ImHashMap<Type, bool>.Empty;
+        return this;
+    }
+
+    internal bool HasProcessingExemptions => _processingExemptions.Count != 0;
+
+    internal bool IsExemptFromPartitionedProcessing(Type messageType)
+    {
+        if (_processingExemptions.Count == 0)
+        {
+            return false;
+        }
+
+        if (_processingExemptionCache.TryFind(messageType, out var exempt))
+        {
+            return exempt;
+        }
+
+        exempt = _processingExemptions.Any(filter => filter(messageType));
+        _processingExemptionCache = _processingExemptionCache.AddOrUpdate(messageType, exempt);
+        return exempt;
     }
 
     /// <summary>

@@ -135,6 +135,34 @@ public class PartitioningSamples
 
     #endregion
 
+    public static async Task exempting_message_types_from_partitioned_processing()
+    {
+        #region sample_exempting_message_types_from_partitioned_processing
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            opts.UseRabbitMq();
+
+            // Group all order-related messages by their order id...
+            opts.MessagePartitioning
+                .ByMessage<IOrderCommand>(x => x.OrderId)
+
+                // ...but order telemetry needs no ordering guarantees at all, so
+                // exempt it from partitioned processing. Exempted message types
+                // execute at the endpoint's normal MaxDegreeOfParallelism instead
+                // of being serialized behind a GroupId slot, so one dominant
+                // GroupId can't collapse the whole listener to sequential
+                // processing for messages that never asked for ordering.
+                // There is also an overload taking a Func<Type, bool> filter.
+                .ExemptFromPartitionedProcessing<OrderTelemetry>();
+
+            opts.ListenToRabbitQueue("incoming")
+                .PartitionProcessingByGroupId(PartitionSlots.Seven);
+        });
+
+        #endregion
+    }
+
     public static async Task propagate_group_id_to_partition_key()
     {
         #region sample_propagate_group_id_to_partition_key
@@ -178,3 +206,5 @@ public record ApproveOrder(string OrderId) : IOrderCommand;
 public record CancelOrder(string OrderId) : IOrderCommand;
 
 #endregion
+
+public record OrderTelemetry(string OrderId, double ElapsedMilliseconds);
