@@ -97,9 +97,24 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
 
         options.Policies.ForwardHandledTypes(new EventWrapperForwarder());
 
+        // GH-3883: only stamp the transport with schema names the caller actually asked for. This
+        // Configure() runs at host build — AFTER an inline UsePostgresqlPersistenceAndTransport(...)
+        // in the same options lambda — so assigning unconditionally meant this integration's own
+        // DEFAULTS silently overwrote the caller's explicit transport schema. That is invisible and
+        // it breaks the data plane rather than startup: a Marten-backed consumer ends up listening
+        // on wolverine_queues.wolverine_queue_x while non-Marten publishers write to
+        // {configured}.wolverine_queue_x, auto-provision creates both, and nothing is ever delivered.
         var transport = options.Transports.GetOrCreate<PostgresqlTransport>();
-        transport.TransportSchemaName = TransportSchemaName;
-        transport.MessageStorageSchemaName = MessageStorageSchemaName ?? "public";
+
+        if (_transportSchemaNameIsExplicit)
+        {
+            transport.TransportSchemaName = TransportSchemaName;
+        }
+
+        if (MessageStorageSchemaName.IsNotEmpty())
+        {
+            transport.MessageStorageSchemaName = MessageStorageSchemaName;
+        }
         
         options.Policies.Add<MartenOpPolicy>();
 
@@ -125,14 +140,25 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
     internal MartenEventRouter EventRouter { get; } = new();
 
     private string _transportSchemaName = "wolverine_queues";
+    private bool _transportSchemaNameIsExplicit;
 
     /// <summary>
-    /// The database schema to place postgres-backed queues. The default is "wolverine_queues"
+    /// The database schema to place postgres-backed queues. The default is "wolverine_queues".
     /// </summary>
+    /// <remarks>
+    /// GH-3883: setting this is authoritative — it overwrites whatever the PostgreSQL transport was
+    /// configured with, because this integration applies at host build. Leaving it alone leaves the
+    /// transport's own configuration (its default, or an explicit
+    /// <c>UsePostgresqlPersistenceAndTransport(..., transportSchema: ...)</c>) untouched.
+    /// </remarks>
     public string TransportSchemaName
     {
         get => _transportSchemaName;
-        set => _transportSchemaName = value.ToLowerInvariant();
+        set
+        {
+            _transportSchemaName = value.ToLowerInvariant();
+            _transportSchemaNameIsExplicit = true;
+        }
     }
 
     private string? _messageStorageSchemaName;
