@@ -544,6 +544,77 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         if (messageTypeName == null) return null;
         return _messageTypeToAncillaryStore.TryFind(messageTypeName, out var store) ? store : null;
     }
+
+    private ImHashMap<string, IMessageStore> _endpointMessageTypeToAncillaryStore =
+        ImHashMap<string, IMessageStore>.Empty;
+
+    // Every (endpoint, message type) pair that a sticky handler chain has spoken for, including the
+    // ones that target the MAIN store and therefore have no entry in the map above.
+    private ImHashMap<string, bool> _endpointMessageTypeIsStickyRouted = ImHashMap<string, bool>.Empty;
+
+    private static string endpointMessageTypeKey(Uri endpointUri, string messageTypeName)
+    {
+        return $"{endpointUri}|{messageTypeName}";
+    }
+
+    /// <summary>
+    /// Register the store that owns a message type's inbox row <i>at one specific endpoint</i>. A message
+    /// type handled by several sticky handlers has a different answer per endpoint, which the message
+    /// type keyed map above cannot represent -- there the chains collide on one key and the last one
+    /// registered wins for every endpoint. See GH-3886.
+    /// </summary>
+    /// <param name="ancillaryMarkerType">
+    /// Null when the sticky chain targets the main store. The pair is still recorded so that
+    /// <see cref="TryFindAncillaryStoreForMessageType(Uri?,string?)"/> answers "main" rather than falling
+    /// through to a sibling endpoint's ancillary store.
+    /// </param>
+    internal void MapEndpointMessageTypeToAncillaryStore(Uri endpointUri, string messageTypeName,
+        Type? ancillaryMarkerType)
+    {
+        var key = endpointMessageTypeKey(endpointUri, messageTypeName);
+
+        // First chain registered wins, to agree with the handler that will actually run:
+        // HandlerGraph.HandlerFor(messageType, endpoint) selects ByEndpoint.FirstOrDefault(), and this
+        // loop walks the chains in that same order. Routing the envelope to a store chosen by a chain
+        // that never executes is how GH-3870 left envelopes stranded in the wrong database.
+        if (_endpointMessageTypeIsStickyRouted.Contains(key)) return;
+        _endpointMessageTypeIsStickyRouted = _endpointMessageTypeIsStickyRouted.AddOrUpdate(key, true);
+
+        if (ancillaryMarkerType != null && _ancillaryStores.TryFind(ancillaryMarkerType, out var store))
+        {
+            _endpointMessageTypeToAncillaryStore = _endpointMessageTypeToAncillaryStore.AddOrUpdate(key, store);
+        }
+    }
+
+    /// <summary>
+    /// Try to find the ancillary store that should persist an incoming envelope, preferring the answer
+    /// registered for the endpoint the envelope actually arrived on. Falls back to the message type wide
+    /// answer for any endpoint that has no sticky handler of its own. Returns null when the main store
+    /// should be used.
+    /// </summary>
+    public IMessageStore? TryFindAncillaryStoreForMessageType(Uri? endpointUri, string? messageTypeName)
+    {
+        if (messageTypeName == null) return null;
+
+        if (endpointUri != null)
+        {
+            var key = endpointMessageTypeKey(endpointUri, messageTypeName);
+
+            if (_endpointMessageTypeToAncillaryStore.TryFind(key, out var byEndpoint))
+            {
+                return byEndpoint;
+            }
+
+            // A sticky handler here that targets the main store must not inherit a sibling endpoint's
+            // ancillary store from the message type keyed fallback
+            if (_endpointMessageTypeIsStickyRouted.Contains(key))
+            {
+                return null;
+            }
+        }
+
+        return TryFindAncillaryStoreForMessageType(messageTypeName);
+    }
 }
 
 public class InvalidWolverineStorageConfigurationException : Exception

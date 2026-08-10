@@ -500,9 +500,21 @@ public partial class WolverineRuntime
             foreach (var chain in Handlers.AllChains())
             {
                 var storeType = chain.AncillaryStoreType ?? inferAncillaryStoreType(chain, markerTypes);
+                var messageTypeName = chain.MessageType.ToMessageTypeName();
+
+                // A sticky chain speaks only for its own endpoints. Record it per endpoint as well,
+                // because one message type handled by several sticky handlers targeting different
+                // stores collapses onto a single key in the message type keyed map below, where the
+                // last chain registered silently wins for every endpoint. Registered even when
+                // storeType is null so that a sticky chain on the main store is not handed a sibling
+                // endpoint's ancillary store by the fallback. See GH-3886.
+                foreach (var endpoint in chain.Endpoints)
+                {
+                    Stores.MapEndpointMessageTypeToAncillaryStore(endpoint.Uri, messageTypeName, storeType);
+                }
+
                 if (storeType == null) continue;
 
-                var messageTypeName = chain.MessageType.ToMessageTypeName();
                 Stores.MapMessageTypeToAncillaryStore(messageTypeName, storeType);
             }
         }

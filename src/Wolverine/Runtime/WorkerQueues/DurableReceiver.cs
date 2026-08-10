@@ -223,7 +223,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
     private void assignAncillaryStoreIfNeeded(Envelope envelope)
     {
         if (_runtime.Stores == null) return;
-        var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(envelope.MessageType);
+
+        // Uri, not just the message type: a sticky handler makes the owning store endpoint specific,
+        // and this receiver only ever feeds the handler chain for its own endpoint (GH-3886).
+        var store = _runtime.Stores.TryFindAncillaryStoreForMessageType(Uri, envelope.MessageType);
         if (store != null)
         {
             envelope.Store = store;
