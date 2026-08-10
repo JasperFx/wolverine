@@ -125,7 +125,34 @@ public class stalled_agent_auto_restart
         }
     }
 
-    [Fact(Skip = "GH-3888: the retry is node-local, so a node-level fault never moves the agent to a healthy peer")]
+    /// <summary>
+    /// Run the clock through stalled health checks. The auto-restart itself runs on a background task,
+    /// so whenever a check reports that it dispatched one, wait for that restart to complete before the
+    /// next check — the loop then observes a settled agent every iteration instead of racing it.
+    /// </summary>
+    private async Task<HealthCheckResult> stallThroughChecksAsync(int iterations)
+    {
+        HealthCheckResult result = default;
+        for (var i = 0; i < iterations; i++)
+        {
+            _clock.Advance(TimeSpan.FromSeconds(61));
+            var restartsBefore = Volatile.Read(ref _restarts);
+            result = await checkAsync();
+
+            if (result.Description?.Contains("Attempting auto-restart") == true)
+            {
+                var deadline = DateTime.UtcNow.AddSeconds(5);
+                while (Volatile.Read(ref _restarts) <= restartsBefore && DateTime.UtcNow < deadline)
+                {
+                    await Task.Delay(10);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    [Fact]
     public async Task a_failure_that_survives_local_restarts_stops_being_retried_locally()
     {
         // Measured on a 512-database cluster: the warming fleet ran out of memory holding 53 agents of a
@@ -133,21 +160,80 @@ public class stalled_agent_auto_restart
         // failed identically; the serving fleet advertised the capability, was healthy, and never received
         // them. Those read models sat frozen for sixteen minutes with a capable node beside them.
         //
-        // After a handful of failed local restarts the agent should stop being retried here and release its
-        // assignment, so the leader can place it elsewhere. RemoveAssignmentAsync already exists in the stop
-        // path; what is missing is the policy that reaches for it — including whatever keeps the leader from
-        // handing the agent straight back to the node that just failed it.
+        // GH-3888: after MaxLocalRestartsBeforeRelease restarts with no observed progress, the agent stops
+        // being retried here and flags itself exhausted, which is what asks NodeAgentController's
+        // failed-agent sweep to release its assignment so the leader can place it on a capable peer.
         _inner.Failure.Returns(FailureOf(ShardFailureCategory.Other));
 
         await stallUntilRestartAsync();
-        for (var i = 0; i < 20; i++)
-        {
-            _clock.Advance(TimeSpan.FromSeconds(61));
-            await checkAsync();
-        }
+        var last = await stallThroughChecksAsync(20);
 
-        // Today this keeps climbing for as long as the node stays broken.
-        _restarts.ShouldBeLessThanOrEqualTo(5);
+        last.Status.ShouldBe(HealthStatus.Unhealthy);
+        last.Description.ShouldNotBeNull().ShouldContain("exhausted");
+        _agent.LocalRestartsExhausted.ShouldBeTrue();
+
+        // Before GH-3888 this climbed for as long as the node stayed broken; the budget caps it.
+        _restarts.ShouldBeLessThanOrEqualTo(_agent.MaxLocalRestartsBeforeRelease);
+    }
+
+    [Fact]
+    public async Task observed_progress_refunds_the_local_restart_budget()
+    {
+        _inner.Failure.Returns(FailureOf(ShardFailureCategory.Other));
+
+        await stallUntilRestartAsync();
+        await stallThroughChecksAsync(20);
+        _agent.LocalRestartsExhausted.ShouldBeTrue();
+
+        // The shard advances — whatever was starving this node has passed, and restarting here worked
+        // after all. The budget refunds and the agent goes back to ordinary stall tracking.
+        _inner.Position.Returns(HighWater - 50);
+        _clock.Advance(TimeSpan.FromSeconds(61));
+        await checkAsync();
+
+        _agent.LocalRestartsExhausted.ShouldBeFalse();
+
+        // And a NEW stall episode gets a fresh budget: the restart branch fires again rather than
+        // staying latched on the exhausted state.
+        var restartsBefore = _restarts;
+        var tripped = await stallThroughChecksAsync(4);
+        tripped.Description.ShouldNotBeNull();
+        _restarts.ShouldBeGreaterThan(restartsBefore);
+    }
+
+    [Fact]
+    public async Task reset_local_restart_budget_re_arms_local_restarts()
+    {
+        _inner.Failure.Returns(FailureOf(ShardFailureCategory.Other));
+
+        await stallUntilRestartAsync();
+        await stallThroughChecksAsync(20);
+        _agent.LocalRestartsExhausted.ShouldBeTrue();
+
+        // What NodeAgentController calls when it declines the release because no live peer advertises
+        // the capability: local retries remain the least-bad option and must keep happening.
+        _agent.ResetLocalRestartBudget();
+
+        _agent.LocalRestartsExhausted.ShouldBeFalse();
+
+        var restartsBefore = _restarts;
+        await stallThroughChecksAsync(4);
+        _restarts.ShouldBeGreaterThan(restartsBefore);
+    }
+
+    [Fact]
+    public async Task a_nonpositive_budget_disables_release_and_keeps_unbounded_local_retries()
+    {
+        // The pre-GH-3888 behavior, kept reachable as a kill switch through
+        // DurabilitySettings.MaxLocalAgentRestartsBeforeRelease <= 0.
+        _agent.MaxLocalRestartsBeforeRelease = 0;
+        _inner.Failure.Returns(FailureOf(ShardFailureCategory.Other));
+
+        await stallUntilRestartAsync();
+        await stallThroughChecksAsync(20);
+
+        _agent.LocalRestartsExhausted.ShouldBeFalse();
+        _restarts.ShouldBeGreaterThan(3);
     }
 
     /// <summary>A clock the test moves by hand; the stall detector reads nothing else.</summary>

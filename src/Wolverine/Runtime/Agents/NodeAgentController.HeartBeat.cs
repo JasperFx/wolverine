@@ -87,11 +87,16 @@ public partial class NodeAgentController
     // Build a full picture of THIS node's identity as the process currently knows it: the assigned node
     // number, the capabilities captured at startup, and the agents registered on it right now. Used both to
     // refresh the heartbeat and, on a miss, to re-register the node with its real identity.
+    //
+    // GH-3888: capabilities under a live release embargo are withheld. _capabilities stays the captured
+    // source of truth; the embargo is applied at every point the node's identity is (re)persisted, so a
+    // row resurrection after a peer ejection keeps the shrunk capability set too instead of quietly
+    // re-advertising an agent this node just released for failing here.
     private WolverineNode buildLocalNode()
     {
         var node = WolverineNode.For(_runtime.Options);
         node.AssignedNodeNumber = _runtime.Options.Durability.AssignedNodeNumber;
-        node.Capabilities.AddRange(_capabilities);
+        node.Capabilities.AddRange(_capabilities.Where(x => !_releasedAgents.ContainsKey(x)));
         node.AssignAgents(Agents.Keys.ToArray());
         return node;
     }
@@ -145,9 +150,13 @@ public partial class NodeAgentController
         // GH-3637 / GH-3638: before any leadership work, surface this node's OWN agents that stopped or
         // paused on a failure. Deliberately here rather than in the leader-only branch below -- the daemon
         // pauses a shard on whichever node owns it, and a follower has to be able to report its own.
-        // Wrapped so a reporting fault can never cost this node its heartbeat or its leadership lease.
+        // GH-3888: the same sweep also releases agents that exhausted their local auto-restart budget,
+        // and the tick first lifts any release embargo whose cooldown has lapsed. All follower-capable
+        // work, for the same reason. Wrapped so a fault here can never cost this node its heartbeat or
+        // its leadership lease.
         try
         {
+            await RestoreExpiredReleaseEmbargoesAsync();
             await ReportFailedLocalAgentsAsync();
         }
         catch (Exception e)

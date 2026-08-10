@@ -42,7 +42,16 @@ public interface IWolverineObserver
     /// </summary>
     Task AgentPaused(Uri agentUri, ShardFailure? failure) => Task.CompletedTask;
 
-    // Loop through and decide what you want here. 
+    /// <summary>
+    /// A locally-owned agent was released from this node after exhausting its node-local auto-restart
+    /// budget on a stall that never advanced, so the leader can place it on a healthy peer that
+    /// advertises the same capability. <paramref name="failure" /> is the last classified failure the
+    /// agent reported, when it reported one. Default no-op so existing observers are unaffected.
+    /// See GH-3888.
+    /// </summary>
+    Task AgentReleased(Uri agentUri, ShardFailure? failure) => Task.CompletedTask;
+
+    // Loop through and decide what you want here.
     Task AssignmentsChanged(AssignmentGrid grid, AgentCommands commands);
     
     // TODO -- more for listener stopped/started
@@ -226,6 +235,28 @@ internal class PersistenceWolverineObserver : IWolverineObserver
         {
             // NullMessageStore does not support node persistence; a storeless Solo node can still run
             // event-subscription agents, and losing the record must not break the health-check sweep.
+        }
+    }
+
+    public async Task AgentReleased(Uri agentUri, ShardFailure? failure)
+    {
+        var record = NodeRecord.For(_runtime.Options, NodeRecordType.AgentReleased, agentUri);
+
+        // Same shape and same reasoning as AgentPaused above: the classified reason takes the
+        // Description slot when there is one, truncated to the narrowest column any store provisions.
+        if (failure != null)
+        {
+            record.Description = truncate(failure.ToString(), DescriptionLength);
+        }
+
+        try
+        {
+            await _runtime.Storage.Nodes.LogRecordsAsync(record);
+        }
+        catch (NotSupportedException)
+        {
+            // NullMessageStore does not support node persistence; losing the diagnostic record must not
+            // break the release sweep.
         }
     }
 

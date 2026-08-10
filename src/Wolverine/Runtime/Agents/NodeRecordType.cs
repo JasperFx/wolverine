@@ -30,7 +30,15 @@ public enum NodeRecordType
     /// root exception) so the failure is readable after the fact, and from another
     /// process, instead of only in this node's logs. See GH-3637 / GH-3638.
     /// </summary>
-    AgentPaused
+    AgentPaused,
+
+    /// <summary>
+    /// A node released one of its own agents after exhausting the node-local auto-restart budget on a
+    /// stall that never advanced, so the leader could place the agent on a healthy peer advertising
+    /// the same capability. The record's Description carries the last classified failure when the
+    /// agent reported one. See GH-3888.
+    /// </summary>
+    AgentReleased
 }
 
 // This is marked as ISerializable so that it can go to CritterWatch w/o
