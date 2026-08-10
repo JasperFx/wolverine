@@ -203,7 +203,7 @@ where `export.sql` should be a file name.
 
 ### Marten integration
 
-When integrating with Marten, scripts must be generated seperately for both Marten and Wolverine resources.  
+When integrating with Marten, scripts must be generated separately for both Marten and Wolverine resources.  
 Resources are separated into databases and can be listed as below:
 
 ```bash
