@@ -67,7 +67,10 @@ internal class BufferedReceiver : ILocalQueue, IChannelCallback, ISupportNativeS
         else
         {
             var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
-                runtime.Options.MessagePartitioning, boundedCapacity, executeAsync);
+                runtime.Options.MessagePartitioning, boundedCapacity, executeAsync,
+                // GH-3899: message types exempted from partitioned processing run at the
+                // endpoint's normal parallelism instead of a sequential GroupId slot
+                endpoint.MaxDegreeOfParallelism);
             sharded.OnError = onBlockError;
             _receivingBlock = sharded.DeserializeFirst(pipeline, runtime, this);
         }

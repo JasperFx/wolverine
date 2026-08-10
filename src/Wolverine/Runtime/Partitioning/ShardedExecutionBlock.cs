@@ -10,12 +10,18 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
     private readonly MessagePartitioningRules _rules;
     private readonly Block<Envelope>[] _slots;
 
+    // GH-3899: message types exempted from partitioned processing execute here at the endpoint's
+    // normal parallelism instead of being serialized behind a GroupId slot. Null when the
+    // application has registered no exemptions, so the default behavior is completely unchanged.
+    private readonly Block<Envelope>? _exemptLane;
+
     public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, Func<Envelope, CancellationToken, Task> processAsync)
         : this(numberOfSlots, rules, Block<Envelope>.DefaultBoundedCapacity, processAsync)
     {
     }
 
-    public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, int boundedCapacity, Func<Envelope, CancellationToken, Task> processAsync)
+    public ShardedExecutionBlock(int numberOfSlots, MessagePartitioningRules rules, int boundedCapacity,
+        Func<Envelope, CancellationToken, Task> processAsync, int? exemptLaneParallelism = null)
     {
         _numberOfSlots = numberOfSlots;
         _rules = rules;
@@ -25,6 +31,29 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
         {
             _slots[i] = new Block<Envelope>(1, boundedCapacity, processAsync);
         }
+
+        if (rules.HasProcessingExemptions)
+        {
+            _exemptLane = new Block<Envelope>(exemptLaneParallelism ?? numberOfSlots, boundedCapacity, processAsync);
+        }
+    }
+
+    internal bool HasExemptLane => _exemptLane != null;
+
+    private bool tryRouteToExemptLane(Envelope item, out Block<Envelope> lane)
+    {
+        // Envelope.Message is guaranteed to be populated on this path for real listeners because
+        // DeserializeFirst() runs upstream of the slot routing, but stay defensive: an envelope
+        // without a resolved message keeps the (safe) partitioned path.
+        if (_exemptLane != null && item.Message != null &&
+            _rules.IsExemptFromPartitionedProcessing(item.Message.GetType()))
+        {
+            lane = _exemptLane;
+            return true;
+        }
+
+        lane = default!;
+        return false;
     }
 
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel)
@@ -45,9 +74,22 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
         });
     }
 
-    public override async ValueTask DisposeAsync()
+    private IEnumerable<Block<Envelope>> allBlocks()
     {
         foreach (var slot in _slots)
+        {
+            yield return slot;
+        }
+
+        if (_exemptLane != null)
+        {
+            yield return _exemptLane;
+        }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        foreach (var slot in allBlocks())
         {
             try
             {
@@ -62,7 +104,7 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public override async Task WaitForCompletionAsync()
     {
-        foreach (var slot in _slots)
+        foreach (var slot in allBlocks())
         {
             await slot.WaitForCompletionAsync();
         }
@@ -70,13 +112,13 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public override void Complete()
     {
-        foreach (var slot in _slots)
+        foreach (var slot in allBlocks())
         {
             slot.Complete();
         }
     }
 
-    public override uint Count => (uint)_slots.Sum(x => x.Count);
+    public override uint Count => (uint)allBlocks().Sum(x => x.Count);
 
     /// <summary>
     /// Propagates to every slot block. Without this, a slot's escaping exception falls to the
@@ -87,7 +129,7 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
         get => _slots[0].OnError;
         set
         {
-            foreach (var slot in _slots)
+            foreach (var slot in allBlocks())
             {
                 slot.OnError = value;
             }
@@ -96,6 +138,14 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public override ValueTask PostAsync(Envelope item)
     {
+        // GH-3899: message types that are explicitly exempted from partitioned processing skip
+        // the GroupId slots entirely and execute at the endpoint's normal parallelism, so one
+        // dominant GroupId cannot serialize message types that need no ordering
+        if (tryRouteToExemptLane(item, out var lane))
+        {
+            return lane.PostAsync(item);
+        }
+
         // This first uses new "message grouping rules" to determine a GroupId
         // for an envelope if there's not already one, then...
         // Does a deterministic hash of the GroupId, then a modulo of the number
@@ -110,6 +160,12 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public override void Post(Envelope item)
     {
+        if (tryRouteToExemptLane(item, out var lane))
+        {
+            lane.Post(item);
+            return;
+        }
+
         var index = item.SlotForProcessing(_numberOfSlots, _rules);
         _slots[index].Post(item);
     }

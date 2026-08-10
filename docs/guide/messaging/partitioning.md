@@ -44,7 +44,7 @@ public interface IOrderCommand
 public record ApproveOrder(string OrderId) : IOrderCommand;
 public record CancelOrder(string OrderId) : IOrderCommand;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L171-L180' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L199-L208' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_order_commands_for_partitioning' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 If we were only running our system on a single node so we only care about a single process, we can do this:
@@ -287,7 +287,7 @@ public static IEnumerable<object> Handle(ApproveInvoice command)
     yield return new PayInvoice(command.Id).WithGroupId("aaa");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L162-L168' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L190-L196' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_with_group_id_as_cascading_message' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Partitioned Publishing Locally
@@ -365,6 +365,57 @@ builder.UseWolverine(opts =>
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L14-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_configuring_partitioned_processing_on_any_listener' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Exempting Message Types from Partitioned Processing <Badge type="tip" text="6.26" />
+
+`PartitionProcessingByGroupId()` routes **every** message on the listener through a GroupId-keyed slot. That's
+exactly right for the message types that need per-group ordering, but when one GroupId dominates the traffic, the
+whole listener collapses toward sequential processing for *all* message types — including high-volume types
+(metrics, telemetry, counters) that never needed any ordering at all.
+
+You can exempt those message types from partitioned processing. Exempted types skip the GroupId slots entirely and
+execute on the endpoint's normal parallel execution lane (its `MaxDegreeOfParallelism`), while every other message
+type keeps its strict per-GroupId sequencing:
+
+<!-- snippet: sample_exempting_message_types_from_partitioned_processing -->
+<a id='snippet-sample_exempting_message_types_from_partitioned_processing'></a>
+```cs
+var builder = Host.CreateApplicationBuilder();
+builder.UseWolverine(opts =>
+{
+    opts.UseRabbitMq();
+
+    // Group all order-related messages by their order id...
+    opts.MessagePartitioning
+        .ByMessage<IOrderCommand>(x => x.OrderId)
+
+        // ...but order telemetry needs no ordering guarantees at all, so
+        // exempt it from partitioned processing. Exempted message types
+        // execute at the endpoint's normal MaxDegreeOfParallelism instead
+        // of being serialized behind a GroupId slot, so one dominant
+        // GroupId can't collapse the whole listener to sequential
+        // processing for messages that never asked for ordering.
+        // There is also an overload taking a Func<Type, bool> filter.
+        .ExemptFromPartitionedProcessing<OrderTelemetry>();
+
+    opts.ListenToRabbitQueue("incoming")
+        .PartitionProcessingByGroupId(PartitionSlots.Seven);
+});
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L140-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_exempting_message_types_from_partitioned_processing' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The generic overload matches any message type that can be cast to the given type, so a marker interface or common
+base class works. A `Func<Type, bool>` overload is available for predicate-based matching, and exemptions are
+additive.
+
+Two things to be aware of:
+
+* This changes **only the in-process execution lane**. Durable inbox/outbox handling, message routing, sender-side
+  queue sharding, and GroupId stamping are all unaffected — an exempted message on a durable endpoint is persisted
+  to the inbox before execution exactly as before.
+* An exempted message may execute concurrently with a non-exempted message carrying the same GroupId. Only exempt
+  message types that truly require no ordering relative to the partitioned types.
 
 ## Partitioned Processing with Batched Handlers <Badge type="tip" text="6.25" />
 
@@ -477,7 +528,7 @@ opts.MessagePartitioning.PublishToShardedRabbitQueues("letters", 4, topology =>
     topology.ConfigureListening(x => x.BufferedInMemory());
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/concurrency_resilient_sharded_processing.cs#L71-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_defining_partitioned_routing_for_rabbitmq' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/RabbitMQ/Wolverine.RabbitMQ.Tests/concurrency_resilient_sharded_processing.cs#L69-L90' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_defining_partitioned_routing_for_rabbitmq' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 And for Amazon SQS:
@@ -498,7 +549,7 @@ opts.MessagePartitioning.PublishToShardedAmazonSqsQueues("letters", 4, topology 
 
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/concurrency_resilient_sharded_processing.cs#L73-L87' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_partitioned_publishing_through_amazon_sqs' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/AWS/Wolverine.AmazonSqs.Tests/concurrency_resilient_sharded_processing.cs#L71-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_partitioned_publishing_through_amazon_sqs' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Propagating GroupId to PartitionKey <Badge type="tip" text="5.17" />
@@ -526,7 +577,7 @@ builder.UseWolverine(opts =>
     opts.Policies.PropagateGroupIdToPartitionKey();
 });
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L140-L153' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_propagate_group_id_to_partition_key' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/PartitioningSamples.cs#L168-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_propagate_group_id_to_partition_key' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ::: tip
