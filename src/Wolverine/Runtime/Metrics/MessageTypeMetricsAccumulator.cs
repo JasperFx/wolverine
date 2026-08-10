@@ -8,7 +8,7 @@ namespace Wolverine.Runtime.Metrics;
 /// Accumulates handler metrics for a single message type and destination combination using
 /// a batching pipeline. <see cref="IHandlerMetricsData"/> records are posted to <see cref="EntryPoint"/>
 /// which batches them (up to 500 items or 250ms) before applying to the underlying
-/// <see cref="MessageHandlingCounts"/>. On each sampling period, <see cref="TriggerExport"/>
+/// <see cref="MessageHandlingCounts"/>. On each sampling period, <see cref="TriggerExport(int, int)"/>
 /// snapshots the accumulated counters into an immutable <see cref="MessageHandlingMetrics"/>
 /// record and resets the counters for the next period.
 /// </summary>
@@ -44,7 +44,7 @@ public class MessageTypeMetricsAccumulator
 
     /// <summary>
     /// The start of the current accumulation time window. Reset to <c>DateTimeOffset.UtcNow</c>
-    /// after each <see cref="TriggerExport"/> call.
+    /// after each <see cref="TriggerExport(int, int)"/> call.
     /// </summary>
     public DateTimeOffset Starting { get; private set; } = DateTimeOffset.UtcNow;
 
@@ -86,20 +86,73 @@ public class MessageTypeMetricsAccumulator
     /// Snapshots the accumulated counters into an immutable <see cref="MessageHandlingMetrics"/>
     /// record spanning from <see cref="Starting"/> to now, then resets the counters and advances
     /// <see cref="Starting"/> to the current time for the next accumulation window. Called by
-    /// <see cref="MetricsAccumulator"/> on each sampling period.
+    /// <see cref="MetricsAccumulator"/> on each sampling period. Uses the default idle-tenant
+    /// eviction threshold of <see cref="MetricsOptions.DefaultTenantIdleEvictionCycles"/>.
     /// </summary>
     /// <param name="nodeNumber">The assigned node number for this Wolverine instance.</param>
     /// <returns>An immutable metrics snapshot for the completed accumulation window.</returns>
     public MessageHandlingMetrics TriggerExport(int nodeNumber)
     {
+        return TriggerExport(nodeNumber, MetricsOptions.DefaultTenantIdleEvictionCycles);
+    }
+
+    /// <summary>
+    /// Snapshots the accumulated counters into an immutable <see cref="MessageHandlingMetrics"/>
+    /// record spanning from <see cref="Starting"/> to now, then resets the counters and advances
+    /// <see cref="Starting"/> to the current time for the next accumulation window. Called by
+    /// <see cref="MetricsAccumulator"/> on each sampling period.
+    ///
+    /// Only tenants with recorded activity in the window contribute a
+    /// <see cref="PerTenantMetrics"/> entry — idle tenants emit nothing rather than an all-zero
+    /// row. A tenant that stays idle for <paramref name="idleTenantEvictionCycles"/> consecutive
+    /// exports is evicted from tracking entirely (and re-tracked automatically on its next
+    /// activity), so the per-tenant series set stays bounded by recently-active tenants.
+    /// </summary>
+    /// <param name="nodeNumber">The assigned node number for this Wolverine instance.</param>
+    /// <param name="idleTenantEvictionCycles">The number of consecutive idle export cycles after
+    /// which a tenant's tracking entry is evicted. Zero or negative disables eviction.</param>
+    /// <returns>An immutable metrics snapshot for the completed accumulation window. The
+    /// <see cref="MessageHandlingMetrics.PerTenant"/> array is empty when no tenant recorded any
+    /// activity in the window.</returns>
+    public MessageHandlingMetrics TriggerExport(int nodeNumber, int idleTenantEvictionCycles)
+    {
         lock (_syncLock)
         {
             var time = DateTimeOffset.UtcNow;
 
+            var perTenant = new List<PerTenantMetrics>();
+            List<string>? evictions = null;
+
+            foreach (var tracking in Counts.PerTenant.OrderBy(x => x.TenantId))
+            {
+                if (tracking.HasActivity)
+                {
+                    tracking.ConsecutiveIdleExports = 0;
+                    perTenant.Add(tracking.CompileAndReset());
+                }
+                else
+                {
+                    tracking.ConsecutiveIdleExports++;
+                    if (idleTenantEvictionCycles > 0 && tracking.ConsecutiveIdleExports >= idleTenantEvictionCycles)
+                    {
+                        evictions ??= new List<string>();
+                        evictions.Add(tracking.TenantId);
+                    }
+                }
+            }
+
+            if (evictions != null)
+            {
+                foreach (var tenantId in evictions)
+                {
+                    Counts.PerTenant.Remove(tenantId);
+                }
+            }
+
             var metrics = new MessageHandlingMetrics(MessageType,
                 Destination,
                 new TimeRange(Starting, time),
-                Counts.PerTenant.OrderBy(x => x.TenantId).Select(x => x.CompileAndReset()).ToArray());
+                perTenant.ToArray());
 
             Starting = time;
 

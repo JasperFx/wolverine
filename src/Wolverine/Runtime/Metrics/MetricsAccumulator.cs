@@ -11,7 +11,10 @@ namespace Wolverine.Runtime.Metrics;
 /// (message type, destination) pair. Runs a background loop that periodically (every
 /// <c>WolverineOptions.Metrics.SamplingPeriod</c>, default 5 seconds) triggers each
 /// accumulator to export its snapshot via <see cref="IWolverineObserver.MessageHandlingMetricsExported"/>.
-/// Only snapshots with at least one tenant data point are published.
+/// Only snapshots with at least one tenant data point are published — an accumulator whose window
+/// saw no activity at all exports nothing rather than an all-zero snapshot, and tenants idle for
+/// <c>WolverineOptions.Metrics.TenantIdleEvictionCycles</c> consecutive exports are evicted from
+/// tracking (re-tracked automatically on next activity).
 /// </summary>
 // TODO -- make this lazy on WolverineRuntime
 public class MetricsAccumulator : IAsyncDisposable
@@ -112,9 +115,19 @@ public class MetricsAccumulator : IAsyncDisposable
                     await Task.Delay(_runtime.Options.Metrics.SamplingPeriod);
                     try
                     {
+                        var idleTenantEvictionCycles = _runtime.Options.Metrics.TenantIdleEvictionCycles;
                         foreach (var accumulator in _accumulators)
                         {
-                            var metrics = accumulator.TriggerExport(_runtime.DurabilitySettings.AssignedNodeNumber);
+                            var metrics = accumulator.TriggerExport(
+                                _runtime.DurabilitySettings.AssignedNodeNumber,
+                                idleTenantEvictionCycles);
+
+                            // An idle window exports nothing. Because these snapshots carry
+                            // per-window delta counts (not cumulative counters), absence reads
+                            // as zero downstream — no consumer needs an explicit all-zero row
+                            // to compute rates.
+                            if (metrics.IsEmpty) continue;
+
                             _runtime.Observer.MessageHandlingMetricsExported(metrics);
                         }
                     }

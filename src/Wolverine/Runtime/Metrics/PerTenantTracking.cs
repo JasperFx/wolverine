@@ -68,6 +68,30 @@ public class PerTenantTracking
     public Dictionary<string, int> Failures { get; } = new();
 
     /// <summary>
+    /// The number of consecutive export cycles in which this tenant recorded no activity at all.
+    /// Maintained by <see cref="MessageTypeMetricsAccumulator.TriggerExport(int, int)"/> — reset
+    /// to zero whenever the tenant has activity, incremented on each idle export. When it reaches
+    /// the configured eviction threshold (<c>WolverineOptions.Metrics.TenantIdleEvictionCycles</c>),
+    /// the tenant entry is removed from tracking altogether and will be re-created on its next
+    /// recorded activity.
+    /// </summary>
+    public int ConsecutiveIdleExports { get; set; }
+
+    /// <summary>
+    /// Whether any activity at all has been recorded in the current accumulation window — any
+    /// non-zero counter or duration, or any failure or dead-letter entry. A tenant with no
+    /// activity contributes nothing to the exported snapshot.
+    /// </summary>
+    public bool HasActivity => Executions != 0
+                               || TotalExecutionTime != 0
+                               || Completions != 0
+                               || TotalEffectiveTime != 0
+                               || Sent != 0
+                               || Received != 0
+                               || DeadLetterCounts.Count > 0
+                               || Failures.Count > 0;
+
+    /// <summary>
     /// Snapshots the current counter values into an immutable <see cref="PerTenantMetrics"/>
     /// record, then resets all counters to zero. The exception counts are compiled by taking
     /// the union of exception types across <see cref="Failures"/> and <see cref="DeadLetterCounts"/>.

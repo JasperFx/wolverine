@@ -134,6 +134,23 @@ public class MetricsOptions
     public TimeSpan SamplingPeriod { get; set; } = 5.Seconds();
 
     /// <summary>
+    /// Default value for <see cref="TenantIdleEvictionCycles"/> (12 sampling periods, i.e. one
+    /// minute at the default <see cref="SamplingPeriod"/> of 5 seconds).
+    /// </summary>
+    public const int DefaultTenantIdleEvictionCycles = 12;
+
+    /// <summary>
+    /// If using either CritterWatch or Hybrid metrics publishing, the number of consecutive
+    /// sampling periods a tenant may go without any recorded activity for a given message type and
+    /// destination before its per-tenant tracking entry is evicted. Evicted tenants are re-tracked
+    /// automatically on their next activity. This bounds the per-tenant metrics series set in
+    /// high-tenant-count systems instead of letting it grow monotonically. The idle window in wall
+    /// clock time is roughly this value times <see cref="SamplingPeriod"/> (default: 12 cycles ~= 1
+    /// minute). Set to zero or a negative number to never evict idle tenants.
+    /// </summary>
+    public int TenantIdleEvictionCycles { get; set; } = DefaultTenantIdleEvictionCycles;
+
+    /// <summary>
     /// Default explicit histogram bucket boundaries (in milliseconds) applied to the
     /// <c>wolverine-execution-time</c> and <c>wolverine-effective-time</c> histograms. The
     /// OpenTelemetry SDK's default buckets are poor for millisecond-scale latencies; these are tuned for
