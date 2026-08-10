@@ -29,7 +29,32 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
 
     public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel)
     {
-        return PushUpstream<Envelope>(async (e, _) =>
+        // Deserialize parallelism beyond the slot count buys nothing (the slots become the
+        // bottleneck again), and going wider than the machine can't help CPU-bound decompression
+        return DeserializeFirst(pipeline, runtime, channel, Math.Min(_numberOfSlots, Environment.ProcessorCount));
+    }
+
+    /// <summary>
+    /// Builds the upstream decompress/deserialize stage in front of the slot blocks (GH-3900).
+    ///
+    /// ORDERING INVARIANT: envelopes must reach the slot enqueue (<see cref="PostAsync"/>, where the
+    /// GroupId -> slot hash runs) in their exact arrival order. Each slot is a single-worker block, so
+    /// arrival-ordered slot enqueue is what yields the per-GroupId FIFO this whole structure exists for.
+    /// A naive N-worker stage (PushUpstream(parallelCount, ...)) would NOT preserve this: parallel
+    /// Block workers complete in arbitrary order, so two same-group envelopes could swap before the
+    /// slot hash ever sees them. Nor can the stage itself be hash-partitioned by group: the GroupId
+    /// header is only present when the sender set it, and receiver-side grouping rules (ByMessage,
+    /// ByPropertyNamed, inferred grouping) need the DESERIALIZED message to resolve a group at all.
+    ///
+    /// So instead: pipelined deserialization with ordered emission. A single-worker ingress stage
+    /// starts up to <paramref name="parallelism"/> concurrent deserialization tasks and posts
+    /// (envelope, task) pairs downstream in arrival order; a single-worker emit stage awaits each
+    /// task in that same order and hands the envelope to the slot hash. The CPU-bound work runs
+    /// N-wide, while the slot enqueue order stays byte-for-byte what the old serial stage produced.
+    /// </summary>
+    public IBlock<Envelope> DeserializeFirst(IHandlerPipeline pipeline, IWolverineRuntime runtime, IChannelCallback channel, int parallelism)
+    {
+        async Task<Envelope?> deserializeAsync(Envelope e)
         {
             var continuation = await pipeline.TryDeserializeEnvelope(e);
             if (continuation is NullContinuation)
@@ -41,9 +66,70 @@ internal class ShardedExecutionBlock : BlockBase<Envelope>
             envelopeLifecycle.ReadEnvelope(e, channel);
             await continuation.ExecuteAsync(envelopeLifecycle, runtime, DateTimeOffset.UtcNow, Activity.Current);
 
-            return default!;
+            return null;
+        }
+
+        if (parallelism <= 1)
+        {
+            // The original serial stage: one worker deserializes and posts inline
+            return PushUpstream<Envelope>(async (e, _) => (await deserializeAsync(e))!);
+        }
+
+        // Caps the number of concurrent deserialization tasks. Released by each task itself on
+        // completion (success or failure), so the cap tracks actual in-flight CPU work. Never
+        // disposed on purpose: SemaphoreSlim only needs disposal when AvailableWaitHandle is used,
+        // and the ingress block owning the only waiter is torn down by the BlockSet
+        var gate = new SemaphoreSlim(parallelism, parallelism);
+
+        // Emit stage: single worker awaiting the pipelined tasks strictly in arrival order.
+        // Awaiting in order IS the re-sequencing -- out-of-order completions simply wait their turn
+        var emit = PushUpstream<DeserializationWork>(async (work, _) => (await work.Work)!);
+
+        // A deserialization failure surfaces here on the await. Route it to this block's OnError
+        // (which the receivers point at their logging) with the actual envelope -- the emit block's
+        // own default sink would only see the opaque work item. Read OnError at invocation time so
+        // the receiver's later assignment is honored. `work` is null when the emit block faults
+        // terminally (jasperfx#506): forward the null unchanged, because that null item is exactly
+        // how the receivers recognize a terminal block fault (HasFaulted / CritterWatch#942)
+        emit.OnError = (work, ex) => OnError(work?.Envelope!, ex);
+
+        return emit.PushUpstream<Envelope>(async (envelope, cancellation) =>
+        {
+            try
+            {
+                await gate.WaitAsync(cancellation);
+            }
+            catch (OperationCanceledException)
+            {
+                // Block shutdown; returning null skips the downstream post
+                return null!;
+            }
+
+            // Deliberately no cancellation token on Task.Run: the finally MUST run so the gate
+            // is always released, and the emit stage must always have a completed/faulted task
+            // to await rather than one that was never started
+            var work = Task.Run(async () =>
+            {
+                try
+                {
+                    return await deserializeAsync(envelope);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            });
+
+            return new DeserializationWork(envelope, work);
         });
     }
+
+    /// <summary>
+    /// An arrival-ordered handle to an in-flight deserialization. Deliberately a reference type:
+    /// PushUpstream skips posting null transformations, which is how a cancelled ingress item
+    /// avoids sending a default struct (with a null Task) into the emit stage
+    /// </summary>
+    private sealed record DeserializationWork(Envelope Envelope, Task<Envelope?> Work);
 
     public override async ValueTask DisposeAsync()
     {
