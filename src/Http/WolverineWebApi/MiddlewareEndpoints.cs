@@ -127,3 +127,75 @@ public class AuthenticatedEndpoint
         return "All good.";
     }
 }
+
+// GH-3892: one middleware class that declares BOTH a short-circuiting Before
+// (return type includes IResult) and a Finally used to blow up HTTP chain
+// code generation with a NullReferenceException
+public class ShortCircuitBeforeWithFinallyMiddleware
+{
+    public static Task<IResult> Before(HttpContext httpContext, Recorder recorder)
+    {
+        recorder.Actions.Add("ShortCircuit.Before");
+        return httpContext.Request.Query.ContainsKey("stop")
+            ? Task.FromResult(Results.StatusCode(418))
+            : Task.FromResult<IResult>(WolverineContinue.Result());
+    }
+
+    public static Task Finally(HttpContext httpContext, Recorder recorder)
+    {
+        recorder.Actions.Add("ShortCircuit.Finally");
+        return Task.CompletedTask;
+    }
+}
+
+public class MiddlewareReservation
+{
+    public string Value { get; set; } = "reserved";
+}
+
+// GH-3892 variant: instance middleware, synchronous Before returning a tuple
+// that carries the IResult, paired with FinallyAsync
+public class TupleShortCircuitFinallyAsyncMiddleware
+{
+    public (IResult, MiddlewareReservation) Before(HttpContext httpContext, Recorder recorder)
+    {
+        recorder.Actions.Add("TupleShortCircuit.Before");
+        var reservation = new MiddlewareReservation();
+        return httpContext.Request.Query.ContainsKey("stop")
+            ? (Results.StatusCode(419), reservation)
+            : (WolverineContinue.Result(), reservation);
+    }
+
+    public Task FinallyAsync(MiddlewareReservation reservation, Recorder recorder)
+    {
+        recorder.Actions.Add($"TupleShortCircuit.FinallyAsync:{reservation.Value}");
+        return Task.CompletedTask;
+    }
+}
+
+public class ShortCircuitFinallyEndpoints
+{
+    [Wolverine.Attributes.Middleware(typeof(ShortCircuitBeforeWithFinallyMiddleware))]
+    [WolverineGet("/middleware/shortcircuit-finally")]
+    public string Get(Recorder recorder)
+    {
+        recorder.Actions.Add("ShortCircuit.Action");
+        return "ok";
+    }
+
+    [Wolverine.Attributes.Middleware(typeof(ShortCircuitBeforeWithFinallyMiddleware))]
+    [WolverineGet("/middleware/shortcircuit-finally/throws")]
+    public string GetThrows(Recorder recorder)
+    {
+        recorder.Actions.Add("ShortCircuit.Throws");
+        throw new DivideByZeroException("boom");
+    }
+
+    [Wolverine.Attributes.Middleware(typeof(TupleShortCircuitFinallyAsyncMiddleware))]
+    [WolverineGet("/middleware/shortcircuit-finally/tuple")]
+    public string GetTuple(Recorder recorder)
+    {
+        recorder.Actions.Add("TupleShortCircuit.Action");
+        return "ok";
+    }
+}

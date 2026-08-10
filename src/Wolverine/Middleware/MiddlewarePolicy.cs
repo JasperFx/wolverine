@@ -256,14 +256,16 @@ public class MiddlewarePolicy : IChainPolicy
             }
             else
             {
-                if (rules.TryFindContinuationHandler(chain, call, out var frame))
-                {
-                    call.Next = frame;
-                }
+                // GH-3892: the continuation frame (IResult / HandlerContinuation short-circuit)
+                // is handed to the wrapper so that it is generated *inside* the try block and
+                // has its variables resolved. Hanging it off call.Next left its variables
+                // unresolved (NRE at codegen time) and would have skipped the Finally methods
+                // when the middleware short-circuited.
+                rules.TryFindContinuationHandler(chain, call, out var continuation);
 
                 var finals = _finals.Select(x => new MethodCall(MiddlewareType, x)).OfType<Frame>().ToArray();
 
-                yield return new TryFinallyWrapperFrame(call, finals);
+                yield return new TryFinallyWrapperFrame(call, continuation, finals);
             }
         }
 
@@ -409,11 +411,25 @@ public class MiddlewarePolicy : IChainPolicy
 public class TryFinallyWrapperFrame : Frame
 {
     private readonly Frame _inner;
+    private readonly Frame? _continuation;
     private readonly Frame[] _finallys;
 
-    public TryFinallyWrapperFrame(Frame inner, Frame[] finallys) : base(inner.IsAsync)
+    public TryFinallyWrapperFrame(Frame inner, Frame[] finallys) : this(inner, null, finallys)
+    {
+    }
+
+    /// <summary>
+    /// GH-3892: overload that carries the short-circuiting continuation frame
+    /// (IResult / HandlerContinuation evaluation) produced by the same Before
+    /// method that owns the finallys. The continuation is generated inside the
+    /// try block so the Finally methods still run when the middleware stops the
+    /// rest of the chain
+    /// </summary>
+    public TryFinallyWrapperFrame(Frame inner, Frame? continuation, Frame[] finallys)
+        : base(inner.IsAsync || continuation is { IsAsync: true } || finallys.Any(x => x.IsAsync))
     {
         _inner = inner;
+        _continuation = continuation;
         _finallys = finallys;
 
         creates.AddRange(inner.Creates.Select(x => new Variable(x.VariableType, x.Usage)));
@@ -424,7 +440,17 @@ public class TryFinallyWrapperFrame : Frame
         _inner.GenerateCode(method, writer);
         writer.Write("BLOCK:try");
 
-        Next?.GenerateCode(method, writer);
+        if (_continuation != null)
+        {
+            // The short-circuit evaluation goes inside the try block so that a
+            // stopped chain still unwinds through the finally below (GH-3892)
+            _continuation.Next = Next;
+            _continuation.GenerateCode(method, writer);
+        }
+        else
+        {
+            Next?.GenerateCode(method, writer);
+        }
 
         writer.FinishBlock();
         writer.Write("BLOCK:finally");
@@ -447,7 +473,15 @@ public class TryFinallyWrapperFrame : Frame
         _inner.GenerateFSharpCode(method, writer);
         writer.Write("BLOCK:try");
 
-        Next?.GenerateFSharpCode(method, writer);
+        if (_continuation != null)
+        {
+            _continuation.Next = Next;
+            _continuation.GenerateFSharpCode(method, writer);
+        }
+        else
+        {
+            Next?.GenerateFSharpCode(method, writer);
+        }
 
         writer.FinishBlock();
         writer.Write("BLOCK:finally");
@@ -470,6 +504,17 @@ public class TryFinallyWrapperFrame : Frame
         foreach (var variable in _inner.FindVariables(chain))
         {
             yield return variable;
+        }
+
+        // The continuation frame is generated from within this frame, so it never
+        // has its variables resolved by the normal frame arrangement. Leaving this
+        // out is the GH-3892 NullReferenceException
+        if (_continuation != null)
+        {
+            foreach (var variable in _continuation.FindVariables(chain))
+            {
+                yield return variable;
+            }
         }
 
         // NOT letting the finallys get involved with ordering frames
