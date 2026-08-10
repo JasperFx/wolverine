@@ -31,6 +31,23 @@ namespace Wolverine.Postgresql;
 
 internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConnectionBudgetProbe
 {
+    /// <summary>
+    /// Row-count threshold below which <see cref="FetchCountsAsync"/> abandons the cheap
+    /// <c>pg_class.reltuples</c> estimate for the outgoing and dead letter tables and issues a
+    /// literal <c>select count(*)</c> instead. See GH-3885.
+    /// <para>
+    /// The trade-off: PostgreSQL's autoanalyze only fires after roughly
+    /// <c>50 + 0.1 * reltuples</c> tuples have changed, so a *small* table effectively never
+    /// re-analyzes and its estimate freezes at whatever value it had when the statistics were
+    /// last collected -- a quiet dead letter table holding 42 rows will report a stale 40 forever.
+    /// An exact count on a small table is trivially cheap, so below this threshold we simply pay
+    /// for the truth. Above it, the estimate is both accurate enough (autoanalyze fires regularly
+    /// once the table is large) and the only affordable option, since a sequential scan over a
+    /// large outgoing table would be far too expensive to run on every metrics sample.
+    /// </para>
+    /// </summary>
+    internal const int ExactCountThreshold = 10_000;
+
     private readonly string _deleteOutgoingEnvelopesSql;
     private readonly string _discardAndReassignOutgoingSql;
     private readonly string _findAtLargeEnvelopesSql;
@@ -240,6 +257,14 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
         // Same approach as the partition estimation: handles never-vacuumed tables
         // (reltuples < 0) and empty tables (relpages = 0), then scales by current
         // relation size.
+        //
+        // GH-3885: the estimate alone is NOT good enough for small tables. Autoanalyze only
+        // fires after ~(50 + 0.1 * reltuples) changed tuples, so a quiet dead letter or outgoing
+        // table never re-analyzes and reports the same stale number on every single sample.
+        // We therefore use the estimate as a cheap *gate*: when it comes back under
+        // ExactCountThreshold, we pay for a real count(*) (cheap at that size); above the
+        // threshold we keep the estimate, because that is where the volume -- and the cost of a
+        // sequential scan -- actually lives.
         var sql = $@"
 select (case when c.reltuples < 0 then 0
              when c.relpages = 0 then 0
@@ -266,9 +291,14 @@ where c.relname = '{tableName}';";
             // by VACUUM/ANALYZE, fall back to exact count
             if (reltuples <= 0 && relationSize > 0)
             {
-                var exactCount = await CreateCommand($"select count(*) from {QuotedSchemaName}.{tableName}")
-                    .ExecuteScalarAsync();
-                return Convert.ToInt32(exactCount);
+                return await exactTableCount(tableName);
+            }
+
+            // GH-3885: small tables never re-analyze, so their estimate is permanently stale.
+            // count(*) is cheap here -- take the accurate answer.
+            if (estimate < ExactCountThreshold)
+            {
+                return await exactTableCount(tableName);
             }
 
             return (int)estimate;
@@ -276,6 +306,13 @@ where c.relname = '{tableName}';";
 
         await reader.CloseAsync();
         return 0;
+    }
+
+    private async Task<int> exactTableCount(string tableName)
+    {
+        var exactCount = await CreateCommand($"select count(*) from {QuotedSchemaName}.{tableName}")
+            .ExecuteScalarAsync();
+        return Convert.ToInt32(exactCount);
     }
 
     private async Task fetchCountsWithGroupBy(PersistedCounts counts)
