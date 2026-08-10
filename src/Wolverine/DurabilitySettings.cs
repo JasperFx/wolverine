@@ -344,6 +344,31 @@ public class DurabilitySettings : IDescribeMyself
     public TimeSpan AgentStartRetryDelay { get; set; } = 250.Milliseconds();
 
     /// <summary>
+    ///     GH-3888: how many node-local auto-restarts a stalled event-subscription agent may burn
+    ///     without its sequence advancing before it gives up on this node. Once the budget is exhausted,
+    ///     the node releases the agent's assignment — provided another live node advertises the
+    ///     capability to run it — so the leader can place it on a healthy peer instead of retrying the
+    ///     same conditions in the same place forever. Any observed progress resets the budget. Only a
+    ///     self-healing failure (<c>ShardFailureCategory.Other</c>) ever reaches the auto-restart path
+    ///     at all; per-event failures are surfaced and left alone (GH-3638). Set to 0 or a negative
+    ///     number to disable release entirely and keep unbounded local retries (the pre-GH-3888
+    ///     behavior). Default 3.
+    /// </summary>
+    public int MaxLocalAgentRestartsBeforeRelease { get; set; } = 3;
+
+    /// <summary>
+    ///     GH-3888: how long a node withholds a released agent's URI from its advertised capabilities
+    ///     after exhausting local restarts on it. While the embargo is live, the leader's
+    ///     capability-matched distribution cannot hand the agent straight back to the node that just
+    ///     failed it — the anti-bounce half of the release policy. After it lapses, the node advertises
+    ///     the capability again and becomes an ordinary candidate; a node that is still sick will burn
+    ///     another full restart budget before releasing again, so the worst case is one bounded move per
+    ///     cooldown rather than a reassignment storm. A process restart clears all embargoes, since
+    ///     capabilities are recaptured at startup. Default 10 minutes.
+    /// </summary>
+    public TimeSpan AgentReleaseCooldown { get; set; } = 10.Minutes();
+
+    /// <summary>
     /// Opt-in switch for the dynamic listener registry: persisted listener URIs that
     /// are activated at runtime in addition to the listeners declared statically
     /// through <see cref="WolverineOptions"/>. When <c>true</c>, <c>IMessageStore.Listeners</c>
@@ -509,6 +534,8 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(NodeEventRecordExpirationTime), NodeEventRecordExpirationTime);
         desc.AddValue(nameof(NodeRecordRetention), NodeRecordRetention);
         desc.AddValue(nameof(NodeRecordPruningPeriod), NodeRecordPruningPeriod);
+        desc.AddValue(nameof(MaxLocalAgentRestartsBeforeRelease), MaxLocalAgentRestartsBeforeRelease);
+        desc.AddValue(nameof(AgentReleaseCooldown), AgentReleaseCooldown);
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);
         desc.AddValue(nameof(EnableInboxPartitioning), EnableInboxPartitioning);

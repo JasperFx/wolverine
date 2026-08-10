@@ -198,7 +198,14 @@ public class EventSubscriptionAgentFamily : IStaticAgentFamily, IEventSubscripti
             // run on; the daemon stamps it onto every published ShardState (running_on_node telemetry).
             store.AssignedNodeNumber = wolverineRuntime.Options.Durability.AssignedNodeNumber;
 
-            return await store.BuildAgentAsync(uri, databaseId, shardPath);
+            var agent = await store.BuildAgentAsync(uri, databaseId, shardPath);
+
+            // GH-3888: the local auto-restart budget comes from durability settings; the wrapper itself
+            // has no runtime reference.
+            agent.MaxLocalRestartsBeforeRelease =
+                wolverineRuntime.Options.Durability.MaxLocalAgentRestartsBeforeRelease;
+
+            return agent;
         }
 
         throw new AgentStartingException(uri, wolverineRuntime.Options.UniqueNodeId, new ArgumentOutOfRangeException(nameof(uri), "Unknown event projection or subscription"));

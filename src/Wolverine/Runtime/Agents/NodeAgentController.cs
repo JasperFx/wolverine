@@ -38,6 +38,25 @@ public partial class NodeAgentController
     // reports the new failure.
     private readonly ConcurrentDictionary<Uri, byte> _reportedFailures = new();
 
+    // GH-3888: agents this node has released after exhausting local auto-restarts, mapped to when this
+    // node may advertise their capability again. While an entry is live, buildLocalNode() withholds the
+    // agent's URI from the node's advertised capabilities — which is what keeps the leader's
+    // capability-matched distribution from handing the agent straight back to the node that just failed
+    // it. A ConcurrentDictionary because the independent heartbeat loop reads it (through
+    // buildLocalNode on a row-resurrection) while the serialized health-check path mutates it.
+    private readonly ConcurrentDictionary<Uri, DateTimeOffset> _releasedAgents = new();
+
+    // GH-3888: agents that exhausted their local restart budget while NO live peer advertised the
+    // capability to run them, so the release was declined. Used to log that once per episode rather
+    // than on every sweep tick. Only touched from the serialized health-check path.
+    private readonly HashSet<Uri> _reportedUnreleasable = new();
+
+    /// <summary>
+    /// GH-3888: clock for the release-embargo bookkeeping. Tests substitute it so the cooldown can be
+    /// exercised without waiting it out; everything else uses the system clock.
+    /// </summary>
+    internal TimeProvider TimeProvider { get; set; } = TimeProvider.System;
+
     // 0=free, 1=busy; guards against concurrent DoHealthChecksAsync calls
     // from the heartbeat loop and a CheckAgentHealth message arriving
     // simultaneously. Prevents a race on _lastLockIndex / _lastLockETag in
@@ -484,10 +503,21 @@ public partial class NodeAgentController
     /// </summary>
     internal async Task ReportFailedLocalAgentsAsync()
     {
+        List<(Uri Uri, IEventSubscriptionAgent Agent)>? exhausted = null;
+
         foreach (var entry in Agents.ToArray())
         {
             if (entry.Value is not IEventSubscriptionAgent subscription)
             {
+                continue;
+            }
+
+            // GH-3888: an agent that burned through its local auto-restart budget without ever
+            // advancing is asking to be placed somewhere else. Checked BEFORE the Running
+            // short-circuit below — a stalled shard still reads Running.
+            if (subscription.LocalRestartsExhausted)
+            {
+                (exhausted ??= new()).Add((entry.Key, subscription));
                 continue;
             }
 
@@ -497,6 +527,7 @@ public partial class NodeAgentController
             if (status == AgentStatus.Running)
             {
                 _reportedFailures.TryRemove(entry.Key, out _);
+                _reportedUnreleasable.Remove(entry.Key);
                 continue;
             }
 
@@ -509,6 +540,188 @@ public partial class NodeAgentController
             }
 
             await reportAgentPausedAsync(entry.Key, failure);
+        }
+
+        if (exhausted != null)
+        {
+            await tryReleaseExhaustedAgentsAsync(exhausted);
+        }
+    }
+
+    /// <summary>
+    /// GH-3888: release agents whose node-local auto-restart budget is exhausted, so the leader can
+    /// place them on a healthy peer. The field failure this exists for: a node in a memory-starved /
+    /// GC-death-spiral state keeps writing heartbeats (the heartbeat loop is deliberately cheap and
+    /// isolated, GH-3604/D1), so it never looks stale to its peers — and the only recovery its stalled
+    /// shards ever get is EventSubscriptionAgent's node-local stop/start, which re-runs the same starved
+    /// conditions forever. 53 shards of a shared projection version sat frozen for sixteen minutes next
+    /// to a healthy fleet advertising the same capability until a manual pod restart.
+    ///
+    /// <para>Release only happens when at least one other live node advertises the agent's URI as a
+    /// capability — otherwise there is nowhere better to go, and the agent's budget is refunded so local
+    /// retries continue rather than freezing the shard. A released agent's URI goes under a capability
+    /// embargo (<see cref="DurabilitySettings.AgentReleaseCooldown" />): this node stops advertising it,
+    /// which is what stops the leader's capability-matched distribution handing the agent straight back.
+    /// The embargo is written to the node row FIRST, then the assignment is dropped, so no evaluation can
+    /// observe the freed agent while this node still advertises for it.</para>
+    /// </summary>
+    private async Task tryReleaseExhaustedAgentsAsync(List<(Uri Uri, IEventSubscriptionAgent Agent)> exhausted)
+    {
+        IReadOnlyList<WolverineNode> nodes;
+        try
+        {
+            (nodes, _) = await _persistence.LoadNodeAgentStateAsync(_cancellation.Token);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error loading node state while evaluating stalled-agent release on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
+            return;
+        }
+
+        var staleTime = DateTimeOffset.UtcNow.Subtract(_runtime.Options.Durability.StaleNodeTimeout);
+        var selfId = _runtime.Options.UniqueNodeId;
+        var peers = nodes
+            .Where(x => x.NodeId != selfId && x.LastHealthCheck >= staleTime)
+            .ToArray();
+
+        var releasable = new List<(Uri Uri, IEventSubscriptionAgent Agent)>();
+        foreach (var pair in exhausted)
+        {
+            if (peers.Any(p => p.Capabilities.Contains(pair.Uri)))
+            {
+                releasable.Add(pair);
+            }
+            else
+            {
+                // Nowhere better to go: no live peer advertises this agent, so releasing it would
+                // strand the shard entirely. Keep the pre-existing local retries — the least-bad
+                // option — and say so once per episode rather than on every tick.
+                if (_reportedUnreleasable.Add(pair.Uri))
+                {
+                    _logger.LogWarning(
+                        "Agent {AgentUri} on node {NodeNumber} exhausted its local auto-restart budget, but no live peer advertises the capability to run it. Local restarts continue.",
+                        pair.Uri, _runtime.Options.Durability.AssignedNodeNumber);
+                }
+
+                pair.Agent.ResetLocalRestartBudget();
+            }
+        }
+
+        if (releasable.Count == 0)
+        {
+            return;
+        }
+
+        // Embargo first, then persist the shrunk capability set, and only then let go of the agents:
+        // the leader must never observe the released assignment gone while this node's row still
+        // advertises the capability, or the very next evaluation hands the agent straight back.
+        var embargoUntil = TimeProvider.GetUtcNow().Add(_runtime.Options.Durability.AgentReleaseCooldown);
+        foreach (var pair in releasable)
+        {
+            _releasedAgents[pair.Uri] = embargoUntil;
+        }
+
+        try
+        {
+            await _persistence.ReregisterNodeAsync(buildLocalNode(), _cancellation.Token);
+        }
+        catch (Exception e)
+        {
+            // Roll the embargo back: the persisted row still advertises these capabilities, so letting
+            // the agents go now would just bounce them back here. Try again on a later sweep tick.
+            foreach (var pair in releasable)
+            {
+                _releasedAgents.TryRemove(pair.Uri, out _);
+            }
+
+            _logger.LogError(e,
+                "Error persisting the reduced capability set while releasing stalled agents on node {NodeNumber}; release deferred",
+                _runtime.Options.Durability.AssignedNodeNumber);
+            return;
+        }
+
+        foreach (var (uri, agent) in releasable)
+        {
+            var failure = agent.Failure;
+            _logger.LogWarning(
+                "Agent {AgentUri} on node {NodeNumber} is being released after exhausting its local auto-restart budget without advancing. A live peer advertises the same capability, and the leader will reassign it there. This node will not advertise the capability again before {EmbargoUntil:u}. Last reported failure: {Failure}",
+                uri, _runtime.Options.Durability.AssignedNodeNumber, embargoUntil,
+                failure?.ToString() ?? "none reported");
+
+            try
+            {
+                await StopAgentAsync(uri);
+            }
+            catch (Exception e)
+            {
+                // The agent stays registered locally, so the next sweep sees it still exhausted and
+                // retries the release; the embargo entry is simply refreshed then.
+                _logger.LogError(e, "Error stopping agent {AgentUri} while releasing it from node {NodeNumber}",
+                    uri, _runtime.Options.Durability.AssignedNodeNumber);
+                continue;
+            }
+
+            _reportedFailures.TryRemove(uri, out _);
+            _reportedUnreleasable.Remove(uri);
+
+            try
+            {
+                await _observer.AgentReleased(uri, failure);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error notifying observers that agent {AgentUri} was released", uri);
+            }
+        }
+    }
+
+    /// <summary>
+    /// GH-3888: lift release embargoes whose cooldown has lapsed and advertise those capabilities
+    /// again. A node that has genuinely recovered (the transient node-level fault passed) becomes an
+    /// ordinary candidate; one that is still sick will burn another full local restart budget before it
+    /// releases again, so the steady-state worst case is one bounded move per cooldown rather than a
+    /// reassignment storm.
+    /// </summary>
+    internal async Task RestoreExpiredReleaseEmbargoesAsync()
+    {
+        if (_releasedAgents.IsEmpty)
+        {
+            return;
+        }
+
+        var now = TimeProvider.GetUtcNow();
+        var expired = _releasedAgents.Where(x => x.Value <= now).Select(x => x.Key).ToArray();
+        if (expired.Length == 0)
+        {
+            return;
+        }
+
+        foreach (var uri in expired)
+        {
+            _releasedAgents.TryRemove(uri, out _);
+        }
+
+        try
+        {
+            await _persistence.ReregisterNodeAsync(buildLocalNode(), _cancellation.Token);
+
+            _logger.LogInformation(
+                "Node {NodeNumber} is advertising {Count} previously released agent capability(ies) again now that the release cooldown has lapsed",
+                _runtime.Options.Durability.AssignedNodeNumber, expired.Length);
+        }
+        catch (Exception e)
+        {
+            // Put the entries back (already due) so the next tick retries the re-advertisement;
+            // otherwise the in-memory state would say "advertising" while the persisted row still
+            // carries the shrunk capability set.
+            foreach (var uri in expired)
+            {
+                _releasedAgents.TryAdd(uri, now);
+            }
+
+            _logger.LogError(e, "Error re-advertising released agent capabilities on node {NodeNumber}",
+                _runtime.Options.Durability.AssignedNodeNumber);
         }
     }
 

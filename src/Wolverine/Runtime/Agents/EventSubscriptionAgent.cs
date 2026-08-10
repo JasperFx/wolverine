@@ -35,6 +35,37 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
     private static readonly TimeSpan StallTimeout = TimeSpan.FromSeconds(60);
     private const int MaxConsecutiveStallsBeforeRestart = 3;
 
+    // GH-3888: auto-restarts attempted since the sequence last advanced. Unlike _consecutiveStallCount,
+    // which resets on every restart, this only resets on observed progress — it is the evidence that
+    // restarting HERE is not working.
+    private int _restartsSinceProgress;
+
+    // GH-3888: 0=idle, 1=a restart is executing. Health checks arriving while a restart is still in
+    // flight used to dispatch ANOTHER concurrent restart on every tick; with the release budget spent
+    // at dispatch, that would also burn budget slots on restarts that never got a chance to work.
+    private int _restartInFlight;
+
+    /// <summary>
+    /// GH-3888: how many node-local auto-restarts this agent may attempt without its sequence advancing
+    /// before it declares its local restart budget exhausted and asks to be released to another capable
+    /// node. Stamped from <see cref="DurabilitySettings.MaxLocalAgentRestartsBeforeRelease" /> by
+    /// <see cref="EventSubscriptionAgentFamily.BuildAgentAsync" />; zero or negative disables release
+    /// and keeps unbounded local retries.
+    /// </summary>
+    public int MaxLocalRestartsBeforeRelease { get; set; } = 3;
+
+    /// <inheritdoc cref="IEventSubscriptionAgent.LocalRestartsExhausted" />
+    public bool LocalRestartsExhausted { get; private set; }
+
+    /// <inheritdoc cref="IEventSubscriptionAgent.ResetLocalRestartBudget" />
+    public void ResetLocalRestartBudget()
+    {
+        _restartsSinceProgress = 0;
+        _consecutiveStallCount = 0;
+        LocalRestartsExhausted = false;
+        _lastAdvancedAt = TimeProvider.GetUtcNow();
+    }
+
     /// <summary>
     /// Callback fired when the agent is auto-restarted due to stalls.
     /// Parameters: agentUri, reason, timestamp
@@ -253,10 +284,13 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
 
         if (currentSequence != _lastKnownSequence)
         {
-            // Sequence has advanced, reset stall tracking
+            // Sequence has advanced, reset stall tracking. Progress also refunds the GH-3888 release
+            // budget: the point of the budget is "restarting here is not working", and it just worked.
             _lastKnownSequence = currentSequence;
             _lastAdvancedAt = TimeProvider.GetUtcNow();
             _consecutiveStallCount = 0;
+            _restartsSinceProgress = 0;
+            LocalRestartsExhausted = false;
         }
         else if (currentSequence < highWaterMark &&
                  TimeProvider.GetUtcNow() - _lastAdvancedAt > StallTimeout)
@@ -278,8 +312,31 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
                         $" -- stalled for {_consecutiveStallCount} consecutive health checks. Auto-restart suppressed: this failure will recur on the same event until it is resolved."));
                 }
 
-                // Trigger auto-restart
-                _ = Task.Run(() => AttemptAutoRestartAsync(cancellationToken), cancellationToken);
+                // GH-3888: restarting in place has already been tried MaxLocalRestartsBeforeRelease
+                // times since the sequence last advanced, and the shard is stalled again. The fault is
+                // evidently not one another local restart will clear — it is a property of this node or
+                // its process, not of the shard — so stop churning the daemon's start path and flag the
+                // agent for release instead. NodeAgentController's failed-agent sweep picks the flag up
+                // and, when a live peer advertises the capability, releases the assignment so the leader
+                // can place the shard there.
+                if (MaxLocalRestartsBeforeRelease > 0 && _restartsSinceProgress >= MaxLocalRestartsBeforeRelease)
+                {
+                    LocalRestartsExhausted = true;
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        $"Projection {Uri} has stalled through {_restartsSinceProgress} auto-restarts on this node without advancing. Local restarts are exhausted; the agent is eligible for release to another capable node. See GH-3888."));
+                }
+
+                // Trigger auto-restart. GH-3888: the budget is spent at dispatch, synchronously with
+                // the rest of the stall bookkeeping, so the exhaustion decision above never races the
+                // background restart task — and a restart that throws still counts, which is even
+                // stronger evidence that restarting here is not working. The in-flight guard keeps a
+                // health check that lands mid-restart from piling a second concurrent restart (and a
+                // second spent budget slot) on top of the one still running.
+                if (Interlocked.CompareExchange(ref _restartInFlight, 1, 0) == 0)
+                {
+                    _restartsSinceProgress++;
+                    _ = Task.Run(() => AttemptAutoRestartAsync(cancellationToken), cancellationToken);
+                }
 
                 return Task.FromResult(HealthCheckResult.Unhealthy(
                     $"Projection {Uri} has been stalled for {_consecutiveStallCount} consecutive health checks. Attempting auto-restart."));
@@ -323,6 +380,10 @@ public class EventSubscriptionAgent : IEventSubscriptionAgent
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to auto-restart projection {Uri}", Uri);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _restartInFlight, 0);
         }
     }
 
