@@ -137,7 +137,10 @@ public class DurableReceiver : ILocalQueue, IChannelCallback, ISupportNativeSche
         else
         {
             var sharded = new ShardedExecutionBlock((int)endpoint.GroupShardingSlotNumber,
-                runtime.Options.MessagePartitioning, boundedCapacity, execute);
+                runtime.Options.MessagePartitioning, boundedCapacity, execute,
+                // GH-3899: message types exempted from partitioned processing run at the
+                // endpoint's normal parallelism instead of a sequential GroupId slot
+                endpoint.MaxDegreeOfParallelism);
             sharded.OnError = onBlockError;
             _receiver = sharded.DeserializeFirst(pipeline, runtime, this);
         }

@@ -32,6 +32,8 @@ public class sharded_execution_parallel_deserialization
 
         public int MaxObservedConcurrency => Volatile.Read(ref _maxActive);
 
+        public ConcurrentDictionary<Guid, int> DeserializationCounts { get; } = new();
+
         public Envelope EnvelopeFor(object message, string? groupId = null)
         {
             var envelope = ObjectMother.Envelope();
@@ -65,6 +67,7 @@ public class sharded_execution_parallel_deserialization
                     await Task.Yield();
                 }
 
+                DeserializationCounts.AddOrUpdate(envelope.Id, 1, (_, c) => c + 1);
                 envelope.Message = _payloads[envelope.Id];
                 return NullContinuation.Instance;
             }
@@ -277,6 +280,90 @@ public class sharded_execution_parallel_deserialization
         {
             sequences.ShouldBe(Enumerable.Range(0, perGroup));
         }
+    }
+
+    public interface IExemptFromOrdering;
+
+    public record ExemptPing(int Number) : IExemptFromOrdering;
+
+    [Fact]
+    public async Task exempt_types_ride_the_ordered_pipeline_once_and_still_reach_the_parallel_exempt_lane()
+    {
+        // GH-3899 x GH-3900 interaction: exemption is keyed on the message TYPE, which is only
+        // knowable after deserialization, so exempted envelopes ride the same ordered pipeline
+        // and get diverted at the slot-routing step. This pins that they are (a) deserialized
+        // exactly once, (b) executed on the multi-worker exempt lane -- proven by a barrier that
+        // deadlocks unless two exempt executions overlap -- while (c) interleaved grouped traffic
+        // keeps its per-group FIFO
+        var pipeline = new StubDeserializingPipeline(() => Random.Shared.Next(0, 2));
+        var rules = new MessagePartitioningRules(new());
+        rules.ByMessage<ICoffee>(x => x.Name);
+        rules.ExemptFromPartitionedProcessing<IExemptFromOrdering>();
+
+        const int groups = 5;
+        const int perGroup = 50;
+        const int exemptCount = 20;
+
+        var envelopes = new List<Envelope>();
+        for (var i = 0; i < perGroup; i++)
+        {
+            for (var g = 0; g < groups; g++)
+            {
+                envelopes.Add(pipeline.EnvelopeFor(new OrderedCoffee($"group-{g}", i)));
+            }
+
+            if (i < exemptCount)
+            {
+                envelopes.Add(pipeline.EnvelopeFor(new ExemptPing(i)));
+            }
+        }
+
+        var received = new ConcurrentDictionary<string, List<int>>();
+        var exemptExecuted = 0;
+        var exemptArrivals = 0;
+        var overlapProven = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var sharded = new ShardedExecutionBlock(5, rules, async (e, _) =>
+        {
+            if (e.Message is ExemptPing)
+            {
+                if (Interlocked.Increment(ref exemptArrivals) >= 2)
+                {
+                    overlapProven.TrySetResult();
+                }
+
+                // A serial lane would strand the first execution here forever; only a second,
+                // CONCURRENT exempt execution can complete the barrier
+                await Task.WhenAny(overlapProven.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+                Interlocked.Increment(ref exemptExecuted);
+                return;
+            }
+
+            var coffee = (OrderedCoffee)e.Message!;
+            received.GetOrAdd(coffee.Name, _ => new List<int>()).Add(coffee.Sequence);
+        });
+
+        var block = sharded.DeserializeFirst(pipeline, null!, null!, 8);
+
+        foreach (var envelope in envelopes)
+        {
+            await block.PostAsync(envelope);
+        }
+
+        await block.WaitForCompletionAsync();
+
+        overlapProven.Task.IsCompleted.ShouldBeTrue();
+        exemptExecuted.ShouldBe(exemptCount);
+
+        received.Count.ShouldBe(groups);
+        foreach (var (_, sequences) in received)
+        {
+            sequences.ShouldBe(Enumerable.Range(0, perGroup));
+        }
+
+        // Deserialized exactly once apiece, exempt and grouped alike
+        pipeline.DeserializationCounts.Count.ShouldBe(envelopes.Count);
+        pipeline.DeserializationCounts.Values.ShouldAllBe(x => x == 1);
     }
 
     [Fact]
