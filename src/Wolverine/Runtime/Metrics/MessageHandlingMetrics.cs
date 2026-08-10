@@ -4,7 +4,7 @@ namespace Wolverine.Runtime.Metrics;
 
 /// <summary>
 /// Immutable snapshot of message handling metrics for a specific message type and destination
-/// combination over a time range. Produced by <see cref="MessageTypeMetricsAccumulator.TriggerExport"/>
+/// combination over a time range. Produced by <see cref="MessageTypeMetricsAccumulator.TriggerExport(int, int)"/>
 /// on each sampling period. Contains per-tenant breakdowns of execution counts, effective times,
 /// and exception counts.
 /// </summary>
@@ -27,6 +27,14 @@ public record MessageHandlingMetrics(
     /// </summary>
     /// <returns>A composite key string.</returns>
     public string Key() => $"{MessageType}@{Destination}";
+
+    /// <summary>
+    /// True when this snapshot carries no tenant data points at all — i.e. no message was sent,
+    /// received, executed, completed, failed, or dead-lettered for this message type and
+    /// destination during the time range. Empty snapshots are not published to
+    /// <see cref="Wolverine.Runtime.Agents.IWolverineObserver"/> by <see cref="MetricsAccumulator"/>.
+    /// </summary>
+    public bool IsEmpty => PerTenant.Length == 0;
 
     /// <summary>
     /// Combines multiple <see cref="MessageHandlingMetrics"/> snapshots into a single aggregate.
