@@ -86,6 +86,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+        chain.IsTransactional = true;
 
         // One fetch per (chain, aggregate type). A second [BoundaryModel] of
         // the same type (e.g. on Validate plus Handle) reuses the same frame,

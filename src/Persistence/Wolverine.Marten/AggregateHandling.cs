@@ -42,7 +42,13 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         declareAggregateIdRouteParameter(chain);
 
+        // GH-3893: the aggregate handler workflow applies transaction support on its own rather than
+        // waiting for AutoApplyTransactions - MartenPersistenceFrameProvider.CanApply deliberately
+        // ignores [WriteAggregate]/[AggregateHandler] for exactly that reason. Mark the chain here too,
+        // or IChain.IsTransactional reports false on a chain whose generated code ends in
+        // SaveChangesAsync, and an IHttpPolicy/IChainPolicy keying on the flag gets a false negative.
         new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+        chain.IsTransactional = true;
 
         var loader = new LoadAggregateFrame(this);
         chain.Middleware.Add(loader);
