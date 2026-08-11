@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
-using ImTools;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
@@ -18,6 +17,7 @@ using Wolverine.Configuration;
 using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 
@@ -27,8 +27,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
 {
     private static readonly Type _versioningBaseType = typeof(AggregateVersioning<>);
 
-    public Type AggregateType { get; init; } = null!;
-    public Variable AggregateId { get; init; } = null!;
+    public required Type AggregateType { get; init; }
+    public required Variable AggregateId { get; init; }
 
     public ConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
@@ -62,7 +62,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
                 eventStream));
         }
 
-        DetermineEventCaptureHandling(chain, firstCall, AggregateType);
+        new MartenEventSourcingFrameProvider().DetermineEventCaptureHandling(chain, firstCall, AggregateType);
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
@@ -87,7 +87,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     /// </summary>
     private void declareAggregateIdRouteParameter(IChain chain)
     {
-        if (chain is not IRoutedChain routed || AggregateId == null || AggregateType == null) return;
+        if (chain is not IRoutedChain routed) return;
 
         var routeParameterNames = routed.RouteParameterNames;
         if (routeParameterNames.Count == 0) return;
@@ -134,7 +134,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
     }
 
-    public static bool TryLoad(IChain chain, out AggregateHandling handling)
+    public static bool TryLoad(IChain chain, [NotNullWhen(true)] out AggregateHandling? handling)
     {
         if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
@@ -145,11 +145,11 @@ internal record AggregateHandling(IDataRequirement Requirement)
             }
         }
 
-        handling = default!;
+        handling = default;
         return false;
     }
-    
-    public static bool TryLoad<T>(IChain chain, out AggregateHandling handling)
+
+    public static bool TryLoad<T>(IChain chain, [NotNullWhen(true)] out AggregateHandling? handling)
     {
         if (chain.Tags.TryGetValue(nameof(AggregateHandling), out var raw))
         {
@@ -161,12 +161,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
             if (raw is List<AggregateHandling> list)
             {
-                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T))!;
+                handling = list.FirstOrDefault(x => x.AggregateType == typeof(T));
                 return handling != null;
             }
         }
 
-        handling = default!;
+        handling = default;
         return false;
     }
 
@@ -277,42 +277,6 @@ internal record AggregateHandling(IDataRequirement Requirement)
         return matchingProps.Length == 1 ? matchingProps[0] : null;
     }
 
-    internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)
-    {
-        var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
-        if (asyncEnumerable != null)
-        {
-            asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    aggregateType);
-            });
-
-            return;
-        }
-
-        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
-                             firstCall.Creates.FirstOrDefault(x =>
-                                 x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
-                                 !x.VariableType.CanBeCastTo<IWolverineReturnType>());
-
-        if (eventsVariable != null)
-        {
-            eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
-                    .WrapIfNotNull(v), "Append events to the Marten event stream");
-
-            return;
-        }
-
-        // If there's no return value of Events or IEnumerable<object>, and there's also no parameter of IEventStream<Aggregate>,
-        // then assume that the default behavior of each return value is to be an event
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
-        {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
-        }
-    }
-
     [UnconditionalSuppressMessage("Trimming", "IL2065",
         Justification = "MakeGenericType closes IEventStream<TAggregate>; GetProperty(nameof(IEventStream.Aggregate)) is statically referenced via nameof and the closed-generic IEventStream<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
     [UnconditionalSuppressMessage("AOT", "IL3050",
@@ -343,7 +307,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
         else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {
             // When the handler parameter is IEventStream<T>, set the stream directly by name
-            var index = firstCall.Method.GetParameters().IndexOf(x => x.Name == Parameter.Name);
+            var index = Array.FindIndex(firstCall.Method.GetParameters(), x => x.Name == Parameter.Name);
             firstCall.Arguments[index] = eventStream;
         }
         else if (Parameter != null)
@@ -408,12 +372,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
     }
 
 
-    internal static MemberInfo DetermineVersionMember(Type aggregateType)
+    internal static MemberInfo? DetermineVersionMember(Type aggregateType)
     {
         // The first arg doesn't matter
         var versioning =
             _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
-        return versioning.VersionMember!;
+        return versioning.VersionMember;
     }
 
     internal static void StoreDeferredMiddlewareVariable(IChain chain, string parameterName, Variable variable)

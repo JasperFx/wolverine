@@ -15,6 +15,7 @@ using Wolverine.Configuration;
 using Wolverine.Polecat.Codegen;
 using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Persistence;
+using Wolverine.Persistence.EventSourcing;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
 using System.Diagnostics.CodeAnalysis;
@@ -60,7 +61,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
                 eventStream));
         }
 
-        DetermineEventCaptureHandling(chain, firstCall, AggregateType);
+        new PolecatEventSourcingFrameProvider().DetermineEventCaptureHandling(chain, firstCall, AggregateType);
 
         ValidateMethodSignatureForEmittedEvents(chain, firstCall, chain);
         var aggregate = RelayAggregateToHandlerMethod(eventStream, chain, firstCall, AggregateType);
@@ -174,6 +175,10 @@ internal record AggregateHandling(IDataRequirement Requirement)
         {
             var concreteEventType = typeof(Event<>).MakeGenericType(commandType.GetGenericArguments()[0]);
 
+            // This CANNOT work if you capture the version, because there's no way to know if the aggregate version
+            // has advanced
+            //VersionMember = concreteEventType.GetProperty(nameof(IEvent.Version));
+
             var options = container.Services.GetRequiredService<StoreOptions>();
             var flattenHierarchy = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
             var member = options.Events.StreamIdentity == StreamIdentity.AsGuid
@@ -236,6 +241,8 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         if (member == null)
         {
+            // Fall back: if the aggregate uses a strong typed ID, look for a single
+            // property of that exact type on the command
             member = TryFindStrongTypedIdMember(aggregateType, commandType);
         }
 
@@ -250,10 +257,12 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     internal static MemberInfo? TryFindStrongTypedIdMember(Type aggregateType, Type commandType)
     {
+        // Determine the strong typed ID type from the aggregate
         var strongTypedIdType = WriteAggregateAttribute.FindIdentifiedByType(aggregateType);
 
         if (strongTypedIdType == null)
         {
+            // Check the Id property on the aggregate itself
             var idProp = aggregateType.GetProperty("Id");
             if (idProp != null && !WriteAggregateAttribute.IsPrimitiveIdType(idProp.PropertyType))
             {
@@ -263,6 +272,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         if (strongTypedIdType == null) return null;
 
+        // Look for a single property of the strong typed ID type on the command
         var matchingProps = commandType.GetProperties()
             .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
             .ToArray();
@@ -270,38 +280,10 @@ internal record AggregateHandling(IDataRequirement Requirement)
         return matchingProps.Length == 1 ? matchingProps[0] : null;
     }
 
-    internal static void DetermineEventCaptureHandling(IChain chain, MethodCall firstCall, Type aggregateType)
-    {
-        var asyncEnumerable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
-        if (asyncEnumerable != null)
-        {
-            asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(asyncEnumerable,
-                    aggregateType);
-            });
-            return;
-        }
-
-        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
-                             firstCall.Creates.FirstOrDefault(x =>
-                                 x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
-                                 !x.VariableType.CanBeCastTo<IWolverineReturnType>());
-
-        if (eventsVariable != null)
-        {
-            eventsVariable.UseReturnAction(
-                v => typeof(RegisterEventsFrame<>).CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
-                    .WrapIfNotNull(v), "Append events to the Polecat event stream");
-            return;
-        }
-
-        if (!firstCall.Method.GetParameters().Any(x => x.ParameterType.Closes(typeof(IEventStream<>))))
-        {
-            chain.ReturnVariableActionSource = new EventCaptureActionSource(aggregateType);
-        }
-    }
-
+    [UnconditionalSuppressMessage("Trimming", "IL2065",
+        Justification = "MakeGenericType closes IEventStream<TAggregate>; GetProperty(nameof(IEventStream.Aggregate)) is statically referenced via nameof and the closed-generic IEventStream<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MakeGenericType closes IEventStream<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
     internal Variable RelayAggregateToHandlerMethod(Variable eventStream, IChain chain, MethodCall firstCall,
         Type aggregateType)
     {
@@ -319,15 +301,18 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         if (firstCall.HandlerType == aggregateType)
         {
+            // If the handle method is on the aggregate itself
             firstCall.Target = aggregateVariable;
         }
         else if (Parameter != null && Parameter.ParameterType.Closes(typeof(IEventStream<>)))
         {
+            // When the handler parameter is IEventStream<T>, set the stream directly by name
             var index = Array.FindIndex(firstCall.Method.GetParameters(), x => x.Name == Parameter.Name);
             firstCall.Arguments[index] = eventStream;
         }
         else if (Parameter != null)
         {
+            // Use name-based matching to avoid accidentally setting the wrong same-type parameter
             firstCall.TrySetArgument(Parameter.Name!, aggregateVariable);
         }
         else
@@ -335,11 +320,13 @@ internal record AggregateHandling(IDataRequirement Requirement)
             firstCall.TrySetArgument(aggregateVariable);
         }
 
+        // Store deferred assignment for middleware methods added later (Before/After)
         if (Parameter != null)
         {
             StoreDeferredMiddlewareVariable(chain, Parameter.Name!, aggregateVariable);
         }
 
+        // Also do immediate relay for any middleware already present
         foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
         {
             if (Parameter != null)
@@ -374,6 +361,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             return parameters[1].ParameterType;
         }
 
+        // Assume that the handler type itself is the aggregate
         if (firstCall.HandlerType.HasAttribute<AggregateHandlerAttribute>())
         {
             return firstCall.HandlerType;
@@ -385,6 +373,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
     internal static MemberInfo? DetermineVersionMember(Type aggregateType)
     {
+        // The first arg doesn't matter
         var versioning =
             _versioningBaseType.CloseAndBuildAs<IAggregateVersioning>(AggregationScope.SingleStream, aggregateType);
         return versioning.VersionMember;
@@ -399,92 +388,5 @@ internal record AggregateHandling(IDataRequirement Requirement)
             chain.Tags[key] = raw;
         }
         ((List<(string Name, Variable Variable)>)raw).Add((parameterName, variable));
-    }
-}
-
-internal class ApplyEventsFromAsyncEnumerableFrame<T> : AsyncFrame, IReturnVariableAction where T : class
-{
-    private readonly Variable _returnValue;
-    private Variable? _stream;
-
-    public ApplyEventsFromAsyncEnumerableFrame(Variable returnValue)
-    {
-        _returnValue = returnValue;
-        uses.Add(_returnValue);
-    }
-
-    public string Description => "Apply events to Polecat event stream";
-
-    public new IEnumerable<Type> Dependencies()
-    {
-        yield break;
-    }
-
-    public IEnumerable<Frame> Frames()
-    {
-        yield return this;
-    }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _stream = chain.FindVariable(typeof(IEventStream<T>));
-        yield return _stream;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        var variableName = (typeof(T).Name + "Event").ToCamelCase();
-
-        writer.WriteComment(Description);
-        writer.Write(
-            $"await foreach (var {variableName} in {_returnValue.Usage}) {_stream!.Usage}.{nameof(IEventStream<string>.AppendOne)}({variableName});");
-        Next?.GenerateCode(method, writer);
-    }
-}
-
-internal class EventCaptureActionSource : IReturnVariableActionSource
-{
-    private readonly Type _aggregateType;
-
-    public EventCaptureActionSource(Type aggregateType)
-    {
-        _aggregateType = aggregateType;
-    }
-
-    public IReturnVariableAction Build(IChain chain, Variable variable)
-    {
-        return new ActionSource(_aggregateType, variable);
-    }
-
-    internal class ActionSource : IReturnVariableAction
-    {
-        private readonly Type _aggregateType;
-        private readonly Variable _variable;
-
-        public ActionSource(Type aggregateType, Variable variable)
-        {
-            _aggregateType = aggregateType;
-            _variable = variable;
-        }
-
-        public string Description => "Append event to event stream for aggregate " + _aggregateType.FullNameInCode();
-
-        public IEnumerable<Type> Dependencies()
-        {
-            yield break;
-        }
-
-        public IEnumerable<Frame> Frames()
-        {
-            var streamType = typeof(IEventStream<>).MakeGenericType(_aggregateType);
-
-            yield return new MethodCall(streamType, nameof(IEventStream<string>.AppendOne))
-            {
-                Arguments =
-                {
-                    [0] = _variable
-                }
-            };
-        }
     }
 }

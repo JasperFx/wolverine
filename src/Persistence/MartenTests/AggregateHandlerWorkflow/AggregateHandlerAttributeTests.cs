@@ -18,7 +18,11 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
+        // DetermineVersionMember returns MemberInfo? as of GH-3907 - IAggregateVersioning.VersionMember
+        // really can be null, and Marten's copy was hiding that behind a null-forgiving operator.
+        // Asserting it explicitly keeps a missing version member a readable failure rather than an NRE.
         AggregateHandling.DetermineVersionMember(typeof(Invoice))
+            .ShouldNotBeNull()
             .Name.ShouldBe(nameof(Invoice.Version));
     }
 
