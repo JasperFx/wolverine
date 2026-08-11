@@ -22,7 +22,10 @@ public class AggregateHandlerAttributeTests
     [Fact]
     public void determine_version_member_for_aggregate()
     {
-        AggregateHandling.DetermineVersionMember(typeof(PcInvoice))!
+        // Matches MartenTests: assert the version member is really there instead of suppressing with
+        // `!`, so a missing one fails readably rather than as an NRE. See GH-3907.
+        AggregateHandling.DetermineVersionMember(typeof(PcInvoice))
+            .ShouldNotBeNull()
             .Name.ShouldBe(nameof(PcInvoice.Version));
     }
 
