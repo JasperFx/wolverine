@@ -282,10 +282,13 @@ partial class Build : NukeBuild
             RunTestProject(Solution.Samples.EFCoreSample.ItemService_Tests);
         });
 
-    Target Pack => _ => _
-        .Executes(() =>
-        {
-            var nugetProjects = new[]
+    // Every project that Pack publishes to nuget.org. Kept as a property rather than a local so
+    // ValidatePackList can check it against the projects that actually declare a <PackageId> —
+    // see GH-3905, where WolverineFx.DataAnnotationsValidation and WolverineFx.FluentValidation.Grpc
+    // declared a PackageId, were documented as installable packages, and had never been published
+    // because nothing tied the two lists together.
+    Project[] NugetProjects =>
+        new[]
             {
                 Solution.Wolverine,
                 Solution.Wolverine_RuntimeCompilation,
@@ -314,6 +317,8 @@ partial class Build : NukeBuild
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_Nats,
                 Solution.Persistence.ClaimCheck.Wolverine_ClaimCheck_Postgresql,
                 Solution.Extensions.Wolverine_FluentValidation,
+                Solution.Extensions.Wolverine_FluentValidation_Grpc,
+                Solution.Extensions.Wolverine_DataAnnotationsValidation,
                 Solution.Extensions.Wolverine_MemoryPack,
                 Solution.Extensions.Wolverine_MessagePack,
                 Solution.Extensions.Wolverine_Newtonsoft,
@@ -333,7 +338,44 @@ partial class Build : NukeBuild
                 Solution.Persistence.Polecat.Wolverine_Polecat
             };
 
-            foreach (var project in nugetProjects)
+    // GH-3905: a project can declare a <PackageId> and still never ship, because the Pack list above
+    // is maintained by hand. That is exactly how WolverineFx.DataAnnotationsValidation and
+    // WolverineFx.FluentValidation.Grpc stayed unpublished at every version while the docs told users
+    // to install them. This fails the build the moment the two lists drift again.
+    Target ValidatePackList => _ => _
+        .Executes(() =>
+        {
+            var packed = NugetProjects
+                .Select(x => x.Path.ToString())
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var declaresPackageId = RootDirectory
+                .GlobFiles("src/**/*.csproj")
+                .Where(path => Regex.IsMatch(File.ReadAllText(path), @"<PackageId>", RegexOptions.IgnoreCase))
+                .Select(path => path.ToString())
+                .ToArray();
+
+            var missing = declaresPackageId
+                .Where(path => !packed.Contains(path))
+                .OrderBy(x => x)
+                .ToArray();
+
+            if (missing.Length > 0)
+            {
+                throw new Exception(
+                    $"{missing.Length} project(s) declare a <PackageId> but are missing from the Pack target's project list, so they would never be published:{Environment.NewLine}" +
+                    string.Join(Environment.NewLine, missing.Select(x => "  - " + Path.GetRelativePath(RootDirectory, x))) +
+                    $"{Environment.NewLine}Either add them to Build.NugetProjects, or remove the <PackageId> if they are not meant to ship.");
+            }
+
+            Log.Information("All {Count} projects declaring a <PackageId> are in the Pack list", declaresPackageId.Length);
+        });
+
+    Target Pack => _ => _
+        .DependsOn(ValidatePackList)
+        .Executes(() =>
+        {
+            foreach (var project in NugetProjects)
             {
                 DotNetPack(s => s
                     .SetProject(project)
