@@ -11,10 +11,24 @@ public class OutgoingMessageBatch
 
         foreach (var message in messages) message.Destination = destination;
 
-        Data = EnvelopeSerializer.Serialize(Messages);
     }
 
-    public byte[] Data { get; set; }
+    private byte[]? _data;
+
+    /// <summary>
+    ///     The whole batch serialized as one contiguous buffer. Materialized on first read rather
+    ///     than in the constructor: only the TCP protocol consumes it, while every other transport
+    ///     reads <see cref="Envelope.Data" /> per message and chunks to its own limits.
+    ///     Building it eagerly meant every SQS, Rabbit or Service Bus batch paid for a buffer it
+    ///     never read -- and at MessageBatchSize 100 with large payloads that single allocation is
+    ///     enough to take the process down with an OutOfMemoryException from
+    ///     <c>MemoryStream.set_Capacity</c>, long before the heap itself is anywhere near full.
+    /// </summary>
+    public byte[] Data
+    {
+        get => _data ??= EnvelopeSerializer.Serialize(Messages);
+        set => _data = value;
+    }
 
     public Uri Destination { get; }
 

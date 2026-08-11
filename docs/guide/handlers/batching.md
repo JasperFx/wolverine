@@ -253,6 +253,28 @@ that refers to the original message is completely processed. See [Durability and
 settlement](#durability-and-message-settlement) above for the full settlement model and why a durable listener
 is required for guaranteed delivery.
 
+## Message expiration (`DeliverBy` / `DeliverWithin`) <Badge type="tip" text="6.26" />
+
+Batched messages honor member-level [message expiration](/guide/messages) the same way unbatched messages do,
+just at two different points in the batching pipeline:
+
+1. **At batch assembly** — any member whose `DeliverBy` elapsed while it waited in the batching channel is shed
+   individually and never becomes part of the batch message. Only the still-live members are handed to the
+   batch handler. Each shed member is logged with the same "discarded expired envelope" log event a normal
+   expired message gets, and its inbox/back-pressure bookkeeping is settled exactly as if its batch had
+   completed.
+2. **At batch execution** — the assembled batch envelope carries the *latest* member expiry as its own
+   `DeliverBy` (only when *every* member has one; a single member with no expiration keeps the batch alive
+   forever). If the batch then sits on the local execution queue long enough for that latest expiry to pass,
+   every member is by definition expired, so the whole batch is discarded without invoking the handler and all
+   members settle normally. Keying on the latest member expiry means the whole-batch check can never
+   over-shed a live member.
+
+Members of one batch may carry different `DeliverBy` values (or none). A member that expires *after* assembly
+but before the batch executes will still be processed if any of its batch-mates are unexpired — per-member
+precision inside an already-built batch message isn't possible generically. If stale members must never reach
+your handler, check each item's staleness in the batch handler itself.
+
 ## De-duplicating a batch with `CoalesceBy`
 
 A very common batching workload is a "trigger storm": a bulk operation fires hundreds or thousands of
