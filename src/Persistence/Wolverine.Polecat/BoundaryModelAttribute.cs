@@ -79,6 +79,7 @@ public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirem
         }
 
         new PolecatPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+        chain.IsTransactional = true;
 
         var loader = chain.Middleware.OfType<LoadBoundaryFrame>()
             .FirstOrDefault(f => f.AggregateType == aggregateType);
