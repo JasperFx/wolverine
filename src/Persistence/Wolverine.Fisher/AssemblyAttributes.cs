@@ -3,5 +3,5 @@ using Wolverine.Attributes;
 
 [assembly: ExcludeFromServiceCapabilities]
 
-[assembly: InternalsVisibleTo("SqliteTests")]
-[assembly: InternalsVisibleTo("Wolverine.Fisher")]
+[assembly: InternalsVisibleTo("FisherTests")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Fisher")]

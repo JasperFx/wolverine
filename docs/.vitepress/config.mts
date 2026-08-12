@@ -329,6 +329,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Multi-Tenancy and Marten', link: '/guide/durability/marten/multi-tenancy'},
                                 {text: 'Ancillary Marten Stores', link: '/guide/durability/marten/ancillary-stores'},
                             ]},
+                        {text: 'Fisher Integration', link: '/guide/durability/fisher/'},
                         {text: 'Polecat Integration', link: '/guide/durability/polecat/', collapsed: true, items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/polecat/transactional-middleware'},
                                 {text: 'Transactional Outbox Support', link: '/guide/durability/polecat/outbox'},

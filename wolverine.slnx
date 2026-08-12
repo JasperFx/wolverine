@@ -119,6 +119,10 @@
     <Project Path="src/Persistence/Oracle/OracleTests/OracleTests.csproj" />
     <Project Path="src/Persistence/Oracle/Wolverine.Oracle/Wolverine.Oracle.csproj" />
   </Folder>
+  <Folder Name="/Persistence/Fisher/">
+    <Project Path="src/Persistence/FisherTests/FisherTests.csproj" />
+    <Project Path="src/Persistence/Wolverine.Fisher/Wolverine.Fisher.csproj" />
+  </Folder>
   <Folder Name="/Persistence/Polecat/">
     <Project Path="src/Http/Wolverine.Http.Polecat/Wolverine.Http.Polecat.csproj" />
     <!-- net10.0-only; same net9.0-pinned Compile constraint as the AspVersioning pair above.
