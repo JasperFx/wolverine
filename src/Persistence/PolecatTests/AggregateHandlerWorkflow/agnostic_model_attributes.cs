@@ -144,6 +144,13 @@ public class polecat_aggregate_attributes_are_shells_over_the_core_vocabulary
         new ConsistentAggregateHandlerAttribute().ShouldBeAssignableTo<DeciderFunctionAttribute>();
     }
 
+    // GH-3911
+    [Fact]
+    public void boundary_model_is_a_dcb_model()
+    {
+        new BoundaryModelAttribute().ShouldBeAssignableTo<DcbModelAttribute>();
+    }
+
     [Fact]
     public void route_or_parameter_name_still_reaches_the_base()
     {
