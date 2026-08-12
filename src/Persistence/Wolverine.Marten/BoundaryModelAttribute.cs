@@ -15,6 +15,7 @@ using Wolverine.Marten.Persistence.Sagas;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten;
 

@@ -19,7 +19,7 @@ using IRevisioned = JasperFx.IRevisioned;
 
 namespace Wolverine.Marten.Persistence.Sagas;
 
-internal class MartenPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvider
 {
     // Marten can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the

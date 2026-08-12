@@ -16,7 +16,7 @@ using Wolverine.Runtime;
 
 namespace Wolverine.Polecat.Persistence.Sagas;
 
-internal class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
+internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvider
 {
     // Polecat can persist any document, so CanPersist claims every type. Yield to selective
     // providers (EF Core) for the entity types they actually map, regardless of the order the

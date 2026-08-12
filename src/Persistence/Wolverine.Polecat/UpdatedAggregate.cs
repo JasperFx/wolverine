@@ -7,6 +7,7 @@ using Polecat;
 using JasperFx.Events;
 using Polecat.Events;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Polecat;
 

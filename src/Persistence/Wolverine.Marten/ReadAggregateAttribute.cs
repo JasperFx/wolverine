@@ -1,199 +1,22 @@
-using System.Diagnostics;
-using System.Reflection;
-using JasperFx;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
-using Marten;
-using Marten.Events;
-using Marten.Services.BatchQuerying;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
-using Wolverine.Marten.Codegen;
-using Wolverine.Marten.Persistence.Sagas;
-using JasperFx.Events.Aggregation;
-using Wolverine.Persistence;
-using Wolverine.Runtime;
+using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten;
 
 /// <summary>
 /// Use Marten's FetchLatest() API to retrieve the parameter value
 /// </summary>
-public class ReadAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IRefersToAggregate
+/// <remarks>
+///     GH-3907: the workflow itself is <see cref="ReadModelAttribute" /> in Wolverine core now, and works
+///     the same against any event store integration. This is the Marten spelling of it, kept because it is
+///     what existing code says. Prefer <c>[ReadModel]</c> in new code.
+/// </remarks>
+public class ReadAggregateAttribute : ReadModelAttribute
 {
-    private OnMissing? _onMissing;
-
     public ReadAggregateAttribute()
     {
-        ValueSource = ValueSource.Anything;
     }
 
     public ReadAggregateAttribute(string argumentName) : base(argumentName)
     {
-        ValueSource = ValueSource.Anything;
-    }
-
-    /// <summary>
-    /// Is the existence of this aggregate required for the rest of the handler action or HTTP endpoint
-    /// execution to continue? Default is true.
-    /// </summary>
-    public bool Required { get; set; } = true;
-
-    public string MissingMessage { get; set; } = null!;
-
-    public OnMissing OnMissing
-    {
-        get => _onMissing ?? OnMissing.Simple404;
-        set => _onMissing = value;
-    }
-
-    public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
-    {
-        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
-        // I know it's goofy that this refers to the saga, but it should work fine here too
-        var idType = new MartenPersistenceFrameProvider().DetermineSagaIdType(parameter.ParameterType, container);
-
-        if (chain.ToString() == "GET_sti_aggregate_id")
-        {
-            Debug.WriteLine("Here");
-        }
-        
-        if (!tryFindIdentityVariable(chain, parameter, idType, out var identity))
-        {
-            // Fall back to strong typed ID matching
-            identity = tryFindStrongTypedIdentityVariable(chain, parameter.ParameterType, idType);
-            if (identity == null)
-            {
-                throw new InvalidEntityLoadUsageException(this, parameter);
-            }
-        }
-
-        var frame = new FetchLatestAggregateFrame(parameter.ParameterType, identity);
-        frame.Aggregate.OverrideName(parameter.Name!);
-
-        Variable returnVariable;
-        if (Required)
-        {
-            var otherFrames = chain.AddStopConditionIfNull(frame.Aggregate, identity, this);
-
-            var block = new LoadEntityFrameBlock(frame.Aggregate, otherFrames);
-            chain.Middleware.Add(block);
-
-            returnVariable = block.Mirror;
-        }
-        else
-        {
-            chain.Middleware.Add(frame);
-            returnVariable = frame.Aggregate;
-        }
-
-        // Store deferred assignment for middleware methods added later (Before/After)
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
-
-        return returnVariable;
-    }
-
-    private Variable? tryFindStrongTypedIdentityVariable(IChain chain, Type aggregateType, Type idType)
-    {
-        var strongTypedIdType = idType;
-
-        if (WriteAggregateAttribute.IsPrimitiveIdType(idType))
-        {
-            strongTypedIdType = WriteAggregateAttribute.FindIdentifiedByType(aggregateType);
-        }
-
-        if (strongTypedIdType == null || WriteAggregateAttribute.IsPrimitiveIdType(strongTypedIdType)) return null;
-
-        var inputType = chain.InputType();
-        if (inputType == null) return null;
-
-        var matchingProps = inputType.GetProperties()
-            .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
-            .ToArray();
-
-        if (matchingProps.Length == 1)
-        {
-            if (chain.TryFindVariable(matchingProps[0].Name, ValueSource, strongTypedIdType, out var variable))
-            {
-                return variable;
-            }
-        }
-
-        return null;
-    }
-}
-
-internal class FetchLatestAggregateFrame : AsyncFrame, IBatchableFrame
-{
-    private readonly Variable _identity;
-    private Variable _session = null!;
-    private Variable _token = null!;
-    private Variable _batchQuery = null!;
-    private Variable _batchQueryItem = null!;
-
-    public FetchLatestAggregateFrame(Type aggregateType, Variable identity)
-    {
-        if (identity.VariableType == typeof(Guid) || identity.VariableType == typeof(string))
-        {
-            _identity = identity;
-        }
-        else
-        {
-            var valueType = ValueTypeInfo.ForType(identity.VariableType);
-            _identity = new MemberAccessVariable(identity, valueType.ValueProperty);
-        }
-
-        Aggregate = new Variable(aggregateType, this);
-    }
-
-    public Variable Aggregate { get; }
-
-    public void WriteCodeToEnlistInBatchQuery(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (_batchQueryItem == null)
-            throw new InvalidOperationException("This frame has not been enlisted in a MartenBatchFrame");
-        
-        writer.Write(
-            $"var {_batchQueryItem.Usage} = {_batchQuery!.Usage}.Events.{nameof(IBatchEvents.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage});");
-    }
-
-    public void EnlistInBatchQuery(Variable batchQuery)
-    {
-        _batchQueryItem = new Variable(typeof(Task<>).MakeGenericType(Aggregate.VariableType), Aggregate.Usage + "_BatchItem",
-            this);
-        _batchQuery = batchQuery;
-    }
-
-    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
-    {
-        _session = chain.FindVariable(typeof(IDocumentSession));
-        yield return _session;
-
-        _token = chain.FindVariable(typeof(CancellationToken));
-        yield return _token;
-
-        if (_batchQuery != null)
-        {
-            yield return _batchQuery;
-        }
-
-        yield return _identity;
-    }
-
-    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
-    {
-        if (_batchQueryItem == null)
-        {
-            writer.Write($"var {Aggregate.Usage} = await {_session.Usage}.Events.{nameof(IEventStoreOperations.FetchLatest)}<{Aggregate.VariableType.FullNameInCode()}>({_identity.Usage}, {_token.Usage});");
-        }
-        else
-        {
-            writer.Write(
-                $"var {Aggregate.Usage} = await {_batchQueryItem.Usage}.ConfigureAwait(false);");
-        }
-        
-        Next?.GenerateCode(method, writer);
     }
 }

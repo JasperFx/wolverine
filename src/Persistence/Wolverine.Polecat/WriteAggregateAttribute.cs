@@ -1,22 +1,5 @@
-using JasperFx;
-using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.CodeGeneration.Services;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using JasperFx.Events;
-using JasperFx.Events.Aggregation;
-using Microsoft.Extensions.DependencyInjection;
-using Polecat;
-using Polecat.Events;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
-using Wolverine.Persistence;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.Partitioning;
+using Wolverine.Persistence.EventSourcing;
+using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ConcurrencyStyle;
 
 namespace Wolverine.Polecat;
 
@@ -24,179 +7,35 @@ namespace Wolverine.Polecat;
 ///     Marks a parameter to a Wolverine HTTP endpoint or message handler method as being part of the Polecat event sourcing
 ///     "aggregate handler" workflow
 /// </summary>
+/// <remarks>
+///     GH-3907: the workflow itself is <see cref="WriteModelAttribute" /> in Wolverine core now, and works
+///     the same against any event store integration. This is the Polecat spelling of it, kept because it is
+///     what existing code says. Prefer <c>[WriteModel]</c> in new code.
+/// </remarks>
 [AttributeUsage(AttributeTargets.Parameter)]
-public class WriteAggregateAttribute : WolverineParameterAttribute, IDataRequirement, IMayInferMessageIdentity, IRefersToAggregate
+public class WriteAggregateAttribute : WriteModelAttribute
 {
-    public WriteAggregateAttribute() { }
-    public WriteAggregateAttribute(string? routeOrParameterName) { RouteOrParameterName = routeOrParameterName; }
-
-    public string? RouteOrParameterName { get; }
-
-    private OnMissing? _onMissing;
-    public bool Required { get; set; } = true;
-    public string MissingMessage { get; set; } = null!;
-
-    public OnMissing OnMissing
+    public WriteAggregateAttribute()
     {
-        get => _onMissing ?? OnMissing.Simple404;
-        set => _onMissing = value;
     }
 
-    public ConcurrencyStyle LoadStyle { get; set; } = ConcurrencyStyle.Optimistic;
-    public bool AlwaysEnforceConsistency { get; set; }
-    public string? VersionSource { get; set; }
-
-    public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container, GenerationRules rules)
+    public WriteAggregateAttribute(string? routeOrParameterName) : base(routeOrParameterName)
     {
-        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
-        var aggregateType = parameter.ParameterType;
-        if (aggregateType.IsNullable())
-        {
-            aggregateType = aggregateType.GetInnerTypeFromNullable();
-        }
-
-        if (aggregateType.Closes(typeof(IEventStream<>)))
-        {
-            aggregateType = aggregateType.GetGenericArguments()[0];
-        }
-
-        var idProp = aggregateType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        var idType = idProp?.PropertyType ?? typeof(Guid);
-
-        // If a specific ValueSource has been set (e.g. via FromMethod, FromRoute, FromHeader, FromClaim),
-        // use the base class identity resolution which respects that ValueSource
-        Variable? identity = null;
-        if (ValueSource != ValueSource.InputMember && ArgumentName.IsNotEmpty())
-        {
-            tryFindIdentityVariable(chain, parameter, idType, out identity);
-        }
-
-        // Fall back to WriteAggregate's standard identity resolution
-        identity ??= FindIdentity(aggregateType, idType, chain);
-        var isNaturalKey = false;
-
-        // If standard identity resolution failed, check for natural key support
-        if (identity == null)
-        {
-            var storeOptions = container.Services.GetRequiredService<StoreOptions>();
-            var naturalKey = storeOptions.Projections.FindNaturalKeyDefinition(aggregateType);
-            if (naturalKey != null)
-            {
-                identity = FindIdentity(aggregateType, naturalKey.OuterType, chain);
-                if (identity != null) isNaturalKey = true;
-            }
-        }
-
-        if (identity == null)
-        {
-            throw new InvalidOperationException(
-                $"Unable to determine an aggregate id for the parameter '{parameter.Name}' on method {chain.HandlerCalls().First()}");
-        }
-
-        var version = findVersionVariable(chain);
-
-        var handling = new AggregateHandling(this)
-        {
-            AggregateType = aggregateType,
-            AggregateId = identity,
-            LoadStyle = LoadStyle,
-            Version = version,
-            AlwaysEnforceConsistency = AlwaysEnforceConsistency,
-            Parameter = parameter,
-            IsNaturalKey = isNaturalKey
-        };
-
-        return handling.Apply(chain, container);
     }
 
-    internal Variable? findVersionVariable(IChain chain)
+    /// <summary>
+    ///     Opt into exclusive locking or optimistic checks on the aggregate stream
+    ///     version. Default is Optimistic
+    /// </summary>
+    /// <remarks>
+    ///     Shadows <see cref="WriteModelAttribute.LoadStyle" /> only so that
+    ///     <c>[WriteAggregate(LoadStyle = ConcurrencyStyle.Exclusive)]</c> written against
+    ///     <see cref="Wolverine.Polecat.ConcurrencyStyle" /> keeps compiling. The two enums are the same two
+    ///     members in the same order; this forwards to the one the workflow actually reads.
+    /// </remarks>
+    public new ConcurrencyStyle LoadStyle
     {
-        if (VersionSource == null && chain.Tags.ContainsKey(nameof(AggregateHandling)))
-        {
-            return null;
-        }
-
-        var name = VersionSource ?? "version";
-
-        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(long), out var variable)) return variable;
-        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(int), out var v2)) return v2;
-        if (chain.TryFindVariable(name, ValueSource.Anything, typeof(uint), out var v3)) return v3;
-
-        return null;
-    }
-
-    public Variable? FindIdentity(Type aggregateType, Type idType, IChain chain)
-    {
-        if (RouteOrParameterName.IsNotEmpty())
-        {
-            if (chain.TryFindVariable(RouteOrParameterName, ValueSource.Anything, idType, out var variable))
-                return variable;
-        }
-
-        if (chain.TryFindVariable($"{aggregateType.Name.ToCamelCase()}Id", ValueSource.Anything, idType, out var v2))
-            return v2;
-
-        if (chain.TryFindVariable("id", ValueSource.Anything, idType, out var v3))
-            return v3;
-
-        var strongTypedIdType = idType;
-        if (IsPrimitiveIdType(idType))
-        {
-            strongTypedIdType = FindIdentifiedByType(aggregateType);
-        }
-
-        if (strongTypedIdType != null && !IsPrimitiveIdType(strongTypedIdType))
-        {
-            var inputType = chain.InputType();
-            if (inputType != null)
-            {
-                var matchingProps = inputType.GetProperties()
-                    .Where(x => x.PropertyType == strongTypedIdType && x.CanRead)
-                    .ToArray();
-
-                if (matchingProps.Length == 1)
-                {
-                    if (chain.TryFindVariable(matchingProps[0].Name, ValueSource.Anything, strongTypedIdType, out var v4))
-                        return v4;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    internal static bool IsPrimitiveIdType(Type type)
-    {
-        return type == typeof(Guid) || type == typeof(string) || type == typeof(int) || type == typeof(long);
-    }
-
-    internal static Type? FindIdentifiedByType(Type aggregateType)
-    {
-        var identifiedByInterface = aggregateType.GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IdentifiedBy<>));
-
-        return identifiedByInterface?.GetGenericArguments()[0];
-    }
-
-    public bool TryInferMessageIdentity(IChain chain, [NotNullWhen(true)] out PropertyInfo? property)
-    {
-        var inputType = chain.InputType();
-        if (inputType == null)
-        {
-            property = null;
-            return false;
-        }
-
-        if (AggregateHandling.TryLoad(chain, out var handling))
-        {
-            if (handling.AggregateId is MemberAccessVariable mav)
-            {
-                property = mav.Member as PropertyInfo;
-                return property != null;
-            }
-        }
-
-        property = null;
-        return false;
+        get => (ConcurrencyStyle)(int)base.LoadStyle;
+        set => base.LoadStyle = (CoreConcurrencyStyle)(int)value;
     }
 }
