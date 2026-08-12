@@ -21,6 +21,11 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Testcontainers.Redis" />
+        <!-- Testcontainers depends on SSH.NET [2025.1.0, ), and every version through 2025.1.0
+             carries GHSA-q939-rpr3-3284 (high severity), which TreatWarningsAsErrors turns into a
+             hard build failure. Referencing the patched 2026.0.0 directly satisfies the open-ended
+             range and clears the advisory. Drop this once Testcontainers floors it itself. -->
+        <PackageReference Include="SSH.NET" />
     </ItemGroup>
 
     <ItemGroup>
