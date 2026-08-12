@@ -259,6 +259,11 @@ opts.Policies.ForMessagesOfType<IAccountMessage>().Audit(x => x.AccountId);
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Configuration/auditing_determination.cs#L73-L77' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_explicit_registration_of_audit_properties' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+Each expression has to be a direct member access on the message type, because Wolverine writes the member
+straight into the generated code. Anything else -- a coalesce like `x => x.Name ?? string.Empty`, a method call,
+or a nested member like `x => x.Inner.Name` -- is rejected with an `ArgumentOutOfRangeException` at configuration
+time. Use a computed property on the message type marked with `[Audit]` instead.
+
 This will extend your log entries to like this:
 
 ```text

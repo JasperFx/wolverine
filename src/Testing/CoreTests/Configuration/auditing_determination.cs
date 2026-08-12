@@ -82,6 +82,19 @@ public class auditing_determination : IntegrationContext
     }
 
     [Fact]
+    public void reject_audit_expressions_that_are_not_a_direct_member_access()
+    {
+        var options = new WolverineOptions();
+
+        // This used to resolve to String.Empty -- the last member visited anywhere in the
+        // expression tree -- and emit uncompilable code like auditedMessage.Empty
+        var ex = Should.Throw<ArgumentOutOfRangeException>(() =>
+            options.Policies.ForMessagesOfType<AuditedMessage>().Audit(x => x.Name ?? string.Empty));
+
+        ex.Message.ShouldContain("x.Name ?? String.Empty");
+    }
+
+    [Fact]
     public async Task use_audit_member_named_id_and_disambiguate()
     {
         await with(opts => opts.Policies.LogMessageStarting(LogLevel.Information));
