@@ -86,7 +86,7 @@ public class auditing_determination : IntegrationContext
     {
         var options = new WolverineOptions();
 
-        // This used to resolve to String.Empty -- the last member visited anywhere in the
+        // This used to resolve to String.Empty — the last member visited anywhere in the
         // expression tree -- and emit uncompilable code like auditedMessage.Empty
         var ex = Should.Throw<ArgumentOutOfRangeException>(() =>
             options.Policies.ForMessagesOfType<AuditedMessage>().Audit(x => x.Name ?? string.Empty));
