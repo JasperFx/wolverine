@@ -1,5 +1,4 @@
 using Wolverine.Persistence.EventSourcing;
-using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ConcurrencyStyle;
 
 namespace Wolverine.Polecat;
 
@@ -20,11 +19,11 @@ public class AggregateHandlerAttribute : DeciderFunctionAttribute
     // The two ConcurrencyStyle enums are the same two members in the same order. This ctor exists so
     // that [AggregateHandler(ConcurrencyStyle.Exclusive)] written against Wolverine.Polecat's spelling
     // keeps compiling.
-    public AggregateHandlerAttribute(ConcurrencyStyle loadStyle) : base((CoreConcurrencyStyle)(int)loadStyle)
+    public AggregateHandlerAttribute(ConcurrencyStyle loadStyle) : base((ModelConcurrencyStyle)(int)loadStyle)
     {
     }
 
-    public AggregateHandlerAttribute() : base(CoreConcurrencyStyle.Optimistic)
+    public AggregateHandlerAttribute() : base(ModelConcurrencyStyle.Optimistic)
     {
     }
 }

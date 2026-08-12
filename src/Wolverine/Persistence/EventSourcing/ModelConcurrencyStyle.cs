@@ -10,7 +10,7 @@ namespace Wolverine.Persistence.EventSourcing;
 ///     handler code names directly — see the note on <c>WriteAggregateAttribute.LoadStyle</c> in each
 ///     integration for why that one property is the only thing keeping those shells from being empty.
 /// </remarks>
-public enum ConcurrencyStyle
+public enum ModelConcurrencyStyle
 {
     /// <summary>
     ///     Check for concurrency violations optimistically at the point of committing the updated data

@@ -37,7 +37,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     /// </summary>
     public required IEventSourcingFrameProvider Provider { get; init; }
 
-    public ConcurrencyStyle LoadStyle { get; init; }
+    public ModelConcurrencyStyle LoadStyle { get; init; }
     public Variable? Version { get; init; }
     public bool AlwaysEnforceConsistency { get; init; }
     public ParameterInfo? Parameter { get; set; }
@@ -67,7 +67,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             AggregateType,
             AggregateId,
             LoadStyle,
-            LoadStyle == ConcurrencyStyle.Optimistic ? Version : null,
+            LoadStyle == ModelConcurrencyStyle.Optimistic ? Version : null,
             AlwaysEnforceConsistency,
             IsNaturalKey));
 

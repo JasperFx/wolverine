@@ -7,7 +7,7 @@ using Marten;
 using JasperFx.Events;
 using Marten.Events;
 using Wolverine.Persistence.EventSourcing;
-using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ConcurrencyStyle;
+using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ModelConcurrencyStyle;
 
 namespace Wolverine.Marten.Codegen;
 

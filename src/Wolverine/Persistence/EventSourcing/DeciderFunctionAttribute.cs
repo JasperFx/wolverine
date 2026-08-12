@@ -38,16 +38,16 @@ namespace Wolverine.Persistence.EventSourcing;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
 public class DeciderFunctionAttribute : ModifyChainAttribute, IDataRequirement, IMayInferMessageIdentity
 {
-    public DeciderFunctionAttribute(ConcurrencyStyle loadStyle)
+    public DeciderFunctionAttribute(ModelConcurrencyStyle loadStyle)
     {
         LoadStyle = loadStyle;
     }
 
-    public DeciderFunctionAttribute() : this(ConcurrencyStyle.Optimistic)
+    public DeciderFunctionAttribute() : this(ModelConcurrencyStyle.Optimistic)
     {
     }
 
-    internal ConcurrencyStyle LoadStyle { get; }
+    internal ModelConcurrencyStyle LoadStyle { get; }
 
     /// <summary>
     ///     If true, the event store will enforce an optimistic concurrency check on this stream even if no

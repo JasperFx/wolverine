@@ -7,7 +7,7 @@ using Polecat;
 using JasperFx.Events;
 using Polecat.Events;
 using Wolverine.Persistence.EventSourcing;
-using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ConcurrencyStyle;
+using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ModelConcurrencyStyle;
 
 namespace Wolverine.Polecat.Codegen;
 

@@ -61,7 +61,7 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
     ///     Opt into exclusive locking or optimistic checks on the aggregate stream
     ///     version. Default is Optimistic
     /// </summary>
-    public ConcurrencyStyle LoadStyle { get; set; } = ConcurrencyStyle.Optimistic;
+    public ModelConcurrencyStyle LoadStyle { get; set; } = ModelConcurrencyStyle.Optimistic;
 
     /// <summary>
     ///     If true, the event store will enforce an optimistic concurrency check on this stream even if no

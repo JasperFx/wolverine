@@ -1,5 +1,4 @@
 using Wolverine.Persistence.EventSourcing;
-using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ConcurrencyStyle;
 
 namespace Wolverine.Polecat;
 
@@ -36,6 +35,6 @@ public class WriteAggregateAttribute : WriteModelAttribute
     public new ConcurrencyStyle LoadStyle
     {
         get => (ConcurrencyStyle)(int)base.LoadStyle;
-        set => base.LoadStyle = (CoreConcurrencyStyle)(int)value;
+        set => base.LoadStyle = (ModelConcurrencyStyle)(int)value;
     }
 }

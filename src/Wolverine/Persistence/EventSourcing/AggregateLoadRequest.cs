@@ -17,7 +17,7 @@ namespace Wolverine.Persistence.EventSourcing;
 /// <param name="Version">
 ///     The expected stream version for an optimistic concurrency check, when one was found. Null means
 ///     "no version check", and is always null when <paramref name="LoadStyle" /> is
-///     <see cref="ConcurrencyStyle.Exclusive" />.
+///     <see cref="ModelConcurrencyStyle.Exclusive" />.
 /// </param>
 /// <param name="AlwaysEnforceConsistency">
 ///     Enforce the optimistic concurrency check at commit even when the handler appended no events.
@@ -29,7 +29,7 @@ namespace Wolverine.Persistence.EventSourcing;
 public sealed record AggregateLoadRequest(
     Type AggregateType,
     Variable AggregateId,
-    ConcurrencyStyle LoadStyle,
+    ModelConcurrencyStyle LoadStyle,
     Variable? Version,
     bool AlwaysEnforceConsistency,
     bool IsNaturalKey);
