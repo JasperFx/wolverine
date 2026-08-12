@@ -3,10 +3,10 @@
 ::: info NEW in 6.26
 `[WriteAggregate]`, `[ReadAggregate]` and `[AggregateHandler]` now inherit from the
 persistence-strategy-agnostic `[WriteModel]`, `[ReadModel]` and `[DeciderFunction]` attributes in
-Wolverine core, which work identically against Marten or any other event store integration.
-Everything on this page still applies unchanged. See
-[Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the agnostic
-spelling, which is the one to prefer in new code.
+Wolverine core, which work identically against Marten or any other event store integration. As of 6.27
+`[BoundaryModel]` likewise inherits from `[DcbModel]`. Everything on this page still applies
+unchanged. See [Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the
+agnostic spelling, which is the one to prefer in new code.
 :::
 
 ::: tip
