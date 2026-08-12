@@ -27,6 +27,7 @@ namespace Wolverine.Persistence.EventSourcing;
 ///     both derive from this and are kept as-is for existing code. GH-3907.
 ///     </para>
 /// </remarks>
+[AttributeUsage(AttributeTargets.Parameter)]
 public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement, IRefersToAggregate
 {
     private OnMissing? _onMissing;
