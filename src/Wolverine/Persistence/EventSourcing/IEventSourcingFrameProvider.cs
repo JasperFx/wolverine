@@ -50,7 +50,12 @@ public interface IEventSourcingFrameProvider
     /// retires nothing. The workflow only needs to recognize the type, so the seam hands it over rather
     /// than core naming either one.
     /// </summary>
-    Type EventsCollectionType { get; }
+    /// <remarks>
+    /// Optional. A store with no such convenience type returns null — the default — and its handlers
+    /// return <c>IEnumerable&lt;object&gt;</c> (or a single event) like any other, which the workflow
+    /// already understands.
+    /// </remarks>
+    Type? EventsCollectionType => null;
 
     /// <summary>
     /// The exception type thrown from generated code when a required aggregate cannot be found —
