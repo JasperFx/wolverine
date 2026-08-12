@@ -1,173 +1,31 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.Core.Reflection;
-using JasperFx.Events.Aggregation;
-using JasperFx.Events.Tags;
-using Fisher;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
-using Wolverine.Fisher.Codegen;
 using Wolverine.Fisher.Persistence.Sagas;
-using Wolverine.Persistence;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Handlers;
 using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Fisher;
 
 /// <summary>
 ///     Marks a parameter to a Wolverine message handler or HTTP endpoint method as being part of the
-///     Fisher Dynamic Consistency Boundary (DCB) workflow.
+///     Fisher Dynamic Consistency Boundary (DCB) workflow. The handler must have a Load/Before method
+///     that returns an <see cref="JasperFx.Events.Tags.EventTagQuery" />. Wolverine will call
+///     <c>IDocumentSession.Events.FetchForWritingByTags&lt;T&gt;(query)</c> and project the matching
+///     events into the parameter type. Return values from the handler are appended via
+///     <see cref="JasperFx.Events.Tags.IEventBoundary{T}.AppendOne" />.
 /// </summary>
+/// <remarks>
+///     GH-3911: the workflow itself is <see cref="DcbModelAttribute" /> in Wolverine core, and works the
+///     same against any event store integration. This is the Fisher spelling of it, kept so the three
+///     integrations read alike. Prefer <c>[DcbModel]</c> in new code.
+/// </remarks>
 [AttributeUsage(AttributeTargets.Parameter)]
-public class BoundaryModelAttribute : WolverineParameterAttribute, IDataRequirement, IRefersToAggregate
+public class BoundaryModelAttribute : DcbModelAttribute
 {
-    private OnMissing? _onMissing;
-
-    public bool Required { get; set; }
-    public string MissingMessage { get; set; } = null!;
-
-    public OnMissing OnMissing
+    // GH-3907: name the store rather than resolving one. AddFisher without IntegrateWithWolverine()
+    // registers no persistence strategy, and the store-named attributes have always worked there.
+    protected override IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
     {
-        get => _onMissing ?? OnMissing.Simple404;
-        set => _onMissing = value;
-    }
-
-    [UnconditionalSuppressMessage("Trimming", "IL2062",
-        Justification = "aggregateType originates from parameter.ParameterType; AOT consumers preserve it via DynamicDependency / source-generator registration.")]
-    [UnconditionalSuppressMessage("Trimming", "IL2065",
-        Justification = "MakeGenericType closes IEventBoundary<TAggregate>; GetProperty(nameof(IEventBoundary.Aggregate)) is statically referenced via nameof and the closed-generic IEventBoundary<TAggregate> preserves the Aggregate property by virtue of being instantiated by codegen. AOT consumers pre-generate via TypeLoadMode.Static.")]
-    [UnconditionalSuppressMessage("AOT", "IL3050",
-        Justification = "MakeGenericType closes IEventBoundary<TAggregate> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
-    public override Variable Modify(IChain chain, ParameterInfo parameter, IServiceContainer container,
-        GenerationRules rules)
-    {
-        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
-
-        var aggregateType = parameter.ParameterType;
-        if (aggregateType.IsNullable())
-        {
-            aggregateType = aggregateType.GetInnerTypeFromNullable();
-        }
-
-        var isBoundaryParameter = false;
-        if (aggregateType.Closes(typeof(IEventBoundary<>)))
-        {
-            aggregateType = aggregateType.GetGenericArguments()[0];
-            isBoundaryParameter = true;
-        }
-
-        var firstCall = chain.HandlerCalls().First();
-        var handlerType = firstCall.HandlerType;
-        var loadMethodNames = new[] { "Load", "LoadAsync", "Before", "BeforeAsync" };
-
-        var loadMethod = handlerType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
-            .FirstOrDefault(m => loadMethodNames.Contains(m.Name) &&
-                                 (m.ReturnType == typeof(EventTagQuery) ||
-                                  m.ReturnType == typeof(Task<EventTagQuery>) ||
-                                  m.ReturnType == typeof(ValueTask<EventTagQuery>)));
-
-        if (loadMethod == null)
-        {
-            throw new InvalidOperationException(
-                $"[BoundaryModel] on parameter '{parameter.Name}' in {chain} requires a Load() or Before() method " +
-                $"that returns an EventTagQuery to define the tag query for FetchForWritingByTags<{aggregateType.Name}>().");
-        }
-
-        new FisherPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
-        chain.IsTransactional = true;
-
-        var loader = chain.Middleware.OfType<LoadBoundaryFrame>()
-            .FirstOrDefault(f => f.AggregateType == aggregateType);
-        if (loader == null)
-        {
-            loader = new LoadBoundaryFrame(aggregateType);
-            chain.Middleware.Add(loader);
-        }
-
-        var boundary = loader.Boundary;
-
-        DetermineEventCaptureHandling(chain, aggregateType);
-
-        var boundaryInterfaceType = typeof(IEventBoundary<>).MakeGenericType(aggregateType);
-        Variable aggregateVariable = new MemberAccessVariable(boundary,
-            boundaryInterfaceType.GetProperty(nameof(IEventBoundary<string>.Aggregate))!);
-
-        if (Required)
-        {
-            var otherFrames = chain.AddStopConditionIfNull(aggregateVariable, null, this);
-            var block = new LoadEntityFrameBlock(aggregateVariable, otherFrames);
-            block.AlsoMirrorAsTheCreator(boundary);
-            chain.Middleware.Add(block);
-            aggregateVariable = block.Mirror;
-        }
-
-        if (isBoundaryParameter)
-        {
-            return boundary;
-        }
-
-        if (parameter.ParameterType == aggregateType || parameter.ParameterType.IsNullable() &&
-            parameter.ParameterType.GetInnerTypeFromNullable() == aggregateType)
-        {
-            firstCall.TrySetArgument(parameter.Name!, aggregateVariable);
-        }
-
-        AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, aggregateVariable);
-
-        foreach (var methodCall in chain.Middleware.OfType<MethodCall>())
-        {
-            if (!methodCall.TrySetArgument(parameter.Name!, aggregateVariable))
-            {
-                methodCall.TrySetArgument(aggregateVariable);
-            }
-        }
-
-        chain.Tags["BoundaryHandling"] = new BoundaryHandlingTag(aggregateType, boundary);
-
-        return aggregateVariable;
-    }
-
-    internal static void DetermineEventCaptureHandling(IChain chain, Type aggregateType)
-    {
-        var firstCall = chain.HandlerCalls().First();
-
-        var asyncEnumerable =
-            firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(IAsyncEnumerable<object>));
-        if (asyncEnumerable != null)
-        {
-            asyncEnumerable.UseReturnAction(_ =>
-            {
-                return typeof(ApplyBoundaryEventsFromAsyncEnumerableFrame<>).CloseAndBuildAs<Frame>(
-                    asyncEnumerable, aggregateType);
-            });
-            return;
-        }
-
-        var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
-                             firstCall.Creates.FirstOrDefault(x =>
-                                 x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
-                                 !x.VariableType.CanBeCastTo<IWolverineReturnType>());
-
-        if (eventsVariable != null)
-        {
-            eventsVariable.UseReturnAction(
-                v => typeof(RegisterBoundaryEventsFrame<>)
-                    .CloseAndBuildAs<MethodCall>(eventsVariable, aggregateType)
-                    .WrapIfNotNull(v), "Append events via DCB boundary");
-            return;
-        }
-
-        if (!firstCall.Method.GetParameters()
-                .Any(x => x.ParameterType.Closes(typeof(IEventBoundary<>))))
-        {
-            chain.ReturnVariableActionSource = new BoundaryEventCaptureActionSource(aggregateType);
-        }
+        return new FisherPersistenceFrameProvider();
     }
 }
-
-internal record BoundaryHandlingTag(Type AggregateType, Variable Boundary);

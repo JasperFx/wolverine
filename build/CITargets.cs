@@ -455,6 +455,22 @@ partial class Build
             RunTestProject(sqliteTests);
         });
 
+    // GH-3907. Fisher is a SQLite file, so this needs no container at all - which is also why it is
+    // its own target rather than a passenger on someone else's: there is nothing to share. Being in
+    // wolverine.slnx makes the solution build catch a COMPILE break; only running it catches a
+    // behavioural one, and FisherTests is the acceptance test for the whole GH-3907 unification.
+    // PolecatIncidentService.Tests sat un-compilable for four months for exactly the want of this.
+    Target CIFisher => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var fisherTests = RootDirectory / "src" / "Persistence" / "FisherTests" / "FisherTests.csproj";
+
+            BuildTestProjects(fisherTests);
+
+            RunTestProject(fisherTests);
+        });
+
     Target CISqlServer => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
