@@ -1,3 +1,6 @@
+using JasperFx;
+using JasperFx.CodeGeneration;
+using Wolverine.Polecat.Persistence.Sagas;
 using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Polecat;
@@ -18,5 +21,14 @@ public class ReadAggregateAttribute : ReadModelAttribute
 
     public ReadAggregateAttribute(string argumentName) : base(argumentName)
     {
+    }
+
+    // GH-3907: name the store rather than resolving one. AddMarten/AddPolecat without
+    // IntegrateWithWolverine() registers no persistence strategy, and this attribute has always
+    // worked in that configuration.
+    protected override IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
+    {
+        return new PolecatPersistenceFrameProvider();
     }
 }

@@ -60,7 +60,7 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
     {
         _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
 
-        var provider = rules.FindEventSourcingFrameProvider(container, parameter.ParameterType);
+        var provider = ResolveEventSourcingProvider(rules, container, parameter.ParameterType);
 
         // I know it's goofy that this refers to the saga, but it should work fine here too
         var idType = ((IPersistenceFrameProvider)provider).DetermineSagaIdType(parameter.ParameterType, container);
@@ -101,6 +101,27 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
         AggregateHandling.StoreDeferredMiddlewareVariable(chain, parameter.Name!, returnVariable);
 
         return returnVariable;
+    }
+
+    /// <summary>
+    ///     The event store integration that owns <paramref name="modelType" />.
+    /// </summary>
+    /// <remarks>
+    ///     The default resolves it out of the persistence strategies registered on
+    ///     <see cref="GenerationRules" /> — the same registry <c>[Entity]</c> resolves through — which is
+    ///     what makes this attribute store-agnostic.
+    ///     <para>
+    ///     A store's own attribute overrides this to name itself instead. That is not just belt and
+    ///     braces: <c>AddMarten(...)</c> without <c>IntegrateWithWolverine()</c> is a supported
+    ///     configuration, and in it nothing ever registers a persistence strategy — yet
+    ///     <c>[WriteAggregate]</c> worked there before GH-3907 because it named its provider directly.
+    ///     Overriding keeps that true. GH-3907.
+    ///     </para>
+    /// </remarks>
+    protected virtual IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
+    {
+        return rules.FindEventSourcingFrameProvider(container, modelType);
     }
 
     private static Variable FindAggregateVariable(Frame frame, Type aggregateType,

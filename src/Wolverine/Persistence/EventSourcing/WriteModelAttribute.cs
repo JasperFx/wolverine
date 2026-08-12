@@ -98,7 +98,7 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         // GH-3907: which store owns this aggregate is resolved out of the persistence strategies already
         // registered on these GenerationRules - the same registry [Entity] resolves through - so nothing
         // here names a store.
-        var provider = rules.FindEventSourcingFrameProvider(container, aggregateType);
+        var provider = ResolveEventSourcingProvider(rules, container, aggregateType);
 
         // Both stores had this inlined, spelled differently, and both spellings were byte-for-byte their
         // own IPersistenceFrameProvider.DetermineSagaIdType. Marten resolved the document type's IdType;
@@ -151,6 +151,27 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         };
 
         return handling.Apply(chain, container);
+    }
+
+    /// <summary>
+    ///     The event store integration that owns <paramref name="modelType" />.
+    /// </summary>
+    /// <remarks>
+    ///     The default resolves it out of the persistence strategies registered on
+    ///     <see cref="GenerationRules" /> — the same registry <c>[Entity]</c> resolves through — which is
+    ///     what makes this attribute store-agnostic.
+    ///     <para>
+    ///     A store's own attribute overrides this to name itself instead. That is not just belt and
+    ///     braces: <c>AddMarten(...)</c> without <c>IntegrateWithWolverine()</c> is a supported
+    ///     configuration, and in it nothing ever registers a persistence strategy — yet
+    ///     <c>[WriteAggregate]</c> worked there before GH-3907 because it named its provider directly.
+    ///     Overriding keeps that true. GH-3907.
+    ///     </para>
+    /// </remarks>
+    protected virtual IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
+    {
+        return rules.FindEventSourcingFrameProvider(container, modelType);
     }
 
     internal Variable? findVersionVariable(IChain chain)
