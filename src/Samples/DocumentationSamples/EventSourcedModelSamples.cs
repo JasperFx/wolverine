@@ -1,3 +1,4 @@
+using JasperFx.Events.Tags;
 using Wolverine.Persistence;
 using Wolverine.Persistence.EventSourcing;
 
@@ -78,6 +79,42 @@ public static class ShipOrderExclusivelyHandler
         [WriteModel(LoadStyle = ModelConcurrencyStyle.Exclusive)] Order order)
     {
         return new OrderShipped(DateTimeOffset.UtcNow);
+    }
+}
+
+#endregion
+
+public record ReserveSeat(Guid ScreeningId, Guid CustomerId);
+
+public record SeatReserved(Guid ScreeningId, Guid CustomerId);
+
+public class SeatAvailability
+{
+    public Guid Id { get; set; }
+    public int SeatsLeft { get; set; }
+}
+
+#region sample_using_dcb_model_attribute
+
+public static class ReserveSeatHandler
+{
+    // A Dynamic Consistency Boundary is not one stream, so you say which events it spans with a
+    // Load() (or Before()) method returning an EventTagQuery. Wolverine passes it to the store's
+    // FetchForWritingByTags<T>().
+    public static EventTagQuery Load(ReserveSeat command)
+        => EventTagQuery.For(command.ScreeningId).Or(command.CustomerId);
+
+    // [DcbModel] hands you the model projected from every event the query matched, and appends
+    // what you return through the boundary -- with the store checking at commit that no matching
+    // event has been written since. Nothing here names an event store.
+    public static SeatReserved Handle(ReserveSeat command, [DcbModel] SeatAvailability availability)
+    {
+        if (availability.SeatsLeft <= 0)
+        {
+            throw new InvalidOperationException("The screening is sold out");
+        }
+
+        return new SeatReserved(command.ScreeningId, command.CustomerId);
     }
 }
 

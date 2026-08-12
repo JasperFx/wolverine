@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -5,15 +6,20 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using JasperFx.Events.Tags;
-using Polecat.Events.Dcb;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 
-namespace Wolverine.Polecat.Codegen;
+namespace Wolverine.Persistence.EventSourcing;
 
 /// <summary>
-/// Registers a collection of events via IEventBoundary.AppendMany() for DCB workflows.
+///     Registers a collection of events via <see cref="IEventBoundary{T}.AppendMany(IEnumerable{object})" />
+///     for DCB workflows.
 /// </summary>
+/// <remarks>
+///     GH-3911: this and its siblings below were byte-identical in <c>Wolverine.Marten</c> and
+///     <c>Wolverine.Polecat</c>. Nothing in them names a store — <see cref="IEventBoundary{T}" /> is
+///     JasperFx.Events vocabulary — so they moved down whole.
+/// </remarks>
 internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : class
 {
     public RegisterBoundaryEventsFrame(Variable returnVariable) : base(typeof(IEventBoundary<T>),
@@ -32,7 +38,8 @@ internal class RegisterBoundaryEventsFrame<T> : MethodCall where T : class
 }
 
 /// <summary>
-/// Handles async enumerable return values by appending each event via IEventBoundary.AppendOne().
+///     Handles async enumerable return values by appending each event via
+///     <see cref="IEventBoundary{T}.AppendOne" />.
 /// </summary>
 internal class ApplyBoundaryEventsFromAsyncEnumerableFrame<T> : AsyncFrame where T : class
 {
@@ -66,8 +73,8 @@ internal class ApplyBoundaryEventsFromAsyncEnumerableFrame<T> : AsyncFrame where
 }
 
 /// <summary>
-/// Makes each individual return value from a handler method be appended as an event
-/// via IEventBoundary.AppendOne() for DCB workflows.
+///     Makes each individual return value from a handler method be appended as an event
+///     via <see cref="IEventBoundary{T}.AppendOne" /> for DCB workflows.
 /// </summary>
 internal class BoundaryEventCaptureActionSource : IReturnVariableActionSource
 {
@@ -102,6 +109,13 @@ internal class BoundaryEventCaptureActionSource : IReturnVariableActionSource
             yield break;
         }
 
+        // Core's trim analysis is stricter than either integration ran; the behavior is identical to
+        // the two copies this replaces. The reflective close happens at codegen time over the model
+        // type, which AOT consumers pre-generate via TypeLoadMode.Static.
+        [UnconditionalSuppressMessage("Trimming", "IL2026",
+            Justification = "MethodCall reflects over IEventBoundary<TModel>.AppendOne, named via nameof and preserved by the closed generic that codegen instantiates. AOT consumers pre-generate via TypeLoadMode.Static.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050",
+            Justification = "MakeGenericType closes IEventBoundary<TModel> at codegen time; AOT consumers pre-generate via TypeLoadMode.Static.")]
         public IEnumerable<Frame> Frames()
         {
             var boundaryType = typeof(IEventBoundary<>).MakeGenericType(_aggregateType);

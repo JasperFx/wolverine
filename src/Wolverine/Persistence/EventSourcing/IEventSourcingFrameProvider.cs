@@ -4,6 +4,7 @@ using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using JasperFx.Events;
+using JasperFx.Events.Tags;
 using Wolverine.Configuration;
 using Wolverine.Runtime.Handlers;
 
@@ -79,6 +80,24 @@ public interface IEventSourcingFrameProvider
     /// the store's <c>FetchLatest</c> call. Must create exactly one variable of the aggregate type.
     /// </summary>
     Frame BuildFetchLatestFrame(Type aggregateType, Variable identity);
+
+    /// <summary>
+    /// Build the frame that opens a Dynamic Consistency Boundary for writing — the store's
+    /// <c>FetchForWritingByTags&lt;T&gt;</c> call, which reads the <see cref="EventTagQuery"/> the handler's
+    /// <c>Load()</c>/<c>Before()</c> method produced. Must create exactly one variable of type
+    /// <c>IEventBoundary&lt;TModel&gt;</c>; <see cref="DcbModelAttribute"/> finds it there rather than
+    /// through a store-specific frame type.
+    /// </summary>
+    /// <remarks>
+    /// Optional. DCB is a newer capability than the single-stream aggregate workflow, so a store that does
+    /// not have it inherits this default and <c>[DcbModel]</c> reports that rather than failing at codegen
+    /// with something obscure.
+    /// </remarks>
+    Frame BuildLoadBoundaryFrame(Type modelType)
+        => throw new NotSupportedException(
+            $"The {StoreName} integration does not support the Dynamic Consistency Boundary workflow. " +
+            $"[{nameof(DcbModelAttribute).Replace("Attribute", "")}] requires " +
+            $"{nameof(IEventSourcingFrameProvider)}.{nameof(BuildLoadBoundaryFrame)}.");
 
     /// <summary>
     /// Whether the store identifies streams by <see cref="Guid"/> or by string key. Consulted only to
