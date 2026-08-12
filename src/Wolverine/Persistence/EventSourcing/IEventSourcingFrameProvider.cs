@@ -89,14 +89,6 @@ public interface IEventSourcingFrameProvider
     /// aggregate id.
     /// </summary>
     Type? TryDetermineNaturalKeyType(Type aggregateType, IServiceContainer container) => null;
-
-    /// <summary>
-    /// Store-specific <c>[Identity]</c> attribute types to honor on a command member, <em>in addition
-    /// to</em> <see cref="JasperFx.IdentityAttribute"/>, which the workflow always checks. Polecat needs
-    /// this because <c>Polecat.IdentityAttribute</c> shadows the shared one, so handler code written
-    /// against Polecat may carry either.
-    /// </summary>
-    IReadOnlyList<Type> AdditionalIdentityAttributeTypes => [];
 }
 
 internal static class EventSourcingFrameProviderExtensions

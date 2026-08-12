@@ -14,6 +14,7 @@ using Wolverine.Runtime.Handlers;
 // aggregate-handler attribute recognition (Polecat stays on alpha.10), so
 // pin [Identity] to the Polecat attribute the way it resolved pre-bump.
 using IdentityAttribute = Wolverine.Polecat.IdentityAttribute;
+using Wolverine.Persistence.EventSourcing;
 
 namespace PolecatTests.AggregateHandlerWorkflow;
 

@@ -245,7 +245,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             return (member!, null);
         }
 
-        var aggregateId = DetermineAggregateIdMember(aggregateType, commandType, provider);
+        var aggregateId = DetermineAggregateIdMember(aggregateType, commandType);
         var version = versionSource != null
             ? DetermineVersionMemberByName(commandType, versionSource)
             : DetermineVersionMember(commandType);
@@ -288,25 +288,13 @@ internal record AggregateHandling(IDataRequirement Requirement)
         }
     }
 
-    /// <param name="provider">
-    ///     Null on the <see cref="IMayInferMessageIdentity" /> path, where there are no GenerationRules to
-    ///     resolve a store from. Only the store-specific <c>[Identity]</c> spellings are lost by that, and
-    ///     they only matter on the codegen path.
-    /// </param>
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
-    internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType,
-        IEventSourcingFrameProvider? provider = null)
+    internal static MemberInfo DetermineAggregateIdMember(Type aggregateType, Type commandType)
     {
         var conventionalMemberName = $"{aggregateType.Name}Id";
 
-        // JasperFx.IdentityAttribute is the shared spelling that every store honors. A store may carry a
-        // second one that shadows it in its own namespace - Polecat.IdentityAttribute does - so the seam
-        // gets to add to this list rather than core enumerating stores.
-        var additional = provider?.AdditionalIdentityAttributeTypes ?? [];
-        var member = commandType.GetMembers().FirstOrDefault(x =>
-                         x.HasAttribute<IdentityAttribute>()
-                         || additional.Any(t => x.GetCustomAttributes(t, true).Length > 0))
+        var member = commandType.GetMembers().FirstOrDefault(IsMarkedAsIdentity)
                      ?? commandType.GetMembers().FirstOrDefault(x =>
                          x.Name.EqualsIgnoreCase(conventionalMemberName) || x.Name.EqualsIgnoreCase("Id"));
 
@@ -325,6 +313,21 @@ internal record AggregateHandling(IDataRequirement Requirement)
 
         return member;
     }
+
+    /// <summary>
+    ///     Is this command member marked as the model's stream identity?
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="IdentityAttribute" /> — <c>JasperFx.IdentityAttribute</c> — is the shared spelling
+    ///     across the Critter Stack, but a store may ship its own <c>[Identity]</c> that shadows it in the
+    ///     store's own namespace. <c>Polecat.IdentityAttribute</c> does, and does not derive from the shared
+    ///     one, so handler code written against Polecat may carry either. Matching on the attribute's
+    ///     <b>name</b> honors both — and a third store's spelling too — without Wolverine core enumerating
+    ///     stores, and without the answer depending on whether a provider happened to be resolvable at the
+    ///     call site. GH-3907; the Polecat integration used to hard-code exactly this pair.
+    /// </remarks>
+    private static bool IsMarkedAsIdentity(MemberInfo member)
+        => member.GetCustomAttributes().Any(x => x.GetType().Name == nameof(IdentityAttribute));
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]

@@ -42,8 +42,4 @@ internal partial class PolecatPersistenceFrameProvider : IEventSourcingFrameProv
     public Type? TryDetermineNaturalKeyType(Type aggregateType, IServiceContainer container)
         => container.Services.GetRequiredService<StoreOptions>().Projections
             .FindNaturalKeyDefinition(aggregateType)?.OuterType;
-
-    // Polecat ships its own [Identity] that shadows JasperFx's in the Polecat namespace, so handler
-    // code written against Polecat may carry either spelling. Core always checks the JasperFx one.
-    public IReadOnlyList<Type> AdditionalIdentityAttributeTypes { get; } = [typeof(IdentityAttribute)];
 }
