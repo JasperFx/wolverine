@@ -1,5 +1,14 @@
 # Aggregate Handlers and Event Sourcing
 
+::: info NEW in 6.26
+`[WriteAggregate]`, `[ReadAggregate]` and `[AggregateHandler]` now inherit from the
+persistence-strategy-agnostic `[WriteModel]`, `[ReadModel]` and `[DeciderFunction]` attributes in
+Wolverine core, which work identically against Polecat or any other event store integration.
+Everything on this page still applies unchanged. See
+[Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the agnostic
+spelling, which is the one to prefer in new code.
+:::
+
 ::: tip
 Only use the "aggregate handler workflow" if you are wanting to potentially write new events to an existing event stream. If all you
 need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Polecat, use the `[ReadAggregate]` attribute
