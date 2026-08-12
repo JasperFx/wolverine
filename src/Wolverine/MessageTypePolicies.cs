@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Reflection;
 using JasperFx.Core.Reflection;
 using Wolverine.ErrorHandling;
 using Wolverine.Logging;
@@ -21,15 +22,38 @@ public class MessageTypePolicies<T>
     ///     to type T should be audited as part of telemetry, logging, and metrics
     ///     data exported from this application
     /// </summary>
-    /// <param name="members"></param>
+    /// <param name="memberExpressions">Direct member access expressions on the message type, e.g. <c>x => x.AccountId</c></param>
     /// <typeparam name="T"></typeparam>
+    /// <exception cref="ArgumentOutOfRangeException">One of the expressions is not a direct member access on the message type</exception>
     public MessageTypePolicies<T> Audit(params Expression<Func<T, object>>[] memberExpressions)
     {
-        var members = memberExpressions.Select(expr => FindMembers.Determine(expr).First()).ToArray();
+        var members = memberExpressions.Select(determineAuditedMember).ToArray();
 
         var policy = new AuditMembersPolicy<T>(members);
         _parent.RegisteredPolicies.Insert(0, policy);
         return this;
+
+        // The generated code writes the audited member as "{message}.{MemberName}", so only a direct
+        // member access on the message type can be audited
+        static MemberInfo determineAuditedMember(Expression<Func<T, object>> expression)
+        {
+            // Boxing a value type member to object shows up as a Convert() around the member access
+            var body = expression.Body;
+            while (body is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unary)
+            {
+                body = unary.Operand;
+            }
+
+            if (body is MemberExpression { Expression: ParameterExpression } member)
+            {
+                return member.Member;
+            }
+
+            throw new ArgumentOutOfRangeException(nameof(memberExpressions),
+                $"'{expression}' is not a direct member access on {typeof(T).FullNameInCode()} and cannot be audited. " +
+                "Audit a single public field or property of the message type, or use a computed member on the " +
+                "message type itself and mark it with [Audit].");
+        }
     }
 
     /// <summary>
