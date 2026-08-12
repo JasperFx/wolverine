@@ -17,6 +17,7 @@ These all speak one vocabulary, and none of it names your database:
 | An event sourced model loaded for **writing**, with concurrency protection | `[WriteModel]` |
 | An event sourced model's current state, read only | `[ReadModel]` |
 | The whole method to be an event sourced command handler | `[DeciderFunction]` |
+| An event sourced model spanning several streams, matched by tag | `[DcbModel]` |
 | To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
 
 ## Automatically Loading Entities to Method Parameters <Badge type="tip" text="3.6" />
@@ -191,7 +192,7 @@ public static class ShipOrderHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L28-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_write_model_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L29-L42' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_write_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Use `[DeciderFunction]` for the same workflow at the method or class level, where the model's
@@ -215,7 +216,7 @@ public static class MarkItemReadyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L43-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_decider_function_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L44-L58' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_decider_function_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Use `[ReadModel]` when the handler only needs to *look at* the model. It resolves the current state
@@ -234,7 +235,7 @@ public static class ReadOrderStatusHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L59-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_read_model_attribute' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L60-L72' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_read_model_attribute' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 By default `[WriteModel]` and `[DeciderFunction]` use an optimistic concurrency check at the point
@@ -252,8 +253,56 @@ public static class ShipOrderExclusivelyHandler
     }
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L73-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L74-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+### Dynamic Consistency Boundaries <Badge type="tip" text="6.27" />
+
+`[WriteModel]` and `[DeciderFunction]` are both about *one* stream. When the decision spans several —
+"is this seat still free for this screening, and is this customer under their booking limit?" —
+`[DcbModel]` is the same workflow over a **Dynamic Consistency Boundary**: a model projected from
+every stream whose events match a tag query, with the store asserting at commit that no matching
+event has landed in the meantime.
+
+Because the boundary is a query rather than a stream id, the handler declares it in a `Load()` (or
+`LoadAsync()` / `Before()` / `BeforeAsync()`) method returning an `EventTagQuery`:
+
+<!-- snippet: sample_using_dcb_model_attribute -->
+<a id='snippet-sample_using_dcb_model_attribute'></a>
+```cs
+public static class ReserveSeatHandler
+{
+    // A Dynamic Consistency Boundary is not one stream, so you say which events it spans with a
+    // Load() (or Before()) method returning an EventTagQuery. Wolverine passes it to the store's
+    // FetchForWritingByTags<T>().
+    public static EventTagQuery Load(ReserveSeat command)
+        => EventTagQuery.For(command.ScreeningId).Or(command.CustomerId);
+
+    // [DcbModel] hands you the model projected from every event the query matched, and appends
+    // what you return through the boundary -- with the store checking at commit that no matching
+    // event has been written since. Nothing here names an event store.
+    public static SeatReserved Handle(ReserveSeat command, [DcbModel] SeatAvailability availability)
+    {
+        if (availability.SeatsLeft <= 0)
+        {
+            throw new InvalidOperationException("The screening is sold out");
+        }
+
+        return new SeatReserved(command.ScreeningId, command.CustomerId);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L97-L121' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_dcb_model_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Mark the parameter as `IEventBoundary<T>` instead of `T` if you want the boundary handle itself —
+its `Events`, its `LastSeenSequence`, and `AppendOne()` / `AppendMany()` for appending imperatively
+rather than by returning events.
+
+::: warning
+DCB is newer than the single-stream workflow and not every event store integration implements it.
+`[DcbModel]` against a store that does not will tell you so at codegen time.
+:::
 
 Identity resolution follows the same conventions as `[Entity]`, in this order: an explicit
 `[WriteModel("orderId")]`, then a member marked with `[JasperFx.Identity]` on the message, then a
@@ -288,11 +337,11 @@ public static (IReadOnlyList<object>, OrderShipmentNotice) Handle(
 :::
 
 ::: tip
-Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`
-and `[AggregateHandler]` in both `Wolverine.Marten` and `Wolverine.Polecat`, plus `[Aggregate]` in
-the matching `Wolverine.Http.*` package. As of Wolverine 6.26 those all inherit from the attributes
-above and behave identically, so existing code needs no change. Prefer the store-agnostic names in
-new code.
+Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`,
+`[AggregateHandler]` and `[BoundaryModel]` in both `Wolverine.Marten` and `Wolverine.Polecat`, plus
+`[Aggregate]` in the matching `Wolverine.Http.*` package. As of Wolverine 6.26 (6.27 for
+`[BoundaryModel]`) those all inherit from the attributes above and behave identically, so existing
+code needs no change. Prefer the store-agnostic names in new code.
 
 One thing to know if you mix them: `Wolverine.Marten` and `Wolverine.Polecat` each have their own
 public `ConcurrencyStyle` enum, which is why the core one is `ModelConcurrencyStyle`. A file that
