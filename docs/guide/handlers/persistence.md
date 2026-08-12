@@ -9,6 +9,16 @@ without having to directly couple your behavioral code to persistence infrastruc
 * The [aggregate handler workflow](/guide/durability/marten/event-sourcing) with Marten for highly testable CQRS + Event Sourcing systems
 * Specific [integration with Marten and Wolverine.HTTP](/guide/http/marten)
 
+These all speak one vocabulary, and none of it names your database:
+
+| You want | Use |
+|---|---|
+| A document or entity loaded for you | `[Entity]` |
+| An event sourced model loaded for **writing**, with concurrency protection | `[WriteModel]` |
+| An event sourced model's current state, read only | `[ReadModel]` |
+| The whole method to be an event sourced command handler | `[DeciderFunction]` |
+| To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
+
 ## Automatically Loading Entities to Method Parameters <Badge type="tip" text="3.6" />
 
 A common need when building Wolverine message handlers or HTTP endpoints is to need to load
@@ -154,6 +164,115 @@ public enum ValueSource
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Event Sourced Models <Badge type="tip" text="6.26" />
+
+`[Entity]` resolves a *document* from whatever persistence your application configured. Its
+counterparts for an *event sourced* model are `[WriteModel]` and `[ReadModel]`, and they work the
+same way: you say what the parameter is for, and Wolverine works out which store owns it from the
+persistence you already registered. The same handler code is valid whether that store is Marten or
+Polecat.
+
+Use `[WriteModel]` when the handler is going to emit events. Wolverine loads the model's event
+stream with concurrency protection, hands the current state to your method, and appends whatever
+events you return back to that stream:
+
+<!-- snippet: sample_using_write_model_attribute -->
+<a id='snippet-sample_using_write_model_attribute'></a>
+```cs
+public static class ShipOrderHandler
+{
+    // [WriteModel] loads the Order's event stream with concurrency protection, hands you
+    // the current state, and appends whatever events you return back to that same stream.
+    // Nothing here names an event store -- the same handler is valid on Marten or Polecat.
+    public static OrderShipped Handle(ShipOrder command, [WriteModel] Order order)
+    {
+        return new OrderShipped(DateTimeOffset.UtcNow);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L28-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_write_model_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Use `[DeciderFunction]` for the same workflow at the method or class level, where the model's
+identity is read off the incoming command rather than off a marked parameter. The name is the
+functional event sourcing one — a decider is `decide(command, state) -> events`, which is exactly
+what this workflow gives you: Wolverine supplies the `state` and persists the `events`, and your
+method is a pure function in between.
+
+<!-- snippet: sample_using_decider_function_attribute -->
+<a id='snippet-sample_using_decider_function_attribute'></a>
+```cs
+// [DeciderFunction] is the method (or class) level form: it reads the model's identity off the
+// incoming command -- MarkItemReady.OrderId here -- rather than off a marked parameter. The name
+// is the functional event sourcing one: decide(command, state) -> events.
+[DeciderFunction]
+public static class MarkItemReadyHandler
+{
+    public static OrderItemReady Handle(MarkItemReady command, Order order)
+    {
+        return new OrderItemReady(command.Item);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L43-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_decider_function_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Use `[ReadModel]` when the handler only needs to *look at* the model. It resolves the current state
+through the store's `FetchLatest()` API, takes no stream lock, and expects no events back:
+
+<!-- snippet: sample_using_read_model_attribute -->
+<a id='snippet-sample_using_read_model_attribute'></a>
+```cs
+public static class ReadOrderStatusHandler
+{
+    // [ReadModel] resolves the model's current state through the store's FetchLatest() API.
+    // No stream lock is taken, and Wolverine does not expect any events back.
+    public static OrderStatusReport Handle(ReadOrderStatus query, [ReadModel] Order order)
+    {
+        return new OrderStatusReport(order.Shipped);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L59-L71' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_read_model_attribute' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+By default `[WriteModel]` and `[DeciderFunction]` use an optimistic concurrency check at the point
+of commit. Opt into an exclusive lock on the stream instead with `ModelConcurrencyStyle.Exclusive`:
+
+<!-- snippet: sample_write_model_with_exclusive_locking -->
+<a id='snippet-sample_write_model_with_exclusive_locking'></a>
+```cs
+public static class ShipOrderExclusivelyHandler
+{
+    public static OrderShipped Handle(ShipOrder command,
+        [WriteModel(LoadStyle = ModelConcurrencyStyle.Exclusive)] Order order)
+    {
+        return new OrderShipped(DateTimeOffset.UtcNow);
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L73-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+Identity resolution follows the same conventions as `[Entity]` — a `[Model Type Name]Id` member, an
+`id` member or route argument, or an explicit `[WriteModel("orderId")]` — plus the shared
+`[JasperFx.Identity]` attribute on the command member. Missing-model behavior is the same too:
+`Required`, `MissingMessage` and `OnMissing` all mean what they mean on `[Entity]`, and both
+attributes honor the [global entity defaults](#global-entity-defaults) below.
+
+::: tip
+Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`
+and `[AggregateHandler]` in both `Wolverine.Marten` and `Wolverine.Polecat`, plus `[Aggregate]` in
+the matching `Wolverine.Http.*` package. As of Wolverine 6.26 those all inherit from the attributes
+above and behave identically, so existing code needs no change. Prefer the store-agnostic names in
+new code.
+
+One thing to know if you mix them: `Wolverine.Marten` and `Wolverine.Polecat` each have their own
+public `ConcurrencyStyle` enum, which is why the core one is `ModelConcurrencyStyle`. A file that
+imports both `Wolverine.Marten` and `Wolverine.Persistence.EventSourcing` sees both names, and they
+do not collide.
+:::
 
 ## Global Entity Defaults <Badge type="tip" text="5.16" />
 

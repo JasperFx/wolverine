@@ -3,6 +3,10 @@ using JasperFx.CodeGeneration.Model;
 using Wolverine.Configuration;
 using Wolverine.Polecat;
 
+// GH-3907: AggregateHandling moved into Wolverine core with the rest of the shared aggregate handler
+// workflow. The chain tag key is unchanged, so these extensions read exactly what they always did.
+using Wolverine.Persistence.EventSourcing;
+
 namespace Wolverine.Http.Polecat;
 
 public static class ChainAggregateHandlingExtensions

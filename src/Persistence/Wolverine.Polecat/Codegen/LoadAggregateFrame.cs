@@ -6,12 +6,14 @@ using JasperFx.Core.Reflection;
 using Polecat;
 using JasperFx.Events;
 using Polecat.Events;
+using Wolverine.Persistence.EventSourcing;
+using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ModelConcurrencyStyle;
 
 namespace Wolverine.Polecat.Codegen;
 
 internal class LoadAggregateFrame : AsyncFrame
 {
-    private readonly AggregateHandling _att;
+    private readonly AggregateLoadRequest _att;
     private Variable? _session;
     private Variable? _token;
     private readonly Variable _identity;
@@ -19,12 +21,12 @@ internal class LoadAggregateFrame : AsyncFrame
     private readonly Type _eventStreamType;
     private readonly Variable _rawIdentity;
 
-    public LoadAggregateFrame(AggregateHandling att)
+    public LoadAggregateFrame(AggregateLoadRequest att)
     {
         _att = att;
         _identity = _att.AggregateId;
 
-        if (_att is { LoadStyle: ConcurrencyStyle.Optimistic, Version: not null })
+        if (_att is { LoadStyle: CoreConcurrencyStyle.Optimistic, Version: not null })
         {
             _version = _att.Version;
         }
@@ -64,7 +66,7 @@ internal class LoadAggregateFrame : AsyncFrame
             var nkType = _identity.VariableType.FullNameInCode();
             writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForWriting<{aggType}, {nkType}>({_identity.Usage}, {_token!.Usage});");
         }
-        else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+        else if (_att.LoadStyle == CoreConcurrencyStyle.Exclusive)
         {
             writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
         }

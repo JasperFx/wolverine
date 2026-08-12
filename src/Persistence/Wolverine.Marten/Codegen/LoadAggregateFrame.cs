@@ -6,12 +6,14 @@ using JasperFx.Core.Reflection;
 using Marten;
 using JasperFx.Events;
 using Marten.Events;
+using Wolverine.Persistence.EventSourcing;
+using CoreConcurrencyStyle = Wolverine.Persistence.EventSourcing.ModelConcurrencyStyle;
 
 namespace Wolverine.Marten.Codegen;
 
 internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
 {
-    private readonly AggregateHandling _att;
+    private readonly AggregateLoadRequest _att;
     private Variable? _session;
     private Variable? _token;
     private Variable? _batchQuery;
@@ -22,12 +24,12 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
     private readonly Variable _rawIdentity;
 
 
-    public LoadAggregateFrame(AggregateHandling att)
+    public LoadAggregateFrame(AggregateLoadRequest att)
     {
         _att = att;
         _identity = _att.AggregateId;
 
-        if (_att is { LoadStyle: ConcurrencyStyle.Optimistic, Version: not null })
+        if (_att is { LoadStyle: CoreConcurrencyStyle.Optimistic, Version: not null })
         {
             _version = _att.Version;
         }
@@ -65,7 +67,7 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
             return;
         }
 
-        if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+        if (_att.LoadStyle == CoreConcurrencyStyle.Exclusive)
         {
             writer.WriteLine($"var {_batchQueryItem!.Usage} = {_batchQuery!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage});");
         }
@@ -147,7 +149,7 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
             {
                 writer.WriteLine($"var {Stream.Usage} = await {NaturalKeyFetchForWriting(_session!.Usage, _token!.Usage)};");
             }
-            else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+            else if (_att.LoadStyle == CoreConcurrencyStyle.Exclusive)
             {
                 writer.WriteLine($"var {Stream.Usage} = await {_session!.Usage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FullNameInCode()}>({_rawIdentity.Usage}, {_token!.Usage});");
             }
@@ -197,7 +199,7 @@ internal class LoadAggregateFrame : AsyncFrame,  IBatchableFrame
             {
                 writer.WriteLine($"let! {Stream.Usage} = {NaturalKeyFetchForWritingFSharp(_session!.FSharpUsage, _token!.FSharpUsage)}");
             }
-            else if (_att.LoadStyle == ConcurrencyStyle.Exclusive)
+            else if (_att.LoadStyle == CoreConcurrencyStyle.Exclusive)
             {
                 writer.WriteLine($"let! {Stream.Usage} = {_session!.FSharpUsage}.Events.FetchForExclusiveWriting<{_att.AggregateType.FSharpName()}>({_rawIdentity.FSharpUsage}, {_token!.FSharpUsage})");
             }

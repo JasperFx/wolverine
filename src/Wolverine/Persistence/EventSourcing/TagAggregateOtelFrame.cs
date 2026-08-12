@@ -5,12 +5,17 @@ using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
 using Wolverine.Runtime;
 
-namespace Wolverine.Marten.Codegen;
+namespace Wolverine.Persistence.EventSourcing;
 
 /// <summary>
 /// Frame that generates code to tag the current OpenTelemetry activity with
 /// the aggregate stream ID and aggregate type when processing an aggregate handler workflow.
 /// </summary>
+/// <remarks>
+/// GH-3907: was duplicated as <c>Wolverine.Marten.Codegen.TagAggregateOtelFrame</c> and its Polecat
+/// twin. Nothing in it was ever store-specific — the tag names are Wolverine's own — so it moves here
+/// whole. The Marten copy is the one taken: Polecat's had dropped the F# rendering.
+/// </remarks>
 internal class TagAggregateOtelFrame : SyncFrame
 {
     private readonly Type _aggregateType;
@@ -25,7 +30,7 @@ internal class TagAggregateOtelFrame : SyncFrame
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
     {
-        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.Usage}.ToString());");
+        writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamId}\", {_aggregateId.Usage});");
         writer.WriteLine($"{typeof(Activity).FullNameInCode()}.{nameof(Activity.Current)}?.{nameof(Activity.SetTag)}(\"{WolverineTracing.StreamType}\", \"{_aggregateType.FullName}\");");
         Next?.GenerateCode(method, writer);
     }

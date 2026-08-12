@@ -44,6 +44,11 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]
 [assembly: InternalsVisibleTo("Wolverine.Http")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
+
+// GH-3907: the shared aggregate handler workflow's AggregateHandling moved into Wolverine core, and both
+// HTTP store integrations read it off the chain's tags to describe the workflow to OpenAPI.
+[assembly: InternalsVisibleTo("Wolverine.Http.Marten")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Polecat")]
 [assembly: InternalsVisibleTo("Wolverine.Core.FSharpTests")]
 [assembly: InternalsVisibleTo("Wolverine.Grpc")]
 [assembly: InternalsVisibleTo("Wolverine.Grpc.Tests")]

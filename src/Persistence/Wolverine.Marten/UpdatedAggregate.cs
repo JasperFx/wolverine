@@ -6,6 +6,7 @@ using Marten;
 using Marten.Events;
 using Marten.Internal;
 using Wolverine.Configuration;
+using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten;
 

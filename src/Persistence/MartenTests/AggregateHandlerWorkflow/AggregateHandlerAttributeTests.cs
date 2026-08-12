@@ -10,6 +10,7 @@ using Wolverine.Configuration;
 using Wolverine.Marten;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Handlers;
+using Wolverine.Persistence.EventSourcing;
 
 namespace MartenTests.AggregateHandlerWorkflow;
 

@@ -1,25 +1,7 @@
 using JasperFx;
 using JasperFx.CodeGeneration;
-using JasperFx.CodeGeneration.Frames;
-using JasperFx.CodeGeneration.Model;
-using JasperFx.CodeGeneration.Services;
-using JasperFx.Core;
-using JasperFx.Core.Reflection;
-using JasperFx.Events;
-using Marten;
-using Marten.Events;
-using Microsoft.Extensions.DependencyInjection;
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
-using Wolverine.Attributes;
-using Wolverine.Configuration;
-using Wolverine.Marten.Codegen;
 using Wolverine.Marten.Persistence.Sagas;
-using Wolverine.Persistence;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.Partitioning;
+using Wolverine.Persistence.EventSourcing;
 
 namespace Wolverine.Marten;
 
@@ -28,120 +10,32 @@ namespace Wolverine.Marten;
 ///     "command" messages that use a Marten projected aggregate to "decide" what
 ///     on new events to persist to the aggregate stream.
 /// </summary>
+/// <remarks>
+///     GH-3907: the workflow itself is <see cref="DeciderFunctionAttribute" /> in Wolverine core now, and
+///     works the same against any event store integration. This is the Marten spelling of it, kept because
+///     it is what existing code says. Prefer <c>[DeciderFunction]</c> in new code — the name says what the
+///     method is (<c>decide(command, state) -&gt; events</c>) rather than which store it reads from.
+/// </remarks>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-public class AggregateHandlerAttribute : ModifyChainAttribute, IDataRequirement, IMayInferMessageIdentity
+public class AggregateHandlerAttribute : DeciderFunctionAttribute
 {
-    public AggregateHandlerAttribute(ConcurrencyStyle loadStyle)
-    {
-        LoadStyle = loadStyle;
-    }
-
-    public AggregateHandlerAttribute() : this(ConcurrencyStyle.Optimistic)
+    // The two ConcurrencyStyle enums are the same two members in the same order. This ctor exists so
+    // that [AggregateHandler(ConcurrencyStyle.Exclusive)] written against Wolverine.Marten's spelling
+    // keeps compiling.
+    public AggregateHandlerAttribute(ConcurrencyStyle loadStyle) : base((ModelConcurrencyStyle)(int)loadStyle)
     {
     }
 
-    internal ConcurrencyStyle LoadStyle { get; }
-
-    /// <summary>
-    ///     If true, Marten will enforce an optimistic concurrency check on this stream even if no
-    ///     events are appended at the time of calling SaveChangesAsync(). This is useful when you want
-    ///     to ensure the stream version has not advanced since it was fetched, even if the command
-    ///     handler decides not to emit any new events.
-    /// </summary>
-    public bool AlwaysEnforceConsistency { get; set; }
-
-    /// <summary>
-    ///     Override the name of the member on the command type used to find the expected stream version
-    ///     for optimistic concurrency checks. By default, Wolverine looks for a member named "Version"
-    ///     of type int or long. This is useful in multi-stream operations where each stream needs
-    ///     its own version source.
-    /// </summary>
-    public string? VersionSource { get; set; }
-
-    /// <summary>
-    ///     Override or "help" Wolverine to understand which type is the aggregate type
-    /// </summary>
-    public Type? AggregateType { get; set; }
-
-    internal MemberInfo? AggregateIdMember { get; set; }
-    internal Type? CommandType { get; private set; }
-
-    public MemberInfo? VersionMember { get; private set; }
-
-    public override void Modify(IChain chain, GenerationRules rules, IServiceContainer container)
+    public AggregateHandlerAttribute() : base(ModelConcurrencyStyle.Optimistic)
     {
-        _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
-
-        // ReSharper disable once CanSimplifyDictionaryLookupWithTryAdd
-        if (chain.Tags.ContainsKey(nameof(AggregateHandlerAttribute)))
-        {
-            return;
-        }
-
-        chain.Tags.Add(nameof(AggregateHandlerAttribute), "true");
-
-        CommandType = chain.InputType();
-        if (CommandType == null)
-        {
-            throw new InvalidOperationException(
-                $"Cannot apply Marten aggregate handler workflow to chain {chain} because it has no input type");
-        }
-
-        AggregateType ??= AggregateHandling.DetermineAggregateType(chain);
-
-        (AggregateIdMember, VersionMember) =
-            AggregateHandling.DetermineAggregateIdAndVersion(AggregateType, CommandType, container, VersionSource);
-
-        var aggregateFrame = new MemberAccessFrame(CommandType, AggregateIdMember,
-            $"{Variable.DefaultArgName(AggregateType)}_Id");
-
-        var versionFrame = VersionMember == null ? null : new MemberAccessFrame(CommandType,VersionMember, $"{Variable.DefaultArgName(CommandType)}_Version");
-
-        var handling = new AggregateHandling(this)
-        {
-            AggregateType = AggregateType,
-            AggregateId = aggregateFrame.Variable,
-            LoadStyle = LoadStyle,
-            Version = versionFrame?.Variable,
-            AlwaysEnforceConsistency = AlwaysEnforceConsistency
-        };
-        
-        handling.Apply(chain, container);
     }
 
-    public bool TryInferMessageIdentity(IChain chain, [NotNullWhen(true)] out PropertyInfo? property)
+    // GH-3907: name the store rather than resolving one. AddMarten/AddPolecat without
+    // IntegrateWithWolverine() registers no persistence strategy, and this attribute has always
+    // worked in that configuration.
+    protected override IEventSourcingFrameProvider ResolveEventSourcingProvider(GenerationRules rules,
+        IServiceContainer container, Type modelType)
     {
-        var inputType = chain.InputType();
-        property = default!;
-
-        // This is gross
-        if (inputType.Closes(typeof(IEvent<>)))
-        {
-            if (AggregateHandling.TryLoad(chain, out var handling))
-            {
-                property = handling.AggregateId!.VariableType == typeof(string)
-                    ? inputType!.GetProperty(nameof(IEvent.StreamKey))!
-                    : inputType!.GetProperty(nameof(IEvent.StreamId))!;
-
-            }
-
-            return property != null;
-        }
-
-        var aggregateType = AggregateType ?? AggregateHandling.DetermineAggregateType(chain);
-        var idMember = AggregateHandling.DetermineAggregateIdMember(aggregateType, inputType!);
-        property = (idMember as PropertyInfo)!;
-        return property != null;
-    }
-
-    private OnMissing? _onMissing;
-
-    public bool Required { get; set; }
-    public string MissingMessage { get; set; } = null!;
-
-    public OnMissing OnMissing
-    {
-        get => _onMissing ?? OnMissing.Simple404;
-        set => _onMissing = value;
+        return new MartenPersistenceFrameProvider();
     }
 }
