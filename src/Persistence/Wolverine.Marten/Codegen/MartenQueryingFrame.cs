@@ -51,27 +51,21 @@ internal class MartenBatchingPolicy : IMethodPreCompilationPolicy
         for (int i = 0; i < method.Frames.Count; i++)
         {
             var frame = method.Frames[i];
-            IBatchableFrame? batchable = frame switch
+            if (frame is LoadEntityFrameBlock block && block.Creator is IBatchableFrame b && IsBatchable(b))
             {
-                LoadEntityFrameBlock block => block.Creator as IBatchableFrame,
-                IBatchableFrame b => b,
-                _ => null
-            };
-
-            if (batchable == null || !IsBatchable(batchable)) continue;
-
-            // GH-3916: count each operation once. A required aggregate load appears TWICE in
-            // method.Frames - as the bare LoadAggregateFrame, and again as the Creator of the
-            // LoadEntityFrameBlock that wraps it for the not-null guard - so a handler with a single
-            // required aggregate used to clear the "two or more" gate below on a duplicate and get
-            // wrapped in a batch of one: CreateBatchQuery() + Execute() around a lone FetchForWriting.
-            // MartenBatchFrame.Enlist already deduped, so only the gate was fooled.
-            if (list.Contains(batchable)) continue;
-
-            list.Add(batchable);
-            if (index == -1)
+                list.Add(b);
+                if (index == -1)
+                {
+                    index = i;
+                }
+            }
+            else if (frame is IBatchableFrame batchable && IsBatchable(batchable))
             {
-                index = i;
+                list.Add(batchable);
+                if (index == -1)
+                {
+                    index = i;
+                }
             }
         }
 
