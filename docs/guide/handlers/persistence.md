@@ -255,11 +255,37 @@ public static class ShipOrderExclusivelyHandler
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/EventSourcedModelSamples.cs#L73-L84' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_write_model_with_exclusive_locking' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-Identity resolution follows the same conventions as `[Entity]` — a `[Model Type Name]Id` member, an
-`id` member or route argument, or an explicit `[WriteModel("orderId")]` — plus the shared
-`[JasperFx.Identity]` attribute on the command member. Missing-model behavior is the same too:
-`Required`, `MissingMessage` and `OnMissing` all mean what they mean on `[Entity]`, and both
-attributes honor the [global entity defaults](#global-entity-defaults) below.
+Identity resolution follows the same conventions as `[Entity]`, in this order: an explicit
+`[WriteModel("orderId")]`, then a member marked with `[JasperFx.Identity]` on the message, then a
+`[Model Type Name]Id` member, then `id`, then a single member of the model's strong typed id type.
+The `[Identity]` step is the one to reach for when the identity lives on a member whose name says
+something else — it is declared on the message, where it is true regardless of which handler form
+reads it.
+
+Missing-model behavior matches `[Entity]` as well: `Required`, `MissingMessage` and `OnMissing` mean
+what they mean there, and both attributes honor the
+[global entity defaults](#global-entity-defaults) below.
+
+On `[WriteModel]`, `Required` **defaults to the opposite of the parameter's nullable annotation**
+<Badge type="tip" text="6.27" /> — `Order order` is required and gets a not-found guard, `Order? order`
+is not and is handed to your method as `null` so your own null branch runs. Setting `Required`
+explicitly overrides the annotation either way.
+
+::: warning Every return value is an event
+Under `[WriteModel]` and `[DeciderFunction]` alike, anything the method returns that is not
+recognized as something else is **appended to the model's event stream**. That includes a value you
+may have meant to publish as a cascading message — it will land in the stream instead, quietly.
+
+To do both, return a tuple: the events collection is appended and the other member is published.
+
+```cs
+public static (IReadOnlyList<object>, OrderShipmentNotice) Handle(
+    ShipOrder command, [WriteModel] Order order)
+{
+    return ([new OrderShipped(DateTimeOffset.UtcNow)], new OrderShipmentNotice(command.OrderId));
+}
+```
+:::
 
 ::: tip
 Every store integration also ships its own name for these — `[WriteAggregate]`, `[ReadAggregate]`
