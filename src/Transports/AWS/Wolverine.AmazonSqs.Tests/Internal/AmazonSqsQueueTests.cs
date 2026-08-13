@@ -88,18 +88,21 @@ public class AmazonSqsQueueTests
     }
 
     [Fact]
-    public void configure_request_does_not_set_message_attribute_names_when_null()
+    // GH-3926: an endpoint that names no attributes of its own still has to ask for Wolverine's
+    // fragment framing. SQS returns only the attributes a receive names, so leaving it off makes a
+    // fragmented message arrive as N unrelated messages that each fail to deserialize.
+    public void configure_request_still_asks_for_the_fragment_framing_when_null()
     {
         var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport());
         var request = new ReceiveMessageRequest();
 
         endpoint.ConfigureRequest(request);
 
-        request.MessageAttributeNames.ShouldBeNull();
+        request.MessageAttributeNames.ShouldBe(SqsMessageFragments.AttributeNames);
     }
 
     [Fact]
-    public void configure_request_does_not_set_when_empty_list()
+    public void configure_request_still_asks_for_the_fragment_framing_when_empty()
     {
         var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport())
         {
@@ -109,7 +112,39 @@ public class AmazonSqsQueueTests
 
         endpoint.ConfigureRequest(request);
 
-        request.MessageAttributeNames.ShouldBeNull();
+        request.MessageAttributeNames.ShouldBe(SqsMessageFragments.AttributeNames);
+    }
+
+    [Fact]
+    public void configure_request_appends_the_fragment_framing_to_what_the_endpoint_asked_for()
+    {
+        var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport())
+        {
+            MessageAttributeNames = ["tenant-id"]
+        };
+        var request = new ReceiveMessageRequest();
+
+        endpoint.ConfigureRequest(request);
+
+        request.MessageAttributeNames.ShouldContain("tenant-id");
+        foreach (var name in SqsMessageFragments.AttributeNames)
+        {
+            request.MessageAttributeNames.ShouldContain(name);
+        }
+    }
+
+    [Fact]
+    public void configure_request_leaves_All_alone_since_it_already_covers_the_framing()
+    {
+        var endpoint = new AmazonSqsQueue("foo", new AmazonSqsTransport())
+        {
+            MessageAttributeNames = ["All"]
+        };
+        var request = new ReceiveMessageRequest();
+
+        endpoint.ConfigureRequest(request);
+
+        request.MessageAttributeNames.ShouldBe(["All"]);
     }
 }
 

@@ -89,6 +89,45 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
     /// </summary>
     public bool EnableFairQueueMessageGroups { get; set; }
 
+    /// <summary>
+    ///     Split an outgoing message that would exceed SQS's 256KB limit into several SQS messages, and
+    ///     reassemble it on the receiving side. Default is <c>false</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     <b>Wolverine to Wolverine only.</b> The fragments are Wolverine's own framing carried in SQS
+    ///     message attributes, so a non-Wolverine consumer of this queue sees N unintelligible messages
+    ///     rather than one. That is why this is opt-in per endpoint rather than automatic.
+    ///     </para>
+    ///     <para>
+    ///     <b>Reassembly happens in memory, per listener</b>, so every fragment of a message has to reach
+    ///     the same listener. SQS is a competing-consumer queue, so use this only where that is
+    ///     guaranteed:
+    ///     </para>
+    ///     <list type="bullet">
+    ///         <item>a <b>FIFO queue</b> — SQS delivers a message group to one consumer at a time, and
+    ///         every fragment of a message shares a group id;</item>
+    ///         <item>a listener using <b>GlobalPartitioning</b> — the fragments carry the message's
+    ///         <see cref="Envelope.GroupId" />, so they are all routed to the node that owns that
+    ///         group;</item>
+    ///         <item>a <b>single listening node</b>.</item>
+    ///     </list>
+    ///     <para>
+    ///     On a standard queue with several unpartitioned nodes the fragments scatter, no node completes
+    ///     a set, and they are abandoned after <see cref="FragmentReassemblyTimeout" /> and redelivered.
+    ///     Prefer a <a href="https://wolverinefx.net/guide/durability/claim-checks.html">claim check</a>
+    ///     there.
+    ///     </para>
+    /// </remarks>
+    public bool FragmentOversizedMessages { get; set; }
+
+    /// <summary>
+    ///     How long a listener holds an incomplete set of fragments before abandoning it. Default is 5
+    ///     minutes. Abandoning forgets them locally; it does not delete them from SQS, so they become
+    ///     visible again.
+    /// </summary>
+    public TimeSpan FragmentReassemblyTimeout { get; set; } = 5.Minutes();
+
     // Set by the AmazonSqsTransport parent
     internal string? QueueUrl { get; private set; }
 
@@ -369,10 +408,46 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         Mapper ??= new DefaultSqsEnvelopeMapper();
 
         var body = Mapper!.BuildMessageBody(envelope);
+
+        if (!SqsMessageFragments.ExceedsLimit(body))
+        {
+            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, body, null, logger));
+            return;
+        }
+
+        // GH-3926: this is the one-at-a-time path (inline senders, requeues, dead letter forwarding), so
+        // there is a caller to throw back at rather than a sender callback to report to. Either way an
+        // oversized message can never be accepted by SQS, so failing loudly here beats letting SQS answer
+        // with a SenderFault that a retry block would repeat forever.
+        if (!FragmentOversizedMessages)
+        {
+            throw new SqsMessageTooLargeException(
+                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, over the {SqsMessageFragments.MaximumBodyBytes} bytes Wolverine will send in one SQS message (SQS caps a message and its attributes together at {SqsMessageFragments.MaximumMessageBytes}). Use a claim check (WolverineFx.ClaimCheck.AmazonS3), or opt this endpoint into FragmentOversizedMessages().");
+        }
+
+        var bodies = SqsMessageFragments.Split(body);
+
+        if (bodies.Length > SqsMessageFragments.MaximumFragments)
+        {
+            throw new SqsMessageTooLargeException(
+                $"Envelope {envelope.Id} of message type {envelope.MessageType} produced a {body.Length} byte body for queue {QueueName}, which would need {bodies.Length} fragments against a maximum of {SqsMessageFragments.MaximumFragments}. A message this large is a claim check problem rather than a framing one; see WolverineFx.ClaimCheck.AmazonS3.");
+        }
+
+        for (var i = 0; i < bodies.Length; i++)
+        {
+            var header = new SqsFragmentHeader(envelope.Id, i, bodies.Length);
+            await _parent.Client!.SendMessageAsync(buildSendRequest(envelope, bodies[i], header, logger));
+        }
+    }
+
+    private SendMessageRequest buildSendRequest(Envelope envelope, string body, SqsFragmentHeader? fragment,
+        ILogger logger)
+    {
         var request = new SendMessageRequest(QueueUrl, body);
+
         if (IsFifoQueue)
         {
-            var groupId = Mapper.DetermineGroupId(envelope);
+            var groupId = groupIdFor(envelope, fragment);
             if (groupId.IsNotEmpty())
             {
                 request.MessageGroupId = groupId;
@@ -381,24 +456,37 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             var deduplicationId = DetermineDeduplicationId(envelope);
             if (deduplicationId.IsNotEmpty())
             {
-                request.MessageDeduplicationId = deduplicationId;
+                // Every fragment of one envelope would otherwise carry the identical deduplication id,
+                // and a FIFO queue would keep exactly one of them.
+                request.MessageDeduplicationId = fragment is { } header
+                    ? $"{deduplicationId}-{header.Index}"
+                    : deduplicationId;
             }
         }
         else if (EnableFairQueueMessageGroups)
         {
             // SQS fair queues: a MessageGroupId on a standard queue improves tenant fairness.
             // No deduplication semantics apply to standard queues. See GH-2886.
-            var groupId = Mapper.DetermineGroupId(envelope);
+            var groupId = groupIdFor(envelope, fragment);
             if (groupId.IsNotEmpty())
             {
                 request.MessageGroupId = groupId;
             }
         }
 
-        foreach (var attribute in Mapper.ToAttributes(envelope))
+        foreach (var attribute in Mapper!.ToAttributes(envelope))
         {
             request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
             request.MessageAttributes.Add(attribute.Key, attribute.Value);
+        }
+
+        if (fragment is { } h)
+        {
+            request.MessageAttributes ??= new Dictionary<string, MessageAttributeValue>();
+            foreach (var pair in SqsMessageFragments.AttributesFor(h.FragmentId, h.Index, h.Count))
+            {
+                request.MessageAttributes[pair.Key] = pair.Value;
+            }
         }
 
         var delaySeconds = NativeDelaySecondsFor(envelope, DateTimeOffset.UtcNow, logger);
@@ -407,7 +495,14 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
             request.DelaySeconds = delaySeconds;
         }
 
-        await _parent.Client!.SendMessageAsync(request);
+        return request;
+    }
+
+    private string? groupIdFor(Envelope envelope, SqsFragmentHeader? fragment)
+    {
+        return fragment is { } header
+            ? SqsMessageFragments.GroupIdFor(envelope, header.FragmentId)
+            : Mapper!.DetermineGroupId(envelope);
     }
 
     public override async ValueTask InitializeAsync(ILogger logger)
@@ -609,6 +704,8 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         sibling.WaitTimeSeconds = WaitTimeSeconds;
         sibling.MaxNumberOfMessages = MaxNumberOfMessages;
         sibling.MessageAttributeNames = MessageAttributeNames;
+        sibling.FragmentOversizedMessages = FragmentOversizedMessages;
+        sibling.FragmentReassemblyTimeout = FragmentReassemblyTimeout;
 
         // Share the interop mapper strategy so tenant traffic serializes identically to the shared account.
         sibling.Mapper = Mapper;
@@ -645,10 +742,39 @@ public class AmazonSqsQueue : Endpoint, IBrokerQueue, IMassTransitInteropEndpoin
         request.MaxNumberOfMessages = MaxNumberOfMessages;
         request.VisibilityTimeout = VisibilityTimeout;
 
-        if (MessageAttributeNames is { Count: > 0 })
+        request.MessageAttributeNames = _receivedAttributeNames ??= resolveAttributeNames();
+    }
+
+    private List<string>? _receivedAttributeNames;
+
+    /// <summary>
+    ///     Whatever the endpoint asked for, plus Wolverine's own fragment framing (GH-3926). SQS returns
+    ///     only the attributes a receive names, so leaving the framing off makes a fragmented message
+    ///     arrive as N unrelated messages that each fail to deserialize -- and a listener has to be able
+    ///     to read fragments whether or not this same endpoint is configured to send them.
+    ///     Resolved once and cached, since endpoint configuration is fixed by the time anything polls.
+    /// </summary>
+    private List<string> resolveAttributeNames()
+    {
+        var names = MessageAttributeNames is { Count: > 0 }
+            ? new List<string>(MessageAttributeNames)
+            : [];
+
+        // "All" already covers the framing
+        if (names.Contains("All"))
         {
-            request.MessageAttributeNames = MessageAttributeNames;
+            return names;
         }
+
+        foreach (var name in SqsMessageFragments.AttributeNames)
+        {
+            if (!names.Contains(name))
+            {
+                names.Add(name);
+            }
+        }
+
+        return names;
     }
 
     public async Task TeardownAsync(IAmazonSQS client, CancellationToken token)

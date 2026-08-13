@@ -26,7 +26,7 @@ public class sqs_fair_queue_message_groups
 
     private static SendMessageBatchRequestEntryView FirstEntry(AmazonSqsQueue queue, Envelope envelope)
     {
-        var batch = new OutgoingSqsBatch(queue, NullLogger.Instance, [envelope]);
+        var batch = new OutgoingSqsBatch(queue, NullLogger.Instance, [SqsSendUnit.Whole(queue, envelope)]);
         var entry = batch.Request.Entries.ShouldHaveSingleItem();
         return new SendMessageBatchRequestEntryView(entry.MessageGroupId, entry.MessageDeduplicationId);
     }

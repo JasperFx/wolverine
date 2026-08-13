@@ -22,7 +22,7 @@ public class sqs_fifo_deduplication_id_3793
 
     private static string? DeduplicationIdFor(AmazonSqsQueue queue, Envelope envelope)
     {
-        var batch = new OutgoingSqsBatch(queue, NullLogger.Instance, [envelope]);
+        var batch = new OutgoingSqsBatch(queue, NullLogger.Instance, [SqsSendUnit.Whole(queue, envelope)]);
         return batch.Request.Entries.ShouldHaveSingleItem().MessageDeduplicationId;
     }
 
