@@ -260,3 +260,85 @@ public static class StoreManyHandler
 
 The `UnitOfWork<T>` is really just a `List<IStorageAction<T>>` that can relay zero to many storage
 actions to your underlying persistence tooling. 
+
+## Event Side Effects <Badge type="tip" text="6.28" />
+
+`Storage.Store()` and friends write *documents*. Their counterparts for an *event stream* are
+`Storage.StartStream()` and `Storage.AppendEvents()`, and they work the same way — return one from a
+handler or HTTP endpoint and Wolverine relays it to your event store:
+
+```cs
+public static class InvoiceHandler
+{
+    // Notice there is no IDocumentSession anywhere in this class
+    public static StartStream Handle(CreateInvoice command)
+        => Storage.StartStream(command.Id, new InvoiceCreated(command.Amount));
+
+    public static AppendEvents Handle(ApproveInvoice command)
+        => Storage.AppendEvents(command.Id, new InvoiceApproved(command.ApprovedBy));
+}
+```
+
+That handler is a pure function of its input, trivially unit testable without a database, and — the
+actual point — **valid against Marten, Polecat, or Fisher without changing a line**. The work is
+expressed entirely in terms of `JasperFx.Events.IEventOperations`, the shared write-side event API all
+three implement, and each store's `IntegrateWithWolverine()` registers the variable source that hands
+Wolverine the right `IEventOperations` for the active session.
+
+Both accept streams identified by `Guid` or by string key, and several events at once:
+
+```cs
+Storage.AppendEvents(streamId, new ItemReady("shoes"), new OrderReady());
+Storage.AppendEvents("order-1234", new OrderShipped());
+
+// Start a stream for a known aggregate type
+Storage.StartStream<Order>(streamId, new OrderCreated(items));
+
+// Optimistic concurrency -- abort if the stream has moved on from this version
+Storage.AppendEvents(streamId, expectedVersion: 3, new OrderShipped());
+```
+
+An `AppendEvents` carrying no events is a deliberate no-op rather than an empty write, so a decision
+function is free to conclude that nothing happened:
+
+```cs
+public static AppendEvents Handle(MaybeApproveInvoice command)
+    => command.Approve
+        ? Storage.AppendEvents(command.Id, new InvoiceApproved("approver"))
+        : Storage.AppendEvents(command.Id);
+```
+
+Like storage actions, these compose with tuple returns, so a handler can append events *and* cascade a
+message:
+
+```cs
+public static (AppendEvents, InvoiceApprovalNoticed) Handle(ApproveInvoiceAndNotify command)
+    => (Storage.AppendEvents(command.Id, new InvoiceApproved(command.ApprovedBy)),
+        new InvoiceApprovalNoticed(command.Id));
+```
+
+### Ancillary Stores
+
+Returning one of these from a handler marked with `[Storage(typeof(IMyStore))]` appends to that
+*ancillary* store rather than the application's primary one — no extra configuration. The attribute
+swaps the session the chain resolves, and these side effects follow it.
+
+```cs
+[Storage(typeof(ICritterWatchStore))]
+public static AppendEvents Handle(ApproveInvoice command)
+    => Storage.AppendEvents(command.Id, new InvoiceApproved(command.ApprovedBy));
+```
+
+::: tip
+Appending through the event store only *queues* the work into that store's unit of work — something
+still has to commit it. Wolverine enrolls the chain in the event store's transaction for you when it
+sees one of these return values, so the events commit together with any outgoing messages through the
+outbox. You do not need `[Transactional]` or `AutoApplyTransactions()` for this to work.
+:::
+
+::: warning
+These require an event store. An application with no Marten, Polecat, or Fisher integration fails at
+bootstrapping time with an error naming the offending handler, rather than a codegen failure that
+says nothing about the real mistake. If more than one event store is registered, mark the handler with
+`[Storage(typeof(IYourStore))]` to say which one you mean.
+:::

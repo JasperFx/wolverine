@@ -19,6 +19,7 @@ These all speak one vocabulary, and none of it names your database:
 | The whole method to be an event sourced command handler | `[DeciderFunction]` |
 | An event sourced model spanning several streams, matched by tag | `[DcbModel]` |
 | To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
+| To append events to a stream | [`Storage.AppendEvents` / `Storage.StartStream`](/guide/handlers/side-effects#event-side-effects) |
 
 ## Automatically Loading Entities to Method Parameters <Badge type="tip" text="3.6" />
 
