@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Hosting;
 using Shouldly;
+using Wolverine.Attributes;
 using Wolverine.Persistence;
 using Xunit;
 
@@ -44,18 +45,22 @@ public class event_side_effect_validation
     }
 }
 
+// These deliberately break bootstrapping, so they must never be found by the conventional discovery
+// that every other CoreTests host runs -- otherwise this file fails 500+ unrelated tests.
 public record AppendSomething(Guid Id);
 
 public record StartSomething(Guid Id);
 
 public record SomethingHappened;
 
+[WolverineIgnore]
 public static class NoStoreAppendHandler
 {
     public static AppendEvents Handle(AppendSomething command)
         => Storage.AppendEvents(command.Id, new SomethingHappened());
 }
 
+[WolverineIgnore]
 public static class NoStoreStartHandler
 {
     public static StartStream Handle(StartSomething command)
