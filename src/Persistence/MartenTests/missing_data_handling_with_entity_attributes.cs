@@ -49,6 +49,15 @@ public class missing_data_handling_with_entity_attributes : IAsyncLifetime
         await _host.InvokeAsync(new UseThing1(Guid.NewGuid().ToString()));
         await _host.InvokeAsync(new UseThing2(Guid.NewGuid().ToString()));
         await _host.InvokeAsync(new UseThing3(Guid.NewGuid().ToString()));
+        await _host.InvokeAsync(new UseThing6(Guid.NewGuid().ToString()));
+    }
+
+    [Fact]
+    public async Task empty_content_with_204_just_stops_in_a_message_handler()
+    {
+        var tracked = await _host.InvokeMessageAndWaitAsync(new UseThing6(Guid.NewGuid().ToString()));
+
+        tracked.Sent.AllMessages().Any().ShouldBeFalse();
     }
 
     [Fact]
@@ -143,6 +152,8 @@ public record UseThing4(string Id);
 
 public record UseThing5(string Id);
 
+public record UseThing6(string Id);
+
 public record UsedThing(string Id);
 
 public static class ThingHandler
@@ -169,6 +180,16 @@ public static class ThingHandler
 
     public static UsedThing Handle(UseThing5 command,
         [Entity(OnMissing = OnMissing.ThrowException, MissingMessage = "You stink!")] Thing thing)
+    {
+        return new UsedThing(thing.Id);
+    }
+
+    // The 204 is meaningless outside of HTTP, but a message handler has to tolerate the setting -- an
+    // [Entity] configuration is routinely shared between an endpoint and a handler. Before this value joined
+    // the "log it and stop" group in HandlerChain.AddStopConditionIfNull it fell through to the throwing
+    // branch, so this handler would have thrown on a miss instead of quietly stopping.
+    public static UsedThing Handle(UseThing6 command,
+        [Entity(OnMissing = OnMissing.EmptyContentWith204)] Thing thing)
     {
         return new UsedThing(thing.Id);
     }

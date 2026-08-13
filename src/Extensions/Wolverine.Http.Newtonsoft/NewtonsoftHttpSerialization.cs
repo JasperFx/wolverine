@@ -28,11 +28,11 @@ public class NewtonsoftHttpSerialization
     public JsonSerializerSettings Settings { get; set; }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public async Task WriteJsonAsync(HttpContext context, object? body)
+    public async Task WriteJsonAsync(HttpContext context, object? body, int missingStatusCode = 404)
     {
         if (body == null)
         {
-            context.Response.StatusCode = 404;
+            context.Response.StatusCode = missingStatusCode;
             return;
         }
 

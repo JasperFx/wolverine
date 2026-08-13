@@ -40,10 +40,12 @@ public class CompiledQueryWriterPolicy : IResourceWriterPolicy
                 typeof(MartenQueryMethodCall<,>).CloseAndBuildAs<MethodCall>(result!, arguments);
             chain.Postprocessors.Add(queryCall);
 
-            // This call writes the response directly to the HttpContext as a string
-            var writeStringCall = MethodCall.For<HttpHandler>(handler => HttpHandler.WriteString(null!, ""));
+            // This call writes the response directly to the HttpContext as a string. The status code has to be
+            // spelled out in the expression tree -- an expression tree cannot elide an optional argument.
+            var writeStringCall = MethodCall.For<HttpHandler>(handler => HttpHandler.WriteString(null!, "", 404));
             writeStringCall.Arguments[1] = new Variable(queryCall.ReturnVariable!.VariableType,
                 $"{queryCall.ReturnVariable.Usage}.ToString()", queryCall);
+            writeStringCall.Arguments[2] = Constant.For(chain.MissingResponseBodyStatusCode);
             chain.Postprocessors.Add(writeStringCall);
         }
         else

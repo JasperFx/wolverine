@@ -369,7 +369,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
             typeof(IEventStream<>).MakeGenericType(aggregateType).GetProperty(nameof(IEventStream<string>.Aggregate))!);
 
 
-        if (Requirement.Required)
+        if (chain.IsDataRequired(Requirement))
         {
             var otherFrames = chain.AddStopConditionIfNull(aggregateVariable, AggregateId, Requirement);
 

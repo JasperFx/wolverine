@@ -27,11 +27,12 @@ internal sealed class NewtonsoftHttpCodeGen : INewtonsoftHttpCodeGen
 
     [UnconditionalSuppressMessage("Trimming", "IL2026",
         Justification = "MethodCall reflects NewtonsoftHttpSerialization.GetMethod(nameof(WriteJsonAsync)) at codegen time. The target method is statically referenced via nameof; the closed-generic type is rooted at codegen time per the AOT guide.")]
-    public Frame CreateWriteJsonFrame(Variable resourceVariable)
+    public Frame CreateWriteJsonFrame(Variable resourceVariable, int missingStatusCode = 404)
     {
         var frame = new MethodCall(typeof(NewtonsoftHttpSerialization),
             nameof(NewtonsoftHttpSerialization.WriteJsonAsync));
         frame.Arguments[1] = resourceVariable;
+        frame.Arguments[2] = Constant.For(missingStatusCode);
         return frame;
     }
 }

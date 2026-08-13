@@ -168,6 +168,10 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         wolverineHttpOptions.Middleware.Apply(_chains, Rules, Container);
         _optionsWriterPolicies.AddRange(wolverineHttpOptions.ResourceWriterPolicies);
 
+        // After the API versioning expansion above so the per-version clones are covered too, and before
+        // BuildEndpoint() below, which bakes the resolved status code into the endpoint's OpenAPI metadata.
+        foreach (var chain in _chains) chain.ResolveMissingResponseBody(wolverineHttpOptions);
+
         // Apply route prefix policy before other policies so that
         // downstream policies see the final route patterns
         var routePrefixPolicy = new RoutePrefixPolicy(wolverineHttpOptions);

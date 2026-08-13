@@ -123,6 +123,27 @@ public enum ServiceProviderSource
     FromHttpContextRequestServices
 }
 
+/// <summary>
+///     Governs the status code written when an HTTP endpoint's resource -- the response body -- turns out to be
+///     null. This is strictly about the body an endpoint returns; the behavior when a required entity cannot be
+///     loaded is controlled separately by <see cref="Wolverine.Persistence.OnMissing" />.
+/// </summary>
+public enum OnMissingResponseBody
+{
+    /// <summary>
+    ///     The default. A null response body is written as an empty 404, treating "there is nothing to return" as
+    ///     "there is nothing here."
+    /// </summary>
+    NotFound404,
+
+    /// <summary>
+    ///     A null response body is written as an empty 204, denoting "the Url is correct, but there is no body."
+    ///     Applied globally this only affects GET and QUERY endpoints, where an empty answer is a benign outcome
+    ///     rather than a failed command. Override per endpoint with <see cref="NotFoundIfMissingAttribute" />.
+    /// </summary>
+    NoContent204
+}
+
 public class WolverineHttpOptions
 {
     public WolverineHttpOptions()
@@ -216,6 +237,20 @@ public class WolverineHttpOptions
     /// and https://github.com/JasperFx/wolverine/issues/3398
     /// </summary>
     public bool RejectUnparseableQueryValues { get; set; }
+
+    /// <summary>
+    ///     The application wide default for what status code is written when an endpoint's response body is null.
+    ///     The built in default is <see cref="OnMissingResponseBody.NotFound404" />. Setting this to
+    ///     <see cref="OnMissingResponseBody.NoContent204" /> only affects GET and QUERY endpoints -- a null body
+    ///     on any other HTTP method continues to be a 404, because turning a failed command into an apparent
+    ///     success is never what anyone wants. Individual endpoints override this with
+    ///     <see cref="NoContentIfMissingAttribute" /> or <see cref="NotFoundIfMissingAttribute" />.
+    /// </summary>
+    /// <remarks>
+    ///     This governs the response <i>body</i> only. Use <c>WolverineOptions.EntityDefaults.OnMissing</c> to
+    ///     control what happens when a required entity cannot be loaded in the first place.
+    /// </remarks>
+    public OnMissingResponseBody OnMissingResponseBody { get; set; } = OnMissingResponseBody.NotFound404;
 
     internal TenantIdDetection TenantIdDetection { get; } = new();
 

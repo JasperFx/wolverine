@@ -489,9 +489,156 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
                 Metadata.Produces(404, contentType: "application/problem+json");
                 return [new WriteProblemDetailsIfNull(data, identity!, message, 404)];
 
+            case OnMissing.EmptyContentWith204:
+                Metadata.Produces(204);
+                return [new SetStatusCodeAndReturnIfEntityIsNullFrame(data, 204)];
+
             default:
                 return [new ThrowRequiredDataMissingExceptionFrame(data, identity!, message)];
         }
+    }
+
+    // GET and QUERY (RFC 10008) are the safe, side effect free reads where "there is nothing here" is a
+    // benign answer rather than a failure. Anywhere else, a 204 in place of a resource would quietly turn
+    // a failed command into an apparent success.
+    private static readonly string[] ReadOnlyHttpMethods = ["GET", "QUERY"];
+
+    internal bool IsReadOnlyEndpoint()
+    {
+        return _httpMethods.Count > 0 && _httpMethods.All(x => ReadOnlyHttpMethods.Contains(x));
+    }
+
+    /// <summary>
+    ///     The status code written when this endpoint's response body is null. 404 unless
+    ///     <see cref="NoContentIfMissingAttribute" /> or <c>WolverineHttpOptions.OnMissingResponseBody</c> says
+    ///     otherwise. Resolved once at bootstrapping time by <see cref="ResolveMissingResponseBody" />.
+    /// </summary>
+    public int MissingResponseBodyStatusCode { get; private set; } = 404;
+
+    private bool _missingResponseBodyIsExplicit;
+
+    /// <summary>
+    ///     Read <see cref="NoContentIfMissingAttribute" /> / <see cref="NotFoundIfMissingAttribute" /> off the
+    ///     endpoint method, then the endpoint class. Done at construction time rather than in
+    ///     <see cref="ResolveMissingResponseBody" /> so that a chain built outside of <see cref="HttpGraph" /> --
+    ///     <see cref="ChainFor{T}" /> in tests, most notably -- still honors the attributes.
+    /// </summary>
+    private void readMissingResponseBodyAttributes()
+    {
+        if (tryReadMissingResponseBodyAttribute(Method.Method, out var fromMethod))
+        {
+            MissingResponseBodyStatusCode = fromMethod;
+            _missingResponseBodyIsExplicit = true;
+        }
+        else if (tryReadMissingResponseBodyAttribute(Method.HandlerType, out var fromClass))
+        {
+            MissingResponseBodyStatusCode = fromClass;
+            _missingResponseBodyIsExplicit = true;
+        }
+    }
+
+    /// <summary>
+    ///     Apply the application wide <c>WolverineHttpOptions.OnMissingResponseBody</c> to any endpoint that did
+    ///     not declare its own answer.
+    /// </summary>
+    internal void ResolveMissingResponseBody(WolverineHttpOptions options)
+    {
+        if (_missingResponseBodyIsExplicit)
+        {
+            return;
+        }
+
+        // The global default deliberately does NOT reach non-read endpoints. Unlike the attribute -- where the
+        // author is naming one endpoint and a mistake should be loud -- a single application wide setting would
+        // otherwise silently reshape every POST/PUT/DELETE response in the system.
+        MissingResponseBodyStatusCode =
+            options.OnMissingResponseBody == OnMissingResponseBody.NoContent204 && IsReadOnlyEndpoint() ? 204 : 404;
+    }
+
+    private static bool tryReadMissingResponseBodyAttribute(MemberInfo member, out int statusCode)
+    {
+        if (member.HasAttribute<NoContentIfMissingAttribute>())
+        {
+            statusCode = 204;
+            return true;
+        }
+
+        if (member.HasAttribute<NotFoundIfMissingAttribute>())
+        {
+            statusCode = 404;
+            return true;
+        }
+
+        statusCode = 404;
+        return false;
+    }
+
+    /// <summary>
+    ///     Fail fast on a [NoContentIfMissing] that could never be honored. Both checks depend only on the
+    ///     attributes and the HTTP method, so this runs at construction time -- the same place as the GH-3648
+    ///     request body guard -- rather than waiting for the endpoint to be requested and answer wrongly.
+    /// </summary>
+    private void assertMissingResponseBodyAttributesAreLegal()
+    {
+        assertNotBothAttributes(Method.Method, "method");
+        assertNotBothAttributes(Method.HandlerType, "class");
+
+        if (Method.Method.HasAttribute<NoContentIfMissingAttribute>())
+        {
+            assertIsReadOnlyEndpointForNoContent(false);
+        }
+        // Only reached when the method itself said nothing -- a method level [NotFoundIfMissing] is the
+        // documented way to keep one non-read endpoint inside a class that is otherwise all GETs.
+        else if (Method.HandlerType.HasAttribute<NoContentIfMissingAttribute>() &&
+                 !Method.Method.HasAttribute<NotFoundIfMissingAttribute>())
+        {
+            assertIsReadOnlyEndpointForNoContent(true);
+        }
+    }
+
+    private void assertNotBothAttributes(MemberInfo member, string level)
+    {
+        if (member.HasAttribute<NoContentIfMissingAttribute>() && member.HasAttribute<NotFoundIfMissingAttribute>())
+        {
+            throw new InvalidOperationException(
+                $"HTTP endpoint {Method.HandlerType.FullNameInCode()}.{Method.Method.Name} has both " +
+                $"[NoContentIfMissing] and [NotFoundIfMissing] on the same {level}. These are mutually " +
+                "exclusive -- keep whichever one you meant.");
+        }
+    }
+
+    private void assertIsReadOnlyEndpointForNoContent(bool fromClass)
+    {
+        if (IsReadOnlyEndpoint())
+        {
+            return;
+        }
+
+        var placement = fromClass
+            ? $"[NoContentIfMissing] is declared on {Method.HandlerType.FullNameInCode()}, which also holds this endpoint. Either move it onto the individual GET/QUERY methods in that class, or mark this one [NotFoundIfMissing]"
+            : $"[NoContentIfMissing] is declared on {Method.HandlerType.FullNameInCode()}.{Method.Method.Name}. Remove it";
+
+        throw new InvalidOperationException(
+            $"HTTP endpoint {Method.HandlerType.FullNameInCode()}.{Method.Method.Name} is mapped to " +
+            $"{(_httpMethods.Count == 0 ? "no HTTP method" : _httpMethods.Join("/"))} {RoutePattern?.RawText}, " +
+            $"but {placement}. An empty 204 in place of a response body is only meaningful on the safe, side " +
+            "effect free reads -- GET and QUERY. On any other HTTP method it would turn a failed request into " +
+            "an apparent success for the caller.");
+    }
+
+    /// <summary>
+    ///     <see cref="OnMissing.EmptyContentWith204" /> forces the entity to be treated as required on GET or QUERY
+    ///     endpoints. Running the endpoint with a null entity so it can return an empty body anyway buys nothing,
+    ///     and it is the one configuration where "not required" and "answer 204" contradict each other.
+    /// </summary>
+    public override bool IsDataRequired(IDataRequirement requirement)
+    {
+        if (requirement.OnMissing == OnMissing.EmptyContentWith204 && IsReadOnlyEndpoint())
+        {
+            return true;
+        }
+
+        return requirement.Required;
     }
 
     public override string ToString()
@@ -536,6 +683,9 @@ public partial class HttpChain : Chain<HttpChain, ModifyHttpChainAttribute>, ICo
             .WithMetadata(new WolverineMarker())
             .WithMetadata(new HttpMethodMetadata(_httpMethods));
             //.WithMetadata(Method.Method);
+
+        assertMissingResponseBodyAttributesAreLegal();
+        readMissingResponseBodyAttributes();
 
         // Checked outside the HasRequestType branch below on purpose. On a GET a complex parameter binds
         // from the query string rather than the body, so no Accepts metadata is produced -- but the

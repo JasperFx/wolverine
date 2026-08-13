@@ -80,9 +80,48 @@ By default, Wolverine is assuming that any parameter value marked with `[Entity]
 * As a message handler, it will just log that the entity could not be found and otherwise exit cleanly without doing any further processing
 * As an HTTP endpoint, the handler would write out a status code of 404 (not found) and exit otherwise
 
+You can choose a different answer with the `OnMissing` property:
+
+| `OnMissing` | Message handler | HTTP endpoint |
+|---|---|---|
+| `Simple404` (default) | Log it and stop | Empty **404** |
+| `ProblemDetailsWith400` | Log it and stop | **400** with a `ProblemDetails` body |
+| `ProblemDetailsWith404` | Log it and stop | **404** with a `ProblemDetails` body |
+| `EmptyContentWith204` <Badge type="tip" text="6.28" /> | Log it and stop | Empty **204** |
+| `ThrowException` | Throws `RequiredDataMissingException` | Throws `RequiredDataMissingException` |
+
 If you need or want any other kind of failure handling on the entity not being found, you'll need to
 use explicit code instead, maybe with a `LoadAsync()` "before" method to still keep your main
-handler or endpoint method a *pure function*. 
+handler or endpoint method a *pure function*.
+
+### Answering 204 instead of 404 <Badge type="tip" text="6.28" />
+
+A bare 404 is indistinguishable from "you called a Url that does not exist." If you would rather say
+"the Url is correct, but there is no body," use `OnMissing.EmptyContentWith204`:
+
+```cs
+[WolverineGet("/api/alerts/config/services/{serviceName}")]
+public static ServiceAlertOverrides Get(
+    [Entity(OnMissing = OnMissing.EmptyContentWith204)] ServiceAlertOverrides overrides)
+    => overrides;
+```
+
+A request for a `serviceName` that has no overrides answers `204` with an empty body, and the generated
+OpenAPI advertises `200` and `204` rather than `200` and `404`.
+
+::: warning
+Think about your clients before you reach for this. A 404 puts a miss on the failure branch of every
+HTTP client; a 204 puts it on the success branch. Code that does `response.EnsureSuccessStatusCode()`
+will start passing, and generated typed clients (NSwag, Kiota, Refit) will map the 204 onto their
+success path — so a miss can surface later as a null dereference instead of at the call site. If what
+you actually want is a *distinguishable* 404, `OnMissing.ProblemDetailsWith404` names the type and the
+identity in a `application/problem+json` body and keeps the failure on the failure branch.
+:::
+
+On a `GET` or `QUERY` endpoint, `EmptyContentWith204` also forces the entity to be treated as required
+even if you wrote `Required = false`. Running the endpoint body with a null entity so it can return an
+empty body anyway buys nothing, and it is the one combination where "not required" and "answer 204"
+contradict each other. This does not apply to message handlers or to other HTTP methods.
 
 If you genuinely don't need the `[Entity]` value to be required, you can do this instead:
 
@@ -400,6 +439,14 @@ public static class MyHandler
 ```
 
 The resolution order is: **Explicit attribute value > Global default > Built-in default** (`Simple404` / `true`).
+
+::: tip
+`EntityDefaults.OnMissing` reaches every attribute that loads data this way — `[Entity]`, `[Document]`,
+`[Aggregate]`, `[ReadAggregate]`, `[WriteAggregate]`, `[ReadModel]`, `[WriteModel]`, and the DCB
+attributes. Setting it to `OnMissing.EmptyContentWith204` changes the answer for *all* of them, including
+aggregate endpoints you may not have been thinking about. Set it on the individual attributes instead if
+you only meant a subset.
+:::
 
 Some other facts to know about `[Entity]` usage:
 

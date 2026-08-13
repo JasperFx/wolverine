@@ -13,7 +13,7 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
 
             if (Usage == JsonUsage.SystemTextJson)
             {
-                chain.Postprocessors.Add(new WriteJsonFrame(resourceVariable));
+                chain.Postprocessors.Add(new WriteJsonFrame(resourceVariable, chain.MissingResponseBodyStatusCode));
             }
             else
             {
@@ -26,7 +26,8 @@ internal class JsonResourceWriterPolicy : IResourceWriterPolicy
                         "See https://wolverinefx.net/guide/http/json.html#using-newtonsoft-json.");
                 }
 
-                chain.Postprocessors.Add(NewtonsoftCodeGen.CreateWriteJsonFrame(resourceVariable));
+                chain.Postprocessors.Add(
+                    NewtonsoftCodeGen.CreateWriteJsonFrame(resourceVariable, chain.MissingResponseBodyStatusCode));
             }
 
             return true;
