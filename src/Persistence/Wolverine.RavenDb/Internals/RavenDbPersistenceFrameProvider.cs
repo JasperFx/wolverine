@@ -69,6 +69,16 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         return typeof(string);
     }
 
+    public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var first = new FirstOrDefaultFrame(entityType);
+        frame = first;
+        result = first.Result;
+        return true;
+    }
+
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         return new LoadDocumentFrame(sagaType, sagaId);
