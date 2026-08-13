@@ -81,8 +81,18 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         if (ChainHasPolecatSessionAttributes(chain)) return true;
 
         var serviceDependencies = chain
-            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations) }).ToArray();
-        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations) || x.Closes(typeof(IEventStream<>)));
+            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations), typeof(global::JasperFx.Events.IEventOperations), typeof(global::JasperFx.Events.IEventStoreOperations), typeof(global::Polecat.Events.IEventOperations) }).ToArray();
+                // A handler that takes the event operations straight as a parameter -- the shared
+        // JasperFx.Events.IEventOperations / IEventStoreOperations, or Polecat's own IEventOperations -- is
+        // unambiguously using this store, but none of those types appeared here, so
+        // AutoApplyTransactions skipped the chain and nothing was ever committed. Appending
+        // through the parameter queued into the session's unit of work and then silently
+        // vanished, with no exception.
+        return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
+                                            || x.Closes(typeof(IEventStream<>))
+                                            || x == typeof(global::JasperFx.Events.IEventOperations)
+                                            || x == typeof(global::JasperFx.Events.IEventStoreOperations)
+                                            || x == typeof(global::Polecat.Events.IEventOperations));
     }
 
     private static bool ChainHasPolecatSessionAttributes(IChain chain)
@@ -118,6 +128,16 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
     }
 
+    public bool TryBuildAllFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var all = new AllFrame(entityType);
+        frame = all;
+        result = all.Result;
+        return true;
+    }
+
     public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
         [NotNullWhen(true)] out Frame? frame,
         [NotNullWhen(true)] out Variable? result)
@@ -125,6 +145,16 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
         var first = new FirstOrDefaultFrame(entityType);
         frame = first;
         result = first.Result;
+        return true;
+    }
+
+    public bool TryBuildQueryableFrame(Type elementType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var queryable = new QueryableFrame(elementType);
+        frame = queryable;
+        result = queryable.Result;
         return true;
     }
 

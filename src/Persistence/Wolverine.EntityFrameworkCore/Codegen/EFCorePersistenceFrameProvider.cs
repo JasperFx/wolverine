@@ -128,6 +128,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                    $"No known primary key for {sagaType.FullNameInCode()} in DbContext {context}");
     }
 
+    public bool TryBuildAllFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var all = new AllFrame(DetermineDbContextType(entityType, container), entityType);
+        frame = all;
+        result = all.Result;
+        return true;
+    }
+
     public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
         [NotNullWhen(true)] out Frame? frame,
         [NotNullWhen(true)] out Variable? result)
@@ -136,6 +146,16 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         var first = new FirstOrDefaultFrame(dbContextType, entityType);
         frame = first;
         result = first.Result;
+        return true;
+    }
+
+    public bool TryBuildQueryableFrame(Type elementType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var queryable = new QueryableFrame(DetermineDbContextType(elementType, container), elementType);
+        frame = queryable;
+        result = queryable.Result;
         return true;
     }
 

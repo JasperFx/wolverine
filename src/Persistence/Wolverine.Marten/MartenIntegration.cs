@@ -74,6 +74,7 @@ public class MartenIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
         options.CodeGeneration.Sources.Add(new EventStoreOperationsSource());
         options.CodeGeneration.Sources.Add(new SharedEventOperationsSource());
+        options.CodeGeneration.Sources.Add(new SharedEventStoreOperationsSource());
 
         options.Policies.Add<MartenAggregateHandlerStrategy>();
 
