@@ -4,6 +4,117 @@
 
 ### WolverineFx (core) + event store integrations
 
+- **New store agnostic `Storage.AppendEvents()` and `Storage.StartStream()` side effects.**
+  ([#3934](https://github.com/JasperFx/wolverine/pull/3934)) `Storage.Store()` and friends write
+  documents; these are their counterparts for an event stream, returned from a handler or HTTP
+  endpoint the same way. The work is expressed entirely against `JasperFx.Events.IEventOperations`,
+  the shared write-side API Marten, Polecat and Fisher all implement, so the same handler is valid on
+  any of them and needs no `IDocumentSession`:
+
+  ```csharp
+  public static AppendEvents Handle(ApproveInvoice command)
+      => Storage.AppendEvents(command.Id, new InvoiceApproved(command.ApprovedBy));
+  ```
+
+  Streams may be identified by `Guid` or string key, `AppendEvents` accepts an optional
+  `expectedVersion` for optimistic concurrency, and an `AppendEvents` carrying no events is a
+  deliberate no-op so a decision function may conclude that nothing happened. Wolverine enrolls the
+  chain in the event store's transaction, so the events commit together with any outgoing messages
+  through the outbox. Handlers marked `[Storage(typeof(IMyStore))]` append to that ancillary store.
+
+- **New `[FirstOrDefault]` attribute for storage agnostic reads.**
+  ([#3933](https://github.com/JasperFx/wolverine/pull/3933)) `[Entity]` needs an identity to load by,
+  so it cannot express the singleton document — a type a system stores exactly one of, looked up by
+  nothing at all. `[FirstOrDefault]` resolves the equivalent of
+  `session.Query<T>().FirstOrDefaultAsync()` through whichever provider owns the type:
+
+  ```csharp
+  public static MetricsAlertDefaults Get([FirstOrDefault] MetricsAlertDefaults? defaults)
+      => defaults ?? new MetricsAlertDefaults();
+  ```
+
+  Supported by Marten, Polecat, Fisher, RavenDb and EF Core. The parameter is simply `null` when
+  nothing matches and the handler runs anyway, so there is deliberately no `Required` / `OnMissing`.
+  **CosmosDb is not supported** — its integration stores every user document in one shared container
+  with no per-type discriminator, so "the first document of type `T`" cannot be asked for safely; a
+  `[FirstOrDefault]` on a CosmosDb-persisted type fails at bootstrapping time rather than returning
+  the wrong object.
+
+- **New `OnMissing.EmptyContentWith204`.**
+  ([#3931](https://github.com/JasperFx/wolverine/pull/3931)) Answers an empty **204** instead of the
+  default 404 when a required entity cannot be loaded, for callers who would rather say "the Url is
+  correct, but there is no body." Reaches every attribute that loads data this way — `[Entity]`,
+  `[Document]`, `[Aggregate]`, `[ReadAggregate]`, `[WriteAggregate]`, `[ReadModel]`, `[WriteModel]`
+  and the DCB attributes — and is settable globally through `WolverineOptions.EntityDefaults.OnMissing`.
+  On a `GET` or `QUERY` endpoint it also forces the data to be treated as required, since running the
+  endpoint with a null entity to return an empty body anyway buys nothing.
+
+- **New `[All]` and `[Queryable]` parameter attributes.**
+  ([#3936](https://github.com/JasperFx/wolverine/pull/3936)) `[All]` supplies every document of its
+  element type — the equivalent of `session.Query<T>().ToListAsync()` — as an `IReadOnlyList<T>`,
+  resolved through whichever provider owns the type:
+
+  ```csharp
+  public static IReadOnlyList<ServiceAlertOverrides> GetAll([All] IReadOnlyList<ServiceAlertOverrides> overrides)
+      => overrides;
+  ```
+
+  Supported by Marten, Polecat, Fisher, RavenDb and EF Core; **CosmosDb is not supported**, for the same
+  reason as `[FirstOrDefault]`.
+
+  On **Marten, Polecat and Fisher, two or more batchable reads in the same handler now resolve in a single
+  database round trip** rather than one query each ([#3938](https://github.com/JasperFx/wolverine/pull/3938)).
+  An `[All]` joins the same batch as an `[Entity]` load or a query specification. A lone read is
+  deliberately left standalone.
+
+  `[Queryable]` injects the store's own `IQueryable<T>` for the cases the other attributes do not cover. It
+  is an escape hatch and the documentation says so at length — it is **not portable in practice** even
+  though the type is, since LINQ provider capabilities differ sharply between stores. Marten 9 refuses
+  synchronous LINQ outright, so a `.ToArray()` that works on EF Core throws at runtime on Marten: **always
+  use the async operators.** All six providers, CosmosDb included, with a warning that its shared container
+  can surface other document types.
+
+- **A handler or endpoint parameter of `IEventStoreOperations` / `IEventOperations` now resolves — and
+  commits.** ([#3936](https://github.com/JasperFx/wolverine/pull/3936)) Two defects: no variable source
+  matched the shared `JasperFx.Events` contracts (each store registered only its own derived spelling), and
+  more seriously, `CanApply` did not recognize **any** event operations type, so `AutoApplyTransactions`
+  skipped those chains entirely and appended events were queued into the session's unit of work and never
+  committed — with no exception. That second one also affected each store's *own* event operations types,
+  so it predates this release.
+
+- **`[All]`, `[Queryable]` and `[FirstOrDefault]` provider errors now name the declaring method.**
+  ([#3937](https://github.com/JasperFx/wolverine/issues/3937)) These attributes validate at codegen, so the
+  failure can land on a chain you did not know was being compiled — an assembly carrying
+  `[assembly: WolverineModule]` puts every endpoint in it into discovery. The message named the parameter
+  and its element type but nothing you would recognise; it now ends with
+  `on MyApp.Endpoints.AlertConfigHistoryEndpoint.GetConfigHistory() cannot be resolved.`
+
+### WolverineFx.Http
+
+- **New `[NoContentIfMissing]` / `[NotFoundIfMissing]` attributes and
+  `WolverineHttpOptions.OnMissingResponseBody`.**
+  ([#3931](https://github.com/JasperFx/wolverine/pull/3931)) Control whether a **null response body**
+  is written as the default 404 or as an empty 204, per endpoint method, per endpoint class, or
+  application wide. The generated OpenAPI follows. `[NoContentIfMissing]` is only legal on `GET` and
+  `QUERY` endpoints and fails at bootstrapping time otherwise, and the application wide setting
+  likewise stops at those verbs — a 204 in place of a resource on a `POST` would turn a failed
+  command into an apparent success for the caller.
+
+- **A `DateTime now` or `DateTimeOffset now` endpoint parameter is now filled with the current UTC
+  time**, matching the long standing message handler convention.
+  ([#3932](https://github.com/JasperFx/wolverine/pull/3932)) Previously such a parameter silently
+  bound from the query string instead, so the endpoint received `default` on any request that did not
+  happen to pass `?now=`. The value comes from the same `IVariableSource` message handlers use, so a
+  custom clock registered there is honored by both. The convention is keyed on the parameter being
+  *named* `now`; an ordinary `DateTimeOffset from` / `to` query parameter is unaffected, and an
+  explicit `{now}` route argument or `[FromQuery]` / `[FromRoute]` / `[FromHeader]` still wins.
+
+- **A null `string` resource returns 404 rather than throwing.** Previously
+  `HttpHandler.WriteString` dereferenced the null while setting `ContentLength`, so a
+  `string`-returning endpoint answered **500** where every other resource type answered 404.
+
+### WolverineFx (core) + event store integrations
+
 - **`[WriteAggregate]` keeps its original `Required` default — regression fix.**
   ([#3929](https://github.com/JasperFx/wolverine/issues/3929)) `WriteAggregateAttribute` derives from
   `WriteModelAttribute` and overrides neither `Modify` nor `Required`, so it inherited GH-3916's
