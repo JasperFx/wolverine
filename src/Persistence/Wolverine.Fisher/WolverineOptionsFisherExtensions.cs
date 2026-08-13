@@ -70,14 +70,14 @@ public static class WolverineOptionsFisherExtensions
             var runtime = s.GetRequiredService<IWolverineRuntime>();
             var logger = s.GetRequiredService<ILogger<SqliteMessageStore>>();
 
-            // Mirror Wolverine.Marten: when no message-storage schema is configured, inherit the
-            // Fisher store's DatabaseSchemaName so distinct-schema Fisher services are isolated by
-            // default (separate durability tables: dead letters, nodes/assignments, …) instead of
-            // all sharing the "wolverine" schema. See GH-3175.
+            // "main", not "wolverine". SQLite has no user-defined schemas: the only schema names a
+            // plain connection knows are "main", "temp", and whatever has been ATTACHed. The Marten
+            // and Polecat twins default to "wolverine" and inherit the store's DatabaseSchemaName,
+            // both of which produce "wolverine.wolverine_incoming_envelopes" here and fail with
+            // "no such table". Wolverine.Sqlite's own default is "main" for exactly this reason.
             var schemaName = integration.MessageStorageSchemaName ??
                              runtime.Options.Durability.MessageStorageSchemaName ??
-                             store.Options.DatabaseSchemaName ??
-                             "wolverine";
+                             "main";
 
             // GH-3907: no database-per-tenant branch here, unlike the Marten and Polecat twins. A
             // Fisher store IS a SQLite file, so its multi-tenancy is a file per tenant rather than a
@@ -91,6 +91,14 @@ public static class WolverineOptionsFisherExtensions
         expression.Services.AddSingleton<IConfigureFisher, FisherOverrides>();
 
         expression.Services.AddSingleton<OutboxedSessionFactory>();
+
+        // GH-3109: lets the provider-agnostic [Storage(typeof(IMyStore))] attribute route a handler to
+        // a Fisher ancillary store by resolving this provider from the store marker type. Registered
+        // here (not in FisherIntegration.Configure) so the singleton is present in the codegen-time
+        // container that StorageAttribute.Modify queries. TryAddEnumerable keeps it to one instance
+        // even when several Fisher stores integrate.
+        expression.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<Wolverine.Persistence.IAncillaryStoreFrameProvider, FisherAncillaryStoreFrameProvider>());
 
         // CritterWatch / saga-explorer diagnostic surface — Fisher
         // builds a SqliteMessageStore underneath, so the lightweight

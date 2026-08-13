@@ -92,6 +92,32 @@ public static class ShipOrderHandler
 See [Event Sourced Models](/guide/handlers/persistence.html#event-sourced-models) for the full
 vocabulary — `[WriteModel]`, `[ReadModel]`, `[DeciderFunction]` and `[DcbModel]`.
 
+## Ancillary stores
+
+A second Fisher store registered with `AddFisherStore<T>()` integrates the same way, and the
+provider-agnostic `[Storage(typeof(IMyStore))]` attribute routes a handler to it without naming
+Fisher anywhere in your code:
+
+```cs
+builder.Services.AddFisherStore<IPlayerStore>(opts =>
+    {
+        opts.Connection("Data Source=players.db");
+    })
+    .ApplyAllDatabaseChangesOnStartup()
+    .IntegrateWithWolverine();
+
+// ...and in a handler
+[Storage(typeof(IPlayerStore))]
+public static void Handle(RecordPlayerScore command, IDocumentSession session)
+{
+    session.Store(new Player { Id = command.Name, Score = command.Score });
+}
+```
+
+Each store is **its own file**, which is what gets two concurrent writers out of SQLite rather than
+having them contend on one. Wolverine's durability tables for an ancillary store live in that
+store's file, alongside its documents and events.
+
 ## What is not supported yet
 
 Wolverine.Fisher is deliberately narrower than the Marten and Polecat integrations in its first
@@ -100,6 +126,12 @@ release. The following are tracked as follow-up work rather than shipped-but-bro
 | Not yet supported | Why |
 |---|---|
 | Multi-tenancy | Fisher's tenancy is a **file per tenant**, so Wolverine's durability tables cannot follow a tenant across files without a second writer per file |
-| Ancillary stores (`AddFisherStore<T>`) | Needs the cross-store ancillary registration contract settled across all three stores |
 | Cluster durability modes | One file, one node — see above |
 | Schema-scoped transport tables | SQLite has no schemas |
+
+::: tip
+Wolverine's durability tables go in SQLite's `main` schema. `MessageStorageSchemaName` only accepts
+a schema SQLite actually knows — `main`, `temp`, or a database you have `ATTACH`ed — so unlike the
+Marten and Polecat integrations there is no per-service schema isolation to configure. Isolate with a
+separate **file** instead.
+:::
