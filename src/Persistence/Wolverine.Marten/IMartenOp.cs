@@ -58,6 +58,18 @@ internal class MartenOpPolicy : IChainPolicy
             if (collections.Any() || singles.Any() || appendsToEventStream)
             {
                 new MartenPersistenceFrameProvider().ApplyTransactionSupport(chain, container);
+
+                // GH-3911: mark the chain too, not just apply the middleware. ApplyTransactionSupport
+                // ends the generated code in SaveChangesAsync, so a chain that reports
+                // IsTransactional = false there is lying to every IChainPolicy / IHttpPolicy keying on
+                // the flag - the same disagreement GH-3893 fixed for [WriteAggregate].
+                //
+                // This was previously left alone because setting it from an IChainPolicy made whether
+                // EagerIdempotencyOnNonTransactionalChains fired depend on the order the user called
+                // AutoApplyIdempotencyOnNonTransactionalHandlers() relative to IntegrateWithWolverine().
+                // That policy is now always applied LAST (HandlerGraph.handlerPolicies), so the order
+                // no longer decides anything and the flag can be honest.
+                chain.IsTransactional = true;
             }
 
             // Only collections need the explicit foreach-Execute frame; single IMartenOp returns are
