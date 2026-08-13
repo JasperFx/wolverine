@@ -11,7 +11,8 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
     {
         if (chain.ResourceType == typeof(string))
         {
-            chain.Postprocessors.Add(new WriteStringFrame(chain.Method.Creates.First()));
+            chain.Postprocessors.Add(new WriteStringFrame(chain.Method.Creates.First(),
+                chain.MissingResponseBodyStatusCode));
 
             return true;
         }
@@ -22,10 +23,12 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
     internal class WriteStringFrame : AsyncFrame
     {
         private readonly Variable _result;
+        private readonly int _missingStatusCode;
 
-        public WriteStringFrame(Variable result)
+        public WriteStringFrame(Variable result, int missingStatusCode = 404)
         {
             _result = result;
+            _missingStatusCode = missingStatusCode;
             uses.Add(_result);
         }
 
@@ -33,7 +36,8 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
         {
             var prefix = method.AsyncMode == AsyncMode.ReturnCompletedTask ? "return" : "await";
 
-            writer.Write($"{prefix} {nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage});");
+            writer.Write(
+                $"{prefix} {nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage}, {_missingStatusCode});");
 
             Next?.GenerateCode(method, writer);
         }
@@ -42,7 +46,7 @@ internal class StringResourceWriterPolicy : IResourceWriterPolicy
         {
             // HttpHandler.WriteString is static, so it resolves cleanly in F# (no `this`).
             var call =
-                $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage})";
+                $"{typeof(HttpHandler).FSharpName()}.{nameof(HttpHandler.WriteString)}(httpContext, {_result.Usage}, {_missingStatusCode})";
 
             // Inside a `task { }` body await it; otherwise it IS the trailing Task expression.
             writer.Write(method.AsyncMode == AsyncMode.AsyncTask ? $"do! {call}" : call);

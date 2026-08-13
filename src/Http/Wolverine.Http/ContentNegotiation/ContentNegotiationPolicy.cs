@@ -28,7 +28,8 @@ internal class ContentNegotiationWriterPolicy : IResourceWriterPolicy
         var resourceVariable = chain.ResourceVariable ?? chain.Method.Creates.First();
         resourceVariable.OverrideName(resourceVariable.Usage + "_response");
 
-        chain.Postprocessors.Add(new ContentNegotiationWriteFrame(resourceVariable, writers, chain.ConnegMode));
+        chain.Postprocessors.Add(new ContentNegotiationWriteFrame(resourceVariable, writers, chain.ConnegMode,
+            chain.MissingResponseBodyStatusCode));
 
         return true;
     }
@@ -83,13 +84,16 @@ internal class ContentNegotiationWriteFrame : AsyncFrame
     private readonly Variable _resourceVariable;
     private readonly List<ContentTypeWriter> _writers;
     private readonly ConnegMode _mode;
+    private readonly int _missingStatusCode;
     private Variable? _httpContext;
 
-    public ContentNegotiationWriteFrame(Variable resourceVariable, List<ContentTypeWriter> writers, ConnegMode mode)
+    public ContentNegotiationWriteFrame(Variable resourceVariable, List<ContentTypeWriter> writers, ConnegMode mode,
+        int missingStatusCode = 404)
     {
         _resourceVariable = resourceVariable;
         _writers = writers;
         _mode = mode;
+        _missingStatusCode = missingStatusCode;
         uses.Add(resourceVariable);
     }
 
@@ -135,7 +139,8 @@ internal class ContentNegotiationWriteFrame : AsyncFrame
         {
             writer.Write("BLOCK:else");
             writer.WriteComment("Fallback to JSON serialization");
-            writer.Write($"await {nameof(HttpHandler.WriteJsonAsync)}({_httpContext.Usage}, {_resourceVariable.Usage});");
+            writer.Write(
+                $"await {nameof(HttpHandler.WriteJsonAsync)}({_httpContext.Usage}, {_resourceVariable.Usage}, {_missingStatusCode});");
             writer.FinishBlock();
         }
         else

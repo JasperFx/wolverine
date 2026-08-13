@@ -174,7 +174,7 @@ public class EntityAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         Variable returnVariable;
-        if (Required)
+        if (chain.IsDataRequired(this))
         {
             var otherFrames = chain.AddStopConditionIfNull(entity, identity, this);
 

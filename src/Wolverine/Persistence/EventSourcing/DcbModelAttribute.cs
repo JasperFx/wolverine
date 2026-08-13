@@ -128,7 +128,7 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
         Variable modelVariable = new MemberAccessVariable(boundary,
             boundaryType.GetProperty(nameof(IEventBoundary<string>.Aggregate))!);
 
-        if (Required)
+        if (chain.IsDataRequired(this))
         {
             var otherFrames = chain.AddStopConditionIfNull(modelVariable, null, this);
             var block = new LoadEntityFrameBlock(modelVariable, otherFrames);

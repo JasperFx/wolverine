@@ -509,6 +509,10 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             case OnMissing.Simple404:
             case OnMissing.ProblemDetailsWith400:
             case OnMissing.ProblemDetailsWith404:
+            // The 204 is meaningless outside of HTTP, but the "log it and stop" behavior is identical
+            // to Simple404. Leaving it out of this group would drop it into the `default:` below and
+            // start throwing on message handlers that share an [Entity] configuration with an endpoint.
+            case OnMissing.EmptyContentWith204:
                 var frame = typeof(EntityIsNotNullGuardFrame<>).CloseAndBuildAs<MethodCall>(data, data.VariableType);
                 if (frame is IEntityIsNotNullGuard guard) guard.Requirement = requirement;
                 

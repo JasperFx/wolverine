@@ -246,6 +246,14 @@ public interface IChain
     /// <param name="variable"></param>
     Frame[] AddStopConditionIfNull(Variable data, Variable? identity, IDataRequirement requirement);
 
+    /// <summary>
+    /// Is the data described by this requirement required for execution to continue? This is normally just
+    /// <see cref="IDataRequirement.Required"/>, but a chain type is allowed to force the data to be required.
+    /// Wolverine's HTTP chains do exactly that for <see cref="OnMissing.EmptyContentWith204"/> on GET or QUERY
+    /// endpoints, where returning an empty 204 is a benign outcome.
+    /// </summary>
+    bool IsDataRequired(IDataRequirement requirement) => requirement.Required;
+
     bool TryInferMessageIdentity(out PropertyInfo? property);
 
     /// <summary>

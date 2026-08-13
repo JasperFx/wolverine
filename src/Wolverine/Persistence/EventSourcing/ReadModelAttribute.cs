@@ -117,7 +117,7 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
         aggregate.OverrideName(parameter.Name!);
 
         Variable returnVariable;
-        if (Required)
+        if (chain.IsDataRequired(this))
         {
             var otherFrames = chain.AddStopConditionIfNull(aggregate, identity, this);
 

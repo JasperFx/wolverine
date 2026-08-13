@@ -241,6 +241,67 @@ the underlying OpenAPI stack emits 3.2.
 
 See [JSON serialization for more information](/guide/http/json)
 
+## When the Response Body is Null <Badge type="tip" text="6.28" />
+
+When an endpoint's resource comes back `null`, Wolverine writes an empty **404**:
+
+```cs
+[WolverineGet("/api/alerts/config/services/{serviceName}")]
+public static async Task<ServiceAlertOverrides?> Get(string serviceName, IDocumentSession session)
+    // A miss here answers 404 with an empty body
+    => await session.LoadAsync<ServiceAlertOverrides>(serviceName);
+```
+
+A bare 404 is indistinguishable from "you called a Url that does not exist." If you would rather say
+"the Url is correct, but there is no body," decorate the endpoint method with `[NoContentIfMissing]` to
+get an empty **204** instead:
+
+```cs
+[WolverineGet("/api/alerts/config/services/{serviceName}"), NoContentIfMissing]
+public static async Task<ServiceAlertOverrides?> Get(string serviceName, IDocumentSession session)
+    // A miss now answers 204 with an empty body
+    => await session.LoadAsync<ServiceAlertOverrides>(serviceName);
+```
+
+The generated OpenAPI follows: the endpoint advertises `200` and `204` rather than `200` and `404`.
+
+`[NoContentIfMissing]` can also go on the endpoint *class*, where it applies to every endpoint method in
+that class. A method level declaration always wins over a class level one, and `[NotFoundIfMissing]` is
+how a single method opts back out.
+
+### An Application Wide Default
+
+Set `WolverineHttpOptions.OnMissingResponseBody` to change the default for the whole application:
+
+```cs
+app.MapWolverineEndpoints(opts =>
+{
+    opts.OnMissingResponseBody = OnMissingResponseBody.NoContent204;
+});
+```
+
+Use `[NotFoundIfMissing]` on any endpoint or endpoint class that should keep answering 404.
+
+::: warning
+`[NoContentIfMissing]` is only legal on `GET` and `QUERY` endpoints, and the application wide setting
+only reaches those methods. Those are the safe, side effect free reads where an empty answer is a benign
+outcome. On a `POST` or `PUT`, a 204 in place of a resource would turn a failed command into an apparent
+success for the caller, so Wolverine fails fast at bootstrapping time rather than let you ship it.
+
+Be deliberate about this even on reads. A 404 puts a miss on the failure branch of every HTTP client; a
+204 puts it on the success branch. Code that calls `response.EnsureSuccessStatusCode()` will start
+passing, and generated typed clients (NSwag, Kiota, Refit) will map the 204 onto their success path.
+:::
+
+::: tip
+This setting is strictly about the response *body*. What happens when a required entity cannot be loaded
+in the first place is a separate question, answered by
+[`OnMissing` on `[Entity]`](/guide/handlers/persistence#answering-204-instead-of-404) — including its own
+`OnMissing.EmptyContentWith204`. In an endpoint like
+`Get([Entity] Thing thing) => thing`, the entity guard runs *before* the endpoint body, so it is
+`OnMissing` — not `[NoContentIfMissing]` — that decides the answer.
+:::
+
 ## Returning Strings
 
 To create an endpoint that writes a string with `content-type` = "text/plain", just return a string as your resource type, so `string`, `Task<string>`, or `ValueTask<string>`

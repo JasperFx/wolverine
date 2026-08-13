@@ -10,18 +10,21 @@ namespace Wolverine.Http.Policies;
 internal class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
 {
     private readonly Type _entityType;
+    private readonly int _statusCode;
     private Variable? _httpResponse;
     private Variable? _entity;
 
-    public SetStatusCodeAndReturnIfEntityIsNullFrame(Type entityType)
+    public SetStatusCodeAndReturnIfEntityIsNullFrame(Type entityType, int statusCode = 404)
     {
         _entityType = entityType;
+        _statusCode = statusCode;
     }
 
-    public SetStatusCodeAndReturnIfEntityIsNullFrame(Variable entity)
+    public SetStatusCodeAndReturnIfEntityIsNullFrame(Variable entity, int statusCode = 404)
     {
         _entity = entity;
         _entityType = entity.VariableType;
+        _statusCode = statusCode;
     }
 
     public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
@@ -29,12 +32,12 @@ internal class SetStatusCodeAndReturnIfEntityIsNullFrame : SyncFrame
         ValueTypeReturnVariable.TupleVariable? problemDetailsVariable = null;
         if (_entity?.Creator is MethodCall { ReturnVariable: ValueTypeReturnVariable vrv })
             problemDetailsVariable = vrv.Inners.FirstOrDefault(v => v.Inner.VariableType == typeof(ProblemDetails));
-        writer.WriteComment("404 if this required object is null");
+        writer.WriteComment($"{_statusCode} if this required object is null");
         if (problemDetailsVariable != null)
             writer.WriteComment($"Take no action if {problemDetailsVariable.Inner.Usage}.Status == 404");
         writer.Write(
             $"BLOCK:if ({_entity!.Usage} == null{(problemDetailsVariable == null ? "" : $" && {problemDetailsVariable.Inner.Usage}.Status != 404")})");
-        writer.Write($"{_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} = 404;");
+        writer.Write($"{_httpResponse!.Usage}.{nameof(HttpResponse.StatusCode)} = {_statusCode};");
         if (method.AsyncMode == AsyncMode.ReturnCompletedTask)
             writer.Write($"return {typeof(Task).FullNameInCode()}.{nameof(Task.CompletedTask)};");
         else

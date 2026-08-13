@@ -223,6 +223,11 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
         return AddStopConditionIfNull(data);
     }
 
+    public virtual bool IsDataRequired(IDataRequirement requirement)
+    {
+        return requirement.Required;
+    }
+
     private static Type[] _typesToIgnore = new Type[]
     {
         typeof(DateOnly),

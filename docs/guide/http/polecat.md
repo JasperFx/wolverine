@@ -62,6 +62,10 @@ In the code above, if the `Invoice` document does not exist, the route will stop
 
 If you want your handler executed even if the document does not exist, set `Required` to `false`.
 
+Use the `OnMissing` property for any other answer — a `ProblemDetails` body, a thrown exception, or an
+empty `204` with `OnMissing.EmptyContentWith204` <Badge type="tip" text="6.28" />. See
+[the full `OnMissing` table](/guide/handlers/persistence#using-entity-for-message-handlers-and-http-endpoints).
+
 ## Polecat Aggregate Workflow
 
 The HTTP endpoints can play inside the full Wolverine + Polecat combination with Wolverine's [specific

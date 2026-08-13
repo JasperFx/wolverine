@@ -100,8 +100,16 @@ public abstract class HttpHandler
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Task WriteString(HttpContext context, string text)
+    public static Task WriteString(HttpContext context, string? text, int missingStatusCode = 404)
     {
+        // A null string resource used to dereference straight into a NullReferenceException below, so a
+        // string returning endpoint answered 500 where every other resource type answered 404.
+        if (text == null)
+        {
+            context.Response.StatusCode = missingStatusCode;
+            return Task.CompletedTask;
+        }
+
         context.Response.ContentType = "text/plain";
         context.Response.ContentLength = text.Length;
         return context.Response.WriteAsync(text, context.RequestAborted);
@@ -215,12 +223,18 @@ public abstract class HttpHandler
                  || x.MediaType.Value!.Contains("+json")));
     }
 
+    /// <summary>
+    ///     Write the endpoint's resource as JSON, or -- when it is null -- an empty response with
+    ///     <paramref name="missingStatusCode" />. The status code is resolved once at bootstrapping time by
+    ///     <c>HttpChain.ResolveMissingResponseBody()</c> and baked into the generated code, so this stays a
+    ///     constant on the hot path.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Task WriteJsonAsync<T>(HttpContext context, T? body)
+    public Task WriteJsonAsync<T>(HttpContext context, T? body, int missingStatusCode = 404)
     {
         if (body == null)
         {
-            context.Response.StatusCode = 404;
+            context.Response.StatusCode = missingStatusCode;
             return Task.CompletedTask;
         }
 

@@ -23,7 +23,16 @@ public enum OnMissing
     /// <summary>
     /// Throws a RequiredDataMissingException using the MissingMessage
     /// </summary>
-    ThrowException
+    ThrowException,
+
+    /// <summary>
+    /// In a message handler, the execution will just stop after logging that the data was missing -- identical to
+    /// <see cref="Simple404"/>. In an HTTP endpoint the request will stop w/ an empty body and a 204 status code to
+    /// denote "the Url was correct, but there is no content." On any GET or QUERY endpoint this value also forces
+    /// the data to be treated as required regardless of the <see cref="IDataRequirement.Required"/> setting, because
+    /// a 204 is a benign outcome and there is no reason to run the endpoint with a null entity.
+    /// </summary>
+    EmptyContentWith204
 }
 
 public class RequiredDataMissingException : Exception

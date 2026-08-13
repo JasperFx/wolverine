@@ -33,7 +33,10 @@ internal interface INewtonsoftHttpCodeGen
 
     /// <summary>
     ///     Build the codegen frame that writes the resource value to the response body
-    ///     via Newtonsoft.Json serialization.
+    ///     via Newtonsoft.Json serialization. <paramref name="missingStatusCode" /> is the status written when
+    ///     the resource is null -- 404 unless the endpoint opts into 204 with
+    ///     <see cref="NoContentIfMissingAttribute" /> or the application wide
+    ///     <c>WolverineHttpOptions.OnMissingResponseBody</c>.
     /// </summary>
-    Frame CreateWriteJsonFrame(Variable resourceVariable);
+    Frame CreateWriteJsonFrame(Variable resourceVariable, int missingStatusCode = 404);
 }

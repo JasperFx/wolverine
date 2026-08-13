@@ -177,11 +177,25 @@ public partial class HttpChain : IEndpointConventionBuilder
         if (ResourceType == typeof(string))
         {
             Metadata.Produces(200, typeof(string), "text/plain");
+
+            // Unlike the JSON branch below, a string endpoint has never advertised its missing-resource status
+            // -- a null string used to throw out of HttpHandler.WriteString rather than answer anything at all.
+            // Only document the status when the endpoint explicitly opted into one, so that fixing the null
+            // string does not silently rewrite the OpenAPI of every string returning endpoint in the world.
+            if (MissingResponseBodyStatusCode != 404)
+            {
+                Metadata.Produces(MissingResponseBodyStatusCode);
+            }
+
             return;
         }
 
         Metadata.Produces(200, ResourceType, "application/json");
-        Metadata.Produces(404);
+
+        // 404 unless this endpoint opted into an empty 204 for a null response body. Resolved by
+        // ResolveMissingResponseBody() before this runs, and the same value the response writer emits,
+        // so the generated OpenAPI cannot drift from what the endpoint actually returns.
+        Metadata.Produces(MissingResponseBodyStatusCode);
     }
 
     internal interface IApplier
