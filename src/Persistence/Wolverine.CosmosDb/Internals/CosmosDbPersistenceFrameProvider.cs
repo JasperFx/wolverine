@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
@@ -63,6 +64,16 @@ public class CosmosDbPersistenceFrameProvider : IPersistenceFrameProvider
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         return typeof(string);
+    }
+
+    public bool TryBuildQueryableFrame(Type elementType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var queryable = new QueryableFrame(elementType);
+        frame = queryable;
+        result = queryable.Result;
+        return true;
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)

@@ -140,3 +140,52 @@ internal class SharedEventOperationsFrame : SyncFrame
         Next?.GenerateCode(method, writer);
     }
 }
+
+/// <summary>
+///     Supplies the <b>shared</b> <see cref="JasperFx.Events.IEventStoreOperations"/> contract — the full
+///     read + write session-level event API — rather than Polecat's own derived spelling, so a message handler
+///     or HTTP endpoint can take it as a parameter and stay valid on Marten, Polecat and Fisher alike.
+/// </summary>
+/// <remarks>
+///     Sibling of <see cref="SharedEventOperationsSource"/>, which supplies the narrower write-only
+///     <c>IEventOperations</c>. Both resolve to exactly the same thing — <c>session.Events</c> — and both go
+///     through <c>IDocumentSession</c> rather than a store, so an ancillary store's <c>[Storage]</c> frame has
+///     already swapped the session and these follow it.
+/// </remarks>
+internal class SharedEventStoreOperationsSource : IVariableSource
+{
+    public bool Matches(Type type)
+    {
+        return type == typeof(JasperFx.Events.IEventStoreOperations);
+    }
+
+    public Variable Create(Type type)
+    {
+        return new SharedEventStoreOperationsFrame().Variable;
+    }
+}
+
+internal class SharedEventStoreOperationsFrame : SyncFrame
+{
+    private Variable _session = null!;
+
+    public SharedEventStoreOperationsFrame()
+    {
+        Variable = new Variable(typeof(JasperFx.Events.IEventStoreOperations), this);
+    }
+
+    public Variable Variable { get; }
+
+    public override IEnumerable<Variable> FindVariables(IMethodVariables chain)
+    {
+        _session = chain.FindVariable(typeof(IDocumentSession));
+        yield return _session;
+    }
+
+    public override void GenerateCode(GeneratedMethod method, ISourceWriter writer)
+    {
+        writer.Write(
+            $"{typeof(JasperFx.Events.IEventStoreOperations)} {Variable.Usage} = {_session.Usage}.{nameof(IDocumentSession.Events)};");
+        Next?.GenerateCode(method, writer);
+    }
+}

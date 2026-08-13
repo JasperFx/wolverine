@@ -124,6 +124,58 @@ public interface IPersistenceFrameProvider
         result = null;
         return false;
     }
+
+    /// <summary>
+    /// Attempt to build a codegen <see cref="Frame"/> that executes the equivalent of
+    /// <c>session.Query&lt;T&gt;().ToListAsync()</c> for <paramref name="entityType"/> against this provider's
+    /// own session, producing a <c>List&lt;T&gt;</c> as a new variable for downstream frames.
+    ///
+    /// <para>
+    /// Return <c>true</c> if the provider can express an unfiltered "every row of this type" read. The
+    /// default implementation returns <c>false</c>, which <see cref="AllAttribute"/> turns into a
+    /// bootstrapping time error naming the provider rather than silently doing nothing.
+    /// </para>
+    /// </summary>
+    /// <param name="entityType">The element type to read every instance of.</param>
+    /// <param name="container">Active codegen service container.</param>
+    /// <param name="frame">The built frame, when the provider supports this.</param>
+    /// <param name="result">The <c>List&lt;T&gt;</c> variable produced by the frame, when built.</param>
+    bool TryBuildAllFrame(
+        Type entityType,
+        IServiceContainer container,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Frame? frame,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Variable? result)
+    {
+        frame = null;
+        result = null;
+        return false;
+    }
+
+    /// <summary>
+    /// Attempt to build a codegen <see cref="Frame"/> that exposes this provider's raw
+    /// <c>IQueryable&lt;T&gt;</c> for <paramref name="elementType"/> — Marten's <c>session.Query&lt;T&gt;()</c>,
+    /// EF Core's <c>dbContext.Set&lt;T&gt;()</c>, and so on — as a new variable for the endpoint or handler to
+    /// compose a query against directly.
+    ///
+    /// <para>
+    /// Return <c>true</c> if the provider can hand out a queryable. The default returns <c>false</c>, which
+    /// <see cref="QueryableAttribute"/> turns into a bootstrapping time error naming the provider.
+    /// </para>
+    /// </summary>
+    /// <param name="elementType">The element type of the queryable.</param>
+    /// <param name="container">Active codegen service container.</param>
+    /// <param name="frame">The built frame, when the provider supports this.</param>
+    /// <param name="result">The <c>IQueryable&lt;T&gt;</c> variable produced by the frame, when built.</param>
+    bool TryBuildQueryableFrame(
+        Type elementType,
+        IServiceContainer container,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Frame? frame,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Variable? result)
+    {
+        frame = null;
+        result = null;
+        return false;
+    }
 }
 
 

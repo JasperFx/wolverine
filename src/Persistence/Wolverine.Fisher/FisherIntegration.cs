@@ -51,6 +51,7 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
         options.CodeGeneration.Sources.Add(new DocumentOperationsSource());
         options.CodeGeneration.Sources.Add(new EventOperationsSource());
         options.CodeGeneration.Sources.Add(new SharedEventOperationsSource());
+        options.CodeGeneration.Sources.Add(new SharedEventStoreOperationsSource());
 
         options.Policies.Add<FisherAggregateHandlerStrategy>();
 

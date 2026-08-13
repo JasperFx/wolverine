@@ -69,6 +69,16 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         return typeof(string);
     }
 
+    public bool TryBuildAllFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var all = new AllFrame(entityType);
+        frame = all;
+        result = all.Result;
+        return true;
+    }
+
     public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
         [NotNullWhen(true)] out Frame? frame,
         [NotNullWhen(true)] out Variable? result)
@@ -76,6 +86,16 @@ public class RavenDbPersistenceFrameProvider : IPersistenceFrameProvider
         var first = new FirstOrDefaultFrame(entityType);
         frame = first;
         result = first.Result;
+        return true;
+    }
+
+    public bool TryBuildQueryableFrame(Type elementType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var queryable = new QueryableFrame(elementType);
+        frame = queryable;
+        result = queryable.Result;
         return true;
     }
 

@@ -20,6 +20,9 @@ These all speak one vocabulary, and none of it names your database:
 | An event sourced model spanning several streams, matched by tag | `[DcbModel]` |
 | To write a document back | `Storage.Store` / `Insert` / `Update` / `Delete` / `Nothing<T>` |
 | To append events to a stream | [`Storage.AppendEvents` / `Storage.StartStream`](/guide/handlers/side-effects#event-side-effects) |
+| Every document of a type | [`[All]`](#reading-every-document-of-a-type) |
+| The store's raw `IQueryable<T>` | [`[Queryable]`](#the-raw-iqueryable-escape-hatch) |
+| The event store's write API | [`IEventStoreOperations`](#injecting-the-event-store-operations) |
 
 ## Automatically Loading Entities to Method Parameters <Badge type="tip" text="3.6" />
 
@@ -257,6 +260,99 @@ runtime. Load the value explicitly in a `Before` method instead.
 On Fisher, a document table is created lazily on first write, and querying a type that has never been
 written throws rather than returning nothing. That applies to any Fisher query, not just this attribute,
 but it is worth knowing if a brand new deployment hits a `[FirstOrDefault]` before anything is stored.
+:::
+
+## Reading Every Document of a Type <Badge type="tip" text="6.28" />
+
+Where [`[FirstOrDefault]`](#reading-the-first-of-a-type) gives you one, `[All]` gives you all of them —
+the equivalent of `await session.Query<T>().ToListAsync()`, resolved through whichever provider owns the
+type:
+
+```cs
+[WolverineGet("/api/alerts/config/services")]
+public static IReadOnlyList<ServiceAlertOverrides> GetAll([All] IReadOnlyList<ServiceAlertOverrides> overrides)
+    => overrides;
+```
+
+* The parameter **must** be declared as `IReadOnlyList<T>`. Anything else fails with a message naming the
+  parameter and what to change it to. That is the shape Marten and RavenDb return from `ToListAsync()`
+  natively, and EF Core's `List<T>` converts to it implicitly, so every provider assigns straight across
+  with no copying.
+* An empty table yields an empty list, never `null` — so there is no "missing" case and no `OnMissing`.
+* The query is unfiltered. This is aimed at **small reference and configuration collections**; reading an
+  entire table into memory is a decision, not a default.
+* Supported by Marten, Polecat, Fisher, RavenDb and EF Core. **CosmosDb is not supported**, for the same
+  reason `[FirstOrDefault]` is not — see that section's warning.
+
+## The Raw `IQueryable` Escape Hatch <Badge type="tip" text="6.28" />
+
+`[Queryable]` injects the persistence mechanism's own `IQueryable<T>` — Marten's `session.Query<T>()`,
+EF Core's `dbContext.Set<T>()`, and so on — into a message handler, HTTP endpoint, or middleware method:
+
+```cs
+[WolverineGet("/api/alerts/recent")]
+public static async Task<IReadOnlyList<Alert>> GetRecent(
+    [Queryable] IQueryable<Alert> alerts, CancellationToken token)
+{
+    return await alerts
+        .Where(x => x.Level == "high")
+        .OrderByDescending(x => x.RaisedAt)
+        .Take(20)
+        .ToListAsync(token);
+}
+```
+
+::: danger Read this before using `[Queryable]`
+This is the escape hatch, and it is a sharp one. Every other attribute on this page describes *what* you
+want and leaves the store to satisfy it. This one hands you a provider-specific LINQ implementation.
+
+**It is not portable in practice, even though the type is.** Marten, EF Core, RavenDb and CosmosDb LINQ
+providers support very different subsets of LINQ. A query that compiles and runs correctly on one can
+throw at *runtime* on another. The concrete example that will catch you: **Marten 9 refuses synchronous
+LINQ execution outright**, so
+
+```cs
+var names = alerts.Where(x => x.Level == "high").ToArray();   // compiles everywhere
+```
+
+works on EF Core and throws `NotSupportedException: As of Marten 9.0, only asynchronous data access is
+supported` on Marten. **Always use the async LINQ operators** — `ToListAsync()`, `FirstOrDefaultAsync()`,
+`CountAsync()` — and pass the `CancellationToken`.
+
+**It reintroduces the coupling everything else here exists to remove**, and makes the method meaningfully
+harder to unit test — you can no longer hand it a list.
+
+**An unbounded query is easy to write by accident.** There is no paging, no limit, and no guard.
+
+**On CosmosDb especially:** Wolverine stores every user document in one shared container with no per-type
+discriminator, so an unfiltered queryable can surface documents of entirely other types deserialized as
+`T`. Filter on a discriminator of your own.
+:::
+
+Prefer `[All]` for a whole small collection, `[Entity]` for a single entity by identity, or a compiled
+query / `[FromQuerySpecification]` for anything filtered that you want to stay testable and portable.
+
+## Injecting the Event Store Operations <Badge type="tip" text="6.28" />
+
+A handler, HTTP endpoint, or middleware method can take `JasperFx.Events.IEventStoreOperations` (or the
+narrower write-only `IEventOperations`) directly as a parameter, and it resolves to the current session's
+`Events` on Marten, Polecat and Fisher alike:
+
+```cs
+public static void Handle(RecordLedgerEntry command, IEventStoreOperations events)
+{
+    events.StartStream(command.Id, new LedgerEntryRecorded(command.Note));
+}
+```
+
+Because it is the *current session's* operations, the appended events commit with the rest of the
+handler's work through the outbox — no `[Transactional]` needed. A handler marked
+`[Storage(typeof(IMyStore))]` gets that ancillary store's session instead.
+
+::: tip
+Returning [`Storage.AppendEvents()` / `Storage.StartStream()`](/guide/handlers/side-effects#event-side-effects)
+is the lower ceremony option and keeps the handler a pure function. Reach for the injected operations when
+you need something those two do not express.
 :::
 
 ## Event Sourced Models <Badge type="tip" text="6.26" />
