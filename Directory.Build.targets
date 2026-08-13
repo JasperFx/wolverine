@@ -21,4 +21,30 @@
         <PackageReference Include="Microsoft.OpenApi" />
     </ItemGroup>
 
+    <!--
+      Every test process builds hundreds of hosts, and Host.CreateDefaultBuilder() attaches a
+      FileSystemWatcher to the content root for each one. See src/DisableConfigReloadInTests.cs for
+      the mechanics and the numbers. Linked in from here rather than per-project so a new test
+      project cannot silently reintroduce the leak.
+
+      Keyed on IsTestProject, which Microsoft.NET.Test.Sdk sets for us, rather than on the project
+      name: eight suites here do not end in "Tests" (the six *.LeaderElection projects,
+      EfCoreTests.MultiTenancy, ChaosTesting) and a name test quietly skips every one of them.
+      It also excludes Wolverine.ComplianceTests, which ships as WolverineFx.ComplianceTests — a
+      module initializer that mutates process environment variables has no business inside a
+      published package.
+
+      This lives in Directory.Build.targets and not .props because .props is imported before the
+      project body and before the NuGet-generated props, so IsTestProject is not set yet there.
+
+      Do NOT reach for '$(PackageId)' == '' as the package guard: PackageId defaults to the assembly
+      name, so that condition is false for every project and silently compiles nothing — while the
+      build still reports success.
+    -->
+    <ItemGroup Condition=" '$(IsTestProject)' == 'true' ">
+        <Compile Include="$(MSBuildThisFileDirectory)src/DisableConfigReloadInTests.cs">
+            <Link>DisableConfigReloadInTests.cs</Link>
+        </Compile>
+    </ItemGroup>
+
 </Project>
