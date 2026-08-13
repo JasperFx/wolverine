@@ -341,7 +341,7 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
             await channel.QueueDeclareAsync(QueueName, IsDurable, IsExclusive, AutoDelete, Arguments);
             logger.LogInformation(
                 "Declared Rabbit MQ queue '{Name}' as IsDurable={IsDurable}, IsExclusive={IsExclusive}, AutoDelete={AutoDelete}",
-                EndpointName, IsDurable, IsExclusive, AutoDelete);
+                QueueName, IsDurable, IsExclusive, AutoDelete);
             
             if (_bindings.Count > 0)
             {
