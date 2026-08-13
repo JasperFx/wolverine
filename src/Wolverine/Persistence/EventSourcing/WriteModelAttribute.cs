@@ -105,7 +105,7 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
 
         // GH-3916: only when the call site said nothing. An explicit [WriteModel(Required = true)] on a
         // nullable parameter still gets its guard - loudly wrong beats silently overridden.
-        _required ??= !isNullableAnnotated(parameter);
+        _required ??= DefaultRequired(parameter);
 
         var aggregateType = parameter.ParameterType;
         if (aggregateType.IsNullable())
@@ -227,17 +227,19 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         return null;
     }
 
-    // A parameter is nullable when it's a Nullable<T> value type or a reference type whose nullable
-    // annotation context marks it nullable. A fresh NullabilityInfoContext per call keeps this
-    // thread-safe across concurrent chain compilation.
-    private static bool isNullableAnnotated(ParameterInfo parameter)
+    /// <summary>
+    ///     The value <see cref="Required" /> takes when the call site did not set it. Defaults to the
+    ///     opposite of the parameter's nullable annotation (GH-3916).
+    /// </summary>
+    /// <remarks>
+    ///     GH-3929: virtual so that a store's own spelling of this workflow can keep the default it
+    ///     shipped with. <c>[WriteAggregate]</c> predates the nullability inference and overrides this to
+    ///     an unconditional <c>true</c>, because changing the default under existing code is a silent
+    ///     behaviour change that only shows up at runtime.
+    /// </remarks>
+    protected virtual bool DefaultRequired(ParameterInfo parameter)
     {
-        if (parameter.ParameterType.IsValueType)
-        {
-            return parameter.ParameterType.IsNullable();
-        }
-
-        return new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
+        return !ParameterNullability.IsNullableAnnotated(parameter);
     }
 
     [UnconditionalSuppressMessage("Trimming", "IL2075",
