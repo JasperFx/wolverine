@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+### WolverineFx.AmazonSqs
+
+- **An oversized message is no longer retried forever, and can optionally be fragmented.**
+  ([#3926](https://github.com/JasperFx/wolverine/issues/3926)) SQS caps a message at 256KB and
+  rejects a larger one with `InvalidParameterValue - Message must be shorter than 262144 bytes
+  (SenderFault: true)`. `SenderFault: true` means the identical request will fail identically
+  forever, but Wolverine treated it as a transient send failure and re-queued it — which is why
+  this presented as a *flood* of identical errors rather than one. An oversized message is now
+  logged once and discarded.
+
+  New opt-in `FragmentOversizedMessages()` on the listener and subscriber configurations splits an
+  oversized body across several SQS messages using Wolverine's own framing in SQS message
+  attributes, and reassembles it on the receiving side. **[Claim
+  checks](https://wolverinefx.net/guide/durability/claim-checks) remain the recommended answer** —
+  `WolverineFx.ClaimCheck.AmazonS3` is the AWS-sanctioned pattern and has none of the constraints
+  below. Reassembly is in memory on a single listener, so fragmentation is only safe on a FIFO
+  queue, behind a globally partitioned listener, or with a single listening node. Nothing is
+  acknowledged until a fragment set is complete, so a node that crashes holding part of one loses
+  nothing. See [Large Messages in
+  SQS](https://wolverinefx.net/guide/messaging/transports/sqs/large-messages).
+
+  A receiving endpoint now always asks SQS for the fragment attribute names in `ReceiveMessage`,
+  appended to whatever `MessageAttributeNames` the endpoint already requested (`"All"` is left
+  alone). SQS returns only the attributes a receive explicitly names.
+
+### WolverineFx (core)
+
+- **A permanently unsendable envelope is now deleted from the outgoing table.**
+  ([#3926](https://github.com/JasperFx/wolverine/issues/3926)) `SendingAgent.MarkSerializationFailureAsync`
+  — the path a transport uses to say "this envelope can never be sent" — only logged. On a durable
+  sending endpoint the row stayed in the outgoing table, so the durability agent re-read and
+  re-sent it on every recovery sweep. It is now `virtual`, and `DurableSendingAgent` overrides it
+  to delete the rows.
+
 ### WolverineFx.ComplianceTests
 
 > ⚠️ DRAFT WORDING — needs Jeremy's review before release.
