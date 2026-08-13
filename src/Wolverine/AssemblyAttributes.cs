@@ -35,6 +35,7 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Postgresql")]
 [assembly: InternalsVisibleTo("Wolverine.Marten")]
 [assembly: InternalsVisibleTo("Wolverine.Polecat")]
+[assembly: InternalsVisibleTo("Wolverine.Fisher")]
 [assembly: InternalsVisibleTo("PolecatTests")]
 [assembly: InternalsVisibleTo("Wolverine.EntityFrameworkCore")]
 [assembly: InternalsVisibleTo("Wolverine.RavenDb")]

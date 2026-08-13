@@ -37,6 +37,8 @@ jobs:
           - CIAzureServiceBusRouting
           - CICosmosDb
           - CIEfCore
+          # Fisher is an embedded SQLite file - no container, no service dependency.
+          - CIFisher
           - CIGrpc
           - CIKafka
           # MartenTests is one Postgres project sharded three ways by namespace, each shard strictly
