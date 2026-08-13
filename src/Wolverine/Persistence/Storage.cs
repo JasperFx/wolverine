@@ -56,6 +56,55 @@ public static class Storage
     /// <returns></returns>
     public static Nothing<T> Nothing<T>() => new();
 
+    /// <summary>
+    /// Append events to an existing event stream identified by a Guid. Works against any registered event
+    /// store -- Marten, Polecat or Fisher -- because it is expressed purely in terms of
+    /// <see cref="JasperFx.Events.IEventOperations"/>.
+    /// </summary>
+    public static AppendEvents AppendEvents(Guid streamId, params object[] events) => new(streamId, events);
+
+    /// <summary>
+    /// Append events to an existing event stream identified by a string key. Works against any registered
+    /// event store -- Marten, Polecat or Fisher.
+    /// </summary>
+    public static AppendEvents AppendEvents(string streamKey, params object[] events) => new(streamKey, events);
+
+    /// <summary>
+    /// Append events to an existing event stream identified by a Guid, asserting the stream's current version
+    /// on the server for optimistic concurrency.
+    /// </summary>
+    public static AppendEvents AppendEvents(Guid streamId, long expectedVersion, params object[] events)
+        => new(streamId, events) { ExpectedVersion = expectedVersion };
+
+    /// <summary>
+    /// Append events to an existing event stream identified by a string key, asserting the stream's current
+    /// version on the server for optimistic concurrency.
+    /// </summary>
+    public static AppendEvents AppendEvents(string streamKey, long expectedVersion, params object[] events)
+        => new(streamKey, events) { ExpectedVersion = expectedVersion };
+
+    /// <summary>
+    /// Start a brand new event stream with a user supplied Guid identity.
+    /// </summary>
+    public static StartStream StartStream(Guid streamId, params object[] events) => new(streamId, null, events);
+
+    /// <summary>
+    /// Start a brand new event stream with a user supplied string key.
+    /// </summary>
+    public static StartStream StartStream(string streamKey, params object[] events) => new(streamKey, null, events);
+
+    /// <summary>
+    /// Start a brand new event stream for a known aggregate type with a user supplied Guid identity.
+    /// </summary>
+    public static StartStream StartStream<T>(Guid streamId, params object[] events) where T : class
+        => new(streamId, typeof(T), events);
+
+    /// <summary>
+    /// Start a brand new event stream for a known aggregate type with a user supplied string key.
+    /// </summary>
+    public static StartStream StartStream<T>(string streamKey, params object[] events) where T : class
+        => new(streamKey, typeof(T), events);
+
     [UnconditionalSuppressMessage("Trimming", "IL2072",
         Justification = "Variable.VariableType returns the effect's runtime Type without DAM annotation; TypeExtensions.Closes inspects the generic-interface graph for IStorageAction<>. The entity type is application-rooted (handler return type), preserved in any practical setup; AOT consumers register effect entity types via the persistence-frame provider registration.")]
     internal static bool TryApply(Variable effect, GenerationRules rules, IServiceContainer container, IChain chain)
