@@ -76,10 +76,15 @@ public abstract class SendingAgent : ISendingAgent, ISenderCallback, ISenderCirc
         return markFailedAsync(outgoing);
     }
 
-    Task ISenderCallback.MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
+    /// <summary>
+    ///     The envelopes in this batch can never be sent to this destination -- the transport has already
+    ///     decided that retrying would fail identically forever. Log them and let them go. A buffered
+    ///     agent is done at that point; a durable one also has to clear them out of the outgoing table,
+    ///     which is why this is virtual.
+    /// </summary>
+    public virtual Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
     {
         _logger.OutgoingBatchFailed(outgoing);
-        // Can't really happen now, but what the heck.
         var exception = new Exception("Serialization failure with outgoing envelopes " +
                                       outgoing.Messages.Select(x => x.ToString()).Join(", "));
         _logger.LogError(exception, "Serialization failure");

@@ -102,6 +102,43 @@ public class AmazonSqsListenerConfiguration : ListenerConfiguration<AmazonSqsLis
     }
 
     /// <summary>
+    ///     Split a message whose body would exceed SQS's hard 256KB limit into several SQS messages, and
+    ///     reassemble it on the receiving side. A listener reassembles fragments whether or not this is
+    ///     set -- the framing is self-describing -- so this only really matters on the sending side and
+    ///     for the reassembly timeout.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     <b>Wolverine to Wolverine only</b>, and reassembly happens <b>in memory on one listener</b>, so
+    ///     every fragment of a message has to reach the same node. SQS is a competing-consumer queue, so
+    ///     use this only on a FIFO queue, with a <c>GlobalPartitioning</c> listener, or with a single
+    ///     listening node. Prefer a claim check (<c>WolverineFx.ClaimCheck.AmazonS3</c>) otherwise -- it
+    ///     is the AWS-sanctioned answer and has none of these constraints.
+    ///     </para>
+    ///     <para>
+    ///     See <a href="https://wolverinefx.net/guide/messaging/transports/sqs/large-messages.html">Large
+    ///     messages in SQS</a>.
+    ///     </para>
+    /// </remarks>
+    /// <param name="reassemblyTimeout">
+    ///     How long this listener holds an incomplete set of fragments before abandoning it. Defaults to 5
+    ///     minutes. Abandoned fragments were never deleted from SQS, so they become visible again.
+    /// </param>
+    public AmazonSqsListenerConfiguration FragmentOversizedMessages(TimeSpan? reassemblyTimeout = null)
+    {
+        add(e =>
+        {
+            e.FragmentOversizedMessages = true;
+            if (reassemblyTimeout.HasValue)
+            {
+                e.FragmentReassemblyTimeout = reassemblyTimeout.Value;
+            }
+        });
+
+        return this;
+    }
+
+    /// <summary>
     ///     Configure how the queue should be created within SQS
     /// </summary>
     /// <param name="configure"></param>

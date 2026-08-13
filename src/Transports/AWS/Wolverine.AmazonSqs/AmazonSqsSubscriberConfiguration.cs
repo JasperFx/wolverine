@@ -41,6 +41,42 @@ public class
         return this;
     }
 
+    /// <summary>
+    ///     Split a message whose body would exceed SQS's hard 256KB limit into several SQS messages, and
+    ///     reassemble it on the receiving side. Without this an oversized message is rejected by SQS with
+    ///     a permanent <c>SenderFault</c>, and Wolverine discards it rather than retrying forever.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///     <b>Wolverine to Wolverine only</b>, and reassembly happens <b>in memory on one listener</b>, so
+    ///     every fragment of a message has to reach the same node. SQS is a competing-consumer queue, so
+    ///     use this only on a FIFO queue, with a <c>GlobalPartitioning</c> listener, or with a single
+    ///     listening node. Prefer a claim check (<c>WolverineFx.ClaimCheck.AmazonS3</c>) otherwise -- it
+    ///     is the AWS-sanctioned answer and has none of these constraints.
+    ///     </para>
+    ///     <para>
+    ///     See <a href="https://wolverinefx.net/guide/messaging/transports/sqs/large-messages.html">Large
+    ///     messages in SQS</a>.
+    ///     </para>
+    /// </remarks>
+    /// <param name="reassemblyTimeout">
+    ///     How long a listener holds an incomplete set of fragments before abandoning it. Defaults to 5
+    ///     minutes. Abandoned fragments were never deleted from SQS, so they become visible again.
+    /// </param>
+    public AmazonSqsSubscriberConfiguration FragmentOversizedMessages(TimeSpan? reassemblyTimeout = null)
+    {
+        add(e =>
+        {
+            e.FragmentOversizedMessages = true;
+            if (reassemblyTimeout.HasValue)
+            {
+                e.FragmentReassemblyTimeout = reassemblyTimeout.Value;
+            }
+        });
+
+        return this;
+    }
+
     /// Opt to send messages as raw JSON without any Wolverine metadata
     /// </summary>
     /// <param name="defaultMessageType">Optional. If both sending and receiving from this queue, you will want to specify a default message type</param>

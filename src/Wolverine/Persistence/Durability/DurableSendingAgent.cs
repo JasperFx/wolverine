@@ -187,6 +187,18 @@ internal class DurableSendingAgent : SendingAgent
         return _deleteOutgoingMany.PostAsync(outgoing.Messages.ToArray());
     }
 
+    /// <summary>
+    ///     GH-3926: an envelope the transport has judged permanently unsendable has to leave the outgoing
+    ///     table as well as the in-memory queue. Logging it and stopping there leaves the row behind, and
+    ///     the durability agent re-reads and re-sends it on every recovery sweep -- which is precisely the
+    ///     endless retry this path exists to break.
+    /// </summary>
+    public override async Task MarkSerializationFailureAsync(OutgoingMessageBatch outgoing)
+    {
+        await base.MarkSerializationFailureAsync(outgoing);
+        await _deleteOutgoingMany.PostAsync(outgoing.Messages.ToArray());
+    }
+
     public override Task MarkSuccessfulAsync(Envelope outgoing)
     {
         return _deleteOutgoingOne.PostAsync(outgoing);

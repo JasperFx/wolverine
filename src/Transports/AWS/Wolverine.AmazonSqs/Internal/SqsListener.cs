@@ -28,6 +28,12 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     private readonly Block<Message[]>? _deleteBlock;
     private readonly RetryBlock<Message> _singleDeleteBlock;
 
+    // GH-3926: reassembles messages that the sender had to split across several SQS messages.
+    // Deliberately unconditional rather than gated on FragmentOversizedMessages -- the fragment
+    // framing is unambiguous, so a listener reads it whether or not this same endpoint would send
+    // that way, and an asymmetrically configured pair still works.
+    private readonly SqsFragmentReassembler _reassembler;
+
     public SqsListener(IWolverineRuntime runtime, AmazonSqsQueue queue, AmazonSqsTransport transport,
         IReceiver receiver)
     {
@@ -50,21 +56,32 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         {
             NativeDeadLetterQueueEnabled = true;
             _deadLetterQueue = _transport.Queues[_queue.DeadLetterQueueName];
+
+            // GH-3926: a listener that accepts fragmented messages has to be able to dead letter one too.
+            // The dead letter queue is Wolverine's own, so there is no interop reason to make this a
+            // second opt-in, and without it an oversized message could be reassembled and handled but
+            // never moved to errors.
+            if (_queue.FragmentOversizedMessages)
+            {
+                _deadLetterQueue.FragmentOversizedMessages = true;
+            }
         }
 
         _requeueBlock = new RetryBlock<AmazonSqsEnvelope>(async (env, _) =>
         {
             if (!env.WasDeleted)
             {
-                await CompleteAsync(env.SqsMessage);
+                await CompleteAsync(env.SqsMessages);
             }
 
-            await _queue.SendMessageAsync(env, logger);
+            await sendOrDiscardAsync(_queue, env, "requeue");
         }, runtime.LoggerFactory.CreateLogger<SqsListener>(), runtime.Cancellation);
 
         _deadLetterBlock =
-            new RetryBlock<Envelope>(async (e, _) => { await _deadLetterQueue!.SendMessageAsync(e, logger); }, logger,
-                runtime.Cancellation);
+            new RetryBlock<Envelope>(async (e, _) => { await sendOrDiscardAsync(_deadLetterQueue!, e, "dead letter"); },
+                logger, runtime.Cancellation);
+
+        _reassembler = new SqsFragmentReassembler(queue.FragmentReassemblyTimeout, logger);
 
         _singleDeleteBlock = new RetryBlock<Message>(
             (message, token) => _transport.Client!.DeleteMessageAsync(_queue.QueueUrl, message.ReceiptHandle, token),
@@ -85,6 +102,28 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         _loop.Start();
     }
 
+    /// <summary>
+    /// Send one envelope, giving up rather than retrying when it is simply too big for the queue.
+    /// </summary>
+    /// <remarks>
+    /// Both callers are <see cref="RetryBlock{T}" />s, which retry until they succeed. An oversized
+    /// message can never succeed -- SQS rejects it with a permanent SenderFault -- so letting that
+    /// exception through would spin the block forever on a send that is impossible, which is the very
+    /// failure GH-3926 exists to remove.
+    /// </remarks>
+    private async Task sendOrDiscardAsync(AmazonSqsQueue queue, Envelope envelope, string operation)
+    {
+        try
+        {
+            await queue.SendMessageAsync(envelope, _logger);
+        }
+        catch (SqsMessageTooLargeException e)
+        {
+            _logger.LogError(e, "Discarding envelope {Id} on {Operation} to {Queue} - it is too large for SQS and no retry can change that",
+                envelope.Id, operation, queue.Uri);
+        }
+    }
+
     private async Task<bool> pollOnceAsync(CancellationToken token)
     {
         var request = new ReceiveMessageRequest(_queue.QueueUrl);
@@ -103,6 +142,20 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         {
             try
             {
+                // GH-3926: a fragmented message is N SQS messages carrying Wolverine's own framing.
+                // Nothing is acked until the whole set is in hand -- the reassembler holds the partial
+                // and never deletes from SQS, so a crash halfway through just makes the fragments
+                // visible again rather than losing the message.
+                if (SqsMessageFragments.TryReadHeader(message, out var header))
+                {
+                    if (_reassembler.TryAccept(message, header, out var body, out var fragments))
+                    {
+                        envelopes.Add(buildEnvelope(fragments, body));
+                    }
+
+                    continue;
+                }
+
                 envelopes.Add(buildEnvelope(message));
             }
             catch (Exception e)
@@ -144,7 +197,7 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
     {
         if (envelope is AmazonSqsEnvelope e)
         {
-            return new ValueTask(CompleteAsync(e.SqsMessage));
+            return new ValueTask(CompleteAsync(e.SqsMessages));
         }
 
         return ValueTask.CompletedTask;
@@ -234,14 +287,23 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
 
     private AmazonSqsEnvelope buildEnvelope(Message message)
     {
-        var envelope = new AmazonSqsEnvelope(message);
+        return buildEnvelope([message], message.Body);
+    }
+
+    /// <summary>
+    /// Build one envelope from the message(s) that carried it. A fragmented message hands over every
+    /// SQS message in the set plus the reassembled body; everything else is a set of one.
+    /// </summary>
+    private AmazonSqsEnvelope buildEnvelope(Message[] messages, string body)
+    {
+        var envelope = new AmazonSqsEnvelope(messages);
 
         // SQS only returns MessageAttributes when they were explicitly requested, and
         // brokers/SDKs may hand back a null collection when a message carries none (as is
         // the case for MassTransit/NServiceBus messages that keep their metadata in the body).
         // Guarantee a non-null dictionary so ISqsEnvelopeMapper implementations can read freely.
-        var attributes = message.MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
-        _mapper.ReadEnvelopeData(envelope, message.Body, attributes);
+        var attributes = messages[0].MessageAttributes ?? new Dictionary<string, MessageAttributeValue>();
+        _mapper.ReadEnvelopeData(envelope, body, attributes);
 
         // CritterWatch#942 — the Body string (base64, UTF-16, ~2.7× the wire payload size) is fully
         // mapped into the envelope now, and every later use of SqsMessage — single delete, batched
@@ -249,9 +311,27 @@ internal class SqsListener : IListener, ISupportDeadLetterQueue, IReportReceiveL
         // its whole time in flight (which, for buffered endpoints feeding a batching pipeline, can
         // be a long, deep queue), so release the one big thing on it. The mapping-failure path above
         // (raw forward to the dead-letter queue) still has Body because it never reaches here.
-        message.Body = null;
+        foreach (var message in messages)
+        {
+            message.Body = null;
+        }
 
         return envelope;
+    }
+
+    /// <summary>
+    /// Complete every SQS message that carried one envelope. A fragmented message is only really
+    /// handled once all of its fragments are deleted; deleting some of them would leave the rest to
+    /// reappear at the visibility timeout as an incomplete set that can never be reassembled.
+    /// </summary>
+    public Task CompleteAsync(Message[] sqsMessages)
+    {
+        if (sqsMessages.Length == 1)
+        {
+            return CompleteAsync(sqsMessages[0]);
+        }
+
+        return Task.WhenAll(sqsMessages.Select(CompleteAsync));
     }
 
     public Task CompleteAsync(Message sqsMessage)
