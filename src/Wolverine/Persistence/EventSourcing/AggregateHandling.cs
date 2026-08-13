@@ -326,7 +326,7 @@ internal record AggregateHandling(IDataRequirement Requirement)
     ///     stores, and without the answer depending on whether a provider happened to be resolvable at the
     ///     call site. GH-3907; the Polecat integration used to hard-code exactly this pair.
     /// </remarks>
-    private static bool IsMarkedAsIdentity(MemberInfo member)
+    internal static bool IsMarkedAsIdentity(MemberInfo member)
         => member.GetCustomAttributes().Any(x => x.GetType().Name == nameof(IdentityAttribute));
 
     [UnconditionalSuppressMessage("Trimming", "IL2070",

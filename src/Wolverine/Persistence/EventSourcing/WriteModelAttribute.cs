@@ -47,8 +47,26 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
     public string? RouteOrParameterName { get; }
 
     private OnMissing? _onMissing;
+    private bool? _required;
 
-    public bool Required { get; set; } = true;
+    /// <summary>
+    ///     Should Wolverine stop the handler when the model cannot be found? Defaults to <b>the opposite of
+    ///     the parameter's nullable annotation</b>: <c>Order order</c> is required, <c>Order? order</c> is not.
+    /// </summary>
+    /// <remarks>
+    ///     GH-3916. Before this the default was an unconditional <c>true</c>, so a parameter annotated
+    ///     nullable — the author saying "I will handle absence" — still generated an
+    ///     <c>EntityIsNotNullGuard</c> and a <c>HandlerContinuation.Stop</c>, making the handler's own null
+    ///     branch dead code and logging a warning per message. A nullable annotation with
+    ///     <c>Required = true</c> is a contradiction; the annotation is the more specific signal, and an
+    ///     explicit <c>Required</c> at the call site still wins over both.
+    /// </remarks>
+    public bool Required
+    {
+        get => _required ?? true;
+        set => _required = value;
+    }
+
     public string MissingMessage { get; set; } = null!;
 
     public OnMissing OnMissing
@@ -84,6 +102,11 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         GenerationRules rules)
     {
         _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
+
+        // GH-3916: only when the call site said nothing. An explicit [WriteModel(Required = true)] on a
+        // nullable parameter still gets its guard - loudly wrong beats silently overridden.
+        _required ??= !isNullableAnnotated(parameter);
+
         var aggregateType = parameter.ParameterType;
         if (aggregateType.IsNullable())
         {
@@ -204,6 +227,19 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         return null;
     }
 
+    // A parameter is nullable when it's a Nullable<T> value type or a reference type whose nullable
+    // annotation context marks it nullable. A fresh NullabilityInfoContext per call keeps this
+    // thread-safe across concurrent chain compilation.
+    private static bool isNullableAnnotated(ParameterInfo parameter)
+    {
+        if (parameter.ParameterType.IsValueType)
+        {
+            return parameter.ParameterType.IsNullable();
+        }
+
+        return new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;
+    }
+
     [UnconditionalSuppressMessage("Trimming", "IL2075",
         Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
     public Variable? FindIdentity(Type aggregateType, Type idType, IChain chain)
@@ -214,6 +250,16 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
             {
                 return variable;
             }
+        }
+
+        // GH-3918: [Identity] is the declared, discoverable way to say "this member is the identity", and
+        // it lives on the message where it is true no matter which handler form consumes it.
+        // [DeciderFunction] has always honored it (AggregateHandling.DetermineAggregateIdMember); this is
+        // the same match, by attribute *name* so a store's own [Identity] spelling works without core
+        // enumerating stores. Ahead of the name conventions, behind an explicit [WriteModel("...")].
+        if (tryFindIdentityMarkedVariable(chain, out var marked))
+        {
+            return marked;
         }
 
         if (chain.TryFindVariable($"{aggregateType.Name.ToCamelCase()}Id", ValueSource.Anything, idType, out var v2))
@@ -258,6 +304,35 @@ public class WriteModelAttribute : WolverineParameterAttribute, IDataRequirement
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Look for a member on the message/request type marked with <c>[Identity]</c>, and resolve the chain
+    ///     variable that carries it. GH-3918.
+    /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2075",
+        Justification = "Handler/command/model types come from handler discovery, which already roots them; this is the dynamic codegen path. See docs/guide/aot.md.")]
+    private static bool tryFindIdentityMarkedVariable(IChain chain, [NotNullWhen(true)] out Variable? variable)
+    {
+        variable = null;
+
+        var inputType = chain.InputType();
+        if (inputType == null) return false;
+
+        foreach (var member in inputType.GetMembers().Where(AggregateHandling.IsMarkedAsIdentity))
+        {
+            // Match on the member's own type rather than the model's id type: a strong typed id member
+            // and a raw Guid member are both legitimate here, and the workflow unwraps the former later.
+            var memberType = (member as PropertyInfo)?.PropertyType ?? (member as FieldInfo)?.FieldType;
+            if (memberType == null) continue;
+
+            if (chain.TryFindVariable(member.Name, ValueSource.InputMember, memberType, out variable))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     internal static bool IsPrimitiveIdType(Type type)
