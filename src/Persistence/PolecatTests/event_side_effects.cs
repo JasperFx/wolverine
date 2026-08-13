@@ -4,6 +4,7 @@ using Microsoft.Extensions.Hosting;
 using Polecat;
 using Shouldly;
 using Wolverine;
+using Wolverine.Attributes;
 using Wolverine.Persistence;
 using Wolverine.Polecat;
 using Wolverine.Tracking;
@@ -79,6 +80,10 @@ public record CreatePcInvoice(Guid Id, decimal Amount);
 
 public record ApprovePcInvoice(Guid Id, string ApprovedBy);
 
+// [WolverineIgnore] because these throw at BOOTSTRAP when no event store is registered, and this is a
+// shared test assembly: conventional discovery in any other host here -- an in-memory saga host, say --
+// would find them and fail that host's startup. The tests above include them explicitly instead.
+[WolverineIgnore]
 public static class PcInvoiceHandler
 {
     public static StartStream Handle(CreatePcInvoice command)

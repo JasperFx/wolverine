@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using Shouldly;
 using Wolverine;
 using Wolverine.Fisher;
+using Wolverine.Attributes;
 using Wolverine.Persistence;
 using Wolverine.Tracking;
 
@@ -83,6 +84,10 @@ public record CreateFiInvoice(Guid Id, decimal Amount);
 
 public record ApproveFiInvoice(Guid Id, string ApprovedBy);
 
+// [WolverineIgnore] because these throw at BOOTSTRAP when no event store is registered, and this is a
+// shared test assembly: conventional discovery in any other host here -- an in-memory saga host, say --
+// would find them and fail that host's startup. The tests above include them explicitly instead.
+[WolverineIgnore]
 public static class FiInvoiceHandler
 {
     public static StartStream Handle(CreateFiInvoice command)
