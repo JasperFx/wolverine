@@ -238,7 +238,7 @@ The first argument always has to be the message type, but after that, you can ac
 * `Envelope` from Wolverine to interrogate metadata about the current message
 * `IMessageContext` or `IMessageBus` from Wolverine scoped to the current message being handled
 * `CancellationToken` for the current message execution to check for timeouts or system shut down
-* `DateTime now` or `DateTimeOffset now` for the current time. Don't laugh, I like doing this for testability's sake.
+* `DateTime now` or `DateTimeOffset now` for the current time. Don't laugh, I like doing this for testability's sake. Wolverine.HTTP endpoints [support this same convention](/guide/http/endpoints#the-current-time) as of 6.28.
 
 Some add ons or middleware add other possibilities as well.
 
