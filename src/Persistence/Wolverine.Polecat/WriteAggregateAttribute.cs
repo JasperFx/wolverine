@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Polecat.Persistence.Sagas;
@@ -40,6 +41,15 @@ public class WriteAggregateAttribute : WriteModelAttribute
         get => (ConcurrencyStyle)(int)base.LoadStyle;
         set => base.LoadStyle = (ModelConcurrencyStyle)(int)value;
     }
+
+    /// <summary>
+    ///     GH-3929: <c>[WriteAggregate]</c> shipped long before the nullability inference GH-3916 added to
+    ///     <see cref="WriteModelAttribute" />, so it keeps its original unconditional default. Inheriting
+    ///     the inference would silently drop the not-found guard from existing
+    ///     <c>[WriteAggregate] Thing? thing</c> handlers, which then run against a model that was never
+    ///     loaded. Say <c>Required = false</c> explicitly, or use <c>[WriteModel]</c>, to opt out.
+    /// </summary>
+    protected override bool DefaultRequired(ParameterInfo parameter) => true;
 
     // GH-3907: name the store rather than resolving one. AddMarten/AddPolecat without
     // IntegrateWithWolverine() registers no persistence strategy, and this attribute has always

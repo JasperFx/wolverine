@@ -315,10 +315,20 @@ Missing-model behavior matches `[Entity]` as well: `Required`, `MissingMessage` 
 what they mean there, and both attributes honor the
 [global entity defaults](#global-entity-defaults) below.
 
-On `[WriteModel]`, `Required` **defaults to the opposite of the parameter's nullable annotation**
-<Badge type="tip" text="6.27" /> — `Order order` is required and gets a not-found guard, `Order? order`
-is not and is handed to your method as `null` so your own null branch runs. Setting `Required`
-explicitly overrides the annotation either way.
+On `[WriteModel]` <Badge type="tip" text="6.27" /> and `[ReadModel]` <Badge type="tip" text="6.27.1" />,
+`Required` **defaults to the opposite of the parameter's nullable annotation** — `Order order` is
+required and gets a not-found guard, `Order? order` is not and is handed to your method as `null` so
+your own null branch runs. Setting `Required` explicitly overrides the annotation either way.
+
+::: warning The store-specific spellings keep the old default
+`[WriteAggregate]`, `[ReadAggregate]` and `[Entity]` **do not** infer from the annotation. They all
+predate it, and quietly dropping a not-found guard from existing code is a change that only shows up
+at runtime — so they keep their unconditional `Required = true`. Say `Required = false` explicitly on
+those, or move to `[WriteModel]` / `[ReadModel]`.
+
+In a project compiled with `<Nullable>disable</Nullable>` the annotation cannot be read, so
+`[WriteModel]` and `[ReadModel]` also fall back to `Required = true`.
+:::
 
 ::: warning Every return value is an event
 Under `[WriteModel]` and `[DeciderFunction]` alike, anything the method returns that is not

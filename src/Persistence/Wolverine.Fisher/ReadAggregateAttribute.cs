@@ -1,3 +1,4 @@
+using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
 using Wolverine.Fisher.Persistence.Sagas;
@@ -22,6 +23,15 @@ public class ReadAggregateAttribute : ReadModelAttribute
     public ReadAggregateAttribute(string argumentName) : base(argumentName)
     {
     }
+
+    /// <summary>
+    ///     GH-3929: <c>[ReadAggregate]</c> shipped long before the nullability inference this release added
+    ///     to <see cref="ReadModelAttribute" />, so it keeps its original unconditional default. Inheriting
+    ///     the inference would silently drop the not-found guard from existing
+    ///     <c>[ReadAggregate] Thing? thing</c> handlers. Say <c>Required = false</c> explicitly, or use
+    ///     <c>[ReadModel]</c>, to opt out.
+    /// </summary>
+    protected override bool DefaultRequired(ParameterInfo parameter) => true;
 
     // GH-3907: name the store rather than resolving one. AddMarten/AddFisher without
     // IntegrateWithWolverine() registers no persistence strategy, and this attribute has always

@@ -31,6 +31,7 @@ namespace Wolverine.Persistence.EventSourcing;
 public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement, IRefersToAggregate
 {
     private OnMissing? _onMissing;
+    private bool? _required;
 
     public ReadModelAttribute()
     {
@@ -43,10 +44,39 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
     }
 
     /// <summary>
-    /// Is the existence of this aggregate required for the rest of the handler action or HTTP endpoint
-    /// execution to continue? Default is true.
+    ///     Should Wolverine stop the handler when the model cannot be found? Defaults to <b>the opposite of
+    ///     the parameter's nullable annotation</b>: <c>Order order</c> is required, <c>Order? order</c> is not.
     /// </summary>
-    public bool Required { get; set; } = true;
+    /// <remarks>
+    ///     GH-3929, matching what GH-3916 did for <see cref="WriteModelAttribute" />. Before this the
+    ///     default was an unconditional <c>true</c>, so a parameter annotated nullable — the author saying
+    ///     "I will handle absence" — still generated an <c>EntityIsNotNullGuard</c> and a
+    ///     <c>HandlerContinuation.Stop</c>, making the handler's own null branch dead code. An explicit
+    ///     <c>Required</c> at the call site still wins over the annotation.
+    ///     <para>
+    ///     <c>[ReadAggregate]</c> keeps the old unconditional default — see <see cref="DefaultRequired" />.
+    ///     </para>
+    /// </remarks>
+    public bool Required
+    {
+        get => _required ?? true;
+        set => _required = value;
+    }
+
+    /// <summary>
+    ///     The value <see cref="Required" /> takes when the call site did not set it. Defaults to the
+    ///     opposite of the parameter's nullable annotation.
+    /// </summary>
+    /// <remarks>
+    ///     GH-3929: virtual so that a store's own spelling of this workflow can keep the default it
+    ///     shipped with. <c>[ReadAggregate]</c> predates the nullability inference and overrides this to
+    ///     an unconditional <c>true</c>, because changing the default under existing code is a silent
+    ///     behaviour change that only shows up at runtime.
+    /// </remarks>
+    protected virtual bool DefaultRequired(ParameterInfo parameter)
+    {
+        return !ParameterNullability.IsNullableAnnotated(parameter);
+    }
 
     public string MissingMessage { get; set; } = null!;
 
@@ -60,6 +90,10 @@ public class ReadModelAttribute : WolverineParameterAttribute, IDataRequirement,
         GenerationRules rules)
     {
         _onMissing ??= container.GetInstance<WolverineOptions>().EntityDefaults.OnMissing;
+
+        // GH-3929: only when the call site said nothing. An explicit [ReadModel(Required = true)] on a
+        // nullable parameter still gets its guard - loudly wrong beats silently overridden.
+        _required ??= DefaultRequired(parameter);
 
         var provider = ResolveEventSourcingProvider(rules, container, parameter.ParameterType);
 

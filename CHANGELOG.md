@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+### WolverineFx (core) + event store integrations
+
+- **`[WriteAggregate]` keeps its original `Required` default — regression fix.**
+  ([#3929](https://github.com/JasperFx/wolverine/issues/3929)) `WriteAggregateAttribute` derives from
+  `WriteModelAttribute` and overrides neither `Modify` nor `Required`, so it inherited GH-3916's
+  nullability inference in 6.27.0. `[WriteAggregate]` shipped a year before that inference, so an
+  existing `[WriteAggregate] Account? account` handler silently lost its not-found guard and began
+  running against a model that was never loaded. `[WriteAggregate]` and `[ReadAggregate]` now pin the
+  unconditional `Required = true` they have always had, in Marten, Polecat and Fisher alike. Say
+  `Required = false` explicitly, or use `[WriteModel]` / `[ReadModel]`, to opt out.
+
+- **`[ReadModel]` now takes `Required` from the parameter's nullable annotation**, matching what
+  GH-3916 did for `[WriteModel]`: `Order order` is required, `Order? order` is not and is handed to
+  the method as `null`. An explicit `Required` at the call site still wins. `[Entity]`,
+  `[DeciderFunction]` and `[DcbModel]` are unchanged.
+
+  Note that in an assembly compiled with `<Nullable>disable</Nullable>` the annotation reads as
+  *unknown* rather than *nullable*, so `[WriteModel]` and `[ReadModel]` fall back to `Required = true`
+  there — the inference is a no-op for those projects rather than a silent behaviour change.
+
+
 ### WolverineFx.AmazonSqs
 
 - **An oversized message is no longer retried forever, and can optionally be fragmented.**
