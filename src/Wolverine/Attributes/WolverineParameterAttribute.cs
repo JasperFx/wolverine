@@ -102,6 +102,21 @@ public abstract class WolverineParameterAttribute : Attribute
     public abstract Variable Modify(IChain chain, ParameterInfo parameter,
         IServiceContainer container, GenerationRules rules);
 
+    /// <summary>
+    ///     The method a decorated parameter is declared on, as <c>Namespace.DeclaringType.MethodName()</c>.
+    /// </summary>
+    /// <remarks>
+    ///     GH-3937: these attributes validate at <b>codegen</b>, so a failure can surface on a chain the
+    ///     developer did not know was being compiled — an assembly carrying <c>[WolverineModule]</c> puts every
+    ///     endpoint in it into discovery. A message naming only the parameter and its element type leaves no
+    ///     thread back to a recognisable type; the declaring method is that thread.
+    /// </remarks>
+    internal static string DescribeMember(ParameterInfo parameter)
+    {
+        var member = parameter.Member;
+        return $"{member.DeclaringType?.FullNameInCode()}.{member.Name}()";
+    }
+
     internal static void TryApply(MethodCall call, IServiceContainer container, GenerationRules rules, IChain chain)
     {
         var parameters = call.Method.GetParameters();

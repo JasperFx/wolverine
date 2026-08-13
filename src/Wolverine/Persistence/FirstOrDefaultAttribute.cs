@@ -60,16 +60,18 @@ public class FirstOrDefaultAttribute : WolverineParameterAttribute
         {
             throw new InvalidOperationException(
                 $"Could not determine a matching persistence service for [FirstOrDefault] parameter " +
-                $"'{parameter.Name}' of type {entityType.FullNameInCode()}. Check that the persistence " +
-                "integration for this type has been registered, i.e. IntegrateWithWolverine() for Marten.");
+                $"'{parameter.Name}' of type {entityType.FullNameInCode()} on {DescribeMember(parameter)}. " +
+                "Check that the persistence integration for this type has been registered, i.e. " +
+                "IntegrateWithWolverine() for Marten.");
         }
 
         if (!provider.TryBuildFirstOrDefaultFrame(entityType, container, out var frame, out var result))
         {
             throw new InvalidOperationException(
                 $"The {provider.GetType().FullNameInCode()} persistence provider does not support " +
-                $"[FirstOrDefault], so parameter '{parameter.Name}' of type {entityType.FullNameInCode()} " +
-                "cannot be resolved. Load the value explicitly in a Before method instead.");
+                $"[FirstOrDefault], so parameter '{parameter.Name}' of type {entityType.FullNameInCode()} on " +
+                $"{DescribeMember(parameter)} cannot be resolved. Load the value explicitly in a Before method " +
+                "instead.");
         }
 
         chain.Middleware.Add(frame);

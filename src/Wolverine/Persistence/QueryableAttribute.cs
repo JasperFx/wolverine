@@ -69,16 +69,17 @@ public class QueryableAttribute : WolverineParameterAttribute
         {
             throw new InvalidOperationException(
                 $"Could not determine a matching persistence service for [Queryable] parameter " +
-                $"'{parameter.Name}' of element type {elementType.FullNameInCode()}. Check that the persistence " +
-                "integration for this type has been registered, i.e. IntegrateWithWolverine() for Marten.");
+                $"'{parameter.Name}' of element type {elementType.FullNameInCode()} on " +
+                $"{DescribeMember(parameter)}. Check that the persistence integration for this type has been " +
+                "registered, i.e. IntegrateWithWolverine() for Marten.");
         }
 
         if (!provider.TryBuildQueryableFrame(elementType, container, out var frame, out var result))
         {
             throw new InvalidOperationException(
                 $"The {provider.GetType().FullNameInCode()} persistence provider does not support [Queryable], " +
-                $"so parameter '{parameter.Name}' of element type {elementType.FullNameInCode()} cannot be " +
-                "resolved.");
+                $"so parameter '{parameter.Name}' of element type {elementType.FullNameInCode()} on " +
+                $"{DescribeMember(parameter)} cannot be resolved.");
         }
 
         chain.Middleware.Add(frame);
@@ -101,11 +102,9 @@ public class QueryableAttribute : WolverineParameterAttribute
             return type.GetGenericArguments()[0];
         }
 
-        var member = parameter.Member;
-
         throw new InvalidOperationException(
             $"The [Queryable] attribute can only be applied to a parameter of type IQueryable<T>, but " +
-            $"'{parameter.Name}' on {member.DeclaringType?.FullNameInCode()}.{member.Name} is declared as " +
+            $"'{parameter.Name}' on {DescribeMember(parameter)} is declared as " +
             $"{type.FullNameInCode()}. Change it to IQueryable<{elementNameHint(type)}>.");
     }
 
