@@ -284,6 +284,32 @@ public static IReadOnlyList<ServiceAlertOverrides> GetAll([All] IReadOnlyList<Se
 * Supported by Marten, Polecat, Fisher, RavenDb and EF Core. **CosmosDb is not supported**, for the same
   reason `[FirstOrDefault]` is not — see that section's warning.
 
+### Batched Reads <Badge type="tip" text="6.28" />
+
+On Marten, Polecat and Fisher, **two or more** batchable reads in the same handler or endpoint are resolved
+in a *single database round trip* rather than one query each. Nothing to turn on — write the parameters and
+Wolverine batches them:
+
+```cs
+public static InventoryCounted Handle(
+    CountInventory command,
+    [All] IReadOnlyList<Part> parts,
+    [All] IReadOnlyList<Supplier> suppliers)
+    => new(parts.Count, suppliers.Count);
+```
+
+That generates one `CreateBatchQuery()`, enlists both reads, executes once, and then resolves each result —
+instead of two separate round trips. `[All]` batches alongside the other batchable operations too, so an
+`[All]` next to an `[Entity]` load or a query specification joins the same batch.
+
+A **single** read is deliberately left alone: the batch machinery buys nothing for one query, so a lone
+`[All]` still emits the plain `Query<T>().ToListAsync()`.
+
+::: tip
+This is why `[All]` is worth preferring over [`[Queryable]`](#the-raw-iqueryable-escape-hatch) when you
+genuinely want the whole collection — a queryable you compose yourself cannot participate in the batch.
+:::
+
 ## The Raw `IQueryable` Escape Hatch <Badge type="tip" text="6.28" />
 
 `[Queryable]` injects the persistence mechanism's own `IQueryable<T>` — Marten's `session.Query<T>()`,
