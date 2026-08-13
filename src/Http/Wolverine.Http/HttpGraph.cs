@@ -41,6 +41,12 @@ public partial class HttpGraph : EndpointDataSource, ICodeFileCollectionWithServ
         _options = options;
         Container = container;
         Rules = _options.CodeGeneration;
+
+        // Added here rather than in the _strategies initializer because it needs Rules, which is only assigned
+        // above. Positioned relative to RouteParameterStrategy instead of at a fixed index so that inserting
+        // anything else into the list later cannot silently change which strategy wins for a `now` parameter.
+        var afterRouteArguments = _strategies.FindIndex(x => x is RouteParameterStrategy) + 1;
+        _strategies.Insert(afterRouteArguments, new CurrentTimeParameterStrategy(Rules));
     }
 
     internal IServiceContainer Container { get; }

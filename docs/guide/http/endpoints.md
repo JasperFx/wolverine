@@ -72,6 +72,7 @@ to determine how to source that parameter at runtime:
 | `IMessageBus`                              | Creates a new Wolverine message bus object                                                                              |
 | `HttpContext` or its members               | See the section below on accessing the HttpContext                                                                      |
 | Parameter name matches a route parameter   | See the [routing page](/guide/http/routing) for more information                                                        |
+| `DateTime now` or `DateTimeOffset now`     | The current UTC time. See [the current time](#the-current-time) below                                                   |
 | Decorated with `[FromHeader]`              | See [working with headers](/guide/http/headers) for more information                                                    |
 | `string`, `int`, `Guid`, etc.              | All other "simple" .NET types are assumed to be [query string values](/guide/http/querystring) |
 | The first concrete, "not simple" parameter | Deserializes the HTTP request body as JSON to this type                                                                 |
@@ -235,6 +236,33 @@ OpenAPI 3.1 — Wolverine **gracefully omits `QUERY` endpoints from the generate
 than break generation for the rest of the application. The endpoints are fully routable and functional;
 they are simply not described in the OpenAPI 3.1 output. First-class OpenAPI documentation can follow once
 the underlying OpenAPI stack emits 3.2.
+:::
+
+## The Current Time <Badge type="tip" text="6.28" />
+
+A parameter named `now` of type `DateTime` or `DateTimeOffset` is filled with the current UTC time rather
+than being bound from the request. This is the same convention
+[message handlers have always had](/guide/handlers/#message-handler-parameters), and it exists for
+testability's sake — the endpoint stays a pure function of its inputs instead of reaching for a static clock:
+
+```cs
+[WolverineGet("/api/orders/{id}/age")]
+public static TimeSpan GetAge([Entity] Order order, DateTimeOffset now)
+    => now - order.PlacedAt;
+```
+
+The value comes from whatever `IVariableSource` is registered for the type in
+`WolverineOptions.CodeGeneration.Sources`, so HTTP endpoints and message handlers cannot drift, and a custom
+clock registered as a variable source is honored by both.
+
+::: warning
+The convention is keyed on the parameter being **named** `now`, not on its type alone. That is deliberate: in
+an HTTP endpoint a `DateTimeOffset` is otherwise an ordinary [query string value](/guide/http/querystring),
+and `DateTimeOffset from` / `DateTimeOffset to` are far too common to hijack. Only `now` is special.
+
+An explicit route argument still wins — `[WolverineGet("/report/{now}")]` binds `now` from the route, because
+a parameter the author spelled out in the route is not a request for the clock. So do `[FromRoute]`,
+`[FromQuery]`, and `[FromHeader]`, which are all resolved before this convention.
 :::
 
 ## JSON Handling
@@ -456,6 +484,13 @@ public static string GetNow(DateTimeOffset now) // using the custom parameter st
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/CustomParameterEndpoint.cs#L7-L14' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_http_endpoint_receiving_now' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+::: info
+As of 6.28 a `now` parameter is [handled by Wolverine out of the box](#the-current-time), so this particular
+strategy is no longer necessary — it is kept here purely because it is a small, complete illustration of the
+plugin interface. It still works: strategies registered through `AddParameterHandlingStrategy()` are placed
+ahead of every built-in strategy, which is also how you would override built-in behavior deliberately.
+:::
 
 ## Http Endpoint / Message Handler Combo
 
