@@ -146,11 +146,11 @@ public static class AncillaryWolverineOptionsFisherExtensions
     public static IServiceCollection SubscribeToEvents<T>(this IServiceCollection services,
         IWolverineSubscription subscription) where T : IDocumentStore
     {
-        services.AddSingleton<IConfigureFisher<T>>(new LambdaConfigureFisher<T>((sp, opts) =>
+        services.ConfigureFisher<T>((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
             opts.Projections.Subscribe(new WolverineSubscriptionRunner(subscription, runtime));
-        }));
+        });
 
         return services;
     }
@@ -180,21 +180,21 @@ public static class AncillaryWolverineOptionsFisherExtensions
         {
             case ServiceLifetime.Singleton:
                 services.AddSingleton<TSubscription>();
-                services.AddSingleton<IConfigureFisher<TStore>>(new LambdaConfigureFisher<TStore>((sp, opts) =>
+                services.ConfigureFisher<TStore>((sp, opts) =>
                 {
                     var subscription = sp.GetRequiredService<TSubscription>();
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
                     opts.Projections.Subscribe(new WolverineSubscriptionRunner(subscription, runtime));
-                }));
+                });
                 break;
 
             default:
                 services.AddScoped<TSubscription>();
-                services.AddSingleton<IConfigureFisher<TStore>>(new LambdaConfigureFisher<TStore>((sp, opts) =>
+                services.ConfigureFisher<TStore>((sp, opts) =>
                 {
                     var runtime = sp.GetRequiredService<IWolverineRuntime>();
                     opts.Projections.Subscribe(new ScopedWolverineSubscriptionRunner<TSubscription>(sp, runtime));
-                }));
+                });
                 break;
         }
 
@@ -224,7 +224,7 @@ public static class AncillaryWolverineOptionsFisherExtensions
         where T : IDocumentStore
     {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        services.AddSingleton<IConfigureFisher<T>>(new LambdaConfigureFisher<T>((sp, opts) =>
+        services.ConfigureFisher<T>((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
@@ -234,7 +234,7 @@ public static class AncillaryWolverineOptionsFisherExtensions
             configure?.Invoke(subscription);
 
             opts.Projections.Subscribe(subscription);
-        }));
+        });
 
         return services;
     }
@@ -259,7 +259,7 @@ public static class AncillaryWolverineOptionsFisherExtensions
         where T : IDocumentStore
     {
         if (subscriptionName.IsEmpty()) throw new ArgumentNullException(nameof(subscriptionName));
-        services.AddSingleton<IConfigureFisher<T>>(new LambdaConfigureFisher<T>((sp, opts) =>
+        services.ConfigureFisher<T>((sp, opts) =>
         {
             var runtime = sp.GetRequiredService<IWolverineRuntime>();
 
@@ -269,7 +269,7 @@ public static class AncillaryWolverineOptionsFisherExtensions
             var subscription = new WolverineSubscriptionRunner(relay, runtime);
 
             opts.Projections.Subscribe(subscription);
-        }));
+        });
 
         return services;
     }
@@ -294,25 +294,4 @@ internal class FisherOverrides<T> : IConfigureFisher<T> where T : IDocumentStore
         // ExternallyManaged when Wolverine takes over hosting the daemon; Wolverine.Fisher never
         // does, so the caller's own AddAsyncDaemon() choice for this ancillary store is left alone.
     }
-}
-
-/// <summary>
-///     Adapts a lambda to Fisher's <see cref="IConfigureFisher{T}" />.
-/// </summary>
-/// <remarks>
-///     Marten and Polecat both ship a <c>ConfigureMarten&lt;T&gt;(...)</c> / <c>ConfigurePolecat&lt;T&gt;(...)</c>
-///     extension that does exactly this; Fisher ships the interface but not the convenience over it, so
-///     Wolverine carries its own rather than waiting on a Fisher release. Filed as fisher#70 - delete
-///     this and use the extension once Fisher has one.
-/// </remarks>
-internal class LambdaConfigureFisher<T> : IConfigureFisher<T> where T : IDocumentStore
-{
-    private readonly Action<IServiceProvider, StoreOptions> _configure;
-
-    public LambdaConfigureFisher(Action<IServiceProvider, StoreOptions> configure)
-    {
-        _configure = configure;
-    }
-
-    public void Configure(IServiceProvider services, StoreOptions options) => _configure(services, options);
 }
