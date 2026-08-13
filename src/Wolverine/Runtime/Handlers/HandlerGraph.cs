@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging.Debug;
 using Microsoft.Extensions.Options;
 using Wolverine.Attributes;
 using Wolverine.Configuration;
+using Wolverine.Persistence;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
@@ -558,9 +559,22 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
         }
     }
 
+    /// <remarks>
+    ///     GH-3911: <see cref="EagerIdempotencyOnNonTransactionalChains" /> is deliberately pulled to the
+    ///     END, whatever order it was registered in. Its whole semantic is "for chains that nothing else
+    ///     made transactional", so it can only answer that question once every other policy has had its
+    ///     say. Left in registration order it produced generated code that varied by the order the user
+    ///     happened to call <c>AutoApplyIdempotencyOnNonTransactionalHandlers()</c> relative to a store's
+    ///     <c>IntegrateWithWolverine()</c> — which is why the store op policies could not set
+    ///     <c>IsTransactional</c> at all before this.
+    /// </remarks>
     private IEnumerable<IHandlerPolicy> handlerPolicies(WolverineOptions options)
     {
-        foreach (var policy in options.RegisteredPolicies)
+        var registered = options.RegisteredPolicies
+            .OrderBy(x => x is EagerIdempotencyOnNonTransactionalChains ? 1 : 0)
+            .ToArray();
+
+        foreach (var policy in registered)
         {
             if (policy is IHandlerPolicy h)
             {
