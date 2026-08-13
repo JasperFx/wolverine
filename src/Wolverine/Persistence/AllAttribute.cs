@@ -55,16 +55,18 @@ public class AllAttribute : WolverineParameterAttribute
         {
             throw new InvalidOperationException(
                 $"Could not determine a matching persistence service for [All] parameter '{parameter.Name}' of " +
-                $"element type {elementType.FullNameInCode()}. Check that the persistence integration for this " +
-                "type has been registered, i.e. IntegrateWithWolverine() for Marten.");
+                $"element type {elementType.FullNameInCode()} on {DescribeMember(parameter)}. Check that the " +
+                "persistence integration for this type has been registered, i.e. IntegrateWithWolverine() for " +
+                "Marten.");
         }
 
         if (!provider.TryBuildAllFrame(elementType, container, out var frame, out var result))
         {
             throw new InvalidOperationException(
                 $"The {provider.GetType().FullNameInCode()} persistence provider does not support [All], so " +
-                $"parameter '{parameter.Name}' of element type {elementType.FullNameInCode()} cannot be " +
-                "resolved. Load the values explicitly in a Before method instead.");
+                $"parameter '{parameter.Name}' of element type {elementType.FullNameInCode()} on " +
+                $"{DescribeMember(parameter)} cannot be resolved. Load the values explicitly in a Before method " +
+                "instead.");
         }
 
         chain.Middleware.Add(frame);
@@ -98,14 +100,8 @@ public class AllAttribute : WolverineParameterAttribute
 
         throw new InvalidOperationException(
             $"The [All] attribute can only be applied to a parameter of type IReadOnlyList<T>, but " +
-            $"'{parameter.Name}' on {describeMember(parameter)} is declared as " +
+            $"'{parameter.Name}' on {DescribeMember(parameter)} is declared as " +
             $"{type.FullNameInCode()}. Change it to IReadOnlyList<{elementNameHint(type)}>.");
-    }
-
-    private static string describeMember(ParameterInfo parameter)
-    {
-        var method = parameter.Member;
-        return $"{method.DeclaringType?.FullNameInCode()}.{method.Name}";
     }
 
     // Best effort so the message can suggest the concrete fix rather than a bare "List<T>". Deliberately
