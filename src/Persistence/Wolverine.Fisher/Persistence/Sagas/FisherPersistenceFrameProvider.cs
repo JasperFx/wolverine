@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using JasperFx;
 using JasperFx.CodeGeneration;
@@ -116,6 +117,16 @@ internal partial class FisherPersistenceFrameProvider : IPersistenceFrameProvide
         if (!type.IsGenericType) return false;
         var def = type.GetGenericTypeDefinition();
         return def == typeof(DocumentExistsAttribute<>) || def == typeof(DocumentDoesNotExistAttribute<>);
+    }
+
+    public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var first = new FirstOrDefaultFrame(entityType);
+        frame = first;
+        result = first.Result;
+        return true;
     }
 
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)

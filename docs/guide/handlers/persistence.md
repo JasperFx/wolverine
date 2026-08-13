@@ -166,6 +166,59 @@ public enum ValueSource
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/Attributes/ModifyChainAttribute.cs#L18-L57' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_valuesource' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+## Reading the First of a Type <Badge type="tip" text="6.28" />
+
+`[Entity]` needs an identity to load by, which means it cannot express the *singleton document* — a type
+your system stores exactly one of, looked up by nothing at all. That is what `[FirstOrDefault]` is for. It
+is the equivalent of `await session.Query<T>().FirstOrDefaultAsync()`, resolved through whichever
+persistence provider owns the type:
+
+```cs
+[WolverineGet("/api/alerts/config/metrics/defaults")]
+public static MetricsAlertDefaults GetMetricsDefaults([FirstOrDefault] MetricsAlertDefaults? defaults)
+    => defaults ?? new MetricsAlertDefaults();
+```
+
+The point is storage agnostic code: that handler is valid whether the store behind it is Marten, Polecat,
+Fisher, RavenDb, or EF Core, and it replaces the hand written version that had to name a session type:
+
+```cs
+// What [FirstOrDefault] replaces -- correct, but pinned to Marten
+[WolverineGet("/api/alerts/config/metrics/defaults")]
+public static async Task<MetricsAlertDefaults> GetMetricsDefaults(IDocumentSession session)
+{
+    var defaults = await session.Query<MetricsAlertDefaults>().FirstOrDefaultAsync();
+    return defaults ?? new MetricsAlertDefaults();
+}
+```
+
+Some things to know:
+
+* The parameter is simply `null` when nothing matches, and your handler or endpoint **runs either way**.
+  Unlike `[Entity]`, there is no `Required` and no `OnMissing` — a miss here is not an error condition
+  worth a 404, it is an ordinary answer to "is there one of these yet?". Write your own null branch,
+  usually a `?? new T()` fallback.
+* The query is **unfiltered**. If you need a predicate, use a `Before` method, a compiled query, or
+  `[FromQuerySpecification]`; ordering semantics across five different LINQ providers is not something
+  this attribute tries to promise.
+* Usable in both message handlers and HTTP endpoints, and in `Before` / `Validate` methods.
+* Supported by Marten, Polecat, Fisher, RavenDb, and EF Core. **CosmosDb is not supported** — see below.
+
+::: warning
+CosmosDb cannot support `[FirstOrDefault]`. Wolverine's CosmosDb integration stores every user document
+in a single shared `wolverine` container alongside Wolverine's own envelopes and node records, with no
+per-type discriminator on user documents, so there is no way to ask for "the first document of type `T`"
+without risking a different type entirely. A `[FirstOrDefault]` parameter on a CosmosDb-persisted type
+fails at bootstrapping time with an error naming the provider, rather than returning something wrong at
+runtime. Load the value explicitly in a `Before` method instead.
+:::
+
+::: tip
+On Fisher, a document table is created lazily on first write, and querying a type that has never been
+written throws rather than returning nothing. That applies to any Fisher query, not just this attribute,
+but it is worth knowing if a brand new deployment hits a `[FirstOrDefault]` before anything is stored.
+:::
+
 ## Event Sourced Models <Badge type="tip" text="6.26" />
 
 `[Entity]` resolves a *document* from whatever persistence your application configured. Its

@@ -128,6 +128,17 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
                    $"No known primary key for {sagaType.FullNameInCode()} in DbContext {context}");
     }
 
+    public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var dbContextType = DetermineDbContextType(entityType, container);
+        var first = new FirstOrDefaultFrame(dbContextType, entityType);
+        frame = first;
+        result = first.Result;
+        return true;
+    }
+
     public Frame DetermineLoadFrame(IServiceContainer container, Type sagaType, Variable sagaId)
     {
         var dbContextType = DetermineDbContextType(sagaType, container);

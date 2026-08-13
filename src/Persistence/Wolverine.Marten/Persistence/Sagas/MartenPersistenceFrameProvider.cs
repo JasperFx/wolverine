@@ -203,6 +203,16 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         return [new SetVariableToNullIfSoftDeletedFrame(entity)];
     }
 
+    public bool TryBuildFirstOrDefaultFrame(Type entityType, IServiceContainer container,
+        [NotNullWhen(true)] out Frame? frame,
+        [NotNullWhen(true)] out Variable? result)
+    {
+        var first = new FirstOrDefaultFrame(entityType);
+        frame = first;
+        result = first.Result;
+        return true;
+    }
+
     public bool TryBuildFetchSpecificationFrame(
         Variable specVariable,
         IServiceContainer container,

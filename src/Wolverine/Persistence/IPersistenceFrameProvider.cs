@@ -91,6 +91,39 @@ public interface IPersistenceFrameProvider
         result = null;
         return false;
     }
+
+    /// <summary>
+    /// Attempt to build a codegen <see cref="Frame"/> that executes the equivalent of
+    /// <c>session.Query&lt;T&gt;().FirstOrDefaultAsync()</c> for <paramref name="entityType"/> against this
+    /// provider's own session, producing the entity (or <c>null</c>) as a new variable for downstream frames.
+    ///
+    /// <para>
+    /// Return <c>true</c> if the provider can express an unfiltered "first row of this type" read. The default
+    /// implementation returns <c>false</c>, signaling "this provider does not support it" — which
+    /// <see cref="FirstOrDefaultAttribute"/> turns into a bootstrapping time error naming the provider, rather
+    /// than silently doing nothing.
+    /// </para>
+    /// <para>
+    /// Every provider spells the async terminal operator differently — Marten's <c>QueryableExtensions</c>,
+    /// EF Core's <c>EntityFrameworkQueryableExtensions</c>, RavenDb's own async LINQ extensions, and CosmosDb
+    /// with no such extension at all — which is exactly why this is provider supplied rather than a shared
+    /// expression built in core.
+    /// </para>
+    /// </summary>
+    /// <param name="entityType">The entity type to read the first instance of.</param>
+    /// <param name="container">Active codegen service container.</param>
+    /// <param name="frame">The built frame, when the provider supports this.</param>
+    /// <param name="result">The result variable produced by the frame, when built.</param>
+    bool TryBuildFirstOrDefaultFrame(
+        Type entityType,
+        IServiceContainer container,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Frame? frame,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out Variable? result)
+    {
+        frame = null;
+        result = null;
+        return false;
+    }
 }
 
 
