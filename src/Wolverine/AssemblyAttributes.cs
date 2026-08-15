@@ -47,10 +47,12 @@ using Wolverine.Attributes;
 [assembly: InternalsVisibleTo("Wolverine.Http")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Tests")]
 
-// GH-3907: the shared aggregate handler workflow's AggregateHandling moved into Wolverine core, and both
-// HTTP store integrations read it off the chain's tags to describe the workflow to OpenAPI.
+// GH-3907: the shared aggregate handler workflow's AggregateHandling moved into Wolverine core, and each
+// HTTP store integration reads it off the chain's tags to describe the workflow to OpenAPI.
+// GH-3944: Fisher joined them, so the list is now all three flavours rather than "both".
 [assembly: InternalsVisibleTo("Wolverine.Http.Marten")]
 [assembly: InternalsVisibleTo("Wolverine.Http.Polecat")]
+[assembly: InternalsVisibleTo("Wolverine.Http.Fisher")]
 [assembly: InternalsVisibleTo("Wolverine.Core.FSharpTests")]
 [assembly: InternalsVisibleTo("Wolverine.Grpc")]
 [assembly: InternalsVisibleTo("Wolverine.Grpc.Tests")]
