@@ -33,7 +33,16 @@ internal partial class PolecatPersistenceFrameProvider : IPersistenceFrameProvid
     public Type DetermineSagaIdType(Type sagaType, IServiceContainer container)
     {
         var idProp = sagaType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        return idProp?.PropertyType ?? typeof(Guid);
+        if (idProp == null) return typeof(Guid);
+
+        // GH-3942: unwrap Nullable<T>, so the two stores agree on an aggregate's id type.
+        // Marten answers with the *configured document id type*, which is never nullable. Reflecting
+        // the property verbatim answered Nullable<AlertId> for `public AlertId? Id { get; set; }`,
+        // and WriteModelAttribute.FindIdentity treats that as non-primitive -- so it skipped the
+        // IdentifiedBy<T> escape hatch entirely and went looking for a Nullable<AlertId> member on
+        // the message, which exists nowhere. Every such chain failed to build under Polecat while
+        // the identical source worked under Marten.
+        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
     }
 
     public void ApplyTransactionSupport(IChain chain, IServiceContainer container)
