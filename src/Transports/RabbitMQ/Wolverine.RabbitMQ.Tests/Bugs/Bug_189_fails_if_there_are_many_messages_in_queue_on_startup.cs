@@ -126,13 +126,15 @@ public class Bug_189_fails_if_there_are_many_messages_in_queue_on_startup
 
         public static void Handle(Bug189 bug, Envelope envelope)
         {
-            if (envelope is RabbitMqEnvelope rabbit)
-            {
-                if (new Random().Next(0, 100) < 5)
-                {
-                    rabbit.OverrideDeliveryTag(1);
-                }
-            }
+            // The delivery-tag poisoning that used to live here has moved to
+            // stale_delivery_tag_settling, which exercises the same unknown-tag path at a message
+            // count low enough not to take the connection down with it. See GH-3950: every bad ack
+            // makes the broker close that channel, and closing a channel with deliveries still in
+            // flight races RabbitMQ.Client's receive loop into a library-initiated connection close
+            // (code=541) that Wolverine cannot catch. At a thousand messages that fired on 4 of 5
+            // local runs from a single poisoned tag, which is what made this test a chronic CI
+            // failure. This test is about starting up against a full queue — that is the regression
+            // it was written for, and it does not need chaos to prove it.
 
             // Five inline listeners run this concurrently. `_count++` on a volatile int is a
             // read-modify-write, so increments were being lost outright, and two threads could both
