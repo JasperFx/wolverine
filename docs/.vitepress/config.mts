@@ -285,6 +285,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Integration with Sagas', link: '/guide/http/sagas'},
                         {text: 'Integration with Marten', link: '/guide/http/marten'},
                         {text: 'Integration with Polecat', link: '/guide/http/polecat'},
+                        {text: 'Integration with Fisher', link: '/guide/http/fisher'},
                         {text: 'Validation', link: '/guide/http/validation'},
                         {text: 'Fluent Validation', link: '/guide/http/fluentvalidation'},
                         {text: 'Problem Details', link: '/guide/http/problemdetails'},

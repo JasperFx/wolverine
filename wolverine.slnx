@@ -120,6 +120,7 @@
     <Project Path="src/Persistence/Oracle/Wolverine.Oracle/Wolverine.Oracle.csproj" />
   </Folder>
   <Folder Name="/Persistence/Fisher/">
+    <Project Path="src/Http/Wolverine.Http.Fisher/Wolverine.Http.Fisher.csproj" />
     <Project Path="src/Persistence/FisherTests/FisherTests.csproj" />
     <Project Path="src/Persistence/Wolverine.Fisher/Wolverine.Fisher.csproj" />
   </Folder>
