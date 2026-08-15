@@ -69,13 +69,18 @@ public class DocumentExistsAttribute<TDoc> : ModifyChainAttribute where TDoc : c
 
     /// <summary>
     /// Resolve the identity type for a Polecat document type by reflecting on the public
-    /// instance <c>Id</c> property. Falls back to <see cref="Guid"/> when the property is
-    /// missing — matching <see cref="Wolverine.Polecat.Persistence.Sagas.PolecatPersistenceFrameProvider.DetermineSagaIdType"/>.
+    /// instance <c>Id</c> property. A nullable id property yields its underlying type, and a
+    /// missing one falls back to <see cref="Guid"/> — matching
+    /// <see cref="Wolverine.Polecat.Persistence.Sagas.PolecatPersistenceFrameProvider.DetermineSagaIdType"/>.
     /// </summary>
     internal static Type ResolveIdType(Type docType)
     {
         var idProp = docType.GetProperty("Id", BindingFlags.Public | BindingFlags.Instance);
-        return idProp?.PropertyType ?? typeof(Guid);
+        if (idProp == null) return typeof(Guid);
+
+        // GH-3942: kept in lockstep with DetermineSagaIdType. See the note there for why the
+        // verbatim property type is wrong for `public MyId? Id { get; set; }`.
+        return Nullable.GetUnderlyingType(idProp.PropertyType) ?? idProp.PropertyType;
     }
 
     internal static bool TryFindIdentityVariable(IChain chain, string? argumentName, Type docType, Type idType,
