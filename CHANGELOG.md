@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+### WolverineFx.Http.Fisher (new package)
+
+- **New `WolverineFx.Http.Fisher` package.** ([#3949](https://github.com/JasperFx/wolverine/pull/3949),
+  closes [#3944](https://github.com/JasperFx/wolverine/issues/3944)) There was a
+  `Wolverine.Http.Marten` and a `Wolverine.Http.Polecat` and no Fisher equivalent, so a Fisher-backed
+  application had nothing to reference for the aggregate/document HTTP attributes. The third flavour
+  now exists alongside its siblings.
+
+### WolverineFx.Sqlite / WolverineFx.Fisher
+
+- **A SQLite "schema name" is now the table name prefix it was always documented to be.**
+  ([#3945](https://github.com/JasperFx/wolverine/pull/3945), closes
+  [#3943](https://github.com/JasperFx/wolverine/issues/3943)) Setting
+  `FisherIntegration.MessageStorageSchemaName`, or the `schemaName` argument to
+  `PersistMessagesWithSqlite()`, used to reach the message store as a `schema.table` qualifier.
+  SQLite has no user-defined schemas — the only names a plain connection knows are `main`, `temp`,
+  and whatever has been `ATTACH`ed — so any value other than `main` emitted SQL against a database
+  that never existed and the host died on the first envelope write with
+  `no such table: <name>.wolverine_incoming_envelopes`.
+
+  The two halves had disagreed all along: Weasel's `SqliteObjectName` drops the schema from its
+  qualified name, so the DDL had been creating a bare `wolverine_incoming_envelopes` while the
+  inherited DML asked for a qualified one. The default `main` is the only thing that hid it.
+
+  The name is now folded into the table names as a prefix, which is a meaning SQLite can honour —
+  several logically separate Wolverine table sets inside one database file:
+
+  ```csharp
+  opts.PersistMessagesWithSqlite(connectionString, "reporting");
+  // => reporting_wolverine_incoming_envelopes, reporting_wolverine_outgoing_envelopes, ...
+  ```
+
+  This takes in the envelope, node, control queue, tenant, listener and saga tables, plus the
+  dead-letter index names (SQLite shares one identifier namespace between tables and indexes).
+  **`main` prefixes nothing, so databases provisioned before this release are untouched and there is
+  no migration.** Postgres, SQL Server, MySQL and Oracle render exactly as before.
+
+  `FisherIntegration.TransportSchemaName` is now documented as what it has always been on a Fisher
+  host: inert. Tracked in [#3947](https://github.com/JasperFx/wolverine/issues/3947).
+
+- **Fisher 0.7.0.** ([#3946](https://github.com/JasperFx/wolverine/pull/3946)) The package floor moves
+  from 0.6.0 to 0.7.0. Note that Fisher 0.7.0 bundles `JasperFx.Events.SourceGenerator` inside its own
+  nupkg, as Polecat already does — a project that also references that generator explicitly will get
+  two analyzer instances and a `CS0433` duplicate-type error until one copy is removed.
+
+### WolverineFx.Polecat
+
+- **`Nullable<T>` is unwrapped when determining a Polecat aggregate's id type.**
+  ([#3948](https://github.com/JasperFx/wolverine/pull/3948), closes
+  [#3942](https://github.com/JasperFx/wolverine/issues/3942)) Marten and Polecat disagreed for an
+  aggregate whose id property is nullable: Polecat answered `Nullable<T>` verbatim, which is not a
+  primitive id type, so the documented `IdentifiedBy<T>` escape hatch was skipped entirely. The two
+  stores now agree.
+
 ### WolverineFx (core) + event store integrations
 
 - **New store agnostic `Storage.AppendEvents()` and `Storage.StartStream()` side effects.**
