@@ -52,19 +52,19 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     [UnconditionalSuppressMessage("AOT", "IL3050",
         Justification = "DatabaseSagaSchema<,> closed over runtime saga / id types at startup; AOT consumers preserve via TrimmerRootDescriptor. See AOT guide / #2769.")]
     public SqliteMessageStore(DatabaseSettings databaseSettings, DurabilitySettings settings, DbDataSource dataSource,
-        ILogger<SqliteMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(databaseSettings, dataSource,
+        ILogger<SqliteMessageStore> logger, IEnumerable<SagaTableDefinition> sagaTypes) : base(asTablePrefixed(databaseSettings), dataSource,
         settings, logger, new SqliteMigrator(), SqliteProvider.Instance)
     {
         _reassignIncomingSql =
-            $"update {DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id IN (@ids)";
+            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where id IN (@ids)";
         _deleteOutgoingEnvelopesSql =
-            $"delete from {DatabaseConstants.OutgoingTable} WHERE id IN (@ids);";
+            $"delete from {this.TableNameFor(DatabaseConstants.OutgoingTable)} WHERE id IN (@ids);";
 
         _findAtLargeEnvelopesSql =
-            $"select {DatabaseConstants.IncomingFields} from {DatabaseConstants.IncomingTable} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address limit @limit";
+            $"select {DatabaseConstants.IncomingFields} from {this.TableNameFor(DatabaseConstants.IncomingTable)} where owner_id = {TransportConstants.AnyNode} and status = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.ReceivedAt} = @address limit @limit";
 
         _discardAndReassignOutgoingSql = _deleteOutgoingEnvelopesSql +
-                                         $";update {DatabaseConstants.OutgoingTable} set owner_id = @node where id IN (@rids)";
+                                         $";update {this.TableNameFor(DatabaseConstants.OutgoingTable)} set owner_id = @node where id IN (@rids)";
 
         DataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _settings.DataSource ??= DataSource;
@@ -76,6 +76,19 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.SagaType, sagaTableDefinition.IdMember.GetMemberType()!);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
+    }
+
+    /// <summary>
+    /// GH-3943: SQLite has no user-defined schemas, so a schema name is only ever a table name
+    /// prefix here. Stamped on the way into the base constructor — which renders table names before
+    /// this class's own body runs — rather than left to each caller, because a store built without
+    /// it would emit prefixed DDL and schema-qualified DML and fail with "no such table". That split
+    /// is the bug this exists to make unrepresentable.
+    /// </summary>
+    private static DatabaseSettings asTablePrefixed(DatabaseSettings databaseSettings)
+    {
+        databaseSettings.SchemaNameIsTablePrefix = true;
+        return databaseSettings;
     }
 
     public new DbDataSource DataSource { get; }
@@ -235,7 +248,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     {
         var counts = new PersistedCounts();
 
-        await using (var reader = await CreateCommand($"select status, count(*) from {DatabaseConstants.IncomingTable} group by status")
+        await using (var reader = await CreateCommand($"select status, count(*) from {this.TableNameFor(DatabaseConstants.IncomingTable)} group by status")
                          .ExecuteReaderAsync())
         {
             while (await reader.ReadAsync())
@@ -260,12 +273,12 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             await reader.CloseAsync();
         }
 
-        var longCount = await CreateCommand($"select count(*) from {DatabaseConstants.OutgoingTable}")
+        var longCount = await CreateCommand($"select count(*) from {this.TableNameFor(DatabaseConstants.OutgoingTable)}")
             .ExecuteScalarAsync();
 
         counts.Outgoing = Convert.ToInt32(longCount);
 
-        var deadLetterCount = await CreateCommand($"select count(*) from {DatabaseConstants.DeadLetterTable}")
+        var deadLetterCount = await CreateCommand($"select count(*) from {this.TableNameFor(DatabaseConstants.DeadLetterTable)}")
             .ExecuteScalarAsync();
 
         counts.DeadLetter = Convert.ToInt32(deadLetterCount);
@@ -279,8 +292,8 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         var reassignIds = string.Join(",", reassigned.Select(e => $"'{e.Id:D}'"));
 
         await using var cmd = CreateCommand(
-            $"delete from {DatabaseConstants.OutgoingTable} WHERE lower(id) IN ({discardIds});" +
-            $"update {DatabaseConstants.OutgoingTable} set owner_id = @node where lower(id) IN ({reassignIds})");
+            $"delete from {this.TableNameFor(DatabaseConstants.OutgoingTable)} WHERE lower(id) IN ({discardIds});" +
+            $"update {this.TableNameFor(DatabaseConstants.OutgoingTable)} set owner_id = @node where lower(id) IN ({reassignIds})");
         cmd.Parameters.Add(new SqliteParameter("@node", nodeId));
 
         await cmd.ExecuteNonQueryAsync(_cancellation);
@@ -291,14 +304,14 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         if (HasDisposed) return;
 
         var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
-        await CreateCommand($"delete from {DatabaseConstants.OutgoingTable} WHERE lower(id) IN ({ids})")
+        await CreateCommand($"delete from {this.TableNameFor(DatabaseConstants.OutgoingTable)} WHERE lower(id) IN ({ids})")
             .ExecuteNonQueryAsync(_cancellation);
     }
 
     protected override string determineOutgoingEnvelopeSql(DurabilitySettings settings)
     {
         return
-            $"select {DatabaseConstants.OutgoingFields} from {DatabaseConstants.OutgoingTable} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
+            $"select {DatabaseConstants.OutgoingFields} from {this.TableNameFor(DatabaseConstants.OutgoingTable)} where owner_id = {TransportConstants.AnyNode} and destination = @destination LIMIT {settings.RecoveryBatchSize}";
     }
 
     public override async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress,
@@ -318,7 +331,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
     public override void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow)
     {
         builder.Append(
-            $"select {DatabaseConstants.IncomingFields} from {DatabaseConstants.IncomingTable} where status = '{EnvelopeStatus.Scheduled}' and datetime(execution_time) <= datetime(");
+            $"select {DatabaseConstants.IncomingFields} from {this.TableNameFor(DatabaseConstants.IncomingTable)} where status = '{EnvelopeStatus.Scheduled}' and datetime(execution_time) <= datetime(");
 
         builder.AppendParameter(utcNow.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss"));
         builder.Append($") order by execution_time LIMIT {Durability.RecoveryBatchSize};");
@@ -354,7 +367,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
             var ids = string.Join(",", envelopes.Select(e => $"'{e.Id:D}'"));
             await using var reassign = conn.CreateCommand(
-                $"update {DatabaseConstants.IncomingTable} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where lower(id) IN ({ids})");
+                $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set owner_id = @owner, status = '{EnvelopeStatus.Incoming}' where lower(id) IN ({ids})");
             reassign.Transaction = tx;
             await reassign.With("owner", durabilitySettings.AssignedNodeNumber)
                 .ExecuteNonQueryAsync(_cancellation);
@@ -385,7 +398,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         if (Durability.MessageIdentity == MessageIdentity.IdOnly)
         {
             var count = await conn
-                .CreateCommand($"select count(id) from {DatabaseConstants.IncomingTable} where id = @id")
+                .CreateCommand($"select count(id) from {this.TableNameFor(DatabaseConstants.IncomingTable)} where id = @id")
                 .With("id", envelope.Id)
                 .ExecuteScalarAsync(cancellation);
 
@@ -394,7 +407,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         else
         {
             var count = await conn
-                .CreateCommand($"select count(id) from {DatabaseConstants.IncomingTable} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
+                .CreateCommand($"select count(id) from {this.TableNameFor(DatabaseConstants.IncomingTable)} where id = @id and {DatabaseConstants.ReceivedAt} = @destination")
                 .With("id", envelope.Id)
                 .With("destination", envelope.Destination!.ToString())
                 .ExecuteScalarAsync(cancellation);
@@ -464,7 +477,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
         if (Role == MessageStoreRole.Main)
         {
-            var nodeTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.NodeTableName));
+            var nodeTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.NodeTableName)));
             nodeTable.AddColumn("id", "TEXT").AsPrimaryKey();
             nodeTable.AddColumn("node_number", "INTEGER").NotNull();
             nodeTable.AddColumn("description", "TEXT").NotNull();
@@ -476,7 +489,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
             yield return nodeTable;
 
-            var assignmentTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.NodeAssignmentsTableName));
+            var assignmentTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.NodeAssignmentsTableName)));
             assignmentTable.AddColumn("id", "TEXT").AsPrimaryKey();
             assignmentTable.AddColumn("node_id", "TEXT").NotNull();
             assignmentTable.AddColumn("started", "TEXT").NotNull().DefaultValueByExpression("(datetime('now'))");
@@ -485,7 +498,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
             if (_settings.CommandQueuesEnabled)
             {
-                var queueTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.ControlQueueTableName));
+                var queueTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.ControlQueueTableName)));
                 queueTable.AddColumn("id", "TEXT").AsPrimaryKey();
                 queueTable.AddColumn("message_type", "TEXT").NotNull();
                 queueTable.AddColumn("node_id", "TEXT").NotNull();
@@ -498,14 +511,14 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
 
             if (_settings.AddTenantLookupTable)
             {
-                var tenantTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.TenantsTableName));
+                var tenantTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.TenantsTableName)));
                 tenantTable.AddColumn(StorageConstants.TenantIdColumn, "TEXT").AsPrimaryKey();
                 tenantTable.AddColumn(StorageConstants.ConnectionStringColumn, "TEXT").NotNull();
                 tenantTable.AddColumn(DatabaseConstants.DisabledColumn, "INTEGER").DefaultValueByExpression("0").NotNull();
                 yield return tenantTable;
             }
 
-            var eventTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.NodeRecordTableName));
+            var eventTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.NodeRecordTableName)));
             eventTable.AddColumn("id", "INTEGER").AsPrimaryKey().AutoIncrement();
             eventTable.AddColumn("node_number", "INTEGER").NotNull();
             eventTable.AddColumn("event_name", "TEXT").NotNull();
@@ -514,14 +527,17 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             yield return eventTable;
 
             var restrictionTable =
-                new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.AgentRestrictionsTableName));
+                new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.AgentRestrictionsTableName)));
             restrictionTable.AddColumn("id", "TEXT").AsPrimaryKey();
             restrictionTable.AddColumn("uri", "TEXT").NotNull();
             restrictionTable.AddColumn("type", "TEXT").NotNull();
             restrictionTable.AddColumn("node", "INTEGER").NotNull().DefaultValue(0);
             yield return restrictionTable;
 
-            // Advisory lock table for SQLite
+            // Advisory lock table for SQLite. Deliberately NOT prefixed by the schema name the way
+            // the tables above are (GH-3943): lock ids are already derived from a hash of the schema
+            // name, so several prefixed table sets sharing one file take distinct rows out of one
+            // shared table. SqliteAdvisoryLock's SQL names it unqualified to match.
             var lockTable = new Weasel.Sqlite.Tables.Table(new SqliteObjectName("wolverine_locks"));
             lockTable.AddColumn("lock_id", "INTEGER").AsPrimaryKey();
             lockTable.AddColumn("acquired_at", "TEXT").NotNull();
@@ -532,7 +548,7 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
             if (Durability.EnableDynamicListeners)
             {
                 var listenerTable =
-                    new Weasel.Sqlite.Tables.Table(new SqliteObjectName(DatabaseConstants.ListenersTableName));
+                    new Weasel.Sqlite.Tables.Table(new SqliteObjectName(this.TableNameFor(DatabaseConstants.ListenersTableName)));
                 listenerTable.AddColumn("uri", "TEXT").AsPrimaryKey();
                 yield return listenerTable;
             }
@@ -586,9 +602,9 @@ internal class SqliteMessageStore : MessageDatabase<SqliteConnection>
         var deleted = 1;
 
         var sql = $@"
-        DELETE FROM {DatabaseConstants.IncomingTable}
+        DELETE FROM {this.TableNameFor(DatabaseConstants.IncomingTable)}
         WHERE id IN (
-            SELECT id FROM {DatabaseConstants.IncomingTable}
+            SELECT id FROM {this.TableNameFor(DatabaseConstants.IncomingTable)}
             WHERE status = '{EnvelopeStatus.Handled}'
             LIMIT 10000
         );

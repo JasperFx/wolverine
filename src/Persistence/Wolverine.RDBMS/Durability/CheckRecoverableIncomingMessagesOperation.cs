@@ -31,7 +31,7 @@ internal class CheckRecoverableIncomingMessagesOperation : IDatabaseOperation
     public void ConfigureCommand(DbCommandBuilder builder)
     {
         builder.Append(
-            $"select {DatabaseConstants.ReceivedAt}, count(*) from {_database.SchemaName}.{DatabaseConstants.IncomingTable} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt};");
+            $"select {DatabaseConstants.ReceivedAt}, count(*) from {_database.TableNameFor(DatabaseConstants.IncomingTable)} where {DatabaseConstants.Status} = '{EnvelopeStatus.Incoming}' and {DatabaseConstants.OwnerId} = {TransportConstants.AnyNode} group by {DatabaseConstants.ReceivedAt};");
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

@@ -22,7 +22,7 @@ internal class DeleteExpiredDeadLetterMessagesOperation : IDatabaseOperation
     public string Description { get; } = "Delete any expired dead letter messages from storage";
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        builder.Append($"delete from {_database.SchemaName}.{DatabaseConstants.DeadLetterTable} where {DatabaseConstants.Expires} < ");
+        builder.Append($"delete from {_database.TableNameFor(DatabaseConstants.DeadLetterTable)} where {DatabaseConstants.Expires} < ");
         builder.AppendParameter(_utcNow);
         builder.Append(';');
     }

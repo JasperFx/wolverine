@@ -27,7 +27,7 @@ internal class DeleteOldNodeEventRecords : IDatabaseOperation, IDoNotReturnData
     {
         var cutoffTime = DateTimeOffset.UtcNow.Subtract(_settings.NodeEventRecordExpirationTime);
         
-        builder.Append($"delete from {_database.SchemaName}.{DatabaseConstants.NodeRecordTableName} where timestamp < ");
+        builder.Append($"delete from {_database.TableNameFor(DatabaseConstants.NodeRecordTableName)} where timestamp < ");
         builder.AppendParameter(cutoffTime);
         builder.Append(';');
     }

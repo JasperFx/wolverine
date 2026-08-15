@@ -40,13 +40,9 @@ public class PersistNodeRecord : IDatabaseOperation, IDoNotReturnData
             // persistence failed with "SQL syntax error... near
             // '\"wolverine\".wolverine_node_records'". Unquoted matches what the rest of the
             // provider already does (and works for every dialect with a default schema name).
-            if (!string.IsNullOrEmpty(_settings.SchemaName))
-            {
-                builder.Append(_settings.SchemaName);
-                builder.Append('.');
-            }
-
-            builder.Append(DatabaseConstants.NodeRecordTableName);
+            // GH-3943: routed through DatabaseSettings.TableNameFor so SQLite, which has no schemas,
+            // gets the prefixed single identifier instead of a `schema.table` qualifier.
+            builder.Append(_settings.TableNameFor(DatabaseConstants.NodeRecordTableName));
             builder.Append(" (node_number, event_name, description) values (");
             builder.AppendParameter(@event.NodeNumber);
             builder.Append(", ");

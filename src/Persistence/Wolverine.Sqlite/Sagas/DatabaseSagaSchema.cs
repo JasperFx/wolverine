@@ -38,14 +38,19 @@ public class DatabaseSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : 
 
         var idColumn = typeof(TId) == typeof(Guid) || typeof(TId) == typeof(string) ? "TEXT" : "INTEGER";
 
-        _insertSql = $"insert into {definition.TableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) values (@id, @body, 1)";
+        // GH-3943: SQLite has no schemas, so a configured schema name prefixes the saga table just
+        // like it prefixes the envelope storage tables. That is what keeps two logically separate
+        // Wolverine table sets from colliding inside the one database file.
+        var tableName = TablePrefixing.Apply(settings.SchemaName, definition.TableName);
+
+        _insertSql = $"insert into {tableName} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.Version}) values (@id, @body, 1)";
         _updateSql =
-            $"update {definition.TableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = datetime('now') where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
-        _loadSql = $"select body, version from {definition.TableName} where {DatabaseConstants.Id} = @id";
+            $"update {tableName} set {DatabaseConstants.Body} = @body, {DatabaseConstants.Version} = @version + 1, last_modified = datetime('now') where {DatabaseConstants.Id} = @id and {DatabaseConstants.Version} = @version";
+        _loadSql = $"select body, version from {tableName} where {DatabaseConstants.Id} = @id";
 
-        _deleteSql = $"delete from {definition.TableName} where id = @id";
+        _deleteSql = $"delete from {tableName} where id = @id";
 
-        var table = new Table(new SqliteObjectName(definition.TableName));
+        var table = new Table(new SqliteObjectName(tableName));
         table.AddColumn("id", idColumn).AsPrimaryKey();
         table.AddColumn(DatabaseConstants.Body, "TEXT").NotNull();
         table.AddColumn(DatabaseConstants.Version, "INTEGER").DefaultValue(1).NotNull();

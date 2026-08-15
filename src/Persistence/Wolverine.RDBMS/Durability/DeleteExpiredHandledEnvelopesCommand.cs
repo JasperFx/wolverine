@@ -35,7 +35,7 @@ internal class DeleteExpiredHandledEnvelopesCommand : IAgentCommand
         {
             // This provider can't bound the delete; fall back to a single unbounded delete, but
             // still on this dedicated timer and transaction, off the main recovery loop.
-            var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
+            var incomingTable = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
             var fallback = new DatabaseOperationBatch(_database,
                 [new DeleteExpiredEnvelopesOperation(incomingTable, now)]);
             return await fallback.ExecuteAsync(runtime, cancellationToken);

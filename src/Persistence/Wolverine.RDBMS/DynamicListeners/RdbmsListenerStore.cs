@@ -30,16 +30,20 @@ internal sealed class RdbmsListenerStore : IListenerStore
     private readonly string _deleteSql;
     private readonly string _selectAllSql;
 
+    /// <param name="table">
+    /// The fully rendered storage identifier for the listener registry table, as produced by
+    /// <see cref="MessageDatabase{T}.QuotedTableNameFor"/> — schema-qualified on engines that have
+    /// schemas, and a prefixed single identifier on SQLite (GH-3943).
+    /// </param>
     public RdbmsListenerStore(
         DbDataSource dataSource,
-        string quotedSchemaName,
+        string table,
         Func<Exception, bool> isUniqueConstraintViolation)
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _isUniqueConstraintViolation = isUniqueConstraintViolation
                                        ?? throw new ArgumentNullException(nameof(isUniqueConstraintViolation));
 
-        var table = $"{quotedSchemaName}.{DatabaseConstants.ListenersTableName}";
         _insertSql = $"insert into {table} (uri) values (@uri)";
         _deleteSql = $"delete from {table} where uri = @uri";
         _selectAllSql = $"select uri from {table}";

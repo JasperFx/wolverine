@@ -22,7 +22,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
         foreach (var envelope in incoming)
         {
-            builder.Append($"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set owner_id = ");
+            builder.Append($"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set owner_id = ");
             builder.AppendParameter(ownerId);
             builder.Append($" where {DatabaseConstants.Id} = ");
             builder.AppendParameter(envelope.Id);
@@ -63,7 +63,7 @@ public abstract partial class MessageDatabase<T>
         try
         {
             var builder = ToCommandBuilder();
-            builder.Append($"delete from {QuotedSchemaName}.{DatabaseConstants.IncomingTable} WHERE id = ");
+            builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.IncomingTable)} WHERE id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append($" and {DatabaseConstants.ReceivedAt} = ");
             builder.AppendParameter(envelope.Destination!.ToString());
@@ -101,7 +101,7 @@ public abstract partial class MessageDatabase<T>
 
         foreach (var envelope in envelopes)
         {
-            builder.Append($"update {QuotedSchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
+            builder.Append($"update {QuotedTableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = ");
             builder.AppendParameter(envelope.Id);
             builder.Append(" and ");
             builder.Append(DatabaseConstants.ReceivedAt);

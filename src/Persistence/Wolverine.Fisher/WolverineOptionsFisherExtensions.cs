@@ -136,6 +136,10 @@ public static class WolverineOptionsFisherExtensions
         var settings = new DatabaseSettings
         {
             SchemaName = schemaName,
+            // GH-3943: SQLite has no schemas, so the name is a table name prefix. Without this the
+            // store emits `<name>.wolverine_incoming_envelopes` against a database nothing ATTACHed
+            // and the host dies on the first envelope write with "no such table".
+            SchemaNameIsTablePrefix = true,
             AutoCreate = AutoCreate.CreateOrUpdate,
             Role = MessageStoreRole.Main,
             ScheduledJobLockId = $"{schemaName}:scheduled-jobs".GetDeterministicHashCode(),

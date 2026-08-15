@@ -37,9 +37,8 @@ internal class ReleaseOrphanedMessagesForAncillaryOperation : IDatabaseOperation
     {
         if (_activeNodeNumbers.Count == 0) return;
 
-        var schemaName = _database.SchemaName;
-        var incomingTable = new DbObjectName(schemaName, DatabaseConstants.IncomingTable);
-        var outgoingTable = new DbObjectName(schemaName, DatabaseConstants.OutgoingTable);
+        var incomingTable = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
+        var outgoingTable = _database.DbObjectNameFor(DatabaseConstants.OutgoingTable);
         var nodeList = string.Join(", ", _activeNodeNumbers);
 
         // GH-3850. The list is cached per node for up to one polling interval, so it cannot describe

@@ -197,8 +197,31 @@ The SQLite persistence uses the following data type mappings:
 
 ### Schema Names
 
-SQLite only supports the `main` schema name at this time. Unlike PostgreSQL or SQL Server, SQLite does not have
-a traditional schema system for Wolverine queue and envelope tables.
+SQLite has no user-defined schemas. The only schema names a plain connection knows are `main`, `temp`, and
+whatever has been `ATTACH`ed, so there is nothing for a `schema.table` qualifier to point at.
+
+Wolverine therefore treats the schema name as a **table name prefix**. The default is `main`, which prefixes
+nothing — the tables are `wolverine_incoming_envelopes`, `wolverine_outgoing_envelopes` and so on:
+
+```csharp
+opts.PersistMessagesWithSqlite(connectionString, "reporting");
+// => reporting_wolverine_incoming_envelopes, reporting_wolverine_outgoing_envelopes, ...
+```
+
+That gives the setting a meaning SQLite can honour: several logically separate Wolverine table sets living in
+one database file without colliding. Saga tables take the same prefix. The advisory lock table
+(`wolverine_locks`) deliberately does not — lock ids are derived from the schema name, so prefixed table sets
+share one lock table and still take distinct rows out of it.
+
+::: warning
+Before Wolverine 6.28.1 the schema name was passed through as a real schema qualifier, which meant any value
+other than `main` produced SQL against a database that was never attached and failed at runtime with
+`SQLite Error 1: 'no such table: <name>.wolverine_incoming_envelopes'`. See
+[GH-3943](https://github.com/JasperFx/wolverine/issues/3943).
+:::
+
+The SQLite transport's queue tables are named `wolverine_queue_<name>` and take no prefix — they are named by
+the transport rather than by the message store.
 
 `UseSqlitePersistenceAndTransport()` is intentionally connection-string only:
 

@@ -27,6 +27,7 @@ internal class SqliteQueueSender : ISqliteQueueSender
     private readonly string _deleteFromIncomingAndScheduleSql;
     private readonly string _writeDirectlyToQueueTableSql;
     private readonly string _writeDirectlyToTheScheduledTable;
+    private readonly string _outgoingTable;
 
     public SqliteQueueSender(SqliteQueue queue) : this(queue, queue.DataSource, null)
     {
@@ -40,22 +41,31 @@ internal class SqliteQueueSender : ISqliteQueueSender
 
         Destination = SqliteQueue.ToUri(queue.Name, databaseName);
 
+        // GH-3943: the durability tables this sender drains carry the message store's schema name as
+        // a prefix on SQLite. The queue tables themselves are named by the transport and take no
+        // prefix, which is why they come off the queue rather than through this. A null Store means
+        // no SQLite persistence is registered at all, in which case the unprefixed default is right.
+        _outgoingTable = queue.Parent.Store?.TableNameFor(DatabaseConstants.OutgoingTable)
+                            ?? DatabaseConstants.OutgoingTable;
+        var incomingTable = queue.Parent.Store?.TableNameFor(DatabaseConstants.IncomingTable)
+                            ?? DatabaseConstants.IncomingTable;
+
         _moveFromOutgoingToQueueSql = $@"
 INSERT into {queue.QueueTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.KeepUntil})
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.DeliverBy}
 FROM
-    {DatabaseConstants.OutgoingTable}
+    {_outgoingTable}
 WHERE lower({DatabaseConstants.Id}) = lower(@id);
-DELETE FROM {DatabaseConstants.OutgoingTable} WHERE lower({DatabaseConstants.Id}) = lower(@id);
+DELETE FROM {_outgoingTable} WHERE lower({DatabaseConstants.Id}) = lower(@id);
 ";
 
         _moveFromOutgoingToScheduledSql = $@"
 INSERT into {queue.ScheduledTable.Identifier} ({DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExecutionTime})
 SELECT {DatabaseConstants.Id}, {DatabaseConstants.Body}, {DatabaseConstants.MessageType}, @time
 FROM
-    {DatabaseConstants.OutgoingTable}
+    {_outgoingTable}
 WHERE lower({DatabaseConstants.Id}) = lower(@id);
-DELETE FROM {DatabaseConstants.OutgoingTable} WHERE lower({DatabaseConstants.Id}) = lower(@id);
+DELETE FROM {_outgoingTable} WHERE lower({DatabaseConstants.Id}) = lower(@id);
 ";
 
         _writeDirectlyToQueueTableSql =
@@ -67,7 +77,7 @@ values (@id, @body, @type, @time)
 ".Trim();
 
         _deleteFromIncomingAndScheduleSql =
-            $"DELETE FROM {DatabaseConstants.IncomingTable} WHERE lower(id) = lower(@id);" + _writeDirectlyToTheScheduledTable;
+            $"DELETE FROM {incomingTable} WHERE lower(id) = lower(@id);" + _writeDirectlyToTheScheduledTable;
     }
 
     public bool SupportsNativeScheduledSend => true;
@@ -198,7 +208,7 @@ values (@id, @body, @type, @time)
         {
             if (e.Message.ContainsIgnoreCase("UNIQUE constraint failed"))
             {
-                await conn.CreateCommand($"DELETE FROM {DatabaseConstants.OutgoingTable} WHERE lower(id) = lower(@id)")
+                await conn.CreateCommand($"DELETE FROM {_outgoingTable} WHERE lower(id) = lower(@id)")
                     .With("id", $"{envelope.Id:D}")
                     .ExecuteNonQueryAsync(cancellationToken);
 

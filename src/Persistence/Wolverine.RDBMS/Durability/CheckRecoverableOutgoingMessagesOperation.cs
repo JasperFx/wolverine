@@ -31,7 +31,7 @@ internal class CheckRecoverableOutgoingMessagesOperation : IDatabaseOperation
     public void ConfigureCommand(DbCommandBuilder builder)
     {
         builder.Append(
-            $"select distinct destination from {_database.SchemaName}.{DatabaseConstants.OutgoingTable} where owner_id = 0;");
+            $"select distinct destination from {_database.TableNameFor(DatabaseConstants.OutgoingTable)} where owner_id = 0;");
     }
 
     public async Task ReadResultsAsync(DbDataReader reader, IList<Exception> exceptions, CancellationToken token)

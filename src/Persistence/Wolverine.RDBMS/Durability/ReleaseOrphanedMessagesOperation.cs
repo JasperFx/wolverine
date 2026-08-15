@@ -23,10 +23,9 @@ internal class ReleaseOrphanedMessagesOperation : IDatabaseOperation, IDoNotRetu
 
     public void ConfigureCommand(DbCommandBuilder builder)
     {
-        var schemaName = _database.SchemaName;
-        var incomingTable = new DbObjectName(schemaName, DatabaseConstants.IncomingTable);
-        var outgoingTable = new DbObjectName(schemaName, DatabaseConstants.OutgoingTable);
-        var nodesTable = new DbObjectName(schemaName, DatabaseConstants.NodeTableName);
+        var incomingTable = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
+        var outgoingTable = _database.DbObjectNameFor(DatabaseConstants.OutgoingTable);
+        var nodesTable = _database.DbObjectNameFor(DatabaseConstants.NodeTableName);
 
         builder.Append(
             $"update {incomingTable} set {DatabaseConstants.OwnerId} = 0 where {DatabaseConstants.OwnerId} != 0 and {DatabaseConstants.OwnerId} not in (select {DatabaseConstants.NodeNumber} from {nodesTable});");
