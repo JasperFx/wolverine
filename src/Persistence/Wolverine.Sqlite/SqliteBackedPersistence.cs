@@ -51,8 +51,11 @@ public interface ISqliteBackedPersistence
     ISqliteBackedPersistence OverrideAutoCreateResources(AutoCreate autoCreate);
 
     /// <summary>
-    /// Override the database schema name for the envelope storage tables (the transactional inbox/outbox).
-    /// Default is "wolverine"
+    /// Names the envelope storage tables (the transactional inbox/outbox). SQLite has no schemas, so
+    /// this is a <b>table name prefix</b> rather than a qualifier: <c>"reporting"</c> gives you
+    /// <c>reporting_wolverine_incoming_envelopes</c> and friends, which is what lets logically
+    /// separate Wolverine table sets share one database file. The default is <c>main</c>, which
+    /// prefixes nothing. See GH-3943.
     /// </summary>
     /// <param name="schemaName"></param>
     /// <returns></returns>
@@ -223,6 +226,8 @@ internal class SqliteBackedPersistence : ISqliteBackedPersistence, IWolverineExt
             DataSource = DataSource,
             ScheduledJobLockId = ScheduledJobLockId,
             SchemaName = EnvelopeStorageSchemaName,
+            // GH-3943: SQLite has no schemas. The name is folded into the table names as a prefix.
+            SchemaNameIsTablePrefix = true,
             AddTenantLookupTable = UseMasterTableTenancy,
             TenantConnections = TenantConnections,
             // Propagate the AutoCreate override (see #2780).

@@ -114,7 +114,9 @@ internal class SqliteTenantedMessageStore : ITenantedMessageSource
             ConnectionString = connectionString,
             Role = MessageStoreRole.Tenant,
             ScheduledJobLockId = _persistence.ScheduledJobLockId,
-            SchemaName = _persistence.EnvelopeStorageSchemaName
+            SchemaName = _persistence.EnvelopeStorageSchemaName,
+            // GH-3943: SQLite has no schemas. The name is folded into the table names as a prefix.
+            SchemaNameIsTablePrefix = true
         };
 
         var store = new SqliteMessageStore(settings, _runtime.Options.Durability, dataSource,

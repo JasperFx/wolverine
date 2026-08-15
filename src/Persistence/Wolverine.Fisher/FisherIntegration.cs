@@ -66,9 +66,12 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
 
         // GH-3884's transport schema stamping has no Fisher equivalent, and deliberately so:
         // SQLite has no schemas. Wolverine.Sqlite's transport places its queue tables in the one
-        // database file, so there is nothing here for MessageStorageSchemaName / TransportSchemaName
-        // to align. Those properties still steer where the SqliteMessageStore's own tables go, which
-        // is a naming prefix rather than a schema.
+        // database file, so there is nothing here for TransportSchemaName to align — it is inert on
+        // Fisher and kept only for source parity with the Marten and Polecat integrations.
+        // MessageStorageSchemaName does steer where the SqliteMessageStore's tables go, and GH-3943
+        // made it the naming prefix this comment always claimed it was: it reached the store as a
+        // `schema.table` qualifier instead, so any value other than "main" named a database nothing
+        // had ATTACHed and the host died on the first envelope write with "no such table".
 
         options.Policies.Add<FisherOpPolicy>();
 
@@ -89,13 +92,16 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     private string _transportSchemaName = "wolverine_queues";
 
     /// <summary>
-    /// The database schema to place SQLite-backed queues.
+    /// Present for source parity with the Marten and Polecat integrations. <b>It has no effect on a
+    /// Fisher host</b>: a Fisher store is a single SQLite file and SQLite has no schemas, so the
+    /// SQLite transport names its queue tables <c>wolverine_queue_&lt;name&gt;</c> in that one file
+    /// and there is no schema for this to steer. Nothing reads it.
     /// </summary>
     /// <remarks>
-    /// GH-3884: setting this is authoritative — it overwrites whatever the SQLite transport was
-    /// configured with, because this integration applies at host build. Leaving it alone leaves the
-    /// transport's own configuration (its default, or an explicit
-    /// <c>UseSqlServerPersistenceAndTransport(..., transportSchema: ...)</c>) untouched.
+    /// GH-3884 removed the equivalent setters from <c>SqlitePersistenceExpression</c> for the same
+    /// reason. See also GH-3943, where setting this alongside
+    /// <see cref="MessageStorageSchemaName"/> is how the reporter arrived at the message storage bug
+    /// — this half was simply inert.
     /// </remarks>
     public string TransportSchemaName
     {
@@ -109,9 +115,17 @@ public class FisherIntegration : IWolverineExtension, IEventForwarding
     private string? _messageStorageSchemaName;
 
     /// <summary>
-    /// The database schema to place the message store tables for Wolverine.
-    /// The default is "wolverine"
+    /// Names the Wolverine message store tables inside the Fisher database file. SQLite has no
+    /// schemas, so this is a <b>table name prefix</b>: <c>"reporting"</c> gives you
+    /// <c>reporting_wolverine_incoming_envelopes</c> and friends, which is what lets logically
+    /// separate Wolverine table sets share one file. The default is <c>main</c>, which prefixes
+    /// nothing and leaves the tables named exactly as they have always been.
     /// </summary>
+    /// <remarks>
+    /// GH-3943: this used to reach <c>SqliteMessageStore</c> as a <c>schema.table</c> qualifier, so
+    /// any value other than <c>main</c> emitted SQL against a database nothing had ATTACHed and the
+    /// host died on the first envelope write with <c>no such table</c>.
+    /// </remarks>
     public string? MessageStorageSchemaName
     {
         get => _messageStorageSchemaName;

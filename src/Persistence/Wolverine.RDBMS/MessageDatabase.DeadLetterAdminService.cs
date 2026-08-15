@@ -18,7 +18,7 @@ public abstract partial class MessageDatabase<T>
     {
         var builder = ToCommandBuilder();
         builder.Append($"select {DatabaseConstants.ReceivedAt}, {DatabaseConstants.MessageType}, {DatabaseConstants.ExceptionType}, count(*) as total");
-        builder.Append($" from {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable}");
+        builder.Append($" from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)}");
         builder.Append(" where 1 = 1");
 
         if (range.From.HasValue)
@@ -82,7 +82,7 @@ public abstract partial class MessageDatabase<T>
 
         var topSelect = toTopClause(query);
         
-        builder.Append($"select{topSelect} {DatabaseConstants.DeadLetterFields}, count(*) OVER() as total_rows from {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1");
+        builder.Append($"select{topSelect} {DatabaseConstants.DeadLetterFields}, count(*) OVER() as total_rows from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)} where 1 = 1");
 
         writeDeadLetterWhereClause(query, builder);
 
@@ -183,7 +183,7 @@ public abstract partial class MessageDatabase<T>
     {
         var builder = ToCommandBuilder();
         
-        builder.Append($"delete from {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable} where 1 = 1");
+        builder.Append($"delete from {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)} where 1 = 1");
 
         writeDeadLetterWhereClause(query, builder);
 
@@ -195,7 +195,7 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
 
         builder.Append(
-            $"update {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Replayable} = ");
+            $"update {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)} set {DatabaseConstants.Replayable} = ");
         builder.AppendParameter(true);
         builder.Append(" where 1 = 1");
         writeDeadLetterWhereClause(query, builder);
@@ -215,7 +215,7 @@ public abstract partial class MessageDatabase<T>
 
         var builder = ToCommandBuilder();
         builder.Append(
-            $"update {QuotedSchemaName}.{DatabaseConstants.DeadLetterTable} set {DatabaseConstants.Body} = ");
+            $"update {QuotedTableNameFor(DatabaseConstants.DeadLetterTable)} set {DatabaseConstants.Body} = ");
         builder.AppendParameter(serialized);
         builder.Append($", {DatabaseConstants.Replayable} = ");
         builder.AppendParameter(true);

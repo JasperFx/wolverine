@@ -251,7 +251,7 @@ internal class DurabilityAgent : IAgent
     internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null,
         int nodeNumberHighWaterMark = 0)
     {
-        var incomingTable = new DbObjectName(_database.SchemaName, DatabaseConstants.IncomingTable);
+        var incomingTable = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
         List<IDatabaseOperation> ops =
         [
@@ -281,7 +281,7 @@ internal class DurabilityAgent : IAgent
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
         {
-            ops.Add(new BumpStaleOutgoingEnvelopesOperation(new DbObjectName(_database.SchemaName, DatabaseConstants.OutgoingTable), _runtime.Options.Durability, now));
+            ops.Add(new BumpStaleOutgoingEnvelopesOperation(_database.DbObjectNameFor(DatabaseConstants.OutgoingTable), _runtime.Options.Durability, now));
         }
 
         if (_runtime.Options.Durability.InboxStaleTime.HasValue)

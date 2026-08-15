@@ -8,7 +8,7 @@ namespace Wolverine.Sqlite.Schema;
 internal class IncomingEnvelopeTable : Table
 {
     public IncomingEnvelopeTable(DurabilitySettings durability, string schemaName) : base(
-        new SqliteObjectName(DatabaseConstants.IncomingTable))
+        new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.IncomingTable)))
     {
         AddColumn(DatabaseConstants.Id, "TEXT").AsPrimaryKey();
         AddColumn(DatabaseConstants.Status, "TEXT").NotNull();

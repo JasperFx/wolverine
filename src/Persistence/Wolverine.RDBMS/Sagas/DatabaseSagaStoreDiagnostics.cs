@@ -188,8 +188,7 @@ public sealed class DatabaseSagaStoreDiagnostics : ISagaStoreDiagnostics
 
     private string qualifyTableName(string tableName)
     {
-        var schema = _database.SchemaName;
-        return string.IsNullOrEmpty(schema) ? tableName : $"{schema}.{tableName}";
+        return string.IsNullOrEmpty(_database.SchemaName) ? tableName : _database.TableNameFor(tableName);
     }
 
     /// <summary>

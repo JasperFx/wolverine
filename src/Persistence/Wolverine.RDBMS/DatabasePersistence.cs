@@ -51,7 +51,7 @@ public static class DatabasePersistence
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
         builder.Append(
-            $"insert into {settings.SchemaName}.{DatabaseConstants.OutgoingTable} ({DatabaseConstants.OutgoingFields}) values ({parameterList});");
+            $"insert into {settings.TableNameFor(DatabaseConstants.OutgoingTable)} ({DatabaseConstants.OutgoingFields}) values ({parameterList});");
     }
 
     public static DbCommand BuildIncomingStorageCommand(IEnumerable<Envelope> envelopes,
@@ -86,7 +86,7 @@ public static class DatabasePersistence
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
 
         builder.Append(
-            $@"insert into {settings.SchemaName}.{DatabaseConstants.IncomingTable}({DatabaseConstants.IncomingFields}) values ({parameterList});");
+            $@"insert into {settings.TableNameFor(DatabaseConstants.IncomingTable)}({DatabaseConstants.IncomingFields}) values ({parameterList});");
     }
 
     public static async Task<Envelope> ReadIncomingAsync(DbDataReader reader, CancellationToken cancellation = default)
@@ -245,7 +245,7 @@ public static class DatabasePersistence
         var parameterList = list.Select(x => $"@{x.ParameterName}").Join(", ");
         
         builder.Append(
-            $"insert into {wolverineDatabase.SchemaName}.{DatabaseConstants.DeadLetterTable} ({deadLetterFields}) values ({parameterList});");
+            $"insert into {wolverineDatabase.TableNameFor(DatabaseConstants.DeadLetterTable)} ({deadLetterFields}) values ({parameterList});");
     }
 
     public static async Task<Envelope> ReadOutgoingAsync(DbDataReader reader, CancellationToken cancellation = default)

@@ -29,10 +29,14 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         _settings = settings;
         _database = database;
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
-        var schemaName = settings.SchemaName ?? "main";
-        _nodeTable = new SqliteObjectName(NodeTableName);
-        _restrictionTable = new SqliteObjectName(DatabaseConstants.AgentRestrictionsTableName);
-        _assignmentTable = new SqliteObjectName(NodeAssignmentsTableName);
+        var schemaName = settings.SchemaName ?? TablePrefixing.DefaultSqliteSchemaName;
+
+        // GH-3943: SQLite has no schemas, so the configured name prefixes these table names rather
+        // than qualifying them. `main` — the default — leaves them exactly as they have always been.
+        _nodeTable = new SqliteObjectName(TablePrefixing.Apply(schemaName, NodeTableName));
+        _restrictionTable =
+            new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.AgentRestrictionsTableName));
+        _assignmentTable = new SqliteObjectName(TablePrefixing.Apply(schemaName, NodeAssignmentsTableName));
 
         _lockId = schemaName.GetDeterministicHashCode();
     }

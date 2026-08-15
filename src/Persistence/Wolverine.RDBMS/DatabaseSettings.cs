@@ -27,6 +27,40 @@ public class DatabaseSettings
             return $"\"{escaped}\"";
         }
     }
+
+    /// <summary>
+    /// True for engines that have no user-defined schemas at all — SQLite, where the only "schema"
+    /// names a connection knows are <c>main</c>, <c>temp</c>, and whatever has been ATTACHed. For
+    /// those, <see cref="SchemaName"/> is folded into the table names as a prefix instead of being
+    /// emitted as a <c>schema.table</c> qualifier, which is what lets several logically separate
+    /// Wolverine table sets share one database file. See GH-3943.
+    /// </summary>
+    public bool SchemaNameIsTablePrefix { get; set; }
+
+    /// <summary>
+    /// Renders the storage identifier for one of Wolverine's envelope storage tables, honoring
+    /// <see cref="SchemaNameIsTablePrefix"/>. Every reference to a Wolverine table in generated SQL
+    /// should go through this rather than interpolating <c>{SchemaName}.{table}</c> directly.
+    /// </summary>
+    public string TableNameFor(string tableName)
+    {
+        if (SchemaNameIsTablePrefix) return TablePrefixing.Apply(SchemaName, tableName);
+
+        // No schema configured at all means no qualifier — every dialect then resolves the table
+        // against the connection's default schema.
+        return string.IsNullOrEmpty(SchemaName) ? tableName : $"{SchemaName}.{tableName}";
+    }
+
+    /// <summary>
+    /// The <see cref="TableNameFor"/> rendering, but with the schema name quoted for engines that
+    /// need it. Prefixed names are single identifiers and are never quoted here.
+    /// </summary>
+    public string QuotedTableNameFor(string tableName)
+    {
+        if (SchemaNameIsTablePrefix) return TablePrefixing.Apply(SchemaName, tableName);
+
+        return string.IsNullOrEmpty(SchemaName) ? tableName : $"{QuotedSchemaName}.{tableName}";
+    }
     public AutoCreate AutoCreate { get; set; } = JasperFx.AutoCreate.CreateOrUpdate;
 
     /// <summary>

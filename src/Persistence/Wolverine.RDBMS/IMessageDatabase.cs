@@ -57,6 +57,21 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
 
     string SchemaName { get; set; }
 
+    /// <summary>
+    /// Renders the storage identifier for one of Wolverine's tables. Every reference to a Wolverine
+    /// table in generated SQL goes through this rather than interpolating <c>{SchemaName}.{table}</c>
+    /// directly, because engines without schemas (SQLite) fold the schema name into the table name as
+    /// a prefix instead. See GH-3943.
+    /// </summary>
+    string TableNameFor(string tableName) =>
+        string.IsNullOrEmpty(SchemaName) ? tableName : $"{SchemaName}.{tableName}";
+
+    /// <summary>
+    /// The <see cref="TableNameFor"/> rendering as a <see cref="DbObjectName"/>, for the operations
+    /// that need the schema and table halves separately.
+    /// </summary>
+    DbObjectName DbObjectNameFor(string tableName) => new(SchemaName, tableName);
+
     DbDataSource DataSource { get; }
     ILogger Logger { get; }
 
@@ -76,7 +91,7 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DateTimeOffset keepUntil, CancellationToken cancellation)
     {
         var cmd = conn.CreateCommand(
-                $"update {SchemaName}.{DatabaseConstants.IncomingTable} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
+                $"update {TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
             .With("id", envelope.Id)
             .With("keep", keepUntil);
         cmd.Transaction = tx;

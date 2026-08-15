@@ -27,9 +27,9 @@ public abstract partial class MessageDatabase<T>
         var builder = ToCommandBuilder();
         foreach (var assignment in assignments)
         {
-            builder.Append($"delete from  {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = ");
+            builder.Append($"delete from  {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {StorageConstants.TenantIdColumn} = ");
             builder.AppendParameter(assignment.TenantId);
-            builder.Append($";insert into {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}) values (");
+            builder.Append($";insert into {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}) values (");
             builder.AppendParameter(assignment.TenantId);
             builder.Append(", ");
             builder.AppendParameter(assignment.Value);
@@ -66,7 +66,7 @@ public abstract partial class MessageDatabase<T>
         {
             await using var reader =
                 await conn.CreateCommand(
-                        $"select {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = @id")
+                        $"select {StorageConstants.ConnectionStringColumn} from {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {StorageConstants.TenantIdColumn} = @id")
                     .With("id", tenantId)
                     .ExecuteReaderAsync(_cancellation);
 
@@ -102,7 +102,7 @@ public abstract partial class MessageDatabase<T>
         {
             await using var reader =
                 await conn.CreateCommand(
-                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = @disabled")
+                        $"select {StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn} from {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {DatabaseConstants.DisabledColumn} = @disabled")
                     .With("disabled", false)
                     .ExecuteReaderAsync(_cancellation);
 
@@ -137,8 +137,8 @@ public abstract partial class MessageDatabase<T>
             // ON CONFLICT (which SqlServer rejects), and a bool parameter rather than a `false`
             // literal (SqlServer has no boolean literal — it parses `false` as a column name). GH-3023.
             await conn.CreateCommand(
-                    $"delete from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = @id;" +
-                    $"insert into {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}, {DatabaseConstants.DisabledColumn}) values (@id, @connection, @disabled)")
+                    $"delete from {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {StorageConstants.TenantIdColumn} = @id;" +
+                    $"insert into {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} ({StorageConstants.TenantIdColumn}, {StorageConstants.ConnectionStringColumn}, {DatabaseConstants.DisabledColumn}) values (@id, @connection, @disabled)")
                 .With("id", tenantId)
                 .With("connection", connectionString)
                 .With("disabled", false)
@@ -157,7 +157,7 @@ public abstract partial class MessageDatabase<T>
         try
         {
             await conn.CreateCommand(
-                    $"update {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} set {DatabaseConstants.DisabledColumn} = @disabled where {StorageConstants.TenantIdColumn} = @id")
+                    $"update {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} set {DatabaseConstants.DisabledColumn} = @disabled where {StorageConstants.TenantIdColumn} = @id")
                 .With("id", tenantId)
                 .With("disabled", disabled)
                 .ExecuteNonQueryAsync(_cancellation);
@@ -175,7 +175,7 @@ public abstract partial class MessageDatabase<T>
         try
         {
             await conn.CreateCommand(
-                    $"delete from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {StorageConstants.TenantIdColumn} = @id")
+                    $"delete from {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {StorageConstants.TenantIdColumn} = @id")
                 .With("id", tenantId)
                 .ExecuteNonQueryAsync(_cancellation);
         }
@@ -193,7 +193,7 @@ public abstract partial class MessageDatabase<T>
         try
         {
             await using var reader = await conn.CreateCommand(
-                    $"select {StorageConstants.TenantIdColumn} from {Settings.SchemaName}.{DatabaseConstants.TenantsTableName} where {DatabaseConstants.DisabledColumn} = @disabled")
+                    $"select {StorageConstants.TenantIdColumn} from {Settings.TableNameFor(DatabaseConstants.TenantsTableName)} where {DatabaseConstants.DisabledColumn} = @disabled")
                 .With("disabled", true)
                 .ExecuteReaderAsync(_cancellation);
 

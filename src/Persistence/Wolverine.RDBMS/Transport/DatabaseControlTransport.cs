@@ -36,7 +36,7 @@ internal class DatabaseControlTransport : ITransport, IAsyncDisposable
 
         Options = options;
 
-        TableName = new DbObjectName(database.SchemaName, DatabaseConstants.ControlQueueTableName);
+        TableName = database.DbObjectNameFor(DatabaseConstants.ControlQueueTableName);
     }
     
     public bool TryBuildBrokerUsage(out BrokerDescription description)

@@ -8,8 +8,13 @@ namespace Wolverine.Sqlite.Schema;
 internal class DeadLettersTable : Table
 {
     public DeadLettersTable(DurabilitySettings durability, string schemaName) : base(
-        new SqliteObjectName(DatabaseConstants.DeadLetterTable))
+        new SqliteObjectName(TablePrefixing.Apply(schemaName, DatabaseConstants.DeadLetterTable)))
     {
+        // GH-3943: SQLite has no schemas, so the configured schema name is a table name prefix.
+        // Index names share the one namespace with tables here, so they take the prefix too —
+        // otherwise two prefixed table sets in the same file collide on the index name.
+        var tableName = TablePrefixing.Apply(schemaName, DatabaseConstants.DeadLetterTable);
+
         AddColumn(DatabaseConstants.Id, "TEXT").AsPrimaryKey();
         AddColumn(DatabaseConstants.ExecutionTime, "TEXT");
         AddColumn(DatabaseConstants.Body, "BLOB").NotNull();
@@ -25,7 +30,7 @@ internal class DeadLettersTable : Table
 
         // GH-3279: DLQ replay and cleanup both filter on `replayable`; a partial index scoped to the
         // handful of replayable rows keeps both off a full-table scan.
-        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_replayable")
+        Indexes.Add(new IndexDefinition($"idx_{tableName}_replayable")
         {
             Columns = [DatabaseConstants.Replayable],
             Predicate = $"{DatabaseConstants.Replayable} = 1"
@@ -46,7 +51,7 @@ internal class DeadLettersTable : Table
             AddColumn(DatabaseConstants.Expires, "TEXT");
 
             // Same story for the expiration sweep, which filters on `expires`.
-            Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.DeadLetterTable}_expires")
+            Indexes.Add(new IndexDefinition($"idx_{tableName}_expires")
             {
                 Columns = [DatabaseConstants.Expires],
                 Predicate = $"{DatabaseConstants.Expires} is not null"
