@@ -1,3 +1,4 @@
+using NSubstitute;
 using Shouldly;
 using Wolverine.RDBMS;
 using Xunit;
@@ -51,6 +52,41 @@ public class table_naming_contract
         // A prefixed name is a single identifier, so there is nothing for the quoting to bracket.
         settings.QuotedTableNameFor(DatabaseConstants.IncomingTable)
             .ShouldBe("reporting_wolverine_incoming_envelopes");
+    }
+
+    [Fact]
+    public void renders_against_a_test_double_that_only_stubs_the_schema_name()
+    {
+        // Guards the reason TableNameFor / DbObjectNameFor are extension methods rather than default
+        // interface members. As default members a substitute intercepts them and hands back null, so
+        // every durability operation built against a mocked IMessageDatabase silently loses its table
+        // name — which is how GH-3943's first cut broke
+        // release_orphaned_ancillary_high_water_mark_3850. Extension methods cannot be intercepted.
+        var database = Substitute.For<IMessageDatabase>();
+        database.SchemaName.Returns("ancillary");
+
+        database.TableNameFor(DatabaseConstants.IncomingTable)
+            .ShouldBe("ancillary.wolverine_incoming_envelopes");
+
+        // Settings is null on a bare substitute, so the prefix check has to tolerate that.
+        database.DbObjectNameFor(DatabaseConstants.IncomingTable)
+            .QualifiedName.ShouldBe("ancillary.wolverine_incoming_envelopes");
+    }
+
+    [Fact]
+    public void a_prefixing_database_renders_a_resolvable_db_object_name()
+    {
+        var database = Substitute.For<IMessageDatabase>();
+        database.SchemaName.Returns("reporting");
+        database.Settings.Returns(new DatabaseSettings
+        {
+            SchemaName = "reporting", SchemaNameIsTablePrefix = true
+        });
+
+        // "main" is always attached on SQLite, so the qualified form still resolves to the prefixed
+        // table for the operations that need the two halves apart.
+        database.DbObjectNameFor(DatabaseConstants.IncomingTable)
+            .QualifiedName.ShouldBe("main.reporting_wolverine_incoming_envelopes");
     }
 
     [Theory]

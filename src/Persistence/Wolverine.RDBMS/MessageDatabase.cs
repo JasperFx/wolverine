@@ -44,16 +44,16 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
         Logger = logger;
         _schemaName = databaseSettings.SchemaName ?? settings.MessageStorageSchemaName ?? provider.DefaultDatabaseSchemaName;
 
-        IncomingFullName = TableNameFor(DatabaseConstants.IncomingTable);
-        OutgoingFullName = TableNameFor(DatabaseConstants.OutgoingTable);
+        IncomingFullName = this.TableNameFor(DatabaseConstants.IncomingTable);
+        OutgoingFullName = this.TableNameFor(DatabaseConstants.OutgoingTable);
 
         Durability = settings;
         _cancellation = settings.Cancellation;
 
         _markEnvelopeAsHandledById =
-            $"update {TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
+            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keepUntil where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
         _incrementIncomingEnvelopeAttempts =
-            $"update {TableNameFor(DatabaseConstants.IncomingTable)} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
+            $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set attempts = @attempts where id = @id and {DatabaseConstants.ReceivedAt} = @uri";
 
         // ReSharper disable once VirtualMemberCallInConstructor
         _outgoingEnvelopeSql = determineOutgoingEnvelopeSql(settings);
@@ -198,31 +198,15 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// </summary>
     protected bool SchemaNameIsTablePrefix => _settings.SchemaNameIsTablePrefix;
 
-    /// <inheritdoc />
-    public string TableNameFor(string tableName)
-    {
-        if (SchemaNameIsTablePrefix) return TablePrefixing.Apply(SchemaName, tableName);
-
-        return string.IsNullOrEmpty(SchemaName) ? tableName : $"{SchemaName}.{tableName}";
-    }
-
     /// <summary>
-    /// The <see cref="TableNameFor"/> rendering, but with the schema name quoted per this provider's
-    /// rules. Prefixed names are single identifiers and are never quoted.
+    /// The <see cref="MessageDatabaseExtensions.TableNameFor"/> rendering, but with the schema name
+    /// quoted per this provider's rules. Prefixed names are single identifiers and are never quoted.
     /// </summary>
     protected string QuotedTableNameFor(string tableName)
     {
         if (SchemaNameIsTablePrefix) return TablePrefixing.Apply(SchemaName, tableName);
 
         return string.IsNullOrEmpty(SchemaName) ? tableName : $"{QuotedSchemaName}.{tableName}";
-    }
-
-    /// <inheritdoc />
-    public virtual DbObjectName DbObjectNameFor(string tableName)
-    {
-        return SchemaNameIsTablePrefix
-            ? new DbObjectName(TablePrefixing.DefaultSqliteSchemaName, TablePrefixing.Apply(SchemaName, tableName))
-            : new DbObjectName(SchemaName, tableName);
     }
 
     public Task EnqueueAsync(IDatabaseOperation operation)

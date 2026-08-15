@@ -49,6 +49,43 @@ public static class MessageDatabaseExtensions
 
         return false;
     }
+
+    /// <summary>
+    /// Renders the storage identifier for one of Wolverine's tables. Every reference to a Wolverine
+    /// table in generated SQL goes through this rather than interpolating <c>{SchemaName}.{table}</c>
+    /// directly, because engines without schemas (SQLite) fold the schema name into the table name
+    /// as a prefix instead. See GH-3943.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately an extension method rather than a member on <see cref="IMessageDatabase"/>: a
+    /// default interface member would be intercepted by test doubles and silently return null, and
+    /// adding a required member would break every implementation outside this repository.
+    /// </remarks>
+    public static string TableNameFor(this IMessageDatabase database, string tableName)
+    {
+        if (database.Settings?.SchemaNameIsTablePrefix == true)
+        {
+            return TablePrefixing.Apply(database.SchemaName, tableName);
+        }
+
+        return string.IsNullOrEmpty(database.SchemaName)
+            ? tableName
+            : $"{database.SchemaName}.{tableName}";
+    }
+
+    /// <summary>
+    /// The <see cref="TableNameFor"/> rendering as a <see cref="DbObjectName"/>, for the operations
+    /// that need the schema and table halves separately. On a prefixing engine the schema half is
+    /// <c>main</c> — the one schema a SQLite connection always has — so the qualified name still
+    /// resolves to the prefixed table.
+    /// </summary>
+    public static DbObjectName DbObjectNameFor(this IMessageDatabase database, string tableName)
+    {
+        return database.Settings?.SchemaNameIsTablePrefix == true
+            ? new DbObjectName(TablePrefixing.DefaultSqliteSchemaName,
+                TablePrefixing.Apply(database.SchemaName, tableName))
+            : new DbObjectName(database.SchemaName, tableName);
+    }
 }
 
 public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDatabaseRegistry
@@ -56,21 +93,6 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
     public DatabaseSettings Settings {get; }
 
     string SchemaName { get; set; }
-
-    /// <summary>
-    /// Renders the storage identifier for one of Wolverine's tables. Every reference to a Wolverine
-    /// table in generated SQL goes through this rather than interpolating <c>{SchemaName}.{table}</c>
-    /// directly, because engines without schemas (SQLite) fold the schema name into the table name as
-    /// a prefix instead. See GH-3943.
-    /// </summary>
-    string TableNameFor(string tableName) =>
-        string.IsNullOrEmpty(SchemaName) ? tableName : $"{SchemaName}.{tableName}";
-
-    /// <summary>
-    /// The <see cref="TableNameFor"/> rendering as a <see cref="DbObjectName"/>, for the operations
-    /// that need the schema and table halves separately.
-    /// </summary>
-    DbObjectName DbObjectNameFor(string tableName) => new(SchemaName, tableName);
 
     DbDataSource DataSource { get; }
     ILogger Logger { get; }
@@ -91,7 +113,7 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
         DateTimeOffset keepUntil, CancellationToken cancellation)
     {
         var cmd = conn.CreateCommand(
-                $"update {TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
+                $"update {this.TableNameFor(DatabaseConstants.IncomingTable)} set {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}', {DatabaseConstants.KeepUntil} = @keep where id = @id")
             .With("id", envelope.Id)
             .With("keep", keepUntil);
         cmd.Transaction = tx;
