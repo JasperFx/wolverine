@@ -20,7 +20,10 @@ public partial class NodeAgentController
         // "Unrecognized agent scheme 'wolverinedb'", and the assignment never converged while staged
         // envelopes sat unrecovered. Publish a single node-level marker instead; see
         // MessageStoreCollection.DurabilityCapabilityUri.
-        if (_agentFamilies.ContainsKey(_runtime.Stores.Scheme))
+        // Keyed on the setting rather than on _agentFamilies[_runtime.Stores.Scheme], which is the same
+        // condition -- the constructor registers the family if and only if this flag is set -- but reaches
+        // through Stores, and that is null on a runtime with no message store.
+        if (options.Durability.DurabilityAgentEnabled)
         {
             current.Capabilities.Add(MessageStoreCollection.DurabilityCapabilityUri);
         }
