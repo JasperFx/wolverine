@@ -616,6 +616,15 @@ public partial class WolverineRuntime
                 {
                     if (agent.Endpoint is LocalQueue) continue;
                     if (agent.Endpoint.AutoStartSendingAgent()) continue;
+
+                    // GH-1908 was aimed at ephemeral control and reply queues, and those are never
+                    // durable. A durable endpoint's sending agent owns the outbox drain for its
+                    // destination, so reaping it strands every envelope staged for that destination
+                    // until something rebuilds the agent -- and an endpoint reached only through
+                    // EndpointFor(uri) has no subscriptions, so nothing here recognized it as
+                    // load bearing. See https://github.com/JasperFx/wolverine/issues/3955.
+                    if (agent.Endpoint.Mode == EndpointMode.Durable) continue;
+
                     if (agent.LastMessageSentAt > cutoff) continue;
 
                     Logger.LogInformation("Removing idle sending agent for {Destination}", agent.Destination);

@@ -60,6 +60,18 @@ public abstract partial class RabbitMqEndpoint : Endpoint<IRabbitMqEnvelopeMappe
 
     internal ISender ResolveSender(IWolverineRuntime runtime)
     {
+        // The endpoint outlives its sending agent. When the idle cleanup reaps an agent it disposes the
+        // sender underneath, but this cache kept handing that dead sender to the next EndpointFor(uri)
+        // call, so the freshly built DurableSendingAgent wrapped a disposed channel agent:
+        // EnsureInitiated() returns immediately once _disposed is set, SendAsync then threw "Channel has
+        // not been started for this sender" until the agent latched, and the circuit breaker's PingAsync
+        // goes through the same no-op so it could never heal. Only a restart recovered the outbox.
+        // See https://github.com/JasperFx/wolverine/issues/3955.
+        if (_sender is RabbitMqChannelAgent { IsDisposed: true })
+        {
+            _sender = null;
+        }
+
         _sender ??= _parent.BuildSender(this, RoutingType, runtime);
         return _sender;
     }
