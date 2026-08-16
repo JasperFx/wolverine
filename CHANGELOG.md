@@ -2,6 +2,127 @@
 
 ## Unreleased
 
+### WolverineFx (core) + event store integrations
+
+- **A handler can take the store agnostic `JasperFx.Events.Documents` contracts as parameters.**
+  ([#3962](https://github.com/JasperFx/wolverine/pull/3962), closes
+  [#3956](https://github.com/JasperFx/wolverine/issues/3956)) `IDocumentSessionOperations`,
+  `IDocumentWriteOperations` and `IDocumentReadOperations` are the document side counterparts to the
+  `IEventOperations` contracts Wolverine already understood, and they are the only way store agnostic
+  source can take a session without naming a concrete store type. They now bind and commit on Marten,
+  Polecat and Fisher alike:
+
+  ```csharp
+  // Valid against all three stores -- nothing Marten specific is named
+  public static void Handle(RecordNote command, IDocumentSessionOperations session)
+      => session.Store(new Note { Id = command.Id, Text = command.Text });
+  ```
+
+  Two gaps had to close. Codegen matches a variable by its exact type, so nothing satisfied the
+  parameter from the `IDocumentSession` the chain had already created; and `CanApply` matched against
+  a fixed type list naming none of them, so `AutoApplyTransactions` skipped the chain and no
+  `SaveChangesAsync` postprocessor was attached. On a stock host the first gap surfaced as an outright
+  `UnResolvableVariableException`; with only the second remaining, the handler ran and its writes were
+  queued into the session's unit of work and **silently discarded**.
+
+  All three contracts resolve from the chain's single `IDocumentSession`, including the read only one,
+  so a handler taking the read and write contracts together cannot end up with two sessions whose reads
+  miss its own pending writes. `IDocumentReadOperations` is deliberately not treated as evidence that a
+  chain writes anything, exactly as `IQuerySession` never has been. The contracts are also registered in
+  DI — the stores register only their own interfaces — delegating to `IDocumentSession`/`IQuerySession`
+  so a service located contract still gets the handler's outbox enrolled session.
+
+  ⚠️ Importing the `JasperFx.Events.Documents` **namespace** makes `ToListAsync()` ambiguous between
+  `DocumentQueryableExtensions` and each store's own queryable extensions (`CS0121`). Alias the
+  individual contracts instead of importing the namespace.
+
+- **The persistence provider decides who owns a chain's transaction.**
+  ([#3957](https://github.com/JasperFx/wolverine/pull/3957), closes
+  [#3953](https://github.com/JasperFx/wolverine/issues/3953)) Ancillary store inference scanned
+  `chain.ServiceDependencies()` for ancillary marker types, and `ServiceDependencies` walks constructor
+  graphs **recursively** — so any dependency that merely *held* an ancillary store matched. A read only
+  `Directory(ISystemStore)` two hops down counted the same as an injected `DbContext`, and a tenant
+  Marten handler had its inbox and dead letters stolen by the wrong store. That inference was only ever
+  correct for EF Core, where the injected `DbContext` genuinely is the transaction owner; Marten, Polecat
+  and Fisher require `[MartenStore]`/`[Storage]`, which already populates `chain.AncillaryStoreType`.
+  There is a new default null `IPersistenceFrameProvider.TryDetermineTransactionOwnerType` for this,
+  implemented only by EF Core.
+
+### WolverineFx (core)
+
+- **Durability agents are no longer assigned to nodes that cannot run them.**
+  ([#3963](https://github.com/JasperFx/wolverine/pull/3963), closes
+  [#3954](https://github.com/JasperFx/wolverine/issues/3954)) A node started with
+  `Durability.DurabilityAgentEnabled = false` never registers the durability agent family, so it threw
+  `ArgumentOutOfRangeException: Unrecognized agent scheme 'wolverinedb'` the moment the leader handed it
+  one. The leader then re-issued the identical assignment every five minutes indefinitely, no durability
+  agent ran anywhere for that store, and `owner_id = 0` outgoing envelopes were never recovered. The
+  failure was silent in both directions: every queue table read zero while the backlog grew.
+
+  Nodes now publish a marker capability when the family is actually registered, and the leader skips
+  nodes that have not. When no node in the cluster is capable, nothing is assigned and a warning names
+  the condition and the setting rather than leaving another quiet failure.
+
+  Note this is a **per node** capability rather than the per agent matching the blue/green and group
+  affinity paths use. `AllNodesHaveSameCapabilities` returns true trivially both for a single node and
+  when every node is equally incapable — precisely the two configurations reported — and the durability
+  family's agent list grows at runtime as tenant databases are added, so per agent matching would strand
+  every later added tenant's agent.
+
+- **The idle reaper no longer permanently latches durable endpoints.**
+  ([#3958](https://github.com/JasperFx/wolverine/pull/3958), closes
+  [#3955](https://github.com/JasperFx/wolverine/issues/3955)) Two independent defects.
+  `Endpoint.AutoStartSendingAgent()` is `UsedInShardedTopology || Subscriptions.Any()`, so a durable
+  endpoint reached only via `EndpointFor(uri)` looked as disposable as an ephemeral reply queue and was
+  reaped. And `RabbitMqEndpoint.ResolveSender` was a permanent `_sender ??=` cache, so the rebuilt agent
+  wrapped a *disposed* sender and latched forever; `RemoveSendingAgentAsync` also left `Endpoint.Agent`
+  pointing at the disposed agent, which is transport agnostic. `SendingAgentIdleTimeout` had no test
+  coverage at all before this.
+
+### WolverineFx.RabbitMQ
+
+- **Opt in to waiting for prefetched messages when a listener drains.**
+  ([#3796](https://github.com/JasperFx/wolverine/pull/3796)) Contributed by
+  [@benjamin-alexander-simplisafe](https://github.com/benjamin-alexander-simplisafe). A listener can now
+  be configured to wait for already prefetched messages to be processed as it stops, rather than letting
+  the broker requeue them:
+
+  ```csharp
+  opts.ListenToRabbitQueue("orders").DrainWaitForPrefetch();
+  ```
+
+- **The prefetch drain is safe for a non terminal stop.**
+  ([#3960](https://github.com/JasperFx/wolverine/pull/3960)) `RabbitMqListener.StopAsync` is not always
+  terminal — `RequeueContinuation` stops the listener inline from the handler pipeline and the background
+  `PauseAsync` stops the same consumer again. A JasperFx `BatchingChannel` tolerates every post completion
+  call silently, which means `PostAsync` after `Complete` **discards the envelope with no exception**, so a
+  delivery landing between the drain's `Complete()` and the dispose latch vanished and was redelivered.
+  The latch now happens before completing.
+
+- **A rejected settle quiesces the channel the broker has already closed.**
+  ([#3964](https://github.com/JasperFx/wolverine/pull/3964), addresses
+  [#3950](https://github.com/JasperFx/wolverine/issues/3950)) When the broker rejects a settle with
+  `PRECONDITION_FAILED - unknown delivery tag` it has already closed that channel, and Wolverine carried
+  on delivering into it. A channel torn down with deliveries still in flight is what makes RabbitMQ.Client
+  race itself — `SessionManager.Lookup` throws `KeyNotFoundException` for the channel number it just
+  removed and the client escalates that into a library initiated close of the **entire connection**
+  (`code=541`), taking down every listener and sender on it. Wolverine now cancels that channel's consumer
+  and rebuilds instead of feeding a channel known to be dead.
+
+  This narrows the window and speeds recovery; it does **not** prevent the connection close, which is set
+  in motion before Wolverine can observe anything — the exception is raised on the client's own `MainLoop`
+  after the ack has gone out. The underlying defect is upstream in rabbitmq-dotnet-client, where
+  `SessionManager.Lookup` should `TryGetValue` and drop frames for a dead channel rather than throwing.
+
+- **Listener recovery after a mid flight connection death is now asserted.**
+  ([#3961](https://github.com/JasperFx/wolverine/pull/3961), covers
+  [#3950](https://github.com/JasperFx/wolverine/issues/3950)) That Wolverine recovers from the connection
+  close above was observed but never tested. A test now kills the broker connection through the management
+  API and asserts a message published *after* the kill still arrives. Two things it encodes: `/api/connections`
+  lags the TCP connect on RabbitMQ 4.x (empty at 4s, populated at 8s, on a healthy host passing traffic), and
+  the kill is scoped by a per test `ClientProvidedName` so it cannot take down a concurrently running test's
+  connections.
+
 ### WolverineFx.Http.Fisher (new package)
 
 - **New `WolverineFx.Http.Fisher` package.** ([#3949](https://github.com/JasperFx/wolverine/pull/3949),
