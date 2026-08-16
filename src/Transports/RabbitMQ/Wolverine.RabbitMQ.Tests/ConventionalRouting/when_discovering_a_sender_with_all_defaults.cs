@@ -20,7 +20,8 @@ public class when_discovering_a_sender_with_all_defaults : ConventionalRoutingCo
         theRoute = ((await PublishingRoutesFor<ConventionallyRoutedMessage>()).Single() as MessageRoute)!;
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: shadows ConventionalRoutingContext.DisposeAsync -- must stop the host itself.
+    ValueTask IAsyncDisposable.DisposeAsync() => DisposeHostAsync();
 
     [Fact]
     public void should_have_exactly_one_route()

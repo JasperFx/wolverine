@@ -46,7 +46,13 @@ public class Bug_2681_handler_type_naming_binds_all_exchanges : IAsyncLifetime, 
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: IHost.Dispose() does not run StopAsync, so a synchronous teardown left this
+    // class's Rabbit consumers attached to a SHARED, fixed queue name and stealing later
+    // tests' messages. Stop the hosts for real.
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_host != null) await _host.StopAsync();
+    }
 
     [Fact]
     public void handler_queue_is_bound_to_every_handled_message_exchange()
@@ -127,7 +133,13 @@ public class Bug_2681_custom_bindings_are_not_double_added : IAsyncLifetime, IDi
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: IHost.Dispose() does not run StopAsync, so a synchronous teardown left this
+    // class's Rabbit consumers attached to a SHARED, fixed queue name and stealing later
+    // tests' messages. Stop the hosts for real.
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_host != null) await _host.StopAsync();
+    }
 
     [Fact]
     public void user_custom_binding_is_not_double_added_by_the_convention()

@@ -22,7 +22,8 @@ public class when_discovering_a_listening_endpoint_with_overridden_queue_naming 
         theEndpoint = (await theRuntime()).Endpoints.EndpointFor(theExpectedUri).ShouldBeOfType<RabbitMqQueue>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: shadows ConventionalRoutingContext.DisposeAsync -- must stop the host itself.
+    ValueTask IAsyncDisposable.DisposeAsync() => DisposeHostAsync();
 
     [Fact]
     public void endpoint_should_be_a_listener()
