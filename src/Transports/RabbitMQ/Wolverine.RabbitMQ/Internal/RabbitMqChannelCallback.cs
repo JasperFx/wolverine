@@ -42,6 +42,9 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
                 if (isUnknownDeliveryTag(exception))
                 {
                     logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
+
+                    // GH-3950: the broker has already closed that channel. Stop feeding it.
+                    e.RabbitMqListener.QuiesceAfterRejectedSettle(e);
                 }
             }
         }, logger, cancellationToken);
@@ -129,6 +132,9 @@ internal class RabbitMqChannelCallback : IChannelCallback, IDisposable, ISupport
             if (isUnknownDeliveryTag(exception))
             {
                 Logger.LogInformation("Encountered an unknown delivery tag, discarding the envelope");
+
+                // GH-3950: the broker has already closed that channel. Stop feeding it.
+                envelope.RabbitMqListener.QuiesceAfterRejectedSettle(envelope);
                 return;
             }
 

@@ -80,6 +80,9 @@ internal class RabbitMqInteropFriendlyCallback : IChannelCallback, ISupportDeadL
                 // way to the dead letter queue, so there is nothing left to do.
                 _logger.LogInformation(
                     "Encountered an unknown delivery tag while settling a dead lettered message, discarding the envelope");
+
+                // GH-3950: the broker has already closed that channel. Stop feeding it.
+                e.RabbitMqListener.QuiesceAfterRejectedSettle(e);
             }
         }
     }
@@ -419,6 +422,68 @@ internal class RabbitMqListener : RabbitMqChannelAgent, IListener, ISupportDeadL
     /// `Channel!` threw a NullReferenceException mid-reconnect -- can never succeed on any later
     /// channel, and just burns the retry budget while the same message cycles round again.
     /// </summary>
+    // The channel generation we have already quiesced, so a burst of rejected settles on the same dead
+    // channel triggers exactly one rebuild rather than one per envelope.
+    private object? _quiescedChannel;
+
+    /// <summary>
+    /// GH-3950. Called when the broker rejects a settle with <c>PRECONDITION_FAILED - unknown delivery
+    /// tag</c>, which means the broker has ALREADY closed the channel the tag arrived on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The damage that motivates this is not the rejected tag itself, which Wolverine has always handled.
+    /// It is that RabbitMQ.Client races itself while a channel is being torn down with deliveries still in
+    /// flight on it: an inbound frame arrives for a channel number just removed from the session map,
+    /// <c>SessionManager.Lookup</c> does an indexer read and throws <c>KeyNotFoundException</c>, and the
+    /// client escalates that into a library-initiated close of the WHOLE connection (code=541) — every
+    /// listener and sender on it, not just this channel.
+    /// </para>
+    /// <para>
+    /// Wolverine cannot catch that; it is thrown on the client's own MainLoop after our ack has already
+    /// gone out. What we CAN do is stop feeding a channel we now know is dead: cancel its consumer, tear
+    /// it down and rebuild, rather than leaving deliveries streaming into a teardown. This narrows the
+    /// window for further frames on the dead channel and gets the listener back on a healthy one sooner.
+    /// It does not, and cannot, prevent the connection death that a single rejected tag has already set in
+    /// motion.
+    /// </para>
+    /// </remarks>
+    internal void QuiesceAfterRejectedSettle(RabbitMqEnvelope envelope)
+    {
+        var channel = envelope.DeliveredOn;
+        if (channel is null || IsDisposed || _cancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
+        // One rebuild per channel generation. Exchange returns the PREVIOUS value, so the first caller for
+        // a given channel sees something else and proceeds; every later one sees its own channel back.
+        if (ReferenceEquals(Interlocked.Exchange(ref _quiescedChannel, channel), channel))
+        {
+            return;
+        }
+
+        Logger.LogWarning(
+            "A Rabbit MQ delivery tag was rejected as unknown at {Uri}, which means the broker has already closed that channel. Proactively rebuilding the listener's channel so that in flight deliveries are not left racing its teardown. See GH-3950.",
+            Address);
+
+        // Deliberately not awaited: this runs from a settle path (a RetryBlock, or the dead letter
+        // callback) and ReconnectedAsync takes _reconnectLock and does real broker work.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await ReconnectedAsync();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e,
+                    "Error while proactively rebuilding the Rabbit MQ channel for {Uri} after a rejected delivery tag",
+                    Address);
+            }
+        });
+    }
+
     internal bool CanSettle(RabbitMqEnvelope envelope)
     {
         var channel = Channel;
