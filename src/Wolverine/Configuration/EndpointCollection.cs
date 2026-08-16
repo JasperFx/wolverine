@@ -581,6 +581,14 @@ public class EndpointCollection : IEndpointCollection
             _senders = _senders.Remove(destination);
         }
 
+        // Endpoint.Agent is a second, independent handle on the agent we are about to dispose, and
+        // DestinationEndpoint and MessageRoute both read it. Leaving it set handed callers a disposed
+        // agent long after this collection had forgotten it. See GH-3955.
+        if (ReferenceEquals(agent.Endpoint.Agent, agent))
+        {
+            agent.Endpoint.Agent = null;
+        }
+
         if (agent is IAsyncDisposable ad)
         {
             await ad.DisposeAsync();
