@@ -4,6 +4,7 @@ using JasperFx.Core.IoC;
 using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.Events;
+using JasperFx.Events.Documents;
 using JasperFx.Events.Subscriptions;
 using Marten;
 using Marten.Events.Daemon.Coordination;
@@ -100,6 +101,26 @@ public static class WolverineOptionsMartenExtensions
         expression.Services.AddScoped<ScopedDocumentSessionHolder>();
         preferScopedSession<IDocumentSession>(expression.Services);
         preferScopedSession<IQuerySession>(expression.Services);
+
+        // GH-3956: Marten registers its own interfaces, never the store-agnostic JasperFx.Events.Documents
+        // contracts its session types already implement, so a service depending on one of those could not
+        // be resolved at all on a stock host. Handler PARAMETERS are satisfied by codegen
+        // (SharedDocumentOperationsSource); these registrations cover everything codegen does not see --
+        // a service-located contract, or one injected into a class that a handler depends on.
+        //
+        // Deliberately delegating to IDocumentSession / IQuerySession rather than to a fresh session, so
+        // the preferScopedSession decoration above applies: inside a handler scope these resolve to the
+        // handler's outbox-enrolled session, not a separate un-enrolled one.
+        expression.Services.TryAddScoped<IDocumentSessionOperations>(s => s.GetRequiredService<IDocumentSession>());
+        expression.Services.TryAddScoped<IDocumentWriteOperations>(s => s.GetRequiredService<IDocumentSession>());
+        expression.Services.TryAddScoped<IDocumentReadOperations>(s => s.GetRequiredService<IQuerySession>());
+
+        // IDocumentStore implements both of these, and it is a singleton, so this is a straight alias.
+        // Same move jasperfx#430 made for IProjectionCoordinator (see line ~149 below).
+        expression.Services.TryAddSingleton<IDocumentSessionFactory>(s => s.GetRequiredService<IDocumentStore>());
+        expression.Services
+            .TryAddSingleton<IDocumentSessionFactory<IDocumentSession, IQuerySession>>(s =>
+                (IDocumentSessionFactory<IDocumentSession, IQuerySession>)s.GetRequiredService<IDocumentStore>());
 
         // Gotta have at least a placeholder just in case a user also has
         // EF Core
