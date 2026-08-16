@@ -175,6 +175,20 @@ public class MultiTenantedRabbitFixture : IAsyncLifetime
 // multi_response, global_response and multi_incoming are fixed names in the shared default vhost -- but
 // it does not yet prove it. The full tracked-session table and the stack are in the per-run
 // test-ledger-CIRabbitMQ artifact; read one before theorising further.
+//
+// UPDATE 2026-08-16: one contributing cause IS now identified and fixed, but it is NOT the
+// interference above -- do not read this as the file being clean.
+//
+// send_message_to_a_specific_tenant asserted on MultiTenantResponse while its tracked session waited
+// only for MultiTenantMessage to reach node two. A local full-suite trace caught the session
+// completing in the SAME MILLISECOND the response was Sent by node two, so SingleRecord had nothing
+// to find. Note that contradicts the inference recorded above from run 30856898284: the response WAS
+// produced, the session just stopped before it landed. The condition now includes the response.
+//
+// Two local full-suite runs failed on this test before that change (501/502, 498/499) and the run
+// after was 502/502 -- one clean run, which is evidence and not proof. The fixed-queue-name
+// interference is untouched by this, and if it bites, the symptom is now a 15s timeout rather than
+// "no messages of type MultiTenantResponse". Keep reading the ledger artifact before theorising.
 public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRabbitFixture>
 {
     private readonly MultiTenantedRabbitFixture _fixture;
@@ -193,6 +207,12 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
             .Timeout(15.Seconds())
             .AlsoTrack(_fixture.One, _fixture.Two, _fixture.Three)
             .WaitForMessageToBeReceivedAt<MultiTenantMessage>(_fixture.Two)
+            // The assertions below also require the RESPONSE to have made it back to main. Waiting
+            // only on the request meant the session could complete in the same millisecond the
+            // response was sent, leaving SingleRecord<MultiTenantResponse>() with nothing to find.
+            // This removes one real race; see the class note above for the separate, still
+            // unidentified interference this does NOT address.
+            .WaitForMessageToBeReceivedAt<MultiTenantResponse>(_fixture.Main)
             .SendMessageAndWaitAsync(message, new DeliveryOptions{TenantId = "two"});
 
         var record = session.Received.SingleRecord<MultiTenantMessage>();

@@ -15,6 +15,7 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     private readonly IRabbitMqEnvelopeMapper _mapper;
     private readonly IReceiver _workerQueue;
     private bool _latched;
+    private bool _batchDrained;
     private readonly SemaphoreSlim _cancelOks = new(0);
 
     // GH-3492: durable endpoints coalesce prefetched deliveries into Envelope[] batches so the
@@ -72,8 +73,16 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     public void Dispose()
     {
         _latched = true;
+
         // Push any accumulated-but-unflushed deliveries onward; anything genuinely in flight
         // is unacked and will be redelivered by the broker (and deduplicated by the inbox).
+        //
+        // Pointless once DrainBatchedDeliveriesAsync has completed the channel, which
+        // DrainWaitForPrefetch does strictly BEFORE this Dispose. A completed BatchingChannel does
+        // not throw here -- it quietly does nothing -- so skipping is about saying which call is
+        // load bearing rather than avoiding an exception. See GH-3796.
+        if (_batchDrained) return;
+
         _batching?.TriggerBatch();
     }
 
@@ -94,13 +103,30 @@ internal class WorkerQueueMessageConsumer : AsyncDefaultBasicConsumer, IDisposab
     /// Flush any batched-but-undelivered envelopes to the receiver and await that flush. cancel-ok only
     /// guarantees deliveries reached the batching channel, so without this the receiver latches first and
     /// the batch is redelivered.
+    ///
+    /// <para>
+    /// Idempotent, because <see cref="RabbitMqListener.StopAsync"/> is not always a terminal shutdown:
+    /// <c>RequeueContinuation</c> stops the listener from inside the handler pipeline and the background
+    /// <c>PauseAsync</c> then stops it a second time before disposing it. The second stop has nothing
+    /// left to drain, and re-running the cancel-ok wait against an already completed channel only spends
+    /// shutdown budget. See GH-3796.
+    /// </para>
     /// </summary>
     internal async Task DrainBatchedDeliveriesAsync()
     {
-        if (_batching == null)
+        if (_batching == null || _batchDrained)
         {
             return;
         }
+
+        // A BatchingChannel accepts posts after Complete() and silently discards them -- it does not
+        // throw -- so a delivery landing between this Complete and Dispose's latch would vanish
+        // without ever reaching the receiver, which is precisely the redelivery DrainWaitForPrefetch
+        // exists to prevent. Latching first turns that window into an explicit reject-with-requeue.
+        // Safe here because this runs only after cancel-ok, and the broker sends no further deliveries
+        // on a cancelled consumer.
+        _latched = true;
+        _batchDrained = true;
 
         _batching.TriggerBatch();
         _batching.Complete();
