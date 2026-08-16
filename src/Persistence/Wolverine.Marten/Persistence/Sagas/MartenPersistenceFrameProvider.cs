@@ -108,18 +108,26 @@ internal partial class MartenPersistenceFrameProvider : IPersistenceFrameProvide
         if (ChainHasMartenSessionAttributes(chain)) return true;
 
         var serviceDependencies = chain
-            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations), typeof(global::JasperFx.Events.IEventOperations), typeof(global::JasperFx.Events.IEventStoreOperations), typeof(global::Marten.Events.IEventStoreOperations) }).ToArray();
+            .ServiceDependencies(container, new[] { typeof(IDocumentSession), typeof(IQuerySession), typeof(IDocumentOperations), typeof(global::JasperFx.Events.IEventOperations), typeof(global::JasperFx.Events.IEventStoreOperations), typeof(global::Marten.Events.IEventStoreOperations), typeof(global::JasperFx.Events.Documents.IDocumentSessionOperations), typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations), typeof(global::JasperFx.Events.Documents.IDocumentReadOperations) }).ToArray();
                 // A handler that takes the event operations straight as a parameter -- the shared
         // JasperFx.Events.IEventOperations / IEventStoreOperations, or Marten's own IEventStoreOperations -- is
         // unambiguously using this store, but none of those types appeared here, so
         // AutoApplyTransactions skipped the chain and nothing was ever committed. Appending
         // through the parameter queued into the session's unit of work and then silently
         // vanished, with no exception.
+        //
+        // GH-3956: the same hole existed on the DOCUMENT side. JasperFx.Events.Documents lifts the
+        // store-agnostic document contracts, and Marten's IDocumentSession implements all three, so a
+        // handler could already declare one and have it bind -- it just never got a commit.
+        // IDocumentReadOperations is deliberately probed but NOT matched here, exactly as IQuerySession
+        // has always been: a read-only parameter is not evidence that the chain writes anything.
         return serviceDependencies.Any(x => x == typeof(IDocumentSession) || x == typeof(IDocumentOperations)
                                             || x.Closes(typeof(IEventStream<>))
                                             || x == typeof(global::JasperFx.Events.IEventOperations)
                                             || x == typeof(global::JasperFx.Events.IEventStoreOperations)
-                                            || x == typeof(global::Marten.Events.IEventStoreOperations));
+                                            || x == typeof(global::Marten.Events.IEventStoreOperations)
+                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentSessionOperations)
+                                            || x == typeof(global::JasperFx.Events.Documents.IDocumentWriteOperations));
     }
 
     private static bool ChainHasMartenSessionAttributes(IChain chain)

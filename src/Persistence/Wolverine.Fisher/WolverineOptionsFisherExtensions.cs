@@ -6,6 +6,7 @@ using JasperFx.Events.Projections;
 using JasperFx.Events.Subscriptions;
 using Fisher;
 using Microsoft.Extensions.DependencyInjection;
+using JasperFx.Events.Documents;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Wolverine.Fisher.Publishing;
@@ -55,6 +56,21 @@ public static class WolverineOptionsFisherExtensions
         expression.Services.AddSingleton<IWolverineExtension, MapEventTypeMessages>();
 
         expression.Services.AddScoped<IFisherOutbox, FisherOutbox>();
+
+        // GH-3956: Fisher registers its own interfaces, never the store-agnostic
+        // JasperFx.Events.Documents contracts its session types already implement, so a service depending
+        // on one of those could not be resolved at all on a stock host. Handler PARAMETERS are satisfied by
+        // codegen (SharedDocumentOperationsSource); these registrations cover everything codegen does not
+        // see -- a service-located contract, or one injected into a class that a handler depends on.
+        expression.Services.TryAddScoped<IDocumentSessionOperations>(s => s.GetRequiredService<IDocumentSession>());
+        expression.Services.TryAddScoped<IDocumentWriteOperations>(s => s.GetRequiredService<IDocumentSession>());
+        expression.Services.TryAddScoped<IDocumentReadOperations>(s => s.GetRequiredService<IQuerySession>());
+
+        // IDocumentStore implements both of these, and it is a singleton, so this is a straight alias.
+        expression.Services.TryAddSingleton<IDocumentSessionFactory>(s => s.GetRequiredService<IDocumentStore>());
+        expression.Services
+            .TryAddSingleton<IDocumentSessionFactory<IDocumentSession, IQuerySession>>(s =>
+                (IDocumentSessionFactory<IDocumentSession, IQuerySession>)s.GetRequiredService<IDocumentStore>());
 
         expression.Services.AddSingleton<DatabaseSettings>(s =>
         {

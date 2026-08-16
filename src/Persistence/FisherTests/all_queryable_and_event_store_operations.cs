@@ -1,5 +1,12 @@
 using JasperFx;
 using JasperFx.Events;
+// NB: importing the JasperFx.Events.Documents NAMESPACE here would make ToListAsync() ambiguous
+// between DocumentQueryableExtensions and Fisher's own queryable extensions (CS0121), so alias
+// just the contracts under test.
+using IDocumentSessionOperations = JasperFx.Events.Documents.IDocumentSessionOperations;
+using IDocumentWriteOperations = JasperFx.Events.Documents.IDocumentWriteOperations;
+using IDocumentReadOperations = JasperFx.Events.Documents.IDocumentReadOperations;
+using IDocumentSessionFactory = JasperFx.Events.Documents.IDocumentSessionFactory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Fisher;
@@ -108,8 +115,52 @@ public class all_queryable_and_event_store_operations : IAsyncLifetime
         events.Count.ShouldBe(1);
         events[0].Data.ShouldBeOfType<FiLedgerEntryRecorded>().Note.ShouldBe("opening");
     }
-}
 
+    /// <summary>
+    ///     GH-3956. The store-agnostic JasperFx.Events.Documents contracts bind AND commit. Before this,
+    ///     a handler declaring one failed codegen outright on a stock host; once bound by the variable
+    ///     source alone, its writes were queued into the session's unit of work and silently discarded.
+    /// </summary>
+    [Fact]
+    public async Task document_session_operations_parameter_is_committed()
+    {
+        var id = Guid.NewGuid();
+
+        await _host.InvokeMessageAndWaitAsync(new StoreFiNote(id, "session-ops"));
+
+        await using var session = _host.Services.GetRequiredService<IDocumentStore>().LightweightSession();
+        var note = await session.LoadAsync<FiNote>(id, TestContext.Current.CancellationToken);
+
+        note.ShouldNotBeNull();
+        note.Text.ShouldBe("session-ops");
+    }
+
+    /// <summary>
+    ///     The read and write contracts must be satisfied by the same session variable, or a handler that
+    ///     writes and then reads would silently be reading from a different unit of work.
+    /// </summary>
+    [Fact]
+    public async Task read_and_write_operations_resolve_to_one_session()
+    {
+        var result = await _host.MessageBus()
+            .InvokeAsync<FiSessionsCompared>(new CompareFiSessions(), TestContext.Current.CancellationToken);
+
+        result.SameInstance.ShouldBeTrue();
+    }
+
+    /// <summary>
+    ///     Fisher registers IDocumentStore, never the lifted factory contract it already implements.
+    /// </summary>
+    [Fact]
+    public void document_session_factory_contracts_are_registered()
+    {
+        var store = _host.Services.GetRequiredService<IDocumentStore>();
+        _host.Services.GetRequiredService<IDocumentSessionFactory>().ShouldBeSameAs(store);
+        _host.Services
+            .GetRequiredService<JasperFx.Events.Documents.IDocumentSessionFactory<IDocumentSession, IQuerySession>>()
+            .ShouldBeSameAs(store);
+    }
+}
 public class FiWidget
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -123,6 +174,17 @@ public record FiWidgetsCounted(int Count);
 public record PopularFiWidgetsFound(string[] Names);
 public record FiLedgerEntryRecorded(string Note);
 public record RecordFiLedgerEntry(Guid Id, string Note);
+
+[WolverineIgnore]
+public class FiNote
+{
+    public Guid Id { get; set; }
+    public string Text { get; set; } = string.Empty;
+}
+
+public record StoreFiNote(Guid Id, string Text);
+public record CompareFiSessions;
+public record FiSessionsCompared(bool SameInstance);
 
 [WolverineIgnore]
 public static class FiCatalogHandler
@@ -147,4 +209,12 @@ public static class FiCatalogHandler
 
     public static void Handle(FiWidgetsCounted msg) { }
     public static void Handle(PopularFiWidgetsFound msg) { }
+
+    // Only JasperFx.Events.Documents types named here -- nothing Fisher-specific
+    public static void Handle(StoreFiNote command, IDocumentSessionOperations session)
+        => session.Store(new FiNote { Id = command.Id, Text = command.Text });
+
+    public static FiSessionsCompared Handle(CompareFiSessions command,
+        IDocumentWriteOperations writes, IDocumentReadOperations reads)
+        => new(ReferenceEquals(writes, reads));
 }
