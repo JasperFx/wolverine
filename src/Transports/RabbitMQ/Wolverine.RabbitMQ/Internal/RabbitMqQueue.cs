@@ -100,6 +100,17 @@ public partial class RabbitMqQueue : RabbitMqEndpoint, IBrokerQueue, IRabbitMqQu
     }
 
     /// <summary>
+    /// When true, listener shutdown waits for prefetched messages in the RabbitMQ client's dispatch
+    /// buffer to reach the consumer before closing the channel, preventing silent redeliveries of
+    /// messages that were prefetched but not yet handled. Default is false.
+    ///
+    /// Only a hard guarantee at <c>ConsumerDispatchConcurrency</c> of 1 (the default). At higher
+    /// concurrency the client handles deliveries and cancel-ok in parallel, so it degrades to
+    /// best-effort -- some messages may still be redelivered, but fewer than without waiting.
+    /// </summary>
+    public bool DrainWaitForPrefetch { get; set; }
+
+    /// <summary>
     ///     Use to override the dead letter queue for this queue
     /// </summary>
     public DeadLetterQueue? DeadLetterQueue { get; set; }
