@@ -14,7 +14,16 @@ public static class ConventionalRoutingTestDefaults
 }
 
 
-public abstract class ConventionalRoutingContext : IDisposable
+/// <summary>
+///     GH-3965. Note the async disposal. Every conventionally routed <see cref="ConventionallyRoutedMessage" />
+///     lands on one FIXED queue -- the type carries <c>[MessageIdentity("routed")]</c>, so the queue is
+///     literally <c>routed</c> -- and several classes in this namespace stand up listeners on it.
+///     <see cref="IHost.Dispose" /> does NOT run <c>IHostedService.StopAsync</c>, so disposing synchronously
+///     left those consumers attached to the broker after the test finished, and a later test's message was
+///     delivered to a leaked consumer belonging to an already-completed class. That shows up as a tracked
+///     session containing <c>Sent</c> and no <c>Received</c> at all.
+/// </summary>
+public abstract class ConventionalRoutingContext : IDisposable, IAsyncDisposable
 {
     private IHost _host = null!;
 
@@ -53,6 +62,22 @@ public abstract class ConventionalRoutingContext : IDisposable
     public void Dispose()
     {
         _host?.Dispose();
+    }
+
+    public ValueTask DisposeAsync() => DisposeHostAsync();
+
+    /// <summary>
+    ///     Stops the host so its Rabbit consumers are actually cancelled, then disposes it. Derived classes
+    ///     that implement <c>IAsyncLifetime</c> shadow the interface implementation above, so they must call
+    ///     this from their own <c>DisposeAsync</c> rather than returning a completed ValueTask.
+    /// </summary>
+    protected async ValueTask DisposeHostAsync()
+    {
+        if (_host == null) return;
+
+        await _host.StopAsync();
+        _host.Dispose();
+        _host = null!;
     }
 
     internal async Task ConfigureConventions(Action<RabbitMqMessageRoutingConvention> configure)

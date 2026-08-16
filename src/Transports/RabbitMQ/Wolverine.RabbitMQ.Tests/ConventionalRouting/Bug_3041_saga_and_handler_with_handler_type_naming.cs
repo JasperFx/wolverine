@@ -39,7 +39,13 @@ public class Bug_3041_saga_and_handler_with_handler_type_naming : IAsyncLifetime
         _runtime = _host.Services.GetRequiredService<IWolverineRuntime>();
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: IHost.Dispose() does not run StopAsync, so a synchronous teardown left this
+    // class's Rabbit consumers attached to a SHARED, fixed queue name and stealing later
+    // tests' messages. Stop the hosts for real.
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_host != null) await _host.StopAsync();
+    }
 
     [Fact]
     public void both_the_saga_and_the_regular_handler_get_listener_queues()

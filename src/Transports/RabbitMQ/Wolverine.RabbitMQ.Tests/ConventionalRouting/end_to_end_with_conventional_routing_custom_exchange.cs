@@ -57,7 +57,14 @@ public class end_to_end_with_conventional_routing_custom_exchange : IAsyncLifeti
 
     }
 
-    ValueTask IAsyncDisposable.DisposeAsync() => ValueTask.CompletedTask;
+    // GH-3965: IHost.Dispose() does not run StopAsync, so a synchronous teardown left this
+    // class's Rabbit consumers attached to a SHARED, fixed queue name and stealing later
+    // tests' messages. Stop the hosts for real.
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_sender != null) await _sender.StopAsync();
+        if (_receiver != null) await _receiver.StopAsync();
+    }
 
     public void Dispose()
     {
