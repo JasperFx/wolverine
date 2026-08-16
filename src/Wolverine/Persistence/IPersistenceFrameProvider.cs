@@ -25,6 +25,25 @@ public interface IPersistenceFrameProvider
     bool CanApply(IChain chain, IServiceContainer container);
 
     /// <summary>
+    ///     The service type that owns this chain's transaction, when that owner is itself one of the
+    ///     chain's own service dependencies — EF Core's <c>DbContext</c>, chosen by
+    ///     <c>DetermineDbContextType</c>. Wolverine uses this to route a handler's durable inbox row to
+    ///     the ancillary message store enrolled for that owner, so the inbox update and the handler's
+    ///     writes share one transaction (GH-3870).
+    /// </summary>
+    /// <remarks>
+    ///     Returns null by default, which is the correct answer for every provider whose ancillary store
+    ///     must be named explicitly with <c>[Storage]</c> / <c>[MartenStore]</c> / <c>[PolecatStore]</c>
+    ///     (Marten, Polecat, Fisher). Those designations already populate
+    ///     <see cref="IChain.AncillaryStoreType" />, and a bare dependency on the store interface says
+    ///     nothing about who commits — a store injected only to run read-only queries would otherwise
+    ///     pull the inbox row away from the store the handler actually writes to (GH-3953).
+    ///     Implementations must not throw: an unresolvable or ambiguous owner is reported as null and
+    ///     left for codegen to diagnose.
+    /// </remarks>
+    Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container) => null;
+
+    /// <summary>
     ///     Use for Saga creation support as returned value
     /// </summary>
     /// <param name="entityType"></param>
