@@ -49,14 +49,19 @@ public partial class MultiTenantedMessageStore : IAgentFamily
     {
         // GH-3785: same cross-family database affinity as MessageStoreCollection — see the note there.
         var preference = DurabilityProjectionAffinity.BuildPreference(assignments);
-        assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor);
+        assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor,
+            MessageStoreCollection.NodeCanRunDurabilityAgents);
 
         preference.ReportTo(_logger, ref _lastAffinityReport);
+
+        // GH-3954: same node-level capability gate as MessageStoreCollection — see the note there.
+        MessageStoreCollection.WarnIfNoCapableNode(assignments, _logger, ref _warnedAboutNoCapableNode);
 
         return ValueTask.CompletedTask;
     }
 
     private (int Known, int Considered, int Matched) _lastAffinityReport;
+    private bool _warnedAboutNoCapableNode;
 
     private class DummyAgent : IAgent
     {

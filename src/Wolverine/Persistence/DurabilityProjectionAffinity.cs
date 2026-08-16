@@ -35,7 +35,7 @@ internal static class DurabilityProjectionAffinity
     }
 
     /// <summary>
-    ///     Build the preference function for <see cref="AssignmentGrid.DistributeEvenlyWithAffinity" /> from
+    ///     Build the preference function for <see cref="AssignmentGrid.DistributeEvenlyWithAffinity(string, Func{Uri, AssignmentGrid.Node})" /> from
     ///     the event-subscription assignments already present in the grid. Returns the node hosting the most
     ///     of a database's event-subscription agents (during a blue/green split a database legitimately has
     ///     one owner per version; the durability agent follows the larger side, tie-broken by node id for

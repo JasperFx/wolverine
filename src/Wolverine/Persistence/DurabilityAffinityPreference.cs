@@ -4,7 +4,7 @@ using Wolverine.Runtime.Agents;
 namespace Wolverine.Persistence;
 
 /// <summary>
-///     GH-3785: the preference function handed to <see cref="AssignmentGrid.DistributeEvenlyWithAffinity" />,
+///     GH-3785: the preference function handed to <see cref="AssignmentGrid.DistributeEvenlyWithAffinity(string, Func{Uri, AssignmentGrid.Node})" />,
 ///     plus a count of how much of it actually engaged.
 ///
 ///     <para>The affinity join is deliberately fail-silent — <see cref="DurabilityProjectionAffinity" /> falls
