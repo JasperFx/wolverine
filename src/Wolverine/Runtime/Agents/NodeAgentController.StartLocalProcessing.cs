@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Wolverine.Persistence;
 
 namespace Wolverine.Runtime.Agents;
 
@@ -10,6 +11,21 @@ public partial class NodeAgentController
         foreach (var controller in _agentFamilies.Values.OfType<IStaticAgentFamily>())
         {
             current.Capabilities.AddRange(await controller.SupportedAgentsAsync());
+        }
+
+        // GH-3954: the durability agent family is deliberately NOT an IStaticAgentFamily -- its agent list
+        // grows at runtime as tenant databases are added -- so none of its wolverinedb:// Uris pass through
+        // the loop above, and the leader had no way to tell a node that runs durability agents from one with
+        // Durability.DurabilityAgentEnabled = false. It assigned to both, the incapable node threw
+        // "Unrecognized agent scheme 'wolverinedb'", and the assignment never converged while staged
+        // envelopes sat unrecovered. Publish a single node-level marker instead; see
+        // MessageStoreCollection.DurabilityCapabilityUri.
+        // Keyed on the setting rather than on _agentFamilies[_runtime.Stores.Scheme], which is the same
+        // condition -- the constructor registers the family if and only if this flag is set -- but reaches
+        // through Stores, and that is null on a runtime with no message store.
+        if (options.Durability.DurabilityAgentEnabled)
+        {
+            current.Capabilities.Add(MessageStoreCollection.DurabilityCapabilityUri);
         }
 
         // GH-3604 / D2: remember the capabilities so we can re-register with them if a peer ever deletes our

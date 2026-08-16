@@ -361,6 +361,30 @@ public partial class AssignmentGrid
     /// </summary>
     public void DistributeEvenlyWithAffinity(string scheme, Func<Uri, Node?> preferredNodeFor)
     {
+        DistributeEvenlyWithAffinity(scheme, preferredNodeFor, _ => true);
+    }
+
+    /// <summary>
+    ///     Same as <see cref="DistributeEvenlyWithAffinity(string, Func{Uri, Node})" />, restricted to the nodes
+    ///     for which <paramref name="nodeIsCapable" /> is true. Agents are never placed on an incapable node,
+    ///     and any agent currently sitting on one is detached so it can move.
+    /// </summary>
+    /// <remarks>
+    ///     GH-3954. Note the capability question here is per-NODE, not per-agent as in
+    ///     <see cref="DistributeEvenlyWithBlueGreenSemantics(string)" /> — and deliberately NOT gated on
+    ///     <see cref="AllNodesHaveSameCapabilities(string)" />, which returns true trivially both when there is
+    ///     a single node (<c>_nodes.Skip(1)</c> is empty) and when every node is equally incapable. Those are
+    ///     exactly the two configurations that were reported, so a fix modelled on the blue/green path would
+    ///     not have changed either of them.
+    ///
+    ///     <para>When NO node is capable this assigns nothing and leaves the agents unassigned, rather than
+    ///     handing them to a node that will throw "Unrecognized agent scheme" and be re-assigned the same work
+    ///     five minutes later, forever. Callers should say so out loud — see
+    ///     <c>MessageStoreCollection.EvaluateAssignmentsAsync</c>.</para>
+    /// </remarks>
+    public void DistributeEvenlyWithAffinity(string scheme, Func<Uri, Node?> preferredNodeFor,
+        Func<Node, bool> nodeIsCapable)
+    {
         if (_nodes.Count == 0)
         {
             throw new InvalidOperationException("There are no active nodes");
@@ -372,9 +396,24 @@ public partial class AssignmentGrid
             return;
         }
 
-        if (_nodes.Count == 1)
+        var capableNodes = _nodes.Where(nodeIsCapable).ToList();
+
+        // Detach anything parked on a node that cannot run it, so the passes below can move it. This also
+        // covers the "nobody is capable" case: everything ends up detached rather than latched onto a node
+        // that will only throw.
+        foreach (var agent in agents.Where(x => x.AssignedNode != null && !capableNodes.Contains(x.AssignedNode!)))
         {
-            var only = _nodes[0];
+            agent.Detach();
+        }
+
+        if (capableNodes.Count == 0)
+        {
+            return;
+        }
+
+        if (capableNodes.Count == 1)
+        {
+            var only = capableNodes[0];
             foreach (var agent in agents)
             {
                 only.Assign(agent);
@@ -387,6 +426,16 @@ public partial class AssignmentGrid
         foreach (var agent in agents)
         {
             var preferred = preferredNodeFor(agent.Uri);
+
+            // GH-3954: the affinity preference follows another family's placements, and that family may
+            // well be running on a node that cannot host durability agents. An incapable preference is
+            // discarded rather than honoured -- co-location is an optimisation, capability is a hard
+            // requirement -- and the agent falls through to the even spread over the capable nodes.
+            if (preferred != null && !capableNodes.Contains(preferred))
+            {
+                preferred = null;
+            }
+
             if (preferred == null)
             {
                 remainder.Add(agent);
@@ -407,11 +456,11 @@ public partial class AssignmentGrid
         // counting only the remainder itself toward each node's fill. Counting the preferred placements
         // too would push every no-affinity agent onto whichever nodes hold no projections, which is
         // exactly backwards: those nodes have no pool open to ANY shard database yet.
-        var spread = (double)remainder.Count / _nodes.Count;
+        var spread = (double)remainder.Count / capableNodes.Count;
         var minimum = (int)Math.Floor(spread);
         var maximum = (int)Math.Ceiling(spread);
 
-        foreach (var node in _nodes)
+        foreach (var node in capableNodes)
         {
             var extras = node.ForCurrentlyAssigned(remainder).Skip(maximum).ToArray();
             foreach (var agent in extras)
@@ -422,7 +471,7 @@ public partial class AssignmentGrid
 
         var missing = new Queue<Agent>(remainder.Where(x => x.AssignedNode == null));
 
-        foreach (var node in _nodes)
+        foreach (var node in capableNodes)
         {
             if (missing.Count == 0)
             {
@@ -446,8 +495,8 @@ public partial class AssignmentGrid
         {
             var agent = missing.Dequeue();
 
-            var node = _nodes.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
-                       ?? _nodes.FirstOrDefault(x => !x.IsLeader) ?? _nodes.First();
+            var node = capableNodes.FirstOrDefault(x => !x.IsLeader && x.ForCurrentlyAssigned(remainder).Count() < maximum)
+                       ?? capableNodes.FirstOrDefault(x => !x.IsLeader) ?? capableNodes.First();
             node.Assign(agent);
         }
     }

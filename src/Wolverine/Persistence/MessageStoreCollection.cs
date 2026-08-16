@@ -12,6 +12,27 @@ namespace Wolverine.Persistence;
 
 public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
 {
+    /// <summary>
+    ///     GH-3954. A node-level marker saying "this node can run durability agents at all", published into
+    ///     <see cref="Runtime.Agents.WolverineNode.Capabilities" /> at startup when the durability agent family
+    ///     is registered, and consulted by the leader when it distributes <c>wolverinedb://</c> agents.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         A node-level marker rather than the per-agent capability matching the blue/green and
+    ///         group-affinity paths use, for two reasons. First, this family is an <see cref="IAgentFamily" />
+    ///         and NOT an <see cref="IStaticAgentFamily" />, and only static families contribute to
+    ///         <c>Capabilities</c> — so no <c>wolverinedb://</c> agent Uri has ever appeared there on any node,
+    ///         capable or not, and per-agent matching would find zero capable nodes everywhere. Second,
+    ///         <c>Capabilities</c> is a startup snapshot, while this family's agent list GROWS at runtime as
+    ///         tenant databases are added; matching per agent would strand every later-added tenant database's
+    ///         durability agent. Whether a node can run these agents is genuinely a per-node property —
+    ///         <c>Durability.DurabilityAgentEnabled</c> turns the whole family on or off — so that is what gets
+    ///         published.
+    ///     </para>
+    /// </remarks>
+    public static readonly Uri DurabilityCapabilityUri = new("wolverine://durability-agents-enabled");
+
     private readonly IWolverineRuntime _runtime;
     private readonly List<MultiTenantedMessageStore> _multiTenanted = new();
     private ImHashMap<Uri, IMessageStore> _services = ImHashMap<Uri, IMessageStore>.Empty;
@@ -322,18 +343,54 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         // NodeAgentController evaluating this family AFTER the event-subscription family. A database with
         // no projection agents in the grid falls back to the even spread.
         var preference = DurabilityProjectionAffinity.BuildPreference(assignments);
-        assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor);
+        assignments.DistributeEvenlyWithAffinity(Scheme, preference.NodeFor, NodeCanRunDurabilityAgents);
 
         // The fallback is silent by design, so say out loud how much of it engaged -- see
         // DurabilityAffinityPreference. Logged only when the numbers move.
         _affinityLogger ??= _runtime.LoggerFactory.CreateLogger<MessageStoreCollection>();
         preference.ReportTo(_affinityLogger, ref _lastAffinityReport);
 
+        WarnIfNoCapableNode(assignments, _affinityLogger, ref _warnedAboutNoCapableNode);
+
         return ValueTask.CompletedTask;
     }
 
     private ILogger? _affinityLogger;
     private (int Known, int Considered, int Matched) _lastAffinityReport;
+    private bool _warnedAboutNoCapableNode;
+
+    /// <summary>
+    ///     GH-3954. Whether a node has published <see cref="DurabilityCapabilityUri" /> — i.e. it started with
+    ///     <c>Durability.DurabilityAgentEnabled</c> on and registered this family.
+    /// </summary>
+    internal static bool NodeCanRunDurabilityAgents(AssignmentGrid.Node node)
+    {
+        return node.Capabilities.Contains(DurabilityCapabilityUri);
+    }
+
+    /// <summary>
+    ///     GH-3954. The reported failure was silent: every queue table read zero while a nine-day backlog of
+    ///     unrecovered envelopes sat in wolverine_outgoing_envelopes. Leaving the agents unassigned stops the
+    ///     five-minute reassignment churn but is just as quiet on its own, so name the condition and the
+    ///     setting that causes it. Latched so it is said once per transition, not every evaluation.
+    /// </summary>
+    internal static void WarnIfNoCapableNode(AssignmentGrid assignments, ILogger logger, ref bool alreadyWarned)
+    {
+        if (assignments.Nodes.Any(NodeCanRunDurabilityAgents))
+        {
+            alreadyWarned = false;
+            return;
+        }
+
+        if (alreadyWarned)
+        {
+            return;
+        }
+
+        alreadyWarned = true;
+        logger.LogWarning(
+            "No node in this Wolverine cluster can run durability agents, so none were assigned and no outgoing envelope recovery, scheduled message processing or node reassignment will happen for any message store. Every node in the cluster started with Durability.DurabilityAgentEnabled = false. Enable it on at least one node.");
+    }
 
     internal async Task<IAgent> StartScheduledJobProcessing(IWolverineRuntime runtime)
     {
