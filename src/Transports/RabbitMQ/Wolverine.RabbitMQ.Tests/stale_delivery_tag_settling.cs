@@ -74,6 +74,65 @@ public class stale_delivery_tag_settling
 
         await host.StopAsync(TestContext.Current.CancellationToken);
     }
+
+    /// <summary>
+    /// GH-3950. A rejected settle now proactively rebuilds the listener's channel rather than leaving
+    /// deliveries streaming into a teardown. This asserts the listener is still CONSUMING afterwards.
+    /// </summary>
+    /// <remarks>
+    /// This is the guard for the hazard that proactive rebuild introduces rather than for the bug it
+    /// mitigates. #3391 is the precedent: a rebuild that only swaps the channel leaves a listener sitting
+    /// on an open channel with ZERO consumers while still reporting Connected — silently dead, and no
+    /// existing assertion catches it because the poisoned message itself is redelivered by the broker
+    /// regardless. Publishing a fresh batch AFTER the rebuild is what distinguishes "recovered" from
+    /// "quietly stopped listening".
+    /// </remarks>
+    [Fact]
+    public async Task the_listener_keeps_consuming_after_a_rejected_settle_rebuilds_the_channel()
+    {
+        var queueName = RabbitTesting.NextQueueName();
+
+        StaleTagHandler.Reset(poisonAt: 2);
+
+        using var host = await Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.UseRabbitMq().AutoProvision().AutoPurgeOnStartup();
+                opts.PublishAllMessages().ToRabbitQueue(queueName).SendInline();
+                opts.ListenToRabbitQueue(queueName).ProcessInline();
+            })
+            .StartAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        var bus = host.MessageBus();
+
+        var first = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var id in first)
+        {
+            await bus.PublishAsync(new StaleTagMessage(id));
+        }
+
+        await StaleTagHandler.WaitForAll(first.Length, TimeSpan.FromSeconds(60));
+
+        // Let the rejection, the proactive quiesce and the rebuild actually happen -- all of which land
+        // after the last message of the first batch has been handled.
+        await StaleTagHandler.WaitForRedelivery(first.Length, TimeSpan.FromSeconds(30));
+
+        // The assertion that matters: brand new messages published after the rebuild still arrive.
+        var second = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+        foreach (var id in second)
+        {
+            await bus.PublishAsync(new StaleTagMessage(id));
+        }
+
+        await StaleTagHandler.WaitForIds(second, TimeSpan.FromSeconds(60));
+
+        foreach (var id in second)
+        {
+            StaleTagHandler.HandledIds.ShouldContain(id);
+        }
+
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
 }
 
 public record StaleTagMessage(Guid Id);
@@ -137,6 +196,28 @@ public static class StaleTagHandler
             $"deliveries for {firstPassCount} messages. Either the override no longer produces an unknown " +
             $"delivery tag, or the settle path silently succeeded — in both cases this test is no longer " +
             $"covering what it claims to.");
+    }
+
+    /// <summary>
+    /// Polls for a specific set of ids rather than a count. The _source TCS is completed exactly once,
+    /// when the FIRST batch reaches _expected, so a second WaitForAll in the same test returns
+    /// immediately on the already-completed task and asserts against nothing.
+    /// </summary>
+    public static async Task WaitForIds(IEnumerable<Guid> ids, TimeSpan timeout)
+    {
+        var wanted = ids.ToArray();
+        var deadline = DateTimeOffset.UtcNow + timeout;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            if (wanted.All(_ids.ContainsKey)) return;
+            await Task.Delay(250);
+        }
+
+        var missing = wanted.Where(x => !_ids.ContainsKey(x)).ToArray();
+        throw new TimeoutException(
+            $"{missing.Length} of {wanted.Length} messages published AFTER the channel rebuild were never " +
+            $"handled within {timeout}. The listener stopped consuming rather than recovering.");
     }
 
     public static void Handle(StaleTagMessage message, Envelope envelope)
