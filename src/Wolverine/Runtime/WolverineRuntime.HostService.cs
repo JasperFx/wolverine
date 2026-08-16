@@ -9,6 +9,7 @@ using Wolverine.Attributes;
 using Wolverine.Configuration;
 using Wolverine.ErrorHandling;
 using Wolverine.Persistence.Durability;
+using Wolverine.Persistence.Sagas;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Batching;
 using Wolverine.Runtime.Handlers;
@@ -586,20 +587,42 @@ public partial class WolverineRuntime
     /// ancillary one, leaving the envelope permanently Incoming and outside the handler's
     /// transaction. See https://github.com/JasperFx/wolverine/issues/3870.
     ///
-    /// ServiceDependencies() is the same view of the chain that EF Core's DetermineDbContextType()
-    /// uses to pick the transactional DbContext, so this inference agrees with whichever DbContext
-    /// the transactional middleware chose. Ambiguity is not resolved by guessing: a chain that
-    /// depends on two ancillary markers has no single owning transaction, so it is left to the main
-    /// store exactly as before.
+    /// The chain's own persistence provider is the only thing that can say who owns its transaction,
+    /// so it gets the deciding vote through IPersistenceFrameProvider.TryDetermineTransactionOwnerType.
+    /// EF Core answers with the DbContext its transactional middleware picked, so the inbox row lands
+    /// in the same database as the SaveChanges. Every other provider answers null, because their
+    /// ancillary stores are named with [Storage]/[MartenStore]/[PolecatStore] -- which has already
+    /// populated AncillaryStoreType above -- and merely depending on a store interface says nothing
+    /// about who commits. Inferring from the dependency graph alone dragged the inbox, and with it
+    /// dead-lettering, away from a Marten handler that used an ancillary store purely for read-only
+    /// reference queries. See https://github.com/JasperFx/wolverine/issues/3953.
     /// </summary>
     private Type? inferAncillaryStoreType(HandlerChain chain, Type[] markerTypes)
     {
         if (markerTypes.Length == 0) return null;
 
+        // Cheap pre-filter: no marker anywhere in the dependency graph means there is nothing to infer,
+        // and the provider (which may build DbContexts to answer) never has to be consulted.
         var dependencies = chain.ServiceDependencies(_container, Type.EmptyTypes).ToArray();
-        var matches = markerTypes.Where(dependencies.Contains).ToArray();
+        if (!markerTypes.Any(dependencies.Contains)) return null;
 
-        return matches.Length == 1 ? matches[0] : null;
+        try
+        {
+            var owner = Options.CodeGeneration.GetPersistenceProviders(chain, _container)
+                .TryDetermineTransactionOwnerType(chain, _container);
+
+            return owner != null && markerTypes.Contains(owner) ? owner : null;
+        }
+        catch (Exception e)
+        {
+            // Inbox routing must never take the application down at startup. Whatever a provider cannot
+            // answer here it will answer -- or fail loudly and specifically about -- at codegen time.
+            Logger.LogDebug(e,
+                "Unable to determine the transaction owner of {Chain} while mapping handlers to ancillary message stores. Its inbox will use the main store.",
+                chain.Description);
+
+            return null;
+        }
     }
 
     private async Task executeIdleSendingAgentCleanup()

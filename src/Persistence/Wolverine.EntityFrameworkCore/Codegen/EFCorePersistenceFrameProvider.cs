@@ -496,6 +496,29 @@ internal class EFCorePersistenceFrameProvider : IPersistenceFrameProvider
         return serviceDependencies.Any(x => x.CanBeCastTo<DbContext>() || _abstractions.Contains(x));
     }
 
+    /// <summary>
+    /// EF Core is the one provider whose transaction owner is a plain service dependency, so it is the one
+    /// provider that can tell Wolverine which enrolled store a handler's durable inbox row belongs in
+    /// (GH-3870). Deliberately the same <see cref="DetermineDbContextType(IChain,IServiceContainer)" /> the
+    /// transactional middleware uses, so the inbox row and the SaveChanges land in the same database.
+    /// </summary>
+    public Type? TryDetermineTransactionOwnerType(IChain chain, IServiceContainer container)
+    {
+        if (!CanApply(chain, container)) return null;
+
+        try
+        {
+            return DetermineDbContextType(chain, container);
+        }
+        catch (Exception)
+        {
+            // Ambiguous or unresolvable - DetermineDbContextType throws a chain-specific message that
+            // codegen surfaces to the developer. This runs at startup while building the inbox routing
+            // map, where the safe answer is "no ancillary store", exactly as before GH-3870.
+            return null;
+        }
+    }
+
     internal Type? TryDetermineDbContextType(Type entityType, IServiceContainer container)
     {
         if (_dbContextTypes.TryFind(entityType, out var dbContextType))
