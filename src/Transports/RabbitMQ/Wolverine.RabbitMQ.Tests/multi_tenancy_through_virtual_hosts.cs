@@ -193,6 +193,11 @@ public class multi_tenancy_through_virtual_hosts : IClassFixture<MultiTenantedRa
             .Timeout(15.Seconds())
             .AlsoTrack(_fixture.One, _fixture.Two, _fixture.Three)
             .WaitForMessageToBeReceivedAt<MultiTenantMessage>(_fixture.Two)
+            // The assertions below also require the RESPONSE to have made it back to main. Waiting
+            // only on the request meant the session could complete in the same millisecond the
+            // response was sent, leaving SingleRecord<MultiTenantResponse>() with nothing to find --
+            // a chronic full-suite flake that passed in isolation.
+            .WaitForMessageToBeReceivedAt<MultiTenantResponse>(_fixture.Main)
             .SendMessageAndWaitAsync(message, new DeliveryOptions{TenantId = "two"});
 
         var record = session.Received.SingleRecord<MultiTenantMessage>();
