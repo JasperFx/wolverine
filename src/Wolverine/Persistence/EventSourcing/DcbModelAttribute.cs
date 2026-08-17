@@ -236,7 +236,11 @@ public class DcbModelAttribute : WolverineParameterAttribute, IDataRequirement, 
             return;
         }
 
+        // Matched explicitly and ahead of the fallback for the same reason as the single-stream path
+        // in IEventSourcingFrameProvider — the core Events is an IWolverineReturnType, which the
+        // fallback excludes (GH-3941).
         var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == provider.EventsCollectionType) ??
+                             firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(EventsToAppend)) ??
                              firstCall.Creates.FirstOrDefault(x =>
                                  x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
                                  !x.VariableType.CanBeCastTo<IWolverineReturnType>());
