@@ -21,6 +21,14 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     public static readonly string ProtocolName = "signalr";
     public static readonly string DefaultOperation = "ReceiveMessage";
 
+    /// <summary>
+    ///     GH-3972. The client operation coalesced batches are sent on. Deliberately distinct from
+    ///     <see cref="DefaultOperation" />: a client that does not know about coalescing then never receives
+    ///     these at all, instead of receiving something on ReceiveMessage that it tries to read as a single
+    ///     CloudEvents document and fails on per message.
+    /// </summary>
+    public static readonly string CoalescedOperation = "ReceiveCoalescedMessages";
+
     public SignalRTransport() : base($"{ProtocolName}://wolverine".ToUri(), EndpointRole.Application)
     {
         IsListener = true;
@@ -68,6 +76,11 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         var hubContextType = typeof(IHubContext<>).MakeGenericType(HubType);
         HubContext ??= (IHubContext<Hub>)runtime.Services.GetRequiredService(hubContextType);
 
+        if (Coalescing != null)
+        {
+            Coalescer ??= new OutgoingCoalescer(Coalescing, HubContext!, JsonOptions, Logger);
+        }
+
         return new ValueTask();
     }
 
@@ -85,6 +98,16 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
 
     [IgnoreDescription]
     public JsonSerializerOptions JsonOptions { get; set; }
+
+    /// <summary>
+    ///     GH-3972. When set, outgoing messages are accumulated per destination and flushed as a single
+    ///     envelope. Null (the default) sends each message immediately.
+    /// </summary>
+    [IgnoreDescription]
+    internal OutgoingCoalescingOptions? Coalescing { get; set; }
+
+    [IgnoreDescription]
+    internal OutgoingCoalescer? Coalescer { get; private set; }
 
     [IgnoreDescription]
     public IReceiver? Receiver { get; private set; }
@@ -134,16 +157,24 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         return new ValueTask();
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return new ValueTask();
+        // GH-3972: drains any buffered outgoing messages so ones enqueued just before stop are not dropped
+        if (Coalescer != null)
+        {
+            await Coalescer.DisposeAsync();
+            Coalescer = null;
+        }
     }
 
     public Uri Address => Uri;
 
-    ValueTask IListener.StopAsync()
+    async ValueTask IListener.StopAsync()
     {
-        return new ValueTask();
+        if (Coalescer != null)
+        {
+            await Coalescer.DrainAsync();
+        }
     }
     
     protected override bool supportsMode(EndpointMode mode)
@@ -185,6 +216,12 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         if (Logger != null && Logger.IsEnabled(LogLevel.Debug))
         {
             Logger.LogDebug("Sent JSON via SignalR: {Json}", json);
+        }
+
+        // GH-3972: when coalescing is on, buffer per destination rather than sending immediately
+        if (Coalescer is { } coalescer)
+        {
+            return coalescer.EnqueueAsync(locator, operation, json);
         }
 
         return new ValueTask(locator.Find(HubContext!).SendAsync(operation, json));

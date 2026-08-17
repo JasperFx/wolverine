@@ -85,7 +85,45 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
             return ReceiveAsync(json);
         }));
 
+        // GH-3972: the matching unwrap for a coalesced batch. Registered unconditionally -- the server
+        // decides whether to coalesce, and a client that only listened for it when locally configured to
+        // would silently drop every batch when the server turned coalescing on.
+        _connection.On(SignalRTransport.CoalescedOperation, [typeof(string)], (args =>
+        {
+            var json = args[0] as string;
+
+            if (json is null)
+            {
+                Logger.LogDebug("Received an empty coalesced batch, ignoring");
+                return Task.CompletedTask;
+            }
+
+            return ReceiveCoalescedAsync(json);
+        }));
+
         return this;
+    }
+
+    /// <summary>
+    ///     GH-3972. Unwraps a coalesced batch and feeds each inner CloudEvents document through the normal
+    ///     receive path, in the order the server accumulated them.
+    /// </summary>
+    internal async Task ReceiveCoalescedAsync(string json)
+    {
+        if (!CoalescedSignalRMessage.TryReadItems(json, JsonOptions, out var items))
+        {
+            Logger?.LogError(
+                "Received a payload on {Operation} that could not be read as a coalesced batch, discarding it",
+                SignalRTransport.CoalescedOperation);
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            // Sequentially and in order: a coalesced batch preserves arrival order, and fanning these out
+            // concurrently would throw that away for no gain.
+            await ReceiveAsync(item);
+        }
     }
 
     internal async Task ReceiveAsync(string json)
