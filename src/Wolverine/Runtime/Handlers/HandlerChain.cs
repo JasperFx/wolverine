@@ -714,6 +714,9 @@ public class HandlerChain : Chain<HandlerChain, ModifyHandlerChainAttribute>, IW
             .Concat(handlerReturnValueFrames)
             .Concat(causation)
             .Concat(Postprocessors)
+            // GH-3975: after EVERY postprocessor, which is what makes "after the commit" structural rather
+            // than a position that policy ordering can silently move.
+            .Concat(PostCommitPostprocessors)
             .Append(scopeActivator)
             .ToList();
     }

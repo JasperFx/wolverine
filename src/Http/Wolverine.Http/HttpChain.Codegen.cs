@@ -207,6 +207,9 @@ public partial class HttpChain
         }
 
         foreach (var frame in Postprocessors) yield return frame;
+
+        // GH-3975: after EVERY postprocessor, including the persistence provider's commit frame.
+        foreach (var frame in PostCommitPostprocessors) yield return frame;
     }
 
     private bool requiresFlush(Frame[] actionsOnOtherReturnValues)
