@@ -27,11 +27,22 @@ namespace Wolverine.Persistence.EventSourcing;
 ///         <see cref="IWolverineReturnType" />, which the fallback explicitly excludes — a happy
 ///         accident of an unrelated marker rather than a designed guarantee, and one that does not
 ///         extend to a user's own collection type. Returning this type instead makes the intent
-///         declared, so <c>(Events, OutgoingMessages)</c> is unambiguous.
+///         declared, so <c>(EventsToAppend, OutgoingMessages)</c> is unambiguous.
 ///     </para>
 ///     <para>
 ///         The store-specific types stay exactly as they are for existing code, the same way
 ///         <c>WriteAggregateAttribute</c> was kept alongside <c>WriteModelAttribute</c> in GH-3907.
+///     </para>
+///     <para>
+///         <b>Why this is not just called <c>Events</c>,</b> which would have mirrored the three
+///         store-specific types: it cannot be. This type lives beside
+///         <see cref="WriteModelAttribute" />, and <c>[WriteModel]</c> is what makes a
+///         store-agnostic handler possible in the first place — so the handler that wants this type
+///         imports <c>Wolverine.Persistence.EventSourcing</c> by necessity, and a real application
+///         imports its store's <c>Wolverine.Marten</c> / <c>.Polecat</c> / <c>.Fisher</c> as well.
+///         Naming this <c>Events</c> made those two imports collide with CS0104 <em>on the handler's
+///         return type itself</em>, forcing a <c>using</c> alias onto precisely the code this exists
+///         to serve. The name says when the append happens, which the bare noun did not.
 ///     </para>
 ///     <para>
 ///         Single-stream only: this is for the case where <c>[WriteModel]</c> pins the aggregate and
@@ -39,17 +50,17 @@ namespace Wolverine.Persistence.EventSourcing;
 ///         streams is a separate gap and is deliberately not addressed here.
 ///     </para>
 /// </remarks>
-public class Events : List<object>, IWolverineReturnType
+public class EventsToAppend : List<object>, IWolverineReturnType
 {
-    public Events()
+    public EventsToAppend()
     {
     }
 
-    public Events(IEnumerable<object> collection) : base(collection)
+    public EventsToAppend(IEnumerable<object> collection) : base(collection)
     {
     }
 
-    public static Events operator +(Events events, object @event)
+    public static EventsToAppend operator +(EventsToAppend events, object @event)
     {
         events.Add(@event);
         return events;

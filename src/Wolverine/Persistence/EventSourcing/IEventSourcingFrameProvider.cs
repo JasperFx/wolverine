@@ -151,7 +151,7 @@ internal static class EventSourcingFrameProviderExtensions
         // IWolverineReturnType, which is exactly what the fallback excludes, so leaving it to be
         // picked up implicitly would skip it (GH-3941).
         var eventsVariable = firstCall.Creates.FirstOrDefault(x => x.VariableType == provider.EventsCollectionType) ??
-                             firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(Events)) ??
+                             firstCall.Creates.FirstOrDefault(x => x.VariableType == typeof(EventsToAppend)) ??
                              firstCall.Creates.FirstOrDefault(x =>
                                  x.VariableType.CanBeCastTo<IEnumerable<object>>() &&
                                  !x.VariableType.CanBeCastTo<IWolverineReturnType>());
