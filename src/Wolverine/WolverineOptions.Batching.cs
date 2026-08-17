@@ -23,6 +23,26 @@ public sealed partial class WolverineOptions
         AssertsNoBatchHandlerConflicts = true;
     }
 
+    internal bool AssertsBatchExecutionIsSequenced { get; private set; }
+
+    /// <summary>
+    /// GH-3973. Make Wolverine throw at startup (instead of only logging a warning) when a batched message
+    /// type also has unbatched handlers that Wolverine could not sequence the batch against — that is, when
+    /// the element type is not part of a <c>GlobalPartitioned</c> topology.
+    /// </summary>
+    /// <remarks>
+    /// In that configuration the assembled batch runs on its own local queue while the unbatched handlers
+    /// run on the listener's own execution block, so both can write the same entity concurrently. It
+    /// surfaces as intermittent concurrency or stream-version collisions under load rather than as an
+    /// obvious failure, and it is reachable in production while being unreachable in a test fixture that
+    /// happens to configure a partitioned topology (or vice versa). Turn this on to make the asymmetry a
+    /// startup failure rather than a load-dependent one.
+    /// </remarks>
+    public void AssertBatchExecutionIsSequenced()
+    {
+        AssertsBatchExecutionIsSequenced = true;
+    }
+
     /// <summary>
     /// Configure batch processing of an incoming (or local) message type. Note that Wolverine
     /// will require you to use the Array of that element type for the actual batch handler

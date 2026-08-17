@@ -417,6 +417,23 @@ the batched and unbatched handlers for a group id to be sequenced against each o
 [GH-3867](https://github.com/JasperFx/wolverine/issues/3867).
 :::
 
+### Wolverine tells you when it could not sequence them <Badge type="tip" text="6.29" />
+
+When a batched element type also has unbatched handlers and Wolverine could **not** point the batch at a shared
+partitioned topology, it logs a warning at startup naming the message type, the queue the batch landed on, and the fix.
+Two independent writers to one entity is otherwise invisible until it isn't — it surfaces as intermittent concurrency
+or stream-version collisions under load, and only in the deployments that lack a partitioned topology.
+
+That asymmetry is the real hazard: a defect can be unreachable in the configuration your tests use and reachable in the
+one that ships. To make it a startup failure instead of a load-dependent one:
+
+```csharp
+opts.AssertBatchExecutionIsSequenced();
+```
+
+Note that `Sequential()` on the batch queue does **not** close this. It serializes the batch against itself, and
+against nothing else. See [GH-3973](https://github.com/JasperFx/wolverine/issues/3973).
+
 ## Batch identity with `IBatchContext`
 
 A batched handler can inject `IBatchContext` to get read-only information about the batch it is processing —

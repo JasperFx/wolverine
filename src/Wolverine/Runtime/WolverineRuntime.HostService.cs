@@ -135,6 +135,12 @@ public partial class WolverineRuntime
             // block.
             resolveBatchExecutionTopologies();
 
+            // GH-3973. Follow-up to GH-3867: say out loud when the batch could NOT be sequenced
+            // against its unbatched siblings, because that leaves two concurrent writers and the
+            // silent version of that is the bug. Must run AFTER resolveBatchExecutionTopologies,
+            // which is what decides whether a topology was found.
+            warnOrAssertUnsequencedBatchExecution();
+
             // Pre-populate the message-type-name cache so the per-message ToMessageTypeName()
             // hot path inside Envelope construction never pays the first-occurrence reflection
             // cost (attribute reads, interface walks, generic-type pretty-printing).
@@ -743,6 +749,79 @@ public partial class WolverineRuntime
                 $"otherwise remove one of the two handlers. (Call opts.AssertNoBatchHandlerConflicts() to make Wolverine throw on this instead of warning.)";
 
             if (Options.AssertsNoBatchHandlerConflicts)
+            {
+                throw new InvalidOperationException(message);
+            }
+
+            Logger.LogWarning(message);
+        }
+    }
+
+    /// <summary>
+    /// GH-3973. A batched element type that ALSO has unbatched handlers has two independent execution
+    /// paths writing the same entity: the assembled batch on its own local queue, and the unbatched
+    /// siblings on the listener receiver's own execution block. A partitioned topology resolves that —
+    /// <see cref="resolveBatchExecutionTopologies" /> points the batch at the same slots, so every writer
+    /// for one group id is genuinely a single writer. Without one, nothing sequences them.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         <c>Sequential()</c> on the batch queue does not close this: it serializes the batch against
+    ///         itself and against nothing else.
+    ///     </para>
+    ///     <para>
+    ///         The asymmetry is what makes this worth a startup message rather than documentation. With a
+    ///         <c>GlobalPartitioned</c> topology the configuration is safe; without one — embedded hosts,
+    ///         single-node deployments, most test fixtures — the same code has two concurrent writers to one
+    ///         event stream, and it surfaces as intermittent stream-version collisions under load. A defect
+    ///         is therefore unreachable in the configuration the tests use and reachable in the one that
+    ///         ships.
+    ///     </para>
+    /// </remarks>
+    private void warnOrAssertUnsequencedBatchExecution()
+    {
+        if (Options.BatchDefinitions.Count == 0)
+        {
+            return;
+        }
+
+        // Under Classic the direct handler wins and the batch never runs at all, so there is only ever
+        // one writer. warnOrAssertBatchHandlerConflicts() covers that shape.
+        if (Options.MultipleHandlerBehavior != MultipleHandlerBehavior.Separated)
+        {
+            return;
+        }
+
+        foreach (var batch in Options.BatchDefinitions)
+        {
+            // Sequenced onto a shared partitioned topology by GH-3867 -- single writer per group id.
+            if (batch.ExecutionSlots is { Count: > 0 })
+            {
+                continue;
+            }
+
+            // No unbatched sibling means no second writer.
+            var directChain = Handlers.ChainFor(batch.ElementType);
+            if (directChain == null)
+            {
+                continue;
+            }
+
+            var elementType = batch.ElementType.NameInCode();
+            var directHandlers = directChain.Handlers
+                .Select(x => $"{x.HandlerType.NameInCode()}.{x.Method.Name}()").Join(", ");
+
+            var message =
+                $"Unsequenced batch execution for message type '{batch.ElementType.FullNameInCode()}': it has BOTH unbatched handlers ({directHandlers}) " +
+                $"and a BatchMessagesOf<{elementType}>() batch handler ({elementType}[]), and Wolverine could not sequence them against each other. " +
+                $"The assembled batch executes on local queue '{batch.LocalExecutionQueueName}' while the unbatched handlers execute on the listener's own " +
+                $"execution block, so both may write the same entity concurrently -- which typically surfaces as intermittent concurrency or stream-version " +
+                $"collisions under load rather than as an obvious failure. " +
+                $"To sequence them, put '{elementType}' into a GlobalPartitioned message topology, which lets Wolverine choose the batch's execution slot from " +
+                $"the batch's group id. Note Sequential() on the batch queue does NOT close this: it serializes the batch against itself only. " +
+                $"(Call opts.AssertBatchExecutionIsSequenced() to make Wolverine throw on this instead of warning.)";
+
+            if (Options.AssertsBatchExecutionIsSequenced)
             {
                 throw new InvalidOperationException(message);
             }
