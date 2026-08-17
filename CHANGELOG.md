@@ -2,6 +2,127 @@
 
 ## Unreleased
 
+### WolverineFx (core)
+
+- **`AfterCommit` — a declarative way to run work after the transactional commit.**
+  ([#3976](https://github.com/JasperFx/wolverine/pull/3976), closes
+  [#3975](https://github.com/JasperFx/wolverine/issues/3975)) `After` reads like a post-handler hook that
+  runs at the end. It does not run after the commit. The commit is itself a postprocessor contributed by
+  the persistence provider, and `After` methods are inserted at the **front** of that list — so an `After`
+  method observing a write is observing one that is not durable yet and may still roll back. There was no
+  supported way to ask for the other side of it.
+
+  ```csharp
+  public static class RaiseAlertHandler
+  {
+      public static void Handle(RaiseAlert command, IDocumentSession session)
+          => session.Events.Append(command.Id, new AlertRaised(command.Reason));
+
+      // Only runs if the append above actually committed
+      public static void AfterCommit(AlertLatch latch, RaiseAlert command)
+          => latch.MarkRaised(command.Id);
+  }
+  ```
+
+  Use the `AfterCommit` / `AfterCommitAsync` convention or `[WolverineAfterCommit]`, on message handlers,
+  sagas and HTTP endpoints. Parameters bind exactly as `After` already does.
+
+  The position is **structural**, not positional: frames go into a new `IChain.PostCommitPostprocessors`
+  list concatenated after every postprocessor at frame-assembly time, rather than being appended from a
+  policy sequenced after the persistence policy. Getting the position right by luck of policy ordering is
+  exactly what silently breaks later.
+
+  Two behaviours worth knowing: they **do not run when the commit throws** (frames are concatenated without
+  a `try`/`finally`, so the exception unwinds past them), and they run after the outbox flush, so a message
+  cascaded from one is not atomic with the write. `After`'s pre-commit position is unchanged.
+
+  Verified per provider — Marten, Polecat, Fisher, EF Core, RavenDb and CosmosDb each have a codegen test
+  asserting the emitted call lands after that provider's own commit frame.
+
+- **A store-agnostic `EventsToAppend` return type.**
+  ([#3969](https://github.com/JasperFx/wolverine/pull/3969), closes
+  [#3941](https://github.com/JasperFx/wolverine/issues/3941)) `Wolverine.Marten.Events`,
+  `Wolverine.Polecat.Events` and `Wolverine.Fisher.Events` are identical but store-named, so a handler that
+  wanted to be store-agnostic could not name any of them. The store-agnostic path did exist — a bare
+  `IEnumerable<object>` return is picked up by a fallback — but that fallback is **positional**:
+  `IEnumerable<T>` is covariant, so every reference-typed collection in a return tuple is a candidate and
+  the first one wins. Nothing failed at codegen or at runtime; the wrong collection simply became the
+  appended events.
+
+  Note the type is `EventsToAppend`, not `Events`. Naming it `Events` would have been a source-breaking
+  collision (`CS0104`) for any handler importing both the core event-sourcing namespace and a store
+  integration — that is, on the very declaration the feature exists for.
+
+- **Ask which message types will be handled, and how a batch is shaped.**
+  ([#3977](https://github.com/JasperFx/wolverine/pull/3977), closes
+  [#3974](https://github.com/JasperFx/wolverine/issues/3974)) Discovery materializes after options time, so
+  an extension installing *fallback* handlers could not ask "will this message type have a handler?" and had
+  to hand-roll a mirror of Wolverine's own discovery convention. Such a mirror drifts silently — one that
+  scanned a single assembly stopped seeing handlers that moved to a second, and installed a bare relay
+  **over** a real handler.
+
+  ```csharp
+  opts.OnHandlersDiscovered(handlers =>
+  {
+      if (!handlers.Handles<ServiceUpdates>())
+      {
+          // safe to install a fallback
+      }
+  });
+  ```
+
+  Separately, `IMessageBatcher.BatchMessageType` is a free-form `Type` — a custom batcher need not produce
+  `T[]` — so consumers were inferring the handled type from array-ness, which is wrong for exactly those
+  batchers. `WolverineOptions.TryFindBatchMessageType(elementType, out var batchMessageType)` and
+  `WolverineOptions.BatchMappings` now expose the real mapping.
+
+- **Startup says so when a batch cannot be sequenced against its unbatched siblings.**
+  ([#3978](https://github.com/JasperFx/wolverine/pull/3978), closes
+  [#3973](https://github.com/JasperFx/wolverine/issues/3973)) Following up
+  [#3867](https://github.com/JasperFx/wolverine/issues/3867): a batched element type that also has unbatched
+  handlers has two independent execution paths writing the same entity — the assembled batch on its own
+  local queue, and the unbatched siblings inside the listener's own execution block. A partitioned topology
+  resolves that; without one, nothing does, and `Sequential()` on the batch queue does not close it (it
+  serializes the batch against itself only).
+
+  The asymmetry is the hazard: with a `GlobalPartitioned` topology the configuration is safe, and without
+  one — embedded hosts, single-node deployments, most test fixtures — the same code has two concurrent
+  writers and surfaces as intermittent stream-version collisions under load. Wolverine now warns at startup
+  naming the message type, the queue, the fix and the wrong fix. `opts.AssertBatchExecutionIsSequenced()`
+  escalates it to a startup failure.
+
+### WolverineFx.SignalR
+
+- **Coalesce outgoing messages into one envelope per destination.**
+  ([#3979](https://github.com/JasperFx/wolverine/pull/3979), closes
+  [#3972](https://github.com/JasperFx/wolverine/issues/3972)) The transport had no batching or buffering of
+  any kind, and Wolverine offers no sender-side hook for it — so an application that wanted it had to route
+  outbound messages through a **local queue**, which makes that queue a cascade target for its own handlers.
+  A handler forwarding with `SendAsync` then re-sends onto the queue it was read from.
+
+  ```csharp
+  opts.PublishAllMessages().ToSignalR()
+      .CoalesceOutgoing(o =>
+      {
+          o.FlushInterval = 100.Milliseconds();
+          o.MaxBatchSize  = 200;
+      });
+  ```
+
+  Nothing round-trips a queue, so there is no queue to re-enter, and the buffer sits **after** the outbox
+  rather than before it — which removes the "never use it for a message that tells the client to go and read
+  something" caveat an application-level accumulator carries.
+
+  Buffers are keyed by destination, so a message bound for one connection is never coalesced with one bound
+  for another. Batches carry the individual CloudEvents documents in arrival order — each item keeps its own
+  message type, since the CloudEvents envelope is per-outer-message — and are delivered on a dedicated
+  **`ReceiveCoalescedMessages`** client operation. A batch holding a single message goes out on the normal
+  operation, so the trickle case needs no client change. Anything still buffered is flushed at shutdown.
+
+  ⚠️ Browser clients must handle `ReceiveCoalescedMessages` to receive coalesced batches; see the
+  [SignalR guide](/guide/messaging/transports/signalr) for the unwrap snippet. Wolverine's own SignalR client
+  transport handles it automatically.
+
 ### WolverineFx (core) + event store integrations
 
 - **A handler can take the store agnostic `JasperFx.Events.Documents` contracts as parameters.**
