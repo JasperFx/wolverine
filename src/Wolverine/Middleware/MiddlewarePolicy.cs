@@ -17,6 +17,11 @@ public class MiddlewarePolicy : IChainPolicy
 {
     public static readonly string[] BeforeMethodNames = ["Before", "BeforeAsync", "Load", "LoadAsync", "Validate", "ValidateAsync"];
     public static readonly string[] AfterMethodNames = ["After", "AfterAsync", "PostProcess", "PostProcessAsync"];
+    /// <summary>
+    ///     GH-3975. Runs AFTER the transactional commit, unlike <see cref="AfterMethodNames" />, which is
+    ///     inserted at the front of the postprocessors and therefore runs BEFORE it.
+    /// </summary>
+    public static readonly string[] AfterCommitMethodNames = ["AfterCommit", "AfterCommitAsync"];
     public static readonly string[] FinallyMethodNames = ["Finally", "FinallyAsync"];
     public static readonly string[] OnExceptionMethodNames = ["OnException", "OnExceptionAsync"];
 
@@ -97,6 +102,11 @@ public class MiddlewarePolicy : IChainPolicy
             //chain.Postprocessors.AddRange(afters);
         }
 
+        // GH-3975: APPENDED, not inserted. These have to land after the persistence provider's commit
+        // frame, and Insert(0) is precisely what puts the After methods above on the wrong side of it.
+        var afterCommits = applications.SelectMany(x => x.BuildAfterCommitCalls(chain, rules)).ToArray();
+        chain.PostCommitPostprocessors.AddRange(afterCommits);
+
         // Build exception handlers from all applications
         ApplyExceptionHandling(applications, rules, chain);
     }
@@ -167,6 +177,7 @@ public class MiddlewarePolicy : IChainPolicy
     {
         private readonly IChain? _chain;
         private readonly MethodInfo[] _afters;
+        private readonly MethodInfo[] _afterCommits;
         private readonly MethodInfo[] _befores;
         private readonly ConstructorInfo? _constructor;
         private readonly MethodInfo[] _finals;
@@ -210,11 +221,13 @@ public class MiddlewarePolicy : IChainPolicy
 
             _befores = FilterMethods<WolverineBeforeAttribute>(chain, methods, BeforeMethodNames).ToArray();
             _afters = FilterMethods<WolverineAfterAttribute>(chain, methods, AfterMethodNames).ToArray();
+            _afterCommits = FilterMethods<WolverineAfterCommitAttribute>(chain, methods, AfterCommitMethodNames).ToArray();
             _finals = FilterMethods<WolverineFinallyAttribute>(chain, methods, FinallyMethodNames).ToArray();
             _onExceptions = FilterMethods<WolverineOnExceptionAttribute>(chain, methods, OnExceptionMethodNames).ToArray();
 
             if (_befores.Length == 0 &&
                 _afters.Length == 0 &&
+                _afterCommits.Length == 0 &&
                 _finals.Length == 0 &&
                 _onExceptions.Length == 0)
             {
@@ -351,6 +364,51 @@ public class MiddlewarePolicy : IChainPolicy
             }
 
             foreach (var after in afters) yield return after;
+        }
+
+        /// <summary>
+        ///     GH-3975. Mirrors <see cref="BuildAfterCalls" />, but the frames are appended to
+        ///     <see cref="IChain.PostCommitPostprocessors" /> so they run after the transactional commit.
+        /// </summary>
+        public IEnumerable<Frame> BuildAfterCommitCalls(IChain chain, GenerationRules rules)
+        {
+            var afterCommits = buildAfterCommits(chain).ToArray();
+
+            if (afterCommits.Length != 0 && !MiddlewareType.IsStatic())
+            {
+                if (chain.Middleware.OfType<ConstructorFrame>().All(x => x.Variable.VariableType != MiddlewareType))
+                {
+                    yield return new ConstructorFrame(MiddlewareType, _constructor!);
+                }
+            }
+
+            foreach (var afterCommit in afterCommits) yield return afterCommit;
+        }
+
+        private IEnumerable<Frame> buildAfterCommits(IChain chain)
+        {
+            if (!Filter(chain))
+            {
+                yield break;
+            }
+
+            foreach (var afterCommit in _afterCommits)
+            {
+                if (MatchByMessageType)
+                {
+                    var messageType = afterCommit.MessageType();
+                    if (messageType != null && chain.InputType().CanBeCastTo(messageType))
+                    {
+                        yield return new MethodCallAgainstMessage(MiddlewareType, afterCommit, chain.InputType()!);
+                    }
+                }
+                else
+                {
+                    var call = new MethodCall(MiddlewareType, afterCommit);
+                    chain.ApplyParameterMatching(call);
+                    yield return call;
+                }
+            }
         }
 
         public IEnumerable<(Type ExceptionType, MethodCall Call)> BuildOnExceptionCalls(IChain chain, GenerationRules rules)

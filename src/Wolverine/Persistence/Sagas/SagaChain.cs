@@ -282,7 +282,9 @@ public class SagaChain : HandlerChain
 
         // .Concat(handlerReturnValueFrames)
 
-        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(list).Concat(Postprocessors).ToList();
+        return Middleware.Concat(container.TryCreateConstructorFrames(Handlers)).Concat(list).Concat(Postprocessors)
+            .Concat(PostCommitPostprocessors) // GH-3975
+            .ToList();
     }
 
     private void generateCodeForMaybeExisting(IServiceContainer container, IPersistenceFrameProvider frameProvider,

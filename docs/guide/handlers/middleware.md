@@ -137,7 +137,66 @@ Here's the conventions:
 |----------------------------------------------------------|-----------------------------|
 | Before the Handler(s)                                    | `Before`, `BeforeAsync`, `Load`, `LoadAsync`, `Validate`, `ValidateAsync` |
 | After the Handler(s)                                     | `After`, `AfterAsync`, `PostProcess`, `PostProcessAsync` |
+| After the transactional commit                           | `AfterCommit`, `AfterCommitAsync` |
 | In `finally` blocks after the Handlers & "After" methods | `Finally`, `FinallyAsync`   |
+
+## "After" is before the commit {#after-vs-after-commit}
+
+::: warning
+`After` runs after the *handler*, not after the *transaction*. If your side effect must only happen once
+the write is durable, use `AfterCommit` instead.
+:::
+
+This trips people up because the name reads the other way around. When a chain is transactional, the commit
+itself is a postprocessor contributed by the persistence provider — Marten's `SaveChangesAsync`, EF Core's
+`SaveChangesAsync`, and so on. `After` methods are inserted at the *front* of the postprocessors, so they run
+**before** that commit:
+
+```
+handler()
+After()            // <-- the write is NOT durable yet, and the transaction may still fail
+SaveChangesAsync() // <-- the commit
+FlushOutgoingMessages()
+AfterCommit()      // <-- the write is durable
+```
+
+So an `After` method that records "the alert was raised" or writes back to a cache is recording something for
+a transaction that can still roll back. That is exactly the shape of bug this distinction exists to prevent.
+
+Use `AfterCommit` / `AfterCommitAsync`, or the `[WolverineAfterCommit]` attribute, when the side effect must
+follow a durable write:
+
+```csharp
+public static class RaiseAlertHandler
+{
+    public static void Handle(RaiseAlert command, IDocumentSession session)
+    {
+        session.Events.Append(command.Id, new AlertRaised(command.Reason));
+    }
+
+    // Only runs if the append above actually committed
+    public static void AfterCommit(AlertLatch latch, RaiseAlert command)
+    {
+        latch.MarkRaised(command.Id);
+    }
+}
+```
+
+These methods bind parameters exactly like `After` methods do, and they work on message handlers, sagas and
+HTTP endpoints alike.
+
+Two behaviours worth knowing:
+
+* **They do not run when the commit throws.** The frames are concatenated without a `try`/`finally`, so an
+  exception from the commit unwinds straight past them. If you need something to run either way, that is what
+  `Finally` is for.
+* **They run after the outbox flush as well as the commit.** A cascading message returned from an
+  `AfterCommit` method is therefore sent through the normal end-of-pipeline flush rather than the transaction
+  that just committed. If a message has to be atomic with the write, cascade it from the handler instead.
+
+`After`'s position is unchanged and will stay that way — plenty of post-handler work has nothing to do with
+durability, and moving it would silently change behaviour for existing applications.
+
 
 The generated code for the conventionally applied methods would look like this basic structure:
 

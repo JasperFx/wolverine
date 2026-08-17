@@ -117,6 +117,27 @@ public interface IChain
     List<Frame> Postprocessors { get; }
 
     /// <summary>
+    ///     GH-3975. Frames that run after everything in <see cref="Postprocessors" /> — which is to say
+    ///     after the transactional commit, because the commit is itself a postprocessor added by the
+    ///     persistence provider's <c>ApplyTransactionSupport</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <para>
+    ///         This is a SEPARATE list rather than a position within <see cref="Postprocessors" /> on purpose.
+    ///         "After the commit" cannot be expressed positionally without depending on the order the policies
+    ///         happened to run in — the commit frame may not exist yet when a middleware policy appends, and an
+    ///         application that gets the position right today gets it wrong the moment policy ordering changes,
+    ///         silently and with every test still green. Concatenating a distinct list at frame-assembly time
+    ///         makes the guarantee structural instead.
+    ///     </para>
+    ///     <para>
+    ///         Frames here are NOT wrapped in a try/finally, so a commit that throws unwinds past them and they
+    ///         do not run — which is the entire point of asking for "after the commit".
+    ///     </para>
+    /// </remarks>
+    List<Frame> PostCommitPostprocessors { get; }
+
+    /// <summary>
     ///     A description of this frame
     /// </summary>
     string Description { get; }

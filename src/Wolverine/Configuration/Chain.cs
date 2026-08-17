@@ -38,6 +38,13 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
 
     public List<Frame> Postprocessors { get; } = [];
 
+    /// <summary>
+    ///     GH-3975. Runs after everything in <see cref="Postprocessors" />, including the transactional commit.
+    ///     See <see cref="IChain.PostCommitPostprocessors" /> for why this is a separate list rather than a
+    ///     position.
+    /// </summary>
+    public List<Frame> PostCommitPostprocessors { get; } = [];
+
     [IgnoreDescription]
     public Dictionary<string, object> Tags { get; } = new();
 
@@ -359,6 +366,20 @@ public abstract class Chain<TChain, TModifyAttribute> : IChain
                     var frame = new MethodCall(handlerType, afters[i]);
                     Postprocessors.Insert(i, frame);
                 }
+            }
+
+            // GH-3975: AfterCommit methods are APPENDED to a separate list rather than inserted into
+            // Postprocessors. The commit frame is itself a postprocessor contributed by the persistence
+            // provider, so the Insert() above deliberately puts After methods BEFORE the commit; there was
+            // previously no supported way to ask for the other side of it.
+            var afterCommits = MiddlewarePolicy.FilterMethods<WolverineAfterCommitAttribute>(this,
+                handlerType.GetMethods(), MiddlewarePolicy.AfterCommitMethodNames);
+
+            foreach (var afterCommit in afterCommits)
+            {
+                var frame = new MethodCall(handlerType, afterCommit);
+                ApplyParameterMatching(frame);
+                PostCommitPostprocessors.Add(frame);
             }
 
             // Discover OnException methods from handler types
