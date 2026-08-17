@@ -362,6 +362,11 @@ public partial class HandlerGraph : ICodeFileCollectionWithServices, IWithFailur
 
         Group(options);
 
+        // GH-3974: the earliest point at which "will this message type be handled?" has a real answer.
+        // Discovery has resolved and the chains are grouped, so a consumer no longer has to hand-roll a
+        // mirror of Wolverine's own discovery convention to ask it.
+        options.ApplyHandlerDiscoveryCallbacks(Chains.Select(x => x.MessageType));
+
         // This was to address the issue with policies not extending to sticky message
         // handlers
         IEnumerable<HandlerChain> explodeChains(HandlerChain chain)

@@ -621,6 +621,27 @@ public class SubTaskCompletedBatcher : IMessageBatcher
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Testing/CoreTests/Acceptance/batch_processing.cs#L189-L220' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_subtaskcompletedbatcher' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+::: tip
+`BatchMessageType` is a free-form `Type` — a custom batcher does **not** have to produce `T[]`, and Wolverine
+deliberately leaves an application-supplied `IMessageBatcher` alone so it can assemble whatever shape it likes.
+
+That means tooling cannot infer "how is this element type handled?" from the batch handler's parameter being
+an array. Ask Wolverine instead:
+
+```csharp
+if (options.TryFindBatchMessageType(typeof(SubTaskCompleted), out var batchMessageType))
+{
+    // batchMessageType is SubTaskCompletedBatch here, not SubTaskCompleted[]
+}
+
+// or enumerate every mapping
+foreach (var mapping in options.BatchMappings)
+{
+    Console.WriteLine($"{mapping.ElementType.Name} is handled as {mapping.BatchMessageType.Name}");
+}
+```
+:::
+
 And of course, this doesn't work without a matching message handler for our custom message type:
 
 <!-- snippet: sample_subtaskcompletedbatchhandler -->
