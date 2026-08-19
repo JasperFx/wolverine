@@ -9,7 +9,7 @@ For practical examples of building sagas with Wolverine, see the blog posts
 ::: tip
 To be honest, we're just not going to get hung up on "process manager" vs. "saga" here. The key point is that what
 Wolverine is calling a "saga" really just means a long running, multi-step process where you need to track some state
-between the steps. If that annoys Greg Young, then ¯\_(ツ)_/¯.
+between the steps. If that annoys Greg Young, then `¯\_(ツ)_/¯`.
 :::
 
 As is so common in these docs, I would direct you to this from the old "EIP" book: [Process Manager](http://www.enterpriseintegrationpatterns.com/patterns/messaging/ProcessManager.html). A stateful saga in Wolverine is used
