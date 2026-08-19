@@ -295,6 +295,20 @@ public abstract partial class MessageDatabase<T> : DatabaseBase<T>,
     /// </summary>
     public virtual string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize) => null;
 
+    /// <summary>
+    /// GH-3971. Portable default. PostgreSQL and SQL Server override it with a recursive index
+    /// skip-scan, which is what keeps the steady-state cost proportional to the number of DISTINCT
+    /// owners (a handful) rather than to the number of rows (millions).
+    /// </summary>
+    public virtual string DistinctOwnerIdsSql(DbObjectName table)
+        => $"select distinct {DatabaseConstants.OwnerId} from {table} where {DatabaseConstants.OwnerId} <> 0";
+
+    /// <summary>
+    /// GH-3971: default is null, meaning "this provider cannot bound the release update". PostgreSQL
+    /// and SQL Server override. See <see cref="IMessageDatabase.BatchedReleaseOwnershipSql"/>.
+    /// </summary>
+    public virtual string? BatchedReleaseOwnershipSql(DbObjectName table, string deadOwnerList, int batchSize) => null;
+
     public abstract Task<bool> ExistsAsync(Envelope envelope, CancellationToken cancellation);
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)

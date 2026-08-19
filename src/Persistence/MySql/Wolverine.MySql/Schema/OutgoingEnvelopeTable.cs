@@ -22,5 +22,15 @@ internal class OutgoingEnvelopeTable : Table
         {
             AddColumn<DateTimeOffset>(DatabaseConstants.Timestamp).DefaultValueByExpression("(UTC_TIMESTAMP(6))");
         }
+
+        // GH-3971: the orphaned-message sweep asks `owner_id in (<dead owners>)`, worked out in memory
+        // first, precisely so it can use this index. The predicate it replaced --
+        // `owner_id <> 0 and owner_id not in (<live nodes>)` -- could not use one. Not partial here:
+        // this provider's IndexDefinition has no predicate support.
+        Indexes.Add(new IndexDefinition($"idx_{DatabaseConstants.OutgoingTable}_owner")
+        {
+            Columns = [DatabaseConstants.OwnerId]
+        });
+
     }
 }

@@ -188,6 +188,36 @@ public class DurabilitySettings : IDescribeMyself
     public int RecoveryBatchSize { get; set; } = 100;
 
     /// <summary>
+    ///     GH-3971: polling interval for the sweep that releases inbox/outbox messages owned by nodes
+    ///     that no longer exist. This runs on its own timer in a dedicated transaction, separate from the
+    ///     main recovery loop.
+    ///
+    ///     <para>It used to ride <see cref="ScheduledJobPollingTime" />, which also drives scheduled
+    ///     message execution and the recoverable-message checks — so slowing the sweep on a large inbox
+    ///     also delayed scheduled delivery, an unrelated trade the operator never asked for. Default is 5
+    ///     seconds, matching the previous cadence.</para>
+    /// </summary>
+    public TimeSpan OrphanedMessageSweepPollingTime { get; set; } = 5.Seconds();
+
+    /// <summary>
+    ///     GH-3971: the maximum number of envelopes whose ownership is released in a single bounded
+    ///     UPDATE, for providers that support batching (currently PostgreSQL and SQL Server).
+    ///
+    ///     <para>Losing one node makes every envelope it owned qualify at once, in one statement. A
+    ///     reported deployment lost ~910,000 rows' worth across its shards on a single node loss, with a
+    ///     12 KB average body — several GB of rewrite per sweep run per shard, all of it holding locks
+    ///     against live inbox traffic. Default is 5000.</para>
+    /// </summary>
+    public int OrphanedMessageReleaseBatchSize { get; set; } = 5000;
+
+    /// <summary>
+    ///     GH-3971: safety cap on how many release batches the orphaned-message sweep runs in a single
+    ///     polling cycle before yielding. Any remaining orphans are picked up on the next cycle.
+    ///     Default is 20.
+    /// </summary>
+    public int OrphanedMessageReleaseMaxBatchesPerCycle { get; set; } = 20;
+
+    /// <summary>
     ///     How frequently Wolverine will attempt to reassign incoming or outgoing
     ///     persisted methods from nodes that are detected to be offline
     /// </summary>
@@ -519,6 +549,9 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(MessageIdentity), MessageIdentity);
         desc.AddValue(nameof(DurabilityAgentEnabled), DurabilityAgentEnabled);
         desc.AddValue(nameof(RecoveryBatchSize), RecoveryBatchSize);
+        desc.AddValue(nameof(OrphanedMessageSweepPollingTime), OrphanedMessageSweepPollingTime);
+        desc.AddValue(nameof(OrphanedMessageReleaseBatchSize), OrphanedMessageReleaseBatchSize);
+        desc.AddValue(nameof(OrphanedMessageReleaseMaxBatchesPerCycle), OrphanedMessageReleaseMaxBatchesPerCycle);
         desc.AddValue(nameof(KeepAfterMessageHandling), KeepAfterMessageHandling);
         desc.AddValue(nameof(NodeReassignmentPollingTime), NodeReassignmentPollingTime);
         desc.AddValue(nameof(MetricsCollectionSamplingInterval), MetricsCollectionSamplingInterval);
