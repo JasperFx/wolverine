@@ -2,6 +2,43 @@
 
 ## Unreleased
 
+### WolverineFx.MySql
+
+- **The envelope storage migration no longer fails on every startup.**
+  ([#3985](https://github.com/JasperFx/wolverine/pull/3985), closes
+  [#3983](https://github.com/JasperFx/wolverine/issues/3983)) On MySQL every node logged an `Error` from
+  `MySqlMessageStore` on every start: `Cannot drop index 'fk_wolverine_node_assignments_node_id': needed
+  in a foreign key constraint`. The first migration against an empty database is a pure `CREATE`, so this
+  was unreachable until the second run — it reproduced against a brand-new database and then repeated
+  forever.
+
+  There were four drift items, not one, and only the first threw — so the migration runner logged it and
+  the rest never ran. `wolverine_nodes.node_number` and `wolverine_node_records.id` folded `AUTO_INCREMENT`
+  into the column *type* string; the catalog reports the type as plain `INT` and carries `auto_increment`
+  separately, so neither column ever compared equal and both emitted a `MODIFY COLUMN` on every check.
+  They now use Weasel's `AutoIncrement()`. The generated DDL is unchanged apart from where the keyword
+  sits, so **existing databases need no migration**.
+
+  The other three were `Weasel.MySql` bugs, fixed in [weasel#445](https://github.com/JasperFx/weasel/pull/445)
+  and shipped in Weasel 9.25.0.
+
+### Dependencies
+
+- **Weasel bumped to 9.25.0**, the identifier release. If your schema names are all plain lowercase
+  identifiers the emitted DDL is byte-identical to 9.24 and there is nothing to do. Otherwise three
+  changes are worth knowing about, and Weasel's
+  [upgrade notes](https://weasel.jasperfx.net/release-9-25) carry the full list:
+
+  - **Oracle can now see index, foreign key and primary key drift**, which it previously could not detect
+    at all. Expect a first run that applies index and foreign key changes it had been silently ignoring —
+    that is the backlog being worked off, not new drift.
+  - **SQLite no longer drops the table to change a column.** A change that `ALTER TABLE` cannot express
+    used to be answered by dropping the object and recreating it, losing every row.
+  - **Column names are no longer case-folded or rewritten.** Wolverine's NServiceBus PostgreSQL queue
+    table declared PascalCase columns and relied on Weasel folding them to lowercase; a real
+    NServiceBus-provisioned table has lowercase columns, so the declaration was wrong all along and is now
+    stated as lowercase directly. No behavior change against an NServiceBus-owned table.
+
 ### WolverineFx (core)
 
 - **`AfterCommit` — a declarative way to run work after the transactional commit.**
