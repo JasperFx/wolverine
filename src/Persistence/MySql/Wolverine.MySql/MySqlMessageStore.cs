@@ -487,8 +487,12 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
         {
             var nodeTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeTableName));
             nodeTable.AddColumn<Guid>("id").AsPrimaryKey();
-            // MySQL requires AUTO_INCREMENT to be part of a key - add unique index
-            nodeTable.AddColumn("node_number", "INT AUTO_INCREMENT").NotNull()
+            // MySQL requires AUTO_INCREMENT to be part of a key - add unique index.
+            // AUTO_INCREMENT belongs in AutoIncrement(), not in the type: the catalog reports
+            // the type as plain INT, so folding it into the type string made this column
+            // report drift on every schema check (GH-3983).
+            nodeTable.AddColumn<int>("node_number").NotNull()
+                .AutoIncrement()
                 .AddIndex(idx => idx.IsUnique = true);
             nodeTable.AddColumn<string>("description").NotNull();
             nodeTable.AddColumn<string>("uri").NotNull();
@@ -530,7 +534,7 @@ internal class MySqlMessageStore : MessageDatabase<MySqlConnection>
             }
 
             var eventTable = new Table(new DbObjectName(SchemaName, DatabaseConstants.NodeRecordTableName));
-            eventTable.AddColumn("id", "INT AUTO_INCREMENT").AsPrimaryKey();
+            eventTable.AddColumn<int>("id").AsPrimaryKey().AutoIncrement();
             eventTable.AddColumn<int>("node_number").NotNull();
             eventTable.AddColumn<string>("event_name").NotNull();
             eventTable.AddColumn<DateTimeOffset>("timestamp").DefaultValueByExpression("(UTC_TIMESTAMP(6))").NotNull();

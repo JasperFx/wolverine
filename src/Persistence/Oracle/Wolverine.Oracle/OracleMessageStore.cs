@@ -434,7 +434,12 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
         await using var conn = CreateConnection();
         await conn.OpenAsync();
 
-        var migration = await SchemaMigration.DetermineAsync(conn, CancellationToken.None, table);
+        // The Oracle builder, not the default one: ODP.NET will not execute several statements from
+        // one command, and Oracle's Table registers six introspection queries as of Weasel 9.25
+        // (weasel#474). DbCommandBuilder.StartNewCommand is a no-op, so the default builder runs
+        // them together and Oracle rejects the batch with ORA-03048.
+        var builder = new OracleMigrator().CreateCommandBuilder(conn);
+        var migration = await SchemaMigration.DetermineAsync(conn, builder, CancellationToken.None, table);
         if (migration.Difference != SchemaPatchDifference.None)
         {
             await new OracleMigrator().ApplyAllAsync(conn, migration, AutoCreate.CreateOrUpdate);
