@@ -14,14 +14,21 @@ internal class NServiceBusQueueTable : Table
 {
     public NServiceBusQueueTable(DbObjectName identifier) : base(identifier)
     {
-        AddColumn<Guid>("Id").AsPrimaryKey();
-        AddColumn("Expires", "timestamp");
-        AddColumn<string>("Headers").NotNull();
-        AddColumn("Body", "bytea");
+        // Lowercase deliberately. A real NServiceBus-provisioned queue table has case-folded
+        // column names — verified against a live NServiceBus.Transport.PostgreSql host — so
+        // these have to be lowercase to line up with a table NServiceBus owns, and to keep the
+        // unquoted identifiers in the send/receive SQL resolving. Weasel used to case-fold
+        // declared names on its way to the database and hid the difference; as of 9.25 it
+        // preserves and quotes what it is given, which would have made "Seq" a genuinely
+        // distinct column from NServiceBus's seq.
+        AddColumn<Guid>("id").AsPrimaryKey();
+        AddColumn("expires", "timestamp");
+        AddColumn<string>("headers").NotNull();
+        AddColumn("body", "bytea");
 
-        AddColumn<int>("Seq").AutoIncrement().NotNull();
+        AddColumn<int>("seq").AutoIncrement().NotNull();
 
-        // Seq is what the destructive receive orders by (FIFO), so a Wolverine-provisioned table
+        // seq is what the destructive receive orders by (FIFO), so a Wolverine-provisioned table
         // needs an index on it or the ORDER BY degrades to a full sort once a backlog builds — a
         // soak that let the table grow collapsed receiver throughput by ~60x without this. We use a
         // *non-unique* index (NOT a unique one): NServiceBus puts a UNIQUE *constraint* on seq and
@@ -30,7 +37,7 @@ internal class NServiceBusQueueTable : Table
         // NServiceBus-owned table. The transport never needs to enforce seq uniqueness itself.
         Indexes.Add(new IndexDefinition(PostgresqlIdentifier.Shorten($"idx_{identifier.Name}_seq"))
         {
-            Columns = ["Seq"]
+            Columns = ["seq"]
         });
     }
 }
