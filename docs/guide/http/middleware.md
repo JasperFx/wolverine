@@ -49,7 +49,7 @@ Which is registered like this (or as described in [`Registering Middleware by Me
 opts.AddMiddlewareByMessageType(typeof(FakeAuthenticationMiddleware));
 opts.AddMiddlewareByMessageType(typeof(CanShipOrderMiddleWare));
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L348-L352' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Program.cs#L352-L356' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_register_http_middleware_by_type' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The key point to notice there is that `IResult` is a "return value" of the middleware. In the case of an HTTP endpoint,
@@ -116,6 +116,68 @@ public class ValidatedCompoundEndpoint2
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Validation/ValidatedCompoundEndpoint.cs#L33-L60' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_optional_iresult_with_openapi_metadata' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Replacing an Immutable Request Body
+
+A middleware method that both **accepts the request body type and returns that same type** replaces the request body for
+the rest of the chain. Use this to enrich an immutable `record` request with server-supplied values (timestamps, user
+identity) before the endpoint method runs, keeping the endpoint signature a pure decider:
+
+<!-- snippet: sample_replacing_an_immutable_request_from_http_middleware -->
+<a id='snippet-sample_replacing_an_immutable_request_from_http_middleware'></a>
+```cs
+public record StampedRequest
+{
+    public string Name { get; init; } = string.Empty;
+
+    // Server-stamped by middleware, never accepted from the client
+    [JsonIgnore]
+    public string StampedBy { get; init; } = string.Empty;
+
+    [JsonIgnore]
+    public bool Enriched { get; init; }
+}
+
+public static class StampedRequestEndpoint
+{
+    // Implied middleware on the endpoint class itself. Because the methods accept
+    // the request type *and* return it, the returned value replaces the request
+    // body for the rest of the chain
+    public static StampedRequest Before(StampedRequest request)
+    {
+        return request with { StampedBy = "sync" };
+    }
+
+    public static Task<StampedRequest> BeforeAsync(StampedRequest request)
+    {
+        return Task.FromResult(request with { Name = request.Name + "-async" });
+    }
+
+    // The replaced request can also ride along in a tuple with a short-circuiting IResult
+    public static (StampedRequest, IResult) Before(StampedRequest request, HttpContext context)
+    {
+        return request.Name.StartsWith("stop")
+            ? (request, Results.StatusCode(423))
+            : (request with { Enriched = true }, WolverineContinue.Result());
+    }
+
+    [WolverinePost("/middleware/stamped")]
+    public static string Handle(StampedRequest request)
+    {
+        return $"{request.Name}:{request.StampedBy}:{request.Enriched}";
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/MessageReplacementEndpoints.cs#L9-L53' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_replacing_an_immutable_request_from_http_middleware' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+The replacing method may be synchronous or asynchronous, and the request may be returned inside a tuple alongside an
+`IResult` for conditional short-circuiting.
+
+::: warning
+This applies to `Before` / `BeforeAsync` methods declared on the endpoint class itself. Middleware types registered
+externally (through `[Middleware]` or by policy) are not currently allowed to return the request type.
+:::
 
 ## Using Configure(chain) Methods
 
