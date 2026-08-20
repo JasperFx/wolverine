@@ -22,10 +22,10 @@ internal class NServiceBusPostgresqlQueueSender : ISender
         Destination = queue.Uri;
 
         // The documented NServiceBus PostgreSQL send statement. The column identifiers are left
-        // unquoted: Weasel provisions the queue table with case-folded (lowercase) column names,
-        // so unquoted references resolve correctly.
+        // unquoted, which PostgreSQL folds to lowercase — matching the lowercase columns both
+        // NServiceBus and NServiceBusQueueTable declare.
         _sendSql =
-            $@"INSERT INTO {queue.TableIdentifier} (Id, Expires, Headers, Body) VALUES (:id, :expires, :headers, :body)";
+            $@"INSERT INTO {queue.TableIdentifier} (id, expires, headers, body) VALUES (:id, :expires, :headers, :body)";
     }
 
     // NServiceBus delayed delivery uses a separate timeout table + mover; not supported in v1.

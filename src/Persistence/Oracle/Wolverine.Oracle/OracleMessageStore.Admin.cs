@@ -82,7 +82,12 @@ internal partial class OracleMessageStore
         // Now recreate all tables
         foreach (var obj in objects)
         {
-            var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, obj);
+            // The Oracle builder, not the default one: ODP.NET will not execute several statements
+            // from one command, and Oracle's Table registers six introspection queries as of Weasel
+            // 9.25 (weasel#474). DbCommandBuilder.StartNewCommand is a no-op, so the default builder
+            // runs them together and Oracle rejects the batch with ORA-03048.
+            var builder = new OracleMigrator().CreateCommandBuilder(conn);
+            var migration = await SchemaMigration.DetermineAsync(conn, builder, _cancellation, obj);
             if (migration.Difference != SchemaPatchDifference.None)
             {
                 try
@@ -146,7 +151,12 @@ internal partial class OracleMessageStore
         var objects = AllObjects().ToArray();
         foreach (var obj in objects)
         {
-            var migration = await SchemaMigration.DetermineAsync(conn, _cancellation, obj);
+            // The Oracle builder, not the default one: ODP.NET will not execute several statements
+            // from one command, and Oracle's Table registers six introspection queries as of Weasel
+            // 9.25 (weasel#474). DbCommandBuilder.StartNewCommand is a no-op, so the default builder
+            // runs them together and Oracle rejects the batch with ORA-03048.
+            var builder = new OracleMigrator().CreateCommandBuilder(conn);
+            var migration = await SchemaMigration.DetermineAsync(conn, builder, _cancellation, obj);
             if (migration.Difference != SchemaPatchDifference.None)
             {
                 try

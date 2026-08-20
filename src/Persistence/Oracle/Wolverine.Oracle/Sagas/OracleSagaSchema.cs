@@ -91,7 +91,12 @@ public class OracleSagaSchema<T, TId> : IDatabaseSagaSchema<TId, T> where T : Sa
         await using var conn = new OracleConnection(_settings.ConnectionString);
         await conn.OpenAsync(cancellationToken);
 
-        var migration = await SchemaMigration.DetermineAsync(conn, cancellationToken, Table);
+        // The Oracle builder, not the default one: ODP.NET will not execute several statements from
+        // one command, and Oracle's Table registers six introspection queries as of Weasel 9.25
+        // (weasel#474). DbCommandBuilder.StartNewCommand is a no-op, so the default builder runs
+        // them together and Oracle rejects the batch with ORA-03048.
+        var builder = new OracleMigrator().CreateCommandBuilder(conn);
+        var migration = await SchemaMigration.DetermineAsync(conn, builder, cancellationToken, Table);
 
         if (migration.Difference != SchemaPatchDifference.None)
         {

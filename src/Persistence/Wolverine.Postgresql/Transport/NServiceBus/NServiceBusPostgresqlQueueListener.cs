@@ -27,19 +27,19 @@ internal class NServiceBusPostgresqlQueueListener : DatabaseListener
         _mapper = queue.BuildMapper(runtime);
         _sender = new NServiceBusPostgresqlQueueSender(queue, runtime);
 
-        // Destructive competing-consumer pop honoring NServiceBus FIFO-by-Seq ordering. The
-        // column identifiers are left unquoted: Weasel provisions the queue table with
-        // case-folded (lowercase) column names, so unquoted references resolve correctly.
+        // Destructive competing-consumer pop honoring NServiceBus FIFO-by-seq ordering. The
+        // column identifiers are left unquoted, which PostgreSQL folds to lowercase — matching
+        // the lowercase columns both NServiceBus and NServiceBusQueueTable declare.
         _receiveSql = $@"
 WITH message AS (
     DELETE FROM {queue.TableIdentifier}
     WHERE ctid IN (
         SELECT ctid FROM {queue.TableIdentifier}
-        ORDER BY Seq
+        ORDER BY seq
         LIMIT :count
         FOR UPDATE SKIP LOCKED)
-    RETURNING Id, Headers, Body)
-SELECT Id, Headers, Body FROM message;";
+    RETURNING id, headers, body)
+SELECT id, headers, body FROM message;";
     }
 
     protected override int MaximumMessagesToReceive => _queue.MaximumMessagesToReceive;
