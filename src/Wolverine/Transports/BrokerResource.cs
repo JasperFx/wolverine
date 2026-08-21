@@ -80,6 +80,14 @@ public class BrokerResource : IStatefulResource
     {
         await _transport.ConnectAsync(_runtime);
 
+        // Every endpoint is attempted before anything is thrown, so one broker object that cannot be
+        // provisioned does not hide the state of the others - the same collect-then-throw shape as Check
+        // above. Throwing at all is the point: this used to log and return, so "resources setup" reported
+        // success having created nothing, and a deploy step that provisions ahead of its hosts exited 0
+        // while the hosts then failed on the missing queue. Teardown below stays best-effort on purpose -
+        // tearing down what you can is the useful outcome there.
+        var failures = new List<Exception>();
+
         foreach (var endpoint in _transport.Endpoints().OfType<IBrokerEndpoint>())
         {
             try
@@ -89,7 +97,14 @@ public class BrokerResource : IStatefulResource
             catch (Exception e)
             {
                 _runtime.Logger.LogError(e, "Error while attempting to setup broker endpoint {Uri}", endpoint.Uri);
+                failures.Add(new InvalidOperationException($"Unable to set up broker endpoint {endpoint.Uri}", e));
             }
+        }
+
+        if (failures.Count != 0)
+        {
+            throw new AggregateException(
+                $"Unable to set up {failures.Count} of the {_transport.Name} broker endpoints", failures);
         }
     }
 
