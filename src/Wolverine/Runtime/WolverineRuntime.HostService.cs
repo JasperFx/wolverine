@@ -294,6 +294,27 @@ public partial class WolverineRuntime
         {
             Logger.LogInformation(
                 "Skipping automatic message storage migration on startup because AutoBuildMessageStorageOnStartup is None. The message storage must have been provisioned ahead of time, e.g. with 'resources setup' / IHost.SetupResources()");
+
+            // None is a claim that something else provisioned the storage, so verify the claim here rather
+            // than letting the first agent or listener to touch a missing table fail with a bare "relation
+            // does not exist" from somewhere much further into startup - which names neither the storage
+            // nor the setup step that was skipped. Same failure policy as the migration above, so a rolling
+            // deploy that deliberately tolerates a replica starting ahead of its provisioning step still
+            // can. Stores that cannot introspect their own schema no-op this (IMessageStoreAdmin default).
+            //
+            // The whole collection rather than Storage alone, so that it covers what MigrateAsync above
+            // covers: an ancillary store whose schema was never provisioned would otherwise go unchecked and
+            // fail whenever something first used it.
+            try
+            {
+                await _stores.Value.AssertStorageExistsAsync(Cancellation);
+            }
+            catch (Exception e) when (Options.ResourceMigrationFailureMode ==
+                                      ResourceMigrationFailureMode.ContinueOnFailures)
+            {
+                Logger.LogError(e,
+                    "The Wolverine message storage is missing or out of date and AutoBuildMessageStorageOnStartup is None. Continuing startup anyway because ResourceMigrationFailureMode is ContinueOnFailures.");
+            }
         }
 
         _hasMigratedStorage = true;

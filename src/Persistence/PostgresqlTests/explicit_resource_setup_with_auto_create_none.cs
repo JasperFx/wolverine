@@ -17,11 +17,14 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
 {
     private const string SchemaName = "autocreate_none";
 
+    private const string AncillarySchemaName = "autocreate_none_ancillary";
+
     public async ValueTask InitializeAsync()
     {
         await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
         await conn.OpenAsync();
         await conn.DropSchemaAsync(SchemaName);
+        await conn.DropSchemaAsync(AncillarySchemaName);
         await conn.CloseAsync();
     }
 
@@ -30,7 +33,21 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
         return ValueTask.CompletedTask;
     }
 
-    private static IHostBuilder configureHost()
+    private static IHostBuilder configureHost(
+        ResourceMigrationFailureMode failureMode = ResourceMigrationFailureMode.FailFast)
+    {
+        return Host.CreateDefaultBuilder()
+            .UseWolverine(opts =>
+            {
+                opts.Durability.Mode = DurabilityMode.Solo;
+                opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
+                opts.ResourceMigrationFailureMode = failureMode;
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName)
+                    .OverrideAutoCreateResources(AutoCreate.None);
+            });
+    }
+
+    private static IHostBuilder configureHostWithAncillaryStore()
     {
         return Host.CreateDefaultBuilder()
             .UseWolverine(opts =>
@@ -39,7 +56,18 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
                 opts.AutoBuildMessageStorageOnStartup = AutoCreate.None;
                 opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, SchemaName)
                     .OverrideAutoCreateResources(AutoCreate.None);
+                opts.PersistMessagesWithPostgresql(Servers.PostgresConnectionString, AncillarySchemaName,
+                        MessageStoreRole.Ancillary)
+                    .OverrideAutoCreateResources(AutoCreate.None);
             });
+    }
+
+    private static async Task dropAsync(string tableName)
+    {
+        await using var conn = new NpgsqlConnection(Servers.PostgresConnectionString);
+        await conn.OpenAsync();
+        await conn.CreateCommand($"drop table {SchemaName}.{tableName}").ExecuteNonQueryAsync();
+        await conn.CloseAsync();
     }
 
     private static async Task<bool> envelopeTablesExist()
@@ -97,10 +125,120 @@ public class explicit_resource_setup_with_auto_create_none : PostgresqlContext, 
         }
         catch (Exception)
         {
-            // The host may well fail during startup because the message storage was
-            // never provisioned. This test only cares that startup did not create it
+            // Startup is expected to fail here - see the test below. This one only cares that it did
+            // not create the storage on its way past.
         }
 
         (await envelopeTablesExist()).ShouldBeFalse();
+    }
+
+    /// <summary>
+    ///     AutoCreate.None is a claim that something else provisioned the storage, so startup verifies the
+    ///     claim instead of carrying on. Before this it logged "skipping ... must have been provisioned ahead
+    ///     of time" and continued, and the first agent to touch a missing table then failed with a bare
+    ///     "relation wolverine_nodes does not exist" from somewhere much further into startup - which names
+    ///     neither the storage nor the setup step that was skipped.
+    /// </summary>
+    [Fact]
+    public async Task host_startup_with_auto_build_none_fails_naming_the_setup_it_skipped()
+    {
+        using var host = configureHost().Build();
+
+        var exception = await Should.ThrowAsync<Exception>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        // ToString rather than Message: the assert can surface wrapped, and what matters is that the
+        // provisioning step is named somewhere in the failure the operator actually sees.
+        exception.ToString().ShouldContain("resources setup");
+    }
+
+    /// <summary>
+    ///     The check has to cover the same stores <c>MigrateAsync</c> does. An ancillary store whose schema
+    ///     was never provisioned would otherwise pass startup unnoticed and fail whenever something first
+    ///     used it, which can be a long way from here.
+    /// </summary>
+    [Fact]
+    public async Task an_unprovisioned_ancillary_store_is_caught_as_well()
+    {
+        // Only the main store, so the ancillary schema is genuinely absent afterwards.
+        using (var mainOnly = configureHost().Build())
+        {
+            await mainOnly.SetupResources(cancellation: TestContext.Current.CancellationToken);
+        }
+
+        using var host = configureHostWithAncillaryStore().Build();
+
+        var exception = await Should.ThrowAsync<Exception>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        exception.ToString().ShouldContain("resources setup");
+    }
+
+    /// <summary>
+    ///     And the other way round, so the test above cannot pass because setup never reached the ancillary
+    ///     store in the first place.
+    /// </summary>
+    [Fact]
+    public async Task setup_resources_provisions_the_ancillary_store_too()
+    {
+        using var host = configureHostWithAncillaryStore().Build();
+
+        await host.SetupResources(cancellation: TestContext.Current.CancellationToken);
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    /// <summary>
+    ///     The GH-3130 compatibility path. Storage that is merely <em>out of date</em> rather than absent is
+    ///     the case this matters for: the assert is strict about any difference, but a host whose code never
+    ///     touches the drifted object used to start perfectly well - so a deployment that provisions after
+    ///     its replicas has to be able to keep that behaviour.
+    /// </summary>
+    [Fact]
+    public async Task continue_on_failures_starts_the_host_when_the_storage_is_out_of_date()
+    {
+        using (var provisioned = configureHost().Build())
+        {
+            await provisioned.SetupResources(cancellation: TestContext.Current.CancellationToken);
+        }
+
+        // Nothing in the startup path reads the dead letter table, so this is drift the host can tolerate -
+        // and the assert still has to see it, or the test proves nothing.
+        await dropAsync(DatabaseConstants.DeadLetterTable);
+
+        using var host = configureHost(ResourceMigrationFailureMode.ContinueOnFailures).Build();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task fail_fast_stops_the_host_when_the_storage_is_out_of_date()
+    {
+        using (var provisioned = configureHost().Build())
+        {
+            await provisioned.SetupResources(cancellation: TestContext.Current.CancellationToken);
+        }
+
+        await dropAsync(DatabaseConstants.DeadLetterTable);
+
+        using var host = configureHost().Build();
+
+        var exception = await Should.ThrowAsync<Exception>(
+            () => host.StartAsync(TestContext.Current.CancellationToken));
+
+        exception.ToString().ShouldContain("resources setup");
+    }
+
+    [Fact]
+    public async Task host_startup_with_auto_build_none_succeeds_once_the_storage_is_provisioned()
+    {
+        using var host = configureHost().Build();
+
+        await host.SetupResources(cancellation: TestContext.Current.CancellationToken);
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await host.StopAsync(TestContext.Current.CancellationToken);
     }
 }
