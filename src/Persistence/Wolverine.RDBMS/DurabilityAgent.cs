@@ -32,6 +32,7 @@ internal class DurabilityAgent : IAgent
     private Timer? _scheduledJobTimer;
     private Timer? _handledCleanupTimer;
     private Timer? _nodeRecordPruningTimer;
+    private Timer? _orphanSweepTimer;
 
     private readonly DurabilityHealthSignals _health;
     private DateTime _lastHealthCheck = DateTime.UtcNow;
@@ -92,35 +93,33 @@ internal class DurabilityAgent : IAgent
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(new Random().Next(0, 1000).Milliseconds());
 
 #pragma warning disable VSTHRD101 // Avoid unsupported async delegates
-        _recoveryTimer = new Timer(async _ =>
+        _recoveryTimer = new Timer(_ =>
         {
-            IReadOnlyList<int>? activeNodeNumbers = null;
-            var nodeNumberHighWaterMark = 0;
-            if (_settings.Mode != DurabilityMode.Solo && _database.Settings.Role != MessageStoreRole.Main)
+            var batch = new DatabaseOperationBatch(_database, buildOperationBatch());
+            _runningBlock.Post(batch);
+        }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+
+        // GH-3971: the orphaned-message sweep used to be appended to the recovery batch above, which put
+        // an unbounded full-table UPDATE inside the shared recovery transaction and tied its cadence to
+        // ScheduledJobPollingTime -- so slowing it down also delayed scheduled message delivery. It now
+        // runs on its own timer in its own transaction, exactly as #3116 did for the expired-handled
+        // cleanup. Solo mode has no peers to orphan anything, so the timer is never created.
+        if (_settings.Mode != DurabilityMode.Solo)
+        {
+            _orphanSweepTimer = new Timer(async _ =>
             {
                 try
                 {
-                    // Node-wide, not per-database: LoadAllNodesAsync also selects the whole assignment
-                    // table to populate ActiveAgents, which this caller never reads, and there is one
-                    // durability agent per message database. See ActiveNodeNumberCache.
-                    var cache = ActiveNodeNumberCache.For(_runtime);
-                    activeNodeNumbers = await cache.FetchAsync(_runtime.Cancellation);
-
-                    // GH-3850: the list is up to one polling interval old, so it cannot speak for a
-                    // node that registered after it was taken. The mark bounds who it may judge.
-                    nodeNumberHighWaterMark = cache.HighWaterMark;
+                    var sweep = await buildOrphanSweepAsync();
+                    if (sweep != null) _runningBlock.Post(sweep);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogDebug(e, "Failed to load active nodes for orphaned message detection");
+                    _logger.LogError(e, "Error building the orphaned message sweep for database {Database}",
+                        _database.Name);
                 }
-            }
-
-            var operations = buildOperationBatch(activeNodeNumbers, nodeNumberHighWaterMark);
-
-            var batch = new DatabaseOperationBatch(_database, operations);
-            _runningBlock.Post(batch);
-        }, _settings, recoveryStart, _settings.ScheduledJobPollingTime);
+            }, _settings, recoveryStart, _settings.OrphanedMessageSweepPollingTime);
+        }
 #pragma warning restore VSTHRD101 // Avoid unsupported async delegates
 
         if (_settings.DeadLetterQueueExpirationEnabled)
@@ -196,6 +195,11 @@ internal class DurabilityAgent : IAgent
             await _nodeRecordPruningTimer.DisposeAsync();
         }
 
+        if (_orphanSweepTimer != null)
+        {
+            await _orphanSweepTimer.DisposeAsync();
+        }
+
         Status = AgentStatus.Stopped;
     }
 
@@ -248,8 +252,41 @@ internal class DurabilityAgent : IAgent
         }
     }
 
-    internal IDatabaseOperation[] buildOperationBatch(IReadOnlyList<int>? activeNodeNumbers = null,
-        int nodeNumberHighWaterMark = 0)
+    /// <summary>
+    /// GH-3971: build the orphaned-message sweep for this database. Runs on its own timer in its own
+    /// transaction -- see <see cref="ReleaseOrphanedMessagesCommand"/> for why it is no longer part of
+    /// <see cref="buildOperationBatch"/>.
+    /// </summary>
+    internal async Task<IAgentCommand?> buildOrphanSweepAsync()
+    {
+        // A Solo node is the whole cluster: there are no peers whose departure could orphan anything, and
+        // releasing on its own restart is what GH-3287 established must NOT happen. The timer is not even
+        // created in Solo mode, but the rule lives here so there is exactly one place that decides it.
+        if (_settings.Mode == DurabilityMode.Solo) return null;
+
+        if (_database.Settings.Role == MessageStoreRole.Main)
+        {
+            // The node table is in this same database, so the command reads the live node numbers itself
+            // inside the same connection as the owner scan.
+            return new ReleaseOrphanedMessagesCommand(_database, _settings, _logger);
+        }
+
+        // An ancillary database has no wolverine_nodes table of its own, so the live node numbers have to
+        // come from the main store.
+        //
+        // Node-wide, not per-database: LoadAllNodesAsync also selects the whole assignment table to
+        // populate ActiveAgents, which this caller never reads, and there is one durability agent per
+        // message database. See ActiveNodeNumberCache.
+        var cache = ActiveNodeNumberCache.For(_runtime);
+        var activeNodeNumbers = await cache.FetchAsync(_runtime.Cancellation);
+
+        // GH-3850: the list is up to one polling interval old, so it cannot speak for a node that
+        // registered after it was taken. The mark bounds who it may judge.
+        return new ReleaseOrphanedMessagesCommand(_database, _settings, _logger, activeNodeNumbers,
+            cache.HighWaterMark);
+    }
+
+    internal IDatabaseOperation[] buildOperationBatch()
     {
         var incomingTable = _database.DbObjectNameFor(DatabaseConstants.IncomingTable);
         var now = DateTimeOffset.UtcNow;
@@ -263,21 +300,12 @@ internal class DurabilityAgent : IAgent
             new MoveReplayableErrorMessagesToIncomingOperation(_database)
         ];
 
-        if (_settings.Mode != DurabilityMode.Solo)
-        {
-            if (_database.Settings.Role == MessageStoreRole.Main)
-            {
-                ops.Add(new ReleaseOrphanedMessagesOperation(_database));
-            }
-            else if (activeNodeNumbers is { Count: > 0 })
-            {
-                ops.Add(new ReleaseOrphanedMessagesForAncillaryOperation(_database, activeNodeNumbers,
-                    nodeNumberHighWaterMark));
-            }
-        }
-
         // GH-3701: node record pruning used to live here, on the five-second recovery cadence. It now runs
         // on its own timer -- see PruneNodeRecords.
+        //
+        // GH-3971: so does the orphaned-message sweep, for the same reason plus two more -- it was an
+        // unbounded UPDATE holding the shared recovery transaction, and its predicate could not use an
+        // index. See buildOrphanSweepAsync / ReleaseOrphanedMessagesCommand.
 
         if (_runtime.Options.Durability.OutboxStaleTime.HasValue)
         {

@@ -403,6 +403,15 @@ internal partial class OracleMessageStore : IMessageDatabase, IMessageInbox, IMe
     // Oracle falls back to an unbounded delete for expired handled envelope cleanup
     public string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize) => null;
 
+    // GH-3971. OracleMessageStore implements IMessageDatabase directly rather than deriving from
+    // MessageDatabase, so it restates the portable defaults here. The indexable `owner_id in (…)`
+    // predicate and the idx_wolverine_*_owner index both apply; only the bounded update does not, the
+    // same trade this store already makes for the expired-handled cleanup above.
+    public string DistinctOwnerIdsSql(DbObjectName table)
+        => $"select distinct {DatabaseConstants.OwnerId} from {table} where {DatabaseConstants.OwnerId} <> 0";
+
+    public string? BatchedReleaseOwnershipSql(DbObjectName table, string deadOwnerList, int batchSize) => null;
+
     public Task EnqueueAsync(IDatabaseOperation operation)
     {
         // NOTE: this silently drops the operation. OracleMessageStore implements IMessageDatabase

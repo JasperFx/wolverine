@@ -1,8 +1,4 @@
-using Microsoft.Data.SqlClient;
-using NSubstitute;
 using Shouldly;
-using Weasel.Core;
-using Wolverine.RDBMS;
 using Wolverine.RDBMS.Durability;
 
 namespace SqlServerTests;
@@ -12,31 +8,24 @@ namespace SqlServerTests;
 /// so the list cannot describe a node that registered after it was taken. Releasing a <i>live</i>
 /// node's rows to <c>owner_id = 0</c> hands its in-flight work to somebody else, so the release is
 /// bounded by the highest node number the cache has ever seen.
+///
+/// <para>GH-3971 moved this decision out of the SQL — the sweep now works out the dead owners in memory
+/// so it can issue an indexable <c>owner_id in (…)</c> update — so these assert against
+/// <see cref="ReleaseOrphanedMessagesCommand.DetermineDeadOwners"/> rather than against statement text.
+/// Same rule, now tested where it lives.</para>
 /// </summary>
 public class release_orphaned_ancillary_high_water_mark_3850
 {
-    private static string sqlFor(IReadOnlyList<int> activeNodeNumbers, int highWaterMark)
-    {
-        var database = Substitute.For<IMessageDatabase>();
-        database.SchemaName.Returns("ancillary");
-
-        var operation = new ReleaseOrphanedMessagesForAncillaryOperation(database, activeNodeNumbers,
-            highWaterMark);
-
-        var builder = new DbCommandBuilder(new SqlCommand());
-        operation.ConfigureCommand(builder);
-
-        return builder.Compile().CommandText;
-    }
+    private static int[] dead(int[] ownersInTable, int[] activeNodeNumbers, int highWaterMark)
+        => ReleaseOrphanedMessagesCommand.DetermineDeadOwners(ownersInTable, activeNodeNumbers, highWaterMark);
 
     [Fact]
     public void the_release_is_bounded_by_the_high_water_mark()
     {
-        var sql = sqlFor([1, 2, 3], highWaterMark: 3);
-
-        // Node 4 registered after the cached list was taken. Without this bound the update would
-        // reset its rows -- it is absent from the list purely because the list predates it.
-        sql.ShouldContain("owner_id <= 3");
+        // Node 4 registered after the cached list was taken and has already written rows. Without this
+        // bound its live, in-flight work would be reset -- it is absent from the list purely because the
+        // list predates it.
+        dead([1, 2, 3, 4], activeNodeNumbers: [1, 2, 3], highWaterMark: 3).ShouldBeEmpty();
     }
 
     [Fact]
@@ -45,32 +34,29 @@ public class release_orphaned_ancillary_high_water_mark_3850
         // Node 3 was the highest and has died, so the active list is [1, 2] -- but the mark stays at
         // 3 because the cache saw it. Bounding by max(active) instead would put node 3's orphaned
         // messages permanently out of reach, which is why the mark is monotonic.
-        var sql = sqlFor([1, 2], highWaterMark: 3);
-
-        sql.ShouldContain("owner_id <= 3");
-        sql.ShouldContain("owner_id not in (1, 2)");
+        dead([1, 2, 3], activeNodeNumbers: [1, 2], highWaterMark: 3).ShouldBe([3]);
     }
 
     [Fact]
     public void the_guard_is_omitted_when_no_mark_is_supplied()
     {
         // 0 means "no mark", which restores the un-bounded behaviour rather than releasing nothing.
-        var sql = sqlFor([1, 2, 3], highWaterMark: 0);
-
-        sql.ShouldNotContain("owner_id <=");
-        sql.ShouldContain("owner_id not in (1, 2, 3)");
+        dead([1, 2, 3, 9], activeNodeNumbers: [1, 2, 3], highWaterMark: 0).ShouldBe([9]);
     }
 
     [Fact]
-    public void both_the_inbox_and_the_outbox_are_bounded()
+    public void unowned_rows_are_never_released()
     {
-        var sql = sqlFor([1, 2], highWaterMark: 7);
+        // owner_id = 0 IS the released state. Including it would rewrite every unowned row on every
+        // sweep -- the largest share of a busy inbox -- for no effect at all.
+        dead([0, 1, 5], activeNodeNumbers: [1], highWaterMark: 0).ShouldBe([5]);
+    }
 
-        sql.ShouldContain("ancillary.wolverine_incoming");
-        sql.ShouldContain("ancillary.wolverine_outgoing");
-
-        // one bound per statement -- an unbounded outbox release is the same defect, and the outbox
-        // is where a newcomer owns rows first (MessageRoute stamps OwnerId on persist)
-        System.Text.RegularExpressions.Regex.Matches(sql, "owner_id <= 7").Count.ShouldBe(2);
+    [Fact]
+    public void a_fleet_with_nothing_orphaned_yields_nothing()
+    {
+        // The steady state, and the point of GH-3971: every owner present is live, so there is nothing to
+        // release and the sweep issues no UPDATE at all.
+        dead([1, 2, 3], activeNodeNumbers: [1, 2, 3], highWaterMark: 3).ShouldBeEmpty();
     }
 }

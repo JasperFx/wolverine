@@ -49,46 +49,40 @@ public class solo_mode_does_not_release_orphaned_messages : IAsyncLifetime
     }
 
     [Fact]
-    public void solo_mode_build_operation_batch_excludes_orphaned_release()
+    public async Task solo_mode_builds_no_orphan_sweep()
     {
         var runtime = theSoloHost.GetRuntime();
         var database = (IMessageDatabase)runtime.Storage;
 
         var agent = new DurabilityAgent(runtime, database);
 
-        var operations = agent.buildOperationBatch();
-
-        // Should NOT contain any orphaned message release operations in Solo mode
-        operations.ShouldNotContain(op => op is ReleaseOrphanedMessagesOperation);
-        operations.ShouldNotContain(op => op is ReleaseOrphanedMessagesForAncillaryOperation);
+        // A Solo node is the whole cluster: there are no peers whose departure could orphan anything, and
+        // releasing on its own restart is exactly what GH-3287 established must not happen.
+        (await agent.buildOrphanSweepAsync()).ShouldBeNull();
     }
 
     [Fact]
-    public void solo_mode_build_operation_batch_excludes_orphaned_release_even_with_active_nodes()
-    {
-        var runtime = theSoloHost.GetRuntime();
-        var database = (IMessageDatabase)runtime.Storage;
-
-        var agent = new DurabilityAgent(runtime, database);
-
-        var operations = agent.buildOperationBatch(activeNodeNumbers: new List<int> { 1, 2, 3 });
-
-        // Should NOT contain any orphaned message release operations in Solo mode
-        operations.ShouldNotContain(op => op is ReleaseOrphanedMessagesOperation);
-        operations.ShouldNotContain(op => op is ReleaseOrphanedMessagesForAncillaryOperation);
-    }
-
-    [Fact]
-    public void balanced_mode_build_operation_batch_includes_orphaned_release()
+    public async Task balanced_mode_builds_the_orphan_sweep()
     {
         var runtime = theBalancedHost.GetRuntime();
         var database = (IMessageDatabase)runtime.Storage;
 
         var agent = new DurabilityAgent(runtime, database);
 
-        var operations = agent.buildOperationBatch();
+        (await agent.buildOrphanSweepAsync()).ShouldBeOfType<ReleaseOrphanedMessagesCommand>();
+    }
 
-        // SHOULD contain the orphaned message release operation for main databases in Balanced mode
-        operations.ShouldContain(op => op is ReleaseOrphanedMessagesOperation);
+    [Fact]
+    public void the_orphan_sweep_is_no_longer_part_of_the_shared_recovery_batch()
+    {
+        var runtime = theBalancedHost.GetRuntime();
+        var database = (IMessageDatabase)runtime.Storage;
+
+        var agent = new DurabilityAgent(runtime, database);
+
+        // GH-3971: it runs on its own timer in its own transaction now, for the same reason #3116 moved
+        // the expired-handled cleanup out -- an unbounded UPDATE must not hold the recovery transaction.
+        agent.buildOperationBatch()
+            .ShouldNotContain(op => op.Description.Contains("orphan", StringComparison.OrdinalIgnoreCase));
     }
 }

@@ -136,6 +136,26 @@ public interface IMessageDatabase : IMessageStoreWithAgentSupport, ITenantDataba
     /// </summary>
     string? BatchedDeleteExpiredHandledEnvelopesSql(int batchSize);
 
+    /// <summary>
+    /// GH-3971: SQL returning every DISTINCT non-zero <c>owner_id</c> present in
+    /// <paramref name="table"/>, so the orphan sweep can work out which owners are actually dead
+    /// <i>in memory</i> and then issue an indexable <c>owner_id in (…)</c> update.
+    ///
+    /// <para>The default is a plain <c>select distinct</c>. Providers whose planner can descend an
+    /// index per distinct value instead of scanning every row should override — with a large inbox
+    /// the difference is the whole point of the change, since a plain DISTINCT that scans the table
+    /// on every cycle just relocates the cost the sweep was paying before.</para>
+    /// </summary>
+    string DistinctOwnerIdsSql(DbObjectName table);
+
+    /// <summary>
+    /// GH-3971: SQL releasing at most <paramref name="batchSize"/> envelopes in
+    /// <paramref name="table"/> whose owner is in <paramref name="deadOwnerList"/> (a
+    /// pre-rendered, comma-separated list of integer literals). Return null if this provider cannot
+    /// bound the update, in which case the sweep falls back to a single unbounded statement.
+    /// </summary>
+    string? BatchedReleaseOwnershipSql(DbObjectName table, string deadOwnerList, int batchSize);
+
     Task EnqueueAsync(IDatabaseOperation operation);
     void WriteLoadScheduledEnvelopeSql(DbCommandBuilder builder, DateTimeOffset utcNow);
     Task PollForScheduledMessagesAsync(IWolverineRuntime runtime, ILogger runtimeLogger,

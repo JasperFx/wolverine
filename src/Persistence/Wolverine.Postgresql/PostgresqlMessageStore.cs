@@ -181,6 +181,43 @@ internal class PostgresqlMessageStore : MessageDatabase<NpgsqlConnection>, IConn
             $"(select ctid from {table} where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= :now limit {batchSize});";
     }
 
+    /// <summary>
+    /// GH-3971: a "loose index scan" (skip scan), which PostgreSQL will not plan on its own. Descends
+    /// the <c>owner_id</c> index once per DISTINCT value instead of reading every row, so the steady
+    /// state — a handful of owners over millions of envelopes — costs a handful of index descents.
+    ///
+    /// <para>A plain <c>select distinct</c> would not do: with an index it can only manage an
+    /// index-ONLY scan, and that still walks one entry per row and depends on visibility-map coverage
+    /// the constantly-churning inbox does not have. It would simply move the full scan this change
+    /// exists to remove from the UPDATE to the SELECT.</para>
+    /// </summary>
+    public override string DistinctOwnerIdsSql(DbObjectName table)
+    {
+        var owner = DatabaseConstants.OwnerId;
+
+        return $@"
+with recursive owners as (
+    (select {owner} from {table} where {owner} <> 0 order by {owner} limit 1)
+    union all
+    select (select t.{owner} from {table} t where t.{owner} > o.{owner} and t.{owner} <> 0 order by t.{owner} limit 1)
+    from owners o where o.{owner} is not null
+)
+select {owner} from owners where {owner} is not null";
+    }
+
+    public override string? BatchedReleaseOwnershipSql(DbObjectName table, string deadOwnerList, int batchSize)
+    {
+        var owner = DatabaseConstants.OwnerId;
+
+        // Bound the update via ctid so each statement holds locks for a short time, the same shape as
+        // BatchedDeleteExpiredHandledEnvelopesSql. Losing one node otherwise makes every envelope it
+        // owned qualify in a single statement -- a reported deployment measured 587,460 buffers and 2,151
+        // dirtied for one shard, with production bodies averaging 12 KB.
+        return
+            $"update {table} set {owner} = 0 where ctid in " +
+            $"(select ctid from {table} where {owner} in ({deadOwnerList}) limit {batchSize});";
+    }
+
     public override ISchemaObject AddExternalMessageTable(ExternalMessageTable definition)
     {
         var table = new Table(definition.TableName);

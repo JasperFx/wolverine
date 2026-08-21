@@ -157,6 +157,23 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>, IConnection
             $"where {DatabaseConstants.Status} = '{EnvelopeStatus.Handled}' and {DatabaseConstants.KeepUntil} <= @now;";
     }
 
+    // GH-3971: deliberately NOT overriding DistinctOwnerIdsSql. The recursive index skip-scan
+    // PostgreSQL uses cannot be expressed in T-SQL: SQL Server forbids aggregate functions, TOP and
+    // subqueries in the recursive member of a recursive CTE, and every spelling of "next distinct value"
+    // needs one of them. The portable `select distinct` stands, which with the owner_id index is an
+    // index scan over a narrow key rather than the heap scan over 12 KB rows it replaces -- a real
+    // improvement, just not the constant-time one Postgres gets. The batched, indexable UPDATE below is
+    // the larger half of the win and applies here unchanged.
+
+    public override string? BatchedReleaseOwnershipSql(DbObjectName table, string deadOwnerList, int batchSize)
+    {
+        var owner = DatabaseConstants.OwnerId;
+
+        // UPDATE TOP bounds each statement so locks are held only briefly, the same shape as
+        // BatchedDeleteExpiredHandledEnvelopesSql.
+        return $"update top ({batchSize}) {table} set {owner} = 0 where {owner} in ({deadOwnerList});";
+    }
+
     protected override void writePagingAfter(DbCommandBuilder builder, int offset, int limit)
     {
         if (offset == 0) return;
