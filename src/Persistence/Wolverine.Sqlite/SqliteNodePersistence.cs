@@ -44,7 +44,15 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await conn.CreateCommand($"delete from {_nodeTable}")
+
+        // GH-3986: the assignment rows have to go explicitly. PostgreSQL and Sql Server get this from
+        // the node_id foreign key's ON DELETE CASCADE, but the SQLite assignment table has no foreign
+        // key -- SQLite would not enforce one anyway without PRAGMA foreign_keys=ON per connection.
+        // Left behind, the rows are invisible to LoadAllNodesAsync (it only attaches an assignment to a
+        // node id it actually loaded) right up until a node re-registers under the same id, which is
+        // exactly the GH-3604 ejection/re-registration path -- and then it comes back owning agents it
+        // was never reassigned.
+        await conn.CreateCommand($"delete from {_assignmentTable};delete from {_nodeTable};")
             .ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -86,8 +94,10 @@ internal class SqliteNodePersistence : DatabaseConstants, INodeAgentPersistence
         }
 
         await using var conn = await _dataSource.OpenConnectionAsync(CancellationToken.None).ConfigureAwait(false);
+
+        // GH-3986: same missing cascade as ClearAllAsync -- delete this node's assignments by hand.
         await conn.CreateCommand(
-                $"delete from {_nodeTable} where id = @id;update {IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
+                $"delete from {_assignmentTable} where {NodeId} = @id;delete from {_nodeTable} where id = @id;update {IncomingTable} set {OwnerId} = 0 where {OwnerId} = @number;update {OutgoingTable} set {OwnerId} = 0 where {OwnerId} = @number;")
             .With("id", nodeId.ToString())
             .With("number", assignedNodeNumber)
             .ExecuteNonQueryAsync();

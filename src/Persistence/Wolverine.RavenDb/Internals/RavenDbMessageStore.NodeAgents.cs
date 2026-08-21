@@ -21,7 +21,13 @@ public partial class RavenDbMessageStore : INodeAgentPersistence
 
         foreach (var node in nodes)
         {
-            session.Delete(node);
+            // GH-3986: delete by document id rather than by entity. LoadAllNodesAsync opens and
+            // disposes its own session, so these WolverineNode instances are tracked by a session
+            // that is already gone, and RavenDB's Delete<T>(T entity) overload throws
+            // "... is not associated with the session, cannot delete unknown entity instance".
+            // Deleting by id matches what DeleteAsync(Guid, int) already does for a single node,
+            // and what the AgentAssignment deletes below have always done.
+            session.Delete(node.NodeId.ToString());
             foreach (var agent in node.ActiveAgents)
             {
                 session.Delete(AgentAssignment.ToId(agent));
