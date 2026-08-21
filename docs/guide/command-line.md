@@ -302,7 +302,39 @@ start it, so no database or message-broker connections are opened.
 * Wolverine has direct support for [Oakton](https://jasperfx.github.io/oakton) environment checks and resource management that
   can be very helpful for Wolverine integrations with message brokers or database servers
 
+## Exporting the Event Model
 
+::: tip
+Added with GH-3988 / GH-3990. The design-time Event Modeling viewer that renders this file is the
+Bobcat viewer; CritterWatch renders the same descriptor live from a running service.
+:::
 
+Every Wolverine message handler chain, HTTP endpoint chain and gRPC-forwarded RPC *derives* its own
+[Event Modeling](https://eventmodeling.org/) roles — the inbound command, the handler, the aggregate(s) the
+handler decides against (`[WriteAggregate]` / `[WriteModel]`, `[AggregateHandler]` / `[DeciderFunction]`, the
+DCB `[DcbModel]` / `[BoundaryModel]`), the events it emits (its declarative return values), the read models it loads
+(`[ReadAggregate]` / `[ReadModel]`, `[Entity]`) or produces (`IStorageAction<T>`), the messages it cascades, how it is
+triggered and which of the four slice patterns it is. Nothing is declared; it is all read off the chain, and it
+flows out through the `ServiceCapabilities` snapshot CritterWatch already consumes and through JasperFx's
+`IEventModelDefinitionSource` seam.
 
+The `event-model` command writes that whole picture — Wolverine's derived slices, Wolverine.HTTP's, and any
+[overlay](https://github.com/JasperFx/jasperfx/issues/687) the application registered with
+`services.AddEventModel(...)` — as one JSON `EventModelDescriptor`, **without a running fleet**:
 
+```bash
+dotnet run -- event-model                       # writes event-model.json in the working directory
+dotnet run -- event-model --json ./docs/orders.json
+dotnet run -- event-model --json ./out.json --name Orders
+```
+
+The host is built but **never started**: the handler graph is compiled the same way
+`wolverine-diagnostics describe-handlers` does it, so no transport is opened, no database is touched, and no
+runtime compiler is needed — a `TypeLoadMode.Dynamic` application without `WolverineFx.RuntimeCompilation`
+still exports. The JSON is written camelCase with enums as strings, exactly as CritterWatch puts the descriptor
+on the wire, so the file round-trips through `EventModelDescriptor` and renders in the shared Event Modeling
+component with the same output CritterWatch shows for the same host.
+
+What is deliberately *not* visible here: imperative `session.Events.Append(...)` inside a handler body. That is
+invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
+imperative case.

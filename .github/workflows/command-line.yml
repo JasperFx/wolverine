@@ -64,3 +64,23 @@ jobs:
           echo "::endgroup::"
 
           echo "describe-handlers smoke test passed"
+
+      - name: event-model export smoke test
+        run: |
+          set -euo pipefail
+
+          echo "::group::event-model writes the merged Event Model as JSON without starting the host"
+          mkdir -p artifacts
+          dotnet run --project src/Samples/Quickstart --framework net9.0 -- \
+            event-model --json artifacts/quickstart-event-model.json
+          test -s artifacts/quickstart-event-model.json
+          cat artifacts/quickstart-event-model.json | head -c 2000; echo
+          grep -q '"name": "Quickstart"' artifacts/quickstart-event-model.json
+          grep -q '"slices"' artifacts/quickstart-event-model.json
+          grep -q '"name": "CreateIssue"' artifacts/quickstart-event-model.json
+          grep -q '"triggerKind": "MessageHandler"' artifacts/quickstart-event-model.json
+          grep -q '"pattern": "Command"' artifacts/quickstart-event-model.json
+          grep -q '"elements"' artifacts/quickstart-event-model.json
+          echo "::endgroup::"
+
+          echo "event-model smoke test passed"
