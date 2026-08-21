@@ -407,6 +407,12 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         return this.As<TSelf>();
     }
 
+    public TSelf ExternalSystem(string name)
+    {
+        add(e => e.ExternalSystemName = name);
+        return this.As<TSelf>();
+    }
+
     public TSelf DefaultSerializer(IMessageSerializer serializer)
     {
         add(e =>

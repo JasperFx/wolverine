@@ -54,19 +54,45 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
         var slices = new List<EventModelSliceDescriptor>();
         var aggregates = new List<AggregateDescriptor>();
         var aggregateNames = new HashSet<string>(StringComparer.Ordinal);
+        var stickyEndpoints = new Dictionary<string, HashSet<Uri>>(StringComparer.Ordinal);
+        var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
 
         void describe(HandlerChain chain)
         {
-            if (chain.Handlers.Count == 0) return;
             if (chain.MessageType.IsSystemMessageType()) return;
 
-            slices.Add(EventModelRoles.ForHandlerChain(chain));
+            // sticky handlers live on per-endpoint sub-chains, so walk those whether or not the
+            // parent chain has a default handler of its own
+            foreach (var sticky in chain.ByEndpoint) describe(sticky);
+
+            if (chain.Handlers.Count == 0) return;
+
+            var slice = EventModelRoles.ForHandlerChain(chain);
+            slices.Add(slice);
+
+            knownTypes.TryAdd(chain.MessageType.FullName!, chain.MessageType);
+            foreach (var call in chain.Handlers)
+            foreach (var variable in call.Creates)
+            {
+                if (variable.VariableType.FullName is { } fullName) knownTypes.TryAdd(fullName, variable.VariableType);
+            }
+
+            // a sticky handler chain is bound to these listeners — that is what makes a listener the
+            // trigger of this slice (GH-3989)
+            if (chain.Endpoints.Count > 0)
+            {
+                if (!stickyEndpoints.TryGetValue(slice.Name, out var uris))
+                {
+                    uris = new HashSet<Uri>();
+                    stickyEndpoints[slice.Name] = uris;
+                }
+
+                foreach (var endpoint in chain.Endpoints) uris.Add(endpoint.Uri);
+            }
             foreach (var aggregate in EventModelRoles.AggregatesFor(chain))
             {
                 if (aggregateNames.Add(aggregate.Type.FullName)) aggregates.Add(aggregate);
             }
-
-            foreach (var sticky in chain.ByEndpoint) describe(sticky);
         }
 
         foreach (var chain in options.HandlerGraph.Chains.OrderBy(x => x.MessageType.FullName, StringComparer.Ordinal))
@@ -76,7 +102,140 @@ public sealed class WolverineEventModelSource : IEventModelDefinitionSource
 
         var model = new EventModelDescriptor(options.ServiceName, slices) { Aggregates = aggregates };
         model = ApplyGrpcTriggers(model, grpc);
+        model = ApplyExternalSystems(model, options, stickyEndpoints, knownTypes, includeInbound: true);
         return FinishModel(model);
+    }
+
+    /// <summary>
+    ///     GH-3989: the <em>edge</em> of a translation slice is the endpoint — a listener receiving from, or a
+    ///     sender publishing to, something outside this application — and the external system's
+    ///     <em>name</em> is what the application declared on that endpoint with <c>.ExternalSystem("...")</c>.
+    ///     Inbound: the named listener is the trigger of every slice stuck to it, or whose command is its
+    ///     <see cref="Endpoint.MessageType"/>; a listener bound to no slice still renders, as a trigger-only
+    ///     translation slice. Outbound: every slice whose published messages or emitted events the named
+    ///     endpoint subscribes to gets the external system on its far end.
+    /// </summary>
+    /// <param name="model">The model to annotate.</param>
+    /// <param name="options">The Wolverine options — the endpoints come from <c>Transports.AllEndpoints()</c>.</param>
+    /// <param name="stickyEndpointsBySlice">Listener URIs each slice's chain is stuck to, by slice name. May be empty.</param>
+    /// <param name="knownTypes">The CLR types behind the slices' message / event descriptors, by full name, so a subscription's own matching rules decide the outbound edge. Descriptors with no known type fall back to a name match.</param>
+    /// <param name="includeInbound">False for a source whose slices have no listener (Wolverine.HTTP): only outbound edges apply.</param>
+    public static EventModelDescriptor ApplyExternalSystems(
+        EventModelDescriptor model,
+        WolverineOptions options,
+        IReadOnlyDictionary<string, HashSet<Uri>>? stickyEndpointsBySlice = null,
+        IReadOnlyDictionary<string, Type>? knownTypes = null,
+        bool includeInbound = true)
+    {
+        var named = options.Transports.AllEndpoints()
+            .Where(x => !string.IsNullOrWhiteSpace(x.ExternalSystemName))
+            .OrderBy(x => x.Uri.ToString(), StringComparer.Ordinal)
+            .ToArray();
+        if (named.Length == 0) return model;
+
+        var slices = model.Slices.ToList();
+
+        foreach (var endpoint in named)
+        {
+            var name = endpoint.ExternalSystemName!;
+            var uri = endpoint.Uri.ToString();
+
+            // Outbound: the endpoint subscribes to a message this slice publishes or an event it emits
+            for (var i = 0; i < slices.Count; i++)
+            {
+                var slice = slices[i];
+                var outgoing = slice.PublishedMessages.Concat(slice.EmittedEvents).ToArray();
+                if (outgoing.Length == 0) continue;
+
+                if (endpoint.Subscriptions.Any(subscription => outgoing.Any(type => matches(subscription, type, knownTypes))))
+                {
+                    slices[i] = withExternalSystem(slice, new ExternalSystemDescriptor(name, ExternalSystemDirection.Outbound, uri), flipPattern: false);
+                }
+            }
+
+            if (!includeInbound || !endpoint.IsListener) continue;
+
+            // Inbound: the listener is the trigger of a slice stuck to it, or whose command is its message type
+            var matched = false;
+            for (var i = 0; i < slices.Count; i++)
+            {
+                var slice = slices[i];
+                var stuck = stickyEndpointsBySlice != null &&
+                            stickyEndpointsBySlice.TryGetValue(slice.Name, out var uris) && uris.Contains(endpoint.Uri);
+                var byType = endpoint.MessageType != null && slice.CommandType?.FullName == endpoint.MessageType.FullName;
+                if (!stuck && !byType) continue;
+
+                matched = true;
+                var label = $"{name} → {endpoint.EndpointName}";
+                slices[i] = withExternalSystem(slice, new ExternalSystemDescriptor(name, ExternalSystemDirection.Inbound, uri), flipPattern: true)
+                    with
+                    {
+                        TriggerLabel = slice.TriggerLabel ?? label,
+                        TriggerKind = TriggerKind.External,
+                        TriggerOrigin = slice.TriggerOrigin ?? new PublisherOrigin { Label = label }
+                    };
+            }
+
+            if (!matched)
+            {
+                // Nothing binds the listener to a slice — there is still a boundary to render
+                slices.Add(new EventModelSliceDescriptor(
+                    endpoint.EndpointName,
+                    $"{name} → {endpoint.EndpointName}",
+                    null,
+                    endpoint.MessageType is null ? null : JasperFx.Descriptors.TypeDescriptor.For(endpoint.MessageType),
+                    null,
+                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
+                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>(),
+                    Array.Empty<JasperFx.Descriptors.TypeDescriptor>())
+                {
+                    Pattern = SlicePattern.Translation,
+                    TriggerKind = TriggerKind.External,
+                    TriggerOrigin = new PublisherOrigin { Label = $"{name} → {endpoint.EndpointName}" },
+                    ExternalSystems = new[] { new ExternalSystemDescriptor(name, ExternalSystemDirection.Inbound, uri) }
+                });
+            }
+        }
+
+        return model with { Slices = slices };
+
+        static bool matches(Wolverine.Runtime.Routing.Subscription subscription, JasperFx.Descriptors.TypeDescriptor descriptor,
+            IReadOnlyDictionary<string, Type>? knownTypes)
+        {
+            // Subscriptions match on Type; the slice carries TypeDescriptors. The source that derived the
+            // slice knows the types, so the subscription's own rules decide; a descriptor nobody resolved
+            // (an overlay's, say) gets the name-only approximation of the same rules.
+            if (knownTypes != null && knownTypes.TryGetValue(descriptor.FullName, out var type))
+            {
+                return subscription.Matches(type);
+            }
+
+            return subscription.Scope switch
+            {
+                Wolverine.Runtime.Routing.RoutingScope.Type => descriptor.Name.Equals(subscription.Match, StringComparison.OrdinalIgnoreCase) ||
+                                                               descriptor.FullName.Equals(subscription.Match, StringComparison.OrdinalIgnoreCase),
+                Wolverine.Runtime.Routing.RoutingScope.TypeName => descriptor.FullName.Equals(subscription.Match, StringComparison.OrdinalIgnoreCase),
+                Wolverine.Runtime.Routing.RoutingScope.Namespace => descriptor.FullName.StartsWith(subscription.Match + ".", StringComparison.OrdinalIgnoreCase),
+                Wolverine.Runtime.Routing.RoutingScope.Assembly => descriptor.AssemblyName.Equals(subscription.Match, StringComparison.OrdinalIgnoreCase),
+                Wolverine.Runtime.Routing.RoutingScope.Implements => false,
+                _ => true,
+            };
+        }
+
+        static EventModelSliceDescriptor withExternalSystem(EventModelSliceDescriptor slice, ExternalSystemDescriptor system, bool flipPattern)
+        {
+            if (slice.ExternalSystems.Any(x => x.Name == system.Name && x.Direction == system.Direction)) return slice;
+
+            var systems = slice.ExternalSystems.Concat(new[] { system }).ToList();
+            // An external system on the inbound side makes this a translation slice. On the outbound side
+            // a slice keeps its own pattern (a command slice that also notifies Stripe is still a command
+            // slice) unless it is a pure relay — no aggregate, no events of its own.
+            var pattern = flipPattern || (slice.AggregateTypes.Count == 0 && slice.EmittedEvents.Count == 0 && slice.Pattern == SlicePattern.Command)
+                ? SlicePattern.Translation
+                : slice.Pattern;
+
+            return slice with { ExternalSystems = systems, Pattern = pattern };
+        }
     }
 
     /// <summary>
