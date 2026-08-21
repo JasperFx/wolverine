@@ -2,6 +2,151 @@
 
 ## Unreleased
 
+### WolverineFx.Http
+
+- **`Before` middleware can replace an immutable request body.**
+  ([#3984](https://github.com/JasperFx/wolverine/pull/3984)) Handler chains have supported this since
+  GH-516: a `Before` / `BeforeAsync` that accepts the message type *and* returns it overwrites the message
+  for the rest of the chain. HTTP chains had no equivalent pass, so the same shape on an endpoint class
+  failed to compile with a colliding local (CS0841/CS0136).
+
+  ```csharp
+  public static class StampedRequestEndpoint
+  {
+      // Accepts the request type and returns it, so it replaces the
+      // request body for the rest of the chain
+      public static StampedRequest Before(StampedRequest request)
+          => request with { StampedBy = "server" };
+
+      [WolverinePost("/middleware/stamped")]
+      public static string Handle(StampedRequest request) => request.StampedBy;
+  }
+  ```
+
+  Use it to enrich an immutable `record` request with server-supplied values — timestamps, user identity —
+  before the endpoint method runs, keeping the endpoint signature a pure decider. Sync, async and
+  tuple-returning `Before` methods behave exactly as they do on the handler side, including returning the
+  replaced request alongside a short-circuiting `IResult`.
+
+  Middleware registered externally (`Policies.AddMiddleware`, `[Middleware]`) still may not return the
+  request type; that remains blocked by the existing `MiddlewarePolicy` exception.
+
+### WolverineFx.RavenDb / WolverineFx.Sqlite
+
+- **`ClearAllAsync` could not delete node records another process wrote.**
+  ([#3993](https://github.com/JasperFx/wolverine/pull/3993), closes
+  [#3986](https://github.com/JasperFx/wolverine/issues/3986)) Clearing node state is what a `Solo`-mode
+  start does to sweep the `WolverineNode` records a previous `Balanced` run left behind — so by
+  construction it deletes rows *this* process did not write.
+
+  On **RavenDB** it could not. `LoadAllNodesAsync` opens and disposes its own session, and RavenDB's
+  `Delete<T>(T entity)` requires the entity to be tracked by the session it is called on, so every stale
+  node threw and the application could not start:
+
+  ```
+  System.InvalidOperationException: Wolverine.Runtime.Agents.WolverineNode is not associated
+  with the session, cannot delete unknown entity instance
+  ```
+
+  Node records are now deleted by document id, which is what `DeleteAsync(Guid, int)` and the agent
+  assignment deletes in the same loop already did. The reported workaround — clearing
+  **Documents → WolverineNodes** by hand in RavenDB Studio before a Solo start — is no longer needed.
+
+- **SQLite orphaned every agent assignment row.** ([#3993](https://github.com/JasperFx/wolverine/pull/3993))
+  The compliance coverage written for the RavenDB fix caught a second provider. SQLite's assignment table
+  declares no foreign key to the node table — PostgreSQL, Sql Server and Oracle all use
+  `ON DELETE CASCADE`, and SQLite would not enforce a constraint anyway without `PRAGMA foreign_keys=ON`
+  per connection — so both clearing all nodes and deleting a single node left the assignment rows behind
+  permanently.
+
+  Those orphans are invisible to `LoadAllNodesAsync`, which only attaches an assignment to a node id it
+  actually loaded, right up until a node re-registers under the same id — exactly the GH-3604 ejection
+  path — where it returns owning agents it was never reassigned. Both statements now delete the
+  assignments explicitly. Existing databases simply stop accumulating them; any already-orphaned rows are
+  cleared by the next sweep.
+
+  The underlying gap was that `NodePersistenceCompliance` never exercised `ClearAllAsync` at all, which is
+  how two providers could ship it broken. It does now.
+
+### WolverineFx (core)
+
+- **An agent this node cannot build is released to a node that can.**
+  ([#3994](https://github.com/JasperFx/wolverine/pull/3994), closes
+  [#3970](https://github.com/JasperFx/wolverine/issues/3970)) When `IAgentFamily.BuildAgentAsync` threw,
+  the exception was caught, logged, and dropped. The agent was simply absent from the confirmed set, so
+  the leader learned only that it was *unconfirmed* — which it deliberately does not treat as a failure,
+  because GH-3750 fixed exactly the opposite bug — and the assignment stood. The same agent was requested
+  on the same node again on the next tick, forever. Reported as a 54-minute fleet-wide projection stall on
+  a blue/green cluster whose two sides carry disjoint projection versions.
+
+  GH-3888's release path is the right remedy but structurally could not reach this: it is driven by the
+  stall detector sweeping the agents a node is actually *running*, and a start that throws leaves no
+  instance at all, so no restart budget was ever consumed.
+
+  Consecutive failed starts are now counted on the node that catches them — the only place that can tell
+  "still working on it" from "threw, and will throw again here" — and an exhausted budget feeds into the
+  existing release path. A live peer must still advertise the capability, the capability embargo still
+  stops the leader handing the agent straight back, and the assignment row is dropped so the agent can be
+  placed elsewhere.
+
+  The new `DurabilitySettings.MaxAgentStartFailuresBeforeRelease` (default `3`) is the counterpart to
+  `MaxLocalAgentRestartsBeforeRelease`. Each tick already spends `AgentStartRetryAttempts + 1` inner
+  attempts before it counts as one failure here, so the default is three strikes across three assignment
+  cycles. Set it to `0` to restore the previous behaviour. The count is *consecutive* — a successful start
+  clears it, and so does any stop.
+
+  Durability agents (`wolverinedb://`) are never in a node's advertised capabilities, so they always take
+  the decline branch and their local retries are unchanged. That is correct: there is no capability-matched
+  alternative node to release them to.
+
+### WolverineFx.PostgreSQL / WolverineFx.SqlServer / WolverineFx.Oracle
+
+- **The orphaned-message sweep is now indexable, bounded, and outside the shared recovery transaction.**
+  ([#3995](https://github.com/JasperFx/wolverine/pull/3995), closes
+  [#3971](https://github.com/JasperFx/wolverine/issues/3971)) The sweep that releases inbox and outbox
+  messages owned by departed nodes was three problems at once, all of which compound at scale. Reported
+  against a 466-shard PostgreSQL deployment where it had become the dominant source of database load and
+  lock contention.
+
+  **The predicate could not use an index.** `owner_id != 0 and owner_id not in (<live nodes>)` — the
+  selective part is the `NOT IN`, and everything else matches essentially every row, because in a healthy
+  fleet virtually every envelope is owned by a *live* node. So it was a full scan of the whole inbox, per
+  database, every five seconds, finding nothing; an index on `owner_id` did not change the plan. The dead
+  owners are now determined first and the update asks for `owner_id in (<dead>)`.
+
+  Worth knowing if you are reasoning about this yourself: the obvious `select distinct owner_id` measured
+  *worse* than the predicate it replaces (355 buffers / 8.9 ms against 837 / 3.0 ms), because PostgreSQL
+  will not plan a loose index scan on its own. PostgreSQL therefore spells it as an explicit recursive
+  skip-scan — 8 buffers, 0.026 ms, cost proportional to the number of distinct owners rather than the row
+  count. Sql Server keeps a portable `DISTINCT`, because T-SQL forbids aggregates, `TOP` and subqueries in
+  the recursive member of a recursive CTE.
+
+  **The update was unbounded.** One node loss made every envelope it owned qualify in a single statement —
+  82,520 rows in one `UPDATE` on one shard, roughly 910,000 across the fleet, at ~12 KB a body. It is now
+  bounded by the new `OrphanedMessageReleaseBatchSize` (PostgreSQL by `ctid`, Sql Server by `update top`)
+  with a per-cycle cap. Providers that cannot bound it fall back to a single statement, as they already do
+  for the expired-handled cleanup.
+
+  **It ran inside the shared recovery transaction** — the one #3116 deliberately moved cleanup deletes out
+  of, for exactly this reason. The reported symptom was `TimeoutException` on inbox inserts with every
+  blocking session sitting on this statement. It now runs on its own timer, in its own transaction, on its
+  own `OrphanedMessageSweepPollingTime`, so slowing the sweep no longer delays scheduled message delivery.
+
+  Also ships the partial index on `owner_id` that the new predicate makes worthwhile. **Existing databases
+  will apply that index on the next migration.**
+
+- **The sweep never released anything on Oracle.**
+  ([#3995](https://github.com/JasperFx/wolverine/pull/3995)) Caught by CI before release rather than after.
+  Both of the sweep's reads are of node numbers, and both went through `FetchListAsync<int>()`, which reads
+  via `GetFieldValueAsync<int>()`. Oracle's `NUMBER` arrives from ODP.NET as an `Int64`, so both threw
+  `InvalidCastException`.
+
+  Both reads sit inside the `try`/`catch` that logs and returns, so on Oracle the whole sweep degraded to a
+  **silent no-op** — it released nothing, forever, while looking healthy apart from one log line per cycle.
+  Node numbers are now converted rather than cast, which tolerates whatever integral type a provider
+  surfaces. Oracle users on 6.29.2 get a sweep that works; there was never a released version where it did,
+  since the sweep itself is new here.
+
 ### WolverineFx.MySql
 
 - **The envelope storage migration no longer fails on every startup.**
