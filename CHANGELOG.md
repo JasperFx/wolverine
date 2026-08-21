@@ -77,6 +77,16 @@
 
 ### WolverineFx (core)
 
+- **`.ExternalSystem("Stripe")` names the external system on an endpoint, and the Event Model renders the
+  boundary.** ([#3989](https://github.com/JasperFx/wolverine/issues/3989)) Every listener and subscriber
+  configuration gains `ExternalSystem(string name)` (stored as `Endpoint.ExternalSystemName`, surfaced as the typed
+  `EndpointDescriptor.ExternalSystem` in capabilities). The Wolverine-derived Event Model attaches an inbound
+  external-system element to the slice a named listener triggers — a handler stuck to it, or the handler of its
+  `DefaultIncomingMessage<T>()` — making it a `Translation` slice triggered `External` (a named listener bound to
+  no slice still renders as a trigger-only boundary), and an outbound element to every slice whose published
+  messages or emitted events the named endpoint subscribes to. The edge is derived; only the name is declared,
+  on the endpoint, never in the overlay (jasperfx#687 decision 5).
+
 - **Chains carry their Event Modeling roles, and `event-model` exports them.**
   ([#3988](https://github.com/JasperFx/wolverine/issues/3988), [#3990](https://github.com/JasperFx/wolverine/issues/3990))
   Every message handler chain now derives its Event Modeling slice — command, handler, the aggregate(s) it decides

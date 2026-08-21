@@ -338,3 +338,28 @@ component with the same output CritterWatch shows for the same host.
 What is deliberately *not* visible here: imperative `session.Events.Append(...)` inside a handler body. That is
 invisible at runtime, so only declarative returns are reported; CritterWatch's source generator covers the
 imperative case.
+
+### Naming the external system on an endpoint
+
+The *edge* of a translation slice is derived — a listener that receives from, or a subscriber that publishes to,
+something outside your application *is* the external-system boundary — but the **name** of that system is the one
+thing code cannot say. Declare it on the endpoint, never in the event-model overlay:
+
+```cs
+opts.ListenToRabbitQueue("stripe-events")
+    .ExternalSystem("Stripe")
+    .DefaultIncomingMessage<StripeChargeSucceeded>();
+
+opts.PublishMessage<IssueStripeRefund>()
+    .ToRabbitQueue("stripe-refunds")
+    .ExternalSystem("Stripe");
+```
+
+`.ExternalSystem("...")` is available on every listener and subscriber configuration. The name flows out through
+the endpoint's `EndpointDescriptor.ExternalSystem` in the capabilities snapshot, and the Event Model attaches a
+**Stripe** external-system element — inbound — to the slice the listener triggers (a handler stuck to that
+listener, or the handler of its `DefaultIncomingMessage<T>()`), which makes that slice a `Translation` slice
+triggered `External`; a named listener bound to no slice still renders as a trigger-only boundary. On the outbound
+side, every slice whose published messages or emitted events the named endpoint subscribes to gets the system on
+its far end (a pure relay becomes a `Translation` slice; a command slice that also notifies Stripe stays a command
+slice).

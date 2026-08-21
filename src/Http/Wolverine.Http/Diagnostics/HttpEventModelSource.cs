@@ -28,10 +28,31 @@ internal sealed class HttpEventModelSource : IEventModelDefinitionSource
         var graph = _options.Endpoints;
         if (graph is null) return Task.FromResult<EventModelDescriptor?>(null);
 
-        return Task.FromResult<EventModelDescriptor?>(Describe(_wolverineOptions.ServiceName, graph.Chains));
+        return Task.FromResult<EventModelDescriptor?>(Describe(_wolverineOptions, graph.Chains));
     }
 
     /// <summary>Describe every routed HTTP chain as an Event Model slice.</summary>
+    public static EventModelDescriptor Describe(WolverineOptions options, IEnumerable<HttpChain> chains)
+    {
+        var chainList = chains.ToList();
+        var model = Describe(options.ServiceName, chainList);
+
+        var knownTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
+        foreach (var chain in chainList)
+        {
+            if (chain.RequestType?.FullName is { } request) knownTypes.TryAdd(request, chain.RequestType);
+            foreach (var variable in chain.Method.Creates)
+            {
+                if (variable.VariableType.FullName is { } fullName) knownTypes.TryAdd(fullName, variable.VariableType);
+            }
+        }
+
+        // GH-3989: an endpoint publishing to a named external system puts that system on the far end
+        // of the HTTP slice too; HTTP chains have no listener, so only outbound edges apply
+        return WolverineEventModelSource.ApplyExternalSystems(model, options, knownTypes: knownTypes, includeInbound: false);
+    }
+
+    /// <summary>Describe every routed HTTP chain as an Event Model slice, without endpoint-derived external systems.</summary>
     public static EventModelDescriptor Describe(string serviceName, IEnumerable<HttpChain> chains)
     {
         var slices = new List<EventModelSliceDescriptor>();
