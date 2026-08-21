@@ -64,3 +64,24 @@ jobs:
           echo "::endgroup::"
 
           echo "describe-handlers smoke test passed"
+
+      - name: event-model export smoke test
+        run: |
+          set -euo pipefail
+
+          echo "::group::event-model writes the merged Event Model as JSON without starting the host"
+          # dotnet run --project runs in the sample's directory, so name the output absolutely
+          out="$GITHUB_WORKSPACE/artifacts/quickstart-event-model.json"
+          dotnet run --project src/Samples/Quickstart --framework net9.0 -- \
+            event-model --json "$out"
+          test -s "$out"
+          head -c 2000 "$out"; echo
+          grep -q '"name": "Quickstart"' "$out"
+          grep -q '"slices"' "$out"
+          grep -q '"name": "CreateIssue"' "$out"
+          grep -q '"triggerKind": "MessageHandler"' "$out"
+          grep -q '"pattern": "Command"' "$out"
+          grep -q '"elements"' "$out"
+          echo "::endgroup::"
+
+          echo "event-model smoke test passed"

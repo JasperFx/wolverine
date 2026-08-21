@@ -4,6 +4,13 @@
 
 ### WolverineFx.Http
 
+- **HTTP chains carry their Event Modeling roles.** ([#3988](https://github.com/JasperFx/wolverine/issues/3988))
+  Every routed `HttpChain` derives the same slice a message handler does — triggered by its verb + route, the
+  request body as the command, the endpoint type as the handler, `[WriteAggregate]` / `[ReadAggregate]` and friends
+  as aggregates and read models, `[EmptyResponse]` returns as emitted events, and a `GET` that writes nothing as a
+  `View` slice reading its resource type — through an `IEventModelDefinitionSource` that `AddWolverineHttp()`
+  registers, so it reaches `ServiceCapabilities.EventModel` and the `event-model` export with no further wiring.
+
 - **`Before` middleware can replace an immutable request body.**
   ([#3984](https://github.com/JasperFx/wolverine/pull/3984)) Handler chains have supported this since
   GH-516: a `Before` / `BeforeAsync` that accepts the message type *and* returns it overwrites the message
@@ -69,6 +76,19 @@
   how two providers could ship it broken. It does now.
 
 ### WolverineFx (core)
+
+- **Chains carry their Event Modeling roles, and `event-model` exports them.**
+  ([#3988](https://github.com/JasperFx/wolverine/issues/3988), [#3990](https://github.com/JasperFx/wolverine/issues/3990))
+  Every message handler chain now derives its Event Modeling slice — command, handler, the aggregate(s) it decides
+  against (`[WriteModel]` / `[DeciderFunction]` / `[DcbModel]` and the store spellings), emitted events from its
+  declarative returns, read models (`[ReadModel]`, `[Entity]`, `IStorageAction<T>`), cascaded messages, trigger kind
+  (message handler / job scheduler / gRPC when an RPC forwards the message) and slice pattern — as a JasperFx
+  `EventModelSliceDescriptor`. It is surfaced on `MessageHandlerDescriptor.EventModel`, as the assembled
+  `ServiceCapabilities.EventModel`, and through a `WolverineEventModelSource : IEventModelDefinitionSource` that
+  `UseWolverine()` registers ahead of every overlay so derived roles win on merge. `dotnet run -- event-model
+  [--json <path>]` writes the merged model as JSON from a host that is built but never started — no transports,
+  no database, no runtime compiler. Imperative `session.Events.Append(...)` in a handler body stays invisible by
+  decision of record; only declarative returns are reported. Bumps JasperFx to 2.54.0 for the descriptor.
 
 - **An agent this node cannot build is released to a node that can.**
   ([#3994](https://github.com/JasperFx/wolverine/pull/3994), closes
