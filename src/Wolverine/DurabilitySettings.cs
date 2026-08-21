@@ -357,6 +357,27 @@ public class DurabilitySettings : IDescribeMyself
     public int MaxLocalAgentRestartsBeforeRelease { get; set; } = 3;
 
     /// <summary>
+    ///     GH-3970: how many consecutive assignment ticks may fail to <i>build or start</i> an agent on this
+    ///     node before the node releases it to a capable peer, using the same embargo as
+    ///     <see cref="MaxLocalAgentRestartsBeforeRelease" />.
+    ///
+    ///     <para>This is the counterpart budget for a failure that happens <b>before</b> there is an agent
+    ///     instance at all. A start that throws out of <c>IAgentFamily.BuildAgentAsync</c> leaves nothing
+    ///     registered on the node, so the stall detector — which sweeps the agents this node is actually
+    ///     running — never sees it, and no restart budget is ever consumed. Without this the leader learns
+    ///     only that the agent is "unconfirmed", which it deliberately does not treat as a failure
+    ///     (GH-3750), so the assignment stands and the same agent is requested on the same node again on
+    ///     every tick, forever.</para>
+    ///
+    ///     <para>Note each tick has already made <see cref="AgentStartRetryAttempts" /> + 1 attempts of its
+    ///     own before it counts as one failure here, so the default is a deliberately patient
+    ///     three-strikes over three separate assignment cycles rather than a hair trigger. A successful
+    ///     start clears the count. Set to 0 or a negative number to disable release for failed starts and
+    ///     keep the pre-GH-3970 behavior of retrying on the same node indefinitely. Default 3.</para>
+    /// </summary>
+    public int MaxAgentStartFailuresBeforeRelease { get; set; } = 3;
+
+    /// <summary>
     ///     GH-3888: how long a node withholds a released agent's URI from its advertised capabilities
     ///     after exhausting local restarts on it. While the embargo is live, the leader's
     ///     capability-matched distribution cannot hand the agent straight back to the node that just
@@ -535,6 +556,7 @@ public class DurabilitySettings : IDescribeMyself
         desc.AddValue(nameof(NodeRecordRetention), NodeRecordRetention);
         desc.AddValue(nameof(NodeRecordPruningPeriod), NodeRecordPruningPeriod);
         desc.AddValue(nameof(MaxLocalAgentRestartsBeforeRelease), MaxLocalAgentRestartsBeforeRelease);
+        desc.AddValue(nameof(MaxAgentStartFailuresBeforeRelease), MaxAgentStartFailuresBeforeRelease);
         desc.AddValue(nameof(AgentReleaseCooldown), AgentReleaseCooldown);
         desc.AddValue(nameof(SendingAgentIdleTimeout), SendingAgentIdleTimeout);
         desc.AddValue(nameof(DrainTimeout), DrainTimeout);

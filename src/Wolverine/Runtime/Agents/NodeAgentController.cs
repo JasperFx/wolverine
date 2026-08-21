@@ -51,6 +51,25 @@ public partial class NodeAgentController
     // than on every sweep tick. Only touched from the serialized health-check path.
     private readonly HashSet<Uri> _reportedUnreleasable = new();
 
+    // GH-3970: consecutive failures to BUILD or START an agent here, keyed by agent Uri. A failed build
+    // leaves nothing in Agents, so the GH-3888 stall detector -- which sweeps the agents this node is
+    // actually running -- structurally cannot see it, and no restart budget is ever consumed. Counting
+    // the failures here is what gives that release path something to act on. A successful start removes
+    // the entry. A ConcurrentDictionary because starts run with bounded parallelism (StartBatchAsync)
+    // while the serialized health-check path reads the counts.
+    private readonly ConcurrentDictionary<Uri, FailedStartRecord> _failedStarts = new();
+
+    /// <summary>
+    /// GH-3970: how many times in a row this node has failed to build/start one agent, and why it failed
+    /// the last time. The exception is kept so the release decision can say what actually went wrong --
+    /// for the reported field failure that is an <c>ArgumentOutOfRangeException</c> naming the projection
+    /// version this node does not carry, which is exactly the detail an operator needs to see.
+    /// </summary>
+    internal sealed record FailedStartRecord(int Count, Exception? Failure)
+    {
+        public FailedStartRecord Next(Exception? failure) => new(Count + 1, failure ?? Failure);
+    }
+
     /// <summary>
     /// GH-3888: clock for the release-embargo bookkeeping. Tests substitute it so the cooldown can be
     /// exercised without waiting it out; everything else uses the system clock.
@@ -315,13 +334,31 @@ public partial class NodeAgentController
             }
         }
 
-        var agent = await startWithRetriesAsync(agentUri);
+        IAgent agent;
+        try
+        {
+            agent = await startWithRetriesAsync(agentUri);
+        }
+        catch (Exception e)
+        {
+            // GH-3970: count it before it propagates. The caller (StartBatchAsync) logs and swallows, and
+            // the leader is told only that the agent is "unconfirmed" -- which it deliberately does not
+            // treat as a failure (GH-3750) -- so without this ledger nothing anywhere distinguishes "this
+            // node is still working on it" from "this node threw and will throw again". This node caught
+            // the exception; it is the only place that knows.
+            _failedStarts.AddOrUpdate(agentUri, _ => new FailedStartRecord(1, e), (_, existing) => existing.Next(e));
+            throw;
+        }
 
         Agents[agentUri] = agent;
 
         // GH-3638: a start that succeeded supersedes whatever failure was last reported for this agent, so
         // a later failure alerts again instead of being swallowed as a duplicate of the old one.
         _reportedFailures.TryRemove(agentUri, out _);
+
+        // GH-3970: likewise for the failed-start budget -- the count is CONSECUTIVE failures, so anything
+        // that comes up clears it and a later relapse gets a full budget of its own.
+        _failedStarts.TryRemove(agentUri, out _);
 
         await upsertAssignmentAsync(agentUri);
     }
@@ -423,6 +460,12 @@ public partial class NodeAgentController
         // deferred start still queued or in flight for this agent. See StartAgentGuardedAsync.
         _stopRevocations[agentUri] = Interlocked.Increment(ref _commandSequence);
 
+        // GH-3970: a stop ends this node's run of consecutive failed starts, whatever the reason for it.
+        // Without this an agent that failed here, was placed elsewhere, and came back much later would
+        // resume an ancient count and be released on its first fresh failure instead of getting the full
+        // budget the setting promises.
+        _failedStarts.TryRemove(agentUri, out _);
+
         if (Agents.TryGetValue(agentUri, out var agent))
         {
             try
@@ -503,7 +546,7 @@ public partial class NodeAgentController
     /// </summary>
     internal async Task ReportFailedLocalAgentsAsync()
     {
-        List<(Uri Uri, IEventSubscriptionAgent Agent)>? exhausted = null;
+        List<ReleaseCandidate>? exhausted = null;
 
         foreach (var entry in Agents.ToArray())
         {
@@ -517,7 +560,7 @@ public partial class NodeAgentController
             // short-circuit below — a stalled shard still reads Running.
             if (subscription.LocalRestartsExhausted)
             {
-                (exhausted ??= new()).Add((entry.Key, subscription));
+                (exhausted ??= new()).Add(new ReleaseCandidate(entry.Key, subscription, null));
                 continue;
             }
 
@@ -542,10 +585,43 @@ public partial class NodeAgentController
             await reportAgentPausedAsync(entry.Key, failure);
         }
 
+        // GH-3970: the other half of the sweep. These agents are NOT in Agents -- the start threw before
+        // anything could be registered -- so the loop above structurally cannot reach them. They ride the
+        // same release policy: a bounded budget, a live capable peer required, and the same capability
+        // embargo to stop the leader handing the agent straight back.
+        var startBudget = _runtime.Options.Durability.MaxAgentStartFailuresBeforeRelease;
+        if (startBudget > 0)
+        {
+            foreach (var entry in _failedStarts.ToArray())
+            {
+                if (entry.Value.Count < startBudget) continue;
+
+                // A start that failed and then succeeded on a later tick has already cleared itself out
+                // of the ledger, so anything still here has failed every attempt since.
+                (exhausted ??= new()).Add(new ReleaseCandidate(entry.Key, null, entry.Value.Failure));
+            }
+        }
+
         if (exhausted != null)
         {
             await tryReleaseExhaustedAgentsAsync(exhausted);
         }
+    }
+
+    /// <summary>
+    /// An agent this node wants to hand back so the leader can place it on a capable peer. Two sources,
+    /// deliberately sharing one release policy and one embargo:
+    ///
+    /// <para><b>GH-3888</b> — a running <see cref="IEventSubscriptionAgent" /> that burned its node-local
+    /// auto-restart budget without ever advancing. <see cref="Agent" /> is the live instance.</para>
+    ///
+    /// <para><b>GH-3970</b> — an agent that could not be built or started here at all, so there is no
+    /// instance to carry a budget or report a <c>ShardFailure</c>. <see cref="Agent" /> is null and
+    /// <see cref="StartFailure" /> is the last exception the start threw.</para>
+    /// </summary>
+    internal sealed record ReleaseCandidate(Uri Uri, IEventSubscriptionAgent? Agent, Exception? StartFailure)
+    {
+        public bool IsFailedStart => Agent is null;
     }
 
     /// <summary>
@@ -565,7 +641,7 @@ public partial class NodeAgentController
     /// The embargo is written to the node row FIRST, then the assignment is dropped, so no evaluation can
     /// observe the freed agent while this node still advertises for it.</para>
     /// </summary>
-    private async Task tryReleaseExhaustedAgentsAsync(List<(Uri Uri, IEventSubscriptionAgent Agent)> exhausted)
+    private async Task tryReleaseExhaustedAgentsAsync(List<ReleaseCandidate> exhausted)
     {
         IReadOnlyList<WolverineNode> nodes;
         try
@@ -585,7 +661,7 @@ public partial class NodeAgentController
             .Where(x => x.NodeId != selfId && x.LastHealthCheck >= staleTime)
             .ToArray();
 
-        var releasable = new List<(Uri Uri, IEventSubscriptionAgent Agent)>();
+        var releasable = new List<ReleaseCandidate>();
         foreach (var pair in exhausted)
         {
             if (peers.Any(p => p.Capabilities.Contains(pair.Uri)))
@@ -597,14 +673,32 @@ public partial class NodeAgentController
                 // Nowhere better to go: no live peer advertises this agent, so releasing it would
                 // strand the shard entirely. Keep the pre-existing local retries — the least-bad
                 // option — and say so once per episode rather than on every tick.
+                //
+                // GH-3970: this is also the branch every agent whose family is NOT an IStaticAgentFamily
+                // lands in, permanently and by construction. Only static families contribute to a node's
+                // advertised Capabilities, so a wolverinedb:// durability agent can never match a peer
+                // here. That is the correct outcome — those agents have no capability-matched alternative
+                // node to be released TO — and it means the pre-GH-3970 behaviour of retrying locally is
+                // preserved exactly for them.
                 if (_reportedUnreleasable.Add(pair.Uri))
                 {
                     _logger.LogWarning(
-                        "Agent {AgentUri} on node {NodeNumber} exhausted its local auto-restart budget, but no live peer advertises the capability to run it. Local restarts continue.",
-                        pair.Uri, _runtime.Options.Durability.AssignedNodeNumber);
+                        "Agent {AgentUri} on node {NodeNumber} exhausted its local {Budget} budget, but no live peer advertises the capability to run it. Local retries continue.",
+                        pair.Uri, _runtime.Options.Durability.AssignedNodeNumber,
+                        pair.IsFailedStart ? "start" : "auto-restart");
                 }
 
-                pair.Agent.ResetLocalRestartBudget();
+                // Refund the budget so local retries continue rather than freezing here. For a failed
+                // start that means clearing the count: the next tick starts a fresh budget, and the
+                // release is reconsidered only after another full run of failures.
+                if (pair.IsFailedStart)
+                {
+                    _failedStarts.TryRemove(pair.Uri, out _);
+                }
+                else
+                {
+                    pair.Agent!.ResetLocalRestartBudget();
+                }
             }
         }
 
@@ -641,16 +735,34 @@ public partial class NodeAgentController
             return;
         }
 
-        foreach (var (uri, agent) in releasable)
+        foreach (var candidate in releasable)
         {
-            var failure = agent.Failure;
-            _logger.LogWarning(
-                "Agent {AgentUri} on node {NodeNumber} is being released after exhausting its local auto-restart budget without advancing. A live peer advertises the same capability, and the leader will reassign it there. This node will not advertise the capability again before {EmbargoUntil:u}. Last reported failure: {Failure}",
-                uri, _runtime.Options.Durability.AssignedNodeNumber, embargoUntil,
-                failure?.ToString() ?? "none reported");
+            var uri = candidate.Uri;
+            var failure = candidate.Agent?.Failure;
+
+            if (candidate.IsFailedStart)
+            {
+                _logger.LogWarning(
+                    "Agent {AgentUri} on node {NodeNumber} is being released after failing to start here {Attempts} consecutive times. A live peer advertises the same capability, and the leader will reassign it there. This node will not advertise the capability again before {EmbargoUntil:u}. Last start failure: {Failure}",
+                    uri, _runtime.Options.Durability.AssignedNodeNumber,
+                    _runtime.Options.Durability.MaxAgentStartFailuresBeforeRelease, embargoUntil,
+                    candidate.StartFailure?.ToString() ?? "none reported");
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Agent {AgentUri} on node {NodeNumber} is being released after exhausting its local auto-restart budget without advancing. A live peer advertises the same capability, and the leader will reassign it there. This node will not advertise the capability again before {EmbargoUntil:u}. Last reported failure: {Failure}",
+                    uri, _runtime.Options.Durability.AssignedNodeNumber, embargoUntil,
+                    failure?.ToString() ?? "none reported");
+            }
 
             try
             {
+                // Still the right call for a failed start even though nothing is running: StopAgentAsync
+                // skips the agent block when Agents has no entry and goes straight to
+                // RemoveAssignmentAsync. Dropping that assignment row is the point — the embargo alone
+                // stops this node being chosen again, but the row is what lets the leader place the agent
+                // somewhere else.
                 await StopAgentAsync(uri);
             }
             catch (Exception e)
@@ -664,6 +776,7 @@ public partial class NodeAgentController
 
             _reportedFailures.TryRemove(uri, out _);
             _reportedUnreleasable.Remove(uri);
+            _failedStarts.TryRemove(uri, out _);
 
             try
             {
