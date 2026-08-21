@@ -14,6 +14,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Wolverine.Configuration;
 using JasperFx.Events;
+using JasperFx.Events.EventModeling;
 using Wolverine.Configuration.Capabilities;
 using Wolverine.Http.ApiVersioning;
 using Wolverine.Http.CodeGen;
@@ -192,6 +193,13 @@ public static class WolverineHttpEndpointRouteBuilderExtensions
         // registered for back-compat with monitoring agents that haven't
         // shipped the richer reader yet.
         services.AddSingleton<IHttpGraphUsageSource, HttpGraphUsageSource>();
+
+        // GH-3988 — the Wolverine.HTTP-derived Event Model source. Inserted at the front, like Wolverine
+        // core's, so an overlay registered earlier cannot overwrite a derived role on merge.
+        if (services.All(x => x.ImplementationType != typeof(HttpEventModelSource)))
+        {
+            services.Insert(0, ServiceDescriptor.Singleton<IEventModelDefinitionSource, HttpEventModelSource>());
+        }
 
         // Registered unconditionally — harmless when no versioned endpoint uses it.
         services.AddSingleton<ApiVersionHeaderWriter>(sp =>

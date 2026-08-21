@@ -6,6 +6,8 @@ using JasperFx.Core.Reflection;
 using JasperFx.Descriptors;
 using JasperFx.Events;
 using JasperFx.Events.Descriptors;
+using JasperFx.Events.EventModeling;
+using Wolverine.Configuration.EventModeling;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Wolverine.Persistence;
@@ -134,6 +136,15 @@ public class ServiceCapabilities : OptionsDescription
 
     public List<EndpointDescriptor> MessagingEndpoints { get; set; } = [];
 
+    /// <summary>
+    ///     The service's assembled Event Model (GH-3988): every <see cref="IEventModelDefinitionSource" />
+    ///     registered in the container — Wolverine's own derived chain roles, Wolverine.HTTP's, and any
+    ///     jasperfx#687 overlay the application registered — folded into one <see cref="EventModelDescriptor" />
+    ///     named for the service. Slices merge by name with derived roles winning over overlay names. Null
+    ///     when the section could not be read.
+    /// </summary>
+    public EventModelDescriptor? EventModel { get; set; }
+
     public DatabaseCardinality MessageStoreCardinality { get; set; } = DatabaseCardinality.None;
 
     public List<BrokerDescription> Brokers { get; set; } = [];
@@ -190,6 +201,8 @@ public class ServiceCapabilities : OptionsDescription
 
         readSection(runtime, nameof(AdditionalCapabilities), token,
             () => readAdditionalCapabilities(runtime, capabilities));
+
+        await readSectionAsync(runtime, nameof(EventModel), token, () => readEventModel(runtime, token, capabilities));
 
         return capabilities;
     }
@@ -502,6 +515,18 @@ public class ServiceCapabilities : OptionsDescription
         capabilities.MessageStores.AddRange(stores.Select(MessageStore.For).OrderBy(x => x.Uri.ToString()));
 
         capabilities.MessageStoreCardinality = collection.Cardinality();
+    }
+
+    /// <summary>
+    ///     GH-3988: assemble the Event Model from every registered <see cref="IEventModelDefinitionSource" />.
+    ///     Wolverine core registers its derived source ahead of everything else, so derived roles win on
+    ///     merge; Wolverine.HTTP adds its chains; an application's overlays only name, group and link.
+    /// </summary>
+    private static async Task readEventModel(IWolverineRuntime runtime, CancellationToken token,
+        ServiceCapabilities capabilities)
+    {
+        capabilities.EventModel =
+            await WolverineEventModelExport.AssembleAsync(runtime.Services, runtime.Options.ServiceName, token);
     }
 
     private static void readAdditionalCapabilities(IWolverineRuntime runtime, ServiceCapabilities capabilities)
