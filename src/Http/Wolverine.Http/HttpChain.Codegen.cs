@@ -150,6 +150,18 @@ public partial class HttpChain
             Middleware.Insert(0, new AuditToActivityFrame(this, auditInputType));
         }
 
+        // Allow for immutable request types that get overwritten by middleware
+        if (RequestBodyVariable != null)
+        {
+            foreach (var methodCall in Middleware.OfType<MethodCall>())
+            {
+                // Skip the frame that reads the request body in the first place
+                if (ReferenceEquals(methodCall.ReturnVariable, RequestBodyVariable)) continue;
+
+                methodCall.TryReplaceVariableCreationWithAssignment(RequestBodyVariable);
+            }
+        }
+
         var index = 0;
         foreach (var frame in Middleware)
         {
