@@ -72,12 +72,12 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
     }
 
     [Fact]
-    public async Task the_recovery_batch_releases_messages_owned_by_a_dead_node()
+    public async Task the_orphan_sweep_releases_messages_owned_by_a_dead_node()
     {
         var (runtime, database) = theRuntimeAndDatabase();
 
         // Persist an incoming envelope owned by a node number that does not exist any more --
-        // exactly the state ReleaseOrphanedMessagesOperation is there to clean up
+        // exactly the state the orphaned message sweep is there to clean up
         var envelope = ObjectMother.Envelope();
         envelope.Status = EnvelopeStatus.Incoming;
         envelope.OwnerId = 8888;
@@ -85,8 +85,14 @@ public class oracle_durability_agent_recovery : IAsyncLifetime
         await database.Inbox.StoreIncomingAsync(envelope);
         (await ownerOf(envelope.Id)).ShouldBe(8888);
 
-        await new DatabaseOperationBatch(database, new DurabilityAgent(runtime, database).buildOperationBatch())
-            .ExecuteAsync(runtime, CancellationToken.None);
+        // GH-3971: the sweep left buildOperationBatch() for its own timer and its own transaction, so
+        // it has to be built and executed on its own now. Keeping this assertion pointed at the real
+        // Oracle database is the point -- the sweep issues its own statements, so it needs the same
+        // GH-3614 proof that the batch operations get here, not an inherited one.
+        var sweep = await new DurabilityAgent(runtime, database).buildOrphanSweepAsync();
+        sweep.ShouldNotBeNull();
+
+        await sweep.ExecuteAsync(runtime, CancellationToken.None);
 
         (await ownerOf(envelope.Id)).ShouldBe(TransportConstants.AnyNode);
     }

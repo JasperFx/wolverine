@@ -131,8 +131,8 @@ internal class ReleaseOrphanedMessagesCommand : IAgentCommand
             //   nodes-then-owners: that same node is absent from the node list and its brand-new envelopes
             //   ARE in the owner list -- so its live, in-flight work gets reset to owner_id = 0 and handed
             //   to somebody else. That is precisely the failure GH-3850 exists to prevent.
-            var owners = await conn.CreateCommand(_database.DistinctOwnerIdsSql(table))
-                .FetchListAsync<int>(cancellationToken);
+            var owners = await fetchNodeNumbersAsync(
+                conn.CreateCommand(_database.DistinctOwnerIdsSql(table)), cancellationToken);
 
             var live = await liveOwnersAsync(conn, cancellationToken);
             if (live == null) return [];
@@ -190,11 +190,30 @@ internal class ReleaseOrphanedMessagesCommand : IAgentCommand
         // can only appear in the envelope table if that node's registration had already committed, so an
         // owner absent from this read has genuinely departed.
         var nodesTable = _database.DbObjectNameFor(DatabaseConstants.NodeTableName);
-        var numbers = await conn
-            .CreateCommand($"select {DatabaseConstants.NodeNumber} from {nodesTable}")
-            .FetchListAsync<int>(cancellationToken);
+        var numbers = await fetchNodeNumbersAsync(
+            conn.CreateCommand($"select {DatabaseConstants.NodeNumber} from {nodesTable}"), cancellationToken);
 
         return numbers.Count == 0 ? null : numbers.ToHashSet();
+    }
+
+    /// <summary>
+    /// Read the first column as an <c>int</c>, tolerating whatever integral type the provider surfaces.
+    /// </summary>
+    /// <remarks>
+    /// Oracle's <c>NUMBER</c> arrives from ODP.NET as an <c>Int64</c>, and <c>FetchListAsync&lt;int&gt;()</c>
+    /// goes through <c>GetFieldValueAsync&lt;int&gt;()</c>, which throws <c>InvalidCastException</c> on it.
+    /// Both reads in this sweep are of node numbers, and both are inside the try/catch that logs and
+    /// returns — so on Oracle the whole sweep degraded to a silent no-op that released nothing, forever,
+    /// while looking healthy apart from one log line per cycle. Convert instead of casting.
+    /// </remarks>
+    private static Task<IReadOnlyList<int>> fetchNodeNumbersAsync(System.Data.Common.DbCommand cmd,
+        CancellationToken cancellationToken)
+    {
+        return cmd.FetchListAsync(async reader =>
+            await reader.IsDBNullAsync(0, cancellationToken).ConfigureAwait(false)
+                ? 0
+                : Convert.ToInt32(await reader.GetFieldValueAsync<object>(0, cancellationToken)
+                    .ConfigureAwait(false)), cancellationToken);
     }
 
     private async Task<int> releaseAsync(DbObjectName table, string deadOwnerList, CancellationToken cancellationToken)
