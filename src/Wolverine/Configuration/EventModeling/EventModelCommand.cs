@@ -123,6 +123,11 @@ public class EventModelCommand : JasperFxAsyncCommand<EventModelInput>
             var model = await WolverineEventModelExport.AssembleAsync(host.Services, input.NameFlag);
 
             var path = input.JsonFlag.ToFullPath();
+            if (Path.GetDirectoryName(path) is { Length: > 0 } directory)
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             await using (var stream = new FileStream(path, FileMode.Create))
             {
                 await WolverineEventModelExport.WriteAsync(model, stream);
