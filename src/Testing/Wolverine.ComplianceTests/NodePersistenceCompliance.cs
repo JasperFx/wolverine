@@ -279,4 +279,37 @@ public abstract class NodePersistenceCompliance : IAsyncLifetime
         resurrected.ActiveAgents.OrderBy(x => x.ToString()).ShouldBe([agent2, agent1]);
     }
 
+    [Fact]
+    public async Task clear_all_wipes_node_records_and_their_assignments()
+    {
+        // GH-3986. ClearAllAsync() is what a Solo-mode start calls to sweep the node records a previous
+        // Balanced-mode run left behind, so it has to work when the rows it deletes were written by an
+        // earlier *process*, not by this one. RavenDB's implementation deleted by tracked entity, which
+        // only works if the same session loaded it, and threw InvalidOperationException on every stale
+        // node. Two nodes, so a provider that only clears the first one is caught as well.
+        var first = createNode();
+        var second = createNode();
+
+        first.AssignedNodeNumber = await _database.Nodes.PersistAsync(first, CancellationToken.None);
+        second.AssignedNodeNumber = await _database.Nodes.PersistAsync(second, CancellationToken.None);
+
+        var agent1 = new Uri("red://leader");
+        var agent2 = new Uri("red://five");
+        var agent3 = new Uri("blue://leader");
+
+        await _database.Nodes.AssignAgentsAsync(first.NodeId, new[] { agent1, agent2 }, CancellationToken.None);
+        await _database.Nodes.AssignAgentsAsync(second.NodeId, new[] { agent3 }, CancellationToken.None);
+
+        await _database.Nodes.ClearAllAsync(CancellationToken.None);
+
+        (await _database.Nodes.LoadAllNodesAsync(CancellationToken.None)).ShouldBeEmpty();
+
+        // The assignments have to go too, not just the node rows. Re-registering the same node id is the
+        // provider-agnostic way to see them: if the assignment records survived, they reattach here.
+        await _database.Nodes.ReregisterNodeAsync(first, CancellationToken.None);
+
+        var reregistered = (await _database.Nodes.LoadAllNodesAsync(CancellationToken.None)).Single();
+        reregistered.NodeId.ShouldBe(first.NodeId);
+        reregistered.ActiveAgents.ShouldBeEmpty();
+    }
 }
