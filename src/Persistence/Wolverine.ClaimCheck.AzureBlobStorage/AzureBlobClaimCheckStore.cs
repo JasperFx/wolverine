@@ -19,8 +19,16 @@ public class AzureBlobClaimCheckStore : IClaimCheckStore
         _containerClient = containerClient ?? throw new ArgumentNullException(nameof(containerClient));
     }
 
-    public AzureBlobClaimCheckStore(string connectionString, string containerName)
-        : this(new BlobContainerClient(connectionString, containerName))
+    /// <param name="connectionString">Connection string for the target storage account.</param>
+    /// <param name="containerName">Blob container that holds the off-loaded payloads.</param>
+    /// <param name="options">
+    /// Optional client options. Chiefly useful for pinning
+    /// <see cref="BlobClientOptions.ServiceVersion"/> when the endpoint is an emulator or an older
+    /// storage service that does not yet accept the version the SDK sends by default.
+    /// </param>
+    public AzureBlobClaimCheckStore(string connectionString, string containerName,
+        BlobClientOptions? options = null)
+        : this(new BlobContainerClient(connectionString, containerName, options))
     {
     }
 

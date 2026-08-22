@@ -445,29 +445,39 @@ partial class Build
         });
 
     /// <summary>
-    /// GH-3566: the claim-check backend suites had no CI target at all -- every backend shipped with tests
-    /// that only ever ran on a developer machine. This covers the three database-backed stores, which need
-    /// nothing beyond the Postgres and SQL Server containers already in the compose file. The object-store
-    /// backends (S3, Azure, GCS, NATS) still need their emulators and carry their own skip guards.
+    /// GH-3566 / GH-4007: the claim-check backend suites had no CI target at all -- every backend shipped
+    /// with tests that only ever ran on a developer machine, and were merely *compiled* by the
+    /// full-solution build. This runs all seven, database-backed and object-store alike.
     /// </summary>
+    /// <remarks>
+    /// The object-store suites keep their own per-emulator skip guards so a developer without, say,
+    /// Azurite running still gets a clean local run. The point of this target is that CI has every
+    /// emulator, so nothing skips there. Azurite in particular was missing from the compose file
+    /// entirely, which meant the Azure Blob suite skipped everywhere -- see GH-4007.
+    /// </remarks>
     Target CIClaimCheck => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
         {
-            var claimCheck = RootDirectory / "src" / "Persistence";
-            var postgresql = claimCheck / "Wolverine.ClaimCheck.Postgresql.Tests" /
-                             "Wolverine.ClaimCheck.Postgresql.Tests.csproj";
-            var sqlServer = claimCheck / "Wolverine.ClaimCheck.SqlServer.Tests" /
-                            "Wolverine.ClaimCheck.SqlServer.Tests.csproj";
-            var marten = claimCheck / "Wolverine.ClaimCheck.Marten.Tests" /
-                         "Wolverine.ClaimCheck.Marten.Tests.csproj";
+            AbsolutePath suite(string name) =>
+                RootDirectory / "src" / "Persistence" / $"Wolverine.ClaimCheck.{name}.Tests" /
+                $"Wolverine.ClaimCheck.{name}.Tests.csproj";
 
-            BuildTestProjects(postgresql, sqlServer, marten);
-            StartDockerServices("postgresql", "sqlserver");
+            var databaseSuites = new[] { suite("Postgresql"), suite("SqlServer"), suite("Marten") };
+            var objectStoreSuites = new[]
+            {
+                suite("AmazonS3"), suite("AzureBlobStorage"), suite("GoogleCloudStorage"), suite("Nats")
+            };
 
-            RunTestProject(postgresql);
-            RunTestProject(sqlServer);
-            RunTestProject(marten);
+            var all = databaseSuites.Concat(objectStoreSuites).ToArray();
+
+            BuildTestProjects(all);
+            StartDockerServices("postgresql", "sqlserver", "localstack", "azurite", "fake-gcs-server", "nats");
+
+            foreach (var project in all)
+            {
+                RunTestProject(project);
+            }
         });
 
     Target CISqlite => _ => _

@@ -20,7 +20,7 @@ public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
             return;
         }
 
-        _container = new BlobContainerClient(Azurite.ConnectionString, _containerName);
+        _container = Azurite.ContainerClient(_containerName);
         await _container.CreateIfNotExistsAsync();
         _store = new AzureBlobClaimCheckStore(_container);
     }
@@ -80,7 +80,8 @@ public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
     public async Task connection_string_constructor_works()
     {
         await using var _ = new DisposableContainer(_containerName + "-cs");
-        var altStore = new AzureBlobClaimCheckStore(Azurite.ConnectionString, _containerName + "-cs");
+        var altStore = new AzureBlobClaimCheckStore(Azurite.ConnectionString, _containerName + "-cs",
+            new BlobClientOptions(Azurite.MaxSupportedServiceVersion));
         await altStore.ContainerClient.CreateIfNotExistsAsync();
 
         var token = await altStore.StoreAsync(new byte[] { 9, 8, 7 }, "application/octet-stream");
@@ -94,7 +95,7 @@ public class AzureBlobClaimCheckStoreTests : IAsyncLifetime
         private readonly BlobContainerClient _client;
         public DisposableContainer(string name)
         {
-            _client = new BlobContainerClient(Azurite.ConnectionString, name);
+            _client = Azurite.ContainerClient(name);
         }
 
         public async ValueTask DisposeAsync()
