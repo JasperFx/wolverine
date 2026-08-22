@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Net.Sockets;
+using Azure.Storage.Blobs;
 
 namespace Wolverine.ClaimCheck.AzureBlobStorage.Tests;
 
@@ -15,6 +16,20 @@ internal static class Azurite
         "AccountName=devstoreaccount1;" +
         "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;" +
         "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
+
+    /// <summary>
+    /// The newest blob service version Azurite understands. The Azure SDK defaults to the newest version
+    /// it knows about, which runs ahead of the emulator — sending it makes Azurite reject every request
+    /// with <c>InvalidHeaderValue</c>, and because this suite skipped everywhere before GH-4007 nobody
+    /// ever saw it. Pin the emulator client to a version Azurite supports; production clients keep the
+    /// SDK default against real Azure Storage.
+    /// </summary>
+    public const BlobClientOptions.ServiceVersion MaxSupportedServiceVersion =
+        BlobClientOptions.ServiceVersion.V2025_11_05;
+
+    /// <summary>A <see cref="BlobContainerClient"/> pinned to a service version Azurite accepts.</summary>
+    public static BlobContainerClient ContainerClient(string containerName)
+        => new(ConnectionString, containerName, new BlobClientOptions(MaxSupportedServiceVersion));
 
     public const string Host = "127.0.0.1";
     public const int Port = 10000;
