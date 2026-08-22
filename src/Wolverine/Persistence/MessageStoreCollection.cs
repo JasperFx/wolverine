@@ -313,6 +313,36 @@ public class MessageStoreCollection : IAgentFamily, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    ///     Verify that every store's durable objects exist and match configuration, throwing when they do
+    ///     not. The counterpart to <see cref="MigrateAsync" /> for a system that provisions its storage ahead
+    ///     of startup instead of building it there, and it has to cover the same set of stores: an ancillary
+    ///     store whose schema was never provisioned fails whenever something first uses it, which can be a
+    ///     long way from startup.
+    /// </summary>
+    public async Task AssertStorageExistsAsync(CancellationToken token)
+    {
+        var stores = await FindAllAsync();
+        var exceptions = new List<Exception>();
+
+        foreach (var store in stores)
+        {
+            try
+            {
+                await store.Admin.AssertStorageExistsAsync(token);
+            }
+            catch (Exception e)
+            {
+                exceptions.Add(e);
+            }
+        }
+
+        if (exceptions.Count != 0)
+        {
+            throw new AggregateException(exceptions);
+        }
+    }
+
     public string Scheme => PersistenceConstants.AgentScheme;
     public async ValueTask<IReadOnlyList<Uri>> AllKnownAgentsAsync()
     {
