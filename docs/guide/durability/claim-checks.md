@@ -221,6 +221,28 @@ builder.Host.UseWolverine(opts =>
 
 The server must have JetStream enabled. The object-store bucket is created on first use if it does not already exist. Token id maps to the object name; the content type travels with the token. `DeleteAsync` is idempotent — a missing object is treated as already deleted. An overload accepting an existing `INatsObjContext` is also available if you manage the object-store context yourself.
 
+#### Expiring NATS payloads <Badge type="tip" text="6.30" />
+
+Pass a `maxAge` and Wolverine configures the bucket it creates with a native TTL — the NATS server then
+expires off-loaded payloads itself:
+
+```csharp
+opts.UseClaimCheck(cc => cc.UseNatsObjectStore(
+    connection,
+    bucketName: "wolverine-claim-checks",
+    maxAge: 7.Days()));
+```
+
+This is the option to prefer: expiry is server-side, costs nothing, and keeps working while your
+application is down. Note that it only applies to a bucket **Wolverine creates** — an existing bucket keeps
+whatever max age it was already configured with.
+
+For a bucket you did not let Wolverine create, this backend also implements
+`IClaimCheckStoreWithExpiration`, so [`DeletePayloadsOlderThan(...)`](#expiring-old-payloads) works here
+too. Unlike the cloud object stores — where enumerating a bucket means a billed LIST request on every pass,
+which is why they deliberately opt out — a NATS listing reads the bucket's local metadata stream, so
+sweeping is cheap.
+
 ### PostgreSQL (database LOB)
 
 The zero-new-infrastructure option for critter-stack users: off-loaded payloads are stored as `bytea` rows in your existing PostgreSQL database — no S3 / Azure / GCS account required.
@@ -409,8 +431,8 @@ claim-check store writes to and you are done — no Wolverine configuration, no 
 keeps working even while your application is down. These backends deliberately do **not** implement
 Wolverine-driven sweeping for exactly that reason.
 
-**2. A Wolverine-driven sweep.** For backends with no native lifecycle support — the file system
-store and the database-LOB stores — call `DeletePayloadsOlderThan`:
+**2. A Wolverine-driven sweep.** For backends where enumeration is cheap — the file system store, the
+database-LOB stores, and [NATS](#nats-jetstream-object-store) — call `DeletePayloadsOlderThan`:
 
 ```csharp
 opts.UseClaimCheck(cc =>
