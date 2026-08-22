@@ -249,6 +249,85 @@ opts.UseClaimCheck(cc => cc.UsePostgresqlClaimCheck(myDataSource));
 
 The claim check table is created on first use (`create schema/table if not exists`). Token id maps to the row's primary key; the content type and length are stored alongside the `bytea` body. `DeleteAsync` is naturally idempotent — deleting a missing row is a no-op. This backend supports Wolverine-driven expiration — see [Expiring old payloads](#expiring-old-payloads) — and because the payloads live in a table you own, database-native cleanup (a scheduled `delete ... where created < ...`) works too.
 
+### SQL Server (database LOB)
+
+The SQL Server sibling of the PostgreSQL backend: off-loaded payloads are stored as `varbinary(max)` rows
+in your existing SQL Server database.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.SqlServer
+```
+
+```csharp
+using Wolverine.ClaimCheck.SqlServer;
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UseSqlServerClaimCheck(
+        connectionString: builder.Configuration.GetConnectionString("SqlServer")!,
+        schemaName: "dbo",
+        tableName: "wolverine_claim_check"));
+});
+```
+
+An overload accepting a connection factory is available when connections need custom construction, for
+example an access-token credential:
+
+```csharp
+opts.UseClaimCheck(cc => cc.UseSqlServerClaimCheck(async token =>
+{
+    var conn = new SqlConnection(connectionString) { AccessToken = await getTokenAsync() };
+    await conn.OpenAsync(token);
+    return conn;
+}));
+```
+
+The schema, table, and expiration index are created on first use. Token id maps to the row's primary key,
+and `DeleteAsync` is naturally idempotent. This backend supports
+[Wolverine-driven expiration](#expiring-old-payloads).
+
+Schema and table names must be **simple identifiers**. A dotted value such as `crm.sales` is rejected
+outright rather than being silently treated as a multi-part name.
+
+### Marten (database LOB)
+
+For critter-stack applications already using Marten, this stores off-loaded payloads in the database Marten
+is already connected to — no connection string to configure, no second database, no object store.
+
+```sh
+dotnet add package WolverineFx.ClaimCheck.Marten
+```
+
+```csharp
+using Wolverine.ClaimCheck.Marten;
+
+builder.Services.AddMarten(/* ... */).IntegrateWithWolverine();
+
+builder.Host.UseWolverine(opts =>
+{
+    opts.UseClaimCheck(cc => cc.UseMartenClaimCheck());
+});
+```
+
+The payload table is created on first use in Marten's own `DatabaseSchemaName` (override with the
+`schemaName` / `tableName` arguments), and the backend supports
+[Wolverine-driven expiration](#expiring-old-payloads).
+
+::: tip Payloads are `bytea` rows, not Marten documents
+This backend deliberately does *not* store payloads as Marten documents. A Marten document is JSONB, which
+base64-encodes a binary body for roughly 33% storage overhead plus encode/decode cost on every payload —
+exactly the wrong trade for the large-payload workload claim checks exist to serve. What it takes from
+Marten is the *connectivity and schema*, which is what "zero new infrastructure" actually means here.
+
+One consequence: because the payload table is not a document, it does not take part in Marten's schema
+management or appear in `IDocumentStore.Advanced` operations. It is created lazily, exactly like the
+standalone PostgreSQL backend's table.
+:::
+
+With separate-database (conjoined) tenancy the payloads go in the **master** database. Claim-check tokens
+are opaque and carry no tenant semantics, so scattering payloads across tenant databases would leave a
+receiving node unable to tell which one to read from.
+
 ### File system (built in)
 
 For local development, integration tests, or single-node deployments you can use the bundled `FileSystemClaimCheckStore` directly:

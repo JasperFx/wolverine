@@ -68,6 +68,7 @@ jobs:
           - CISqlite
           - CISqlServer
           - CICircuitBreaking
+          - CIClaimCheck
           - CIAotSmoke
           # NOTE: CISlowTests is deliberately NOT here. It is wall-clock bound by design and blew
           # through the 20 minute cap on its first run; it lives in slow-tests.yml as a manual job.

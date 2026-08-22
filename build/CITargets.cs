@@ -444,6 +444,32 @@ partial class Build
             RunTestProject(postgresqlTests);
         });
 
+    /// <summary>
+    /// GH-3566: the claim-check backend suites had no CI target at all -- every backend shipped with tests
+    /// that only ever ran on a developer machine. This covers the three database-backed stores, which need
+    /// nothing beyond the Postgres and SQL Server containers already in the compose file. The object-store
+    /// backends (S3, Azure, GCS, NATS) still need their emulators and carry their own skip guards.
+    /// </summary>
+    Target CIClaimCheck => _ => _
+        .ProceedAfterFailure()
+        .Executes(() =>
+        {
+            var claimCheck = RootDirectory / "src" / "Persistence";
+            var postgresql = claimCheck / "Wolverine.ClaimCheck.Postgresql.Tests" /
+                             "Wolverine.ClaimCheck.Postgresql.Tests.csproj";
+            var sqlServer = claimCheck / "Wolverine.ClaimCheck.SqlServer.Tests" /
+                            "Wolverine.ClaimCheck.SqlServer.Tests.csproj";
+            var marten = claimCheck / "Wolverine.ClaimCheck.Marten.Tests" /
+                         "Wolverine.ClaimCheck.Marten.Tests.csproj";
+
+            BuildTestProjects(postgresql, sqlServer, marten);
+            StartDockerServices("postgresql", "sqlserver");
+
+            RunTestProject(postgresql);
+            RunTestProject(sqlServer);
+            RunTestProject(marten);
+        });
+
     Target CISqlite => _ => _
         .ProceedAfterFailure()
         .Executes(() =>
