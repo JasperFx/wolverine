@@ -61,6 +61,10 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
         // visible to the finally and gets restored. Otherwise a failed off-load would leak cleared
         // properties into subsequent in-process handling of the same Envelope.
         var offloaded = new List<OffloadedBlob>();
+        // Every token written during this serialization, so that a failure at ANY later point — a second
+        // [Blob] property, or the whole-body off-load that runs afterwards — can delete the payloads that
+        // will now never be referenced by anything on the wire. See GH-3509.
+        var uploaded = new List<ClaimCheckToken>();
         try
         {
             if (message is not null)
@@ -69,7 +73,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 if (info.HasBlobs)
                 {
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
-                    StoreBlobsAsync(envelope, message, info, offloaded, selection).GetAwaiter().GetResult();
+                    StoreBlobsAsync(envelope, message, info, offloaded, uploaded, selection).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
                 }
             }
@@ -77,6 +81,13 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
 #pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
             return maybeOffloadBodyAsync(envelope, _inner.Write(envelope), selection).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
+        }
+        catch
+        {
+#pragma warning disable VSTHRD002 // Documented blocking call, see class remarks
+            deleteQuietlyAsync(selection.Store, uploaded).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+            throw;
         }
         finally
         {
@@ -94,14 +105,22 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 var info = BlobTypeInfo.For(message.GetType());
                 if (info.HasBlobs)
                 {
-                    // No envelope is available here so the tokens cannot be smuggled
-                    // back to the consumer. We still upload the payloads for symmetry,
-                    // but nullify the properties so the inner serializer doesn't pull
-                    // bytes through the wire under both paths.
-                    var selection = _router.ResolveForSend(message.GetType(), envelope: null);
-#pragma warning disable VSTHRD002
-                    StoreBlobsAsync(envelope: null, message, info, offloaded, selection).GetAwaiter().GetResult();
-#pragma warning restore VSTHRD002
+                    // No envelope is available here, so there is nowhere to stamp a claim-check header and
+                    // the token would be unreachable by construction. This path used to upload anyway "for
+                    // symmetry", which orphaned a payload on EVERY call with no way for anything to ever
+                    // read or delete it (GH-3509). Clear the properties so the inner serializer still keeps
+                    // the body small, and skip the pointless upload.
+                    foreach (var accessor in info.Properties)
+                    {
+                        var bytes = accessor.ReadPayload(message);
+                        if (bytes is null || bytes.Length == 0)
+                        {
+                            continue;
+                        }
+
+                        accessor.Clear(message);
+                        offloaded.Add(new OffloadedBlob(accessor, bytes));
+                    }
                 }
             }
 
@@ -118,6 +137,8 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
         var message = envelope.Message;
         var selection = _router.ResolveForSend(message?.GetType(), envelope);
         var offloaded = new List<OffloadedBlob>();
+        // See the note in Write(Envelope) -- tracked so a later failure can delete the orphans. GH-3509.
+        var uploaded = new List<ClaimCheckToken>();
         try
         {
             if (message is not null)
@@ -125,7 +146,8 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 var info = BlobTypeInfo.For(message.GetType());
                 if (info.HasBlobs)
                 {
-                    await StoreBlobsAsync(envelope, message, info, offloaded, selection).ConfigureAwait(false);
+                    await StoreBlobsAsync(envelope, message, info, offloaded, uploaded, selection)
+                        .ConfigureAwait(false);
                 }
             }
 
@@ -134,6 +156,11 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
                 : _inner.Write(envelope);
 
             return await maybeOffloadBodyAsync(envelope, body, selection).ConfigureAwait(false);
+        }
+        catch
+        {
+            await deleteQuietlyAsync(selection.Store, uploaded).ConfigureAwait(false);
+            throw;
         }
         finally
         {
@@ -266,7 +293,7 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
     /// of two blobs) the caller's finally still restores every property cleared so far.
     /// </summary>
     private async Task StoreBlobsAsync(Envelope? envelope, object message, BlobTypeInfo info,
-        List<OffloadedBlob> offloaded, ClaimCheckSelection selection)
+        List<OffloadedBlob> offloaded, List<ClaimCheckToken> uploaded, ClaimCheckSelection selection)
     {
         foreach (var accessor in info.Properties)
         {
@@ -277,6 +304,11 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
             }
 
             var token = await selection.Store.StoreAsync(bytes, accessor.ContentType).ConfigureAwait(false);
+
+            // Recorded before the header is stamped so the caller can clean this payload up if any
+            // later step of the same serialization throws. See GH-3509.
+            uploaded.Add(token);
+
             if (envelope is not null)
             {
                 envelope.Headers[accessor.HeaderName] = token.Serialize();
@@ -284,6 +316,26 @@ internal sealed class ClaimCheckMessageSerializer : IMessageSerializer, IAsyncMe
             }
             accessor.Clear(message);
             offloaded.Add(new OffloadedBlob(accessor, bytes));
+        }
+    }
+
+    /// <summary>
+    /// Best-effort cleanup of payloads uploaded for a send that then failed. A delete that itself fails is
+    /// swallowed: the caller is already throwing the real error, and losing that to a secondary storage
+    /// failure would be strictly worse than leaving an orphan behind for the sweeper.
+    /// </summary>
+    private static async Task deleteQuietlyAsync(IClaimCheckStore store, List<ClaimCheckToken> tokens)
+    {
+        foreach (var token in tokens)
+        {
+            try
+            {
+                await store.DeleteAsync(token).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Intentionally ignored -- see the summary above.
+            }
         }
     }
 

@@ -11,7 +11,7 @@ namespace Wolverine.ClaimCheck.Postgresql;
 /// PostgreSQL database — the zero-new-infrastructure option for critter-stack users, requiring no
 /// S3 / Azure / GCS account. The <see cref="ClaimCheckToken.Id"/> maps to the row's primary key.
 /// </summary>
-public class PostgresqlClaimCheckStore : IClaimCheckStore
+public class PostgresqlClaimCheckStore : IClaimCheckStoreWithExpiration
 {
     // Postgres identifiers we build DDL/DML for are validated against this so the schema/table
     // names (which come from configuration) can be safely embedded in quoted identifiers.
@@ -21,6 +21,7 @@ public class PostgresqlClaimCheckStore : IClaimCheckStore
     private readonly string _schemaName;
     private readonly string _tableName;
     private readonly string _qualifiedTable;
+    private readonly string _createdIndexName;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private bool _provisioned;
@@ -61,6 +62,7 @@ public class PostgresqlClaimCheckStore : IClaimCheckStore
         _schemaName = schemaName;
         _tableName = tableName;
         _qualifiedTable = $"\"{schemaName}\".\"{tableName}\"";
+        _createdIndexName = $"\"{tableName}_created_idx\"";
     }
 
     /// <summary>The schema that owns the claim check table.</summary>
@@ -85,12 +87,21 @@ public class PostgresqlClaimCheckStore : IClaimCheckStore
 
         await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var cmd = conn.CreateCommand();
+        // created is written explicitly rather than left to the column default. The default is
+        // `now() at time zone 'utc'`, which yields a timestamp WITHOUT time zone holding UTC wall clock
+        // and is then re-interpreted in the session's time zone on the way into the timestamptz column --
+        // so on any non-UTC session the stored value is skewed by the offset. The expiration sweep
+        // (GH-3509) compares against a true UTC cutoff, so it needs a true UTC value here. Setting it on
+        // the insert also fixes tables that were already provisioned with the old default.
         cmd.CommandText =
-            $"insert into {_qualifiedTable} (id, content_type, body, length) values (@id, @ct, @body, @len)";
+            $"insert into {_qualifiedTable} (id, content_type, body, length, created) " +
+            "values (@id, @ct, @body, @len, @created)";
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("ct", contentType);
         cmd.Parameters.Add(new NpgsqlParameter("body", NpgsqlDbType.Bytea) { Value = payload.ToArray() });
         cmd.Parameters.AddWithValue("len", (long)payload.Length);
+        cmd.Parameters.Add(new NpgsqlParameter("created", NpgsqlDbType.TimestampTz)
+            { Value = DateTime.UtcNow });
 
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
@@ -141,6 +152,34 @@ public class PostgresqlClaimCheckStore : IClaimCheckStore
         await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// GH-3509 sweep support. The <c>ctid</c> sub-select is what lets a plain <c>delete</c> honour a
+    /// <c>limit</c> — PostgreSQL has no <c>delete ... limit</c> — so one pass removes a bounded batch
+    /// rather than locking every expired row at once.
+    /// </summary>
+    public async Task<int> DeleteExpiredPayloadsAsync(
+        DateTimeOffset cutoff,
+        int maxCount,
+        CancellationToken cancellationToken = default)
+    {
+        if (maxCount <= 0)
+        {
+            return 0;
+        }
+
+        await ensureProvisionedAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var conn = await _dataSource.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            $"delete from {_qualifiedTable} where ctid in " +
+            $"(select ctid from {_qualifiedTable} where created < @cutoff limit @max)";
+        cmd.Parameters.AddWithValue("cutoff", cutoff.UtcDateTime);
+        cmd.Parameters.AddWithValue("max", maxCount);
+
+        return await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task ensureProvisionedAsync(CancellationToken cancellationToken)
     {
         if (_provisioned)
@@ -165,7 +204,10 @@ public class PostgresqlClaimCheckStore : IClaimCheckStore
                 "content_type text not null, " +
                 "body bytea not null, " +
                 "length bigint not null, " +
-                "created timestamptz not null default (now() at time zone 'utc'));";
+                "created timestamptz not null default now());" +
+                // GH-3509: the expiration sweep filters on created, and every row here is a large
+                // payload -- without this index the sweep seq-scans the whole table on every pass.
+                $"create index if not exists {_createdIndexName} on {_qualifiedTable} (created);";
 
             await cmd.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
