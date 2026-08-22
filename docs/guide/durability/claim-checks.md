@@ -259,6 +259,63 @@ opts.UseClaimCheck(cc => cc.UseFileSystem("/var/wolverine/claim-checks"));
 
 Each payload is written as `{id}.bin`, with a sidecar `{id}.meta` file recording the original content type so the round-trip is lossless even if the token were ever reconstructed externally.
 
+## Consuming MassTransit MessageData
+
+If you are migrating off MassTransit, or running Wolverine and MassTransit services side by side, Wolverine
+can read MassTransit's [`MessageData<T>`](https://masstransit.io/documentation/patterns/claim-check)
+claim-check references directly:
+
+```csharp
+opts.UseRabbitMq(/* ... */)
+    .UseConventionalRouting();
+
+opts.PublishAllMessages().ToRabbitQueue("large-docs")
+    .UseMassTransitInterop(mt =>
+    {
+        // Point Wolverine's store at the SAME bucket MassTransit's repository writes to
+        mt.ReadMessageDataFrom(new AmazonS3ClaimCheckStore(s3Client, "mt-message-data"));
+    });
+```
+
+Any property marked with `[Blob]` on the incoming message is then hydrated from that store. `[Blob]` is
+reused as the opt-in marker deliberately — a property big enough for MassTransit to have off-loaded is the
+same property Wolverine would off-load, so a contract shared across the migration needs no extra
+annotation. It also matters for correctness: a blanket rule over every `byte[]` or `string` property would
+try to read ordinary values as claim-check references.
+
+::: warning MassTransit's reference is in the body, not a header
+Wolverine carries its own claim-check token in an envelope header. MassTransit does not — it writes a JSON
+object *inside the message body*, of the form `{ "data-ref": "…", "text": "…", "data": "…" }`. `text` and
+`data` are the inline forms MassTransit uses for payloads under its 4&nbsp;KB threshold; when either is
+present Wolverine uses it directly and never calls the store.
+:::
+
+Wolverine understands the address formats produced by MassTransit's file-system, Amazon S3, and Azure
+Storage repositories:
+
+| MassTransit repository | Address | Payload id |
+| --- | --- | --- |
+| File system / Amazon S3 | `urn:file:{key}` (colons for separators) | segments rejoined with `/` |
+| Azure Storage | `https://…/{container}/{blob}` | everything after the container segment |
+| In-memory | `urn:msgdata:{id}` | rejected — see below |
+
+An Azure blob name ending in `.gz` is gunzipped automatically, matching that repository's compression
+option. For a custom `IMessageDataRepository` with its own address format, pass a mapper:
+
+```csharp
+mt.ReadMessageDataFrom(store, address => address.Segments.Last());
+```
+
+Two limits worth knowing up front:
+
+- **The address carries the key, not the bucket.** MassTransit's repository configuration owns the
+  bucket/container, so it never appears in the address. The store you pass to `ReadMessageDataFrom` must be
+  pointed at the same one, or every lookup will miss.
+- **MassTransit's in-memory repository cannot be read at all.** Its payloads never leave the producing
+  process. Wolverine fails with an explicit message saying so rather than a confusing lookup failure.
+
+This is a **read/consume path only** — Wolverine does not produce MassTransit-compatible references, and
+the outbound path is unchanged by enabling it.
 ## Expiring old payloads
 
 Nothing about a successful send tells Wolverine when the payload behind it stops being needed — the
