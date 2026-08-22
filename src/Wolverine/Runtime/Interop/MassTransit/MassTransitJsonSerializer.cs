@@ -1,4 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
+using Wolverine.Persistence;
 using ImTools;
 using JasperFx.Core;
 using Wolverine.Runtime.Serialization;
@@ -19,6 +22,10 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
 
     private Func<MassTransitEnvelope, string?>? _tenantIdSource;
 
+    private IClaimCheckStore? _messageDataStore;
+    private Func<Uri, string>? _messageDataAddressToId;
+    private Action<JsonSerializerOptions>? _jsonConfiguration;
+
     public MassTransitJsonSerializer(IMassTransitInteropEndpoint endpoint)
     {
         _endpoint = endpoint;
@@ -32,11 +39,17 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
     /// <param name="configuration"></param>
     public void UseSystemTextJsonForSerialization(Action<JsonSerializerOptions>? configuration = null)
     {
+        _jsonConfiguration = configuration;
+
         var options = SystemTextJsonSerializer.DefaultOptions();
 
         configuration?.Invoke(options);
 
         _inner = new SystemTextJsonSerializer(options);
+
+        // GH-3510: re-attach the MessageData modifier if it was configured first, so the two opt-ins
+        // compose regardless of the order the user calls them in.
+        applyMessageDataOptions();
     }
 
     public IMassTransitInterop MapTenantIdFrom<T>(Func<MassTransitEnvelope<T>, string?> tenantIdSource)
@@ -51,6 +64,45 @@ public class MassTransitJsonSerializer : IMessageSerializer, IMassTransitInterop
             mtEnvelope is MassTransitEnvelope<T> typed ? tenantIdSource(typed) : previous?.Invoke(mtEnvelope);
 
         return this;
+    }
+
+    public IMassTransitInterop ReadMessageDataFrom(IClaimCheckStore store, Func<Uri, string>? addressToId = null)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+
+        _messageDataStore = store;
+        _messageDataAddressToId = addressToId;
+
+        // Rebuild the inner serializer so the modifier is attached. Any options the caller already applied
+        // through UseSystemTextJsonForSerialization are re-applied on top, so call order does not matter.
+        applyMessageDataOptions();
+
+        return this;
+    }
+
+    // The MassTransit interop path is reflection-based JSON by construction -- it deserializes into
+    // MassTransitEnvelope<T> closed over the runtime message type -- so it is already outside the
+    // trim/AOT-safe subset that a source-generated context would provide. Attaching a type-info modifier
+    // adds no new reflection beyond what this serializer already performs.
+    [UnconditionalSuppressMessage("Trimming", "IL2026",
+        Justification = "MassTransit interop already requires reflection-based JSON; see the AOT guide.")]
+    [UnconditionalSuppressMessage("AOT", "IL3050",
+        Justification = "MassTransit interop already requires reflection-based JSON; see the AOT guide.")]
+    private void applyMessageDataOptions()
+    {
+        if (_messageDataStore is null)
+        {
+            return;
+        }
+
+        var options = SystemTextJsonSerializer.DefaultOptions();
+        _jsonConfiguration?.Invoke(options);
+
+        var resolver = options.TypeInfoResolver as DefaultJsonTypeInfoResolver ?? new DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(MassTransitMessageDataResolver.ModifierFor(_messageDataStore, _messageDataAddressToId));
+        options.TypeInfoResolver = resolver;
+
+        _inner = new SystemTextJsonSerializer(options);
     }
 
     /// <summary>

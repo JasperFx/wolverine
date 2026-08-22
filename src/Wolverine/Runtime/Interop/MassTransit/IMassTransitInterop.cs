@@ -27,6 +27,31 @@ public interface IMassTransitInterop
     /// <typeparam name="T">The Wolverine message type to extract the tenant id from.</typeparam>
     IMassTransitInterop MapTenantIdFrom<T>(Func<MassTransitEnvelope<T>, string?> tenantIdSource) where T : class;
 
+    /// <summary>
+    ///     Read MassTransit's <c>MessageData&lt;T&gt;</c> claim-check references on incoming messages,
+    ///     hydrating each <c>[Blob]</c>-marked property from <paramref name="store"/>. This lets a Wolverine
+    ///     service consume large-message envelopes produced by a MassTransit service that shares the same
+    ///     blob/object store. Read side only — Wolverine does not produce MassTransit-compatible references.
+    ///     See GH-3510.
+    /// </summary>
+    /// <remarks>
+    ///     MassTransit's address carries the object key but <b>not</b> the bucket or container, which come
+    ///     from the MassTransit repository's own configuration. <paramref name="store"/> must therefore be
+    ///     pointed at the same bucket/container the MassTransit side writes to.
+    /// </remarks>
+    /// <param name="store">
+    ///     The claim-check store to load payloads from, pointed at MassTransit's own bucket/container.
+    /// </param>
+    /// <param name="addressToId">
+    ///     Optional override translating a MassTransit repository address into a payload id. Wolverine
+    ///     understands the addresses produced by MassTransit's file-system, Amazon S3, and Azure Storage
+    ///     repositories out of the box; supply this only for a custom <c>IMessageDataRepository</c> whose
+    ///     address format differs.
+    /// </param>
+    IMassTransitInterop ReadMessageDataFrom(
+        Wolverine.Persistence.IClaimCheckStore store,
+        Func<Uri, string>? addressToId = null);
+
     // Newtonsoft.Json variant moved to WolverineFx.Newtonsoft as the
     // UseNewtonsoftForSerialization(this IMassTransitInterop, ...)
     // extension method. Install WolverineFx.Newtonsoft to opt in.
