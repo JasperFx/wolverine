@@ -1,3 +1,4 @@
+using JasperFx.Core;
 using Wolverine.Persistence.ClaimCheck.Internal;
 
 namespace Wolverine.Persistence;
@@ -96,6 +97,52 @@ public class ClaimCheckConfiguration
         }
 
         AutoOffloadThreshold = thresholdInBytes;
+        return this;
+    }
+
+    /// <summary>
+    /// When set, Wolverine periodically deletes off-loaded payloads older than this age from every
+    /// configured store that implements <see cref="IClaimCheckStoreWithExpiration"/>. Null (the default)
+    /// disables sweeping entirely, which is the pre-GH-3509 behavior: nothing in the pipeline ever deletes
+    /// a payload, and the operator is responsible for the storage backend's own lifecycle rules.
+    /// </summary>
+    /// <remarks>
+    /// The TTL must comfortably exceed the longest window in which a message could still need its payload —
+    /// scheduled delivery, retry back-offs, and time spent parked in a dead-letter queue all count. A payload
+    /// swept out from under a message that is later delivered will fail to re-hydrate.
+    /// </remarks>
+    public TimeSpan? PayloadTimeToLive { get; set; }
+
+    /// <summary>
+    /// How often the claim-check sweeper runs when <see cref="PayloadTimeToLive"/> is set. Defaults to
+    /// ten minutes. The sweeper runs on every node rather than electing a leader — deletion by age is
+    /// idempotent, so overlapping sweeps are harmless — and each node applies its own random jitter so
+    /// a large cluster does not stampede the store on a fixed cadence.
+    /// </summary>
+    public TimeSpan SweepInterval { get; set; } = 10.Minutes();
+
+    /// <summary>
+    /// The maximum number of payloads a single sweep pass will delete from one store. Bounding the batch
+    /// keeps a first sweep over a store with a large backlog from turning into one enormous delete. When a
+    /// pass deletes a full batch the sweeper immediately runs again rather than waiting out
+    /// <see cref="SweepInterval"/>, so a backlog still drains promptly. Defaults to 1000.
+    /// </summary>
+    public int SweepBatchSize { get; set; } = 1000;
+
+    /// <summary>
+    /// Periodically delete off-loaded payloads older than <paramref name="timeToLive"/> from every configured
+    /// store that supports expiration. See <see cref="PayloadTimeToLive"/> for the sizing caveat. See GH-3509.
+    /// </summary>
+    /// <param name="timeToLive">How long a payload is retained after it is stored.</param>
+    public ClaimCheckConfiguration DeletePayloadsOlderThan(TimeSpan timeToLive)
+    {
+        if (timeToLive <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(timeToLive),
+                "The claim-check payload time to live must be a positive duration.");
+        }
+
+        PayloadTimeToLive = timeToLive;
         return this;
     }
 

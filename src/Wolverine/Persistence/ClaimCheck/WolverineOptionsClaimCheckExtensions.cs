@@ -1,6 +1,8 @@
 using System.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Wolverine.Persistence.ClaimCheck.Internal;
 
 namespace Wolverine.Persistence;
@@ -66,6 +68,33 @@ public static class WolverineOptionsClaimCheckExtensions
         // per-endpoint routes registered during configuration (GH-3508).
         var router = new ClaimCheckStoreRouter(store, configuration.AutoOffloadThreshold,
             configuration.Routes, configuration.NamedStores);
+
+        // GH-3509: register the background sweeper when a TTL was configured. The settings singleton is
+        // replaced outright so a second UseClaimCheck call sweeps the router that actually won, while
+        // TryAddEnumerable keys on (IHostedService, ClaimCheckSweeper) and therefore never registers a
+        // second sweeper. With no TTL configured nothing is registered at all, so the default behavior —
+        // Wolverine never deletes a payload — is unchanged.
+        options.Services.RemoveAll<ClaimCheckSweepSettings>();
+
+        if (configuration.PayloadTimeToLive.HasValue)
+        {
+            if (configuration.SweepInterval <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(configure),
+                    "ClaimCheckConfiguration.SweepInterval must be a positive duration.");
+            }
+
+            if (configuration.SweepBatchSize <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(configure),
+                    "ClaimCheckConfiguration.SweepBatchSize must be a positive number of payloads.");
+            }
+
+            options.Services.AddSingleton(new ClaimCheckSweepSettings(router,
+                configuration.PayloadTimeToLive.Value, configuration.SweepInterval, configuration.SweepBatchSize));
+
+            options.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ClaimCheckSweeper>());
+        }
 
         // If UseClaimCheck has already been applied to this options instance,
         // unwrap and re-wrap so the operation is idempotent (new store wins).
